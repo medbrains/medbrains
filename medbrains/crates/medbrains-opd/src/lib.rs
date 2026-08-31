@@ -1421,6 +1421,38 @@ pub async fn list_queue(
 const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
 
 /// Nudge a department's boards after a queue transition commits.
+/// Move the encounter's token alongside the queue row it mirrors.
+///
+/// `opd_queues` is the clinic's own record and no board reads it: the
+/// waiting-room displays, the front-office console and the doctor's worklist
+/// all read `tokens`. Advancing one without the other is how the desk comes
+/// to believe a patient was called while every screen still shows them
+/// waiting — and the announcement, which fires only on a token moving to
+/// `called`, never happens at all.
+///
+/// In the caller's transaction so the two cannot part company. `None` back
+/// is normal and must not fail the queue action: tokens are per-day, and
+/// entries seeded or created before this module issued them have none.
+async fn advance_encounter_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    encounter_id: Uuid,
+    status: &str,
+) -> Result<Option<medbrains_tokens::Token>, AppError> {
+    medbrains_tokens::advance_entity_token_in_tx(
+        tx,
+        claims.tenant_id,
+        medbrains_tokens::AdvanceEntityToken {
+            module: "opd",
+            entity_type: "encounter",
+            entity_id: encounter_id,
+            status,
+            called_by: Some(claims.sub),
+        },
+    )
+    .await
+}
+
 fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
     medbrains_notifications::publish_board_signal(
         state,
@@ -1453,9 +1485,17 @@ pub async fn call_queue_entry(
     .fetch_optional(&mut *tx)
     .await?;
 
+    let token = match q {
+        Some(ref entry) => advance_encounter_token(&mut tx, &claims, entry.encounter_id, "called").await?,
+        None => None,
+    };
+
     tx.commit().await?;
     if let Some(ref entry) = q {
         signal_queue_changed(&state, &claims, entry);
+    }
+    if let Some(ref token) = token {
+        medbrains_tokens::announce_token(&state, token).await;
     }
     q.map_or_else(|| Err(AppError::NotFound), |e| Ok(Json(e)))
 }
@@ -1514,7 +1554,12 @@ pub async fn start_consultation(
     .execute(&mut *tx)
     .await?;
 
+    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "serving").await?;
+
     tx.commit().await?;
+    if let Some(ref token) = token {
+        medbrains_tokens::announce_token(&state, token).await;
+    }
     signal_queue_changed(&state, &claims, &q);
     Ok(Json(q))
 }
@@ -1635,7 +1680,12 @@ pub async fn complete_queue_entry(
         .await?;
     }
 
+    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "completed").await?;
+
     tx.commit().await?;
+    if let Some(ref token) = token {
+        medbrains_tokens::announce_token(&state, token).await;
+    }
 
     // Enrich payload with names for orchestration
     let department_name =
@@ -1733,7 +1783,12 @@ pub async fn mark_no_show(
     .execute(&mut *tx)
     .await?;
 
+    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "no_show").await?;
+
     tx.commit().await?;
+    if let Some(ref token) = token {
+        medbrains_tokens::announce_token(&state, token).await;
+    }
     signal_queue_changed(&state, &claims, &q);
     Ok(Json(q))
 }

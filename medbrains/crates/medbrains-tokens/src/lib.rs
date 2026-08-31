@@ -345,6 +345,90 @@ async fn broadcast_status(state: &AppState, token: &Token) {
     }
 }
 
+/// Which token to move, and where to.
+#[derive(Debug)]
+pub struct AdvanceEntityToken<'a> {
+    pub module: &'a str,
+    pub entity_type: &'a str,
+    pub entity_id: Uuid,
+    pub status: &'a str,
+    pub called_by: Option<Uuid>,
+}
+
+/// Move the token attached to a record, inside the caller's transaction.
+///
+/// A module that keeps its own queue row — OPD keeps `opd_queues` — has to
+/// move the token in the same breath, or the two disagree: the desk sees the
+/// patient called and every board still shows them waiting. Doing it in the
+/// caller's transaction is the point; a second transaction afterwards can
+/// fail on its own and leave exactly that split.
+///
+/// Returns `None` when there is no token for the record, which is normal:
+/// tokens are per-day, and rows seeded or created before the module issued
+/// them have none. A missing token must not fail the queue action.
+///
+/// The caller announces the result with [`announce_token`] after committing,
+/// because a board told about a change that then rolls back is worse than a
+/// board told late.
+pub async fn advance_entity_token_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    input: AdvanceEntityToken<'_>,
+) -> Result<Option<Token>, AppError> {
+    if !VALID_TOKEN_STATUSES.contains(&input.status) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid token status '{}'",
+            input.status
+        )));
+    }
+    let token = sqlx::query_as::<_, Token>(&format!(
+        "UPDATE tokens SET status = $5, \
+           called_at = CASE WHEN $5 = 'called' THEN now() ELSE called_at END, \
+           called_by = CASE WHEN $5 = 'called' THEN $6 ELSE called_by END, \
+           served_at = CASE WHEN $5 = 'serving' THEN now() ELSE served_at END, \
+           completed_at = CASE WHEN $5 IN ('completed', 'no_show') THEN now() \
+                               ELSE completed_at END \
+         WHERE tenant_id = $1 AND module = $2 AND entity_type = $3 \
+           AND entity_id = $4 AND token_date = CURRENT_DATE \
+         RETURNING {SELECT}"
+    ))
+    .bind(tenant_id)
+    .bind(input.module)
+    .bind(input.entity_type)
+    .bind(input.entity_id)
+    .bind(input.status)
+    .bind(input.called_by)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(token)
+}
+
+/// Tell the boards a token moved. Call after the transaction commits.
+///
+/// A call is announced rather than merely redrawn: `TokenCalled` is what the
+/// waiting-room display turns into a spoken number, and it is the difference
+/// between a patient being shown and a patient being fetched.
+pub async fn announce_token(state: &AppState, token: &Token) {
+    if token.status == "called" {
+        if let Some(scope_id) = token.scope_id {
+            state
+                .queue_broadcaster
+                .broadcast_queue_event(
+                    scope_id,
+                    QueueEvent::TokenCalled {
+                        token_number: token.number.clone(),
+                        patient_name: token.patient_name.clone().unwrap_or_default(),
+                        room: token.scope_label.clone(),
+                        counter: token.counter_label.clone(),
+                    },
+                )
+                .await;
+        }
+        return;
+    }
+    broadcast_status(state, token).await;
+}
+
 // ── Issue ────────────────────────────────────────────────────────
 #[derive(Debug, Deserialize)]
 pub struct IssueTokenInput {
