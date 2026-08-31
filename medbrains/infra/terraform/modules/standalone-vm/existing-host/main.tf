@@ -29,12 +29,31 @@ variable "binaries_dir" { type = string }
 variable "spa_dist_dir" { type = string }
 variable "deploy_kit_dir" { type = string }
 
+variable "attach_mode" {
+  type    = bool
+  default = false
+}
+variable "attach_reuse_tls" {
+  type    = bool
+  default = true
+}
+variable "attach_reuse_postgres" {
+  type    = bool
+  default = true
+}
+variable "attach_database_url" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 # No host creation — the operator already owns the box. Terraform
 # only runs install.sh remotely + tracks bootstrap state.
 
 resource "null_resource" "bootstrap" {
   triggers = {
     host_ip       = var.existing_ipv4
+    attach_shape  = "${var.attach_mode}/${var.attach_reuse_tls}/${var.attach_reuse_postgres}"
     binaries_hash = filemd5("${var.binaries_dir}/medbrains-server")
     archive_hash  = filemd5("${var.binaries_dir}/medbrains-archive")
     proxy_hash    = filemd5("${var.binaries_dir}/medbrains-proxy")
@@ -75,10 +94,27 @@ resource "null_resource" "bootstrap" {
     destination = "/tmp/standalone"
   }
 
+  # Written as a file, not passed inline: the connection string is a
+  # credential and remote-exec inline commands are echoed to the log.
+  # It lands 0644 for the seconds before the chmod below — on a host
+  # with other logins, create the MedBrains database role for this
+  # deploy rather than reusing one that owns the other applications.
+  provisioner "file" {
+    content     = <<-ATTACHENV
+      ATTACH_MODE='${var.attach_mode ? 1 : 0}'
+      ATTACH_REUSE_TLS='${var.attach_reuse_tls ? 1 : 0}'
+      ATTACH_REUSE_POSTGRES='${var.attach_reuse_postgres ? 1 : 0}'
+      ATTACH_DATABASE_URL='${var.attach_database_url}'
+    ATTACHENV
+    destination = "/tmp/medbrains-attach.env"
+  }
+
   provisioner "remote-exec" {
     inline = [
+      "chmod 600 /tmp/medbrains-attach.env",
       "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh",
-      "sudo bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} '' ${var.edge_proxy}",
+      "sudo bash -c 'set -a; . /tmp/medbrains-attach.env; set +a; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} \"\" ${var.edge_proxy}'",
+      "rm -f /tmp/medbrains-attach.env",
     ]
   }
 }

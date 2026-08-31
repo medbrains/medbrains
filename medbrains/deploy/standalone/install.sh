@@ -19,12 +19,46 @@ if [[ "$EDGE_PROXY" != "pingora" ]]; then
     exit 1
 fi
 
+# ── Attach tier ─────────────────────────────────────────────────────
+# ATTACH_MODE=1 says this host already belongs to somebody: other sites,
+# another proxy, another Postgres. Nothing below may take a port or stop
+# a service that is already serving one of them.
+ATTACH_MODE="${ATTACH_MODE:-0}"
+ATTACH_REUSE_TLS="${ATTACH_REUSE_TLS:-$ATTACH_MODE}"
+ATTACH_REUSE_POSTGRES="${ATTACH_REUSE_POSTGRES:-$ATTACH_MODE}"
+ATTACH_DATABASE_URL="${ATTACH_DATABASE_URL:-}"
+
+# Both reuse flags are meaningless on a dedicated host — there is
+# nothing there to reuse — and dangerous if honoured by accident.
+if [[ "$ATTACH_MODE" != "1" ]]; then
+    ATTACH_REUSE_TLS=0
+    ATTACH_REUSE_POSTGRES=0
+fi
+
+# Reuse asked for but no database handed over. Starting our own on a
+# free port is the safe reading of that: it still never touches the
+# Postgres already running here.
+if [[ "$ATTACH_REUSE_POSTGRES" == "1" && -z "$ATTACH_DATABASE_URL" ]]; then
+    ATTACH_REUSE_POSTGRES=0
+fi
+
+# Docker exists in this kit to run Postgres. Reusing the host's means we
+# have no reason to install a container runtime on somebody's server.
+NEED_DOCKER=1
+[[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && NEED_DOCKER=0
+
 if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
     cat <<USAGE
 Usage:  sudo bash install.sh <domain> <admin-email> [backup-bucket]
 
 Examples:
   sudo bash install.sh hims.amh.org.in ops@amh.org.in
+
+Attach tier (host already runs other applications):
+  ATTACH_MODE=1 \
+  ATTACH_DATABASE_URL=postgres://user:pw@127.0.0.1:5432/medbrains \
+      sudo -E bash install.sh hims.example.org ops@example.org
+  Picks free ports, never touches 80/443, never stops another proxy.
 
 Prerequisites:
   - Ubuntu 22.04 / 24.04 or Debian 12 host (root access)
@@ -49,13 +83,19 @@ DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> [1/9] Installing system packages"
 apt-get update -qq
-apt-get install -y --no-install-recommends \
-    ca-certificates certbot curl gnupg lsb-release openssl
+PACKAGES=(ca-certificates curl gnupg lsb-release openssl)
+# certbot is only ours to run when we own 80/443. On an attach host the
+# proxy already there holds them and renews its own certificates.
+[[ "$ATTACH_REUSE_TLS" == "1" ]] || PACKAGES+=(certbot)
+# pg_dump for the backup timer, which cannot shell into a container that
+# does not exist when the host's own Postgres is the database.
+[[ "$ATTACH_REUSE_POSTGRES" == "1" ]] && PACKAGES+=(postgresql-client)
+apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 
 # Docker CE + compose plugin from Docker's official apt repo.
 # Ubuntu 24.04 noble doesn't ship docker-compose-plugin; the
 # legacy docker.io package also lacks `docker compose`.
-if ! command -v docker >/dev/null 2>&1; then
+if [[ "$NEED_DOCKER" == "1" ]] && ! command -v docker >/dev/null 2>&1; then
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
         | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
@@ -150,6 +190,32 @@ env_value() {
     awk -F= -v key="$key" '$1 == key { value = substr($0, index($0, "=") + 1) } END { print value }' /etc/medbrains/env
 }
 
+# ── Attach: claim ports before anything binds one ───────────────────
+if [[ "$ATTACH_MODE" == "1" ]]; then
+    echo "==> [3b/9] Attach — claiming ports nothing else is using"
+    # shellcheck source=./attach-preflight.sh
+    . "$DEPLOY_DIR/attach-preflight.sh"
+    attach_claim_ports
+    attach_report_ports
+
+    sed -i "s|^PORT=.*|PORT=$APP_PORT|" /etc/medbrains/env
+
+    # Rewritten by line, not by sed: a database password may contain any
+    # character sed would read as a delimiter or a backreference.
+    if [[ "$ATTACH_REUSE_POSTGRES" == "1" ]]; then
+        NEW_DB_URL="$ATTACH_DATABASE_URL"
+    else
+        DBPW_NOW="$(grep '^DATABASE_URL=' /etc/medbrains/env | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')"
+        NEW_DB_URL="postgres://medbrains:$DBPW_NOW@127.0.0.1:$PG_PORT/medbrains"
+    fi
+    {
+        grep -v '^DATABASE_URL=' /etc/medbrains/env
+        echo "DATABASE_URL=$NEW_DB_URL"
+    } > /etc/medbrains/env.attach
+    cat /etc/medbrains/env.attach > /etc/medbrains/env
+    rm -f /etc/medbrains/env.attach
+fi
+
 echo "==> [4/9] Bringing up postgres-17 via docker compose"
 install -m 0644 "$DEPLOY_DIR/docker-compose.prod.yml" /etc/medbrains/docker-compose.yml
 # Pull the postgres password out of /etc/medbrains/env for the
@@ -160,6 +226,11 @@ ICD_API_ACCEPT_LICENSE="$(env_value ICD_API_ACCEPT_LICENSE)"
 ICD_API_PORT="$(env_value ICD_API_PORT)"
 ICD_API_INCLUDE="$(env_value ICD_API_INCLUDE)"
 ICD_API_SAVE_ANALYTICS="$(env_value ICD_API_SAVE_ANALYTICS)"
+# The env file carries the default 8382; the attach preflight already
+# decided whether this host can give us that port. Its answer wins.
+if [[ "$ATTACH_MODE" == "1" ]]; then
+    ICD_API_PORT="$ICD_PORT"
+fi
 cat > /etc/medbrains/.compose-env <<COMPOSE_ENV
 POSTGRES_DB=medbrains
 POSTGRES_USER=medbrains
@@ -168,6 +239,8 @@ ICD_API_ACCEPT_LICENSE=${ICD_API_ACCEPT_LICENSE:-false}
 ICD_API_PORT=${ICD_API_PORT:-8382}
 ICD_API_INCLUDE=${ICD_API_INCLUDE:-2026-01_en}
 ICD_API_SAVE_ANALYTICS=${ICD_API_SAVE_ANALYTICS:-false}
+PG_PORT=${PG_PORT:-5432}
+GOTENBERG_PORT=${GOTENBERG_PORT:-3005}
 COMPOSE_ENV
 chmod 600 /etc/medbrains/.compose-env
 
@@ -175,7 +248,7 @@ chmod 600 /etc/medbrains/.compose-env
 # install runs, tear it down + drop the broken pgdata so the new
 # named-volume layout can init cleanly. No user data risk on first
 # bootstrap: the database hasn't been migrated yet at this point.
-if docker container inspect medbrains-postgres >/dev/null 2>&1; then
+if [[ "$NEED_DOCKER" == "1" ]] && docker container inspect medbrains-postgres >/dev/null 2>&1; then
     OLD_MOUNT="$(docker inspect medbrains-postgres --format '{{ range .Mounts }}{{.Source}}{{end}}' 2>/dev/null || true)"
     if [[ "$OLD_MOUNT" == "/var/lib/medbrains/pgdata" ]]; then
         echo "    Migrating from bind-mount to named volume — tearing down old container + pgdata"
@@ -189,16 +262,26 @@ fi
 # Use this when the application binary's embedded sqlx migrations
 # diverge from what's recorded in _sqlx_migrations (e.g. major sqlx
 # version bump). Never set this with real production data.
-if [[ "${RESET_PGDATA:-0}" == "1" ]]; then
+if [[ "${RESET_PGDATA:-0}" == "1" && "$NEED_DOCKER" == "1" ]]; then
     echo "    RESET_PGDATA=1 — wiping named volume + all data"
     docker compose --env-file /etc/medbrains/.compose-env \
         -f /etc/medbrains/docker-compose.yml down -v 2>/dev/null || true
 fi
 
-docker compose --env-file /etc/medbrains/.compose-env \
-    -f /etc/medbrains/docker-compose.yml up -d postgres
+if [[ "$ATTACH_REUSE_POSTGRES" == "1" ]]; then
+    echo "    Reusing the Postgres already on this host — no container started."
+else
+    docker compose --env-file /etc/medbrains/.compose-env \
+        -f /etc/medbrains/docker-compose.yml up -d postgres
+fi
 
 if [[ "${ICD_LOCAL_SERVICE:-false}" == "true" ]]; then
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "ERROR: MEDBRAINS_ICD_LOCAL_SERVICE=true needs docker, which was not"
+        echo "       installed because this host's own Postgres is being reused."
+        echo "       Install docker on the host, or leave the ICD sidecar off."
+        exit 1
+    fi
     if [[ "${ICD_API_ACCEPT_LICENSE:-false}" != "true" ]]; then
         echo "ERROR: MEDBRAINS_ICD_LOCAL_SERVICE=true requires ICD_API_ACCEPT_LICENSE=true in /etc/medbrains/env"
         echo "       Review WHO ICD-API license terms before enabling the local ICD sidecar."
@@ -211,13 +294,15 @@ else
     echo "    WHO ICD-API local sidecar disabled; using cloud OAuth or local cache based on /etc/medbrains/env."
 fi
 
-echo "    Waiting for postgres ready…"
-for _ in {1..30}; do
-    if docker exec medbrains-postgres pg_isready -U medbrains >/dev/null 2>&1; then
-        break
-    fi
-    sleep 1
-done
+if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
+    echo "    Waiting for postgres ready…"
+    for _ in {1..30}; do
+        if docker exec medbrains-postgres pg_isready -U medbrains >/dev/null 2>&1; then
+            break
+        fi
+        sleep 1
+    done
+fi
 
 echo "==> [5/9] Installing binaries to /usr/local/bin"
 for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
@@ -288,18 +373,27 @@ install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-ba
 install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-proxy.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-edge.toml.tmpl" /etc/medbrains/edge.toml
+if [[ -n "${EDGE_PORT:-}" ]]; then
+    sed -i -E "s|^listen[[:space:]]*=.*|listen        = \"127.0.0.1:$EDGE_PORT\"|" /etc/medbrains/edge.toml
+fi
 chmod 640 /etc/medbrains/edge.toml
 chown root:medbrains /etc/medbrains/edge.toml
-install -d -m 0755 \
-    /etc/letsencrypt/renewal-hooks/pre \
-    /etc/letsencrypt/renewal-hooks/deploy \
-    /etc/letsencrypt/renewal-hooks/post
-install -m 0755 "$DEPLOY_DIR/stop-medbrains-proxy" \
-    /etc/letsencrypt/renewal-hooks/pre/stop-medbrains-proxy
-install -m 0755 "$DEPLOY_DIR/copy-medbrains-proxy-cert" \
-    /etc/letsencrypt/renewal-hooks/deploy/copy-medbrains-proxy-cert
-install -m 0755 "$DEPLOY_DIR/start-medbrains-proxy" \
-    /etc/letsencrypt/renewal-hooks/post/start-medbrains-proxy
+# Renewal hooks stop and start our proxy around certbot. On a shared
+# host certbot renews the OTHER applications' certificates too, and
+# these hooks would fire on every one of those renewals. We do not
+# install ourselves into somebody else's renewal path.
+if [[ "$ATTACH_REUSE_TLS" != "1" ]]; then
+    install -d -m 0755 \
+        /etc/letsencrypt/renewal-hooks/pre \
+        /etc/letsencrypt/renewal-hooks/deploy \
+        /etc/letsencrypt/renewal-hooks/post
+    install -m 0755 "$DEPLOY_DIR/stop-medbrains-proxy" \
+        /etc/letsencrypt/renewal-hooks/pre/stop-medbrains-proxy
+    install -m 0755 "$DEPLOY_DIR/copy-medbrains-proxy-cert" \
+        /etc/letsencrypt/renewal-hooks/deploy/copy-medbrains-proxy-cert
+    install -m 0755 "$DEPLOY_DIR/start-medbrains-proxy" \
+        /etc/letsencrypt/renewal-hooks/post/start-medbrains-proxy
+fi
 
 # AWS CLI v2 — required by the pg-backup timer to upload dumps to S3.
 # Ubuntu 24.04 noble dropped the apt awscli package; install Amazon's
@@ -338,6 +432,18 @@ MaxRetentionSec=30day
 JOURNALD
 systemctl restart systemd-journald || true
 
+# The shipped unit hard-requires docker.service because the dedicated
+# shape runs Postgres in a container. When the host's own Postgres is
+# the database there is no docker, and Requires= would fail the unit.
+if [[ "$NEED_DOCKER" != "1" ]]; then
+    mkdir -p /etc/systemd/system/medbrains-server.service.d
+    cat > /etc/systemd/system/medbrains-server.service.d/attach.conf <<'DROPIN'
+[Unit]
+Requires=
+After=network-online.target
+DROPIN
+fi
+
 systemctl daemon-reload
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
@@ -348,6 +454,12 @@ systemctl enable --now medbrains-pg-backup.timer
 systemctl enable --now medbrains-edge.service
 systemctl restart medbrains-edge.service
 
+if [[ "$ATTACH_REUSE_TLS" == "1" ]]; then
+    echo "==> [8/9] TLS left to the proxy already on this host"
+    echo "    Not stopping caddy or nginx, not running certbot, not binding 80/443."
+    echo "    Pingora is not installed in this mode — it needs to own both ports."
+    attach_proxy_snippet "$DOMAIN"
+else
 echo "==> [8/9] Configuring Pingora edge proxy"
 systemctl stop caddy 2>/dev/null || true
 systemctl disable caddy 2>/dev/null || true
@@ -365,6 +477,7 @@ chown root:medbrains /etc/medbrains/proxy.toml
 systemctl enable --now certbot.timer 2>/dev/null || true
 systemctl enable --now medbrains-proxy.service
 systemctl restart medbrains-proxy.service
+fi
 
 echo "==> [9/9] Verification — wait up to 30s for service to be active + healthy"
 
@@ -374,7 +487,7 @@ HEALTHY=0
 for i in $(seq 1 "$ATTEMPTS"); do
     STATE="$(systemctl is-active medbrains-server.service 2>/dev/null || true)"
     if [[ "$STATE" == "active" ]] && \
-       curl -fsS --max-time 3 "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
+       curl -fsS --max-time 3 "http://127.0.0.1:${APP_PORT:-3000}/api/health" >/dev/null 2>&1; then
         HEALTHY=1
         break
     fi
@@ -394,8 +507,14 @@ echo "    server status:"
 systemctl is-active medbrains-server.service
 echo "    archive timer:"
 systemctl list-timers medbrains-archive.timer --no-pager | head -3 || true
-echo "    health probe: OK — http://127.0.0.1:3000/api/health responded"
+echo "    health probe: OK — http://127.0.0.1:${APP_PORT:-3000}/api/health responded"
 echo
-echo "Public URL once Pingora finishes TLS setup: https://$DOMAIN"
-echo "First boot may take ~30s for Let's Encrypt; tail with:"
-echo "    journalctl -u medbrains-proxy -f"
+if [[ "$ATTACH_REUSE_TLS" == "1" ]]; then
+    echo "Reachable at http://127.0.0.1:${APP_PORT:-3000} — add the proxy block"
+    echo "printed above to the proxy already serving TLS here, then reload it."
+    echo "Public URL after that reload: https://$DOMAIN"
+else
+    echo "Public URL once Pingora finishes TLS setup: https://$DOMAIN"
+    echo "First boot may take ~30s for Let's Encrypt; tail with:"
+    echo "    journalctl -u medbrains-proxy -f"
+fi

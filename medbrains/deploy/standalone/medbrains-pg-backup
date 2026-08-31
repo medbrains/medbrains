@@ -16,13 +16,26 @@ KEY="pg-backups/${HOSTNAME_TAG}/${DATE}.sql.gz"
 
 echo "==> dumping postgres → s3://${BACKUP_BUCKET}/${KEY}"
 
-# pg_dump runs inside the postgres container so we don't need pg_dump
-# on the host. --format=custom + --compress=9 = small, restorable
-# via pg_restore. Stream straight to S3 (no /tmp staging, no disk
-# IO outside the container).
-docker exec -i medbrains-postgres pg_dump \
-    -U "$POSTGRES_USER" \
-    -d "$POSTGRES_DB" \
+# --format=custom + --compress=9 = small, restorable via pg_restore.
+# Streams straight to S3 — no /tmp staging.
+#
+# Two shapes to dump from. The dedicated host runs Postgres in our
+# container, so pg_dump runs inside it and the host needs no client.
+# The attach tier reuses the hospital's own Postgres, where that
+# container does not exist — dump over DATABASE_URL instead. Silently
+# skipping is not an option: a backup that stops running looks exactly
+# like a backup that is running.
+if command -v docker >/dev/null 2>&1 && docker container inspect medbrains-postgres >/dev/null 2>&1; then
+    dump_postgres() {
+        docker exec -i medbrains-postgres pg_dump \
+            -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"
+    }
+else
+    : "${DATABASE_URL:?DATABASE_URL must be set in /etc/medbrains/env when no medbrains-postgres container exists}"
+    dump_postgres() { pg_dump "$DATABASE_URL" "$@"; }
+fi
+
+dump_postgres \
     --format=custom \
     --compress=9 \
     --no-owner \

@@ -214,3 +214,38 @@ variable "alarm_email" {
   type        = string
   default     = ""
 }
+
+# ── Attach tier ─────────────────────────────────────────────────────
+# Only meaningful with provider_kind = existing-host. The host already
+# runs other applications, so the install may not take a port or stop a
+# service that is already serving one of them.
+
+variable "attach_mode" {
+  description = "Host belongs to the hospital and already runs other things. Makes install.sh arbitrate ports instead of assuming it owns them."
+  type        = bool
+  default     = false
+}
+
+variable "attach_reuse_tls" {
+  description = "Leave 80/443 and certificates to the proxy already on the host. Pingora is not installed; the host proxy forwards to the app port."
+  type        = bool
+  default     = true
+}
+
+variable "attach_reuse_postgres" {
+  description = "Use the Postgres already on the host. Requires attach_database_url; without it a container is started on a free port instead."
+  type        = bool
+  default     = true
+}
+
+variable "attach_database_url" {
+  description = "Connection string for the host's existing Postgres, with a database already created for MedBrains."
+  type        = string
+  default     = ""
+  sensitive   = true
+
+  validation {
+    condition     = !strcontains(var.attach_database_url, "'")
+    error_message = "attach_database_url must not contain a single quote; it is passed through a shell-quoted env file."
+  }
+}
