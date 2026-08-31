@@ -1,0 +1,14 @@
+[package]
+name = "medbrains-db-migrations"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+
+# Deliberately minimal. Every dependency added here is paid on every
+# migration, because that is what this crate exists to isolate.
+[dependencies]
+sqlx = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -3,8 +3,8 @@
 #
 #   scripts/verify_baseline.sh
 #
-# Builds one database from `crates/medbrains-db/migrations-archive/*.sql` in
-# order and another from `crates/medbrains-db/src/migrations/0001_baseline.sql`,
+# Builds one database from `crates/medbrains-db-migrations/migrations-archive/*.sql` in
+# order and another from `crates/medbrains-db-migrations/src/migrations/0001_baseline.sql`,
 # then diffs their schemas. They must be identical apart from CHECK-constraint
 # rendering, which PostgreSQL normalises on the first dump round-trip.
 #
@@ -17,8 +17,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ARCHIVE="crates/medbrains-db/migrations-archive"
-BASELINE="crates/medbrains-db/src/migrations/0001_baseline.sql"
+ARCHIVE="crates/medbrains-db-migrations/migrations-archive"
+BASELINE="crates/medbrains-db-migrations/src/migrations/0001_baseline.sql"
 FROM_MIGRATIONS="mb_verify_migrations"
 FROM_BASELINE="mb_verify_baseline"
 

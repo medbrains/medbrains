@@ -13,7 +13,12 @@
 //! The queries are built as runtime strings, so nothing checks them until
 //! somebody opens the screen. This scans the source instead.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stderr
+)]
 
 use std::path::{Path, PathBuf};
 

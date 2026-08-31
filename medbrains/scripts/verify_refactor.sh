@@ -3,8 +3,8 @@
 #
 #   scripts/verify_refactor.sh
 #
-# Builds one database from `crates/medbrains-db/migrations-archive/*.sql` in
-# order and another from `crates/medbrains-db/src/migrations/*.sql`, then diffs
+# Builds one database from `crates/medbrains-db-migrations/migrations-archive/*.sql` in
+# order and another from `crates/medbrains-db-migrations/src/migrations/*.sql`, then diffs
 # their schemas.
 #
 # Run this after any `--emit`, and after hand-editing a module file. A refactor
@@ -28,8 +28,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ARCHIVE="crates/medbrains-db/migrations-archive"
-CURRENT="crates/medbrains-db/src/migrations"
+ARCHIVE="crates/medbrains-db-migrations/migrations-archive"
+CURRENT="crates/medbrains-db-migrations/src/migrations"
 DB_ARCHIVE="mb_verify_archive"
 DB_CURRENT="mb_verify_current"
 

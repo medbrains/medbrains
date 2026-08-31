@@ -63,6 +63,7 @@ pub struct PatientClaims {
 
 /// Rejects anything that is not a patient token, then hands the claims to the
 /// handler. Portal routes are mounted behind this and nothing else.
+#[tracing::instrument(skip_all)]
 pub async fn require_patient(
     State(state): State<AppState>,
     mut request: Request,
@@ -107,6 +108,7 @@ pub struct PortalOtpRequest {
 /// the tenant exists, whether SMS is even configured — the caller cannot tell,
 /// because a different answer per case turns this into a way to ask "is this
 /// person a patient here", which is itself disclosure.
+#[tracing::instrument(skip_all)]
 pub async fn request_portal_otp(
     State(state): State<AppState>,
     Json(body): Json<PortalOtpRequest>,
@@ -121,7 +123,7 @@ pub async fn request_portal_otp(
         return Ok(ack);
     }
 
-    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>(
+    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
     )
     .bind(&body.tenant_code)
@@ -136,7 +138,7 @@ pub async fn request_portal_otp(
 
     // No patient, no code — but the caller still gets the same acknowledgement.
     let known: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1")
+        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1") // allow-raw-sql: dynamic patient portal queries
             .bind(tenant_id)
             .bind(phone)
             .fetch_optional(&mut *tx)
@@ -152,7 +154,7 @@ pub async fn request_portal_otp(
     let otp = format!("{:06}", u32::from_le_bytes(buf) % 1_000_000);
 
     // Asking for a new code retires the old one, so only the latest works.
-    sqlx::query(
+    sqlx::query( // allow-raw-sql: dynamic patient portal queries
         "UPDATE patient_portal_otps SET used_at = now() \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL",
     )
@@ -161,7 +163,7 @@ pub async fn request_portal_otp(
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query(
+    sqlx::query( // allow-raw-sql: dynamic patient portal queries
         "INSERT INTO patient_portal_otps (tenant_id, phone, otp_hash, expires_at) \
          VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
     )
@@ -214,6 +216,7 @@ pub struct PortalSession {
 }
 
 /// `POST /api/portal/auth/verify`
+#[tracing::instrument(skip_all)]
 pub async fn verify_portal_otp(
     State(state): State<AppState>,
     Json(body): Json<PortalVerifyRequest>,
@@ -221,7 +224,7 @@ pub async fn verify_portal_otp(
     let phone = body.phone.trim();
     let denied = || AppError::Unauthorized;
 
-    let tenant_id = sqlx::query_scalar::<_, Uuid>(
+    let tenant_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
     )
     .bind(&body.tenant_code)
@@ -232,7 +235,7 @@ pub async fn verify_portal_otp(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
-    let row: Option<(Uuid, String, i32)> = sqlx::query_as(
+    let row: Option<(Uuid, String, i32)> = sqlx::query_as( // allow-raw-sql: dynamic patient portal queries
         "SELECT id, otp_hash, attempts FROM patient_portal_otps \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL AND expires_at > now() \
          ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
@@ -249,7 +252,7 @@ pub async fn verify_portal_otp(
 
     if attempts >= MAX_OTP_ATTEMPTS {
         // Burn it. A code that has been guessed at five times is not a secret.
-        sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1")
+        sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
             .bind(otp_id)
             .execute(&mut *tx)
             .await?;
@@ -258,7 +261,7 @@ pub async fn verify_portal_otp(
     }
 
     if hash_otp(body.code.trim()) != otp_hash {
-        sqlx::query("UPDATE patient_portal_otps SET attempts = attempts + 1 WHERE id = $1")
+        sqlx::query("UPDATE patient_portal_otps SET attempts = attempts + 1 WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
             .bind(otp_id)
             .execute(&mut *tx)
             .await?;
@@ -267,14 +270,14 @@ pub async fn verify_portal_otp(
     }
 
     let patient_id: Uuid =
-        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1")
+        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1") // allow-raw-sql: dynamic patient portal queries
             .bind(tenant_id)
             .bind(phone)
             .fetch_optional(&mut *tx)
             .await?
             .ok_or_else(denied)?;
 
-    sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1")
+    sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
         .bind(otp_id)
         .execute(&mut *tx)
         .await?;
@@ -317,6 +320,7 @@ pub struct PortalInvoice {
 /// `GET /api/portal/bills`
 ///
 /// The patient comes from the token. There is no path parameter to tamper with.
+#[tracing::instrument(skip_all)]
 pub async fn portal_bills(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -324,7 +328,7 @@ pub async fn portal_bills(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalInvoice>(
+    let rows = sqlx::query_as::<_, PortalInvoice>( // allow-raw-sql: dynamic patient portal queries
         "SELECT id, invoice_number, status::text AS status, total_amount, paid_amount, \
                 (total_amount - paid_amount) AS balance_due, created_at \
          FROM invoices \
@@ -365,6 +369,7 @@ pub struct PortalLabReport {
 /// should learn their potassium is 7.2 from a phone in a car park before that
 /// call has happened. Once the alert is acknowledged the result appears
 /// normally, so this delays disclosure rather than hiding it.
+#[tracing::instrument(skip_all)]
 pub async fn portal_lab_reports(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -372,7 +377,7 @@ pub async fn portal_lab_reports(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalLabReport>(
+    let rows = sqlx::query_as::<_, PortalLabReport>( // allow-raw-sql: dynamic patient portal queries
         "SELECT lo.id AS order_id, t.name AS test_name, r.parameter_name, r.value, \
                 r.unit, r.normal_range, r.flag::text AS flag, r.created_at AS reported_at \
          FROM lab_results r \
@@ -416,6 +421,7 @@ pub struct PortalPrescriptionItem {
 /// Some prescriptions carry `patient_id` directly and older ones reach the
 /// patient only through their encounter, so both paths are covered — otherwise
 /// a patient's earlier medicines would silently be missing.
+#[tracing::instrument(skip_all)]
 pub async fn portal_prescriptions(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -423,7 +429,7 @@ pub async fn portal_prescriptions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalPrescriptionItem>(
+    let rows = sqlx::query_as::<_, PortalPrescriptionItem>( // allow-raw-sql: dynamic patient portal queries
         "SELECT p.id AS prescription_id, i.drug_name, i.dosage, i.frequency, i.duration, \
                 p.created_at AS prescribed_at \
          FROM prescriptions p \
@@ -451,6 +457,7 @@ pub struct PortalAppointment {
 }
 
 /// `GET /api/portal/appointments`
+#[tracing::instrument(skip_all)]
 pub async fn portal_appointments(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
@@ -458,7 +465,7 @@ pub async fn portal_appointments(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PortalAppointment>(
+    let rows = sqlx::query_as::<_, PortalAppointment>( // allow-raw-sql: dynamic patient portal queries
         "SELECT a.id, a.appointment_date, a.status::text AS status, d.name AS department_name \
          FROM appointments a \
          LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = a.tenant_id \
@@ -500,12 +507,13 @@ pub struct PortalEntitlements {
 /// agreed to sell is harder to withdraw than one that was briefly missing. So
 /// a missing row, an unreadable status and a database error all resolve to
 /// `false`, and `?` is deliberately not used on the read.
+#[tracing::instrument(skip_all)]
 pub async fn portal_entitlements(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
 ) -> Result<Json<PortalEntitlements>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-    let status: Option<String> = sqlx::query_scalar(
+    let status: Option<String> = sqlx::query_scalar( // allow-raw-sql: dynamic patient portal queries
         "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'companion'",
     )
     .bind(claims.tenant_id)

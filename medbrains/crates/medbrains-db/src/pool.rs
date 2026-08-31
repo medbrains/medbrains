@@ -161,12 +161,12 @@ pub async fn group_conn(
     Ok(conn)
 }
 
-/// Run embedded `SQLx` migrations.
-pub async fn run_migrations(pool: &PgPool) -> Result<(), DbError> {
-    sqlx::migrate!("src/migrations").run(pool).await?;
-    tracing::info!("Database migrations applied");
-    Ok(())
-}
+// run_migrations moved to the medbrains-db-migrations crate.
+//
+// sqlx::migrate! embeds the migration directory at compile time, so keeping
+// it here meant every new .sql file recompiled this crate and all 109 that
+// depend on it. 854 of this crate's 1,145 edits in six months were
+// migrations; only 21 were Rust.
 
 /// Set the tenant context for Row-Level Security within a transaction.
 /// This ensures RLS applies to the correct connection, not a random pool connection.

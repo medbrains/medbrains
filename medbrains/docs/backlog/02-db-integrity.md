@@ -15,7 +15,7 @@ Priority: P0-critical · Area: area:database · Milestone: M1 — Week 1: Critic
 - [ ] Migration applies cleanly; RLS coverage check = 100% of tenant tables
 
 **Audit ref:** P0 #8 (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `crates/medbrains-db/src/migrations (0001, 0003, 0011, 0028, 0053, 0117, 0120)`
+**Files:** `crates/medbrains-db-migrations/src/migrations (0001, 0003, 0011, 0028, 0053, 0117, 0120)`
 **Effort:** M (1-3 days)
 
 Labels: P0-critical, area:database · Milestone: M1 — Week 1: Critical security & infra
@@ -29,7 +29,7 @@ Labels: P0-critical, area:database · Milestone: M1 — Week 1: Critical securit
 - [ ] CONCURRENTLY migrations; before/after query plans on top 10 endpoints
 
 **Audit ref:** P1 Database (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `crates/medbrains-db/src/migrations`
+**Files:** `crates/medbrains-db-migrations/src/migrations`
 **Effort:** L (1-2 weeks)
 
 Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboarding
@@ -43,7 +43,7 @@ Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboa
 - [ ] No index bloat on write-heavy tables without query need
 
 **Audit ref:** P1 Database (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `crates/medbrains-db/src/migrations`
+**Files:** `crates/medbrains-db-migrations/src/migrations`
 **Effort:** M (1-3 days)
 
 Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboarding
@@ -57,7 +57,7 @@ Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboa
 - [ ] Constraints added with data cleanup for existing violations
 
 **Audit ref:** P1 Database (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `crates/medbrains-db/src/migrations`
+**Files:** `crates/medbrains-db-migrations/src/migrations`
 **Effort:** M (1-3 days)
 
 Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboarding
@@ -71,7 +71,7 @@ Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboa
 - [ ] Archival/retention job; payments + billing_audit_log gain updated_at
 
 **Audit ref:** P1 Database (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `crates/medbrains-db/src/migrations`
+**Files:** `crates/medbrains-db-migrations/src/migrations`
 **Effort:** L (1-2 weeks)
 
 Labels: P1-high, area:database · Milestone: M3 — Weeks 5-8: Hardening & onboarding

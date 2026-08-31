@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-db-migrations = { path = "../medbrains-db-migrations" }
 medbrains-seed = { path = "../medbrains-seed" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-nabh = { path = "../medbrains-nabh" }
@@ -48,6 +49,7 @@ medbrains-specialty-interventional = { path = "../medbrains-specialty-interventi
 medbrains-consent = { path = "../medbrains-consent" }
 medbrains-security = { path = "../medbrains-security" }
 medbrains-pharmacy-finance = { path = "../medbrains-pharmacy-finance" }
+medbrains-pharmacy-fulfilment = { path = "../medbrains-pharmacy-fulfilment" }
 medbrains-cms = { path = "../medbrains-cms" }
 medbrains-pharmacy-safety = { path = "../medbrains-pharmacy-safety" }
 medbrains-pharmacy-payments = { path = "../medbrains-pharmacy-payments" }

@@ -5,9 +5,14 @@
 //! Against real Postgres, because the whole question is what the database does
 //! with a connection it has seen before.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::print_stderr
+)]
 
-use medbrains_db::pool::{create_pool_with_config, tenant_conn, PoolConfig};
+use medbrains_db::pool::{PoolConfig, create_pool_with_config, tenant_conn};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -37,14 +42,17 @@ async fn a_scoped_connection_carries_the_tenant_across_statements() {
         .await
         .expect("a tenant");
 
-    let mut conn = tenant_conn(&pool, &tenant).await.expect("scoped connection");
+    let mut conn = tenant_conn(&pool, &tenant)
+        .await
+        .expect("scoped connection");
 
     for _ in 0..3 {
-        let seen: Option<String> = sqlx::query("SELECT current_setting('app.tenant_id', true) AS t")
-            .fetch_one(&mut *conn)
-            .await
-            .expect("read the setting")
-            .get("t");
+        let seen: Option<String> =
+            sqlx::query("SELECT current_setting('app.tenant_id', true) AS t")
+                .fetch_one(&mut *conn)
+                .await
+                .expect("read the setting")
+                .get("t");
         assert_eq!(seen.as_deref(), Some(tenant.to_string().as_str()));
     }
 }
@@ -88,10 +96,9 @@ async fn one_request_s_tenant_does_not_reach_the_next() {
 async fn the_scoped_connection_is_what_makes_rows_visible_under_rls() {
     // End to end, as the restricted role: the same query returns nothing on a
     // bare pool connection and the real rows on a scoped one.
-    let Ok(pool) = sqlx::PgPool::connect(
-        "postgres://medbrains_app:medbrains_dev@localhost:5435/medbrains",
-    )
-    .await
+    let Ok(pool) =
+        sqlx::PgPool::connect("postgres://medbrains_app:medbrains_dev@localhost:5435/medbrains")
+            .await
     else {
         eprintln!("medbrains_app role not present — skipping");
         return;
@@ -117,7 +124,10 @@ async fn the_scoped_connection_is_what_makes_rows_visible_under_rls() {
         .expect("count");
 
     assert_eq!(blind, 0, "an unscoped read should see nothing under RLS");
-    assert!(scoped > 0, "a scoped read saw nothing — the helper is not working");
+    assert!(
+        scoped > 0,
+        "a scoped read saw nothing — the helper is not working"
+    );
 }
 
 // ============================================================= group scope
@@ -218,7 +228,10 @@ async fn an_administrative_screen_sees_the_group_without_clinical_sharing() {
     ungroup(&pool).await;
 
     assert_eq!(admin, 2, "an administrative screen could not see the group");
-    assert_eq!(clinical, 1, "a clinical read saw another location's hospital");
+    assert_eq!(
+        clinical, 1,
+        "a clinical read saw another location's hospital"
+    );
 }
 
 #[tokio::test]
@@ -236,8 +249,14 @@ async fn clinical_reads_follow_the_switch_management_sets() {
     let sharing_off = visible_count(&pool, first, false).await;
     ungroup(&pool).await;
 
-    assert_eq!(sharing_on, 2, "sharing is on and a clinical read stayed narrow");
-    assert_eq!(sharing_off, 1, "sharing is off and a clinical read went wide");
+    assert_eq!(
+        sharing_on, 2,
+        "sharing is on and a clinical read stayed narrow"
+    );
+    assert_eq!(
+        sharing_off, 1,
+        "sharing is off and a clinical read went wide"
+    );
 }
 
 #[tokio::test]
@@ -259,7 +278,10 @@ async fn a_hospital_in_no_group_is_alone_however_it_asks() {
     let asked_narrow = visible_count(&pool, alone, false).await;
     ungroup(&pool).await;
 
-    assert_eq!(asked_wide, 1, "group scope widened a hospital that is in no group");
+    assert_eq!(
+        asked_wide, 1,
+        "group scope widened a hospital that is in no group"
+    );
     assert_eq!(asked_narrow, 1);
 }
 
@@ -316,8 +338,14 @@ async fn a_deleted_group_stops_sharing_anything() {
     ungroup(&pool).await;
 
     assert_eq!(while_alive, 2, "sharing was on and did not apply");
-    assert_eq!(after_deleting, 1, "a deleted group carried on sharing records");
-    assert_eq!(admin_after, 1, "a deleted group still answered for group scope");
+    assert_eq!(
+        after_deleting, 1,
+        "a deleted group carried on sharing records"
+    );
+    assert_eq!(
+        admin_after, 1,
+        "a deleted group still answered for group scope"
+    );
 }
 
 // ========================================================== the two roles
@@ -345,8 +373,10 @@ async fn the_request_role_sees_nothing_without_a_tenant_and_the_worker_role_sees
     // can act on it per tenant. On the request role their discovery query
     // returns an empty list — so the pass runs, reports success, and escalates
     // nobody.
-    let (Some(app), Some(worker)) = (as_role("medbrains_app").await, as_role("medbrains_outbox_worker").await)
-    else {
+    let (Some(app), Some(worker)) = (
+        as_role("medbrains_app").await,
+        as_role("medbrains_outbox_worker").await,
+    ) else {
         eprintln!("both roles are needed for this test — skipping");
         return;
     };
@@ -360,7 +390,10 @@ async fn the_request_role_sees_nothing_without_a_tenant_and_the_worker_role_sees
         .await
         .expect("count");
 
-    assert_eq!(blind, 0, "the request role read rows without claiming a tenant");
+    assert_eq!(
+        blind, 0,
+        "the request role read rows without claiming a tenant"
+    );
     assert!(
         sighted > 0,
         "the worker role could not see across tenants — background passes would find nothing"

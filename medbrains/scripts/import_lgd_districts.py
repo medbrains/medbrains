@@ -8,7 +8,7 @@ Usage:
     python3 scripts/import_lgd_districts.py
 
 Output:
-    crates/medbrains-db/src/migrations/112_lgd_districts.sql
+    crates/medbrains-db-migrations/src/migrations/112_lgd_districts.sql
 """
 
 import json

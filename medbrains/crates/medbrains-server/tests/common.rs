@@ -112,7 +112,7 @@ pub async fn spawn_app() -> TestApp {
         .expect("DB connection failed — is PostgreSQL running?");
 
     // Run migrations + seed
-    medbrains_db::pool::run_migrations(&db)
+    medbrains_db_migrations::run(&db)
         .await
         .expect("migrations failed");
     medbrains_seed::run_seed(&db).await.expect("seed failed");

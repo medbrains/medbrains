@@ -38,11 +38,11 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ARCHIVE = os.path.join(ROOT, "crates/medbrains-db/migrations-archive")
+ARCHIVE = os.path.join(ROOT, "crates/medbrains-db-migrations/migrations-archive")
 # The generated squash, kept outside the migrations directory so that emitting
 # into that directory cannot overwrite the very file being read from.
 ORACLE = os.path.join(ROOT, "crates/medbrains-db/oracle/0001_baseline.sql")
-OUT_DIR = os.path.join(ROOT, "crates/medbrains-db/src/migrations")
+OUT_DIR = os.path.join(ROOT, "crates/medbrains-db-migrations/src/migrations")
 
 # ── the canonical taxonomy ──────────────────────────────────────────────────
 #

@@ -130,12 +130,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(url) if !url.trim().is_empty() => {
             let owner =
                 medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
-            medbrains_db::pool::run_migrations(&owner).await?;
+            medbrains_db_migrations::run(&owner).await?;
             tracing::info!("migrations ran on the owner connection");
             owner
         }
         _ => {
-            medbrains_db::pool::run_migrations(&db_pool).await?;
+            medbrains_db_migrations::run(&db_pool).await?;
             db_pool.clone()
         }
     };

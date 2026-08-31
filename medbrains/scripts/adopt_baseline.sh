@@ -22,7 +22,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-MIGRATIONS="crates/medbrains-db/src/migrations"
+MIGRATIONS="crates/medbrains-db-migrations/src/migrations"
 DB="${1:-medbrains}"
 APPLY=false
 for arg in "$@"; do [[ "$arg" == "--apply" ]] && APPLY=true; done

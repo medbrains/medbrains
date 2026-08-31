@@ -274,7 +274,7 @@ if [[ "$PROXY_HTTP_PORT" != 8080 || "$PROXY_HTTPS_PORT" != 8443 ]]; then
 fi
 
 backend_needs_build=false
-migrations_dir="$ROOT_DIR/crates/medbrains-db/src/migrations"
+migrations_dir="$ROOT_DIR/crates/medbrains-db-migrations/src/migrations"
 migration_stamp="$log_dir/migrations.sha256"
 
 if [[ -d "$migrations_dir" ]]; then

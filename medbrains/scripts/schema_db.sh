@@ -17,7 +17,7 @@
 set -euo pipefail
 
 URL="${1:?usage: schema_db.sh <postgres-url>}"
-MIGRATIONS="$(cd "$(dirname "$0")/.." && pwd)/crates/medbrains-db/src/migrations"
+MIGRATIONS="$(cd "$(dirname "$0")/.." && pwd)/crates/medbrains-db-migrations/src/migrations"
 
 host="$(printf '%s' "$URL" | sed -E 's|.*@([^:/]+).*|\1|')"
 case "$host" in

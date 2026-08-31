@@ -38,7 +38,7 @@ tsconfig*.json                              @medbrains/frontend
 # DATABASE
 # ═══════════════════════════════════════════════════════════════════════════
 /crates/medbrains-db/                       @medbrains/backend @medbrains/dba
-/crates/medbrains-db/src/migrations/        @medbrains/dba
+/crates/medbrains-db-migrations/src/migrations/        @medbrains/dba
 *.sql                                       @medbrains/dba
 
 # ═══════════════════════════════════════════════════════════════════════════

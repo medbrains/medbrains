@@ -9,7 +9,8 @@
 //! - Runtime builders only for genuinely dynamic SQL
 //! - **Transaction-scoped RLS** — every tenant-scoped query sets
 //!   `app.tenant_id` via `SET LOCAL` inside the transaction
-//! - Migrations embedded at compile time via `sqlx::migrate!()`
+//! - Migrations live in `medbrains-db-migrations` — kept out of this crate so
+//!   adding a `.sql` file does not rebuild everything that depends on it
 //!
 //! ## Modules
 //!

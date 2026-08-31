@@ -12,7 +12,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPTS_DIR="$REPO_ROOT/scripts"
 
 # Only run if any staged file is a migration
-if ! git diff --cached --name-only | grep -qE 'crates/medbrains-db/src/migrations/.*\.sql$'; then
+if ! git diff --cached --name-only | grep -qE 'crates/medbrains-db-migrations/src/migrations/.*\.sql$'; then
     exit 0
 fi
 
