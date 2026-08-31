@@ -202,7 +202,23 @@ export const campWorkPath = (
   tab: CampWorkTabValue = "registrations",
 ) => `/camp/${campId}/work${patientContextQuery(patientId)}#${tab}`;
 
+export const campRegistrationCreatePath = (campId: string, patientId: string) =>
+  `/camp/${campId}/work/registrations/new${patientContextQuery(patientId)}`;
+
 export const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
   `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
     patientId,
   )}#screenings`;
+
+/** The services a camp offers, as offered at the registration desk. */
+export const CAMP_SERVICE_LINE_OPTIONS = [
+  { value: "opinion", label: "Opinion / specialist review" },
+  { value: "consultation", label: "Consultation" },
+  { value: "xray", label: "X-ray / imaging" },
+  { value: "lab", label: "Lab test" },
+  { value: "procedure", label: "Procedure" },
+  { value: "pharmacy", label: "Pharmacy / medicines" },
+  { value: "emergency", label: "Emergency" },
+  { value: "follow_up", label: "Follow-up" },
+  { value: "other", label: "Other" },
+];

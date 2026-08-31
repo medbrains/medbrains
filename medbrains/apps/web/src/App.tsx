@@ -271,6 +271,11 @@ const CampWorkPage = lazy(() => import("./pages/camp").then((m) => ({ default: m
 const CampPlanEditPage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampPlanEditPage })),
 );
+const CampRegistrationCreatePage = lazy(() =>
+  import("./pages/camp/registration-create").then((m) => ({
+    default: m.CampRegistrationCreatePage,
+  })),
+);
 const CampClinicalRoutePage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampClinicalRoutePage })),
 );
@@ -555,6 +560,10 @@ export function App() {
               <Route
                 path="camp/:campId/work/screenings/new"
                 element={<CampScreeningCreatePage />}
+              />
+              <Route
+                path="camp/:campId/work/registrations/new"
+                element={<CampRegistrationCreatePage />}
               />
               <Route path="camp/:campId/work/lab/new" element={<CampLabSampleCreatePage />} />
               <Route path="camp/:campId/work/billing/new" element={<CampBillingCreatePage />} />
