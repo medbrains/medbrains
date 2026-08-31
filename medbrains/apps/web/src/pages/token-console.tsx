@@ -1,7 +1,13 @@
-import { Group, Stack } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { type ModuleToken, P, TOKEN_PRIORITY_LABEL, TOKEN_PRIORITY_REASON } from "@medbrains/types";
+import {
+  type ModuleToken,
+  P,
+  SERVICE_TIME_MIN_SAMPLES,
+  TOKEN_PRIORITY_LABEL,
+  TOKEN_PRIORITY_REASON,
+} from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,6 +72,16 @@ export function TokenConsolePage() {
     refetchInterval: 5000,
     enabled: canViewBoard,
   });
+  // What this queue has actually been taking. Separate query and separate
+  // failure: a board that loads and a learned time that does not is a working
+  // console missing one number, not an outage.
+  const { data: serviceTime, isError: serviceTimeFailed } = useQuery({
+    queryKey: ["token-service-times", module, scope, scopeId],
+    queryFn: () => api.getServiceTimes({ module, scope, scope_id: scopeId }),
+    enabled: canViewBoard,
+    staleTime: 300_000,
+  });
+
   const invalidate = () => void queryClient.invalidateQueries({ queryKey });
 
   // Both mutations report failure. Without this a 403 from a stale
@@ -178,6 +194,29 @@ export function TokenConsolePage() {
         </Button>
       </Group>
       {!canViewBoard && <Alert tone="warning">{t("tokenConsole.boardNotPermitted")}</Alert>}
+      {/* Never a fabricated number. The estimator this replaces averaged
+          called_at to completed_at, no row in the database had ever carried
+          both, and it silently substituted ten minutes -- shown to desks as
+          though it had been measured. Say what is actually known. */}
+      {canViewBoard && !serviceTimeFailed && serviceTime && (
+        <Text size="sm" c="dimmed">
+          {serviceTime.sample_count >= SERVICE_TIME_MIN_SAMPLES &&
+          serviceTime.median_minutes !== null ? (
+            <>
+              Typically <strong>{Math.round(serviceTime.median_minutes)} min</strong> per patient
+              {serviceTime.p90_minutes !== null && (
+                <> · slowest 10% take {Math.round(serviceTime.p90_minutes)} min</>
+              )}{" "}
+              · learned from {serviceTime.sample_count} completed visits
+            </>
+          ) : (
+            <>
+              Still learning how long this queue takes — {serviceTime.sample_count} of{" "}
+              {SERVICE_TIME_MIN_SAMPLES} completed visits so far.
+            </>
+          )}
+        </Text>
+      )}
       {/* An outage must not be drawn as an empty waiting room. "No tokens in
           the queue" is a statement about the queue, and a desk that believes
           it starts telling people to go home. */}

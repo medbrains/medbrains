@@ -1758,6 +1758,7 @@ import type {
   SequenceRow,
   ServiceBondAgreementPrintData,
   ServiceRow,
+  ServiceTimeStats,
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
@@ -3723,6 +3724,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status, counter_label: counterLabel ?? null }),
     }),
+  /**
+   * How long this queue actually takes, learned from completed services.
+   *
+   * Returns nulls with a sample_count when nothing has been measured — the
+   * caller must render that as "still learning", never as a number.
+   */
+  getServiceTimes: (params: {
+    module: string;
+    scope?: string;
+    scope_id?: string;
+    served_by?: string;
+  }) => {
+    const qs = new URLSearchParams({ module: params.module });
+    if (params.scope) qs.set("scope", params.scope);
+    if (params.scope_id) qs.set("scope_id", params.scope_id);
+    if (params.served_by) qs.set("served_by", params.served_by);
+    return request<ServiceTimeStats>(`/tokens/service-times?${qs.toString()}`);
+  },
   callNextToken: (input: {
     module: string;
     scope?: string;

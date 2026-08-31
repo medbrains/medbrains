@@ -69,15 +69,29 @@ COMMENT ON FUNCTION public.token_priority_weight(text) IS
 -- has always returned NULL and silently fallen back to a hard-coded ten
 -- minutes.
 
-UPDATE opd_queues
-   SET status = 'expired',
-       updated_at = now()
- WHERE queue_date < CURRENT_DATE
-   AND status IN ('waiting', 'called', 'in_consultation')
-   AND deleted_at IS NULL;
+-- Against each tenant's own local date, not the session's.
+--
+-- `CURRENT_DATE` is evaluated in the connecting session's timezone, which is
+-- whatever the deploying client happened to have set. A hospital in Kolkata
+-- whose migration runs from a session sitting a few hours ahead would have
+-- today's queue -- the one being worked right now -- closed under it. The
+-- rollover service takes the tenant's timezone for exactly this reason, and a
+-- one-off backfill must not answer a different question from the job that
+-- takes over from it.
 
-UPDATE tokens
+UPDATE opd_queues q
    SET status = 'expired',
        updated_at = now()
- WHERE token_date < CURRENT_DATE
-   AND status IN ('waiting', 'called', 'serving');
+  FROM tenants t
+ WHERE t.id = q.tenant_id
+   AND q.queue_date < (timezone(COALESCE(t.timezone, 'UTC'), now()))::date
+   AND q.status IN ('waiting', 'called', 'in_consultation')
+   AND q.deleted_at IS NULL;
+
+UPDATE tokens tk
+   SET status = 'expired',
+       updated_at = now()
+  FROM tenants t
+ WHERE t.id = tk.tenant_id
+   AND tk.token_date < (timezone(COALESCE(t.timezone, 'UTC'), now()))::date
+   AND tk.status IN ('waiting', 'called', 'serving');

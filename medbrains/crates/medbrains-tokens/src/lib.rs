@@ -809,6 +809,103 @@ pub async fn board_metrics(
     Ok(Json(metrics))
 }
 
+/// A row nobody closed is not a long consultation.
+///
+/// Anything past this is excluded from the learned time. Before the day
+/// rollover existed, tokens sat `called` indefinitely; a single such row
+/// arriving as a fourteen-hour "consultation" would drag a mean into
+/// uselessness, and even a median is not worth polluting with rows that
+/// describe a forgotten click rather than a patient.
+const SERVICE_TIME_OUTLIER_CEILING_MINUTES: i32 = 240;
+
+/// How far back the queue learns from.
+///
+/// Long enough to survive a quiet week, short enough that a registrar who
+/// left in June is not still setting the pace in September.
+const SERVICE_TIME_LOOKBACK_DAYS: i32 = 90;
+
+/// Below this, the numbers are reported but must not be presented as an
+/// estimate. Ten observations is not a claim about how long anything takes.
+pub const SERVICE_TIME_MIN_SAMPLES: i64 = 10;
+
+/// What the queue has learned about how long this actually takes.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ServiceTimeStats {
+    /// The typical service time, in minutes. `None` when nothing has been
+    /// measured -- never a default. A hard-coded "ten minutes" presented as a
+    /// measurement is what this replaces: the previous estimator averaged
+    /// `completed_at - called_at`, no row in the database had ever carried
+    /// both, and so it silently substituted a constant on every call.
+    pub median_minutes: Option<f64>,
+    /// The slow tail. A waiting room planned on the median alone is late for
+    /// one patient in ten, and it is always the same ten per cent.
+    pub p90_minutes: Option<f64>,
+    /// How many completed services this is drawn from. The caller decides
+    /// whether that is enough; see `SERVICE_TIME_MIN_SAMPLES`.
+    pub sample_count: i64,
+}
+
+/// Which queue, and optionally whose, to report the learned time for.
+#[derive(Debug, Deserialize)]
+pub struct ServiceTimeQuery {
+    pub module: String,
+    pub scope: Option<String>,
+    pub scope_id: Option<Uuid>,
+    /// Narrow to one clinician or counter clerk. Two doctors in the same room
+    /// do not work at the same speed, and a queue that assumes they do is
+    /// wrong for both.
+    pub served_by: Option<Uuid>,
+}
+
+/// GET /api/tokens/service-times -- how long this queue actually takes.
+///
+/// Median rather than mean, deliberately. Service times are right-skewed: most
+/// consultations cluster and a few run long, so the mean sits above almost
+/// every actual visit and tells the waiting room a number it will beat most
+/// days and miss badly on the rest.
+pub async fn service_times(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<ServiceTimeQuery>,
+) -> Result<Json<ServiceTimeStats>, AppError> {
+    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
+        require_permission(&claims, permissions::front_office::queue::LIST)?;
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let stats = sqlx::query_as::<_, ServiceTimeStats>(
+        "SELECT \
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY mins)::float8 AS median_minutes, \
+           percentile_cont(0.9) WITHIN GROUP (ORDER BY mins)::float8 AS p90_minutes, \
+           COUNT(*)::bigint AS sample_count \
+         FROM ( \
+           SELECT EXTRACT(EPOCH FROM (completed_at - called_at)) / 60.0 AS mins \
+             FROM tokens \
+            WHERE tenant_id = $1 AND module = $2 \
+              AND ($3::text IS NULL OR scope = $3) \
+              AND ($4::uuid IS NULL OR scope_id = $4) \
+              AND ($5::uuid IS NULL OR called_by = $5) \
+              AND called_at IS NOT NULL AND completed_at IS NOT NULL \
+              AND completed_at > called_at \
+              AND completed_at - called_at < make_interval(mins => $6) \
+              AND token_date >= CURRENT_DATE - make_interval(days => $7) \
+         ) measured",
+    )
+    .bind(claims.tenant_id)
+    .bind(&query.module)
+    .bind(&query.scope)
+    .bind(query.scope_id)
+    .bind(query.served_by)
+    .bind(SERVICE_TIME_OUTLIER_CEILING_MINUTES)
+    .bind(SERVICE_TIME_LOOKBACK_DAYS)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(stats))
+}
+
 /// One token as the patient sees it: the queue row plus how many are ahead.
 ///
 /// `serde(flatten)` as well as `sqlx(flatten)`: the JSON must stay the shape the
@@ -1507,6 +1604,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
         .route("/api/tokens/board/metrics", get(board_metrics))
+        .route("/api/tokens/service-times", get(service_times))
         .route("/api/tokens/worklist", get(list_worklist))
         .route("/api/tokens/camp-board", get(camp_board))
         .route("/api/tokens/mine", get(my_tokens))

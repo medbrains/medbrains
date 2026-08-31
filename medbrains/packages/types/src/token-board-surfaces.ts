@@ -1012,3 +1012,28 @@ export const TOKEN_PRIORITY_REASON: Record<string, string> = {
   vip: "A courtesy — behind every clinical and vulnerability reason.",
   normal: "No priority claim.",
 };
+
+/**
+ * What the queue has learned about how long a service actually takes.
+ *
+ * Mirrors `ServiceTimeStats` in medbrains-tokens. Median rather than mean:
+ * service times are right-skewed, so a mean sits above almost every real visit
+ * and tells the waiting room a number it beats most days and misses badly on
+ * the rest.
+ */
+export interface ServiceTimeStats {
+  /**
+   * Typical minutes, or `null` when nothing has been measured.
+   *
+   * Never a default. The estimator this replaces averaged
+   * `completed_at - called_at`, no row had ever carried both, and it silently
+   * substituted a hard-coded ten minutes on every call.
+   */
+  median_minutes: number | null;
+  /** The slow tail — planning on the median alone is late for one in ten. */
+  p90_minutes: number | null;
+  sample_count: number;
+}
+
+/** Below this the numbers exist but are not yet an estimate. */
+export const SERVICE_TIME_MIN_SAMPLES = 10;
