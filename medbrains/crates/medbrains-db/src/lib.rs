@@ -16,7 +16,9 @@
 //! - [`pool`] — Connection pool creation and configuration
 //! - [`audit`] — SHA-256 chained audit log writes
 //! - [`sequence`] — Atomic sequence generation (UHID, invoice numbers)
+//! - [`stock`] — Batch-level stock movement between store locations
 
 pub mod audit;
 pub mod pool;
 pub mod sequence;
+pub mod stock;
