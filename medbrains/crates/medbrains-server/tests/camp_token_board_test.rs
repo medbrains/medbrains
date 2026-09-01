@@ -19,17 +19,19 @@ async fn a_camp_participant_routed_to_a_consultation_reaches_the_board() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
-    let department_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM departments WHERE tenant_id = $1 AND deleted_at IS NULL LIMIT 1",
+    // Pick a tenant that actually has departments. `SELECT id FROM tenants
+    // LIMIT 1` is unordered, and this database carries an isolation-probe
+    // tenant with none — so the fixture failed on RowNotFound roughly whenever
+    // the planner handed back that row, which reads as a broken camp path
+    // rather than a broken fixture.
+    let (tenant_id, department_id): (Uuid, Uuid) = sqlx::query_as(
+        "SELECT d.tenant_id, d.id FROM departments d \
+          WHERE d.deleted_at IS NULL AND d.is_active \
+          ORDER BY d.created_at LIMIT 1",
     )
-    .bind(tenant_id)
     .fetch_one(&app.db)
     .await
-    .expect("a seeded department");
+    .expect("a tenant with at least one active department");
 
     let suffix = &Uuid::new_v4().to_string()[..8];
     let patient_id: Uuid = sqlx::query_scalar(
