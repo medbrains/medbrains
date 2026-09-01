@@ -528,6 +528,11 @@ pub async fn issue_token(
     require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     let scope = body.scope.unwrap_or_else(|| "department".to_owned());
     let priority = body.priority.unwrap_or_else(|| "normal".to_owned());
+    if !VALID_TOKEN_PRIORITIES.contains(&priority.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid token priority '{priority}'"
+        )));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -986,6 +991,29 @@ const VALID_TOKEN_STATUSES: [&str; 6] =
 /// permission. It gated exactly this act on `opd_queues`; a unified token with
 /// `module = 'opd'` is the same act on the table meant to replace it.
 /// Accepting it here is what porting the doctor's call path means at the
+/// The priorities a caller may ask for.
+///
+/// Mirrors `public.token_priority_weight`. The SQL function is deliberately
+/// lenient on *read* -- an unrecognised value falls to the ELSE branch and
+/// sorts last, so a row written by a newer server cannot jump the queue on an
+/// older binary. This list is the counterpart on *write*: strict at the door.
+///
+/// Without it `POST /api/tokens/issue` accepted anything. "vip_platinum" was
+/// stored, came back on the board, and the console renders
+/// `TOKEN_PRIORITY_LABEL[p] ?? p` -- so a clinician would read a raw database
+/// value off a badge. It sorted harmlessly, and displayed as nonsense.
+const VALID_TOKEN_PRIORITIES: [&str; 9] = [
+    "stat",
+    "urgent",
+    "emergency_referral",
+    "elderly",
+    "disabled",
+    "pregnant",
+    "carried_over",
+    "vip",
+    "normal",
+];
+
 /// The OPD queue status that matches a token status.
 ///
 /// `None` for a token status the queue has no equivalent of, in which case the
