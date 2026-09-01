@@ -666,6 +666,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,
             permissions::lab::qc::MANAGE,
+            // The laboratory owns its own catalogue. Everyone who can order a
+            // test used to be able to edit it, because the catalogue handlers
+            // were gated on lab.orders.create.
+            permissions::lab::catalog::MANAGE,
             permissions::lab::phlebotomy::LIST,
             permissions::lab::phlebotomy::MANAGE,
             permissions::lab::outsourced::LIST,

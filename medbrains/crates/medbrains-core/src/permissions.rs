@@ -139,6 +139,28 @@ pub mod lab {
         pub const CREATE: &str = "lab.orders.create";
     }
 
+    /// The test catalogue: which tests exist, and what they mean.
+    ///
+    /// Separate from ordering. Five handlers -- create/update catalogue entry
+    /// and create/update/delete panel -- were gated on `lab.orders.create`,
+    /// so anyone who could order a test could also rename one, change its
+    /// reference range or critical values, or delete a panel outright. Every
+    /// doctor and lab technician held that.
+    ///
+    /// Editing this catalogue changes what a result *means*: the reference
+    /// range a clinician reads an abnormal flag against, the LOINC code the
+    /// result is exchanged under, the critical thresholds that raise an alert,
+    /// and the turnaround the laboratory is measured on. It is master data,
+    /// not clinical work.
+    pub mod catalog {
+        /// Edit the laboratory test catalogue and panels.
+        ///
+        /// Covers reference ranges, critical values, LOINC codes and
+        /// turnaround times. Master data, held by the laboratory manager
+        /// rather than by everyone who can order a test.
+        pub const MANAGE: &str = "lab.catalog.manage";
+    }
+
     pub mod results {
         pub const CREATE: &str = "lab.results.create";
         pub const UPDATE: &str = "lab.results.update";

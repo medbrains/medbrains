@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 976 permissions, one per constant in the Rust source. */
+/** 977 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -340,6 +340,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.orders.create",
     label: "Create Lab Order",
     description: "Create new lab orders",
+    module: "lab",
+  },
+  {
+    code: "lab.catalog.manage",
+    label: "Edit the laboratory test catalogue and panels",
+    description: "Covers reference ranges, critical values, LOINC codes and turnaround times. Master data, held by the laboratory manager rather than by everyone who can order a test.",
     module: "lab",
   },
   {
@@ -1728,15 +1734,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "camp.billing.list",
     label: "View Camp Billing",
-    description:
-      "View camp billing records, patient-pay totals, sponsor or free split, and invoice sync status",
+    description: "View camp billing records, patient-pay totals, sponsor or free split, and invoice sync status",
     module: "camp",
   },
   {
     code: "camp.billing.create",
     label: "Create Camp Billing",
-    description:
-      "Record camp services, medicines, concessions, tax, sponsor cover, and payment rows",
+    description: "Record camp services, medicines, concessions, tax, sponsor cover, and payment rows",
     module: "camp",
   },
   {
@@ -1877,8 +1881,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "display.board.read",
     label: "Read Board",
-    description:
-      "Read a wall board's live contents on a paired display. Only counts when the request carries a paired device: the role that holds this exists for screens bolted to walls, and a credential lifted off one should not become a way to read every ward board from a laptop. Operators keep reaching the same boards through `admin.tv_displays.board`, which carries no such condition.",
+    description: "Read a wall board's live contents on a paired display. Only counts when the request carries a paired device: the role that holds this exists for screens bolted to walls, and a credential lifted off one should not become a way to read every ward board from a laptop. Operators keep reaching the same boards through `admin.tv_displays.board`, which carries no such condition.",
     module: "display",
   },
   // bedside
@@ -1933,8 +1936,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "bedside.calls.board",
     label: "See every open call in the ward",
-    description:
-      "`bedside.view` answers \"may I read this admission's bedside data\", which is the question a patient's own tablet asks and the only question the bedside module could answer. A ward call board asks a different one — every patient waiting right now, across admissions the caller may hold no relationship to — and answering it is what makes a call button worth pressing. Separate rather than folded into `bedside.view`, because widening that would have handed the whole ward to every holder of a per-admission read, silently and retroactively.",
+    description: "`bedside.view` answers \"may I read this admission's bedside data\", which is the question a patient's own tablet asks and the only question the bedside module could answer. A ward call board asks a different one — every patient waiting right now, across admissions the caller may hold no relationship to — and answering it is what makes a call button worth pressing. Separate rather than folded into `bedside.view`, because widening that would have handed the whole ward to every holder of a per-admission read, silently and retroactively.",
     module: "bedside",
   },
   // diet
@@ -2898,8 +2900,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.contacts.list",
     label: "List enquiry contacts",
-    description:
-      "The enquiry record — name, number, what they asked about, which campaign produced them. Not the clinical record.",
+    description: "The enquiry record — name, number, what they asked about, which campaign produced them. Not the clinical record.",
     module: "marketing",
   },
   {
@@ -2923,8 +2924,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.contacts.merge",
     label: "Merge duplicate enquiry contacts",
-    description:
-      "Merging is destructive to the losing record's identity, so it is separate from ordinary editing.",
+    description: "Merging is destructive to the losing record's identity, so it is separate from ordinary editing.",
     module: "marketing",
   },
   {
@@ -2954,8 +2954,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.interactions.play_recording",
     label: "Play back a call recording",
-    description:
-      "A recording carries whatever the caller said, including symptoms they were told not to describe. Held apart from reading the interaction timeline, which carries only the disposition.",
+    description: "A recording carries whatever the caller said, including symptoms they were told not to describe. Held apart from reading the interaction timeline, which carries only the disposition.",
     module: "marketing",
   },
   {
@@ -2973,36 +2972,31 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.consent.view",
     label: "View a contact's consent history",
-    description:
-      "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
+    description: "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
     module: "marketing",
   },
   {
     code: "marketing.consent.capture",
     label: "Record a consent grant",
-    description:
-      "A legal act, not an edit: it asserts a notice was shown and a person agreed. Separate from editing the enquiry so that whoever can fix a misspelt name cannot also manufacture a grant.",
+    description: "A legal act, not an edit: it asserts a notice was shown and a person agreed. Separate from editing the enquiry so that whoever can fix a misspelt name cannot also manufacture a grant.",
     module: "marketing",
   },
   {
     code: "marketing.consent.withdraw",
     label: "Withdraw consent on a contact's behalf",
-    description:
-      "The patient told somebody to stop. Whoever they told must be able to record it without waiting for a campaign manager.",
+    description: "The patient told somebody to stop. Whoever they told must be able to record it without waiting for a campaign manager.",
     module: "marketing",
   },
   {
     code: "marketing.suppression.manage",
     label: "Add or lift a do-not-contact suppression",
-    description:
-      "Suppression is keyed on the number rather than the enquiry record, so it outlives the record and survives the person being created again. Lifting one is why this is a single permission and not a read: the people who run campaigns may see that somebody is unreachable, and may not make them reachable.",
+    description: "Suppression is keyed on the number rather than the enquiry record, so it outlives the record and survives the person being created again. Lifting one is why this is a single permission and not a read: the people who run campaigns may see that somebody is unreachable, and may not make them reachable.",
     module: "marketing",
   },
   {
     code: "marketing.cohorts.view",
     label: "View cohort names and sizes",
-    description:
-      "A cohort is a list of people to contact. Marketing sees its name, its size and when it was built — never why any individual is in it.",
+    description: "A cohort is a list of people to contact. Marketing sees its name, its size and when it was built — never why any individual is in it.",
     module: "marketing",
   },
   {
@@ -3014,64 +3008,55 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "marketing.cohorts.clinical_define",
     label: "Build a cohort from clinical criteria",
-    description:
-      "Recall lists — due for a screen, dormant after a procedure. The query runs with clinical authority and returns contactable identities; the diagnosis never crosses into the marketing tables. A clinical act wearing a marketing name, so it is held by clinicians and not by the people who run the campaign.",
+    description: "Recall lists — due for a screen, dormant after a procedure. The query runs with clinical authority and returns contactable identities; the diagnosis never crosses into the marketing tables. A clinical act wearing a marketing name, so it is held by clinicians and not by the people who run the campaign.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.send",
     label: "Send a campaign to a cohort",
-    description:
-      "Calls, SMS and WhatsApp alike. Separate from building the cohort, because the mistake that reaches thousands of people is the send, not the query.",
+    description: "Calls, SMS and WhatsApp alike. Separate from building the cohort, because the mistake that reaches thousands of people is the send, not the query.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.approve",
     label: "Approve campaign content before it sends",
-    description:
-      "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
+    description: "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
     module: "marketing",
   },
   {
     code: "marketing.outreach.dispatch",
     label: "Start an approved outreach run",
-    description:
-      "Approval says the words are lawful; dispatch is the act of sending them to four thousand people. Separate, so that whoever signs off the content is not thereby the person who fires it, and so the button can be withheld from a run whose DLT template has lapsed.",
+    description: "Approval says the words are lawful; dispatch is the act of sending them to four thousand people. Separate, so that whoever signs off the content is not thereby the person who fires it, and so the button can be withheld from a run whose DLT template has lapsed.",
     module: "marketing",
   },
   {
     code: "marketing.messages.view",
     label: "View who an outreach run actually reached",
-    description:
-      "Names the individuals in a cohort, which cohort membership itself never does — `cohorts.view` promises marketing a cohort's name and size and never who is in it, so a recipient ledger cannot reuse it. A clinical recall run's recipient list is a patient list.",
+    description: "Names the individuals in a cohort, which cohort membership itself never does — `cohorts.view` promises marketing a cohort's name and size and never who is in it, so a recipient ledger cannot reuse it. A clinical recall run's recipient list is a patient list.",
     module: "marketing",
   },
   {
     code: "marketing.messages.ingest_receipt",
     label: "Ingest Receipt Messages",
-    description:
-      "Accept delivery receipts from the messaging provider. Held by no built-in role. A machine identity with an API key and an explicit permission list, for the same reason telephony ingest is: the caller is a provider's webhook, not a person.",
+    description: "Accept delivery receipts from the messaging provider. Held by no built-in role. A machine identity with an API key and an explicit permission list, for the same reason telephony ingest is: the caller is a provider's webhook, not a person.",
     module: "marketing",
   },
   {
     code: "marketing.reports.view",
     label: "View acquisition funnel reports",
-    description:
-      "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
+    description: "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
     module: "marketing",
   },
   {
     code: "marketing.messaging.ingest",
     label: "Accept WhatsApp and SMS events from the provider",
-    description:
-      "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
+    description: "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
     module: "marketing",
   },
   {
     code: "marketing.telephony.ingest",
     label: "Accept call events from the phone system",
-    description:
-      "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
+    description: "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
     module: "marketing",
   },
   {
@@ -3084,8 +3069,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "research.triage_export",
     label: "Export a de-identified research dataset",
-    description:
-      "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
+    description: "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
     module: "research",
   },
   // front_office
@@ -3687,8 +3671,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ltc.mds.list",
     label: "View MDS assessments",
-    description:
-      "The Minimum Data Set — the standardised functional, cognitive and clinical assessment of a long-term care resident.",
+    description: "The Minimum Data Set — the standardised functional, cognitive and clinical assessment of a long-term care resident.",
     module: "specialty",
   },
   {
@@ -3700,8 +3683,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ltc.mds.complete",
     label: "Complete an MDS assessment",
-    description:
-      "Signs the assessment off; it drives the resident's care plan and reimbursement category, so completing is not editing.",
+    description: "Signs the assessment off; it drives the resident's care plan and reimbursement category, so completing is not editing.",
     module: "specialty",
   },
   {
@@ -3737,8 +3719,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.ltc.family.list",
     label: "View family messages",
-    description:
-      "Correspondence between a resident's relatives and the care team — read by families, so treated as resident-identifying.",
+    description: "Correspondence between a resident's relatives and the care team — read by families, so treated as resident-identifying.",
     module: "specialty",
   },
   {
@@ -3816,15 +3797,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.clinical_trials.unblind",
     label: "Break a randomisation blind",
-    description:
-      "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
+    description: "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
     module: "specialty",
   },
   {
     code: "specialty.clinical_trials.screen",
     label: "Screen Clinical Trials",
-    description:
-      "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
+    description: "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
     module: "specialty",
   },
   {
@@ -3992,8 +3971,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "specialty.maternity.postnatal.list",
     label: "View postnatal records",
-    description:
-      "The mother's recovery after delivery — fundal height, lochia, perineal healing, breastfeeding and mood observations.",
+    description: "The mother's recovery after delivery — fundal height, lochia, perineal healing, breastfeeding and mood observations.",
     module: "specialty",
   },
   {
@@ -4475,8 +4453,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.api_keys.view_usage",
     label: "View API Key Usage",
-    description:
-      "Reading what a key actually did — a forensic surface, so it is grantable to an auditor who cannot mint or revoke anything.",
+    description: "Reading what a key actually did — a forensic surface, so it is grantable to an auditor who cannot mint or revoke anything.",
     module: "admin",
   },
   {
@@ -4596,8 +4573,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.tv_displays.board",
     label: "Read a queue or bed board",
-    description:
-      "Distinct from `list`, which is the display *configuration*: this is the board's live contents — the waiting counts, the ER acuity mix, the bed availability and the per-department queue analytics that drive the screens on the wall. Seven board endpoints checked nothing at all, so any authenticated user in the tenant could read them, while the display and token handlers beside them had been gated in an earlier pass. Widening `list` to cover this would have handed the boards to everyone who may edit a screen's settings.",
+    description: "Distinct from `list`, which is the display *configuration*: this is the board's live contents — the waiting counts, the ER acuity mix, the bed availability and the per-department queue analytics that drive the screens on the wall. Seven board endpoints checked nothing at all, so any authenticated user in the tenant could read them, while the display and token handlers beside them had been gated in an earlier pass. Widening `list` to cover this would have handed the boards to everyone who may edit a screen's settings.",
     module: "admin",
   },
   {
@@ -4741,8 +4717,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "admin.settings.read",
     label: "Read tenant configuration",
-    description:
-      "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
+    description: "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
     module: "admin",
   },
   {
@@ -4929,8 +4904,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "doctor.signoffs.verbal_register",
     label: "View Verbal Order Register",
-    description:
-      "Ward/compliance-wide verbal & telephone order countersign register (NABH audit view) — broader than the prescriber's own queue.",
+    description: "Ward/compliance-wide verbal & telephone order countersign register (NABH audit view) — broader than the prescriber's own queue.",
     module: "doctor",
   },
   // patient_packages
@@ -5458,8 +5432,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "devices.pairing.roster.read",
     label: "Read the peer-sync roster",
-    description:
-      "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
+    description: "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
     module: "devices",
   },
   // storage
@@ -5721,15 +5694,13 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "nurse.transfusion.view",
     label: "See the transfusions running on a bed",
-    description:
-      "Distinct from `blood_bank.transfusion.list`, which is the bank's issue register — who was given which bag out of stock. This is the bedside record: the two-person identity check, the observation schedule, and whether the patient reacted.",
+    description: "Distinct from `blood_bank.transfusion.list`, which is the bank's issue register — who was given which bag out of stock. This is the bedside record: the two-person identity check, the observation schedule, and whether the patient reacted.",
     module: "nurse",
   },
   {
     code: "nurse.transfusion.administer",
     label: "Administer Transfusion",
-    description:
-      "Start, observe and complete a transfusion at the bed. The bank issues the unit; a nurse hangs it, checks the patient against the bag with a second nurse, and watches for the first fifteen minutes. Those are different acts by different people in different rooms, and `blood_bank.transfusion.create` — held by blood_bank_tech and by nobody at a bedside — could not express the second one.",
+    description: "Start, observe and complete a transfusion at the bed. The bank issues the unit; a nurse hangs it, checks the patient against the bag with a second nurse, and watches for the first fifteen minutes. Those are different acts by different people in different rooms, and `blood_bank.transfusion.create` — held by blood_bank_tech and by nobody at a bedside — could not express the second one.",
     module: "nurse",
   },
   {
@@ -5972,8 +5943,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "abdm.hfr.register",
     label: "Register Hfr",
-    description:
-      "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
+    description: "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
     module: "abdm",
   },
 ];
@@ -7430,6 +7400,10 @@ export const P = {
     },
     B2B_LIST: "lab.b2b.list",
     B2B_MANAGE: "lab.b2b.manage",
+    CATALOG: {
+      MANAGE: "lab.catalog.manage",
+    },
+    CATALOG_MANAGE: "lab.catalog.manage",
     DISPATCH: {
       LIST: "lab.dispatch.list",
       MANAGE: "lab.dispatch.manage",
@@ -8902,11 +8876,13 @@ export const P = {
 export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string[] }> = {
   super_admin: {
     label: "Super Admin",
-    permissions: [],
+    permissions: [
+    ],
   },
   hospital_admin: {
     label: "Hospital Admin",
-    permissions: [],
+    permissions: [
+    ],
   },
   doctor: {
     label: "Doctor",
@@ -9461,6 +9437,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCUMENTS.REPRINT,
       P.DOCUMENTS.TEMPLATES.LIST,
       P.LAB.B2B.LIST,
+      P.LAB.CATALOG.MANAGE,
       P.LAB.DISPATCH.LIST,
       P.LAB.DISPATCH.MANAGE,
       P.LAB.ORDERS.CREATE,
@@ -10318,7 +10295,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   },
   display_device: {
     label: "Wall Display",
-    permissions: [P.DISPLAY.BOARD.READ],
+    permissions: [
+      P.DISPLAY.BOARD.READ,
+    ],
   },
   ot_staff: {
     label: "OT Staff",

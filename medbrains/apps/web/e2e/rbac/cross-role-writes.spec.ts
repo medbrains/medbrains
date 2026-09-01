@@ -31,7 +31,14 @@ interface DeleteEntry {
 }
 
 const DELETES: DeleteEntry[] = [
-  { path: `/api/billing/charge-master/${NIL_UUID}`, perm: "billing.invoices.create" },
+  // The charge master is the hospital's price list. Deleting a row is not the
+  // same authority as raising an invoice against it, and the handler has
+  // always required billing.catalog.manage — this entry claimed
+  // billing.invoices.create, so the matrix expected a receptionist to reach
+  // the handler and reported the correct 403 as a failure. The mapping was
+  // wrong; loosening the handler to match it would have let anyone who can
+  // bill delete pricing.
+  { path: `/api/billing/charge-master/${NIL_UUID}`, perm: "billing.catalog.manage" },
   { path: `/api/lab/panels/${NIL_UUID}`, perm: "lab.orders.create" },
   { path: `/api/radiology/modalities/${NIL_UUID}`, perm: "radiology.modalities.manage" },
   { path: `/api/ot/surgeon-preferences/${NIL_UUID}`, perm: "ot.preferences.manage" },

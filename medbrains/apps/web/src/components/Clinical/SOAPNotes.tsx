@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Badge,
+  Box,
   Button,
   Card,
   Divider,
@@ -324,7 +325,7 @@ function KeywordSuggestions({
   if (suggestions.length === 0) return null;
 
   return (
-    <div className={styles.keywordSuggestions}>
+    <Box className={styles.keywordSuggestions}>
       {suggestions.map((suggestion) => (
         <UnstyledButton
           key={suggestion.id}
@@ -339,7 +340,7 @@ function KeywordSuggestions({
           </Text>
         </UnstyledButton>
       ))}
-    </div>
+    </Box>
   );
 }
 
@@ -499,7 +500,7 @@ export function SOAPNotes({
     <Stack gap="sm">
       <Card withBorder radius="md" className={styles.noteShell}>
         <Group justify="space-between" align="flex-start" gap="md">
-          <div>
+          <Box>
             <Group gap="xs" mb={4}>
               <Text fw={700} size="sm">
                 Encounter SOAP note
@@ -514,7 +515,7 @@ export function SOAPNotes({
             <Text size="xs" c="dimmed">
               {noteDate}
             </Text>
-          </div>
+          </Box>
           {canEditSoap && (
             <Button
               size="xs"
@@ -535,7 +536,7 @@ export function SOAPNotes({
               {SOAP_SECTIONS.map((section) => {
                 const value = savedValues[section.key].trim();
                 return (
-                  <div
+                  <Box
                     key={section.key}
                     className={styles.sectionSummary}
                     style={{
@@ -559,18 +560,18 @@ export function SOAPNotes({
                         Not documented in this encounter.
                       </Text>
                     )}
-                  </div>
+                  </Box>
                 );
               })}
             </SimpleGrid>
 
             {savedCombined.length > 0 && (
-              <div className={styles.combinedNote}>
+              <Box className={styles.combinedNote}>
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                   Combined Note
                 </Text>
                 <RichTextEditor value={soapText(savedCombined)} readOnly minHeight={0} />
-              </div>
+              </Box>
             )}
           </Stack>
         ) : (
@@ -648,9 +649,9 @@ export function SOAPNotes({
         classNames={{ body: styles.drawerBody }}
       >
         <form onSubmit={form.handleSubmit(handleSubmit)}>
-          <div className={styles.editorGrid}>
+          <Box className={styles.editorGrid}>
             <Stack gap="sm" className={styles.editorSide}>
-              <div className={styles.historyPanel}>
+              <Box className={styles.historyPanel}>
                 <Group gap="xs" mb="xs">
                   <IconHistory size={16} />
                   <Text size="sm" fw={700}>
@@ -661,16 +662,16 @@ export function SOAPNotes({
                   <Stack gap="xs">
                     {calendarEntries.length > 0 ? (
                       calendarEntries.map((entry) => (
-                        <div key={entry.id} className={styles.historyItem}>
+                        <Box key={entry.id} className={styles.historyItem}>
                           <Group justify="space-between" gap="xs" align="flex-start">
-                            <div>
+                            <Box>
                               <Text size="xs" fw={700}>
                                 {entry.date}
                               </Text>
                               <Text size="xs" c="dimmed">
                                 {entry.subtitle || entry.title}
                               </Text>
-                            </div>
+                            </Box>
                             <Badge size="xs" color="gray" variant="light">
                               {entry.status}
                             </Badge>
@@ -689,7 +690,7 @@ export function SOAPNotes({
                               minHeight={0}
                             />
                           )}
-                        </div>
+                        </Box>
                       ))
                     ) : (
                       <Text size="sm" c="dimmed">
@@ -700,13 +701,13 @@ export function SOAPNotes({
                     )}
                   </Stack>
                 </ScrollArea.Autosize>
-              </div>
+              </Box>
             </Stack>
 
             <Stack gap="md" className={styles.editorMain}>
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
                 {SOAP_SECTIONS.map((section) => (
-                  <div
+                  <Box
                     key={section.key}
                     className={styles.formatTile}
                     style={{
@@ -719,21 +720,21 @@ export function SOAPNotes({
                           {section.letter}
                         </Text>
                       </ThemeIcon>
-                      <div>
+                      <Box>
                         <Text size="sm" fw={700} lh={1.2}>
                           {t(section.labelKey)}
                         </Text>
                         <Text size="xs" c="dimmed" lh={1.25}>
                           {section.formatHint}
                         </Text>
-                      </div>
+                      </Box>
                     </Group>
-                  </div>
+                  </Box>
                 ))}
               </SimpleGrid>
 
               {SOAP_SECTIONS.map((section) => (
-                <div
+                <Box
                   key={section.key}
                   className={styles.soapSection}
                   style={{
@@ -746,14 +747,14 @@ export function SOAPNotes({
                         {section.letter}
                       </Text>
                     </ThemeIcon>
-                    <div>
+                    <Box>
                       <Text size="sm" fw={600} lh={1.2}>
                         {t(section.labelKey)}
                       </Text>
                       <Text size="xs" c="dimmed" lh={1}>
                         {t(section.fullLabelKey)}
                       </Text>
-                    </div>
+                    </Box>
                   </Group>
                   <Controller
                     control={form.control}
@@ -767,7 +768,7 @@ export function SOAPNotes({
                           minHeight={140}
                         />
                         {fieldState.error?.message && (
-                          <Text size="xs" c="var(--mb-support-error, #da1e28)" mt={4}>
+                          <Text size="xs" c="var(--mb-support-error)" mt={4}>
                             {fieldState.error.message}
                           </Text>
                         )}
@@ -784,10 +785,10 @@ export function SOAPNotes({
                       </>
                     )}
                   />
-                </div>
+                </Box>
               ))}
 
-              <div className={styles.combinedNote}>
+              <Box className={styles.combinedNote}>
                 <Group justify="space-between" mb="xs">
                   <Group gap="xs">
                     <IconStethoscope size={16} />
@@ -817,7 +818,7 @@ export function SOAPNotes({
                         minHeight={160}
                       />
                       {fieldState.error?.message && (
-                        <Text size="xs" c="var(--mb-support-error, #da1e28)" mt={4}>
+                        <Text size="xs" c="var(--mb-support-error)" mt={4}>
                           {fieldState.error.message}
                         </Text>
                       )}
@@ -827,7 +828,7 @@ export function SOAPNotes({
                 {watchedValues.notes.trim().length === 0 && combinedPreview.length > 0 && (
                   <RichTextEditor value={combinedPreview} readOnly minHeight={0} />
                 )}
-              </div>
+              </Box>
 
               <Group justify="flex-end" className={styles.editorActions}>
                 <Button type="button" variant="default" onClick={handleCloseEditor}>
@@ -838,7 +839,7 @@ export function SOAPNotes({
                 </Button>
               </Group>
             </Stack>
-          </div>
+          </Box>
         </form>
       </Modal>
     </Stack>

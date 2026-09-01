@@ -1804,7 +1804,7 @@ pub async fn create_catalog_entry(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCatalogRequest>,
 ) -> Result<Json<LabTestCatalog>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1855,7 +1855,7 @@ pub async fn update_catalog_entry(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateCatalogRequest>,
 ) -> Result<Json<LabTestCatalog>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1974,7 +1974,7 @@ pub async fn create_panel(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePanelRequest>,
 ) -> Result<Json<PanelDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2020,7 +2020,7 @@ pub async fn update_panel(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePanelRequest>,
 ) -> Result<Json<PanelDetailResponse>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2086,7 +2086,7 @@ pub async fn delete_panel(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::orders::CREATE)?;
+    require_permission(&claims, permissions::lab::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

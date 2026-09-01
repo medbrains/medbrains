@@ -53,6 +53,12 @@ function LabPageInner() {
   const { t } = useTranslation("lab");
   const navigate = useNavigate();
   const canCreateOrder = useHasPermission(P.LAB.ORDERS_CREATE);
+  // Editing the catalogue is not the same authority as ordering from it.
+  // Both tabs were gated on ORDERS_CREATE, matching a backend that made the
+  // same mistake — so every doctor and lab technician was offered buttons to
+  // rename a test, change a reference range or delete a panel. The control's
+  // gate must match the permission its call requires.
+  const canManageCatalog = useHasPermission(P.LAB.CATALOG.MANAGE);
   const canQc = useHasPermission(P.LAB.QC_LIST);
   const canPhlebotomy = useHasPermission(P.LAB.PHLEBOTOMY_LIST);
   const canOutsourced = useHasPermission(P.LAB.OUTSOURCED_LIST);
@@ -368,11 +374,11 @@ function LabPageInner() {
         </Tabs.Panel>
 
         <Tabs.Panel value="catalog">
-          <LabCatalogTab canCreate={canCreateOrder} />
+          <LabCatalogTab canCreate={canManageCatalog} />
         </Tabs.Panel>
 
         <Tabs.Panel value="panels">
-          <LabPanelsTab canCreate={canCreateOrder} />
+          <LabPanelsTab canCreate={canManageCatalog} />
         </Tabs.Panel>
 
         {canPhlebotomy && (
