@@ -986,6 +986,65 @@ const VALID_TOKEN_STATUSES: [&str; 6] =
 /// permission. It gated exactly this act on `opd_queues`; a unified token with
 /// `module = 'opd'` is the same act on the table meant to replace it.
 /// Accepting it here is what porting the doctor's call path means at the
+/// The OPD queue status that matches a token status.
+///
+/// `None` for a token status the queue has no equivalent of, in which case the
+/// queue row is left alone rather than guessed at.
+const fn queue_status_for(token_status: &str) -> Option<&'static str> {
+    match token_status.as_bytes() {
+        b"called" => Some("called"),
+        b"serving" => Some("in_consultation"),
+        b"completed" => Some("completed"),
+        b"no_show" => Some("no_show"),
+        b"cancelled" => Some("cancelled"),
+        b"expired" => Some("expired"),
+        _ => None,
+    }
+}
+
+/// Move the OPD queue row with the token.
+///
+/// The two directions were not symmetric. Calling a patient from the OPD queue
+/// updated `opd_queues` and mirrored the token; calling the same patient from
+/// the token console or a board updated only the token. The queue row stayed
+/// `waiting`, so the OPD screen -- which renders `opd_queues.status` and
+/// derives its row actions from it -- went on offering a Call button for a
+/// patient already called, and the desk had no way to see it had worked.
+///
+/// Scoped to `entity_type = 'encounter'`: a token for a patient or an
+/// appointment has no queue row to move.
+async fn mirror_to_opd_queue(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    token: &Token,
+    status: &str,
+) -> Result<(), AppError> {
+    let (Some("encounter"), Some(entity_id)) = (token.entity_type.as_deref(), token.entity_id)
+    else {
+        return Ok(());
+    };
+    let Some(queue_status) = queue_status_for(status) else {
+        return Ok(());
+    };
+
+    sqlx::query(
+        "UPDATE opd_queues SET status = $3::queue_status, \
+           called_at = CASE WHEN $3 = 'called' THEN COALESCE(called_at, now()) ELSE called_at END, \
+           completed_at = CASE WHEN $3 IN ('completed', 'no_show') THEN now() \
+                               ELSE completed_at END, \
+           updated_at = now() \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
+           AND status::text IS DISTINCT FROM $3",
+    )
+    .bind(tenant_id)
+    .bind(entity_id)
+    .bind(queue_status)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+
 /// authorization layer, and it widens nothing: no one gains a queue they could
 /// not already call.
 fn require_queue_manage(claims: &Claims, module: &str) -> Result<(), AppError> {
@@ -1042,6 +1101,11 @@ async fn transition(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Keep the OPD queue row in step. Without this the token moves and the
+    // queue does not, so the desk sees "Waiting" and a live Call button for a
+    // patient the board has already called.
+    mirror_to_opd_queue(&mut tx, claims.tenant_id, &token, status).await?;
 
     // A referral that is finished sends the patient back where they came from,
     // in front of the queue rather than at the end of it: they already waited
