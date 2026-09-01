@@ -73,9 +73,13 @@ test.describe("PatientRegisterForm mobile viewport", () => {
   });
 
   test("keeps registration context usable on a mobile-sized device", async ({ page }) => {
-    await expect(page.getByLabel("Registration type")).toBeVisible();
-    await expect(page.getByLabel("Registration source")).toBeVisible();
-    await expect(page.getByLabel("Camp reference")).toBeVisible();
+    // Qualify by role. Mantine's Select renders the visible combobox *and* a
+    // hidden input carrying the value for form submission, and both inherit
+    // the label — so a bare getByLabel matches two elements and fails strict
+    // mode. The field was visible the whole time; the locator was ambiguous.
+    await expect(page.getByRole("combobox", { name: "Registration type" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Registration source" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Camp reference" })).toBeVisible();
     await expect(page.locator('input[aria-label="Primary phone country"]')).toBeVisible();
     await expect(page.locator('input[aria-label="Phone (primary) Phone Primary"]')).toBeVisible();
   });
