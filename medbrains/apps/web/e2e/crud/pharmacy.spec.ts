@@ -70,6 +70,71 @@ test.describe("Pharmacy CRUD", () => {
     await processPharmacyReturn(ctx, returnId, "restock");
   });
 
+  test("returned medicine cannot go straight back on the shelf", async ({ request }) => {
+    // requested → returned_to_stock is refused; it must be approved first, by
+    // someone who has checked the medicine is intact, in date and was stored
+    // properly. Skipping that would put unchecked stock back into circulation.
+    const ctx = await getAuthContextFromCookies(request);
+    const patient = await createPatientApi(ctx);
+    const encounterId = await createEncounter(ctx, patient.id);
+    const rxId = await createPrescription(ctx, encounterId);
+
+    const { id: orderId, itemId } = await createPharmacyOrder(ctx, {
+      patientId: patient.id,
+      prescriptionId: rxId,
+      encounterId,
+      quantity: 6,
+    });
+    await dispensePharmacyOrder(ctx, orderId);
+
+    const returnId = await createPharmacyReturn(ctx, {
+      orderItemId: itemId,
+      patientId: patient.id,
+      quantity: 2,
+      reason: "spec — unapproved restock attempt",
+    });
+
+    await expect(
+      processPharmacyReturn(ctx, returnId, "restock", { skipApproval: true }),
+      "restocking an unapproved return must be refused",
+    ).rejects.toThrow(/409/);
+
+    // Approved, it proceeds.
+    await processPharmacyReturn(ctx, returnId, "restock");
+  });
+
+  test("dispensing against an unpaid bill is refused without a reason", async ({
+    request,
+  }) => {
+    // The override exists so a pharmacist can dispense before payment clears
+    // and have that decision recorded — the reason is logged with the patient,
+    // the dispenser and the outstanding amount. Silently allowing it would let
+    // stock leave the counter with nothing tying it to a person who chose.
+    const ctx = await getAuthContextFromCookies(request);
+    const patient = await createPatientApi(ctx);
+    const encounterId = await createEncounter(ctx, patient.id);
+    const rxId = await createPrescription(ctx, encounterId);
+
+    const { id: orderId } = await createPharmacyOrder(ctx, {
+      patientId: patient.id,
+      prescriptionId: rxId,
+      encounterId,
+      quantity: 4,
+    });
+
+    // `null` omits the reason deliberately.
+    await expect(
+      dispensePharmacyOrder(ctx, orderId, { unpaidOverrideReason: null }),
+      "an unpaid dispense with no reason must be refused, not quietly allowed",
+    ).rejects.toThrow(/400/);
+
+    // And with one, it proceeds — the control is an override, not a wall.
+    const dispensed = await dispensePharmacyOrder(ctx, orderId, {
+      unpaidOverrideReason: "patient returning with payment after the clinic closes",
+    });
+    expect(dispensed.status).toMatch(/dispensed|partially_dispensed/);
+  });
+
   test("catalog + stock + returns lists", async ({ request }) => {
     const ctx = await getAuthContextFromCookies(request);
     const catalog = await api<unknown[]>(ctx, "GET", "/api/pharmacy/catalog");

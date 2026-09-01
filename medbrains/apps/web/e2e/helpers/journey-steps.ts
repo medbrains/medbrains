@@ -326,12 +326,26 @@ export async function createPharmacyOrder(
 export async function dispensePharmacyOrder(
   ctx: AuthContext,
   orderId: string,
+  opts: { unpaidOverrideReason?: string | null } = {},
 ): Promise<{ id: string; status: string }> {
+  // Dispensing against an outstanding balance is refused unless a reason is
+  // given, and the reason is logged with the patient, the dispenser and the
+  // amount. A hospital that sets `require_payment_before_dispense` refuses
+  // outright and no reason will help.
+  //
+  // Fixtures leave the bill unpaid, so a journey testing the dispense
+  // lifecycle has to say why — the same words a pharmacist would type. Pass
+  // `null` to omit it deliberately and assert the refusal.
+  const reason =
+    opts.unpaidOverrideReason === null
+      ? undefined
+      : (opts.unpaidOverrideReason ?? "E2E lifecycle fixture — bill settled at the counter");
+
   return api<{ id: string; status: string }>(
     ctx,
     "PUT",
     `/api/pharmacy/orders/${orderId}/dispense`,
-    {},
+    reason ? { unpaid_override_reason: reason } : {},
   );
 }
 
@@ -863,7 +877,26 @@ export async function processPharmacyReturn(
   ctx: AuthContext,
   returnId: string,
   action: "restock" | "discard" = "restock",
+  opts: { skipApproval?: boolean } = {},
 ): Promise<void> {
+  // A return is a state machine, not a flag:
+  //
+  //   requested → approved | rejected
+  //   approved  → returned_to_stock | destroyed
+  //
+  // Medicine coming back over the counter cannot go straight onto the shelf.
+  // Somebody approves it first, having checked it is intact, in date and was
+  // stored properly — which is why `requested → returned_to_stock` is refused
+  // with a 409 rather than allowed. This helper skipped the approval and the
+  // lifecycle journey died there.
+  //
+  // `skipApproval` exists so a test can assert that refusal deliberately.
+  if (!opts.skipApproval) {
+    await api(ctx, "PUT", `/api/pharmacy/returns/${returnId}/process`, {
+      status: "approved",
+    });
+  }
+
   const status = action === "restock" ? "returned_to_stock" : "destroyed";
   await api(ctx, "PUT", `/api/pharmacy/returns/${returnId}/process`, {
     status,
