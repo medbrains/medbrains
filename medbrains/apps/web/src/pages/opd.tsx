@@ -74,17 +74,29 @@ export function OpdEncounterPage() {
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedEncounterId = encounterId ?? "";
 
-  const { data: encounter, isLoading: encounterLoading } = useQuery({
+  const {
+    data: encounter,
+    isLoading: encounterLoading,
+    isError: encounterFailed,
+  } = useQuery({
     queryKey: ["opd-encounter", requestedEncounterId],
     queryFn: () => opdService.getEncounter(requestedEncounterId),
     enabled: requestedEncounterId.length > 0,
+    // A refusal is a settled answer; retrying it four times only delays the
+    // message. A genuine outage still gets one retry.
+    retry: 1,
   });
   const patientId = encounter?.patient_id ?? "";
 
-  const { data: patient, isLoading: patientLoading } = useQuery({
+  const {
+    data: patient,
+    isLoading: patientLoading,
+    isError: patientFailed,
+  } = useQuery({
     queryKey: ["patient", patientId],
     queryFn: () => opdService.getPatient(patientId),
     enabled: patientId.length > 0 && canViewPatient,
+    retry: 1,
   });
 
   const loading = encounterLoading || patientLoading;
@@ -106,6 +118,32 @@ export function OpdEncounterPage() {
         </Text>
         <Button tone="secondary" onClick={() => navigate(backTo)}>
           Back to OPD queue
+        </Button>
+      </Stack>
+    );
+  }
+
+  // Three outcomes, not two. The encounter read is gated per record: anyone
+  // holding opd.queue.view who is not a bypass role must also hold a Viewer
+  // relation on this encounter, granted through its department or by being the
+  // attending doctor. A nurse with no department assignment is refused — and
+  // was then told the visit did not exist.
+  //
+  // That is the existence oracle running backwards, which the comment at the
+  // top of this component already warned about for the demographics fetch: a
+  // live visit, reported as absent, to the one person standing in front of the
+  // patient. "Cannot be opened" is the truth; "not found" is a claim about the
+  // world that happens to be false.
+  if (encounterFailed || patientFailed) {
+    return (
+      <Stack align="center" py="xl">
+        <Text c="dimmed">
+          This OPD visit could not be opened. It may exist but be outside your access — a nurse or
+          clinician sees visits in their own department, or ones they are attending. Ask the
+          department to add you, rather than assuming the visit is missing.
+        </Text>
+        <Button tone="secondary" onClick={() => navigate(backTo)}>
+          {backLabel}
         </Button>
       </Stack>
     );

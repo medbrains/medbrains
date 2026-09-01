@@ -102,6 +102,16 @@ export async function ensureE2EIdentities(
   const admin = await loginForSession(request, BOOTSTRAP_ADMIN_USERNAME, BOOTSTRAP_ADMIN_PASSWORD);
   const created: E2EIdentity[] = [];
 
+  // Clinical staff belong to a department, and in this system that is not
+  // decoration. Creating an encounter writes a ReBAC tuple granting the
+  // encounter's *department* the Viewer relation, so a clinician with no
+  // department holds no relation to any encounter and every read is refused.
+  //
+  // The temp users were created without one, which made the nurse fixture a
+  // nurse who could not open a single visit — and the UI, reading a refusal,
+  // told her the visit did not exist. Give them the department real staff have.
+  const clinicalDepartmentIds = await firstClinicalDepartmentId(request, admin);
+
   try {
     for (const roleDef of E2E_ROLE_DEFINITIONS) {
       const username = `e2e_${compactRoleSlug(roleDef.role)}_${usernameRunId}`;
@@ -113,6 +123,9 @@ export async function ensureE2EIdentities(
         full_name: `E2E ${roleDef.label} ${runId}`,
         role: roleDef.role,
       };
+      if (CLINICAL_ROLES.has(roleDef.role) && clinicalDepartmentIds.length > 0) {
+        payload.department_ids = clinicalDepartmentIds;
+      }
       if (roleDef.role === "doctor") {
         payload.specialization = "General Medicine";
         payload.medical_registration_number = `E2E-${runId}`;
@@ -281,4 +294,40 @@ function compactRoleSlug(role: string): string {
 function compactRunId(runId: string): string {
   const normalized = runId.replace(/[^a-zA-Z0-9]/g, "");
   return normalized.slice(-8) || Date.now().toString(36).slice(-8);
+}
+
+/** Roles that work inside a department and are gated per encounter by it. */
+const CLINICAL_ROLES = new Set(["doctor", "nurse"]);
+
+/**
+ * The department clinical fixtures belong to.
+ *
+ * Prefers General Medicine, which is where the OPD fixtures put their
+ * encounters; falls back to any clinical department so a trimmed tenant still
+ * produces usable identities. Returns an empty list rather than throwing — a
+ * tenant with no departments should still get temp users, just unscoped ones.
+ */
+async function firstClinicalDepartmentId(
+  request: APIRequestContext,
+  admin: AuthSession,
+): Promise<string[]> {
+  try {
+    const resp = await request.get(`${E2E_BACKEND_URL}/api/setup/departments`, {
+      headers: authHeaders(admin),
+    });
+    if (resp.status() !== 200) return [];
+    const rows = (await resp.json()) as Array<{
+      id: string;
+      code?: string;
+      department_type?: string;
+      is_active?: boolean;
+    }>;
+    const active = rows.filter((d) => d.is_active !== false);
+    const preferred =
+      active.find((d) => d.code === "GEN-MEDICINE") ??
+      active.find((d) => d.department_type === "clinical");
+    return preferred ? [preferred.id] : [];
+  } catch {
+    return [];
+  }
 }

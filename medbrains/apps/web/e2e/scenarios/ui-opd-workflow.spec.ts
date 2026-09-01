@@ -38,8 +38,15 @@ test.describe("OPD Workflow — UI", () => {
     await loginAsRole(page, identity.username, identity.password);
     await navigateTo(page, "/opd/new");
 
-    // New visit page has a patient search / select field
-    await expect(page.getByRole("combobox")).toBeVisible({ timeout: 8_000 });
+    // Name the field. A bare getByRole("combobox") matched both Visit Type and
+    // Department and failed strict mode -- an ambiguity that appears the moment
+    // anyone adds a second Select, which is exactly how this rotted.
+    await expect(
+      page.getByRole("combobox", { name: /Department/i }),
+    ).toBeVisible({ timeout: 8_000 });
+    await expect(
+      page.getByRole("combobox", { name: /Visit Type/i }),
+    ).toBeVisible();
   });
 
   test("existing encounter appears in OPD queue after creation", async ({
@@ -61,8 +68,14 @@ test.describe("OPD Workflow — UI", () => {
       .getByPlaceholder(/Search token, patient, UHID, phone/i)
       .fill(patient.first_name);
 
+    // Scope to the Queue panel. Once clinical staff carry a department the
+    // Vitals counter renders the same patient, and an unscoped getByText
+    // matches both — the assertion has to name the panel it means.
     await expect(
-      page.getByText(new RegExp(patient.first_name, "i")),
+      page
+        .getByRole("tabpanel", { name: /Queue/i })
+        .getByText(new RegExp(patient.first_name, "i"))
+        .first(),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -82,10 +95,13 @@ test.describe("OPD Workflow — UI", () => {
     await loginAsRole(page, doctorIdentity.username, doctorIdentity.password);
     await navigateTo(page, `/opd/encounters/${encounterId}`);
 
-    // Consultation workspace should load with clinical tabs
-    await expect(
-      page.getByRole("heading", { name: new RegExp(patient.first_name, "i") }),
-    ).toBeVisible({ timeout: 12_000 });
+    // The patient's name sits in the context banner as text, not a heading —
+    // asserting the heading role waited 12s for an element the app has never
+    // rendered. Assert what identifies the patient and is stable: the UHID,
+    // which the banner prints beside the name.
+    await expect(page.getByText(patient.uhid, { exact: false })).toBeVisible({
+      timeout: 12_000,
+    });
 
     // Vitals tab must be present
     await expect(page.getByRole("tab", { name: /Vitals/i })).toBeVisible({
@@ -109,9 +125,15 @@ test.describe("OPD Workflow — UI", () => {
     await loginAsRole(page, nurseIdentity.username, nurseIdentity.password);
     await navigateTo(page, `/opd/encounters/${encounterId}`);
 
-    // Click Vitals tab
-    await page.getByRole("tab", { name: /Vitals/i }).click();
-    await expect(page.getByRole("tabpanel", { name: /Vitals/i })).toBeVisible({
+    // The nurse can reach this encounter because clinical fixtures now carry a
+    // department, which is what grants the Viewer relation on it.
+    const vitalsTab = page.getByRole("tab", { name: /^Vitals$/i });
+    await expect(vitalsTab).toBeVisible({ timeout: 10_000 });
+    await vitalsTab.click();
+
+    // Mantine mounts every panel and hides the inactive ones, so asserting the
+    // panel is "visible" is really asserting the tab became selected. Say that.
+    await expect(vitalsTab).toHaveAttribute("aria-selected", "true", {
       timeout: 8_000,
     });
   });
