@@ -3,7 +3,7 @@
  */
 
 import { type Page, expect } from "@playwright/test";
-import { api, qs } from "./api";
+import { api, qs, withStepUp } from "./api";
 import {
   getOpdDept,
   getFirstDrug,
@@ -270,8 +270,19 @@ export async function createPrescription(
     duration: "5 days",
     route: "oral",
   }));
+  // Signing a prescription is a high-risk action behind step-up
+  // re-authentication (Pillar 3, #3599): without a fresh `step_up` cookie the
+  // handler answers 403 `step_up_required`. This helper predated the control,
+  // so every journey that prescribed — the OPD and pharmacy lifecycles among
+  // them — failed at this line.
+  //
+  // Step up when the context knows its own password; otherwise call as-is and
+  // let the refusal surface, which is the honest outcome for a context that
+  // genuinely cannot re-prove identity.
+  const signing = ctx.password ? await withStepUp(ctx) : ctx;
+
   const resp = await api<{ prescription: { id: string } }>(
-    ctx,
+    signing,
     "POST",
     `/api/opd/encounters/${encounterId}/prescriptions`,
     { items },

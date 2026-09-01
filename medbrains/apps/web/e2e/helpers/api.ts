@@ -34,6 +34,7 @@ export async function loginAsAdmin(
     request,
     userId: admin.session.user.id,
     tenantId: admin.session.user.tenant_id,
+    password: admin.password,
   };
 }
 
@@ -54,6 +55,45 @@ export async function loginAsRoleApi(
     request,
     userId: body.user?.id ?? "",
     tenantId: body.user?.tenant_id ?? "",
+    password: identity.password,
+  };
+}
+
+
+/**
+ * Re-prove identity for a high-risk action.
+ *
+ * `POST /api/auth/step-up` mints a purpose-scoped, five-minute `step_up`
+ * cookie. `require_step_up` at the top of a sensitive handler — prescription
+ * sign, controlled-drug dispense, admin privilege change, clinical
+ * break-glass — rejects with 403 `step_up_required` without it.
+ *
+ * Returns a context carrying the extra cookie. The original is left untouched,
+ * so a caller can still assert the *unstepped* refusal, which is the more
+ * important half of the control.
+ */
+export async function withStepUp(ctx: AuthContext): Promise<AuthContext> {
+  if (!ctx.password) {
+    throw new Error(
+      "withStepUp needs the password this context logged in with; use loginAsRoleApi or loginAsAdmin",
+    );
+  }
+  const resp = await ctx.request.post(`${E2E_BACKEND_URL}/api/auth/step-up`, {
+    headers: {
+      cookie: ctx.cookieHeader,
+      "x-csrf-token": ctx.csrfToken,
+      "content-type": "application/json",
+    },
+    data: { password: ctx.password },
+  });
+  expect(resp.status(), `step-up expected 200, got ${resp.status()}`).toBe(200);
+
+  const minted = cookieHeaderFromResponse(resp);
+  return {
+    ...ctx,
+    // Append rather than replace: the session cookie still has to travel with
+    // it, or the request is unauthenticated and never reaches the step-up gate.
+    cookieHeader: minted ? `${ctx.cookieHeader}; ${minted}` : ctx.cookieHeader,
   };
 }
 
@@ -77,12 +117,32 @@ export async function getAuthContextFromCookies(
   });
   if (!me.ok()) return loginAsAdmin(request);
   const body = await me.json().catch(() => ({}));
+  const userId = body.user?.id ?? body.id ?? "";
+
+  // storageState holds the session global-setup logged in with, so the
+  // password is recoverable from the identity manifest — which matters because
+  // high-risk actions need a step-up, and a context that cannot re-prove
+  // identity cannot sign a prescription.
+  //
+  // Only when the recovered user *is* that identity: step-up verifies the
+  // password against the current user, so attaching somebody else's would turn
+  // a working session into a confusing 401.
+  let password: string | undefined;
+  try {
+    const admin = getE2EIdentity("super_admin");
+    if (admin.id && admin.id === userId) password = admin.password;
+  } catch {
+    // No manifest (a spec run outside the usual setup). Leave it unset and let
+    // any step-up refusal surface honestly.
+  }
+
   return {
     csrfToken: csrf,
     cookieHeader,
     request,
-    userId: body.user?.id ?? body.id ?? "",
+    userId,
     tenantId: body.user?.tenant_id ?? body.tenant_id ?? "",
+    password,
   };
 }
 

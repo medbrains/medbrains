@@ -6,6 +6,16 @@ export interface AuthContext {
   request: APIRequestContext;
   userId: string;
   tenantId: string;
+  /**
+   * The password this context logged in with, when known.
+   *
+   * High-risk actions — signing a prescription, dispensing a controlled drug,
+   * changing admin privileges — require step-up re-authentication within a
+   * five-minute window. Carrying the password lets a helper satisfy that
+   * without every caller plumbing it through. Absent for contexts recovered
+   * from cookies, where it was never seen.
+   */
+  password?: string;
 }
 
 export interface JourneyContext extends AuthContext {
