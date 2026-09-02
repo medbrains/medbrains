@@ -1831,6 +1831,23 @@ export const pharmacyOrderFormSchema = z.object({
   items: z.array(pharmacyOrderItemFormSchema).min(1, "Add at least one medicine"),
 });
 
+export const pharmacyTransferItemFormSchema = z.object({
+  catalog_item_id: requiredTrimmed("Select a medicine"),
+  quantity: positiveFormInteger,
+});
+
+export const pharmacyTransferFormSchema = z
+  .object({
+    from_location_id: requiredTrimmed("Select the store the stock leaves"),
+    to_location_id: requiredTrimmed("Select the store the stock arrives at"),
+    notes: z.string(),
+    items: z.array(pharmacyTransferItemFormSchema).min(1, "Add at least one medicine"),
+  })
+  .refine((value) => value.from_location_id !== value.to_location_id, {
+    message: "Stock cannot be transferred to the store it is already in",
+    path: ["to_location_id"],
+  });
+
 export const pharmacyPosSaleItemFormSchema = z.object({
   catalog_item_id: requiredTrimmed("Select a drug"),
   drug_name: requiredTrimmed("Drug name is required"),
@@ -5447,6 +5464,8 @@ export type PharmacyOrderFormInput = z.infer<typeof pharmacyOrderFormSchema>;
 export type PharmacyOrderItemFormInput = z.infer<typeof pharmacyOrderItemFormSchema>;
 export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentModeFormSchema>;
 export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
+export type PharmacyTransferFormInput = z.infer<typeof pharmacyTransferFormSchema>;
+export type PharmacyTransferItemFormInput = z.infer<typeof pharmacyTransferItemFormSchema>;
 export type PharmacyPosReturnFormInput = z.infer<typeof pharmacyPosReturnFormSchema>;
 export type PharmacyCashDrawerOpenFormInput = z.infer<typeof pharmacyCashDrawerOpenFormSchema>;
 export type PharmacyCashDrawerCloseFormInput = z.infer<typeof pharmacyCashDrawerCloseFormSchema>;

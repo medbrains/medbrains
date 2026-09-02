@@ -94,6 +94,8 @@ export const pharmacyService = {
     api.removePharmacyStaff(...args),
   listPharmacyTransfers: (...args: Parameters<typeof api.listPharmacyTransfers>) =>
     api.listPharmacyTransfers(...args),
+  createPharmacyTransfer: (...args: Parameters<typeof api.createPharmacyTransfer>) =>
+    api.createPharmacyTransfer(...args),
   approvePharmacyTransfer: (...args: Parameters<typeof api.approvePharmacyTransfer>) =>
     api.approvePharmacyTransfer(...args),
   dispatchPharmacyTransfer: (...args: Parameters<typeof api.dispatchPharmacyTransfer>) =>

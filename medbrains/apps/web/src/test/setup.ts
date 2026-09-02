@@ -31,6 +31,20 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// Mantine's autosize Textarea (the default in the `@/components/ui` seam)
+// re-measures when webfonts finish loading. jsdom ships no `document.fonts`,
+// so the listener registration throws and takes the whole render with it.
+if (typeof document !== "undefined" && !document.fonts) {
+  Object.defineProperty(document, "fonts", {
+    writable: true,
+    value: {
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      ready: Promise.resolve(),
+    },
+  });
+}
+
 // MSW lifecycle — fixture-driven UI tests register handlers via
 // `src/test/handlers.ts`. Tests can override per-call with
 // `server.use(...)` inside the test body.

@@ -1,12 +1,14 @@
 // IPD TransfersView — split from pharmacy.tsx (pure move).
 
-import { Group, Text, Tooltip } from "@mantine/core";
+import { Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { PharmacyTransferRequest } from "@medbrains/types";
-import { IconCheck, IconPackageImport, IconTruck } from "@tabler/icons-react";
+import { IconCheck, IconPackageImport, IconPlus, IconTruck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { DataTable, TableValueBadge } from "@/components";
-import { Alert, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { TransferCreateDrawer } from "./transfer-create-drawer";
 
 export function TransfersView({
   canViewStores,
@@ -17,11 +19,30 @@ export function TransfersView({
 }) {
   const queryClient = useQueryClient();
 
-  const { data: transfers = [], isLoading } = useQuery({
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const {
+    data: transfers = [],
+    isLoading,
+    isError: transfersFailed,
+  } = useQuery({
     queryKey: ["pharmacy-transfers"],
     queryFn: () => pharmacyService.listPharmacyTransfers(),
     enabled: canViewStores,
   });
+
+  const { data: stores = [] } = useQuery({
+    queryKey: ["store-locations"],
+    queryFn: () => pharmacyService.listStoreLocations(),
+    enabled: canViewStores,
+  });
+
+  // Index once: the From and To columns each need a name per row, and a
+  // find() per cell would scan the store list twice for every transfer.
+  const storeNames = useMemo(
+    () => new Map(stores.map((store) => [store.id, store.name])),
+    [stores],
+  );
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => pharmacyService.approvePharmacyTransfer(id),
@@ -63,18 +84,20 @@ export function TransfersView({
       key: "from_location_id",
       label: "From",
       searchable: true,
-      accessor: (row: PharmacyTransferRequest) => row.from_location_id,
+      accessor: (row: PharmacyTransferRequest) =>
+        storeNames.get(row.from_location_id) ?? row.from_location_id,
       render: (row: PharmacyTransferRequest) => (
-        <Text size="sm">{row.from_location_id.slice(0, 8)}...</Text>
+        <Text size="sm">{storeNames.get(row.from_location_id) ?? "Unknown store"}</Text>
       ),
     },
     {
       key: "to_location_id",
       label: "To",
       searchable: true,
-      accessor: (row: PharmacyTransferRequest) => row.to_location_id,
+      accessor: (row: PharmacyTransferRequest) =>
+        storeNames.get(row.to_location_id) ?? row.to_location_id,
       render: (row: PharmacyTransferRequest) => (
-        <Text size="sm">{row.to_location_id.slice(0, 8)}...</Text>
+        <Text size="sm">{storeNames.get(row.to_location_id) ?? "Unknown store"}</Text>
       ),
     },
     {
@@ -145,21 +168,50 @@ export function TransfersView({
     },
   ];
 
-  return canViewStores ? (
-    <DataTable
-      columns={columns}
-      data={transfers}
-      loading={isLoading}
-      rowKey={(row) => row.id}
-      searchable
-      searchPlaceholder="Search transfers"
-      exportable
-      exportFileName="pharmacy-transfers"
-    />
-  ) : (
-    <Alert tone="warning">
-      Transfer queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
-    </Alert>
+  if (!canViewStores) {
+    return (
+      <Alert tone="warning">
+        Transfer queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
+      </Alert>
+    );
+  }
+
+  // An empty transfer queue reads as "nothing is in transit", which a store
+  // manager reorders against. An outage must not wear that answer.
+  if (transfersFailed) {
+    return (
+      <Alert tone="danger" title="Transfers could not be loaded">
+        The transfer queue is unavailable. This is not the same as having no transfers in flight —
+        do not treat stock as settled until this list loads.
+      </Alert>
+    );
+  }
+
+  return (
+    <Stack gap="sm">
+      {canManage && (
+        <Group justify="flex-end">
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => setCreateOpen(true)}
+          >
+            New transfer
+          </Button>
+        </Group>
+      )}
+      <DataTable
+        columns={columns}
+        data={transfers}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search transfers"
+        exportable
+        exportFileName="pharmacy-transfers"
+      />
+      <TransferCreateDrawer opened={createOpen} onClose={() => setCreateOpen(false)} />
+    </Stack>
   );
 }
 

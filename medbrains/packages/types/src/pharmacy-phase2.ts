@@ -798,10 +798,15 @@ export interface CreateStoreAssignmentRequest {
   operating_hours?: unknown;
 }
 
+export interface PharmacyTransferItem {
+  catalog_item_id: string;
+  quantity: number;
+}
+
 export interface CreatePharmacyTransferRequest {
   from_location_id: string;
   to_location_id: string;
-  items: unknown;
+  items: PharmacyTransferItem[];
   notes?: string;
 }
 
