@@ -1,0 +1,22 @@
+[package]
+name = "svc-activator"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Detached from the MedBrains workspace on purpose: this is a standalone
+# operator tool, and adding a member would put it in the critical path of
+# every `cargo check` across ~119 crates.
+[workspace]
+
+[dependencies]
+tokio = { version = "1", features = [
+    "rt-multi-thread", "macros", "net", "io-util", "time", "process", "sync", "signal",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
