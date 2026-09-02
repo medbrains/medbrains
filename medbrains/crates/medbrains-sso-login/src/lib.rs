@@ -428,15 +428,33 @@ async fn exchange_code(
     if let Some(secret) = client_secret {
         form.push(("client_secret", secret));
     }
-    reqwest::Client::new()
+    let response = reqwest::Client::new()
         .post(token_endpoint)
         .form(&form)
         .send()
         .await
-        .map_err(|e| AppError::Internal(format!("token exchange: {e}")))?
-        .json::<TokenResponse>()
+        .map_err(|e| AppError::Internal(format!("token exchange: {e}")))?;
+
+    // The identity provider explains its own refusals — "invalid_client" when
+    // the app is confidential and we sent no secret, "invalid_grant" for a
+    // stale code, AADSTS50011 for an unregistered redirect. Parsing straight
+    // into `TokenResponse` throws all of that away and leaves a bare
+    // `unauthorized` with nothing in the log, which is indistinguishable from
+    // a user who simply lacks access. Keep the body, log it, then refuse.
+    let status = response.status();
+    let body = response
+        .text()
         .await
-        .map_err(|_| AppError::Unauthorized)
+        .map_err(|e| AppError::Internal(format!("token exchange body: {e}")))?;
+
+    serde_json::from_str::<TokenResponse>(&body).map_err(|_| {
+        tracing::warn!(
+            %status,
+            provider_response = %body.chars().take(400).collect::<String>(),
+            "sso token exchange refused by the identity provider"
+        );
+        AppError::Unauthorized
+    })
 }
 
 async fn validate_id_token(
