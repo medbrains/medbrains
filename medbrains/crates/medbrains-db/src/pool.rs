@@ -2,7 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use log::LevelFilter;
 use sqlx::{
-    ConnectOptions, PgPool, Postgres, Transaction,
+    ConnectOptions, Executor, PgPool, Postgres, Transaction,
     postgres::{PgConnectOptions, PgPoolOptions},
 };
 use thiserror::Error;
@@ -72,9 +72,27 @@ pub async fn create_pool_with_config(
         //
         // `RESET` rather than setting an empty string, so a connection that
         // has never carried a tenant and one that has are indistinguishable.
+        //
+        // NOT `sqlx::query`: this is eight statements in one string, and
+        // `query` carries an (empty) argument list, which sends it down the
+        // extended/prepared path - and Postgres refuses multiple commands
+        // there: "cannot insert multiple commands into a prepared statement".
+        //
+        // sqlx picks the protocol on whether `take_arguments()` yields `Some`,
+        // NOT on `persistent()`. `raw_sql` and a bare `&str` both yield `None`
+        // and both reach the simple protocol, so either is correct here;
+        // `raw_sql` says so out loud. `query` yields `Some` and is the trap.
+        //
+        // This took production down on 2026-09-01. The error propagates out of
+        // `after_release`, so sqlx discards the connection on *every* release:
+        // the pool never has a spare, every acquire waits out the full timeout,
+        // and the service reports itself degraded while Postgres sits there
+        // idle with this RESET chain as every connection's last statement.
+        // `tests/tenant_conn.rs` pins it — a discarded connection changes
+        // `pg_backend_pid()`.
         .after_release(|conn, _meta| {
             Box::pin(async move {
-                sqlx::query(
+                conn.execute(sqlx::raw_sql(
                     "RESET app.tenant_id; \
                      RESET app.scope; \
                      RESET app.user_id; \
@@ -83,8 +101,7 @@ pub async fn create_pool_with_config(
                      RESET app.user_agent; \
                      RESET app.session_id; \
                      RESET app.correlation_id",
-                )
-                .execute(&mut *conn)
+                ))
                 .await?;
                 Ok(true)
             })

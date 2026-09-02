@@ -427,3 +427,70 @@ async fn neither_working_role_is_a_superuser() {
         }
     }
 }
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn a_released_connection_is_reused_rather_than_discarded() {
+    // The bug this exists for: `after_release` sent its eight RESETs as one
+    // `sqlx::query`, which uses the extended protocol and rejects multiple
+    // commands ("cannot insert multiple commands into a prepared statement").
+    // The error propagated out of the hook, so sqlx threw the connection away
+    // on every release. With the pool never holding a spare, every acquire
+    // waited out the full timeout and the server reported itself degraded
+    // while Postgres sat idle.
+    //
+    // A pool of exactly one makes it visible: reuse means the same backend
+    // answers every time, so the pid must not change.
+    let pool = pool_of("medbrains", 1).await;
+
+    let mut pids = Vec::new();
+    for _ in 0..3 {
+        let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+            .fetch_one(&pool)
+            .await
+            .expect("the pool must hand out a connection");
+        pids.push(pid);
+    }
+
+    assert!(
+        pids.iter().all(|p| *p == pids[0]),
+        "release discarded the connection instead of returning it to the pool: {pids:?}"
+    );
+}
+
+/// The `after_release` hook must survive its own eight-statement RESET.
+///
+/// `after_release` returning an error makes sqlx discard the connection on
+/// *every* release: the pool never holds a spare, every acquire waits out the
+/// full `acquire_timeout`, and the service reports itself degraded while
+/// Postgres sits there idle. That is not hypothetical — it took MedBrains
+/// down on 2026-09-01, because a bare `&str` looks unprepared and is not
+/// (`impl Execute for &str` returns `persistent() == true`, so the RESET chain
+/// went over the extended protocol and Postgres refused multiple commands).
+///
+/// With `max_connections = 1` the question answers itself: reuse means the
+/// hook succeeded, a fresh backend pid means it did not.
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn releasing_a_connection_does_not_discard_it() {
+    let pool = pool_of("medbrains", 1).await;
+
+    async fn backend_pid(pool: &sqlx::PgPool) -> i32 {
+        let row = sqlx::query("SELECT pg_backend_pid()")
+            .fetch_one(pool)
+            .await
+            .expect("query on a pooled connection");
+        row.get::<i32, _>(0)
+    }
+
+    let first = backend_pid(&pool).await;
+    for _ in 0..4 {
+        assert_eq!(
+            backend_pid(&pool).await,
+            first,
+            "the pool opened a new backend, so after_release errored and sqlx \
+             discarded the connection — every acquire will now wait out the \
+             full timeout while Postgres sits idle",
+        );
+    }
+}
