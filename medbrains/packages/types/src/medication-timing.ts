@@ -2503,6 +2503,11 @@ export interface LabReportDispatch {
   confirmed_at: string | null;
   notes: string | null;
   created_at: string;
+  /** Set when the record was voided. Voided rows stay in the list, marked —
+   *  a dispatch to the wrong recipient is a disclosure, and deleting it would
+   *  hide the incident rather than correct the record. */
+  voided_at?: string | null;
+  void_reason?: string | null;
 }
 
 export interface LabReportTemplate {

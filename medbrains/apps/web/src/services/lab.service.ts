@@ -108,6 +108,7 @@ export const labService = {
     api.listReportDispatches(...args),
   createReportDispatch: (...args: Parameters<typeof api.createReportDispatch>) =>
     api.createReportDispatch(...args),
+  voidReportDispatch: api.voidReportDispatch,
   confirmReportDispatch: (...args: Parameters<typeof api.confirmReportDispatch>) =>
     api.confirmReportDispatch(...args),
   listLabReferralDoctors: (...args: Parameters<typeof api.listLabReferralDoctors>) =>

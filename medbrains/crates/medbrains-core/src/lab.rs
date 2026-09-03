@@ -463,6 +463,11 @@ pub struct LabReportDispatch {
     pub confirmed_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Set when the record was voided. The row stays in the list, marked —
+    /// a dispatch to the wrong recipient is a disclosure, and deleting it
+    /// would hide the incident rather than correct the record.
+    pub voided_at: Option<DateTime<Utc>>,
+    pub void_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

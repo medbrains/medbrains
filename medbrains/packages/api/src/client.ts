@@ -5731,6 +5731,11 @@ export const api = {
     request<LabReportDispatch>(`/lab/report-dispatches/${id}/confirm`, {
       method: "POST",
     }),
+  voidReportDispatch: (id: string, reason: string) =>
+    request<LabReportDispatch>(`/lab/report-dispatches/${id}/void`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 
   // Lab Phase 3 — Report Templates
   listReportTemplates: (params?: Record<string, string>) => {

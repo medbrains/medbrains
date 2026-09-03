@@ -4154,6 +4154,68 @@ pub async fn create_report_dispatch(
     Ok(Json(row))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct VoidDispatchRequest {
+    pub reason: String,
+}
+
+/// `POST /api/lab/report-dispatches/{id}/void`
+///
+/// Marks a dispatch record as wrongly created. It does NOT delete it, and the
+/// distinction is the point: "I clicked the wrong button" and "I posted it to
+/// the wrong address" look the same at the desk, and only the first is a
+/// record error. The second is a disclosure, and a row that vanishes takes the
+/// evidence of it with them.
+///
+/// So the row stays, listed and marked, with the reason attached.
+pub async fn void_report_dispatch(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<VoidDispatchRequest>,
+) -> Result<Json<LabReportDispatch>, AppError> {
+    require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
+    let reason = body.reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "A reason is required to void a dispatch record".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Refused once the recipient has confirmed receipt: at that point the
+    // dispatch demonstrably happened, and marking it void would falsify the
+    // record rather than correct it. If it went to the wrong person, that is
+    // an incident to raise, not a row to tidy.
+    let row = sqlx::query_as::<_, LabReportDispatch>(
+        "UPDATE lab_report_dispatches \
+            SET voided_at = now(), voided_by = $3, void_reason = $4 \
+          WHERE id = $1 AND tenant_id = $2 \
+            AND voided_at IS NULL \
+            AND received_confirmation = false \
+          RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(reason)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(row) = row else {
+        return Err(AppError::BadRequest(
+            "That dispatch is already void, or the recipient has confirmed receiving it — \
+             a confirmed dispatch cannot be voided, raise it as a disclosure instead"
+                .to_owned(),
+        ));
+    };
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 pub async fn confirm_report_dispatch(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -5639,6 +5701,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/lab/report-dispatches/{id}/confirm",
             post(confirm_report_dispatch),
+        )
+        .route(
+            "/api/lab/report-dispatches/{id}/void",
+            post(void_report_dispatch),
         )
         .route(
             "/api/lab/report-templates",
