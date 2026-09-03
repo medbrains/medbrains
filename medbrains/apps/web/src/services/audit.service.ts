@@ -15,4 +15,5 @@ export const auditService = {
   listBreakGlass: api.listBreakGlass,
   getBreakGlass: api.getBreakGlass,
   reviewBreakGlass: api.reviewBreakGlass,
+  listAuditChainVerifications: api.listAuditChainVerifications,
 };

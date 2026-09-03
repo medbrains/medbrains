@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -177,6 +178,11 @@ impl AuditLogger {
         Ok(())
     }
 
+    /// Rows per page when walking a tenant's audit chain. Large enough that
+    /// the round trips are not the cost, small enough that a page is a
+    /// bounded allocation however long the chain has grown.
+    const VERIFY_CHAIN_PAGE: i64 = 1_000;
+
     /// Verify the SHA-256 hash chain for a single tenant.
     /// Walks the `audit_log` rows for the tenant in `created_at` order and
     /// recomputes each hash from `prev_hash` + payload. Returns the row
@@ -185,53 +191,82 @@ impl AuditLogger {
         pool: &PgPool,
         tenant_id: Uuid,
     ) -> Result<ChainVerificationResult, sqlx::Error> {
-        let mut tx = pool.begin().await?;
-        // allow-raw-sql: audit-context bootstrap (set_config GUC, no tenant data)
-        sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
-            .bind(tenant_id.to_string())
-            .execute(&mut *tx)
-            .await?;
-
-        // Read only the canonical hash-input bytes; sidesteps JSONB normalization.
-        // Rows with hash_input_canonical IS NULL are pre-Phase-2.5 legacy and
-        // are skipped (counted separately).
-        let rows: Vec<(Uuid, String, Option<String>, Option<String>)> = sqlx::query_as(
-            "SELECT id, hash, hash_input_canonical, prev_hash \
-             FROM audit_log \
-             WHERE tenant_id = $1 AND hash IS NOT NULL \
-             ORDER BY created_at ASC, id ASC",
-        )
-        .bind(tenant_id)
-        .fetch_all(&mut *tx)
-        .await?;
-
         let mut broken_at: Option<Uuid> = None;
         let mut head: Option<String> = None;
         let mut rows_checked: i64 = 0;
         let mut rows_legacy_skipped: i64 = 0;
+        let mut cursor: Option<(DateTime<Utc>, Uuid)> = None;
 
-        for (id, stored_hash, canonical_opt, _stored_prev) in &rows {
-            let Some(canonical) = canonical_opt else {
-                rows_legacy_skipped += 1;
-                // Track legacy chain head so subsequent rows can still be verified
-                // (their prev_hash links into stored_hash even though we can't
-                // recompute the legacy row itself).
-                head = Some(stored_hash.clone());
-                continue;
-            };
-            let mut hasher = Sha256::new();
-            hasher.update(canonical.as_bytes());
-            let computed = hex::encode(hasher.finalize());
+        // Keyset pagination, not `fetch_all`.
+        //
+        // `audit_log` is the fastest-growing table in the system — every read
+        // and write of PHI adds a row, and regulation says we keep them for
+        // years. Loading a tenant's whole chain into a Vec is a
+        // hundreds-of-megabytes allocation to verify something that only needs
+        // one row at a time.
+        //
+        // A transaction per page, rather than one around the whole walk: the
+        // `set_config` is transaction-local so each page needs its own, and
+        // holding a single pool connection for the length of a full-table walk
+        // is how the request path starves. Hashing happens with no connection
+        // held at all.
+        'pages: loop {
+            let mut tx = pool.begin().await?;
+            // allow-raw-sql: audit-context bootstrap (set_config GUC, no tenant data)
+            sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+                .bind(tenant_id.to_string())
+                .execute(&mut *tx)
+                .await?;
 
-            if &computed != stored_hash {
-                broken_at = Some(*id);
+            // Read only the canonical hash-input bytes; sidesteps JSONB
+            // normalization. Rows with hash_input_canonical IS NULL are
+            // pre-Phase-2.5 legacy and are skipped (counted separately).
+            let page: Vec<(Uuid, String, Option<String>, Option<String>, DateTime<Utc>)> =
+                sqlx::query_as(
+                    "SELECT id, hash, hash_input_canonical, prev_hash, created_at \
+                     FROM audit_log \
+                     WHERE tenant_id = $1 AND hash IS NOT NULL \
+                       AND ($2::timestamptz IS NULL OR (created_at, id) > ($2, $3)) \
+                     ORDER BY created_at ASC, id ASC \
+                     LIMIT $4",
+                )
+                .bind(tenant_id)
+                .bind(cursor.map(|(at, _)| at))
+                .bind(cursor.map(|(_, id)| id))
+                .bind(Self::VERIFY_CHAIN_PAGE)
+                .fetch_all(&mut *tx)
+                .await?;
+            tx.commit().await?;
+
+            if page.is_empty() {
                 break;
             }
-            rows_checked += 1;
-            head = Some(computed);
+            if let Some(last) = page.last() {
+                cursor = Some((last.4, last.0));
+            }
+
+            for (id, stored_hash, canonical_opt, _stored_prev, _created_at) in &page {
+                let Some(canonical) = canonical_opt else {
+                    rows_legacy_skipped += 1;
+                    // Track legacy chain head so subsequent rows can still be
+                    // verified (their prev_hash links into stored_hash even
+                    // though we cannot recompute the legacy row itself).
+                    head = Some(stored_hash.clone());
+                    continue;
+                };
+                let mut hasher = Sha256::new();
+                hasher.update(canonical.as_bytes());
+                let computed = hex::encode(hasher.finalize());
+
+                if &computed != stored_hash {
+                    broken_at = Some(*id);
+                    break 'pages;
+                }
+                rows_checked += 1;
+                head = Some(computed);
+            }
         }
 
-        tx.commit().await?;
         Ok(ChainVerificationResult {
             tenant_id,
             rows_checked,
@@ -244,11 +279,16 @@ impl AuditLogger {
 
     /// List all tenants that have `audit_log` rows. Used by the verify-chain cron.
     pub async fn tenants_with_audit_log(pool: &PgPool) -> Result<Vec<Uuid>, sqlx::Error> {
+        // From `tenants`, not `DISTINCT tenant_id FROM audit_log`.
+        //
+        // The old form scanned every audit row ever written to produce a list
+        // that is a handful of rows long — O(largest table) to answer a
+        // question O(smallest table) already answers, and it ran immediately
+        // before the chain walk, so the nightly job paid for the scan twice.
         // allow-raw-sql: cross-tenant admin query, runs from cron job container only
-        let rows: Vec<(Uuid,)> =
-            sqlx::query_as("SELECT DISTINCT tenant_id FROM audit_log ORDER BY tenant_id")
-                .fetch_all(pool)
-                .await?;
+        let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM tenants ORDER BY id")
+            .fetch_all(pool)
+            .await?;
         Ok(rows.into_iter().map(|(t,)| t).collect())
     }
 }

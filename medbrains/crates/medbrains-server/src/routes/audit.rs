@@ -219,6 +219,53 @@ pub async fn audit_stats(
 }
 
 // ── List access log (paginated, filtered) ────────────────
+/// One run of the tamper-evidence check.
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct ChainVerification {
+    pub id: Uuid,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub rows_checked: i64,
+    pub head_hash: Option<String>,
+    pub broken_at: Option<Uuid>,
+    pub valid: bool,
+    pub duration_ms: Option<i32>,
+    pub triggered_by: String,
+}
+
+/// `GET /api/audit/chain-verifications`
+///
+/// The nightly job has always written its result to
+/// `audit_chain_verifications` and nothing has ever read it. A tamper-evident
+/// audit log whose verdict nobody can see provides no evidence of anything:
+/// a broken chain — the single event the whole mechanism exists to detect —
+/// would reach stderr and a table with no reader.
+pub async fn list_chain_verifications(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<ChainVerification>>, AppError> {
+    require_permission(&claims, permissions::audit::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Bounded: this is a history panel, not an export. One run per night means
+    // 60 rows is two months, which is as far back as anyone reads on a screen.
+    let rows = sqlx::query_as::<_, ChainVerification>(
+        "SELECT id, completed_at, rows_checked, head_hash, broken_at, valid, \
+                duration_ms, triggered_by \
+           FROM audit_chain_verifications \
+          WHERE tenant_id = $1 AND deleted_at IS NULL \
+          ORDER BY started_at DESC \
+          LIMIT 60",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 pub async fn list_access_log(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

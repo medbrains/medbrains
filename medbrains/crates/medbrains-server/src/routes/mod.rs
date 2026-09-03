@@ -580,6 +580,10 @@ pub fn build_router(state: AppState) -> Router {
             get(audit::entity_audit_trail),
         )
         .route(
+            "/api/audit/chain-verifications",
+            get(audit::list_chain_verifications),
+        )
+        .route(
             "/api/audit/stats",
             get(audit::audit_stats),
         )

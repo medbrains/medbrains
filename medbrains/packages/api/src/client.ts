@@ -654,6 +654,7 @@ import type {
   CreatePatientIdentifierRequest,
   CreatePatientRequest,
   AddCampCounterRequest,
+  AuditChainVerification,
   CampCounter,
   CreatePatientTransfer,
   // Payment Gateway
@@ -12988,6 +12989,9 @@ export const api = {
     request<AuditLogEntry[]>(`/audit/log/entity/${entityType}/${entityId}`),
 
   getAuditStats: () => request<AuditStats>("/audit/stats"),
+  listAuditChainVerifications: () =>
+    request<AuditChainVerification[]>("/audit/chain-verifications"),
+
 
   listAccessLog: (params?: AccessLogQuery) => {
     const sp = new URLSearchParams();

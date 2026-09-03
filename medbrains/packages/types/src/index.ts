@@ -4735,6 +4735,19 @@ export interface PartReplaced {
  * A service point at a camp — consultation room, lab desk, pharmacy table —
  * and the department it serves. The camp board is built entirely from these.
  */
+/** One run of the audit-log tamper-evidence check. */
+export interface AuditChainVerification {
+  id: string;
+  completed_at: string | null;
+  rows_checked: number;
+  head_hash: string | null;
+  /** The row where the chain first failed to verify; null when intact. */
+  broken_at: string | null;
+  valid: boolean;
+  duration_ms: number | null;
+  triggered_by: string;
+}
+
 export interface CampCounter {
   id: string;
   tenant_id: string;

@@ -6,6 +6,7 @@ import {
   IconEye,
   IconFileAnalytics,
   IconHistory,
+  IconShieldCheck,
   IconShieldLock,
   IconUserSearch,
 } from "@tabler/icons-react";
@@ -15,6 +16,7 @@ import { AccessLogTab } from "./audit/AccessLogTab";
 import { AuditLogTab } from "./audit/AuditLogTab";
 import { AuditStatsTab } from "./audit/AuditStatsTab";
 import { BreakGlassReviewTab } from "./audit/BreakGlassReviewTab";
+import { ChainIntegrityTab } from "./audit/ChainIntegrityTab";
 import { EntityTimelineTab } from "./audit/EntityTimelineTab";
 import { UserActivityTab } from "./audit/UserActivityTab";
 
@@ -49,6 +51,9 @@ export function AuditPage() {
               Break-glass
             </Tabs.Tab>
           )}
+          <Tabs.Tab value="integrity" leftSection={<IconShieldCheck size={16} />}>
+            Chain Integrity
+          </Tabs.Tab>
           <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
             Statistics
           </Tabs.Tab>
@@ -73,6 +78,9 @@ export function AuditPage() {
             <BreakGlassReviewTab />
           </Tabs.Panel>
         )}
+        <Tabs.Panel value="integrity" pt="md">
+          <ChainIntegrityTab />
+        </Tabs.Panel>
         <Tabs.Panel value="stats" pt="md">
           <AuditStatsTab />
         </Tabs.Panel>
