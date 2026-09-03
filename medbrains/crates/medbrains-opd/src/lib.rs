@@ -3574,32 +3574,53 @@ pub async fn list_patient_prescriptions(
     let pharmacy_statuses =
         prescription_pharmacy_statuses(&mut tx, claims.tenant_id, &prescription_ids).await?;
 
-    let mut result = Vec::with_capacity(prescriptions.len());
-    for rx in &prescriptions {
-        let items = sqlx::query_as::<_, PrescriptionItem>(
+    // Items and encounter headers for the whole page in two queries rather than
+    // two per prescription. At the 50-prescription cap above this was 101 round
+    // trips for one patient's history; it is now three. The row ceiling is that
+    // same cap times the items on a prescription — a clinical handful, not a
+    // number that needs its own LIMIT.
+    let mut items_by_rx: HashMap<Uuid, Vec<PrescriptionItem>> = HashMap::new();
+    if !prescription_ids.is_empty() {
+        let all_items = sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
-             WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active' \
-             ORDER BY created_at LIMIT 5000",
+             WHERE prescription_id = ANY($1) AND tenant_id = $2 AND item_status = 'active' \
+             ORDER BY prescription_id, created_at",
         )
-        .bind(rx.id)
+        .bind(&prescription_ids)
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
         .await?;
+        for item in all_items {
+            items_by_rx.entry(item.prescription_id).or_default().push(item);
+        }
+    }
 
-        // Get encounter date and doctor name
-        let row: Option<(NaiveDate, Option<String>)> = sqlx::query_as(
-            "SELECT e.encounter_date, \
+    let encounter_ids: Vec<Uuid> = prescriptions.iter().map(|rx| rx.encounter_id).collect();
+    let mut encounter_headers: HashMap<Uuid, (NaiveDate, Option<String>)> = HashMap::new();
+    if !encounter_ids.is_empty() {
+        let rows = sqlx::query_as::<_, (Uuid, NaiveDate, Option<String>)>(
+            "SELECT e.id, e.encounter_date, \
              CASE WHEN u.id IS NOT NULL THEN u.full_name ELSE NULL END \
              FROM encounters e \
              LEFT JOIN users u ON e.doctor_id = u.id \
-             WHERE e.id = $1",
+             WHERE e.id = ANY($1)",
         )
-        .bind(rx.encounter_id)
-        .fetch_optional(&mut *tx)
+        .bind(&encounter_ids)
+        .fetch_all(&mut *tx)
         .await?;
+        for (id, date, doctor) in rows {
+            encounter_headers.insert(id, (date, doctor));
+        }
+    }
 
-        let (encounter_date, doctor_name) =
-            row.unwrap_or_else(|| (rx.created_at.date_naive(), None));
+    let mut result = Vec::with_capacity(prescriptions.len());
+    for rx in &prescriptions {
+        let items = items_by_rx.remove(&rx.id).unwrap_or_default();
+
+        let (encounter_date, doctor_name) = encounter_headers
+            .get(&rx.encounter_id)
+            .cloned()
+            .unwrap_or_else(|| (rx.created_at.date_naive(), None));
         let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) = pharmacy_statuses
             .get(&rx.id)
             .cloned()
