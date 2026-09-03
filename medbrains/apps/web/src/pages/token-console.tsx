@@ -17,6 +17,7 @@ import { Alert, Badge, Button, Input, Select, Tooltip, toast } from "@/component
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { formatWaited, hasAged } from "@/lib/token-ageing";
+import { TokenEscalateModal } from "./token-escalate-modal";
 
 const MODULE_VALUES = [
   "registration",
@@ -112,6 +113,8 @@ export function TokenConsolePage() {
     onError: onActionError,
   });
 
+  const [escalating, setEscalating] = useState<ModuleToken | null>(null);
+
   const columns: Column<ModuleToken>[] = [
     { key: "number", label: "Token", render: (row) => <strong>{row.number}</strong> },
     {
@@ -171,6 +174,13 @@ export function TokenConsolePage() {
               {action.label}
             </Button>
           ))}
+          {/* Only while they are still waiting to be seen — escalating
+              somebody already in the room changes nothing about their care. */}
+          {(row.status === "waiting" || row.status === "called") && (
+            <Button tone="tertiary" size="xs" onClick={() => setEscalating(row)}>
+              Move up
+            </Button>
+          )}
         </Group>
       ),
     },
@@ -178,6 +188,11 @@ export function TokenConsolePage() {
 
   return (
     <Stack>
+      <TokenEscalateModal
+        token={escalating}
+        onClose={() => setEscalating(null)}
+        onDone={invalidate}
+      />
       <PageHeader title={t("tokenConsole.title")} subtitle={t("tokenConsole.subtitle")} />
       <Group align="flex-end">
         <Select

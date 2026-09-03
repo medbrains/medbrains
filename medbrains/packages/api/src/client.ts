@@ -3678,6 +3678,12 @@ export const api = {
    * hand and the link on their phone both keep working.
    */
   requeueToken: (id: string) => request<ModuleToken>(`/tokens/${id}/requeue`, { method: "POST" }),
+  escalateTokenPriority: (id: string, data: { priority: string; reason: string }) =>
+    request<ModuleToken>(`/tokens/${id}/priority`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   listTokenBoard: (params: {
     module: string;
     scope?: string;

@@ -20,7 +20,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -58,13 +58,17 @@ pub struct Token {
     pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub token_date: chrono::NaiveDate,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Why this token was escalated, if it was. Shown on the board so a
+    /// patient moved up does not read as a queue-jump to whoever is waiting.
+    pub priority_reason: Option<String>,
+    pub priority_changed_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 const SELECT: &str = "id, module, scope, scope_id, scope_label, number, seq, status, priority, \
      patient_id, patient_name, entity_type, entity_id, counter_label, visit_id, \
      referred_from_module, referred_from_scope, referred_from_scope_id, \
      returned_from_label, returned_at, called_at, served_at, \
-     completed_at, token_date, created_at";
+     completed_at, token_date, created_at, priority_reason, priority_changed_at";
 
 fn token_prefix(module: &str) -> &'static str {
     match module {
@@ -1075,6 +1079,91 @@ async fn mirror_to_opd_queue(
 
 /// authorization layer, and it widens nothing: no one gains a queue they could
 /// not already call.
+#[derive(Debug, Deserialize)]
+pub struct EscalateInput {
+    pub priority: String,
+    /// Required. An escalation nobody can account for is the thing this
+    /// endpoint exists to prevent, not to enable.
+    pub reason: String,
+}
+
+/// `PUT /api/tokens/{id}/priority` — move a waiting patient up the queue.
+///
+/// Promotion already happened as a side effect of re-issuing a token: a STAT
+/// lab order for someone queued for a routine collection lifts it. That covers
+/// the case where a clinical order happens to be raised, and misses the one
+/// that matters — a patient deteriorating in the waiting room, noticed by
+/// whoever walks past, with no order to raise.
+///
+/// Escalation only. A desk that can push someone *down* the queue is a
+/// different and much worse feature, and the existing promotion path already
+/// refuses demotion by construction; this keeps that property.
+pub async fn escalate_priority(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<EscalateInput>,
+) -> Result<Json<Token>, AppError> {
+    let reason = body.reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "A reason is required to move a patient up the queue".to_owned(),
+        ));
+    }
+    if !VALID_TOKEN_PRIORITIES.contains(&body.priority.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Unknown priority '{}'",
+            body.priority
+        )));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let module: String = sqlx::query_scalar(
+        "SELECT module FROM tokens WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_queue_manage(&claims, &module)?;
+
+    // The same weight comparison the board and call-next sort by, so an
+    // escalation cannot disagree with the order it is trying to change — and
+    // a lower-priority request leaves the token alone rather than demoting it.
+    let updated = sqlx::query_as::<_, Token>(&format!(
+        "UPDATE tokens SET priority = $3, priority_reason = $4, \
+                priority_changed_by = $5, priority_changed_at = now(), \
+                updated_at = now() \
+          WHERE id = $1 AND tenant_id = $2 \
+            AND status IN ('waiting', 'called') \
+            AND token_priority_weight($3) < token_priority_weight(priority) \
+          RETURNING {SELECT}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.priority)
+    .bind(reason)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(token) = updated else {
+        // Nothing changed: either the token is already at least this urgent,
+        // or it has been served. Say which — a silent no-op at a desk is how
+        // somebody believes they escalated a patient who they did not.
+        return Err(AppError::BadRequest(
+            "That token is already at this priority or higher, or is no longer waiting"
+                .to_owned(),
+        ));
+    };
+
+    tx.commit().await?;
+    Ok(Json(token))
+}
+
 fn require_queue_manage(claims: &Claims, module: &str) -> Result<(), AppError> {
     if module == "opd" && require_permission(claims, permissions::opd::TOKEN_MANAGE).is_ok() {
         return Ok(());
@@ -1706,6 +1795,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/{id}/serve", post(serve_token))
         .route("/api/tokens/{id}/complete", post(complete_token))
         .route("/api/tokens/{id}/no-show", post(no_show_token))
+        .route("/api/tokens/{id}/priority", put(escalate_priority))
         .route("/api/tokens/{id}/requeue", post(requeue_token))
 }
 

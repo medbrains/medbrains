@@ -7892,6 +7892,10 @@ export interface ModuleToken {
   completed_at?: string | null;
   token_date: string;
   created_at: string;
+  /** Why this token was escalated, if it was — shown so a patient moved
+   *  up does not read as a queue-jump to whoever is still waiting. */
+  priority_reason?: string | null;
+  priority_changed_at?: string | null;
 }
 
 /** Hospital-authored blog post (tenant-scoped — `blog_posts`). */
