@@ -889,7 +889,9 @@ pub async fn visitor_analytics(
     // Today's count
     let today = sqlx::query_as::<_, (Option<i64>,)>(
         "SELECT COUNT(*)::bigint FROM visitor_registrations \
-         WHERE tenant_id = $1 AND DATE(created_at) = CURRENT_DATE",
+         WHERE tenant_id = $1 \
+           AND created_at >= CURRENT_DATE \
+           AND created_at < CURRENT_DATE + INTERVAL '1 day'",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
