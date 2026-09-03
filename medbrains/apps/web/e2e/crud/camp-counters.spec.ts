@@ -15,8 +15,9 @@ import { navigateTo } from "../helpers";
 test.describe("camp counters", () => {
   test("a camp offers a way to add the rooms its board will show", async ({ page }) => {
     await navigateTo(page, "/camp");
-    const firstCamp = page.getByRole("row").nth(1).getByRole("link").first();
-    await firstCamp.click();
+    // Rows open via a "View Details" button, not a link — the camps table
+    // navigates with onClick rather than an anchor.
+    await page.getByRole("button", { name: /view details/i }).first().click();
 
     await expect(
       page.getByRole("button", { name: /add counter/i }),
@@ -26,15 +27,24 @@ test.describe("camp counters", () => {
 
   test("a counter added on the screen reaches the board API", async ({ page, request }) => {
     await navigateTo(page, "/camp");
-    await page.getByRole("row").nth(1).getByRole("link").first().click();
+    await page.getByRole("button", { name: /view details/i }).first().click();
     await page.waitForURL(/\/camp\//);
     const campId = page.url().split("/camp/")[1]?.split(/[/?#]/)[0] ?? "";
     expect(campId, "could not read a camp id from the url").toMatch(/[0-9a-f-]{36}/);
 
     const name = `Consultation room ${Date.now() % 100000}`;
     await page.getByLabel("Counter", { exact: true }).fill(name);
-    await page.getByLabel(/serves department/i).click();
-    await page.getByRole("option").first().click();
+    // Role, not label: a Mantine Select renders the visible combobox AND a
+    // hidden input, both carrying the label, so getByLabel matches two nodes.
+    //
+    // Keyboard rather than clicking the option: the dropdown is portalled and
+    // animating, so a click races it. This is also the path a keyboard user
+    // takes, which is the one that has to work.
+    const department = page.getByRole("combobox", { name: /serves department/i });
+    await department.click();
+    await department.press("ArrowDown");
+    await department.press("Enter");
+    await expect(department, "a department must be selected").not.toHaveValue("");
     await page.getByLabel("Where").fill("School block A");
     await page.getByRole("button", { name: /add counter/i }).click();
 
@@ -56,7 +66,7 @@ test.describe("camp counters", () => {
     // A counter with no department cannot reach the board. Hiding it would
     // leave someone building the same room a second time.
     await navigateTo(page, "/camp");
-    await page.getByRole("row").nth(1).getByRole("link").first().click();
+    await page.getByRole("button", { name: /view details/i }).first().click();
     await expect(page.getByText(/the camp board shows one card per counter/i)).toBeVisible();
   });
 });
