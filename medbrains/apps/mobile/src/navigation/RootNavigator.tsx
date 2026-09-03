@@ -7,6 +7,7 @@ import {
   // Patient screens
   AppointmentsScreen,
   BillingScreen,
+  CampRegistrationScreen,
   CollectionDetailScreen,
   // Phlebo screens
   CollectionListScreen,
@@ -29,7 +30,6 @@ import {
   RadiologyOrderScreen,
   SampleCollectionScreen,
   StaffDashboard,
-  CampRegistrationScreen,
   TokenBoardsScreen,
   TripSummaryScreen,
   VitalsEntryScreen,

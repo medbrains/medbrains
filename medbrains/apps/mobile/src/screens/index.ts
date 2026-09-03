@@ -15,6 +15,7 @@ export { CollectionDetailScreen } from "./phlebo/CollectionDetailScreen";
 export { CollectionListScreen } from "./phlebo/CollectionListScreen";
 export { SampleCollectionScreen } from "./phlebo/SampleCollectionScreen";
 export { TripSummaryScreen } from "./phlebo/TripSummaryScreen";
+export { CampRegistrationScreen } from "./staff/CampRegistrationScreen";
 export { ConsultationNotesScreen } from "./staff/ConsultationNotesScreen";
 export { LabOrderScreen } from "./staff/LabOrderScreen";
 export { LabResultsViewScreen } from "./staff/LabResultsViewScreen";
@@ -27,6 +28,5 @@ export { QueueScreen } from "./staff/QueueScreen";
 export { RadiologyOrderScreen } from "./staff/RadiologyOrderScreen";
 // Staff screens
 export { StaffDashboard } from "./staff/StaffDashboard";
-export { CampRegistrationScreen } from "./staff/CampRegistrationScreen";
 export { TokenBoardsScreen } from "./staff/TokenBoardsScreen";
 export { VitalsEntryScreen } from "./staff/VitalsEntryScreen";
