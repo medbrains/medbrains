@@ -29,6 +29,10 @@ vi.mock("@medbrains/api", async (importOriginal) => {
       ...actual.api,
       listTokenBoard: () => board(),
       listDepartments: async () => [],
+      // The counter picker reads stations. Left unmocked, the real fetch
+      // returns a non-array and the render dies on .map before the thing
+      // under test appears.
+      listStations: async () => [{ id: "s1", name: "OPD Counter 01" }],
     },
   };
 });

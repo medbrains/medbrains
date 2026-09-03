@@ -13,7 +13,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Alert, Badge, Button, Input, Select, Tooltip, toast } from "@/components/ui";
+import { Alert, Badge, Button, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { formatWaited, hasAged } from "@/lib/token-ageing";
@@ -115,6 +115,14 @@ export function TokenConsolePage() {
 
   const [escalating, setEscalating] = useState<ModuleToken | null>(null);
 
+  // Stations are the canonical counter names. An empty list disables the
+  // picker rather than falling back to free text: a typed label that no door
+  // matches is worse than no label at all, because it looks like it worked.
+  const { data: stations = [] } = useQuery({
+    queryKey: ["stations"],
+    queryFn: () => api.listStations(),
+  });
+
   const columns: Column<ModuleToken>[] = [
     { key: "number", label: "Token", render: (row) => <strong>{row.number}</strong> },
     {
@@ -213,12 +221,21 @@ export function TokenConsolePage() {
           clearable
           style={{ width: 220 }}
         />
-        <Input
+        {/* A picker, not free text. The consulting-room door display matches
+            this label by exact string equality (sameRoom in
+            token-board-surfaces), so "OPD 01" typed where "OPD Counter 01"
+            was meant leaves that door showing "please wait" forever, with
+            nothing anywhere saying why. Stations carry the canonical names. */}
+        <Select
           label={t("tokenConsole.counter")}
-          value={counter}
           placeholder={t("tokenConsole.counterPlaceholder")}
-          onChange={(event) => setCounter(event.currentTarget.value)}
-          style={{ width: 180 }}
+          data={stations.map((station) => ({ value: station.name, label: station.name }))}
+          value={counter || null}
+          onChange={(value) => setCounter(value ?? "")}
+          searchable
+          clearable
+          disabled={stations.length === 0}
+          style={{ width: 220 }}
         />
         <Button tone="primary" onClick={() => callNext.mutate()} loading={callNext.isPending}>
           {t("tokenConsole.callNext")}
