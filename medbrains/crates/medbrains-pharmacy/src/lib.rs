@@ -277,6 +277,30 @@ pub struct ListStockQuery {
     pub store_location_id: Option<Uuid>,
 }
 
+/// Batch aggregates for one catalog item, keyed by item in the stock list.
+struct BatchFacts {
+    on_hand: i32,
+    count: i64,
+    earliest_expiry: Option<NaiveDate>,
+}
+
+/// A stock row plus the batch facts the stock screen shows beside it.
+///
+/// The count and earliest expiry are aggregated in SQL rather than counted in
+/// the browser: the screen used to fetch every batch in the tenant (capped at
+/// 500, ordered by expiry) and filter it per row, so a pharmacy past that cap
+/// rendered "0 batches" for an item whose stock simply expired later than the
+/// window. Flattened so the JSON keeps every catalog field at the top level.
+#[derive(Debug, Serialize)]
+pub struct StockListItem {
+    #[serde(flatten)]
+    pub catalog: PharmacyCatalog,
+    /// Batches with stock on hand, at the location in view when one is set.
+    pub batch_count: i64,
+    /// FEFO date — earliest expiry among those batches.
+    pub earliest_expiry: Option<NaiveDate>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateStockTransactionRequest {
     pub catalog_item_id: Uuid,
@@ -4146,7 +4170,7 @@ pub async fn list_stock(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListStockQuery>,
-) -> Result<Json<Vec<PharmacyCatalog>>, AppError> {
+) -> Result<Json<Vec<StockListItem>>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
@@ -4172,24 +4196,42 @@ pub async fn list_stock(
         .fetch_all(&mut *tx)
         .await?;
 
-    // Per-location view: override current_stock with the on-hand at that pharmacy,
-    // summed live from its batches. Read-only — the dispense/decrement path is
-    // unchanged; the aggregate stays the tenant-wide total.
-    if let Some(location_id) = params.store_location_id {
-        let sums = sqlx::query_as::<_, (Uuid, Option<i64>)>(
-            "SELECT catalog_item_id, SUM(quantity_on_hand) FROM pharmacy_batches \
-             WHERE tenant_id = $1 AND store_location_id = $2 GROUP BY catalog_item_id",
-        )
-        .bind(claims.tenant_id)
-        .bind(location_id)
-        .fetch_all(&mut *tx)
-        .await?;
-        let on_hand: HashMap<Uuid, i32> = sums
-            .into_iter()
-            .map(|(id, qty)| (id, i32::try_from(qty.unwrap_or(0)).unwrap_or(i32::MAX)))
-            .collect();
+    // Every batch fact the stock screen needs, in one aggregate — the on-hand it
+    // already used, plus the count and FEFO date the browser used to derive by
+    // filtering a 500-row window per rendered row. Same scan, three answers.
+    let facts = sqlx::query_as::<_, (Uuid, Option<i64>, i64, Option<NaiveDate>)>(
+        "SELECT catalog_item_id, \
+                SUM(quantity_on_hand), \
+                COUNT(*) FILTER (WHERE quantity_on_hand > 0), \
+                MIN(expiry_date) FILTER (WHERE quantity_on_hand > 0) \
+         FROM pharmacy_batches \
+         WHERE tenant_id = $1 AND ($2::uuid IS NULL OR store_location_id = $2) \
+         GROUP BY catalog_item_id",
+    )
+    .bind(claims.tenant_id)
+    .bind(params.store_location_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let by_item: HashMap<Uuid, BatchFacts> = facts
+        .into_iter()
+        .map(|(id, on_hand, count, earliest_expiry)| {
+            (
+                id,
+                BatchFacts {
+                    on_hand: i32::try_from(on_hand.unwrap_or(0)).unwrap_or(i32::MAX),
+                    count,
+                    earliest_expiry,
+                },
+            )
+        })
+        .collect();
+
+    // Per-location view: override current_stock with the on-hand at that pharmacy.
+    // Read-only — the dispense/decrement path is unchanged; the stored aggregate
+    // stays the tenant-wide total.
+    if params.store_location_id.is_some() {
         for row in &mut rows {
-            row.current_stock = on_hand.get(&row.id).copied().unwrap_or(0);
+            row.current_stock = by_item.get(&row.id).map_or(0, |f| f.on_hand);
         }
         if params.low_stock.unwrap_or(false) {
             rows.retain(|r| r.current_stock < r.reorder_level);
@@ -4199,8 +4241,15 @@ pub async fn list_stock(
     tx.commit().await?;
     Ok(Json(
         rows.into_iter()
-            .map(|row| filter_pharmacy_catalog_response(row, &restricted_fields))
-            .collect(),
+            .map(|row| {
+                let facts = by_item.get(&row.id);
+                StockListItem {
+                    batch_count: facts.map_or(0, |f| f.count),
+                    earliest_expiry: facts.and_then(|f| f.earliest_expiry),
+                    catalog: filter_pharmacy_catalog_response(row, &restricted_fields),
+                }
+            })
+            .collect::<Vec<_>>(),
     ))
 }
 

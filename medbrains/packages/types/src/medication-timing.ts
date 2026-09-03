@@ -3151,6 +3151,16 @@ export interface PharmacyCatalog {
   updated_at: string;
 }
 
+/** A stock row with its batch facts aggregated server-side.
+ *
+ * `batch_count` and `earliest_expiry` come from SQL, not from counting a
+ * fetched batch list in the browser — the batch endpoint caps at 500 rows,
+ * so a large pharmacy counted a window and called it a total. */
+export interface StockListItem extends PharmacyCatalog {
+  batch_count: number;
+  earliest_expiry: string | null;
+}
+
 export interface ComplianceSettings {
   enforce_drug_scheduling: boolean;
   enforce_ndps_tracking: boolean;

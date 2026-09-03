@@ -1514,6 +1514,7 @@ import type {
   PharmacyAbcVedRow,
   PharmacyBatch,
   PharmacyCatalog,
+  StockListItem,
   PharmacyConsumptionRow,
   PharmacyCreditNote,
   PharmacyDaySettlement,
@@ -5997,7 +5998,7 @@ export const api = {
     }),
   listStock: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<PharmacyCatalog[]>(`/pharmacy/stock${qs}`);
+    return request<StockListItem[]>(`/pharmacy/stock${qs}`);
   },
   createStockTransaction: (data: CreateStockTransactionRequest) =>
     request<PharmacyStockTransaction>("/pharmacy/stock/transactions", {

@@ -3,7 +3,12 @@
 import { Group, Loader, Modal, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useFieldAccess } from "@medbrains/stores";
-import type { CreatePharmacyBatchRequest, PharmacyBatch, PharmacyCatalog } from "@medbrains/types";
+import type {
+  CreatePharmacyBatchRequest,
+  PharmacyBatch,
+  PharmacyCatalog,
+  StockListItem,
+} from "@medbrains/types";
 import { IconCheck, IconEye, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -172,7 +177,7 @@ export function StockTab({ canManage }: { canManage: boolean }) {
   const [batchModalOpened, batchModalHandlers] = useDisclosure(false);
   const [bulkBatchOpened, bulkBatchHandlers] = useDisclosure(false);
   const [bulkStep, setBulkStep] = useState<"edit" | "verify">("edit");
-  const [selectedStockItem, setSelectedStockItem] = useState<PharmacyCatalog | null>(null);
+  const [selectedStockItem, setSelectedStockItem] = useState<StockListItem | null>(null);
   const [bulkHeader, setBulkHeader] = useState<BulkBatchHeader>(newBulkBatchHeader());
   const [bulkRows, setBulkRows] = useState<BulkBatchLine[]>([newBulkBatchLine()]);
   const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
@@ -208,9 +213,14 @@ export function StockTab({ canManage }: { canManage: boolean }) {
         stockLocationId ? { store_location_id: stockLocationId } : undefined,
       ),
   });
-  const { data: batches = [], isLoading: batchesLoading } = useQuery({
-    queryKey: ["pharmacy-batches"],
-    queryFn: () => pharmacyService.listPharmacyBatches(),
+  // Only the open drawer's item, not every batch in the tenant: the endpoint
+  // caps at 500 rows ordered by expiry, so counting a global fetch in the
+  // browser reported "0 batches" for stock that expired past the window.
+  const { data: selectedBatches = [], isLoading: batchesLoading } = useQuery({
+    queryKey: ["pharmacy-batches", selectedStockItem?.id],
+    queryFn: () =>
+      pharmacyService.listPharmacyBatches({ catalog_item_id: selectedStockItem?.id ?? "" }),
+    enabled: Boolean(selectedStockItem),
   });
   const { data: storeLocations = [] } = useQuery({
     queryKey: ["store-locations"],
@@ -220,13 +230,6 @@ export function StockTab({ canManage }: { canManage: boolean }) {
 
   const emit = useClinicalEmit();
 
-  const selectedBatches = useMemo(
-    () =>
-      selectedStockItem
-        ? batches.filter((batch) => batch.catalog_item_id === selectedStockItem.id)
-        : [],
-    [batches, selectedStockItem],
-  );
   const readyBulkRows = useMemo(() => bulkRows.filter(isBulkBatchLineReady), [bulkRows]);
   const storeLocationOptions = useMemo(
     () =>
@@ -351,24 +354,20 @@ export function StockTab({ canManage }: { canManage: boolean }) {
     {
       key: "batches",
       label: "Batches",
-      render: (row: PharmacyCatalog) => {
-        const activeBatches = batches.filter((batch) => batch.catalog_item_id === row.id);
-        const earliest = activeBatches[0];
-        return (
-          <Button
-            size="compact-xs"
-            tone="secondary"
-            leftSection={<IconEye size={12} />}
-            onClick={() => {
-              setSelectedStockItem(row);
-              batchModalHandlers.open();
-            }}
-          >
-            {activeBatches.length} batch{activeBatches.length === 1 ? "" : "es"}
-            {earliest?.expiry_date ? ` · FEFO ${earliest.expiry_date}` : ""}
-          </Button>
-        );
-      },
+      render: (row: StockListItem) => (
+        <Button
+          size="compact-xs"
+          tone="secondary"
+          leftSection={<IconEye size={12} />}
+          onClick={() => {
+            setSelectedStockItem(row);
+            batchModalHandlers.open();
+          }}
+        >
+          {row.batch_count} batch{row.batch_count === 1 ? "" : "es"}
+          {row.earliest_expiry ? ` · FEFO ${row.earliest_expiry}` : ""}
+        </Button>
+      ),
     },
   ];
 

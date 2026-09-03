@@ -356,6 +356,48 @@ test.describe("pharmacy stock — goods receipt", () => {
   });
 });
 
+test.describe("pharmacy stock — the count the storekeeper reads", () => {
+  test("21. a stock row's batch count agrees with that item's own batch list", async ({
+    request,
+  }) => {
+    // The stock screen shows "N batches · FEFO <date>" per item. That used to
+    // be derived in the browser from GET /pharmacy/batches, which answers at
+    // most 500 rows ordered by expiry — so a pharmacy past that cap read "0
+    // batches" for an item whose stock expired later than the window reached,
+    // and its drawer said no batch stock was recorded at all. A storekeeper
+    // reconciling against that orders stock already on the shelf, or turns a
+    // patient away from it.
+    //
+    // The count is now aggregated in SQL onto the stock row. This asserts the
+    // two agree: whatever the row claims must match that item's batch list.
+    const ctx = await getAuthContextFromCookies(request);
+    const stock = await api<Array<{ id: string; batch_count?: number; earliest_expiry?: string | null }>>(
+      ctx,
+      "GET",
+      "/api/pharmacy/stock",
+    );
+    expect(Array.isArray(stock)).toBe(true);
+
+    const counted = stock.find((row) => (row.batch_count ?? 0) > 0);
+    // The field must be carried whether or not any item currently holds stock.
+    expect(stock.every((row) => typeof row.batch_count === "number")).toBe(true);
+    test.skip(!counted, "no item currently holds batch stock in this environment");
+    if (!counted) return;
+
+    const batches = await api<Batch[]>(
+      ctx,
+      "GET",
+      `/api/pharmacy/batches?catalog_item_id=${counted.id}`,
+    );
+    const live = batches.filter((b) => (b.quantity_on_hand ?? 0) > 0);
+    expect(counted.batch_count).toBe(live.length);
+
+    // FEFO on the row is the earliest expiry among those same batches.
+    const earliest = live.map((b) => b.expiry_date).sort()[0];
+    expect(counted.earliest_expiry).toBe(earliest);
+  });
+});
+
 test.describe("pharmacy stock — what the UI cannot reach", () => {
   test("20. a transfer can be raised over the API but not from any screen", async ({
     request,
