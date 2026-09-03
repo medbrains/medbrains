@@ -3061,8 +3061,9 @@ struct CampEncounterLink {
     queue_id: Option<Uuid>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 struct PharmacySafetyRow {
+    id: Uuid,
     current_stock: i32,
     drug_schedule: Option<String>,
     is_controlled: bool,
@@ -3908,6 +3909,30 @@ async fn apply_camp_sync_event(
             .fetch_one(&mut **tx)
             .await?;
 
+            // One catalogue read for the whole dispense instead of one per item.
+            // A camp syncs a day of offline dispensing in a single call, so the
+            // per-item read was N round trips inside the transaction holding the
+            // stock rows. The safety attributes are fixed for the transaction;
+            // current_stock is decremented below, so the map is kept in step and
+            // a drug repeated in one dispense still sees the reduced figure —
+            // which is what re-reading the row used to give us.
+            let catalog_ids: Vec<Uuid> =
+                body.items.iter().filter_map(|item| item.catalog_item_id).collect();
+            let mut safety_by_id: HashMap<Uuid, PharmacySafetyRow> =
+                sqlx::query_as::<_, PharmacySafetyRow>(
+                    "SELECT id, current_stock, drug_schedule, is_controlled, prescription_only, \
+                            narcotic_class \
+                     FROM pharmacy_catalog \
+                     WHERE tenant_id = $1 AND id = ANY($2) AND is_active = true",
+                )
+                .bind(claims.tenant_id)
+                .bind(&catalog_ids)
+                .fetch_all(&mut **tx)
+                .await?
+                .into_iter()
+                .map(|row| (row.id, row))
+                .collect();
+
             for item in &body.items {
                 if item.quantity <= 0 {
                     return Err(AppError::BadRequest(
@@ -3915,16 +3940,10 @@ async fn apply_camp_sync_event(
                     ));
                 }
                 if let Some(catalog_item_id) = item.catalog_item_id {
-                    let safety = sqlx::query_as::<_, PharmacySafetyRow>(
-                        "SELECT current_stock, drug_schedule, is_controlled, prescription_only, narcotic_class \
-                         FROM pharmacy_catalog \
-                         WHERE tenant_id = $1 AND id = $2 AND is_active = true",
-                    )
-                    .bind(claims.tenant_id)
-                    .bind(catalog_item_id)
-                    .fetch_optional(&mut **tx)
-                    .await?
-                    .ok_or(AppError::NotFound)?;
+                    let safety = safety_by_id
+                        .get(&catalog_item_id)
+                        .ok_or(AppError::NotFound)?
+                        .clone();
 
                     let schedule = safety.drug_schedule.as_deref().unwrap_or_default();
                     let restricted = safety.is_controlled
@@ -4003,6 +4022,9 @@ async fn apply_camp_sync_event(
                             "insufficient stock for {}",
                             item.drug_name
                         )));
+                    }
+                    if let Some(entry) = safety_by_id.get_mut(&catalog_item_id) {
+                        entry.current_stock -= item.quantity;
                     }
                 }
 
