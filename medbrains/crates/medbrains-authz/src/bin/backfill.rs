@@ -115,36 +115,24 @@ async fn main() -> anyhow::Result<()> {
     let mut total_written = 0u64;
 
     // ── 1. patients.registered_by → patient#owner ───────────
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, registered_by FROM patients \
-         WHERE tenant_id = $1 AND registered_by IS NOT NULL",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "patient",
         "owner",
-        &rows,
+        "SELECT id, registered_by FROM patients",
+        "AND registered_by IS NOT NULL",
         |(id, by)| (*id, Subject::User(*by)),
         "patients.registered_by",
     )
     .await?;
 
     // ── 2. encounters.doctor_id → encounter#attending ───────
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, doctor_id FROM encounters \
-         WHERE tenant_id = $1 AND doctor_id IS NOT NULL",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "encounter",
         "attending",
-        &rows,
+        "SELECT id, doctor_id FROM encounters",
+        "AND doctor_id IS NOT NULL",
         |(id, by)| (*id, Subject::User(*by)),
         "encounters.doctor_id",
     )
@@ -155,119 +143,84 @@ async fn main() -> anyhow::Result<()> {
     // was writing it, so the relation that feeds view/edit/delete/share had no
     // tuples at all. `doctor_id` is null on every encounter in this dataset,
     // which makes `created_by` the only user-subject edge an encounter has.
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, created_by FROM encounters \
-         WHERE tenant_id = $1 AND created_by IS NOT NULL",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "encounter",
         "owner",
-        &rows,
+        "SELECT id, created_by FROM encounters",
+        "AND created_by IS NOT NULL",
         |(id, by)| (*id, Subject::User(*by)),
         "encounters.created_by",
     )
     .await?;
 
     // ── 3. encounters.department_id → encounter#dept_member@department#member
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT id, department_id FROM encounters \
-         WHERE tenant_id = $1 AND department_id IS NOT NULL",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "encounter",
         "dept_member",
-        &rows,
+        "SELECT id, department_id FROM encounters",
+        "AND department_id IS NOT NULL",
         |(id, dept)| (*id, Subject::Department(*dept)),
         "encounters.department_id",
     )
     .await?;
 
     // ── 4. admissions.admitting_doctor → admission#attending
-    let rows: Vec<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, admitting_doctor FROM admissions WHERE tenant_id = $1")
-            .bind(tenant)
-            .fetch_all(&pg)
-            .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "admission",
         "attending",
-        &rows,
+        "SELECT id, admitting_doctor FROM admissions",
+        "",
         |(id, by)| (*id, Subject::User(*by)),
         "admissions.admitting_doctor",
     )
     .await?;
 
     // ── 5. lab_orders.ordered_by → lab_order#ordering_provider
-    let rows: Vec<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, ordered_by FROM lab_orders WHERE tenant_id = $1")
-            .bind(tenant)
-            .fetch_all(&pg)
-            .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "lab_order",
         "ordering_provider",
-        &rows,
+        "SELECT id, ordered_by FROM lab_orders",
+        "",
         |(id, by)| (*id, Subject::User(*by)),
         "lab_orders.ordered_by",
     )
     .await?;
 
     // ── 6. pharmacy_orders.ordered_by → pharmacy_order#prescriber
-    let rows: Vec<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, ordered_by FROM pharmacy_orders WHERE tenant_id = $1")
-            .bind(tenant)
-            .fetch_all(&pg)
-            .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "pharmacy_order",
         "prescriber",
-        &rows,
+        "SELECT id, ordered_by FROM pharmacy_orders",
+        "",
         |(id, by)| (*id, Subject::User(*by)),
         "pharmacy_orders.ordered_by",
     )
     .await?;
 
     // ── 7. radiology_orders.ordered_by → radiology_order#ordering_provider
-    let rows: Vec<(Uuid, Uuid)> =
-        sqlx::query_as("SELECT id, ordered_by FROM radiology_orders WHERE tenant_id = $1")
-            .bind(tenant)
-            .fetch_all(&pg)
-            .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "radiology_order",
         "ordering_provider",
-        &rows,
+        "SELECT id, ordered_by FROM radiology_orders",
+        "",
         |(id, by)| (*id, Subject::User(*by)),
         "radiology_orders.ordered_by",
     )
     .await?;
 
     // ── 8. access_group_members → access_group#member ───────
-    let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "SELECT group_id, user_id FROM access_group_members \
-         WHERE tenant_id = $1 \
-           AND (expires_at IS NULL OR expires_at > now())",
-    )
-    .bind(tenant)
-    .fetch_all(&pg)
-    .await?;
-    total_written += write_derived_batch(
+    total_written += backfill_paged(
         &run,
         "access_group",
         "member",
-        &rows,
+        "SELECT group_id, user_id FROM access_group_members",
+        "AND (expires_at IS NULL OR expires_at > now())",
         |(g, u)| (*g, Subject::User(*u)),
         "access_group_members",
     )
@@ -329,6 +282,53 @@ struct BackfillRun<'a> {
     tenant: Uuid,
     granted_by: Uuid,
     dry_run: bool,
+}
+
+/// Walk a source table in pages, writing derived tuples as it goes.
+///
+/// The backfills used to `fetch_all` a whole table — every encounter, every
+/// patient — into a Vec before writing a single tuple. That is fine on the
+/// tenant you test with and out of memory on the tenant that most needs
+/// backfilling, which is the one with years of records.
+///
+/// Keyset on `id` rather than OFFSET: a backfill that writes as it reads can
+/// shift rows under an OFFSET and silently skip some. Skipping here means a
+/// missing grant, which surfaces later as a clinician who cannot open a chart
+/// they should be able to.
+async fn backfill_paged(
+    run: &BackfillRun<'_>,
+    object_type: &str,
+    relation_name: &str,
+    select_from: &str,
+    extra_filter: &str,
+    map: impl Fn(&(Uuid, Uuid)) -> (Uuid, Subject),
+    label: &str,
+) -> anyhow::Result<u64> {
+    const PAGE: i64 = 5_000;
+    let sql = format!(
+        "{select_from} WHERE tenant_id = $1 {extra_filter} AND id > $2 \
+         ORDER BY id ASC LIMIT $3"
+    );
+
+    let mut cursor = Uuid::nil();
+    let mut written = 0u64;
+    loop {
+        let rows: Vec<(Uuid, Uuid)> = sqlx::query_as(&sql)
+            .bind(run.tenant)
+            .bind(cursor)
+            .bind(PAGE)
+            .fetch_all(run.pg)
+            .await?;
+        if rows.is_empty() {
+            break;
+        }
+        if let Some(last) = rows.last() {
+            cursor = last.0;
+        }
+        written +=
+            write_derived_batch(run, object_type, relation_name, &rows, &map, label).await?;
+    }
+    Ok(written)
 }
 
 async fn write_derived_batch<T>(
