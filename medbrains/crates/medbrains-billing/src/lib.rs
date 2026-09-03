@@ -1806,7 +1806,7 @@ struct LabOrderInfo {
     test_id: Uuid,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 struct LabTestInfo {
     code: String,
     name: String,
@@ -1874,17 +1874,29 @@ pub async fn trigger_auto_charge(
                 .fetch_all(&mut *tx)
                 .await?;
 
-                for o in &orders {
-                    let test = sqlx::query_as::<_, LabTestInfo>(
-                        "SELECT code, name, price FROM lab_test_catalog \
-                         WHERE id = $1 AND tenant_id = $2",
+                // One catalogue read for the encounter, not one per order.
+                // A patient with twenty completed tests used to cost twenty
+                // round trips inside this transaction, each holding the pool
+                // connection a little longer.
+                let test_ids: Vec<Uuid> = orders.iter().map(|o| o.test_id).collect();
+                let tests: HashMap<Uuid, LabTestInfo> =
+                    sqlx::query_as::<_, (Uuid, String, String, Decimal)>(
+                        "SELECT id, code, name, price FROM lab_test_catalog \
+                         WHERE id = ANY($1) AND tenant_id = $2",
                     )
-                    .bind(o.test_id)
+                    .bind(&test_ids)
                     .bind(claims.tenant_id)
-                    .fetch_optional(&mut *tx)
-                    .await?;
+                    .fetch_all(&mut *tx)
+                    .await?
+                    .into_iter()
+                    .map(|(id, code, name, price)| (id, LabTestInfo { code, name, price }))
+                    .collect();
 
-                    if let Some(t) = test {
+                for o in &orders {
+                    // Cloned rather than removed from the map: two orders for
+                    // the same test are ordinary, and consuming the entry
+                    // would bill only the first.
+                    if let Some(t) = tests.get(&o.test_id).cloned() {
                         match auto_charge(
                             &mut tx,
                             &claims.tenant_id,
@@ -1986,15 +1998,23 @@ pub async fn trigger_auto_charge(
                 .fetch_all(&mut *tx)
                 .await?;
 
-                for o in &orders {
-                    let modality_code = sqlx::query_scalar::<_, String>(
-                        "SELECT code FROM radiology_modalities \
-                         WHERE id = $1 AND tenant_id = $2",
+                // Same shape as lab above: one read for every modality this
+                // encounter touched, rather than one per order.
+                let modality_ids: Vec<Uuid> = orders.iter().map(|o| o.modality_id).collect();
+                let modalities: HashMap<Uuid, String> =
+                    sqlx::query_as::<_, (Uuid, String)>(
+                        "SELECT id, code FROM radiology_modalities \
+                         WHERE id = ANY($1) AND tenant_id = $2",
                     )
-                    .bind(o.modality_id)
+                    .bind(&modality_ids)
                     .bind(claims.tenant_id)
-                    .fetch_optional(&mut *tx)
-                    .await?;
+                    .fetch_all(&mut *tx)
+                    .await?
+                    .into_iter()
+                    .collect();
+
+                for o in &orders {
+                    let modality_code = modalities.get(&o.modality_id).cloned();
 
                     let charge_code =
                         modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
