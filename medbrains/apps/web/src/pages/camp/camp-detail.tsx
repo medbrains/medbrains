@@ -24,6 +24,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { campService } from "@/services/camp.service";
+import { CountersTab } from "./counters-tab";
 import { CAMP_TEAM_ROLES, StatCard } from "./shared";
 
 export function CampDetail({ camp }: { camp: Camp }) {
@@ -504,6 +505,12 @@ export function CampDetail({ camp }: { camp: Camp }) {
       </Group>
 
       <DataTable columns={teamCols} data={team} rowKey={(r) => r.id} />
+
+      {/* The camp board reads these and nothing else. Set up alongside the
+          team, because a room with nobody on it is as useless as a person
+          with no room. */}
+      <Text fw={600}>Counters</Text>
+      <CountersTab campId={camp.id} canUpdate={canUpdate} />
     </Stack>
   );
 }

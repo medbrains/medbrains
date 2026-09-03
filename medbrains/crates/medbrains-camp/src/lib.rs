@@ -75,6 +75,7 @@ use axum::{
 };
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use medbrains_core::camp::{
+    CampCounter,
     Camp, CampBillingRecord, CampFollowup, CampLabSample, CampRegistration, CampScreening,
     CampTeamMember,
 };
@@ -6487,6 +6488,219 @@ pub async fn list_team_members(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AddCampCounterRequest {
+    pub counter_name: String,
+    pub department_id: Uuid,
+    pub counter_type: Option<String>,
+    pub capacity_per_hour: Option<i32>,
+    pub location_label: Option<String>,
+    pub notes: Option<String>,
+}
+
+fn trimmed(value: Option<&String>) -> Option<String> {
+    value
+        .map(|v| v.trim())
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+/// `GET /api/camp/camps/{camp_id}/counters`
+pub async fn list_camp_counters(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+) -> Result<Json<Vec<CampCounter>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::camp::LIST, permissions::camp::UPDATE],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // LEFT JOIN on the mapping: a counter with no department is still a
+    // counter somebody set up, and hiding it would leave them re-creating it.
+    // It simply cannot reach the board until it is mapped.
+    let rows = sqlx::query_as::<_, CampCounter>(
+        "SELECT c.id, c.tenant_id, c.camp_id, c.counter_type, c.counter_name, \
+                c.capacity_per_hour, c.location_label, c.status, c.notes, \
+                m.department_id, d.name AS department_name, \
+                c.created_at, c.updated_at \
+           FROM camp_counters c \
+           LEFT JOIN camp_department_counters m \
+                  ON m.counter_id = c.id AND m.deleted_at IS NULL \
+           LEFT JOIN departments d ON d.id = m.department_id \
+          WHERE c.camp_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL \
+          ORDER BY c.counter_name",
+    )
+    .bind(camp_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// `POST /api/camp/camps/{camp_id}/counters`
+///
+/// Creates the counter and its department mapping together. Separately they
+/// are useless: a counter nothing maps to never reaches the board, and the
+/// board is the only reason either table exists.
+pub async fn add_camp_counter(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+    Json(body): Json<AddCampCounterRequest>,
+) -> Result<Json<CampCounter>, AppError> {
+    require_permission(&claims, permissions::camp::UPDATE)?;
+
+    let counter_name = body.counter_name.trim();
+    if counter_name.is_empty() {
+        return Err(AppError::BadRequest("Counter name is required".to_owned()));
+    }
+    let capacity = body.capacity_per_hour.unwrap_or(0);
+    if capacity < 0 {
+        return Err(AppError::BadRequest(
+            "Capacity per hour cannot be negative".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let camp_status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM camps WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(camp_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if matches!(camp_status.as_str(), "completed" | "cancelled") {
+        return Err(AppError::BadRequest(
+            "Camp counters cannot be changed after completion or cancellation".to_owned(),
+        ));
+    }
+
+    let department_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM departments WHERE id = $1 AND is_active = true)",
+    )
+    .bind(body.department_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !department_exists {
+        return Err(AppError::BadRequest(
+            "That department is not active".to_owned(),
+        ));
+    }
+
+    // `source_key` is the natural key these tables were built around, and it
+    // is what makes a repeated setup idempotent rather than duplicating rooms.
+    let source_key = format!("counter:manual:{}", counter_name.to_lowercase());
+    let counter_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO camp_counters \
+          (tenant_id, camp_id, source_key, counter_type, counter_name, capacity_per_hour, \
+           location_label, status, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'planned', $8) \
+         ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+           counter_type = EXCLUDED.counter_type, counter_name = EXCLUDED.counter_name, \
+           capacity_per_hour = EXCLUDED.capacity_per_hour, \
+           location_label = EXCLUDED.location_label, notes = EXCLUDED.notes, \
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(camp_id)
+    .bind(&source_key)
+    .bind(trimmed(body.counter_type.as_ref()).unwrap_or_else(|| "service".to_owned()))
+    .bind(counter_name)
+    .bind(capacity)
+    .bind(trimmed(body.location_label.as_ref()))
+    .bind(trimmed(body.notes.as_ref()))
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO camp_department_counters \
+          (tenant_id, camp_id, source_key, department_id, counter_id, opd_routing_enabled, status) \
+         VALUES ($1, $2, $3, $4, $5, true, 'planned') \
+         ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+           department_id = EXCLUDED.department_id, counter_id = EXCLUDED.counter_id, \
+           opd_routing_enabled = true, deleted_at = NULL, deleted_by = NULL, \
+           delete_reason = NULL, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(camp_id)
+    .bind(format!("department:{}:{}", body.department_id, source_key))
+    .bind(body.department_id)
+    .bind(counter_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let created = sqlx::query_as::<_, CampCounter>(
+        "SELECT c.id, c.tenant_id, c.camp_id, c.counter_type, c.counter_name, \
+                c.capacity_per_hour, c.location_label, c.status, c.notes, \
+                m.department_id, d.name AS department_name, \
+                c.created_at, c.updated_at \
+           FROM camp_counters c \
+           LEFT JOIN camp_department_counters m \
+                  ON m.counter_id = c.id AND m.deleted_at IS NULL \
+           LEFT JOIN departments d ON d.id = m.department_id \
+          WHERE c.id = $1",
+    )
+    .bind(counter_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(created))
+}
+
+/// `DELETE /api/camp/camps/{camp_id}/counters/{id}` — soft delete, with the
+/// mapping retired alongside so the board stops showing a room nobody staffs.
+pub async fn remove_camp_counter(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((camp_id, id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::camp::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let affected = sqlx::query(
+        "UPDATE camp_counters SET deleted_at = now(), deleted_by = $3, updated_at = now() \
+          WHERE id = $1 AND camp_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(camp_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    if affected == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    sqlx::query(
+        "UPDATE camp_department_counters SET deleted_at = now(), deleted_by = $3, \
+                updated_at = now() \
+          WHERE counter_id = $1 AND camp_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(camp_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
 pub async fn add_team_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -8259,6 +8473,14 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/camp/camps/{camp_id}/team/{id}",
             delete(remove_team_member),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/counters",
+            get(list_camp_counters).post(add_camp_counter),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/counters/{id}",
+            delete(remove_camp_counter),
         )
         .route(
             "/api/camp/registrations",

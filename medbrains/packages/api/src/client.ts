@@ -653,6 +653,8 @@ import type {
   CreatePatientContactRequest,
   CreatePatientIdentifierRequest,
   CreatePatientRequest,
+  AddCampCounterRequest,
+  CampCounter,
   CreatePatientTransfer,
   // Payment Gateway
   CreatePaymentOrderRequest,
@@ -7926,6 +7928,17 @@ export const api = {
     }),
   removeCampTeamMember: (campId: string, memberId: string) =>
     request<{ deleted: boolean }>(`/camp/camps/${campId}/team/${memberId}`, {
+      method: "DELETE",
+    }),
+  listCampCounters: (campId: string) =>
+    request<CampCounter[]>(`/camp/camps/${campId}/counters`),
+  addCampCounter: (campId: string, data: AddCampCounterRequest) =>
+    request<CampCounter>(`/camp/camps/${campId}/counters`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeCampCounter: (campId: string, counterId: string) =>
+    request<{ deleted: boolean }>(`/camp/camps/${campId}/counters/${counterId}`, {
       method: "DELETE",
     }),
   getCampStats: (campId: string) => request<CampStatsResponse>(`/camp/camps/${campId}/stats`),

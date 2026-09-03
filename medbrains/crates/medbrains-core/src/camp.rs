@@ -104,6 +104,30 @@ pub struct CampTeamMember {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A service point at a camp — a consultation room, a lab desk, a pharmacy
+/// table — together with the department it serves.
+///
+/// The camp board is built entirely from these: no counter, no row. Until
+/// something created them the board could only ever answer an empty array,
+/// however complete the screen reading it was.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct CampCounter {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub camp_id: Uuid,
+    pub counter_type: String,
+    pub counter_name: String,
+    pub capacity_per_hour: i32,
+    pub location_label: Option<String>,
+    pub status: String,
+    pub notes: Option<String>,
+    /// The department this counter serves, from its mapping row.
+    pub department_id: Option<Uuid>,
+    pub department_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CampRegistration {
     pub id: Uuid,

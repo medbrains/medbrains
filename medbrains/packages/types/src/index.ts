@@ -4731,6 +4731,36 @@ export interface PartReplaced {
  * One station on a camp board: a department, the counters mapped to it, whoever
  * is on duty, and its live queue. Field names mirror the Rust `CampBoardRow`.
  */
+/**
+ * A service point at a camp — consultation room, lab desk, pharmacy table —
+ * and the department it serves. The camp board is built entirely from these.
+ */
+export interface CampCounter {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  counter_type: string;
+  counter_name: string;
+  capacity_per_hour: number;
+  location_label: string | null;
+  status: string;
+  notes: string | null;
+  /** Null until the counter is mapped to a department; unmapped counters never reach the board. */
+  department_id: string | null;
+  department_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AddCampCounterRequest {
+  counter_name: string;
+  department_id: string;
+  counter_type?: string;
+  capacity_per_hour?: number;
+  location_label?: string;
+  notes?: string;
+}
+
 export interface CampBoardRow {
   department_id: string;
   department: string;
