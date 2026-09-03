@@ -10,6 +10,13 @@ use crate::{
     registry, relations::Relation,
 };
 
+/// Ceiling on the reverse index.
+///
+/// Generous for any real clinic — past this the shape is wrong, not the
+/// number: either a tuple explosion, or a list that needs per-record checks
+/// instead of set enumeration.
+const LIST_ACCESSIBLE_CAP: usize = 50_000;
+
 #[derive(Debug)]
 pub struct PgAuthzBackend {
     pool: PgPool,
@@ -223,7 +230,8 @@ impl AuthzBackend for PgAuthzBackend {
                        WHERE tenant_id = $1 AND user_id = $7
                          AND (expires_at IS NULL OR expires_at > now())
                   ))
-               )",
+               )
+             LIMIT $8",
         )
         .bind(ctx.tenant_id)
         .bind(object_type)
@@ -232,10 +240,35 @@ impl AuthzBackend for PgAuthzBackend {
         .bind(&ctx.role)
         .bind(&dept_strs)
         .bind(ctx.user_id)
+        // One past the cap, so a full page tells us the set is larger without
+        // a second COUNT over the same predicate.
+        .bind(i64::try_from(LIST_ACCESSIBLE_CAP + 1).unwrap_or(i64::MAX))
         .fetch_all(&mut *tx)
         .await?;
 
         tx.commit().await?;
+
+        // Bounded, and loudly. The caller marshals this set straight back into
+        // Postgres as `id = ANY($n)`, so an unbounded answer is the whole
+        // visible universe crossing the wire twice to render twenty rows.
+        //
+        // Not truncated: returning the first N would hand a clinician a
+        // partial ward that looks like the whole one. Refusing is the only
+        // safe failure — and it forces the real fix (per-record checks, or
+        // pushing the page's candidates down) rather than hiding the need.
+        if rows.len() > LIST_ACCESSIBLE_CAP {
+            tracing::error!(
+                object_type,
+                cap = LIST_ACCESSIBLE_CAP,
+                user = %ctx.user_id,
+                "rebac: access set too large to enumerate"
+            );
+            return Err(AuthzError::AccessSetTooLarge {
+                object_type: object_type.to_owned(),
+                cap: LIST_ACCESSIBLE_CAP,
+            });
+        }
+
         Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 

@@ -30,6 +30,17 @@ pub enum AuthzError {
     #[error("expansion depth limit exceeded ({0})")]
     ExpansionDepthExceeded(u8),
 
+    /// The subject can reach more objects than the reverse index will
+    /// enumerate. Deliberately an error rather than a truncated list: a
+    /// clinical list showing a subset reads as complete, and a doctor
+    /// scrolling to the end of a partial ward believes they have seen it all.
+    #[error(
+        "access set for '{object_type}' exceeds {cap} objects — the caller must \
+         filter with a per-record check or push the page's candidates down, not \
+         enumerate the whole set"
+    )]
+    AccessSetTooLarge { object_type: String, cap: usize },
+
     /// Backend-level failure (DB, cache, etc.).
     #[error("backend error: {0}")]
     Backend(#[from] sqlx::Error),
