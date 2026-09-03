@@ -2246,18 +2246,33 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
 
     let mut result = PharmacyBillingIndentResult::default();
 
+    // One tax lookup for the order, not one per line. A discharge
+    // prescription of fifteen drugs used to cost fifteen round trips here,
+    // inside the transaction that is also writing the billing indent.
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    let tax_by_item: HashMap<Uuid, Decimal> = if catalog_ids.is_empty() {
+        HashMap::new()
+    } else {
+        sqlx::query_as::<_, (Uuid, Decimal)>(
+            "SELECT id, tax_percent FROM pharmacy_catalog \
+             WHERE id = ANY($1) AND tenant_id = $2",
+        )
+        .bind(&catalog_ids)
+        .bind(tenant_id)
+        .fetch_all(&mut **tx)
+        .await?
+        .into_iter()
+        .collect()
+    };
+
     for item in items {
-        let tax_percent = match item.catalog_item_id {
-            Some(catalog_id) => sqlx::query_scalar::<_, Decimal>(
-                "SELECT tax_percent FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(catalog_id)
-            .bind(tenant_id)
-            .fetch_optional(&mut **tx)
-            .await?
-            .unwrap_or(Decimal::ZERO),
-            None => Decimal::ZERO,
-        };
+        // Absent stays zero, exactly as the per-row `unwrap_or` did: a
+        // catalogue row that has gone missing must not silently inherit the
+        // previous line's tax rate.
+        let tax_percent = item
+            .catalog_item_id
+            .and_then(|id| tax_by_item.get(&id).copied())
+            .unwrap_or(Decimal::ZERO);
 
         let code = item.catalog_item_id.map_or_else(
             || "PHARMA-GENERIC".to_owned(),
