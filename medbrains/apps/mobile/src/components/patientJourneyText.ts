@@ -986,6 +986,36 @@ export const MOBILE_PRESCRIPTION_TEXT = {
 } as const;
 
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
+  "patientJourney.mobile.campRegistration.actions.register": "Register",
+  "patientJourney.mobile.campRegistration.duplicate.warning":
+    "{{name}} is already on today's roll with this number. Register again only if this is a different person.",
+  "patientJourney.mobile.campRegistration.errors.campRequired": "Choose the camp first",
+  "patientJourney.mobile.campRegistration.errors.invalidAge": "Enter an age between 0 and 120",
+  "patientJourney.mobile.campRegistration.errors.invalidPhone": "Enter a 10-digit mobile number",
+  "patientJourney.mobile.campRegistration.errors.nameRequired": "Enter the person's name",
+  "patientJourney.mobile.campRegistration.errors.registerAbandoned":
+    "Could not send after several tries: {{names}}. Write these down and tell the camp lead.",
+  "patientJourney.mobile.campRegistration.errors.registerFailed": "Could not register. Try again.",
+  "patientJourney.mobile.campRegistration.errors.registerQueued":
+    "No signal — held to send later ({{count}} waiting)",
+  "patientJourney.mobile.campRegistration.errors.rollUnavailable":
+    "Today's roll could not be loaded, so it may not be complete. Check before registering someone again.",
+  "patientJourney.mobile.campRegistration.fields.age": "Age",
+  "patientJourney.mobile.campRegistration.fields.camp": "Camp",
+  "patientJourney.mobile.campRegistration.fields.chiefComplaint": "What brings them in",
+  "patientJourney.mobile.campRegistration.fields.gender": "Gender",
+  "patientJourney.mobile.campRegistration.fields.name": "Full name",
+  "patientJourney.mobile.campRegistration.fields.phone": "Mobile number",
+  "patientJourney.mobile.campRegistration.roll.empty": "Nobody registered at this camp yet",
+  "patientJourney.mobile.campRegistration.roll.title": "Registered today ({{count}})",
+  "patientJourney.mobile.campRegistration.states.noCamps":
+    "No camps are running. Ask the camp lead to open one.",
+  "patientJourney.mobile.campRegistration.states.noPermission":
+    "You do not have permission to register people at a camp.",
+  "patientJourney.mobile.campRegistration.states.pending":
+    "{{count}} waiting to send. They will go when the signal returns.",
+  "patientJourney.mobile.campRegistration.states.registered": "{{name}} registered",
+  "patientJourney.mobile.navigation.staff.campRegistration": "Camp registration",
   "patientJourney.actionSignals.blocked": "Blocked",
   "patientJourney.actionSignals.blockedByConfiguration": "Configuration needed",
   "patientJourney.actionSignals.blockedByContext": "Context needed",
