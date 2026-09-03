@@ -1,4 +1,8 @@
 use chrono::{DateTime, Utc};
+
+/// One audit row as the chain walk reads it:
+/// `(id, hash, hash_input_canonical, prev_hash, created_at)`.
+type ChainRow = (Uuid, String, Option<String>, Option<String>, DateTime<Utc>);
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -221,7 +225,7 @@ impl AuditLogger {
             // Read only the canonical hash-input bytes; sidesteps JSONB
             // normalization. Rows with hash_input_canonical IS NULL are
             // pre-Phase-2.5 legacy and are skipped (counted separately).
-            let page: Vec<(Uuid, String, Option<String>, Option<String>, DateTime<Utc>)> =
+            let page: Vec<ChainRow> =
                 sqlx::query_as(
                     "SELECT id, hash, hash_input_canonical, prev_hash, created_at \
                      FROM audit_log \

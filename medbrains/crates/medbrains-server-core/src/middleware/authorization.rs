@@ -236,6 +236,16 @@ pub fn outcome_of(result: Result<bool, medbrains_authz::AuthzError>, what: &str)
                 "authorization misconfigured — denying; retrying will not help");
             Outcome::Deny
         }
+        Err(err @ E::AccessSetTooLarge { .. }) => {
+            // Unknown, emphatically not Deny. The subject almost certainly can
+            // see these records — there are simply too many to enumerate — so
+            // denying would hand a clinician an empty list of patients they
+            // are entitled to. Unlike the cases above, retrying will not help
+            // either: this needs a narrower query, which is a code change.
+            tracing::error!(target: "authz", error = %err, check = what,
+                "access set too large to enumerate — refusing as 503, not as absent");
+            Outcome::Unknown
+        }
         Err(err @ (E::Backend(_) | E::Other(_))) => {
             tracing::error!(target: "authz", error = %err, check = what,
                 "authorization backend unavailable — refusing as 503, not as absent");

@@ -4733,30 +4733,53 @@ pub async fn write_off_expired(
         ));
     }
 
+    // Two statements, not two per batch.
+    //
+    // This used to issue an UPDATE for the batch and an UPDATE for the
+    // catalogue inside the loop: a thousand expired batches meant two thousand
+    // round trips in one transaction, holding a pool connection and a
+    // FOR UPDATE lock on every one of those rows for the duration.
+    //
+    // The rows are already locked by the SELECT above, so the set-based form
+    // is equivalent — it just stops paying per row for it.
     let mut items = Vec::new();
     let mut total_qty: i32 = 0;
+    let mut batch_ids: Vec<Uuid> = Vec::with_capacity(batches.len());
+    // Summed per catalogue item: one expired item can have several batches,
+    // and decrementing the aggregate once per batch would be the same N+1
+    // wearing a different hat.
+    let mut per_item: HashMap<Uuid, i32> = HashMap::new();
+
     for (id, catalog_item_id, batch_number, expiry_date, qty) in &batches {
         items.push(serde_json::json!({
             "batch_id": id, "catalog_item_id": catalog_item_id,
             "batch_number": batch_number, "expiry_date": expiry_date, "quantity": qty,
         }));
         total_qty += *qty;
-        sqlx::query(
-            "UPDATE pharmacy_batches SET quantity_on_hand = 0, updated_at = now() WHERE id = $1",
-        )
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
-        sqlx::query(
-            "UPDATE pharmacy_catalog SET current_stock = GREATEST(current_stock - $1, 0), \
-             updated_at = now() WHERE id = $2 AND tenant_id = $3",
-        )
-        .bind(qty)
-        .bind(catalog_item_id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
+        batch_ids.push(*id);
+        *per_item.entry(*catalog_item_id).or_insert(0) += *qty;
     }
+
+    sqlx::query(
+        "UPDATE pharmacy_batches SET quantity_on_hand = 0, updated_at = now() \
+         WHERE id = ANY($1)",
+    )
+    .bind(&batch_ids)
+    .execute(&mut *tx)
+    .await?;
+
+    let (item_ids, item_qtys): (Vec<Uuid>, Vec<i32>) = per_item.into_iter().unzip();
+    sqlx::query(
+        "UPDATE pharmacy_catalog c \
+            SET current_stock = GREATEST(c.current_stock - d.qty, 0), updated_at = now() \
+           FROM (SELECT * FROM UNNEST($1::uuid[], $2::int[]) AS u(catalog_item_id, qty)) d \
+          WHERE c.id = d.catalog_item_id AND c.tenant_id = $3",
+    )
+    .bind(&item_ids)
+    .bind(&item_qtys)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
 
     let certificate_number = format!("DEST-{}", &Uuid::new_v4().to_string()[..8]);
     sqlx::query(
