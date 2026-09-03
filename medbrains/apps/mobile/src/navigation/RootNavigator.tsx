@@ -29,6 +29,7 @@ import {
   RadiologyOrderScreen,
   SampleCollectionScreen,
   StaffDashboard,
+  CampRegistrationScreen,
   TokenBoardsScreen,
   TripSummaryScreen,
   VitalsEntryScreen,
@@ -63,6 +64,7 @@ export type RootStackParamList = {
 
   // Staff screens
   StaffDashboard: undefined;
+  CampRegistration: undefined;
   TokenBoards: { surface?: TokenBoardSurfaceId } | undefined;
   PatientSearch: undefined;
   PatientCareContext: PatientCareContextRouteParams;
@@ -178,6 +180,11 @@ function StaffStack() {
         name="StaffDashboard"
         component={StaffDashboard}
         options={{ title: navigationTitle(NAV_TEXT.staff.dashboard) }}
+      />
+      <Stack.Screen
+        name="CampRegistration"
+        component={CampRegistrationScreen}
+        options={{ title: navigationTitle(NAV_TEXT.staff.campRegistration) }}
       />
       <Stack.Screen
         name="TokenBoards"

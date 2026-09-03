@@ -5095,6 +5095,20 @@ export const mobileLoginFormSchema = z.object({
   ),
 });
 
+export const mobileCampRegistrationFormSchema = z.object({
+  camp_id: requiredTrimmed("patientJourney.mobile.campRegistration.errors.campRequired"),
+  person_name: requiredTrimmed("patientJourney.mobile.campRegistration.errors.nameRequired"),
+  // Age is asked at a camp desk, not read off a document — a plausibility
+  // range catches the slipped digit, not the unusual patient.
+  age: optionalNumericText("patientJourney.mobile.campRegistration.errors.invalidAge", 0, 120),
+  gender: z.string(),
+  phone: z.string().refine((value) => {
+    const digits = value.replace(/\D/g, "");
+    return digits.length === 0 || digits.length === 10;
+  }, "patientJourney.mobile.campRegistration.errors.invalidPhone"),
+  chief_complaint: z.string(),
+});
+
 export const mobileVitalsEntryFormSchema = z.object({
   temperature: optionalNumericText(
     "patientJourney.mobile.vitals.errors.invalidTemperature",
@@ -5696,6 +5710,9 @@ export type ChronicProgramFormInput = z.infer<typeof chronicProgramFormSchema>;
 export type ChronicEnrollmentFormInput = z.infer<typeof chronicEnrollmentFormSchema>;
 export type MobileShellLoginFormInput = z.infer<typeof mobileShellLoginFormSchema>;
 export type MobileLoginFormInput = z.infer<typeof mobileLoginFormSchema>;
+export type MobileCampRegistrationFormInput = z.infer<
+  typeof mobileCampRegistrationFormSchema
+>;
 export type MobileVitalsEntryFormInput = z.infer<typeof mobileVitalsEntryFormSchema>;
 export type MobileStaffPatientRegistrationFormInput = z.infer<
   typeof mobileStaffPatientRegistrationFormSchema

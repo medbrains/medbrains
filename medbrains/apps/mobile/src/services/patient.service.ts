@@ -22,6 +22,9 @@ export const patientService = {
   listPatientPrescriptions: (patientId: string) => api.listPatientPrescriptions(patientId),
   listAdmissions: (params?: ListAdmissionsInput) => api.listAdmissions(params),
   listCampRegistrations: (params: ListCampRegistrationsInput) => api.listCampRegistrations(params),
+  createCampRegistration: (data: Parameters<typeof api.createCampRegistration>[0]) =>
+    api.createCampRegistration(data),
+  listCamps: (params?: Parameters<typeof api.listCamps>[0]) => api.listCamps(params),
   listErVisits: (params?: ListErVisitsInput) => api.listErVisits(params),
   listPatients: (params: ListPatientsInput) => api.listPatients(params),
   getAppointment: (appointmentId: string) => api.getAppointment(appointmentId),

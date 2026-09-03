@@ -27,5 +27,6 @@ export { QueueScreen } from "./staff/QueueScreen";
 export { RadiologyOrderScreen } from "./staff/RadiologyOrderScreen";
 // Staff screens
 export { StaffDashboard } from "./staff/StaffDashboard";
+export { CampRegistrationScreen } from "./staff/CampRegistrationScreen";
 export { TokenBoardsScreen } from "./staff/TokenBoardsScreen";
 export { VitalsEntryScreen } from "./staff/VitalsEntryScreen";

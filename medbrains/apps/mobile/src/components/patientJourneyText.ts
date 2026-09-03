@@ -184,6 +184,40 @@ export const MOBILE_PATIENT_DETAIL_TEXT = {
   },
 } as const;
 
+export const MOBILE_CAMP_REGISTRATION_TEXT = {
+  actions: {
+    register: "patientJourney.mobile.campRegistration.actions.register",
+  },
+  duplicate: {
+    warning: "patientJourney.mobile.campRegistration.duplicate.warning",
+  },
+  errors: {
+    campRequired: "patientJourney.mobile.campRegistration.errors.campRequired",
+    invalidAge: "patientJourney.mobile.campRegistration.errors.invalidAge",
+    invalidPhone: "patientJourney.mobile.campRegistration.errors.invalidPhone",
+    nameRequired: "patientJourney.mobile.campRegistration.errors.nameRequired",
+    registerFailed: "patientJourney.mobile.campRegistration.errors.registerFailed",
+    rollUnavailable: "patientJourney.mobile.campRegistration.errors.rollUnavailable",
+  },
+  fields: {
+    age: "patientJourney.mobile.campRegistration.fields.age",
+    camp: "patientJourney.mobile.campRegistration.fields.camp",
+    chiefComplaint: "patientJourney.mobile.campRegistration.fields.chiefComplaint",
+    gender: "patientJourney.mobile.campRegistration.fields.gender",
+    name: "patientJourney.mobile.campRegistration.fields.name",
+    phone: "patientJourney.mobile.campRegistration.fields.phone",
+  },
+  roll: {
+    empty: "patientJourney.mobile.campRegistration.roll.empty",
+    title: "patientJourney.mobile.campRegistration.roll.title",
+  },
+  states: {
+    noCamps: "patientJourney.mobile.campRegistration.states.noCamps",
+    noPermission: "patientJourney.mobile.campRegistration.states.noPermission",
+    registered: "patientJourney.mobile.campRegistration.states.registered",
+  },
+} as const;
+
 export const MOBILE_VITALS_ENTRY_TEXT = {
   actions: {
     save: "patientJourney.mobile.vitals.actions.save",
@@ -262,6 +296,7 @@ export const MOBILE_NAVIGATION_TEXT = {
     patientPharmacy: "patientJourney.mobile.navigation.staff.patientPharmacy",
     patientQueue: "patientJourney.mobile.navigation.staff.patientQueue",
     recordVitals: "patientJourney.mobile.navigation.staff.recordVitals",
+    campRegistration: "patientJourney.mobile.navigation.staff.campRegistration",
     tokenBoards: "patientJourney.mobile.navigation.staff.tokenBoards",
   },
 } as const;
