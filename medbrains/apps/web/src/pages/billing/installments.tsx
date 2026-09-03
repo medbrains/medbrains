@@ -1,7 +1,6 @@
 // Billing InstallmentsTab — EMI/installment payment management.
 
 import {
-  ActionIcon,
   Drawer,
   Group,
   NumberInput,
@@ -23,7 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, IconButton, toast } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { billingService } from "@/services/billing.service";
 
@@ -150,9 +149,9 @@ export function InstallmentsTab() {
       label: "",
       render: (row: PaymentInstallment) => (
         <Tooltip label="View schedule">
-          <ActionIcon size="sm" variant="subtle" onClick={() => setViewId(row.id)}>
+          <IconButton size="sm" aria-label="View schedule" onClick={() => setViewId(row.id)}>
             <IconEye size={14} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -190,24 +189,24 @@ export function InstallmentsTab() {
         row.status === "pending" && viewId ? (
           <Group gap={4}>
             <Tooltip label="Mark paid">
-              <ActionIcon
+              <IconButton
                 size="sm"
-                color="green"
-                variant="subtle"
+                tone="success"
+                aria-label="Mark paid"
                 onClick={() => payMutation.mutate({ installmentId: viewId, itemId: row.id })}
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             <Tooltip label="Waive">
-              <ActionIcon
+              <IconButton
                 size="sm"
-                color="red"
-                variant="subtle"
+                tone="danger"
+                aria-label="Waive"
                 onClick={() => waiveMutation.mutate({ installmentId: viewId, itemId: row.id })}
               >
                 <IconForbid size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         ) : null,
