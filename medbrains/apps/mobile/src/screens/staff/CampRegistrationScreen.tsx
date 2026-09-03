@@ -4,7 +4,7 @@ import {
   mobileCampRegistrationFormSchema,
 } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { Camp, CampRegistration } from "@medbrains/types";
+import type { Camp, CampRegistration, CreateCampRegistrationRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -26,6 +26,13 @@ import {
   MOBILE_CAMP_REGISTRATION_TEXT as TEXT,
 } from "../../components/patientJourneyText";
 import { duplicateOnRoll, indexRegisteredPhones } from "../../lib/campRoll";
+import {
+  drain,
+  enqueue,
+  inMemoryStore,
+  type PendingRegistration,
+  pendingCount,
+} from "../../lib/registrationQueue";
 import { patientService } from "../../services/patient.service";
 
 /**
@@ -42,6 +49,27 @@ import { patientService } from "../../services/patient.service";
  */
 
 const ROW_HEIGHT = 64;
+
+/**
+ * One mapping from what the volunteer typed to what the API takes, used by
+ * both the send and the retry queue — a queued registration that reconstructs
+ * its own payload is a queued registration that drifts from the live one.
+ */
+function toRequest(values: MobileCampRegistrationFormInput): CreateCampRegistrationRequest {
+  return {
+    camp_id: values.camp_id,
+    person_name: values.person_name.trim(),
+    age: values.age.trim() ? Number(values.age) : undefined,
+    gender: values.gender || undefined,
+    phone: values.phone.trim() || undefined,
+    chief_complaint: values.chief_complaint.trim() || undefined,
+    is_walk_in: true,
+  };
+}
+
+// One queue for the session. Not persisted — see registrationQueue.ts:
+// this survives a network blip, not the app being killed.
+const queueStore = inMemoryStore();
 
 /** This app resolves its own copy; it does not mount react-i18next. */
 function campText(key: string, values?: Record<string, string | number | boolean>): string {
@@ -62,6 +90,7 @@ export function CampRegistrationScreen() {
   const canRegister = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
   const canSeeRoll = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const [toast, setToast] = useState("");
+  const [pending, setPending] = useState(0);
 
   const {
     control,
@@ -103,22 +132,42 @@ export function CampRegistrationScreen() {
 
   const register = useMutation({
     mutationFn: (values: MobileCampRegistrationFormInput) =>
-      patientService.createCampRegistration({
-        camp_id: values.camp_id,
-        person_name: values.person_name.trim(),
-        age: values.age.trim() ? Number(values.age) : undefined,
-        gender: values.gender || undefined,
-        phone: values.phone.trim() || undefined,
-        chief_complaint: values.chief_complaint.trim() || undefined,
-        is_walk_in: true,
-      }),
+      patientService.createCampRegistration(toRequest(values)),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["mobile-camp-roll", campId] });
       setToast(campText(TEXT.states.registered, { name: created.person_name }));
+      // Signal is back: flush anything held from earlier in the session.
+      if (pendingCount(queueStore) > 0) {
+        void drain(queueStore, (item: PendingRegistration) =>
+          patientService.createCampRegistration(item.payload).then(() => undefined),
+        ).then((result) => {
+          setPending(pendingCount(queueStore));
+          if (result.abandoned.length > 0) {
+            setToast(
+              campText(TEXT.errors.registerAbandoned, {
+                names: result.abandoned.map((row) => row.personName).join(", "),
+              }),
+            );
+          }
+        });
+      }
       // Keep the camp; the next person is at the same camp.
       reset({ ...emptyForm, camp_id: campId });
     },
-    onError: () => setToast(campText(TEXT.errors.registerFailed)),
+    onError: (_error, values) => {
+      // Hold it rather than lose it. The volunteer has already turned to the
+      // next person; nobody would find out until the roll came up short.
+      enqueue(queueStore, {
+        localId: `${values.camp_id}:${values.person_name}:${Date.now()}`,
+        campId: values.camp_id,
+        personName: values.person_name,
+        payload: toRequest(values),
+        attempts: 0,
+      });
+      setPending(pendingCount(queueStore));
+      setToast(campText(TEXT.errors.registerQueued, { count: pendingCount(queueStore) }));
+      reset({ ...emptyForm, camp_id: values.camp_id });
+    },
   });
 
   if (!canRegister) {
@@ -256,6 +305,12 @@ export function CampRegistrationScreen() {
                 />
               )}
             />
+
+            {pending > 0 ? (
+              <Banner visible icon="cloud-off-outline">
+                {campText(TEXT.states.pending, { count: pending })}
+              </Banner>
+            ) : null}
 
             {duplicateOf ? (
               <Banner visible icon="account-alert">

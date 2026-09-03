@@ -196,7 +196,9 @@ export const MOBILE_CAMP_REGISTRATION_TEXT = {
     invalidAge: "patientJourney.mobile.campRegistration.errors.invalidAge",
     invalidPhone: "patientJourney.mobile.campRegistration.errors.invalidPhone",
     nameRequired: "patientJourney.mobile.campRegistration.errors.nameRequired",
+    registerAbandoned: "patientJourney.mobile.campRegistration.errors.registerAbandoned",
     registerFailed: "patientJourney.mobile.campRegistration.errors.registerFailed",
+    registerQueued: "patientJourney.mobile.campRegistration.errors.registerQueued",
     rollUnavailable: "patientJourney.mobile.campRegistration.errors.rollUnavailable",
   },
   fields: {
@@ -214,6 +216,7 @@ export const MOBILE_CAMP_REGISTRATION_TEXT = {
   states: {
     noCamps: "patientJourney.mobile.campRegistration.states.noCamps",
     noPermission: "patientJourney.mobile.campRegistration.states.noPermission",
+    pending: "patientJourney.mobile.campRegistration.states.pending",
     registered: "patientJourney.mobile.campRegistration.states.registered",
   },
 } as const;
