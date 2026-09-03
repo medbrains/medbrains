@@ -661,7 +661,7 @@ pub async fn list_board(
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'called', 'serving') \
                 OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
-         ORDER BY token_priority_weight(priority), seq ASC"
+         ORDER BY token_effective_weight(priority, created_at), seq ASC"
     ))
     .bind(&query.module)
     .bind(&query.scope)
@@ -752,7 +752,7 @@ pub async fn list_worklist(
             AND ($3::uuid IS NULL OR t.scope_id = $3) \
             AND (t.status IN ('waiting', 'called', 'serving') \
                  OR ($4::bool AND t.status IN ('completed', 'no_show'))) \
-          ORDER BY token_priority_weight(t.priority), t.seq ASC \
+          ORDER BY token_effective_weight(t.priority, t.created_at), t.seq ASC \
           LIMIT 500",
     )
     .bind(&query.module)
@@ -947,9 +947,9 @@ pub async fn my_tokens(
               AND ahead.scope_id IS NOT DISTINCT FROM t.scope_id \
               AND ahead.token_date = t.token_date \
               AND ahead.status = 'waiting' \
-              AND (token_priority_weight(ahead.priority), \
+              AND (token_effective_weight(ahead.priority, ahead.created_at), \
                    ahead.seq) \
-                < (token_priority_weight(t.priority), t.seq) \
+                < (token_effective_weight(t.priority, t.created_at), t.seq) \
          ) AS ahead \
          FROM tokens t \
          WHERE t.patient_id = $1 AND t.token_date = CURRENT_DATE \
@@ -1260,7 +1260,7 @@ pub async fn call_next(
         "SELECT id FROM tokens \
          WHERE module = $1 AND token_date = CURRENT_DATE AND status = 'waiting' \
            AND ($2::text IS NULL OR scope = $2) AND ($3::uuid IS NULL OR scope_id = $3) \
-         ORDER BY token_priority_weight(priority), seq ASC \
+         ORDER BY token_effective_weight(priority, created_at), seq ASC \
          LIMIT 1",
     )
     .bind(&body.module)
@@ -1521,7 +1521,7 @@ async fn place_after(
     let boundary: Option<i32> = sqlx::query_scalar(
         "WITH ordered AS ( \
            SELECT seq, row_number() OVER ( \
-                    ORDER BY token_priority_weight(priority), \
+                    ORDER BY token_effective_weight(priority, created_at), \
                              seq \
                   ) AS rn \
              FROM tokens \

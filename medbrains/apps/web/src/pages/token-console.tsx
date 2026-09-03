@@ -16,6 +16,7 @@ import type { Column } from "@/components/DataTable";
 import { Alert, Badge, Button, Input, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { formatWaited, hasAged } from "@/lib/token-ageing";
 
 const MODULE_VALUES = [
   "registration",
@@ -129,16 +130,31 @@ export function TokenConsolePage() {
       // A patient ahead of the queue for a reason nobody at the desk witnessed
       // looks like a queue-jump, and the desk is who has to explain it. So the
       // badge says why on hover, and never shows a raw database value.
-      render: (row) =>
-        row.priority === "normal" ? (
-          "—"
-        ) : (
-          <Tooltip label={TOKEN_PRIORITY_REASON[row.priority] ?? row.priority}>
-            <Badge tone={row.priority === "carried_over" ? "accent" : "warning"}>
-              {TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
-            </Badge>
-          </Tooltip>
-        ),
+      // Waiting is now itself a reason to be ahead — migration 1006 ages a
+      // token one step per 30 minutes — so the same rule applies to it: the
+      // desk must be able to say why, or an aged patient reads as a queue-jump.
+      render: (row) => {
+        const aged = hasAged(row.priority, row.created_at);
+        const badge =
+          row.priority === "normal" ? null : (
+            <Tooltip label={TOKEN_PRIORITY_REASON[row.priority] ?? row.priority}>
+              <Badge tone={row.priority === "carried_over" ? "accent" : "warning"}>
+                {TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
+              </Badge>
+            </Tooltip>
+          );
+        if (!aged) return badge ?? "—";
+        return (
+          <Group gap={4} wrap="nowrap">
+            {badge}
+            <Tooltip
+              label={`Waiting ${formatWaited(row.created_at)} — moved up the queue, never ahead of an emergency`}
+            >
+              <Badge tone="info">{formatWaited(row.created_at)}</Badge>
+            </Tooltip>
+          </Group>
+        );
+      },
     },
     {
       key: "actions",
