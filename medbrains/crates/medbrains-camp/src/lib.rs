@@ -5450,6 +5450,17 @@ pub async fn sync_camp_inbound(
                 ) =>
             {
                 let message = err.to_string();
+
+                // Discard what the failing event already did. A rejected
+                // dispense can have inserted its order and deducted stock
+                // before reaching the rule that rejected it, and recording the
+                // failure on the SAME transaction committed those writes too:
+                // the shelf lost the medicines and the ledger said nothing was
+                // dispensed. The failure is recorded on a fresh transaction so
+                // only the failure survives.
+                tx.rollback().await?;
+                let mut fail_tx = state.db.begin().await?;
+                medbrains_db::pool::set_tenant_context(&mut fail_tx, &claims.tenant_id).await?;
                 sqlx::query(
                     "UPDATE camp_sync_events SET status = 'failed', error = $3 \
                      WHERE tenant_id = $1 AND idempotency_key = $2",
@@ -5457,7 +5468,7 @@ pub async fn sync_camp_inbound(
                 .bind(claims.tenant_id)
                 .bind(&event.idempotency_key)
                 .bind(&message)
-                .execute(&mut *tx)
+                .execute(&mut *fail_tx)
                 .await?;
 
                 failed += 1;
@@ -5470,7 +5481,7 @@ pub async fn sync_camp_inbound(
                     server_entities: None,
                     message: Some(message),
                 });
-                tx.commit().await?;
+                fail_tx.commit().await?;
             }
             Err(err) => return Err(err),
         }
