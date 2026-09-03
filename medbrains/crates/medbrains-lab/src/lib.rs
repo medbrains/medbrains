@@ -4375,12 +4375,20 @@ pub async fn list_stat_orders(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, TatMonitoringRow>(&format!(
+        // Open orders only — the screen counts these as "open" and says
+        // "Nothing urgent outstanding" when empty, but the filter used to keep
+        // completed and verified ones too, so finished work was counted as
+        // waiting. Oldest first, because the cap has to drop the NEWEST: an
+        // order breaches by waiting, so ordering newest-first dropped exactly
+        // the orders the breach alert exists to raise.
         "{TAT_MONITORING_SELECT} \
          WHERE lo.tenant_id = $1 \
            AND (lo.is_stat = true OR lo.priority = 'stat'::lab_priority \
                 OR lo.priority = 'urgent'::lab_priority) \
-           AND lo.status NOT IN ('cancelled'::lab_order_status) \
-         ORDER BY lo.created_at DESC LIMIT 100"
+           AND lo.status NOT IN ('cancelled'::lab_order_status, \
+                                 'completed'::lab_order_status, \
+                                 'verified'::lab_order_status) \
+         ORDER BY lo.created_at ASC LIMIT 100"
     ))
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
