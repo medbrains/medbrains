@@ -16,6 +16,7 @@ use chrono::NaiveDate;
 use medbrains_core::billing::{InsuranceClaim, Invoice, InvoiceStatus, TpaRateCard};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -969,44 +970,56 @@ pub async fn auto_match_bank_transactions(
     let mut variance_flagged = 0i64;
     let processed = unmatched.len() as i64;
 
+    // Strategies 1 and 2 both resolve a claim_number, so they are one query
+    // for the whole statement rather than two per transaction. A reconciliation
+    // run over a few hundred credits used to cost a few hundred round trips
+    // here before it did any matching at all.
+    let mut wanted: Vec<String> = Vec::new();
+    for txn in &unmatched {
+        if let Some(reference) = &txn.reference_number {
+            wanted.push(reference.clone());
+        }
+        if let Some(desc) = &txn.description
+            && let Some(num) = extract_claim_number_from_description(desc)
+        {
+            wanted.push(num);
+        }
+    }
+    wanted.sort_unstable();
+    wanted.dedup();
+
+    let claims_by_number: HashMap<String, (Uuid, Decimal, Option<Decimal>)> = if wanted.is_empty() {
+        HashMap::new()
+    } else {
+        sqlx::query_as::<_, (String, Uuid, Decimal, Option<Decimal>)>(
+            "SELECT claim_number, id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
+             FROM insurance_claims \
+             WHERE tenant_id = $1 AND claim_number = ANY($2)",
+        )
+        .bind(claims.tenant_id)
+        .bind(&wanted)
+        .fetch_all(&mut *tx)
+        .await?
+        .into_iter()
+        .map(|(number, id, approved, settled)| (number, (id, approved, settled)))
+        .collect()
+    };
+
     for txn in &unmatched {
         // Strategy 1 — exact reference match against claim_number.
-        let claim_by_ref: Option<(Uuid, Decimal, Option<Decimal>)> =
-            if let Some(reference) = &txn.reference_number {
-                sqlx::query_as(
-                    "SELECT id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
-                     FROM insurance_claims \
-                     WHERE tenant_id = $1 AND claim_number = $2 LIMIT 1",
-                )
-                .bind(claims.tenant_id)
-                .bind(reference)
-                .fetch_optional(&mut *tx)
-                .await?
-            } else {
-                None
-            };
+        let claim_by_ref = txn
+            .reference_number
+            .as_ref()
+            .and_then(|reference| claims_by_number.get(reference).copied());
 
         // Strategy 2 — description contains claim_number (CLM-XXXX pattern).
-        let claim = if claim_by_ref.is_some() {
-            claim_by_ref
-        } else if let Some(desc) = &txn.description {
-            let candidate = extract_claim_number_from_description(desc);
-            if let Some(num) = candidate {
-                sqlx::query_as(
-                    "SELECT id, COALESCE(approved_amount, 0)::NUMERIC, settled_amount \
-                     FROM insurance_claims \
-                     WHERE tenant_id = $1 AND claim_number = $2 LIMIT 1",
-                )
-                .bind(claims.tenant_id)
-                .bind(num)
-                .fetch_optional(&mut *tx)
-                .await?
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        // Order preserved: reference wins, description is the fallback.
+        let claim = claim_by_ref.or_else(|| {
+            txn.description
+                .as_ref()
+                .and_then(|desc| extract_claim_number_from_description(desc))
+                .and_then(|num| claims_by_number.get(&num).copied())
+        });
 
         // Strategy 3 — amount window (low confidence, flag discrepancy).
         let (claim, low_confidence) = if claim.is_some() {
