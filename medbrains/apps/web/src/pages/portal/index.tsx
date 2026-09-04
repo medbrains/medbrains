@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useParams } from "react-router";
 import { Alert, Button } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
+import { PortalHome } from "./PortalHome";
 import {
   clearPortalSession,
   readPortalSession,
@@ -38,6 +39,9 @@ export function PatientPortalPage() {
   // read of storage, and an effect would flash the sign-in screen at somebody
   // who is already signed in.
   const [session, setSession] = useState<StoredPortalSession | null>(() => readPortalSession());
+  // The home summary sends the patient to a tab, so the tab is state rather
+  // than uncontrolled.
+  const [tab, setTab] = useState("reports");
 
   if (!session) {
     return <SignIn tenantCode={tenantCode} onSignedIn={setSession} />;
@@ -52,7 +56,9 @@ export function PatientPortalPage() {
         </Text>
       </Stack>
 
-      <Tabs defaultValue="reports" w="100%">
+      <PortalHome token={session.token} onGo={setTab} />
+
+      <Tabs value={tab} onChange={(value) => setTab(value ?? "reports")} w="100%">
         <Tabs.List grow>
           <Tabs.Tab value="reports">Results</Tabs.Tab>
           <Tabs.Tab value="prescriptions">Medicines</Tabs.Tab>
