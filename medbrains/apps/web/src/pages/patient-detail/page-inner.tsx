@@ -13,6 +13,7 @@ import type {
 } from "@medbrains/types";
 import {
   activeBillingInvoiceIdForJourney,
+  activeLabOrderIsCollectedForJourney,
   billingInvoiceHasReceivedPayment,
   billingInvoiceIsFinalized,
   billingInvoiceRequiresFollowUp,
@@ -141,6 +142,14 @@ export function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
   const { data: patientContext } = usePatientContext(patientId);
+  // Same query key the lab-orders tab uses, so TanStack serves one fetch for
+  // both rather than two. The chart needs it to know whether the lab journey
+  // actions apply at all.
+  const { data: labOrders = [] } = useQuery({
+    queryKey: ["patient-lab-orders", patientId],
+    queryFn: () => patientDetailService.listPatientLabOrders(patientId),
+    enabled: patientId.length > 0,
+  });
 
   // Latest active encounter — basket needs an encounter to scope orders to.
   const { data: visits = [] } = useQuery({
@@ -250,6 +259,12 @@ export function PatientDetailPageInner() {
   if (hasPaymentReceived) {
     completedEvents.push("billing.payment.received");
   }
+  if (labOrders.length > 0) {
+    completedEvents.push("order.created");
+  }
+  if (activeLabOrderIsCollectedForJourney(labOrders)) {
+    completedEvents.push("lab.sample_collected");
+  }
   const actionContext: ClinicalJourneyContext = patientDetailJourneyContext({
     patientId: patient.id,
     isDeceased: patient.is_deceased,
@@ -265,6 +280,7 @@ export function PatientDetailPageInner() {
     hasPendingConsent,
     completedEvents,
     prescriptions,
+    labOrders,
   });
   const emitPatientShareCreated = (grant: {
     expiresAt: string | null;

@@ -20,6 +20,8 @@ export type ClinicalJourneyActionId =
   | "orders.medication"
   | "orders.lab"
   | "orders.radiology"
+  | "lab.open_order"
+  | "lab.record_result"
   | "ipd.open_admission"
   | "ipd.admit"
   | "billing.prepare_discharge_bill"
@@ -47,6 +49,8 @@ export interface ClinicalJourneyContext {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activePharmacyRxQueueId?: string | null;
+  /** The lab order this patient's chart considers current, if any. */
+  activeLabOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   hasPendingConsent?: boolean;
@@ -69,6 +73,7 @@ export interface ClinicalJourneyActionDefinition {
     | "camp"
     | "billing"
     | "pharmacy"
+    | "lab"
     | "mrd";
   intent: ClinicalJourneyActionIntent;
   requiredPermissions: readonly string[];
@@ -879,6 +884,35 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile", "tv"],
     activatesAfter: ["order.created", "pharmacy.prescription.reviewed", "pharmacy.order.dispensed"],
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
+    disabledReason: () => null,
+  },
+  {
+    id: "lab.open_order",
+    label: "Open lab order",
+    shortLabel: "Lab order",
+    description: "Open the lab order record for this patient's current investigation.",
+    module: "lab",
+    intent: "clinical",
+    requiredPermissions: [P.LAB.ORDERS_VIEW],
+    surfaces: ["web"],
+    activatesAfter: ["order.created"],
+    standardRefs: ["NABL traceability", "NABH AAC"],
+    disabledReason: () => null,
+  },
+  {
+    id: "lab.record_result",
+    label: "Record lab result",
+    shortLabel: "Result",
+    description: "Enter results against the collected sample for this order.",
+    module: "lab",
+    intent: "clinical",
+    requiredPermissions: [P.LAB.RESULTS_CREATE],
+    surfaces: ["web"],
+    // Not orderable before the sample exists: a result recorded against an
+    // uncollected sample is a result belonging to nothing.
+    activatesAfter: ["lab.sample_collected"],
+    emitsEvent: "lab.result.posted",
+    standardRefs: ["NABL 112", "NABH AAC"],
     disabledReason: () => null,
   },
   {

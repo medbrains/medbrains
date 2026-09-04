@@ -28,7 +28,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, DocumentActions, useClinicalEmit } from "@/components";
 import { PrintLabReportButton } from "@/components/Lab/LabReportPrint";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -118,7 +118,14 @@ export function LabOrderDetail({
   const navigate = useNavigate();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
+  // `?action=record_result` opens the entry panel on arrival. The journey
+  // action that emits it (lab.record_result) exists so a clinician reaching
+  // this order from the patient's chart lands ready to type, rather than
+  // hunting for the control on a page they were sent to for exactly that.
+  const [searchParams] = useSearchParams();
+  const [resultFormOpen, resultFormHandlers] = useDisclosure(
+    searchParams.get("action") === "record_result",
+  );
   const [collectOpened, { open: openCollect, close: closeCollect }] = useDisclosure(false);
   const [scannedId, setScannedId] = useState("");
   // Each row carries an id of its own. The key used to be built from the

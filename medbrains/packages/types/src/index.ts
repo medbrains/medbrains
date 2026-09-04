@@ -189,6 +189,8 @@ export type {
   PatientFlowReadinessSummary,
 } from "./patient-flow.js";
 export {
+  activeLabOrderIsCollectedForJourney,
+  activePatientLabOrderIdForJourney,
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   buildPatientFlowReadiness,

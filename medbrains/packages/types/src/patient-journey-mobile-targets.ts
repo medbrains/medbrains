@@ -137,6 +137,11 @@ export function patientJourneyMobileActionTarget(
         screen: "PatientCareContext",
         params: mobileCareContextParams(context, "emergency", "open_visit"),
       };
+    case "lab.open_order":
+    case "lab.record_result":
+      // No lab order screen on mobile. Returning null keeps the action off the
+      // phone rather than routing it somewhere that cannot show an order.
+      return null;
     case "ipd.admit":
       return {
         screen: "PatientCareContext",

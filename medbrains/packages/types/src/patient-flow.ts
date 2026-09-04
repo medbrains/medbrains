@@ -9,7 +9,11 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 import { clinicalJourneyActionSignal, resolveClinicalJourneyActions } from "./event-actions.js";
-import type { ClinicalEventName, PrescriptionHistoryItem } from "./index.js";
+import type {
+  ClinicalEventName,
+  PatientLabOrderRow,
+  PrescriptionHistoryItem,
+} from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
 
@@ -34,6 +38,7 @@ export interface PatientFlowContextInput {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activePharmacyRxQueueId?: string | null;
+  activeLabOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   completedEvents?: readonly ClinicalEventName[];
@@ -191,6 +196,41 @@ function summarizePatientFlow(
   };
 }
 
+/**
+ * The lab order a clinician on this chart would act on.
+ *
+ * Drawn but not yet verified first — that is the one waiting on somebody.
+ * Then any unverified order, so a chart holding only uncollected orders still
+ * offers a way into the record rather than nothing; then the most recent.
+ * Returning null leaves the lab journey actions inactive, which is correct for
+ * a patient who has never had an investigation.
+ */
+export function activePatientLabOrderIdForJourney(
+  orders: readonly PatientLabOrderRow[],
+): string | null {
+  return (
+    orders.find((order) => order.collected_at && !order.verified_at)?.id ??
+    orders.find((order) => !order.verified_at)?.id ??
+    orders[0]?.id ??
+    null
+  );
+}
+
+/**
+ * Whether the order the lab actions would target has had its sample drawn.
+ *
+ * Deliberately not "any order on this chart": a patient can hold a verified
+ * order from last week and an uncollected one from this morning. Asking
+ * whether *any* sample was ever drawn would offer "record result" against the
+ * order that has no sample, which is a result belonging to nothing.
+ */
+export function activeLabOrderIsCollectedForJourney(
+  orders: readonly PatientLabOrderRow[],
+): boolean {
+  const activeId = activePatientLabOrderIdForJourney(orders);
+  return activeId != null && orders.some((o) => o.id === activeId && o.collected_at != null);
+}
+
 export function activePatientPharmacyOrderIdForJourney(
   prescriptions: readonly PrescriptionHistoryItem[],
 ): string | null {
@@ -257,6 +297,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeEmergencyVisitId,
     activeEncounterId,
     activeInvoiceId,
+    activeLabOrderId,
     activeOrderContext,
     activePharmacyOrderId,
     activePharmacyRxQueueId,
@@ -279,6 +320,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeCampId,
     activeCampRegistrationId,
     activeInvoiceId,
+    activeLabOrderId,
     activePharmacyOrderId,
     activePharmacyRxQueueId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),

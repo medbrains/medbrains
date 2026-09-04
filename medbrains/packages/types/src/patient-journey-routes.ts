@@ -48,6 +48,17 @@ export function patientJourneyActionRoute(
         return `/opd/encounters/${context.activeEncounterId}?order=radiology#investigations`;
       }
       return null;
+    case "lab.open_order":
+      // The order record, not the tenant-wide lab worklist. Without this the
+      // only way back to an order was to find the patient again in a list they
+      // had just come from.
+      return context.activeLabOrderId ? `/lab/orders/${context.activeLabOrderId}` : null;
+    case "lab.record_result":
+      // `?action=` is the convention pharmacy already established for "open
+      // this record with that panel expanded" — see pharmacy.dispense_order.
+      return context.activeLabOrderId
+        ? `/lab/orders/${context.activeLabOrderId}?action=record_result`
+        : null;
     case "ipd.open_admission":
       return context.activeAdmissionId
         ? `/ipd/admissions/${context.activeAdmissionId}#overview`

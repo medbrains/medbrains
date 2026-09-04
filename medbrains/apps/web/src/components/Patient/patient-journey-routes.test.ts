@@ -2,6 +2,8 @@
 
 import type { ClinicalJourneyContext } from "@medbrains/types";
 import {
+  activeLabOrderIsCollectedForJourney,
+  activePatientLabOrderIdForJourney,
   patientFlowMobileTarget,
   patientJourneyActionRoute,
   patientJourneyMobileActionTarget,
@@ -283,5 +285,60 @@ describe("patient journey action routes", () => {
       screen: "BillDetail",
       params: { invoiceId: "invoice-1" },
     });
+  });
+});
+
+describe("lab journey actions", () => {
+  const base = { patientId: "patient-1" };
+
+  it("opens the lab order record rather than the tenant-wide worklist", () => {
+    expect(
+      patientJourneyActionRoute("lab.open_order", { ...base, activeLabOrderId: "order-9" }),
+    ).toBe("/lab/orders/order-9");
+  });
+
+  it("carries the record-result action so the panel is open on arrival", () => {
+    // The convention pharmacy already set with ?action=dispense. Without it a
+    // clinician sent to enter a result lands on a page and must find the
+    // control they were sent there to use.
+    expect(
+      patientJourneyActionRoute("lab.record_result", { ...base, activeLabOrderId: "order-9" }),
+    ).toBe("/lab/orders/order-9?action=record_result");
+  });
+
+  it("offers nothing when the chart has no lab order, rather than a broken link", () => {
+    expect(patientJourneyActionRoute("lab.open_order", base)).toBeNull();
+    expect(patientJourneyActionRoute("lab.record_result", base)).toBeNull();
+  });
+});
+
+describe("which lab order the chart considers active", () => {
+  const order = (id: string, collected: string | null, verified: string | null) =>
+    ({ id, collected_at: collected, verified_at: verified }) as never;
+
+  it("prefers the one waiting on somebody — drawn but not verified", () => {
+    expect(
+      activePatientLabOrderIdForJourney([
+        order("verified", "2026-09-01", "2026-09-02"),
+        order("drawn", "2026-09-03", null),
+        order("ordered", null, null),
+      ]),
+    ).toBe("drawn");
+  });
+
+  it("does not claim a sample was drawn because some other order had one", () => {
+    // A verified order from last week plus an uncollected one from this
+    // morning. Offering "record result" here would file a result against an
+    // order that has no sample.
+    expect(
+      activeLabOrderIsCollectedForJourney([
+        order("last-week", "2026-09-01", "2026-09-02"),
+        order("this-morning", null, null),
+      ]),
+    ).toBe(false);
+  });
+
+  it("reports collected when the active order is the drawn one", () => {
+    expect(activeLabOrderIsCollectedForJourney([order("drawn", "2026-09-03", null)])).toBe(true);
   });
 });

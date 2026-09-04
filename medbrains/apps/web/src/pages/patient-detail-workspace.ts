@@ -1,5 +1,10 @@
-import type { PatientFlowContextInput, PrescriptionHistoryItem } from "@medbrains/types";
+import type {
+  PatientFlowContextInput,
+  PatientLabOrderRow,
+  PrescriptionHistoryItem,
+} from "@medbrains/types";
 import {
+  activePatientLabOrderIdForJourney,
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   patientFlowJourneyContext,
@@ -8,8 +13,12 @@ import {
 export type PatientDetailOrderBasketTab = "drug" | "lab" | "radiology";
 
 export interface PatientDetailJourneyContextInput
-  extends Omit<PatientFlowContextInput, "activePharmacyOrderId" | "activePharmacyRxQueueId"> {
+  extends Omit<
+    PatientFlowContextInput,
+    "activePharmacyOrderId" | "activePharmacyRxQueueId" | "activeLabOrderId"
+  > {
   prescriptions: readonly PrescriptionHistoryItem[];
+  labOrders?: readonly PatientLabOrderRow[];
 }
 
 export const PATIENT_DETAIL_TAB_VALUES = [
@@ -67,10 +76,13 @@ export function patientDetailOrderBasketRoute(
 }
 
 export function patientDetailJourneyContext(input: PatientDetailJourneyContextInput) {
-  const { prescriptions, ...context } = input;
+  // Defaulted: a caller with no lab list means this chart has no lab order,
+  // which is a fact about the patient, not a reason to throw.
+  const { prescriptions, labOrders = [], ...context } = input;
 
   return patientFlowJourneyContext({
     ...context,
+    activeLabOrderId: activePatientLabOrderIdForJourney(labOrders),
     activePharmacyOrderId: activePatientPharmacyOrderIdForJourney(prescriptions),
     activePharmacyRxQueueId: activePatientPharmacyRxQueueIdForJourney(prescriptions),
   });
