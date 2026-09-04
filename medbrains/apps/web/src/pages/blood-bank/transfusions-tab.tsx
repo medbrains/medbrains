@@ -9,9 +9,11 @@ import { IconActivity, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, toast } from "@/components/ui";
+import { useConsentGate } from "@/hooks/useConsentGate";
 import { TransfusionMonitorDrawer } from "@/pages/blood-bank/TransfusionMonitorDrawer";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
@@ -50,6 +52,17 @@ function CreateTransfusionForm({
   const userData = users.map((u) => ({ value: u.id, label: u.full_name }));
   const twoPersonInvalid =
     !patientVerifier || !productVerifier || patientVerifier === productVerifier;
+  // Transfusion consent, checked beside the two-person bedside verification
+  // rather than after the line is in. Like that check it does not block on its
+  // own: a transfusion refused because a consent lookup timed out can kill the
+  // patient it was meant to protect.
+  const consentGate = useConsentGate({
+    patientId,
+    procedureType: "blood_transfusion",
+  });
+  const [consentOverride, setConsentOverride] = useState(false);
+  const consentSettled =
+    consentGate.outcome === "allow" || consentGate.outcome === "checking" || consentOverride;
 
   return (
     <Stack>
@@ -90,9 +103,18 @@ function CreateTransfusionForm({
             : undefined
         }
       />
+      {patientId && (
+        <ConsentGateNotice
+          outcome={consentGate.outcome}
+          procedureLabel="this transfusion"
+          overrideAcknowledged={consentOverride}
+          onOverrideChange={setConsentOverride}
+          onRecheck={consentGate.recheck}
+        />
+      )}
       <Button
         tone="primary"
-        disabled={twoPersonInvalid}
+        disabled={twoPersonInvalid || !consentSettled}
         onClick={() => {
           if (!patientId || !componentId || !patientVerifier || !productVerifier) return;
           if (patientVerifier === productVerifier) return;

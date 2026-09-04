@@ -7,12 +7,15 @@ import type { RadiologyOrderFormInput } from "@medbrains/schemas";
 import { radiologyOrderFormSchema } from "@medbrains/schemas";
 import type { CreateRadiologyOrderRequest, RadiologyModality } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useClinicalEmit } from "@/components";
+import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Button } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
+import { useConsentGate } from "@/hooks/useConsentGate";
 import { radiologyService } from "@/services/radiology.service";
 
 export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
@@ -54,6 +57,22 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     queryFn: () => radiologyService.contrastScreening({ patient_id: patientId }),
     enabled: !!patientId && contrastRequired,
   });
+
+  // Contrast administration is separately consented — it carries its own risks
+  // (nephropathy, anaphylaxis) beyond the imaging itself. Gated on the same
+  // condition as the contrast screening beside it: only when contrast is asked
+  // for. A plain X-ray does not need this and must not be blocked by it.
+  const consentGate = useConsentGate({
+    patientId,
+    procedureType: "contrast_administration",
+    enabled: contrastRequired,
+  });
+  const [consentOverride, setConsentOverride] = useState(false);
+  const consentSettled =
+    !contrastRequired ||
+    consentGate.outcome === "allow" ||
+    consentGate.outcome === "checking" ||
+    consentOverride;
 
   const { data: cumulativeDose } = useQuery({
     queryKey: ["cumulative-dose", patientId],
@@ -222,7 +241,21 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
           )}
         />
         <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
-        <Button tone="primary" type="submit" loading={createMutation.isPending}>
+        {contrastRequired && patientId && (
+          <ConsentGateNotice
+            outcome={consentGate.outcome}
+            procedureLabel="contrast administration"
+            overrideAcknowledged={consentOverride}
+            onOverrideChange={setConsentOverride}
+            onRecheck={consentGate.recheck}
+          />
+        )}
+        <Button
+          tone="primary"
+          type="submit"
+          loading={createMutation.isPending}
+          disabled={!consentSettled}
+        >
           Create Order
         </Button>
       </Stack>

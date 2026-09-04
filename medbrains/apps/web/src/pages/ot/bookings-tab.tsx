@@ -25,6 +25,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "react-router";
 import { DataTable, StatusDot } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
+import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
@@ -37,6 +38,7 @@ import {
   OT_CASE_PRIORITY_OPTIONS,
   toCreateOtBookingRequest,
 } from "@/forms/ot.form";
+import { useConsentGate } from "@/hooks/useConsentGate";
 import { otService } from "@/services/ot.service";
 import { AnesthesiaTab } from "./anesthesia-tab";
 import { CaseRecordTab } from "./case-record-tab";
@@ -71,6 +73,19 @@ function CreateBookingDrawer({
   });
   const selectedPatientId = watch("patient_id");
   const linkedAdmissionId = watch("admission_id");
+  // Surgical consent, checked at the point the operation is booked rather than
+  // discovered at the door of the theatre.
+  const consentGate = useConsentGate({
+    patientId: selectedPatientId,
+    procedureType: "surgery",
+    enabled: opened,
+  });
+  const [consentOverride, setConsentOverride] = useState(false);
+  // A definite allow needs no acknowledgement. Deny and unknown both do, and
+  // for different reasons the notice spells out; neither is treated as the
+  // other, and neither blocks outright.
+  const consentSettled =
+    consentGate.outcome === "allow" || consentGate.outcome === "checking" || consentOverride;
   const { data: rooms } = useQuery({
     queryKey: ["ot-rooms"],
     queryFn: () => otService.listOtRooms(),
@@ -228,7 +243,21 @@ function CreateBookingDrawer({
           name="notes"
           render={({ field }) => <Textarea label="Notes" {...field} />}
         />
-        <Button tone="primary" type="submit" loading={mutation.isPending}>
+        {selectedPatientId && (
+          <ConsentGateNotice
+            outcome={consentGate.outcome}
+            procedureLabel="this operation"
+            overrideAcknowledged={consentOverride}
+            onOverrideChange={setConsentOverride}
+            onRecheck={consentGate.recheck}
+          />
+        )}
+        <Button
+          tone="primary"
+          type="submit"
+          loading={mutation.isPending}
+          disabled={!consentSettled}
+        >
           Create Booking
         </Button>
       </Stack>
