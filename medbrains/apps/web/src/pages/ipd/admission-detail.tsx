@@ -43,6 +43,7 @@ import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorksp
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { billingService } from "@/services/billing.service";
@@ -846,6 +847,16 @@ export function AdmissionDetail({
                     }
                     variant="subtle"
                   />
+                  {/* The statutory consent forms for this admission. Each had a
+                      print-data endpoint and no renderer, so the paper a
+                      hospital is required to hold could not be produced by the
+                      system holding the consent. Each button hides itself when
+                      the caller lacks the permission its endpoint enforces. */}
+                  <PrintDocumentButton documentKey="consent.general" recordId={admissionId} />
+                  <PrintDocumentButton documentKey="consent.blood" recordId={admissionId} />
+                  <PrintDocumentButton documentKey="consent.dnr" recordId={admissionId} />
+                  <PrintDocumentButton documentKey="consent.ama" recordId={admissionId} />
+                  <PrintDocumentButton documentKey="consent.teaching" recordId={admissionId} />
                 </Stack>
                 <Stack
                   gap="xs"
