@@ -76,3 +76,27 @@ describe("printDocument", () => {
     expect(result.problem).toMatch(/pop-?ups/i);
   });
 });
+
+describe("the generated registry", () => {
+  it("registers every document under a unique key", async () => {
+    const { ALL_PRINT_DOCUMENTS } =
+      await vi.importActual<typeof import("./print-registry")>("./print-registry");
+    const keys = ALL_PRINT_DOCUMENTS.map((d) => d.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("gives every document a permission, so none is offered ungated", async () => {
+    // A print button with no permission is a PHI document offered to anyone
+    // who can reach the screen it sits on.
+    const { ALL_PRINT_DOCUMENTS } =
+      await vi.importActual<typeof import("./print-registry")>("./print-registry");
+    const ungated = ALL_PRINT_DOCUMENTS.filter((d) => !d.permission);
+    expect(ungated.map((d) => d.key)).toEqual([]);
+  });
+
+  it("covers well over a hundred documents, not just the consents", async () => {
+    const { ALL_PRINT_DOCUMENTS } =
+      await vi.importActual<typeof import("./print-registry")>("./print-registry");
+    expect(ALL_PRINT_DOCUMENTS.length).toBeGreaterThan(100);
+  });
+});

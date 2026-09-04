@@ -1,5 +1,6 @@
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
+import { GENERATED_PRINT_DOCUMENTS } from "./print-registry.generated";
 
 /**
  * Every document this system can print, and how to get its data.
@@ -19,7 +20,12 @@ export type PrintDocumentIdKind =
   | "patient"
   | "consent"
   | "enrollment"
-  | "video_consent";
+  | "video_consent"
+  | "order"
+  | "invoice"
+  | "payment"
+  /** Anything else the endpoint keys on — an incident, a claim, a contract. */
+  | "record";
 
 export interface PrintDocumentDef {
   /** Stable key used by the single print command. */
@@ -118,7 +124,18 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   },
 ];
 
-const BY_KEY = new Map(PRINT_DOCUMENTS.map((doc) => [doc.key, doc]));
+/**
+ * Every printable document: the eleven consents written by hand above, plus
+ * the 106 generated from the Rust handlers. Generated rather than typed out
+ * because each entry's permission must be the one its own handler enforces,
+ * and getting 106 of those right by hand is a guarantee of getting some wrong.
+ */
+export const ALL_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
+  ...PRINT_DOCUMENTS,
+  ...GENERATED_PRINT_DOCUMENTS,
+];
+
+const BY_KEY = new Map(ALL_PRINT_DOCUMENTS.map((doc) => [doc.key, doc]));
 
 export function printDocumentDef(key: string): PrintDocumentDef | undefined {
   return BY_KEY.get(key);
