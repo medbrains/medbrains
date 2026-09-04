@@ -4323,11 +4323,39 @@ pub async fn list_discharge_checklist(
 //  POST /api/ipd/admissions/{id}/discharge-checklist
 // ══════════════════════════════════════════════════════════
 
+/// The discharge steps NABH expects a ward to have completed and recorded.
+///
+/// Ordered the way the ward works through them: the summary is written, then
+/// explained, then the medicines and follow-up handed over, then the patient's
+/// own property and paperwork returned, then clearance.
+fn default_discharge_checklist_items() -> Vec<DischargeChecklistItem> {
+    [
+        ("discharge_summary", "Discharge summary prepared and signed"),
+        ("summary_explained", "Summary explained to patient or attendant"),
+        ("medicines_dispensed", "Take-home medicines dispensed"),
+        ("medicines_counselled", "Medicines and doses explained"),
+        ("red_flags_explained", "Warning signs explained — when to come back"),
+        ("follow_up_given", "Follow-up appointment given"),
+        ("reports_returned", "Original investigation reports returned"),
+        ("lines_removed", "Cannulae, catheters and drains removed"),
+        ("valuables_returned", "Patient property and valuables returned"),
+        ("accounts_cleared", "Accounts cleared or clearance recorded"),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, (code, label))| DischargeChecklistItem {
+        item_code: code.to_owned(),
+        item_label: label.to_owned(),
+        sort_order: i32::try_from(index).unwrap_or(0),
+    })
+    .collect()
+}
+
 pub async fn init_discharge_checklist(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<InitDischargeChecklistRequest>,
+    body: Option<Json<InitDischargeChecklistRequest>>,
 ) -> Result<Json<Vec<IpdDischargeChecklist>>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_checklist::LIST)?;
 
@@ -4344,8 +4372,18 @@ pub async fn init_discharge_checklist(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut items = Vec::with_capacity(body.items.len());
-    for item in &body.items {
+    // A caller may name its own items; with none we lay out the standard set.
+    // The list is hospital policy, not a browser's opinion, so it lives here
+    // rather than in whichever screen happens to press the button — and it is
+    // why the endpoint could not be called at all before: the client posts no
+    // body, the handler demanded one, and nothing had ever exercised the pair.
+    let requested: Vec<DischargeChecklistItem> = match body {
+        Some(Json(req)) if !req.items.is_empty() => req.items,
+        _ => default_discharge_checklist_items(),
+    };
+
+    let mut items = Vec::with_capacity(requested.len());
+    for item in &requested {
         let row = sqlx::query_as::<_, IpdDischargeChecklist>(
             "INSERT INTO ipd_discharge_checklists \
                (tenant_id, admission_id, item_code, item_label, status, sort_order) \

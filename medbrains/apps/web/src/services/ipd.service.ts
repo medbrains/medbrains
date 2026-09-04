@@ -55,6 +55,10 @@ export const ipdService = {
   transferBed: (...args: Parameters<typeof api.transferBed>) => api.transferBed(...args),
   listDischargeChecklist: (...args: Parameters<typeof api.listDischargeChecklist>) =>
     api.listDischargeChecklist(...args),
+  initDischargeChecklist: (...args: Parameters<typeof api.initDischargeChecklist>) =>
+    api.initDischargeChecklist(...args),
+  updateDischargeChecklistItem: (...args: Parameters<typeof api.updateDischargeChecklistItem>) =>
+    api.updateDischargeChecklistItem(...args),
   dischargePatient: (...args: Parameters<typeof api.dischargePatient>) =>
     api.dischargePatient(...args),
   listWards: (...args: Parameters<typeof api.listWards>) => api.listWards(...args),

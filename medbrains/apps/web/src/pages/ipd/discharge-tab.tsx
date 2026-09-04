@@ -50,6 +50,26 @@ export function DischargeTab({
     enabled: canViewChecklist,
   });
 
+  const canUpdateChecklist = useHasPermission(P.IPD.DISCHARGE_CHECKLIST_UPDATE);
+  // Nothing ever created a checklist, so the block below never rendered and an
+  // MRD deficiency metric counted a table that could not gain a row.
+  const startChecklist = useMutation({
+    mutationFn: () => ipdService.initDischargeChecklist(admissionId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-checklist", admissionId] });
+      toast.success("Discharge checklist started");
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not start checklist" }),
+  });
+  const tickItem = useMutation({
+    mutationFn: (vars: { itemId: string; status: string }) =>
+      ipdService.updateDischargeChecklistItem(admissionId, vars.itemId, { status: vars.status }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-checklist", admissionId] });
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not update item" }),
+  });
+
   const dischargeMutation = useMutation({
     mutationFn: () =>
       ipdService.dischargePatient(admissionId, {
@@ -81,6 +101,23 @@ export function DischargeTab({
 
   return (
     <Stack>
+      {canViewChecklist && items.length === 0 && (
+        <Group gap="xs">
+          <Text size="sm" c="dimmed">
+            No discharge checklist has been started for this admission.
+          </Text>
+          {canUpdateChecklist && (
+            <Button
+              size="compact-sm"
+              tone="primary"
+              loading={startChecklist.isPending}
+              onClick={() => startChecklist.mutate()}
+            >
+              Start checklist
+            </Button>
+          )}
+        </Group>
+      )}
       {items.length > 0 && (
         <>
           <Text fw={600} size="sm">
@@ -88,7 +125,18 @@ export function DischargeTab({
           </Text>
           {items.map((it) => (
             <Group key={it.id} gap="xs">
-              <Checkbox checked={it.status === "completed"} readOnly size="xs" />
+              <Checkbox
+                checked={it.status === "completed"}
+                disabled={!canUpdateChecklist || tickItem.isPending}
+                size="xs"
+                aria-label={it.item_label}
+                onChange={(event) =>
+                  tickItem.mutate({
+                    itemId: it.id,
+                    status: event.currentTarget.checked ? "completed" : "pending",
+                  })
+                }
+              />
               <Text size="sm">{it.item_label}</Text>
               <Badge
                 size="xs"
