@@ -423,9 +423,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         HeaderName::from_static("x-content-type-options"),
         HeaderValue::from_static("nosniff"),
     );
-    let no_cache = SetResponseHeaderLayer::overriding(
+    // `if_not_present`, not `overriding`: this is an outer layer, so
+    // `overriding` would stamp no-store onto the hashed assets below no matter
+    // what their own service set. Everything that does not set its own
+    // cache-control - every API route, index.html - still gets no-store, which
+    // is what PHI requires.
+    let no_cache = SetResponseHeaderLayer::if_not_present(
         HeaderName::from_static("cache-control"),
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
+    );
+    // /assets/* are content-hashed Vite build outputs (index-C012qzBM.js): the
+    // filename changes whenever the bytes do, so they can be cached forever and
+    // a deploy invalidates them by construction. Without this the dashboard
+    // re-downloads all 59 MB from Mumbai on every visit.
+    //
+    // index.html is deliberately NOT here - it is served by the SPA fallback
+    // and keeps no-store, or clients would never pick up a new deploy.
+    // Only JS/CSS/fonts live under /assets, so no PHI is being cached.
+    let immutable_assets = SetResponseHeaderLayer::overriding(
+        HeaderName::from_static("cache-control"),
+        HeaderValue::from_static("public, max-age=31536000, immutable"),
     );
     // Tightened CSP — blocks plugins, iframes, web workers from CDNs,
     // forces HTTPS for any nested loads. Same allow-list as before
@@ -493,6 +510,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .not_found_service(tower_http::services::ServeFile::new(format!(
             "{static_dir}/index.html"
         )));
+    // Same directory, mounted separately so the immutable header lands on the
+    // hashed bundles only. No not_found_service: a miss under /assets is a
+    // genuine 404, not a route to hand to the SPA.
+    let assets_service = tower::ServiceBuilder::new().layer(immutable_assets).service(
+        tower_http::services::ServeDir::new(format!("{static_dir}/assets"))
+            .precompressed_br()
+            .precompressed_gzip(),
+    );
 
     // Real-time notification bridge: LISTEN on the `notification_created`
     // channel (migration 0285 trigger) and republish committed rows to the
@@ -507,6 +532,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
+        .nest_service("/assets", assets_service)
         .fallback_service(spa_fallback)
         // Dev-only (opt-in via MEDBRAINS_LOG_PAYLOAD_SIZES): logs the
         // uncompressed response size and flags large GET payloads as
@@ -558,11 +584,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // reqwest::Client threaded through HandlerCtx. The backend is chosen by
     // `secret_backend::build_secret_resolver` (MEDBRAINS_SECRETS_BACKEND or
     // DeployMode): env in dev, file on-prem, AWS Secrets Manager in cloud.
+    // Declared out here so it lives as long as the server does. Binding it
+    // inside the `else` dropped it one line later, which is worse than it
+    // sounds: the worker selects on `shutdown_rx.changed()`, and once the last
+    // sender is gone that resolves instantly and forever. Both outbox tasks
+    // then span at full tilt - they held 100% of both CPUs on the shared box
+    // until 2026-09-01. The worker now treats a closed channel as shutdown, so
+    // dropping this early would instead stop the outbox draining silently.
+    let _outbox_shutdown_tx;
     if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER")
         .ok()
         .as_deref()
         == Some("true")
     {
+        _outbox_shutdown_tx = None;
         tracing::warn!("MEDBRAINS_DISABLE_OUTBOX_WORKER=true — outbox worker NOT spawned");
     } else {
         let http_client = reqwest::Client::builder()
@@ -580,7 +615,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let outbox_worker =
             medbrains_outbox::Worker::new(worker_pool.clone(), outbox_registry, worker_config);
-        let _shutdown_tx = outbox_worker.spawn();
+        _outbox_shutdown_tx = Some(outbox_worker.spawn());
         tracing::info!("outbox worker spawned");
     }
 

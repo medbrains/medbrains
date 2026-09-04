@@ -42,7 +42,17 @@ SET client_encoding = 'UTF8';
 
 SET standard_conforming_strings = on;
 
-SELECT pg_catalog.set_config('search_path', '', false);
+-- Removed: SELECT pg_catalog.set_config('search_path', '', false);
+-- pg_dump emits this because it schema-qualifies every object it writes.
+-- Inside a migration it is destructive: the third argument `false` makes
+-- the change session-level, so it outlives this statement, and sqlx's very
+-- next statement - INSERT INTO _sqlx_migrations, unqualified - cannot
+-- resolve the table any more. The migration then rolls back, is never
+-- recorded, and the server restarts into the same failure forever:
+--   relation "_sqlx_migrations" does not exist
+-- Setting it transaction-local (`true`) does not help either - the insert
+-- happens inside the same transaction. All 296 CREATEs here are already
+-- qualified with `public.`, so the line buys nothing and is simply dropped.
 
 SET check_function_bodies = false;
 
@@ -3171,7 +3181,17 @@ SET client_encoding = 'UTF8';
 
 SET standard_conforming_strings = on;
 
-SELECT pg_catalog.set_config('search_path', '', false);
+-- Removed: SELECT pg_catalog.set_config('search_path', '', false);
+-- pg_dump emits this because it schema-qualifies every object it writes.
+-- Inside a migration it is destructive: the third argument `false` makes
+-- the change session-level, so it outlives this statement, and sqlx's very
+-- next statement - INSERT INTO _sqlx_migrations, unqualified - cannot
+-- resolve the table any more. The migration then rolls back, is never
+-- recorded, and the server restarts into the same failure forever:
+--   relation "_sqlx_migrations" does not exist
+-- Setting it transaction-local (`true`) does not help either - the insert
+-- happens inside the same transaction. All 296 CREATEs here are already
+-- qualified with `public.`, so the line buys nothing and is simply dropped.
 
 SET check_function_bodies = false;
 

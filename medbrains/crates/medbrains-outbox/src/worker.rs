@@ -148,8 +148,14 @@ async fn drain_loop(
     let mut tick = interval(config.poll_interval);
     loop {
         tokio::select! {
-            _ = shutdown_rx.changed() => {
-                if *shutdown_rx.borrow() {
+            // `res`, not `_`: `changed()` returns Err once every sender has
+            // been dropped, and then resolves instantly, forever. Discarding
+            // that error turns this select into a busy-loop that pins a whole
+            // core - it held 100% of both CPUs on the shared box until
+            // 2026-09-01. A caller that has dropped the sender can never
+            // signal shutdown, so the only sane reading of Err is "shut down".
+            res = shutdown_rx.changed() => {
+                if res.is_err() || *shutdown_rx.borrow() {
                     tracing::info!(worker_id = %config.worker_id, "outbox worker shutting down");
                     return;
                 }
@@ -383,8 +389,10 @@ async fn stale_claim_reaper(
 
     loop {
         tokio::select! {
-            _ = shutdown_rx.changed() => {
-                if *shutdown_rx.borrow() { return; }
+            // Same trap as drain_loop: a dropped sender resolves `changed()`
+            // instantly forever, so discarding the Err spins a second core.
+            res = shutdown_rx.changed() => {
+                if res.is_err() || *shutdown_rx.borrow() { return; }
             }
             _ = tick.tick() => {
                 let cutoff = Utc::now() - Duration::seconds(threshold_seconds);
@@ -403,5 +411,42 @@ async fn stale_claim_reaper(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod shutdown_channel_tests {
+    use super::*;
+
+    /// A dropped sender must end the loop, not spin on it.
+    ///
+    /// The bug: `select!` used `_ = shutdown_rx.changed()`, discarding the
+    /// `Err` that `changed()` returns once every sender is gone. Err resolves
+    /// instantly and forever, so the loop span at full speed and pinned a core.
+    /// `spawn()` handed the sender to a binding that died immediately, so this
+    /// happened on every boot.
+    ///
+    /// No database needed: dropping the sender before the loop starts is the
+    /// exact condition, and a spinning loop simply never returns.
+    #[tokio::test]
+    async fn a_dropped_shutdown_sender_ends_the_loop_instead_of_spinning() {
+        let (tx, mut rx) = watch::channel(false);
+        drop(tx);
+
+        // The fixed select arm, in isolation.
+        let loop_exits = async {
+            loop {
+                let res = rx.changed().await;
+                if res.is_err() || *rx.borrow() {
+                    return "exited";
+                }
+            }
+        };
+
+        let outcome = tokio::time::timeout(StdDuration::from_secs(2), loop_exits).await;
+        assert_eq!(
+            outcome.expect("loop span instead of exiting on a closed channel"),
+            "exited"
+        );
     }
 }
