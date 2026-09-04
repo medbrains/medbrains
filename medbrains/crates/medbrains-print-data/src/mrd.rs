@@ -600,24 +600,44 @@ pub async fn get_io_chart_print_data(
     }
 
     let ios = sqlx::query_as::<_, IoRow>(
-        "SELECT \
-           io.recorded_at, \
-           io.intake_oral, \
-           io.intake_iv, \
-           io.intake_ng, \
-           io.intake_other, \
-           io.output_urine, \
-           io.output_vomit, \
-           io.output_drain, \
-           io.output_stool, \
-           io.output_other, \
-           u.full_name AS recorded_by_name \
-         FROM intake_output io \
-         LEFT JOIN users u ON u.id = io.recorded_by \
-         WHERE io.admission_id = $1 \
-           AND io.tenant_id = $2 \
-           AND (io.recorded_at >= CURRENT_DATE AND io.recorded_at < CURRENT_DATE + 1) \
-         ORDER BY io.recorded_at LIMIT 5000",
+        // Reads the entries the ward actually records. This chart used to
+        // select from `intake_output`, which has no INSERT anywhere in the
+        // codebase — so it printed an empty fluid balance onto hospital
+        // letterhead for every patient, including the ones whose balance is
+        // the reason they are being watched. Nursing writes
+        // `intake_output_entries` (narrow rows keyed on the encounter); this
+        // pivots them into the wide shape the chart was built to render.
+        "SELECT e.recorded_at, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'intake' AND e.category = 'oral'), 0)::int AS intake_oral, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'intake' AND e.category = 'iv'), 0)::int AS intake_iv, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'intake' AND e.category = 'ng'), 0)::int AS intake_ng, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'intake' \
+              AND e.category NOT IN ('oral', 'iv', 'ng')), 0)::int AS intake_other, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'output' AND e.category = 'urine'), 0)::int AS output_urine, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'output' AND e.category = 'vomit'), 0)::int AS output_vomit, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'output' AND e.category = 'drain'), 0)::int AS output_drain, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'output' AND e.category = 'stool'), 0)::int AS output_stool, \
+           COALESCE(SUM(e.volume_ml) FILTER \
+             (WHERE e.direction = 'output' \
+              AND e.category NOT IN ('urine', 'vomit', 'drain', 'stool')), 0)::int AS output_other, \
+           max(u.full_name) AS recorded_by_name \
+         FROM admissions a \
+         JOIN intake_output_entries e \
+           ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         LEFT JOIN users u ON u.id = e.recorded_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 \
+           AND e.deleted_at IS NULL \
+           AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
+         GROUP BY e.recorded_at \
+         ORDER BY e.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -918,18 +938,24 @@ pub async fn get_fluid_balance_chart_print_data(
     .await?;
 
     let intake_entries = sqlx::query_as::<_, FluidIntakeEntry>(
-        "SELECT \
-           recorded_at::text AS time, \
-           intake_type, \
-           description, \
-           volume_ml, \
-           route, \
+        // `fluid_intake` has no INSERT anywhere in the codebase, so this chart
+        // printed blank for every patient. The ward records intake on
+        // `intake_output_entries`, keyed on the encounter rather than the
+        // admission; the join goes through admissions.encounter_id.
+        "SELECT e.recorded_at::text AS time, \
+           e.category AS intake_type, \
+           e.notes AS description, \
+           e.volume_ml, \
+           e.category AS route, \
            recorder.full_name AS recorded_by \
-         FROM fluid_intake fi \
-         LEFT JOIN users recorder ON recorder.id = fi.recorded_by_id \
-         WHERE fi.admission_id = $1 AND fi.tenant_id = $2 \
-           AND (fi.recorded_at >= CURRENT_DATE AND fi.recorded_at < CURRENT_DATE + 1) \
-         ORDER BY fi.recorded_at LIMIT 5000",
+         FROM admissions a \
+         JOIN intake_output_entries e \
+           ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         LEFT JOIN users recorder ON recorder.id = e.recorded_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 \
+           AND e.direction = 'intake' AND e.deleted_at IS NULL \
+           AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
+         ORDER BY e.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -937,18 +963,21 @@ pub async fn get_fluid_balance_chart_print_data(
     .await?;
 
     let output_entries = sqlx::query_as::<_, FluidOutputEntry>(
-        "SELECT \
-           recorded_at::text AS time, \
-           output_type, \
-           description, \
-           volume_ml, \
-           characteristics, \
+        // Same as intake above: `fluid_output` has no writer either.
+        "SELECT e.recorded_at::text AS time, \
+           e.category AS output_type, \
+           e.notes AS description, \
+           e.volume_ml, \
+           e.notes AS characteristics, \
            recorder.full_name AS recorded_by \
-         FROM fluid_output fo \
-         LEFT JOIN users recorder ON recorder.id = fo.recorded_by_id \
-         WHERE fo.admission_id = $1 AND fo.tenant_id = $2 \
-           AND (fo.recorded_at >= CURRENT_DATE AND fo.recorded_at < CURRENT_DATE + 1) \
-         ORDER BY fo.recorded_at LIMIT 5000",
+         FROM admissions a \
+         JOIN intake_output_entries e \
+           ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         LEFT JOIN users recorder ON recorder.id = e.recorded_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 \
+           AND e.direction = 'output' AND e.deleted_at IS NULL \
+           AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
+         ORDER BY e.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
