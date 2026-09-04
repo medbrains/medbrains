@@ -26,7 +26,7 @@ import type {
   RecordCssdIndicatorRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconEye, IconFlame, IconPencil, IconPlus } from "@tabler/icons-react";
+import { IconEye, IconFlame, IconPackage, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -34,6 +34,7 @@ import { DataTable } from "@/components";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { cssdIndicatorTypeOptions, cssdMethodOptions, cssdOptionalText } from "@/forms/cssd.form";
 import { cssdService } from "@/services/cssd.service";
+import { LoadContentsDrawer } from "./LoadContentsDrawer";
 import { methodLabels } from "./shared";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
@@ -179,6 +180,8 @@ export function SterilizationTab() {
     });
   };
 
+  const [contentsLoad, setContentsLoad] = useState<CssdSterilizationLoad | null>(null);
+
   const columns = [
     {
       key: "load_number" as const,
@@ -213,6 +216,15 @@ export function SterilizationTab() {
       label: "Actions",
       render: (l: CssdSterilizationLoad) => (
         <Group gap="xs">
+          <Tooltip label="Load contents — what went in, for a recall">
+            <IconButton
+              tone="default"
+              onClick={() => setContentsLoad(l)}
+              aria-label="View load contents"
+            >
+              <IconPackage size={16} />
+            </IconButton>
+          </Tooltip>
           <Tooltip label="Details & Indicators">
             <IconButton
               tone="default"
@@ -268,6 +280,13 @@ export function SterilizationTab() {
         loading={isLoading}
         rowKey={(l) => l.id}
         emptyTitle="No sterilization loads"
+      />
+
+      <LoadContentsDrawer
+        loadId={contentsLoad?.id ?? null}
+        loadNumber={contentsLoad?.load_number ?? null}
+        opened={contentsLoad !== null}
+        onClose={() => setContentsLoad(null)}
       />
 
       <Drawer

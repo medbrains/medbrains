@@ -12,7 +12,7 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -520,6 +520,42 @@ pub async fn update_load_status(
     Ok(Json(row))
 }
 
+/// GET /api/cssd/loads/{id}/items
+///
+/// What went into a sterilisation load.
+///
+/// `cssd_load_items` had an INSERT and no SELECT anywhere in the codebase, so
+/// a load could be filled and never read back. That is the recall query: when
+/// a cycle fails its biological indicator, the question is which trays were in
+/// it and therefore which patients they reached, and until now the system
+/// could not answer it from any surface at all.
+pub async fn list_load_items(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(load_id): Path<Uuid>,
+) -> Result<Json<Vec<CssdLoadItem>>, AppError> {
+    require_permission(&claims, permissions::cssd::sterilization::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, CssdLoadItem>(
+        "SELECT li.id, li.tenant_id, li.load_id, li.set_id, li.instrument_id, \
+                li.quantity, li.pack_expiry_date \
+         FROM cssd_load_items li \
+         WHERE li.load_id = $1 AND li.tenant_id = $2 \
+         ORDER BY li.pack_expiry_date NULLS LAST, li.id \
+         LIMIT 2000",
+    )
+    .bind(load_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 pub async fn add_load_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -840,7 +876,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/cssd/loads/{id}/items",
-            post(add_load_item),
+            get(list_load_items).post(add_load_item),
         )
         .route(
             "/api/cssd/loads/{id}/indicators",

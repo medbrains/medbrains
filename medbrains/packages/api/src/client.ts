@@ -8271,6 +8271,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listCssdLoadItems: (loadId: string) =>
+    request<CssdLoadItem[]>(`/cssd/loads/${loadId}/items`),
   addCssdLoadItem: (loadId: string, data: AddCssdLoadItemRequest) =>
     request<CssdLoadItem>(`/cssd/loads/${loadId}/items`, {
       method: "POST",

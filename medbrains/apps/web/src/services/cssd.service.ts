@@ -19,6 +19,10 @@ export const cssdService = {
   createCssdLoad: (data: CreateCssdLoadRequest) => api.createCssdLoad(data),
   updateCssdLoadStatus: (id: string, status: LoadStatus) =>
     api.updateCssdLoadStatus(id, { status }),
+  listCssdLoadItems: (loadId: string) => api.listCssdLoadItems(loadId),
+  addCssdLoadItem: (...args: Parameters<typeof api.addCssdLoadItem>) =>
+    api.addCssdLoadItem(...args),
+  getCssdSetItems: (setId: string) => api.getCssdSetItems(setId),
   listCssdIndicators: api.listCssdIndicators,
   recordCssdIndicator: (loadId: string, data: RecordCssdIndicatorRequest) =>
     api.recordCssdIndicator(loadId, data),
