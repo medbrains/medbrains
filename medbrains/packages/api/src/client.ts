@@ -21,6 +21,7 @@ import type {
   ActivationWithItems,
   AddAmbulanceTripLogRequest,
   AddBbReadingRequest,
+  AddCampCounterRequest,
   AddCampTeamMemberRequest,
   AddCertInUpdateRequest,
   AddCssdLoadItemRequest,
@@ -115,6 +116,7 @@ import type {
   AttachFormDocumentRequest,
   AttendanceRecord,
   AudiologyTest,
+  AuditChainVerification,
   AuditFinding,
   // Audit Trail
   AuditLogEntry,
@@ -219,6 +221,7 @@ import type {
   CampBillingRecord,
   // Specialty Queue Displays
   CampBoardRow,
+  CampCounter,
   CampFollowup,
   CampIncident,
   CampLabSample,
@@ -653,9 +656,6 @@ import type {
   CreatePatientContactRequest,
   CreatePatientIdentifierRequest,
   CreatePatientRequest,
-  AddCampCounterRequest,
-  AuditChainVerification,
-  CampCounter,
   CreatePatientTransfer,
   // Payment Gateway
   CreatePaymentOrderRequest,
@@ -1514,7 +1514,6 @@ import type {
   PharmacyAbcVedRow,
   PharmacyBatch,
   PharmacyCatalog,
-  StockListItem,
   PharmacyConsumptionRow,
   PharmacyCreditNote,
   PharmacyDaySettlement,
@@ -1800,6 +1799,7 @@ import type {
   StockDisposalItem,
   StockDisposalRequest,
   StockDisposalSummary,
+  StockListItem,
   StockMovementListResponse,
   StockTransfer,
   StockTransferItem,
@@ -5850,7 +5850,7 @@ export const api = {
       method: "POST",
     }),
   listDoctorCriticalAlerts: (doctorId: string) =>
-    request<Record<string, unknown>[]>(`/lab/critical-alerts/doctor/${doctorId}`),
+    request<LabCriticalAlert[]>(`/lab/critical-alerts/doctor/${doctorId}`),
   getLabTatAnalytics: () => request<LabTatAnalyticsRow[]>("/lab/analytics/tat"),
   getOrderCrossmatch: (orderId: string) =>
     request<LabCrossmatchLink>(`/lab/orders/${orderId}/crossmatch`),
@@ -7943,8 +7943,7 @@ export const api = {
     request<{ deleted: boolean }>(`/camp/camps/${campId}/team/${memberId}`, {
       method: "DELETE",
     }),
-  listCampCounters: (campId: string) =>
-    request<CampCounter[]>(`/camp/camps/${campId}/counters`),
+  listCampCounters: (campId: string) => request<CampCounter[]>(`/camp/camps/${campId}/counters`),
   addCampCounter: (campId: string, data: AddCampCounterRequest) =>
     request<CampCounter>(`/camp/camps/${campId}/counters`, {
       method: "POST",
@@ -13003,7 +13002,6 @@ export const api = {
   getAuditStats: () => request<AuditStats>("/audit/stats"),
   listAuditChainVerifications: () =>
     request<AuditChainVerification[]>("/audit/chain-verifications"),
-
 
   listAccessLog: (params?: AccessLogQuery) => {
     const sp = new URLSearchParams();

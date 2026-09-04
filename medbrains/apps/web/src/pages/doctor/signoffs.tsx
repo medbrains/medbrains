@@ -5,7 +5,7 @@
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
 import { Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { CriticalValueInbox } from "@/components/Doctor/CriticalValueInbox";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
@@ -25,6 +26,11 @@ import { signoffService } from "@/services/signoff.service";
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);
   const canViewRegister = useHasPermission(P.DOCTOR.SIGNOFFS.VERBAL_REGISTER);
+  // The endpoint refuses any id but the caller's own, so this is the only id
+  // that can be asked for. A doctor with no session id sees no tab rather than
+  // a tab that cannot load.
+  const currentUserId = useAuthStore((state) => state.user?.id) ?? "";
+  const canSeeCriticalValues = useHasPermission(P.LAB.ORDERS_LIST) && currentUserId.length > 0;
 
   const [signTarget, setSignTarget] = useState<PendingSignoffEntry | null>(null);
 
@@ -80,6 +86,14 @@ export function SignoffsPage() {
               </Badge>
             </Tabs.Tab>
           ))}
+          {canSeeCriticalValues && (
+            <Tabs.Tab
+              value="critical-values"
+              leftSection={<IconAlertTriangle size={14} stroke={1.5} />}
+            >
+              Critical values
+            </Tabs.Tab>
+          )}
           {canViewRegister && (
             <Tabs.Tab
               value="verbal-register"
@@ -99,6 +113,11 @@ export function SignoffsPage() {
             <SignoffList items={list} onSign={setSignTarget} loading={isLoading} />
           </Tabs.Panel>
         ))}
+        {canSeeCriticalValues && (
+          <Tabs.Panel value="critical-values" pt="md">
+            <CriticalValueInbox doctorId={currentUserId} />
+          </Tabs.Panel>
+        )}
         {canViewRegister && (
           <Tabs.Panel value="verbal-register" pt="md">
             <VerbalOrderRegister />

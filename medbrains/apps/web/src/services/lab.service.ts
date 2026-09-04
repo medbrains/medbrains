@@ -24,6 +24,8 @@ export const labService = {
   lockLabReport: (...args: Parameters<typeof api.lockLabReport>) => api.lockLabReport(...args),
   acknowledgeCriticalAlert: (...args: Parameters<typeof api.acknowledgeCriticalAlert>) =>
     api.acknowledgeCriticalAlert(...args),
+  listDoctorCriticalAlerts: (...args: Parameters<typeof api.listDoctorCriticalAlerts>) =>
+    api.listDoctorCriticalAlerts(...args),
   amendLabResult: (...args: Parameters<typeof api.amendLabResult>) => api.amendLabResult(...args),
   listLabAmendments: (...args: Parameters<typeof api.listLabAmendments>) =>
     api.listLabAmendments(...args),
