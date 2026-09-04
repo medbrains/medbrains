@@ -17,4 +17,13 @@ test.describe("consent forms print from the admission", () => {
     await expect(page.getByRole("button", { name: /blood transfusion consent/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /DNR/i })).toBeVisible();
   });
+
+  test("the patient chart offers its patient-scoped consents", async ({ page }) => {
+    await navigateTo(page, "/patients/db7bc0cc-7d77-4a0d-9844-cc9ffcbe703f");
+    await page.getByRole("tab", { name: "Documents" }).click();
+    await expect(page.getByRole("button", { name: /HIV testing consent/i })).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.getByRole("button", { name: /organ donation consent/i })).toBeVisible();
+  });
 });

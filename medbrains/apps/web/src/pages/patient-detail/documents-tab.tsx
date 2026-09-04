@@ -12,6 +12,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
 import { Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -70,6 +71,16 @@ export function DetailDocumentsTab({ patientId }: { patientId: string }) {
 
   return (
     <Stack gap="md">
+      {/* Statutory consent forms held against the patient rather than an
+          admission. Each had a print-data endpoint and no renderer; each
+          button hides itself when the caller lacks the permission its own
+          endpoint enforces. */}
+      <Group gap="xs" wrap="wrap">
+        <PrintDocumentButton documentKey="consent.hiv" recordId={patientId} />
+        <PrintDocumentButton documentKey="consent.photo" recordId={patientId} />
+        <PrintDocumentButton documentKey="consent.organ_donation" recordId={patientId} />
+        <PrintDocumentButton documentKey="consent.abdm" recordId={patientId} />
+      </Group>
       {canUpdate && (
         <Group justify="flex-end">
           <Button tone="primary" leftSection={<IconPlus size={14} />} size="sm" onClick={open}>

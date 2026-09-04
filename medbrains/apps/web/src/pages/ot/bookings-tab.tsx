@@ -31,6 +31,7 @@ import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
 import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import {
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -288,6 +289,13 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
       <Tabs.Panel value="overview" pt="md">
         <Stack>
           <OverviewTab booking={data} />
+          {/* Surgical and anaesthesia consent are booking-scoped: they name
+              the operation, not the admission. Both had a print-data endpoint
+              and no renderer. */}
+          <Group gap="xs">
+            <PrintDocumentButton documentKey="consent.surgical" recordId={bookingId} />
+            <PrintDocumentButton documentKey="consent.anesthesia" recordId={bookingId} />
+          </Group>
           {data.ot_room_id && (
             <StationHandoffPanel
               module="ot"
