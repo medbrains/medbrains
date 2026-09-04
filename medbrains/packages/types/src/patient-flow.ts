@@ -9,7 +9,12 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 import { clinicalJourneyActionSignal, resolveClinicalJourneyActions } from "./event-actions.js";
-import type { ClinicalEventName, PatientLabOrderRow, PrescriptionHistoryItem } from "./index.js";
+import type {
+  ClinicalEventName,
+  PatientLabOrderRow,
+  PatientRadiologyReport,
+  PrescriptionHistoryItem,
+} from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
 
@@ -35,6 +40,7 @@ export interface PatientFlowContextInput {
   activePharmacyOrderId?: string | null;
   activePharmacyRxQueueId?: string | null;
   activeLabOrderId?: string | null;
+  activeRadiologyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   completedEvents?: readonly ClinicalEventName[];
@@ -227,6 +233,24 @@ export function activeLabOrderIsCollectedForJourney(
   return activeId != null && orders.some((o) => o.id === activeId && o.collected_at != null);
 }
 
+/**
+ * The radiology order a clinician on this chart would open.
+ *
+ * A critical finding nobody has acknowledged outranks everything: that is a
+ * result somebody is waiting to be told about. Then an unverified report,
+ * then the most recent.
+ */
+export function activePatientRadiologyOrderIdForJourney(
+  reports: readonly PatientRadiologyReport[],
+): string | null {
+  return (
+    reports.find((r) => r.is_critical && !r.alert_acknowledged_at)?.order_id ??
+    reports.find((r) => !r.verified_at)?.order_id ??
+    reports[0]?.order_id ??
+    null
+  );
+}
+
 export function activePatientPharmacyOrderIdForJourney(
   prescriptions: readonly PrescriptionHistoryItem[],
 ): string | null {
@@ -294,6 +318,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeEncounterId,
     activeInvoiceId,
     activeLabOrderId,
+    activeRadiologyOrderId,
     activeOrderContext,
     activePharmacyOrderId,
     activePharmacyRxQueueId,
@@ -317,6 +342,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeCampRegistrationId,
     activeInvoiceId,
     activeLabOrderId,
+    activeRadiologyOrderId,
     activePharmacyOrderId,
     activePharmacyRxQueueId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),

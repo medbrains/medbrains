@@ -64,6 +64,13 @@ export function patientJourneyActionRoute(
       // is a UUID search box; arriving unscoped meant retyping the id of the
       // patient whose chart you just left.
       return `/consent?tab=verification&patient_id=${context.patientId}`;
+    case "imaging.open_study":
+      // Radiology has no per-study route — the module is tabs over a drawer —
+      // so this addresses the tab and names the order the drawer should open.
+      // Inventing /radiology/studies/:id would 404.
+      return context.activeRadiologyOrderId
+        ? `/radiology?tab=orders&order_id=${context.activeRadiologyOrderId}`
+        : null;
     case "ipd.open_admission":
       return context.activeAdmissionId
         ? `/ipd/admissions/${context.activeAdmissionId}#overview`

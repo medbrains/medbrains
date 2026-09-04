@@ -4,6 +4,7 @@ import type { ClinicalJourneyContext } from "@medbrains/types";
 import {
   activeLabOrderIsCollectedForJourney,
   activePatientLabOrderIdForJourney,
+  activePatientRadiologyOrderIdForJourney,
   patientFlowMobileTarget,
   patientJourneyActionRoute,
   patientJourneyMobileActionTarget,
@@ -355,5 +356,54 @@ describe("consent verification handoff", () => {
     // sent to check a consent to the template editor instead.
     const route = patientJourneyActionRoute("consent.verify", { patientId: "patient-7" });
     expect(route).toContain("tab=verification");
+  });
+});
+
+describe("imaging handoff", () => {
+  it("addresses the radiology tab and names the order the drawer opens", () => {
+    // Radiology is tabs over a drawer with no per-study route. Inventing
+    // /radiology/studies/:id would 404.
+    expect(
+      patientJourneyActionRoute("imaging.open_study", {
+        patientId: "p-1",
+        activeRadiologyOrderId: "rad-3",
+      }),
+    ).toBe("/radiology?tab=orders&order_id=rad-3");
+  });
+
+  it("offers nothing when the chart has no imaging", () => {
+    expect(patientJourneyActionRoute("imaging.open_study", { patientId: "p-1" })).toBeNull();
+  });
+});
+
+describe("which imaging study the chart considers active", () => {
+  const report = (id: string, critical: boolean, ack: string | null, verified: string | null) =>
+    ({
+      order_id: id,
+      is_critical: critical,
+      alert_acknowledged_at: ack,
+      verified_at: verified,
+    }) as never;
+
+  it("puts an unacknowledged critical finding first", () => {
+    // The critical one is VERIFIED and the routine one is not, so the two
+    // rules disagree: falling back to "first unverified" would surface the
+    // routine study and leave a critical finding nobody has been told about
+    // sitting behind it.
+    expect(
+      activePatientRadiologyOrderIdForJourney([
+        report("unverified-routine", false, null, null),
+        report("critical-verified", true, null, "2026-09-02"),
+      ]),
+    ).toBe("critical-verified");
+  });
+
+  it("falls back to an unverified report before an old one", () => {
+    expect(
+      activePatientRadiologyOrderIdForJourney([
+        report("old", false, null, "2026-09-01"),
+        report("unverified", false, null, null),
+      ]),
+    ).toBe("unverified");
   });
 });

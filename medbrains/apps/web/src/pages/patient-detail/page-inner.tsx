@@ -150,6 +150,12 @@ export function PatientDetailPageInner() {
     queryFn: () => patientDetailService.listPatientLabOrders(patientId),
     enabled: patientId.length > 0,
   });
+  // Same key the imaging tab uses, so this is one shared fetch.
+  const { data: radiologyReports = [] } = useQuery({
+    queryKey: ["patient-radiology-reports", patientId],
+    queryFn: () => patientDetailService.listRadiologyReports(patientId),
+    enabled: patientId.length > 0,
+  });
 
   // Latest active encounter — basket needs an encounter to scope orders to.
   const { data: visits = [] } = useQuery({
@@ -265,6 +271,10 @@ export function PatientDetailPageInner() {
   if (activeLabOrderIsCollectedForJourney(labOrders)) {
     completedEvents.push("lab.sample_collected");
   }
+  if (radiologyReports.length > 0) {
+    // A report exists, so the study was performed.
+    completedEvents.push("radiology.order.completed");
+  }
   const actionContext: ClinicalJourneyContext = patientDetailJourneyContext({
     patientId: patient.id,
     isDeceased: patient.is_deceased,
@@ -281,6 +291,7 @@ export function PatientDetailPageInner() {
     completedEvents,
     prescriptions,
     labOrders,
+    radiologyReports,
   });
   const emitPatientShareCreated = (grant: {
     expiresAt: string | null;

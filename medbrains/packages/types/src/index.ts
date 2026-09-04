@@ -193,6 +193,7 @@ export {
   activePatientLabOrderIdForJourney,
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
+  activePatientRadiologyOrderIdForJourney,
   buildPatientFlowReadiness,
   hasReviewedPatientPharmacyPrescriptionForJourney,
   patientFlowJourneyContext,

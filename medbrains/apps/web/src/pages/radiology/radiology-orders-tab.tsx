@@ -9,6 +9,7 @@ import { P } from "@medbrains/types";
 import { IconEye, IconPlus, IconPrinter, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot, useClinicalEmit } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Badge, Button, IconButton } from "@/components/ui";
@@ -31,7 +32,11 @@ export function RadiologyOrdersTab() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [createOpen, createHandlers] = useDisclosure(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // Opened from a patient's chart the order is already named, so the drawer
+  // opens on it rather than leaving a clinician to find the study in a list.
+  // Seeded once: the drawer stays closable without the URL reopening it.
+  const [searchParams] = useSearchParams();
+  const [detailId, setDetailId] = useState<string | null>(searchParams.get("order_id"));
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (statusFilter) params.status = statusFilter;

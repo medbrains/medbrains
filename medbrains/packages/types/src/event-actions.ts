@@ -23,6 +23,7 @@ export type ClinicalJourneyActionId =
   | "lab.open_order"
   | "lab.record_result"
   | "consent.verify"
+  | "imaging.open_study"
   | "ipd.open_admission"
   | "ipd.admit"
   | "billing.prepare_discharge_bill"
@@ -52,6 +53,8 @@ export interface ClinicalJourneyContext {
   activePharmacyRxQueueId?: string | null;
   /** The lab order this patient's chart considers current, if any. */
   activeLabOrderId?: string | null;
+  /** The radiology order this patient's chart considers current, if any. */
+  activeRadiologyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   hasPendingConsent?: boolean;
@@ -75,6 +78,7 @@ export interface ClinicalJourneyActionDefinition {
     | "billing"
     | "pharmacy"
     | "lab"
+    | "radiology"
     | "consent"
     | "mrd";
   intent: ClinicalJourneyActionIntent;
@@ -928,6 +932,19 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web"],
     activatesAfter: ["opd.consent.signed"],
     standardRefs: ["NABH PRE", "informed consent"],
+    disabledReason: () => null,
+  },
+  {
+    id: "imaging.open_study",
+    label: "Open imaging study",
+    shortLabel: "Imaging",
+    description: "Open the radiology order and its report for this patient.",
+    module: "radiology",
+    intent: "clinical",
+    requiredPermissions: [P.RADIOLOGY.ORDERS_VIEW],
+    surfaces: ["web"],
+    activatesAfter: ["radiology.order.completed"],
+    standardRefs: ["NABH AAC", "AERB record retention"],
     disabledReason: () => null,
   },
   {

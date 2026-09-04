@@ -40,6 +40,7 @@ export type PatientJourneyMobileTarget =
   | { screen: "Billing"; params: PatientJourneyMobileBillingParams }
   | { screen: "ConsultationNotes"; params: { encounterId: string; patientId: string } }
   | { screen: "LabOrder"; params: PatientJourneyMobileOrderParams }
+  | { screen: "LabResultsView"; params: { orderId: string; patientId: string } }
   | { screen: "PatientCareContext"; params: PatientJourneyMobileCareContextParams }
   | { screen: "PatientDetail"; params: { patientId: string } }
   | { screen: "PatientPharmacy"; params: PatientJourneyMobilePharmacyParams }
@@ -137,11 +138,23 @@ export function patientJourneyMobileActionTarget(
         screen: "PatientCareContext",
         params: mobileCareContextParams(context, "emergency", "open_visit"),
       };
-    case "consent.verify":
     case "lab.open_order":
+      // LabResultsView is the phone's order viewer. It takes the order and the
+      // patient, so the same handoff works here as on the web.
+      return context.activeLabOrderId
+        ? {
+            screen: "LabResultsView",
+            params: { orderId: context.activeLabOrderId, patientId: context.patientId },
+          }
+        : null;
+    case "consent.verify":
+    case "imaging.open_study":
     case "lab.record_result":
-      // No lab order screen on mobile. Returning null keeps the action off the
-      // phone rather than routing it somewhere that cannot show an order.
+      // Deliberately absent from the phone, each for its own reason: there is
+      // no consent screen at all; RadiologyOrder is an ordering form, not a
+      // study viewer; and results are viewed on mobile, never entered. Routing
+      // any of these to the nearest screen would land a clinician somewhere
+      // that cannot do what the action promised.
       return null;
     case "ipd.admit":
       return {
