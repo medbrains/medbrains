@@ -93,7 +93,7 @@ export function MarketingPage() {
         <Tabs.List>
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
           {canViewStages && <Tabs.Tab value="callbacks">Callbacks</Tabs.Tab>}
-          {canViewContact && <Tabs.Tab value="screen-pop">Who\u2019s calling</Tabs.Tab>}
+          {canViewContact && <Tabs.Tab value="screen-pop">Who’s calling</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
           {(canViewCohorts || canDefineClinical) && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="outreach">Outreach</Tabs.Tab>}
