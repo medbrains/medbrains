@@ -33,6 +33,7 @@ import { DataTable, DocumentActions, useClinicalEmit } from "@/components";
 import { PrintLabReportButton } from "@/components/Lab/LabReportPrint";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Alert, Badge, Button, IconButton, Input, Modal, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
@@ -350,6 +351,16 @@ export function LabOrderDetail({
         </Badge>
       </Group>
       <PatientContextBanner patientId={order.patient_id} hideLoadingState />
+      {/* The laboratory prints more than any other department, and most of
+          these documents had a data endpoint and no renderer. `lab-report` and
+          `lab-report-full` are excluded: this page already prints those its own
+          way, and two buttons that produce different-looking versions of the
+          same report is worse than one. */}
+      <PrintDocumentMenu
+        idKind="order"
+        recordId={orderId}
+        exclude={["lab-report", "lab-report-full"]}
+      />
       <Group>
         <Badge tone={toBadgeTone(statusColor(order.priority))} variant="dot">
           Priority: {order.priority}
