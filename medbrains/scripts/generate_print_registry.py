@@ -10,6 +10,11 @@ is the defect this whole seam exists to remove.
 Excluded on purpose:
   * handlers returning NotImplemented — 20 of them, gutted in an earlier pass
     because they rendered fabricated data onto hospital letterhead
+  * handlers whose data comes from a table nothing writes. The fluid balance
+    chart passed every other filter and would have printed an empty chart on
+    hospital letterhead for every patient; it read `fluid_intake`, which has no
+    INSERT anywhere. A document that cannot contain anything is the same
+    hazard as one containing invented data.
   * handlers with no require_permission
   * endpoints whose client method takes more than one id, which the single
     printDocument(key, recordId) command cannot express
@@ -67,15 +72,40 @@ def handlers() -> tuple[dict, dict]:
     for path in (ROOT / "crates/medbrains-print-data/src").glob("*.rs"):
         text = path.read_text(errors="ignore")
         for m in re.finditer(r"pub async fn (\w+)\((.{0,700}?)\)\s*->\s*Result<", text, re.S):
-            body = text[m.end():m.end() + 900]
-            perm = re.search(r"require_permission\(&claims,\s*permissions::([\w:]+)\)", body)
+            # Wide window: a handler's queries run well past the guard.
+            body = text[m.end():m.end() + 6000]
+            perm = re.search(r"require_permission\(&claims,\s*permissions::([\w:]+)\)", body[:900])
             guards[m.group(1)] = {
                 "perm": perm.group(1) if perm else None,
-                "stub": "NotImplemented" in body,
+                "stub": "NotImplemented" in body[:900],
+                "tables": source_tables(body),
             }
         for m in re.finditer(r'"(/api/print-data/[^"]+)"\s*,\s*\n?\s*get\((\w+)\)', text):
             routes[m.group(2)] = m.group(1)
     return guards, routes
+
+
+def written_tables() -> set[str]:
+    """Every table something in the workspace inserts into."""
+    written: set[str] = set()
+    for path in (ROOT / "crates").rglob("*.rs"):
+        for m in re.finditer(r"INSERT\s+INTO\s+(\w+)", path.read_text(errors="ignore"), re.I):
+            written.add(m.group(1).lower())
+    return written
+
+
+def source_tables(handler_body: str) -> set[str]:
+    """Tables the handler reads.
+
+    A name followed by `(` is a function call, not a table: `EXTRACT(YEAR FROM
+    age(dob))` otherwise reports a table called `age` in a third of the
+    handlers here.
+    """
+    return {
+        m.group(1).lower()
+        for m in re.finditer(r"\b(?:FROM|JOIN)\s+(\w+)(\s*\()?", handler_body, re.I)
+        if not m.group(2) and m.group(1).lower() not in {"select", "lateral", "unnest"}
+    }
 
 
 def client_methods() -> dict[str, list[tuple[str, str]]]:
@@ -94,6 +124,7 @@ def main() -> int:
     consts = permission_constants()
     guards, routes = handlers()
     by_path = client_methods()
+    written = written_tables()
 
     entries, skipped = [], []
     for handler, route in sorted(routes.items()):
@@ -104,6 +135,15 @@ def main() -> int:
         if not permission:
             skipped.append((handler, "permission constant not found"))
             continue
+        # A document whose every source table is writerless can only ever
+        # print blank. Tables the handler reads but nothing populates are
+        # listed so the exclusion is arguable rather than silent.
+        read = guard["tables"]
+        dead = {t for t in read if t not in written}
+        if read and dead == read:
+            skipped.append((handler, f"reads only writerless tables: {', '.join(sorted(dead))}"))
+            continue
+
         norm = re.sub(r"\{[^}]+\}", "{}", route.replace("/api", "")).rstrip("/")
         single = [c for c in by_path.get(norm, []) if c[1].count(",") == 0]
         if not single:
