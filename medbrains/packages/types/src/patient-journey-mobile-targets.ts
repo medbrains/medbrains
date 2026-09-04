@@ -137,6 +137,7 @@ export function patientJourneyMobileActionTarget(
         screen: "PatientCareContext",
         params: mobileCareContextParams(context, "emergency", "open_visit"),
       };
+    case "consent.verify":
     case "lab.open_order":
     case "lab.record_result":
       // No lab order screen on mobile. Returning null keeps the action off the

@@ -22,6 +22,7 @@ export type ClinicalJourneyActionId =
   | "orders.radiology"
   | "lab.open_order"
   | "lab.record_result"
+  | "consent.verify"
   | "ipd.open_admission"
   | "ipd.admit"
   | "billing.prepare_discharge_bill"
@@ -74,6 +75,7 @@ export interface ClinicalJourneyActionDefinition {
     | "billing"
     | "pharmacy"
     | "lab"
+    | "consent"
     | "mrd";
   intent: ClinicalJourneyActionIntent;
   requiredPermissions: readonly string[];
@@ -913,6 +915,19 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     activatesAfter: ["lab.sample_collected"],
     emitsEvent: "lab.result.posted",
     standardRefs: ["NABL 112", "NABH AAC"],
+    disabledReason: () => null,
+  },
+  {
+    id: "consent.verify",
+    label: "Verify consent",
+    shortLabel: "Consent",
+    description: "Check what this patient has consented to before a procedure.",
+    module: "consent",
+    intent: "clinical",
+    requiredPermissions: [P.CONSENT.VERIFY],
+    surfaces: ["web"],
+    activatesAfter: ["opd.consent.signed"],
+    standardRefs: ["NABH PRE", "informed consent"],
     disabledReason: () => null,
   },
   {

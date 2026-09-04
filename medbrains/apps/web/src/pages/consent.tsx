@@ -1,6 +1,7 @@
 import { Tabs } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { AuditTab } from "./consent/audit-tab";
@@ -10,6 +11,11 @@ import { VerificationTab } from "./consent/verification-tab";
 
 export function ConsentPage() {
   useRequirePermission(P.CONSENT.TEMPLATES_LIST);
+  // The tab is addressable so a link can land on it. Without this a route
+  // carrying ?tab=verification opened Templates, which is how "go and check
+  // this patient's consent" became "go and find it yourself".
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "templates";
 
   const canCreateTemplate = useHasPermission(P.CONSENT.TEMPLATES_CREATE);
   const canUpdateTemplate = useHasPermission(P.CONSENT.TEMPLATES_UPDATE);
@@ -26,7 +32,18 @@ export function ConsentPage() {
         title="Consent Management"
         subtitle="Consent templates, audit trail, verification, and digital signatures"
       />
-      <Tabs defaultValue="templates">
+      <Tabs
+        value={activeTab}
+        onChange={(value) => {
+          const next = new URLSearchParams(searchParams);
+          if (value) {
+            next.set("tab", value);
+          } else {
+            next.delete("tab");
+          }
+          setSearchParams(next, { replace: true });
+        }}
+      >
         <Tabs.List>
           <Tabs.Tab value="templates">Templates</Tabs.Tab>
           {canViewAudit && <Tabs.Tab value="audit">Audit Trail</Tabs.Tab>}

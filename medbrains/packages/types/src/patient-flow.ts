@@ -9,11 +9,7 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 import { clinicalJourneyActionSignal, resolveClinicalJourneyActions } from "./event-actions.js";
-import type {
-  ClinicalEventName,
-  PatientLabOrderRow,
-  PrescriptionHistoryItem,
-} from "./index.js";
+import type { ClinicalEventName, PatientLabOrderRow, PrescriptionHistoryItem } from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
 

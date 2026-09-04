@@ -59,6 +59,11 @@ export function patientJourneyActionRoute(
       return context.activeLabOrderId
         ? `/lab/orders/${context.activeLabOrderId}?action=record_result`
         : null;
+    case "consent.verify":
+      // Lands on the verification tab with the patient already named. The tab
+      // is a UUID search box; arriving unscoped meant retyping the id of the
+      // patient whose chart you just left.
+      return `/consent?tab=verification&patient_id=${context.patientId}`;
     case "ipd.open_admission":
       return context.activeAdmissionId
         ? `/ipd/admissions/${context.activeAdmissionId}#overview`

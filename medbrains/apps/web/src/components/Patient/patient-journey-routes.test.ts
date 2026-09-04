@@ -342,3 +342,18 @@ describe("which lab order the chart considers active", () => {
     expect(activeLabOrderIsCollectedForJourney([order("drawn", "2026-09-03", null)])).toBe(true);
   });
 });
+
+describe("consent verification handoff", () => {
+  it("names the patient so the verification tab does not ask for the UUID again", () => {
+    expect(patientJourneyActionRoute("consent.verify", { patientId: "patient-7" })).toBe(
+      "/consent?tab=verification&patient_id=patient-7",
+    );
+  });
+
+  it("addresses the verification tab, not whichever tab the page opens on", () => {
+    // /consent defaults to Templates. A route without tab= would send someone
+    // sent to check a consent to the template editor instead.
+    const route = patientJourneyActionRoute("consent.verify", { patientId: "patient-7" });
+    expect(route).toContain("tab=verification");
+  });
+});

@@ -10,6 +10,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { consentService } from "@/services/consent.service";
 
 const STATUS_COLORS: Record<string, BadgeTone> = {
@@ -25,8 +26,14 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
 
 export function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
   const qc = useQueryClient();
-  const [patientId, setPatientId] = useState("");
-  const [searched, setSearched] = useState(false);
+  // Opened from a patient's chart, this arrives with the patient already
+  // named — so it searches on arrival rather than asking a clinician to
+  // retype the UUID of the patient they just came from. Reached from the
+  // navigation it starts empty, as before. Seeded once on mount: the field
+  // stays editable, so it cannot be driven from the URL afterwards.
+  const { patientId: scopedPatientId, isScoped } = usePatientScope();
+  const [patientId, setPatientId] = useState(scopedPatientId);
+  const [searched, setSearched] = useState(isScoped);
 
   const { data: summary = [], isLoading } = useQuery({
     queryKey: ["consent-summary", patientId],
