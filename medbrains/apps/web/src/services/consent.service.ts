@@ -13,6 +13,7 @@ export const consentService = {
     api.deleteConsentTemplate(...args),
   listConsentAudit: (...args: Parameters<typeof api.listConsentAudit>) =>
     api.listConsentAudit(...args),
+  verifyConsent: (...args: Parameters<typeof api.verifyConsent>) => api.verifyConsent(...args),
   getPatientConsentSummary: (...args: Parameters<typeof api.getPatientConsentSummary>) =>
     api.getPatientConsentSummary(...args),
   revokeConsent: (...args: Parameters<typeof api.revokeConsent>) => api.revokeConsent(...args),
