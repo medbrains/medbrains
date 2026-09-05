@@ -92,8 +92,15 @@ check-destroy-guard:
 
 # ── tier-aware build dispatcher ───────────────────────────────────────
 
+# `attach` uploads binaries exactly as `starter` does — the existing-host
+# module has a `provisioner "file"` for medbrains-server, not an image pull.
+# Sending attach down the image path made `make build` exit 0 having built
+# nothing, so `make apply` shipped whatever binaries happened to be on disk.
+# A green build that produces no artefact is worse than a failing one.
+BINARY_TIERS := starter attach
+
 build:
-ifeq ($(TIER),starter)
+ifeq ($(filter $(TIER),$(BINARY_TIERS)),$(TIER))
 	@$(MAKE) -s build-starter
 else
 	@$(MAKE) -s build-image
@@ -107,7 +114,15 @@ build-starter:
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-server
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-server --bin medbrains-archive
 	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-proxy --bin medbrains-proxy
-	cd $(REPO_ROOT) && cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-edge-app --bin medbrains-edge
+	@# medbrains-edge-app does not exist in this workspace. The install side
+	@# was already taught to skip the edge binary when absent; the build side
+	@# still demanded it, so `make build` failed before it reached the SPA and
+	@# no deploy could be produced at all.
+	cd $(REPO_ROOT) && if cargo metadata --no-deps --format-version 1 | grep -q '"name":"medbrains-edge-app"'; then \
+		cargo zigbuild --release --target=$(STARTER_TARGET) -p medbrains-edge-app --bin medbrains-edge; \
+	else \
+		echo "    note: medbrains-edge-app not in the workspace - edge binary not built"; \
+	fi
 	cd $(REPO_ROOT) && pnpm --filter "@medbrains/types" --filter "@medbrains/utils" --filter "@medbrains/schemas" --filter "@medbrains/api" --filter "@medbrains/stores" --filter "@medbrains/expressions" --filter "@medbrains/crdt" build
 	cd $(REPO_ROOT) && pnpm --filter @medbrains/web exec vite build
 	@echo "==> starter build OK (target=$(STARTER_TARGET))"
