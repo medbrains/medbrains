@@ -306,7 +306,24 @@ if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
 fi
 
 echo "==> [5/9] Installing binaries to /usr/local/bin"
-for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
+# medbrains-edge is optional: the crate is a library in the workspace and no
+# such binary is produced today. Requiring it here failed the whole install
+# over a service that cannot be built, so it is installed when present and
+# skipped - loudly - when it is not.
+HAVE_EDGE=0
+if [[ -f /tmp/medbrains-edge ]]; then
+    HAVE_EDGE=1
+else
+    echo "    note: medbrains-edge not supplied - edge sync will not be installed"
+fi
+# An explicit array rather than a command substitution: the `&&` form returns
+# non-zero when edge is absent, and reasoning about whether `set -e` fires
+# inside `$( )` in a for-list is not worth the ambiguity.
+BINARIES=(medbrains-server medbrains-archive medbrains-proxy)
+if [[ "$HAVE_EDGE" == "1" ]]; then
+    BINARIES+=(medbrains-edge)
+fi
+for bin in "${BINARIES[@]}"; do
     if [[ ! -f "/tmp/$bin" ]]; then
         echo "ERROR: /tmp/$bin missing. Build and copy target/release/$bin to /tmp/$bin on this host."
         exit 1
@@ -325,6 +342,8 @@ cat > /usr/local/bin/medbrains-rollback <<'ROLLBACK'
 set -euo pipefail
 swapped=0
 for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
+    # .prev only exists for binaries a previous run installed, so an absent
+    # edge simply has nothing to roll back.
     if [[ -f "/usr/local/bin/$bin.prev" ]]; then
         cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.rolledback" || true
         cp -p "/usr/local/bin/$bin.prev" "/usr/local/bin/$bin"
@@ -364,6 +383,30 @@ else
     echo "    /tmp/medbrains-web/ not found — leaving SPA static dir as-is."
 fi
 
+
+# medbrains-server.service declares Requires=docker.service, which is correct
+# when the unit brings up its own dockerised Postgres. Reusing the host's
+# Postgres means docker is never installed, and a hard Requires on a missing
+# unit makes the service refuse to start at all - "Unit docker.service not
+# found". A drop-in clears the dependency rather than editing the shipped unit,
+# so the original stays valid for the non-attach shape.
+install_attach_dropins() {
+    [[ "$ATTACH_REUSE_POSTGRES" == "1" ]] || return 0
+    local unit=/etc/systemd/system/medbrains-server.service
+    [[ -f "$unit" ]] || return 0
+    grep -q '^Requires=docker.service' "$unit" || return 0
+
+    # The unit is edited in place rather than overridden with a drop-in.
+    # A drop-in with `Requires=` to reset the list was tried first and did not
+    # work - systemd still resolved Requires=docker.service after a
+    # daemon-reload, and the service refused to start with "Unit
+    # docker.service not found". The original is kept alongside so the
+    # non-attach shape can be restored.
+    cp -n "$unit" "$unit.orig" 2>/dev/null || true
+    sed -i 's|^Requires=docker.service$||; s|^After=network-online.target docker.service$|After=network-online.target postgresql.service|' "$unit"
+    echo "    attach: removed the docker dependency (host Postgres in use)"
+}
+
 echo "==> [7/9] Installing systemd units + backup tooling"
 install -m 0644 "$DEPLOY_DIR/medbrains-server.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-archive.service" /etc/systemd/system/
@@ -375,7 +418,9 @@ install -m 0644 "$DEPLOY_DIR/medbrains-host-check.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-host-check.timer" /etc/systemd/system/
 install -m 0755 "$DEPLOY_DIR/medbrains-host-check" /usr/local/bin/medbrains-host-check
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
-install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
+if [[ "$HAVE_EDGE" == "1" ]]; then
+    install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
+fi
 install -m 0644 "$DEPLOY_DIR/medbrains-proxy.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-edge.toml.tmpl" /etc/medbrains/edge.toml
 if [[ -n "${EDGE_PORT:-}" ]]; then
@@ -469,6 +514,7 @@ DROPIN
     done
 fi
 
+install_attach_dropins
 systemctl daemon-reload
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
@@ -509,8 +555,12 @@ if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
     echo "    WARNING: no ALERT_TOPIC_ARN — host checks run but CANNOT notify."
     echo "             Disk-full and cert-expiry will fail silently into the journal."
 fi
-systemctl enable --now medbrains-edge.service
-systemctl restart medbrains-edge.service
+if [[ "$HAVE_EDGE" == "1" ]]; then
+    systemctl enable --now medbrains-edge.service
+    systemctl restart medbrains-edge.service
+else
+    echo "==> skipping medbrains-edge.service - binary not supplied"
+fi
 
 if [[ "$ATTACH_REUSE_TLS" == "1" ]]; then
     echo "==> [8/9] TLS left to the proxy already on this host"

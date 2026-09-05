@@ -74,6 +74,13 @@ module "hospital" {
   ghcr_pull_token = var.ghcr_pull_token
   github_username = var.github_username
   reset_pgdata    = var.reset_pgdata
+
+  # attach tier — deploy onto a host we already own rather than creating one.
+  existing_ipv4         = var.existing_ipv4
+  ssh_user_attach       = var.ssh_user_attach
+  attach_reuse_tls      = var.attach_reuse_tls
+  attach_reuse_postgres = var.attach_reuse_postgres
+  attach_database_url   = var.attach_database_url
 }
 
 # Outside-in uptime monitoring on /api/health (Route53 checkers).

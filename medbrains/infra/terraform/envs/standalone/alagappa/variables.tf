@@ -108,3 +108,48 @@ variable "reset_pgdata" {
   description = "One-shot: wipe postgres named volume on next apply. Use when migrations are incompatible with existing data."
   default     = false
 }
+
+# ── attach tier ───────────────────────────────────────────────────────
+#
+# The module has supported attach since 2026-08-31; this env never passed
+# the variables through, so `tier = attach` reached the module with an
+# empty existing_ipv4 and failed. These are the pass-through.
+
+variable "existing_ipv4" {
+  description = "Public address of the host to attach to. Required for tier = attach."
+  type        = string
+  default     = ""
+}
+
+variable "ssh_user_attach" {
+  description = "Login user on the existing host. Ubuntu images use ubuntu."
+  type        = string
+  default     = "ubuntu"
+}
+
+variable "attach_reuse_tls" {
+  description = <<-EOT
+    Leave 80/443 to whatever already terminates TLS on the host and expect it
+    to proxy `domain` to medbrains-server. True here: the box runs Caddy for
+    roughly thirty-five hostnames, and an installer that claims those ports is
+    an outage, not an install.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "attach_reuse_postgres" {
+  description = <<-EOT
+    Use the Postgres already on the host rather than starting one in Docker.
+    True here: the box runs native PostgreSQL 17.11 and has no Docker at all.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "attach_database_url" {
+  description = "Connection string for the dedicated medbrains role. Never the account that owns the other applications."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

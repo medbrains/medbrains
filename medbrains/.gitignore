@@ -110,3 +110,10 @@ var/
 
 # Detox run artifacts — screenshots and device logs from the last e2e run.
 apps/*/artifacts/
+
+# Environment backups. infra/.env.bak.1650 was found holding four
+# secret-bearing lines and untracked but NOT ignored — one `git add -A` from
+# being in history permanently, where a rotation cannot remove it.
+*.bak
+.env.bak.*
+infra/.env.bak.*

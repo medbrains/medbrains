@@ -57,8 +57,14 @@ resource "null_resource" "bootstrap" {
     binaries_hash = filemd5("${var.binaries_dir}/medbrains-server")
     archive_hash  = filemd5("${var.binaries_dir}/medbrains-archive")
     proxy_hash    = filemd5("${var.binaries_dir}/medbrains-proxy")
-    edge_hash     = filemd5("${var.binaries_dir}/medbrains-edge")
-    spa_hash      = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
+    # Optional. `medbrains-edge` is a library crate in this workspace - no
+    # main.rs, no CLI, and git history has never held one - while the deploy
+    # kit carries a systemd unit expecting the binary. Rather than ship a stub
+    # that systemd would restart forever, the deploy proceeds without the edge
+    # sync service. Drop the binary into binaries_dir and the next apply picks
+    # it up and installs the unit.
+    edge_hash = fileexists("${var.binaries_dir}/medbrains-edge") ? filemd5("${var.binaries_dir}/medbrains-edge") : "absent"
+    spa_hash  = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
   }
 
   connection {
@@ -80,10 +86,6 @@ resource "null_resource" "bootstrap" {
   provisioner "file" {
     source      = "${var.binaries_dir}/medbrains-proxy"
     destination = "/tmp/medbrains-proxy"
-  }
-  provisioner "file" {
-    source      = "${var.binaries_dir}/medbrains-edge"
-    destination = "/tmp/medbrains-edge"
   }
   provisioner "file" {
     source      = var.spa_dist_dir
@@ -112,7 +114,8 @@ resource "null_resource" "bootstrap" {
   provisioner "remote-exec" {
     inline = [
       "chmod 600 /tmp/medbrains-attach.env",
-      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh",
+      "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/standalone/install.sh",
+      "[ -f /tmp/medbrains-edge ] && chmod +x /tmp/medbrains-edge || true",
       "sudo bash -c 'set -a; . /tmp/medbrains-attach.env; set +a; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} \"\" ${var.edge_proxy}'",
       "rm -f /tmp/medbrains-attach.env",
     ]

@@ -196,35 +196,46 @@ apply: check init build pre-apply-backup
 # Backups land in the S3 bucket Object-Lock'd for 5y, so even if the
 # apply destroys data we can restore.
 pre-apply-backup:
-	@if [ ! -f terraform.tfstate ] || ! terraform state list 2>/dev/null | grep -q aws_instance.this; then \
-		echo "==> pre-apply-backup: no instance yet (initial deploy) — skipping"; \
+	@# One shell for the whole target. Each recipe line otherwise runs in its
+	@# own shell, so the `exit 0` below used to end only that line and Make
+	@# carried on to the ssh - which then ran with empty outputs and failed
+	@# with "hostname contains invalid characters".
+	@set -e; \
+	if [ "$(TIER)" = "attach" ]; then \
+		echo "==> pre-apply-backup: tier=attach - the host and its Postgres are the operator's;"; \
+		echo "    backing them up from here would be presumptuous. Skipping."; \
 		exit 0; \
-	fi
-	@SSH_ENDPOINT=$$(terraform output -raw ssh_endpoint 2>/dev/null || true) && \
-	  if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then \
-	      PUBLIC_ENDPOINT=$$(terraform output -raw public_endpoint 2>/dev/null || true); \
-	      if [ -n "$$PUBLIC_ENDPOINT" ] && [ "$$PUBLIC_ENDPOINT" != "null" ]; then \
-	          SSH_ENDPOINT="ubuntu@$$PUBLIC_ENDPOINT"; \
-	      fi; \
-	  fi && \
-	  BACKUP_BUCKET=$$(terraform output -raw backup_bucket 2>/dev/null || true) && \
-	  if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then \
-	      echo "==> pre-apply-backup: no SSH endpoint output — skipping"; \
-	      exit 0; \
-	  fi && \
-	  if [ -z "$$BACKUP_BUCKET" ] || [ "$$BACKUP_BUCKET" = "null" ]; then \
-	      echo "==> pre-apply-backup: no backup_bucket output (non-Starter tier?) — skipping"; \
-	      exit 0; \
-	  fi && \
-	  echo "==> pre-apply-backup: SSH $$SSH_ENDPOINT → s3://$$BACKUP_BUCKET" && \
-	  ssh -i $(TF_VAR_ssh_private_key_path) -o StrictHostKeyChecking=no $$SSH_ENDPOINT \
-	      "if systemctl is-active --quiet medbrains-pg-backup.timer 2>/dev/null && sudo docker ps --format '{{.Names}}' | grep -q medbrains-postgres; then \
-	          echo '   running medbrains-pg-backup on host'; \
-	          sudo systemctl start medbrains-pg-backup.service && \
-	          sudo journalctl -u medbrains-pg-backup.service -n 5 --no-pager; \
-	      else \
-	          echo '   medbrains-pg-backup or postgres not running — nothing to back up'; \
-	      fi"
+	fi; \
+	if ! terraform state list 2>/dev/null | grep -q aws_instance.this; then \
+		echo "==> pre-apply-backup: no instance in state (initial deploy) - skipping"; \
+		exit 0; \
+	fi; \
+	SSH_ENDPOINT=$$(terraform output -raw ssh_endpoint 2>/dev/null || true); \
+	case "$$SSH_ENDPOINT" in *Warning*|*Error*|null) SSH_ENDPOINT="";; esac; \
+	if [ -z "$$SSH_ENDPOINT" ]; then \
+		PUBLIC_ENDPOINT=$$(terraform output -raw public_endpoint 2>/dev/null || true); \
+		case "$$PUBLIC_ENDPOINT" in *Warning*|*Error*|null) PUBLIC_ENDPOINT="";; esac; \
+		[ -n "$$PUBLIC_ENDPOINT" ] && SSH_ENDPOINT="ubuntu@$$PUBLIC_ENDPOINT"; \
+	fi; \
+	BACKUP_BUCKET=$$(terraform output -raw backup_bucket 2>/dev/null || true); \
+	case "$$BACKUP_BUCKET" in *Warning*|*Error*|null) BACKUP_BUCKET="";; esac; \
+	if [ -z "$$SSH_ENDPOINT" ]; then \
+		echo "==> pre-apply-backup: no SSH endpoint output - skipping"; \
+		exit 0; \
+	fi; \
+	if [ -z "$$BACKUP_BUCKET" ]; then \
+		echo "==> pre-apply-backup: no backup_bucket output (non-Starter tier?) - skipping"; \
+		exit 0; \
+	fi; \
+	echo "==> pre-apply-backup: SSH $$SSH_ENDPOINT -> s3://$$BACKUP_BUCKET"; \
+	ssh -i $(TF_VAR_ssh_private_key_path) -o StrictHostKeyChecking=no $$SSH_ENDPOINT \
+	    "if systemctl is-active --quiet medbrains-pg-backup.timer 2>/dev/null && sudo docker ps --format '{{.Names}}' | grep -q medbrains-postgres; then \
+	        echo '   running medbrains-pg-backup on host'; \
+	        sudo systemctl start medbrains-pg-backup.service && \
+	        sudo journalctl -u medbrains-pg-backup.service -n 5 --no-pager; \
+	    else \
+	        echo '   medbrains-pg-backup or postgres not running - nothing to back up'; \
+	    fi"
 
 rebuild:
 	@$(MAKE) -s apply
