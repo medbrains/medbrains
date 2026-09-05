@@ -35,7 +35,18 @@ fi
 
 DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 HOSTNAME_TAG="$(hostname)"
-KEY="pg-backups/${HOSTNAME_TAG}/${DATE}.sql.gz"
+
+# The prefix is configurable because the bucket may not be ours.
+#
+# On a shared host the backup vault belongs to the hospital and its policy
+# grants this instance write access to one prefix, not to the bucket. A
+# hardcoded "pg-backups/" meant this script wrote where it had no permission
+# and died with AccessDenied — while the prefix it was allowed to use sat
+# one directory away. Set BACKUP_PREFIX in /etc/medbrains/env to whatever
+# the bucket policy actually grants.
+BACKUP_PREFIX="${BACKUP_PREFIX:-pg-backups}"
+BACKUP_PREFIX="${BACKUP_PREFIX%/}"
+KEY="${BACKUP_PREFIX}/${HOSTNAME_TAG}/${DATE}.sql.gz"
 
 # --format=custom + --compress=9 = small, restorable via pg_restore.
 # Streams straight to S3 — no /tmp staging.
