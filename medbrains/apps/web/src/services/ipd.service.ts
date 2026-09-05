@@ -79,6 +79,12 @@ export const ipdService = {
     api.bedDashboardBeds(...args),
   updateBedStatus: (...args: Parameters<typeof api.updateBedStatus>) =>
     api.updateBedStatus(...args),
+  listBedReservations: (...args: Parameters<typeof api.listBedReservations>) =>
+    api.listBedReservations(...args),
+  createBedReservation: (...args: Parameters<typeof api.createBedReservation>) =>
+    api.createBedReservation(...args),
+  updateBedReservationStatus: (...args: Parameters<typeof api.updateBedReservationStatus>) =>
+    api.updateBedReservationStatus(...args),
   reportCensus: (...args: Parameters<typeof api.reportCensus>) => api.reportCensus(...args),
   reportOccupancy: (...args: Parameters<typeof api.reportOccupancy>) =>
     api.reportOccupancy(...args),

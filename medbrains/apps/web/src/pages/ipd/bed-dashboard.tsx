@@ -1,8 +1,9 @@
 // IPD BedDashboardTab — split from ipd.tsx (pure move).
 
 import { Card, Group, Select, SimpleGrid, Stack, Text } from "@mantine/core";
+import { DateTimePicker } from "@mantine/dates";
 import { useHasPermission } from "@medbrains/stores";
-import type { BedDashboardRow, BedDashboardSummary } from "@medbrains/types";
+import type { BedDashboardRow, BedDashboardSummary, BedReservation } from "@medbrains/types";
 import {
   BED_BOARD_MUTABLE_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
@@ -10,13 +11,13 @@ import {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "@medbrains/types";
-import { IconBuildingHospital, IconEye } from "@tabler/icons-react";
+import { IconBookmark, IconBuildingHospital, IconEye } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { OperationalSignal, useProtectedFieldAccess } from "@/components";
-import { Button } from "@/components/ui";
+import { OperationalSignal, PatientSearchSelect, useProtectedFieldAccess } from "@/components";
+import { Alert, Button, Input, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
 import { BedTurnaroundView } from "./bed-turnaround";
@@ -43,6 +44,36 @@ export function BedDashboardTab() {
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
 
+  // Holding a bed is its own permission, not part of managing bed status:
+  // a ward clerk who may mark a bed clean is not necessarily the person who
+  // may promise it to an incoming patient.
+  const canReserveBeds = useHasPermission(P.IPD.RESERVATIONS.MANAGE);
+  const [holdBedId, setHoldBedId] = useState<string | null>(null);
+  const [holdBedName, setHoldBedName] = useState("");
+  const [holdPatientId, setHoldPatientId] = useState("");
+  const [holdUntil, setHoldUntil] = useState<Date | null>(null);
+  const [holdPurpose, setHoldPurpose] = useState("");
+
+  const closeHoldModal = () => {
+    setHoldBedId(null);
+    setHoldBedName("");
+    setHoldPatientId("");
+    setHoldUntil(null);
+    setHoldPurpose("");
+  };
+
+  const openHoldModal = (bed: BedDashboardRow) => {
+    setHoldBedId(bed.bed_location_id);
+    setHoldBedName(bed.bed_name ?? "");
+    setHoldPatientId("");
+    // A hold with no end is a bed quietly removed from the hospital. Default
+    // to the end of the day and let the clerk extend it deliberately.
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 0, 0);
+    setHoldUntil(endOfDay);
+    setHoldPurpose("");
+  };
+
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-bed-dashboard-summary"],
     queryFn: () => ipdService.bedDashboardSummary(),
@@ -65,6 +96,56 @@ export function BedDashboardTab() {
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
     },
+  });
+
+  // One request for the whole board, then a map lookup per card. The
+  // per-bed endpoint exists but calling it from inside the grid would be one
+  // request per bed on a screen that renders every bed in the hospital.
+  const { data: reservationsData, isError: reservationsFailed } = useQuery({
+    queryKey: ["ipd-bed-reservations"],
+    queryFn: () => ipdService.listBedReservations(),
+    enabled: canReserveBeds,
+  });
+
+  // Keyed by bed_id, which is the bed's *location* id — the same column the
+  // admission gate joins on. Keying this by bed_state_id would produce holds
+  // that look right on the board and that no gate would ever see.
+  const heldByLocationId = useMemo(() => {
+    const now = Date.now();
+    const map = new Map<string, BedReservation>();
+    for (const r of (reservationsData ?? []) as BedReservation[]) {
+      if (r.status !== "active" && r.status !== "confirmed") continue;
+      if (new Date(r.reserved_until).getTime() <= now) continue;
+      map.set(r.bed_id, r);
+    }
+    return map;
+  }, [reservationsData]);
+
+  const invalidateBoard = () => {
+    void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
+    void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
+    void queryClient.invalidateQueries({ queryKey: ["ipd-bed-reservations"] });
+  };
+
+  const holdMutation = useMutation({
+    mutationFn: () =>
+      ipdService.createBedReservation({
+        bed_id: holdBedId ?? "",
+        patient_id: holdPatientId,
+        reserved_from: new Date().toISOString(),
+        reserved_until: (holdUntil ?? new Date()).toISOString(),
+        purpose: holdPurpose || undefined,
+      }),
+    onSuccess: () => {
+      invalidateBoard();
+      closeHoldModal();
+    },
+  });
+
+  const releaseMutation = useMutation({
+    mutationFn: (reservationId: string) =>
+      ipdService.updateBedReservationStatus(reservationId, { status: "cancelled" }),
+    onSuccess: invalidateBoard,
   });
 
   const summaryRows = (summaryData ?? []) as BedDashboardSummary[];
@@ -204,6 +285,16 @@ export function BedDashboardTab() {
 
       {showTurnaround && <BedTurnaroundView />}
 
+      {/* If the holds cannot be read, every bed renders as free. Saying so is
+          the difference between "no bed is held" and "we do not know which
+          beds are held" — the second is a reason to ring the ward, not to
+          assign the bed. */}
+      {reservationsFailed && (
+        <Alert tone="warning" title={t("bedDashboard.hold.readFailedTitle")}>
+          {t("bedDashboard.hold.readFailedBody")}
+        </Alert>
+      )}
+
       {isLoading ? (
         <Text c="dimmed">{t("bedDashboard.loadingBeds")}</Text>
       ) : (
@@ -211,6 +302,8 @@ export function BedDashboardTab() {
           {beds.map((bed) => {
             const bedStatus = bed.bed_status;
             const admissionId = bed.admission_id;
+            // A map lookup, not a hook — hooks cannot be called in a map.
+            const held = heldByLocationId.get(bed.bed_location_id);
             const patientName = protectedIpdPatientName(bed.patient_name, patientNameAccess);
             const patientUhid = protectedIpdPatientIdentifier(bed.patient_uhid, uhidAccess);
 
@@ -247,6 +340,20 @@ export function BedDashboardTab() {
                       tone="active"
                     />
                   )}
+                  {/* Without this a held bed is indistinguishable from a free
+                      one, and the clerk who holds it is the only person who
+                      knows. The admission gate would refuse the assignment
+                      with no warning anywhere on the board. */}
+                  {held && (
+                    <OperationalSignal
+                      icon={IconBookmark}
+                      label={t("bedDashboard.hold.signalLabel")}
+                      shape="token"
+                      size="xs"
+                      tone="blocked"
+                      value={t("bedDashboard.hold.signalValue")}
+                    />
+                  )}
                 </Group>
                 {admissionId ? (
                   <Stack gap={0} mt={4}>
@@ -271,6 +378,39 @@ export function BedDashboardTab() {
                     {t("bedDashboard.actions.openAdmission")}
                   </Button>
                 )}
+                {held && (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {t("bedDashboard.hold.untilLabel", {
+                      until: new Date(held.reserved_until).toLocaleString(),
+                    })}
+                    {held.purpose ? ` — ${held.purpose}` : ""}
+                  </Text>
+                )}
+                {canReserveBeds &&
+                  (held ? (
+                    <Button
+                      tone="ghost"
+                      size="compact-xs"
+                      mt={6}
+                      loading={releaseMutation.isPending}
+                      onClick={() => releaseMutation.mutate(held.id)}
+                    >
+                      {t("bedDashboard.hold.release")}
+                    </Button>
+                  ) : (
+                    bedStatus === "vacant_clean" &&
+                    !admissionId && (
+                      <Button
+                        tone="secondary"
+                        size="compact-xs"
+                        mt={6}
+                        leftSection={<IconBookmark size={12} />}
+                        onClick={() => openHoldModal(bed)}
+                      >
+                        {t("bedDashboard.hold.action")}
+                      </Button>
+                    )
+                  ))}
                 {canManageBeds && bedStatus !== "occupied" && (
                   <Select
                     size="xs"
@@ -303,6 +443,51 @@ export function BedDashboardTab() {
           {t("bedDashboard.noBedsFound")}
         </Text>
       )}
+
+      <Modal
+        opened={holdBedId !== null}
+        onClose={closeHoldModal}
+        title={t("bedDashboard.hold.title", { bed: holdBedName })}
+      >
+        <Stack gap="sm">
+          <PatientSearchSelect
+            value={holdPatientId}
+            onChange={setHoldPatientId}
+            label={t("bedDashboard.hold.patientLabel")}
+            required
+          />
+          <DateTimePicker
+            label={t("bedDashboard.hold.untilFieldLabel")}
+            value={holdUntil}
+            onChange={(v) => setHoldUntil(v ? new Date(v) : null)}
+            required
+          />
+          <Input
+            label={t("bedDashboard.hold.purposeLabel")}
+            placeholder={t("bedDashboard.hold.purposePlaceholder")}
+            value={holdPurpose}
+            onChange={(e) => setHoldPurpose(e.currentTarget.value)}
+          />
+          {holdMutation.isError && (
+            <Alert tone="danger" title={t("bedDashboard.hold.failedTitle")}>
+              {(holdMutation.error as Error).message}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button tone="ghost" onClick={closeHoldModal}>
+              {t("bedDashboard.hold.cancel")}
+            </Button>
+            <Button
+              tone="primary"
+              loading={holdMutation.isPending}
+              disabled={!holdPatientId || !holdUntil}
+              onClick={() => holdMutation.mutate()}
+            >
+              {t("bedDashboard.hold.confirm")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

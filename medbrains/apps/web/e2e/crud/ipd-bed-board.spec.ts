@@ -38,3 +38,40 @@ test.describe("IPD bed board", () => {
     });
   });
 });
+
+/**
+ * Holding a bed.
+ *
+ * `bed_reservations` had four routed handlers, four client methods, types,
+ * a permission that was already defined and granted, and a per-record
+ * patient-access check — and no screen anywhere. Three admission gates read
+ * the table: assign_bed refuses a bed held for a different patient,
+ * list_available_beds hides held beds, and the ER path does the same. All
+ * three queried a table that could never contain a row, so a ward clerk
+ * could not hold a bed for a patient coming out of theatre, and the gate
+ * that would have protected that hold never fired.
+ */
+test.describe("bed hold", () => {
+  test("a bed can be held for an incoming patient, and says so", async ({ page }) => {
+    await navigateTo(page, "/ipd");
+    await page.getByRole("tab", { name: "Bed Dashboard" }).click();
+
+    const holdButton = page.getByRole("button", { name: "Hold bed" }).first();
+    await expect(holdButton).toBeVisible({ timeout: 15000 });
+    await holdButton.click();
+
+    // PatientSearchSelect is a search input, so a textbox — the opposite of a
+    // Mantine Select, which is a combobox. Scope everything to the dialog:
+    // every bed card also has a "Hold bed" button.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10000 });
+    await dialog.getByRole("textbox", { name: /hold for patient/i }).fill("Henedina");
+    await page.getByText(/Henedina/i).last().click();
+
+    await dialog.getByRole("button", { name: "Hold bed", exact: true }).click();
+
+    // The badge is the point: without it a held bed looks free, and only the
+    // clerk who held it knows otherwise.
+    await expect(page.getByText("Held").first()).toBeVisible({ timeout: 15000 });
+  });
+});
