@@ -99,6 +99,23 @@ resource "null_resource" "bootstrap" {
     timeout     = "5m"
   }
 
+  # Clear stale staging files before uploading over them.
+  #
+  # /tmp carries the sticky bit, so a file left by a deploy that ran as root
+  # cannot be overwritten or removed by a later deploy logging in as a normal
+  # user — scp fails with "Permission denied" on a directory that is nominally
+  # world-writable, and it fails during upload, before any remote-exec below
+  # could clean up. That is exactly how a root-owned medbrains-attach.env from
+  # one deploy blocked every deploy after it.
+  #
+  # The cleanup at the end of this resource cannot cover this case: it runs
+  # unprivileged, so it cannot remove a root-owned file, and it runs too late.
+  provisioner "remote-exec" {
+    inline = [
+      "sudo rm -rf /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/medbrains-web /tmp/standalone /tmp/medbrains-attach.env",
+    ]
+  }
+
   provisioner "file" {
     source      = "${var.binaries_dir}/medbrains-server"
     destination = "/tmp/medbrains-server"
@@ -141,7 +158,10 @@ resource "null_resource" "bootstrap" {
       "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/standalone/install.sh",
       "[ -f /tmp/medbrains-edge ] && chmod +x /tmp/medbrains-edge || true",
       "sudo bash -c 'set -a; . /tmp/medbrains-attach.env; set +a; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} \"\" ${var.edge_proxy}'",
-      "rm -f /tmp/medbrains-attach.env",
+      # sudo, because install.sh runs as root and may have replaced this file
+      # with a root-owned copy. An unprivileged rm fails silently enough to
+      # leave a database connection string in /tmp indefinitely.
+      "sudo rm -f /tmp/medbrains-attach.env",
     ]
   }
 }
