@@ -2276,6 +2276,19 @@ export interface LabOutsourcedOrder {
   updated_at: string;
 }
 
+/** One row of the bench worklist: what is waiting to be run.
+ *
+ * `patient_name` is "Restricted" for a reader who holds lab.orders.list but
+ * not patients.view — a quality officer, for instance. The bench needs the
+ * barcode and the order, not the name. */
+export interface LabAnalyzerWorklistRow {
+  order_id: string;
+  patient_id: string;
+  sample_barcode: string;
+  patient_name: string;
+  ordered_at: string;
+}
+
 export interface LabPhlebotomyQueueItem {
   id: string;
   tenant_id: string;

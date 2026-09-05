@@ -54,6 +54,8 @@ export const labService = {
     api.createPhlebotomyEntry(...args),
   assignPhlebotomist: (...args: Parameters<typeof api.assignPhlebotomist>) =>
     api.assignPhlebotomist(...args),
+  getLabAnalyzerWorklist: (...args: Parameters<typeof api.getLabAnalyzerWorklist>) =>
+    api.getLabAnalyzerWorklist(...args),
   listReagentLots: (...args: Parameters<typeof api.listReagentLots>) =>
     api.listReagentLots(...args),
   createReagentLot: (...args: Parameters<typeof api.createReagentLot>) =>

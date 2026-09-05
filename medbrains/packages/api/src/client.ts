@@ -1182,6 +1182,7 @@ import type {
   KitchenMenu,
   KitchenMenuItem,
   KpiTile,
+  LabAnalyzerWorklistRow,
   LabB2bClient,
   LabB2bCreditSummary,
   LabB2bRate,
@@ -16069,7 +16070,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getLabAnalyzerWorklist: () => request<unknown>("/lab/analyzer-worklist"),
+  getLabAnalyzerWorklist: (params?: { department_id?: string }) => {
+    const qs = params?.department_id ? `?department_id=${params.department_id}` : "";
+    return request<LabAnalyzerWorklistRow[]>(`/lab/analyzer-worklist${qs}`);
+  },
   assignLabPhlebotomy: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/lab/phlebotomy/${id}/assign`, {
       method: "PUT",
