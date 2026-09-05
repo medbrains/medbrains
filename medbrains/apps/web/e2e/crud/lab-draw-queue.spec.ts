@@ -10,14 +10,26 @@ import { navigateTo } from "../helpers";
  * with working controls on it. The order is where a draw is decided, so the
  * maker belongs on the order.
  */
-const ORDER = "a70beb55-1ac9-4d7b-8f89-b897601aaadc";
+// Deliberately an UNCOLLECTED order: the control is offered only while the
+// sample is still to be drawn, so a collected order is the wrong fixture and
+// silently proves nothing.
+const UNCOLLECTED_ORDER = "dd7db39b-5eae-4f9f-8acd-f433b65fb283";
+const COLLECTED_ORDER = "a70beb55-1ac9-4d7b-8f89-b897601aaadc";
 
 test.describe("lab draw queue", () => {
   test("an uncollected order can be sent to the draw queue", async ({ page }) => {
-    await navigateTo(page, `/lab/orders/${ORDER}`);
+    await navigateTo(page, `/lab/orders/${UNCOLLECTED_ORDER}`);
     await expect(page.getByRole("button", { name: /send to draw queue/i })).toBeVisible({
       timeout: 15000,
     });
+  });
+
+  test("an already-collected order does not offer to queue a draw", async ({ page }) => {
+    // The sample is in the lab; queueing a draw for it would send a
+    // phlebotomist to a patient who has already been bled.
+    await navigateTo(page, `/lab/orders/${COLLECTED_ORDER}`);
+    await expect(page.getByText(/Order:/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /send to draw queue/i })).toHaveCount(0);
   });
 
   test("the phlebotomy worklist is reachable and states what it holds", async ({ page }) => {
