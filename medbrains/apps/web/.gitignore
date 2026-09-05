@@ -9,3 +9,6 @@ allure-results/
 storybook-static
 public/_design-showcase.html
 public/_theme-preview.html
+
+# Deploy artefact: the SPA packed for upload (see scripts/build-deploy-artifacts.sh)
+dist.tgz

@@ -371,6 +371,18 @@ ROLLBACK
 chmod 0755 /usr/local/bin/medbrains-rollback
 
 echo "==> [6/9] Installing SPA static files to /var/www/medbrains"
+
+# The SPA now arrives as one archive rather than 1,500-odd separate uploads.
+# Both forms are accepted: a kit and a terraform module can be a version apart
+# during a rollout, and a deploy that half-recognises its own payload is worse
+# than either convention on its own.
+if [[ -f /tmp/medbrains-web.tgz ]]; then
+    echo "    unpacking /tmp/medbrains-web.tgz"
+    rm -rf /tmp/medbrains-web
+    mkdir -p /tmp/medbrains-web
+    tar -xzf /tmp/medbrains-web.tgz -C /tmp/medbrains-web
+fi
+
 if [[ -d /tmp/medbrains-web ]]; then
     if [[ -d /var/www/medbrains ]]; then
         rm -rf /var/www/medbrains.prev
