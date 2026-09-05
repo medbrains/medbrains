@@ -4627,7 +4627,7 @@ pub async fn list_ward_beds(
     let rows = sqlx::query_as::<_, WardBedRow>(
         "SELECT wbm.id AS mapping_id, wbm.bed_location_id, \
                l.name AS bed_name, bt.name AS bed_type_name, \
-               bs.status AS bed_status, \
+               bs.status::text AS bed_status, \
                CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
                CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS patient_uhid, \
                wbm.sort_order \
@@ -4911,7 +4911,7 @@ pub async fn bed_dashboard_beds(
     let sql = format!(
         "SELECT bs.id AS bed_state_id, bs.location_id AS bed_location_id, \
                l.name AS bed_name, bs.ward_id, w.name AS ward_name, \
-               bs.status AS bed_status, \
+               bs.status::text AS bed_status, \
                CASE WHEN $2::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
                CASE WHEN $2::bool THEN p.uhid ELSE NULL END AS patient_uhid, bs.admission_id \
          FROM bed_states bs \
