@@ -128,6 +128,9 @@ module "existing_host" {
   spa_dist_dir    = var.spa_dist_dir
   deploy_kit_dir  = var.deploy_kit_dir
 
+  ssh_connect_host = var.ssh_connect_host
+  ssh_connect_port = var.ssh_connect_port
+
   attach_mode           = var.attach_mode
   attach_reuse_tls      = var.attach_reuse_tls
   attach_reuse_postgres = var.attach_reuse_postgres

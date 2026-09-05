@@ -215,6 +215,22 @@ variable "ssh_user_attach" {
   default     = "ubuntu"
 }
 
+# Deploying through SSM instead of straight to the host's public IP. The
+# tunnel lands on the instance's own loopback, so the security group never
+# sees it — an operator whose address is not in the inbound rules can still
+# deploy, and port 22 can stay shut to the internet.
+variable "ssh_connect_host" {
+  description = "Override the SSH target for the attach tier (127.0.0.1 for an SSM tunnel). Empty = dial existing_ipv4."
+  type        = string
+  default     = ""
+}
+
+variable "ssh_connect_port" {
+  description = "SSH port for the attach tier. Set to the SSM tunnel's local port when ssh_connect_host is set."
+  type        = number
+  default     = 22
+}
+
 variable "attach_database_url" {
   description = <<-EOT
     Connection string for the Postgres already running on the host, with

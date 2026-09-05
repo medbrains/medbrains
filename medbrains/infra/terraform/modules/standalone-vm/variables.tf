@@ -165,6 +165,18 @@ variable "ssh_private_key_path" {
   default     = ""
 }
 
+variable "ssh_connect_host" {
+  description = "Override the SSH target for existing-host provisioning (127.0.0.1 for an SSM tunnel). Empty = dial existing_ipv4 directly."
+  type        = string
+  default     = ""
+}
+
+variable "ssh_connect_port" {
+  description = "SSH port for existing-host provisioning. Set to the SSM tunnel's local port when ssh_connect_host is set."
+  type        = number
+  default     = 22
+}
+
 # ── Bootstrap inputs (Starter only — image-based tiers ignore) ───────
 
 variable "binaries_dir" {

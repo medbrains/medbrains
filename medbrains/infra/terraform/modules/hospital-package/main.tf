@@ -202,6 +202,9 @@ module "attach" {
   ssh_private_key      = file(var.ssh_private_key_path)
   ssh_private_key_path = var.ssh_private_key_path
 
+  ssh_connect_host = var.ssh_connect_host
+  ssh_connect_port = var.ssh_connect_port
+
   binaries_dir   = var.binaries_dir
   spa_dist_dir   = var.spa_dist_dir
   deploy_kit_dir = var.deploy_kit_dir

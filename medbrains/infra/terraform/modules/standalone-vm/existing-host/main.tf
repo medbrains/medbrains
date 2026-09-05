@@ -25,6 +25,29 @@ variable "ssh_private_key" {
   type      = string
   sensitive = true
 }
+# Where the SSH provisioners actually dial. Defaults to the host's own public
+# IP, which is what every tier has always done.
+#
+# Set these to reach the host through an SSM port-forwarding tunnel instead.
+# The tunnel terminates on the instance's own loopback, so the security group
+# never sees the connection: the operator's address does not have to be in the
+# inbound rules, and port 22 need not be open to the internet at all.
+#
+# `existing_ipv4` is deliberately not reused for this. It is also the address
+# the DNS record points at, so overriding it would repoint the hospital's
+# domain at localhost.
+variable "ssh_connect_host" {
+  type        = string
+  default     = ""
+  description = "Override the SSH target (127.0.0.1 for an SSM tunnel). Empty = use existing_ipv4."
+}
+
+variable "ssh_connect_port" {
+  type        = number
+  default     = 22
+  description = "SSH port. Set to the tunnel's local port when ssh_connect_host is set."
+}
+
 variable "binaries_dir" { type = string }
 variable "spa_dist_dir" { type = string }
 variable "deploy_kit_dir" { type = string }
@@ -69,7 +92,8 @@ resource "null_resource" "bootstrap" {
 
   connection {
     type        = "ssh"
-    host        = var.existing_ipv4
+    host        = var.ssh_connect_host != "" ? var.ssh_connect_host : var.existing_ipv4
+    port        = var.ssh_connect_port
     user        = var.ssh_user
     private_key = var.ssh_private_key
     timeout     = "5m"
