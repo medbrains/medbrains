@@ -5631,6 +5631,14 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<LabPhlebotomyQueueItem[]>(`/lab/phlebotomy-queue${qs}`);
   },
+  // Answers a bare {"status":"assigned"} acknowledgement, not the row — so a
+  // caller must refetch the queue rather than trust the response to carry
+  // assigned_to. Typing it as the row invites exactly that mistake.
+  assignPhlebotomist: (id: string, data: { assigned_to: string }) =>
+    request<{ status: string }>(`/lab/phlebotomy/${id}/assign`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   createPhlebotomyEntry: (data: CreatePhlebotomyEntryRequest) =>
     request<LabPhlebotomyQueueItem>("/lab/phlebotomy-queue", {
       method: "POST",
@@ -8271,8 +8279,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCssdLoadItems: (loadId: string) =>
-    request<CssdLoadItem[]>(`/cssd/loads/${loadId}/items`),
+  listCssdLoadItems: (loadId: string) => request<CssdLoadItem[]>(`/cssd/loads/${loadId}/items`),
   addCssdLoadItem: (loadId: string, data: AddCssdLoadItemRequest) =>
     request<CssdLoadItem>(`/cssd/loads/${loadId}/items`, {
       method: "POST",

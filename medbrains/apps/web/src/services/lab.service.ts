@@ -52,6 +52,8 @@ export const labService = {
     api.updatePhlebotomyStatus(...args),
   createPhlebotomyEntry: (...args: Parameters<typeof api.createPhlebotomyEntry>) =>
     api.createPhlebotomyEntry(...args),
+  assignPhlebotomist: (...args: Parameters<typeof api.assignPhlebotomist>) =>
+    api.assignPhlebotomist(...args),
   listReagentLots: (...args: Parameters<typeof api.listReagentLots>) =>
     api.listReagentLots(...args),
   createReagentLot: (...args: Parameters<typeof api.createReagentLot>) =>
