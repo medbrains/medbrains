@@ -15,6 +15,23 @@ TARGET="${STARTER_TARGET:-aarch64-unknown-linux-gnu}"
 
 cd "$REPO_ROOT"
 
+# Linking medbrains-server opens every object file at once — 503 of them, plus
+# the static libraries beside them. macOS ships a soft limit of 256 open files
+# in many shells, and the link then dies with:
+#
+#   error: failed to open object ...rcgu.o: ProcessFdQuotaExceeded
+#
+# which reads like a corrupt build rather than a shell setting. Worse, it is
+# not reproducible: the same command succeeds from a terminal whose limit
+# happens to be higher, so whether the deploy works depends on which window
+# it was started from. Raise it here so the script does not inherit that.
+#
+# Only ever raises, never lowers, and a shell that refuses is not fatal —
+# the link may still fit under whatever limit is already in force.
+if [ "$(ulimit -Sn)" -lt 4096 ] 2>/dev/null; then
+    ulimit -n 8192 2>/dev/null || ulimit -n "$(ulimit -Hn)" 2>/dev/null || true
+fi
+
 say() { printf '    %s\n' "$*"; }
 
 echo "==> building server binaries (target=$TARGET)"
