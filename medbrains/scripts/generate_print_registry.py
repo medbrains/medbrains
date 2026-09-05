@@ -85,7 +85,13 @@ def handlers() -> tuple[dict, dict]:
         text = path.read_text(errors="ignore")
         for m in re.finditer(r"pub async fn (\w+)\((.{0,700}?)\)\s*->\s*Result<", text, re.S):
             # Wide window: a handler's queries run well past the guard.
+            #
+            # Trimmed back to the last newline. A fixed cut lands mid-word
+            # often enough to matter — it bisected `blood_...` into a table
+            # called `bloo`, which then excluded a working document for
+            # querying a table that "does not exist".
             body = text[m.end():m.end() + 6000]
+            body = body[:body.rfind("\n") + 1] if "\n" in body else body
             perm = re.search(r"require_permission\(&claims,\s*permissions::([\w:]+)\)", body[:900])
             guards[m.group(1)] = {
                 "perm": perm.group(1) if perm else None,
@@ -106,18 +112,61 @@ def written_tables() -> set[str]:
     return written
 
 
+def schema_tables() -> set[str]:
+    """Every relation the migrations create.
+
+    Parsed rather than queried so this stays runnable without a database, the
+    same way every other check here works.
+    """
+    found: set[str] = set()
+    migrations = ROOT / "crates/medbrains-db-migrations/src/migrations"
+    for path in sorted(migrations.glob("*.sql")):
+        text = path.read_text(errors="ignore")
+        for pattern in (
+            r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?(\w+)",
+            r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?(\w+)",
+            r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(?:public\.)?(\w+)\s+RENAME\s+TO\s+(?:public\.)?(\w+)",
+        ):
+            for m in re.finditer(pattern, text, re.I):
+                found.update(g.lower() for g in m.groups() if g)
+    return found
+
+
 def source_tables(handler_body: str) -> set[str]:
     """Tables the handler reads.
 
-    A name followed by `(` is a function call, not a table: `EXTRACT(YEAR FROM
-    age(dob))` otherwise reports a table called `age` in a third of the
-    handlers here.
+    Two things here are not table references and both used to be counted.
+
+    A name followed by `(` is a function call: `EXTRACT(YEAR FROM age(dob))`
+    otherwise reports a table called `age` in a third of the handlers here.
+
+    And SQL uses FROM inside expressions, so `EXTRACT(YEAR FROM inspection_date)`
+    reports a table called `inspection_date`. That was harmless while the only
+    consequence was counting it as unwritten; once a missing table excludes the
+    whole document it would drop working ones, so the enclosing function has to
+    be recognised.
+
+    Prose is the third. These handlers carry long explanatory comments, and
+    "goes from", "more from the" and "a from" were all being read as tables.
+    The SQL here writes its keywords in upper case and English does not, so
+    matching case-sensitively separates them; comments are stripped as well,
+    because a comment is never a query.
     """
-    return {
-        m.group(1).lower()
-        for m in re.finditer(r"\b(?:FROM|JOIN)\s+(\w+)(\s*\()?", handler_body, re.I)
-        if not m.group(2) and m.group(1).lower() not in {"select", "lateral", "unnest"}
-    }
+    body = re.sub(r"//[^\n]*", "", handler_body)
+    expr = re.compile(r"(?:EXTRACT|SUBSTRING|TRIM|OVERLAY|POSITION)\s*\([^()]*$")
+    tables = set()
+    for m in re.finditer(r"\b(FROM|JOIN)\s+(\w+)(\s*\()?", body):
+        if m.group(3):
+            continue
+        name = m.group(2).lower()
+        if name in {"select", "lateral", "unnest"}:
+            continue
+        if m.group(1).upper() == "FROM":
+            back = body[max(0, m.start() - 80):m.start()].replace("\\\n", " ").replace("\n", " ")
+            if expr.search(back):
+                continue
+        tables.add(name)
+    return tables
 
 
 def client_methods() -> dict[str, list[tuple[str, str]]]:
@@ -137,6 +186,7 @@ def main() -> int:
     guards, routes = handlers()
     by_path = client_methods()
     written = written_tables()
+    schema = schema_tables()
 
     entries, skipped = [], []
     for handler, route in sorted(routes.items()):
@@ -151,6 +201,21 @@ def main() -> int:
         # print blank. Tables the handler reads but nothing populates are
         # listed so the exclusion is arguable rather than silent.
         read = guard["tables"]
+
+        # A table that does not exist is not a blank section — it is a 500.
+        # The writerless check below cannot catch this, because it only fires
+        # when EVERY table is unwritten: a handler reading fifteen tables of
+        # which eight are absent passes it on the strength of the other seven,
+        # and then errors the first time somebody has a record to print.
+        #
+        # The RCA template is the clearest case — eight of its fifteen tables
+        # were never created, so the document could 404 forever and 500 the
+        # moment an incident existed to print.
+        absent = {t for t in read if t not in schema}
+        if absent:
+            skipped.append((handler, f"queries tables that do not exist: {', '.join(sorted(absent))}"))
+            continue
+
         dead = {t for t in read if t not in written}
         if read and dead == read:
             skipped.append((handler, f"reads only writerless tables: {', '.join(sorted(dead))}"))
