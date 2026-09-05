@@ -7,6 +7,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   AmendResultRequest,
   AutoValidateResult,
+  ClinicalJourneyContext,
   LabCriticalAlert,
   LabOrderDetailResponse,
   LabPriority,
@@ -15,7 +16,7 @@ import type {
   LabTestDefaults,
   ResultInput,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, patientFlowJourneyContext } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconDroplet,
@@ -27,12 +28,13 @@ import {
   IconSend,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, DocumentActions, useClinicalEmit } from "@/components";
 import { PrintLabReportButton } from "@/components/Lab/LabReportPrint";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Alert, Badge, Button, IconButton, Input, Modal, toast } from "@/components/ui";
@@ -190,6 +192,32 @@ export function LabOrderDetail({
     queryKey: ["lab-critical-alerts", { orderId, acknowledged: false }],
     queryFn: () => labService.listCriticalAlerts({ order_id: orderId, acknowledged: "false" }),
   });
+
+  // The way back. A verified result had no route to the encounter that ordered
+  // it, in either direction, so whoever read it here went and found the
+  // patient again in a list they had just come from.
+  //
+  // `rail` rather than `inline`: inline collapses everything into a menu
+  // labelled "Actions", and this page already has one of those from
+  // DocumentActions. Two identical menus is worse than none.
+  const journeyContext = useMemo<ClinicalJourneyContext | null>(
+    () =>
+      data?.order
+        ? patientFlowJourneyContext({
+            patientId: data.order.patient_id,
+            activeEncounterId: data.order.encounter_id,
+            activeLabOrderId: data.order.id,
+            // `patient.created` is not an assumption: an order cannot exist
+            // without a patient, and most actions activate after it.
+            completedEvents: data.order.verified_at
+              ? ["patient.created", "order.created", "lab.sample_collected", "lab.result.verified"]
+              : data.order.collected_at
+                ? ["patient.created", "order.created", "lab.sample_collected"]
+                : ["patient.created", "order.created"],
+          })
+        : null,
+    [data],
+  );
 
   const collectMutation = useMutation({
     mutationFn: (patientIdentifier: string) =>
@@ -376,6 +404,14 @@ export function LabOrderDetail({
           `lab-report-full` are excluded: this page already prints those its own
           way, and two buttons that produce different-looking versions of the
           same report is worse than one. */}
+      {journeyContext && (
+        <PatientJourneyActions
+          context={journeyContext}
+          hiddenActionIds={["lab.open_order", "lab.record_result"]}
+          layout="rail"
+          size="sm"
+        />
+      )}
       <PrintDocumentMenu
         idKind="lab_order"
         recordId={orderId}
