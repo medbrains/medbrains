@@ -42,6 +42,18 @@ ID_KIND = {
     "order_id": "order", "invoice_id": "invoice", "payment_id": "payment",
 }
 
+# `order_id` alone is ambiguous: a lab order and a radiology order are both
+# "an order" and neither endpoint accepts the other's id. Offering both on one
+# screen hands a technician a button that fetches the wrong record — the exact
+# mistake idKind exists to prevent. The route prefix disambiguates.
+ORDER_KIND_BY_PREFIX = {
+    "lab-report": "lab_order", "cumulative-lab-report": "lab_order",
+    "culture-sensitivity": "lab_order", "histopath-report": "lab_order",
+    "investigation-requisition": "lab_order", "lab-report-full": "lab_order",
+    "radiology-report": "radiology_order", "radiology-report-full": "radiology_order",
+    "dicom": "radiology_order", "imaging": "radiology_order",
+}
+
 
 def permission_constants() -> dict[str, str]:
     """`indent::STOCK_MANAGE` -> "indent.stock.manage", read from the source."""
@@ -159,9 +171,12 @@ def main() -> int:
             lambda m: (" " if m.group(1) else "") + m.group(2).upper(),
             segment.split("/")[-1].replace("-", "_"),
         ).strip()
+        kind = ID_KIND.get(param.group(1) if param else "", "record")
+        if kind == "order":
+            kind = ORDER_KIND_BY_PREFIX.get(segment.split("/")[0], "order")
         entries.append({
             "key": key, "label": label, "method": single[0][0], "permission": permission,
-            "idKind": ID_KIND.get(param.group(1) if param else "", "record"),
+            "idKind": kind,
         })
 
     body = "\n".join(

@@ -9,6 +9,7 @@ import type {
   AutoValidateResult,
   LabCriticalAlert,
   LabOrderDetailResponse,
+  LabPriority,
   LabResult,
   LabResultAmendment,
   LabTestDefaults,
@@ -124,6 +125,25 @@ export function LabOrderDetail({
   // this order from the patient's chart lands ready to type, rather than
   // hunting for the control on a page they were sent to for exactly that.
   const [searchParams] = useSearchParams();
+  // Nothing could put a patient into the draw queue: the phlebotomy page reads
+  // the queue and can advance a draw, but `createPhlebotomyEntry` had no
+  // caller, so the worklist was permanently empty with working controls on it.
+  // The order is where the draw is decided, so the maker belongs here.
+  const canQueueDraw = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
+  const sendToDrawQueue = useMutation({
+    mutationFn: (vars: { orderId: string; patientId: string; priority: LabPriority }) =>
+      labService.createPhlebotomyEntry({
+        order_id: vars.orderId,
+        patient_id: vars.patientId,
+        priority: vars.priority,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["phlebotomy-queue"] });
+      toast.success("Added to the draw queue");
+    },
+    onError: (error: Error) =>
+      toast.error(error.message, { title: "Could not add to the draw queue" }),
+  });
   const [resultFormOpen, resultFormHandlers] = useDisclosure(
     searchParams.get("action") === "record_result",
   );
@@ -357,10 +377,28 @@ export function LabOrderDetail({
           way, and two buttons that produce different-looking versions of the
           same report is worse than one. */}
       <PrintDocumentMenu
-        idKind="order"
+        idKind="lab_order"
         recordId={orderId}
         exclude={["lab-report", "lab-report-full"]}
       />
+      {canQueueDraw && !order.collected_at && (
+        <Group>
+          <Button
+            tone="secondary"
+            leftSection={<IconDroplet size={14} />}
+            loading={sendToDrawQueue.isPending}
+            onClick={() =>
+              sendToDrawQueue.mutate({
+                orderId: order.id,
+                patientId: order.patient_id,
+                priority: order.priority,
+              })
+            }
+          >
+            Send to draw queue
+          </Button>
+        </Group>
+      )}
       <Group>
         <Badge tone={toBadgeTone(statusColor(order.priority))} variant="dot">
           Priority: {order.priority}

@@ -145,7 +145,7 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   {
     key: "culture-sensitivity",
     label: "Culture Sensitivity",
-    idKind: "order",
+    idKind: "lab_order",
     permission: "lab.orders.view",
     fetch: (id) => api.getCultureSensitivityPrintData(id),
   },
@@ -292,7 +292,7 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   {
     key: "histopath-report",
     label: "Histopath Report",
-    idKind: "order",
+    idKind: "lab_order",
     permission: "lab.orders.view",
     fetch: (id) => api.getHistopathReportPrintData(id),
   },
@@ -334,7 +334,7 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   {
     key: "investigation-requisition",
     label: "Investigation Requisition",
-    idKind: "order",
+    idKind: "lab_order",
     permission: "lab.orders.view",
     fetch: (id) => api.getInvestigationRequisitionPrintData(id),
   },
@@ -362,14 +362,14 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   {
     key: "lab-report-full",
     label: "Lab Report Full",
-    idKind: "order",
+    idKind: "lab_order",
     permission: "lab.reports.view",
     fetch: (id) => api.getLabReportFullPrintData(id),
   },
   {
     key: "lab-report",
     label: "Lab Report",
-    idKind: "order",
+    idKind: "lab_order",
     permission: "lab.orders.view",
     fetch: (id) => api.getLabReportPrintData(id),
   },
@@ -579,14 +579,14 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
   {
     key: "radiology-report-full",
     label: "Radiology Report Full",
-    idKind: "order",
+    idKind: "radiology_order",
     permission: "radiology.reports.verify",
     fetch: (id) => api.getRadiologyReportFullPrintData(id),
   },
   {
     key: "radiology-report",
     label: "Radiology Report",
-    idKind: "order",
+    idKind: "radiology_order",
     permission: "radiology.orders.view",
     fetch: (id) => api.getRadiologyPrintData(id),
   },

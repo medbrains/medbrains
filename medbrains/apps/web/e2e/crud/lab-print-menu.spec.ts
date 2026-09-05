@@ -18,6 +18,14 @@ test.describe("lab order print menu", () => {
     ).toBeVisible();
   });
 
+  test("it does not offer radiology documents on a lab order", async ({ page }) => {
+    // Both key on an "order" id and neither endpoint accepts the other's, so
+    // a radiology button here would fetch the wrong record entirely.
+    await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
+    await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /radiology report/i })).toHaveCount(0);
+  });
+
   test("it does not duplicate the report this page already prints", async ({ page }) => {
     await navigateTo(page, "/lab/orders/a70beb55-1ac9-4d7b-8f89-b897601aaadc");
     await expect(page.getByText("Print", { exact: true })).toBeVisible({ timeout: 15000 });

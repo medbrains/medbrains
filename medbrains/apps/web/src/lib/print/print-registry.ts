@@ -21,6 +21,10 @@ export type PrintDocumentIdKind =
   | "consent"
   | "enrollment"
   | "video_consent"
+  /** A lab order and a radiology order are both "an order" and neither
+   *  endpoint accepts the other's id, so they are distinct kinds. */
+  | "lab_order"
+  | "radiology_order"
   | "order"
   | "invoice"
   | "payment"
