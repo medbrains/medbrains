@@ -1,0 +1,46 @@
+[Unit]
+Description=SpiceDB - ReBAC authorization for MedBrains
+After=network-online.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=spicedb
+Group=spicedb
+EnvironmentFile=/etc/spicedb/env
+
+# Every listener is loopback-only. SpiceDB answers authorization questions
+# about every patient in the hospital; it has no business being reachable
+# from anywhere but this host, and no inbound rule should ever be needed.
+#
+# telemetry-endpoint is emptied deliberately — the phone-home would carry
+# schema shape off a hospital network.
+ExecStart=/usr/local/bin/spicedb serve \
+    --grpc-addr 127.0.0.1:50051 \
+    --http-addr 127.0.0.1:8443 \
+    --metrics-addr 127.0.0.1:9090 \
+    --datastore-engine postgres \
+    --datastore-conn-uri "postgres:///spicedb?host=/var/run/postgresql" \
+    --datastore-conn-max-open 8 \
+    --telemetry-endpoint=
+
+Restart=on-failure
+RestartSec=15s
+
+# This box also runs the hospital's ERP, HR and analytics. SpiceDB is a
+# supporting index, not the main tenant, and is capped so a runaway query
+# cannot starve the applications people are actually using.
+CPUQuota=40%
+CPUWeight=15
+MemoryMax=768M
+
+# Matches the unit that has been running on the Alagappa host. Deliberately
+# no ProtectSystem=strict / ProtectHome here: that hardening is worth adding,
+# but adding it blind in the same change that first takes over management of
+# a running service means a failure to start could not be told apart from a
+# packaging mistake. Harden it as its own change, once this is proven.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

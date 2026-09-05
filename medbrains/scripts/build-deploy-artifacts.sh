@@ -37,6 +37,38 @@ else
     say "medbrains-edge — not in the workspace, skipping"
 fi
 
+# rustenberg — the PDF renderer, in its own repository.
+#
+# MedBrains has a hard runtime dependency on it: GOTENBERG_URL in
+# /etc/medbrains/env points at 127.0.0.1:3001, and every server-side render
+# goes through it. Nothing in this repository built, shipped or restarted it,
+# so it existed on the hospital host only because somebody installed it by
+# hand. Rebuild that host and terraform faithfully restores MedBrains, then
+# every PDF fails with a connection error — worse than the clean "not
+# configured" you would get if the variable were simply absent.
+#
+# Same toolchain, same target, so it costs one more zigbuild. Built when the
+# source is present and skipped when it is not, exactly as medbrains-edge is:
+# a checkout without the sibling repository must still produce a deploy.
+RUSTENBERG_SRC="${RUSTENBERG_SRC:-$REPO_ROOT/../../rustenberg}"
+if [ -f "$RUSTENBERG_SRC/Cargo.toml" ]; then
+    echo "==> building rustenberg (target=$TARGET)"
+    say "source: $RUSTENBERG_SRC"
+    ( cd "$RUSTENBERG_SRC" && cargo zigbuild --release --target="$TARGET" )
+    # Into the deploy kit rather than beside the MedBrains binaries. The kit
+    # directory is uploaded whole, so rustenberg travels with it and needs no
+    # provisioner of its own — which matters because a terraform `file`
+    # provisioner cannot be made conditional, and a checkout without the
+    # sibling repository must still deploy.
+    install -m 0755 "$RUSTENBERG_SRC/target/$TARGET/release/rustenberg" \
+        "$REPO_ROOT/deploy/standalone/rustenberg"
+    rm -rf "$REPO_ROOT/deploy/standalone/rustenberg-kit"
+    cp -R "$RUSTENBERG_SRC/deploy" "$REPO_ROOT/deploy/standalone/rustenberg-kit"
+    say "rustenberg $(du -h "$REPO_ROOT/deploy/standalone/rustenberg" | cut -f1) + its install kit"
+else
+    say "rustenberg — no source at $RUSTENBERG_SRC, skipping (PDF rendering will not be installed)"
+fi
+
 echo "==> building the web SPA"
 pnpm --filter "@medbrains/types" \
      --filter "@medbrains/utils" \

@@ -43,6 +43,12 @@ if [[ "$ATTACH_REUSE_POSTGRES" == "1" && -z "$ATTACH_DATABASE_URL" ]]; then
     ATTACH_REUSE_POSTGRES=0
 fi
 
+# SpiceDB stores its graph in Postgres and connects over the local unix
+# socket as peer, so it needs a Postgres on the host rather than one in a
+# container. That is exactly the attach-reuse case, which is why the default
+# follows it. Set INSTALL_SPICEDB=1 explicitly to install it anywhere else.
+INSTALL_SPICEDB="${INSTALL_SPICEDB:-$ATTACH_REUSE_POSTGRES}"
+
 # Docker exists in this kit to run Postgres. Reusing the host's means we
 # have no reason to install a container runtime on somebody's server.
 NEED_DOCKER=1
@@ -572,6 +578,51 @@ if [[ "$HAVE_EDGE" == "1" ]]; then
     systemctl restart medbrains-edge.service
 else
     echo "==> skipping medbrains-edge.service - binary not supplied"
+fi
+
+# ── SpiceDB ───────────────────────────────────────────────────────────
+# The ReBAC graph index. Installed on every tier that has a local Postgres
+# to point it at, which is the same condition the rest of this script uses
+# to decide whether a database is available at all.
+#
+# It ran on the Alagappa host for months as a hand-installed service with no
+# way to rebuild it: a fetched binary, a hand-written unit, a hand-created
+# database, a hand-loaded schema. It worked, and losing the host would have
+# lost it. Managing it here is the whole point.
+#
+# Installing the index is not the same as trusting it. This does not set
+# SPICEDB_ENDPOINT, so MedBrains keeps answering from Postgres until someone
+# performs the cutover deliberately.
+if [[ "$INSTALL_SPICEDB" == "1" ]]; then
+    echo "==> Installing SpiceDB (ReBAC index)"
+    if [[ -f "$DEPLOY_DIR/install-spicedb.sh" ]]; then
+        DEPLOY_DIR="$DEPLOY_DIR" bash "$DEPLOY_DIR/install-spicedb.sh" || {
+            echo "    WARNING: SpiceDB install failed — MedBrains is unaffected,"
+            echo "             it answers authorization from Postgres either way."
+        }
+    else
+        echo "    install-spicedb.sh not supplied — skipping"
+    fi
+else
+    echo "==> skipping SpiceDB (INSTALL_SPICEDB not set)"
+fi
+
+# ── rustenberg ────────────────────────────────────────────────────────
+# The PDF renderer. Unlike SpiceDB this one is a live dependency:
+# GOTENBERG_URL in /etc/medbrains/env points at it, so a host rebuilt
+# without it restores MedBrains and then fails every server-side render
+# with a connection error.
+if [[ -f "$DEPLOY_DIR/rustenberg" ]]; then
+    echo "==> Installing rustenberg (PDF renderer)"
+    install -m 0755 "$DEPLOY_DIR/rustenberg" /usr/local/bin/rustenberg
+    if [[ -f "$DEPLOY_DIR/rustenberg-kit/install.sh" ]]; then
+        bash "$DEPLOY_DIR/rustenberg-kit/install.sh" || {
+            echo "    WARNING: rustenberg install failed — server-side PDF rendering"
+            echo "             will not work until this is resolved."
+        }
+    fi
+else
+    echo "==> skipping rustenberg - binary not supplied"
 fi
 
 if [[ "$ATTACH_REUSE_TLS" == "1" ]]; then
