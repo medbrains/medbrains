@@ -193,10 +193,25 @@ export interface BedDashboardRow {
   patient_name: string | null;
   patient_uhid: string | null;
   admission_id: string | null;
+  /** The occupant, so the board can transfer them rather than only show them. */
+  patient_id: string | null;
+  /** Why the bed is out of service, who put it there, and since when. */
+  blocked_reason: string | null;
+  status_changed_at: string | null;
+  status_changed_by_name: string | null;
+  /**
+   * The bed's class — General Ward, Semi-Private, Private, ICU, HDU, Daycare.
+   * Sets the tariff and the insurance cap, and decides clinical suitability.
+   * Null until the bed is mapped to a ward, which is where a class is chosen.
+   */
+  bed_type_name: string | null;
+  bed_type_code: string | null;
 }
 
 export interface UpdateBedStatusRequest {
   status: string;
+  /** Required when moving a bed to blocked or maintenance. */
+  reason?: string;
 }
 
 export interface CreateAttenderRequest {

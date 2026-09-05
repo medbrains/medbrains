@@ -285,9 +285,7 @@ async fn occupy_admission_bed(
            ward_id = COALESCE($5, ward_id), \
            changed_by = $6, \
            reason = $7, \
-           changed_at = NOW(), \
-           reserved_for_patient = NULL, \
-           reserved_until = NULL \
+           changed_at = NOW() \
          WHERE location_id = $1 AND tenant_id = $2",
     )
     .bind(bed_id)
@@ -606,11 +604,33 @@ pub struct BedDashboardRow {
     pub patient_name: Option<String>,
     pub patient_uhid: Option<String>,
     pub admission_id: Option<Uuid>,
+    /// The occupant, so the board can act on the patient rather than only
+    /// describe the bed. Ungated for the same reason `admission_id` is: it is
+    /// a key the caller already holds a bed-management permission to use,
+    /// while the name and UHID above stay behind the identity check.
+    pub patient_id: Option<Uuid>,
+    /// Why this bed is out of service, and since when. A blocked bed with no
+    /// reason on the board is a bed the ward has to ring round to ask about.
+    pub blocked_reason: Option<String>,
+    pub status_changed_at: Option<chrono::DateTime<Utc>>,
+    pub status_changed_by_name: Option<String>,
+    /// The bed's class. In an Indian hospital this is not decoration: it sets
+    /// the tariff and the insurance/CGHS/ECHS cap, and it decides clinical
+    /// suitability. "Is a bed free" is rarely the question — "is an ICU bed
+    /// free", "is a private room free" is.
+    pub bed_type_name: Option<String>,
+    pub bed_type_code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateBedStatusRequest {
     pub status: String,
+    /// Why the bed changed state. Required by the caller for the statuses
+    /// that take a bed out of service — a bed nobody can use, with no
+    /// recorded reason and nobody named to ask, is how a ward loses a bed
+    /// for a week.
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
 // ── Phase 2: Attenders ───────────────────────────────────
@@ -4913,10 +4933,16 @@ pub async fn bed_dashboard_beds(
                l.name AS bed_name, bs.ward_id, w.name AS ward_name, \
                bs.status::text AS bed_status, \
                CASE WHEN $2::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
-               CASE WHEN $2::bool THEN p.uhid ELSE NULL END AS patient_uhid, bs.admission_id \
+               CASE WHEN $2::bool THEN p.uhid ELSE NULL END AS patient_uhid, bs.admission_id, \
+               a.patient_id, \
+               bs.blocked_reason, bs.changed_at AS status_changed_at, \
+               cb.full_name AS status_changed_by_name, \
+               bt.name AS bed_type_name, bt.code AS bed_type_code \
          FROM bed_states bs \
          JOIN locations l ON l.id = bs.location_id \
          LEFT JOIN wards w ON w.id = bs.ward_id \
+         LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
+         LEFT JOIN users cb ON cb.id = bs.changed_by \
          LEFT JOIN admissions a ON a.id = bs.admission_id \
              AND a.status = 'admitted'::admission_status \
          LEFT JOIN patients p ON p.id = a.patient_id \
@@ -4953,13 +4979,38 @@ pub async fn update_bed_status(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // A bed leaving service is an event with an author, not a value that
+    // changes on its own. changed_by, changed_at and reason all existed on
+    // this table and none of them was written: the board could show that a
+    // bed was blocked and never why, by whom, or since when.
+    //
+    // blocked_reason is set only for the statuses that actually take the bed
+    // out of service, and cleared otherwise, so a stale reason from last
+    // week cannot hang off a bed that is now clean and free.
+    let blocks_the_bed = matches!(body.status.as_str(), "blocked" | "maintenance");
+    let reason = body.reason.as_deref().map(str::trim).filter(|r| !r.is_empty());
+
+    if blocks_the_bed && reason.is_none() {
+        return Err(AppError::BadRequest(
+            "A reason is required when taking a bed out of service.".to_owned(),
+        ));
+    }
+
     let updated = sqlx::query_scalar::<_, bool>(
-        "UPDATE bed_states SET status = $3::bed_status \
+        "UPDATE bed_states SET \
+           status = $3::bed_status, \
+           reason = $4, \
+           blocked_reason = CASE WHEN $5 THEN $4 ELSE NULL END, \
+           changed_by = $6, \
+           changed_at = NOW() \
          WHERE location_id = $1 AND tenant_id = $2 RETURNING true",
     )
     .bind(bed_id)
     .bind(claims.tenant_id)
     .bind(&body.status)
+    .bind(reason)
+    .bind(blocks_the_bed)
+    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?;
 

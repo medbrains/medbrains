@@ -11,7 +11,12 @@ import {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "@medbrains/types";
-import { IconBookmark, IconBuildingHospital, IconEye } from "@tabler/icons-react";
+import {
+  IconArrowsExchange,
+  IconBookmark,
+  IconBuildingHospital,
+  IconEye,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,6 +25,7 @@ import { OperationalSignal, PatientSearchSelect, useProtectedFieldAccess } from 
 import { Alert, Button, Input, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
+import { BedTransferModal } from "./bed-transfer-modal";
 import { BedTurnaroundView } from "./bed-turnaround";
 import {
   bedDashboardSignalLabel,
@@ -53,6 +59,21 @@ export function BedDashboardTab() {
   const [holdPatientId, setHoldPatientId] = useState("");
   const [holdUntil, setHoldUntil] = useState<Date | null>(null);
   const [holdPurpose, setHoldPurpose] = useState("");
+  const [outOfServiceBed, setOutOfServiceBed] = useState<{
+    id: string;
+    name: string;
+    status: string;
+  } | null>(null);
+  const [outOfServiceReason, setOutOfServiceReason] = useState("");
+  const [transferFor, setTransferFor] = useState<{
+    admissionId: string;
+    patientId: string;
+  } | null>(null);
+
+  const closeOutOfServiceModal = () => {
+    setOutOfServiceBed(null);
+    setOutOfServiceReason("");
+  };
 
   const closeHoldModal = () => {
     setHoldBedId(null);
@@ -90,13 +111,27 @@ export function BedDashboardTab() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ bedId, status }: { bedId: string; status: string }) =>
-      ipdService.updateBedStatus(bedId, { status }),
+    mutationFn: ({ bedId, status, reason }: { bedId: string; status: string; reason?: string }) =>
+      ipdService.updateBedStatus(bedId, { status, reason }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
+      closeOutOfServiceModal();
     },
   });
+
+  // Taking a bed out of service asks why. A ward that finds a blocked bed with
+  // no reason has to ring round to discover whether it is awaiting a deep
+  // clean, has a broken frame, or is being held for an isolation case — and
+  // in the meantime nobody dares use it.
+  const requestStatusChange = (bed: BedDashboardRow, status: string) => {
+    if (status === "blocked" || status === "maintenance") {
+      setOutOfServiceBed({ id: bed.bed_location_id, name: bed.bed_name ?? "", status });
+      setOutOfServiceReason("");
+      return;
+    }
+    updateStatusMutation.mutate({ bedId: bed.bed_location_id, status });
+  };
 
   // One request for the whole board, then a map lookup per card. The
   // per-bed endpoint exists but calling it from inside the grid would be one
@@ -321,6 +356,14 @@ export function BedDashboardTab() {
                 </Text>
                 <Text size="xs" c="dimmed">
                   {bed.ward_name ?? t("bedDashboard.unassignedWard")}
+                  {" · "}
+                  {/* "Is a bed free" is rarely the question. "Is an ICU bed
+                      free", "is a private room free" is — the class sets both
+                      the tariff and whether the patient can safely go there.
+                      Saying "No class set" rather than showing nothing is the
+                      difference between a bed nobody has classified and a
+                      general-ward bed. */}
+                  {bed.bed_type_name ?? t("bedDashboard.noBedType")}
                 </Text>
                 <Group gap={4} mt={6} wrap="wrap">
                   <OperationalSignal
@@ -378,6 +421,40 @@ export function BedDashboardTab() {
                     {t("bedDashboard.actions.openAdmission")}
                   </Button>
                 )}
+                {/* Moving a patient between beds is the board's most common
+                    action — step-up from Emergency to ICU, out of recovery
+                    after theatre, a class change the family has asked for.
+                    It existed only on the admission record, which means the
+                    person looking at the beds had to go and find the patient
+                    first. */}
+                {canManageBeds && admissionId && bed.patient_id && (
+                  <Button
+                    tone="secondary"
+                    size="compact-xs"
+                    mt={6}
+                    leftSection={<IconArrowsExchange size={12} />}
+                    onClick={() =>
+                      setTransferFor({
+                        admissionId,
+                        patientId: bed.patient_id ?? "",
+                      })
+                    }
+                  >
+                    {t("bedDashboard.actions.transfer")}
+                  </Button>
+                )}
+                {bed.blocked_reason && (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {bed.blocked_reason}
+                    {bed.status_changed_by_name
+                      ? ` — ${bed.status_changed_by_name}${
+                          bed.status_changed_at
+                            ? `, ${new Date(bed.status_changed_at).toLocaleString()}`
+                            : ""
+                        }`
+                      : ""}
+                  </Text>
+                )}
                 {held && (
                   <Text size="xs" c="dimmed" mt={4}>
                     {t("bedDashboard.hold.untilLabel", {
@@ -423,12 +500,7 @@ export function BedDashboardTab() {
                       label: bedDashboardStatusLabel(t, statusOption),
                     }))}
                     onChange={(value) => {
-                      if (value) {
-                        updateStatusMutation.mutate({
-                          bedId: bed.bed_location_id,
-                          status: value,
-                        });
-                      }
+                      if (value) requestStatusChange(bed, value);
                     }}
                     clearable
                   />
@@ -443,6 +515,56 @@ export function BedDashboardTab() {
           {t("bedDashboard.noBedsFound")}
         </Text>
       )}
+
+      {transferFor && (
+        <BedTransferModal
+          admissionId={transferFor.admissionId}
+          patientId={transferFor.patientId}
+          opened
+          onClose={() => setTransferFor(null)}
+        />
+      )}
+
+      <Modal
+        opened={outOfServiceBed !== null}
+        onClose={closeOutOfServiceModal}
+        title={t("bedDashboard.outOfService.title", { bed: outOfServiceBed?.name ?? "" })}
+      >
+        <Stack gap="sm">
+          <Input
+            label={t("bedDashboard.outOfService.reasonLabel")}
+            placeholder={t("bedDashboard.outOfService.reasonPlaceholder")}
+            value={outOfServiceReason}
+            onChange={(e) => setOutOfServiceReason(e.currentTarget.value)}
+            required
+          />
+          {updateStatusMutation.isError && (
+            <Alert tone="danger" title={t("bedDashboard.outOfService.failedTitle")}>
+              {(updateStatusMutation.error as Error).message}
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button tone="ghost" onClick={closeOutOfServiceModal}>
+              {t("bedDashboard.hold.cancel")}
+            </Button>
+            <Button
+              tone="primary"
+              loading={updateStatusMutation.isPending}
+              disabled={!outOfServiceReason.trim()}
+              onClick={() =>
+                outOfServiceBed &&
+                updateStatusMutation.mutate({
+                  bedId: outOfServiceBed.id,
+                  status: outOfServiceBed.status,
+                  reason: outOfServiceReason.trim(),
+                })
+              }
+            >
+              {t("bedDashboard.outOfService.confirm")}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={holdBedId !== null}

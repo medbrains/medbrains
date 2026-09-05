@@ -2466,7 +2466,7 @@ pub async fn admit_from_er(
         "UPDATE bed_states \
          SET ward_id = COALESCE($3, ward_id), admission_id = $4, patient_id = $5, \
              status = 'occupied'::bed_status, changed_by = $6, changed_at = now(), \
-             reason = $7, reserved_for_patient = NULL, reserved_until = NULL \
+             reason = $7 \
          WHERE location_id = $1 AND tenant_id = $2",
     )
     .bind(body.bed_id)

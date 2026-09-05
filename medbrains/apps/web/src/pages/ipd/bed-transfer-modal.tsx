@@ -34,7 +34,11 @@ export function BedTransferModal({
     onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
+      // The board's keys, not "bed-dashboard" — that name was left behind when
+      // the board was split out of ipd.tsx, so a transfer refreshed nothing
+      // and the vacated bed went on showing its old occupant until reload.
+      void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       toast.success(t("notify.bedTransferCompleted"), { title: t("notify.transferred") });
       emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
