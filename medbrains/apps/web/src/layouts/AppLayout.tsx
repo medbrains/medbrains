@@ -85,6 +85,8 @@ const GROUP_LABEL_KEYS = {
   inpatient: "groupInpatient",
   finance: "groupFinance",
   operations: "groupOperations",
+  network: "groupNetwork",
+  marketing: "groupMarketing",
   compliance: "groupCompliance",
   specialty: "groupSpecialty",
   admin: "groupAdmin",
