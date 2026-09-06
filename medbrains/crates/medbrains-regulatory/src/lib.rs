@@ -260,13 +260,17 @@ pub async fn dashboard(
 
     // Accreditation scores from quality_accreditation_compliance
     let acc_rows: Vec<(String, i64, i64)> = sqlx::query_as(
-        "SELECT s.accreditation_body::text, \
+        // The columns are `body` and `compliance`, not `accreditation_body`
+        // and `status`. 'compliant' is a real value of compliance_status
+        // (compliant, partially_compliant, non_compliant, not_applicable), so
+        // the intent survives the rename intact.
+        "SELECT s.body::text, \
                 COUNT(*), \
-                COUNT(*) FILTER (WHERE c.status = 'compliant') \
+                COUNT(*) FILTER (WHERE c.compliance = 'compliant') \
          FROM quality_accreditation_standards s \
          LEFT JOIN quality_accreditation_compliance c ON c.standard_id = s.id \
          WHERE s.tenant_id = $1 \
-         GROUP BY s.accreditation_body",
+         GROUP BY s.body",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -353,7 +357,7 @@ pub async fn dashboard(
 
     // License expiry within 90 days
     let license_expiring_soon: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM facility_regulatory_licenses \
+        "SELECT COUNT(*) FROM facility_regulatory_compliance \
          WHERE tenant_id = $1 AND valid_until IS NOT NULL \
          AND valid_until <= CURRENT_DATE + INTERVAL '90 days' \
          AND valid_until > CURRENT_DATE",
@@ -2035,15 +2039,26 @@ pub async fn license_dashboard(
         .await?;
 
     let rows = sqlx::query_as::<_, LicenseDashboardRow>(
-        "SELECT id, license_type, license_number, issuing_authority, \
-                valid_from, valid_until, \
-                CASE WHEN valid_until IS NOT NULL \
-                  THEN (valid_until - CURRENT_DATE)::int \
+        // There is no `facility_regulatory_licenses` table — the licence
+        // register is `facility_regulatory_compliance`, carrying
+        // license_number, valid_from, valid_until and status. What it does not
+        // carry is the licence type or the issuing authority: both belong to
+        // the `regulatory_bodies` row it points at.
+        //
+        // The join is inner because regulatory_body_id is NOT NULL and
+        // foreign-keyed, so it cannot miss — which is what keeps
+        // `license_type` a String rather than an Option.
+        "SELECT f.id, rb.code AS license_type, f.license_number, \
+                rb.name AS issuing_authority, \
+                f.valid_from, f.valid_until, \
+                CASE WHEN f.valid_until IS NOT NULL \
+                  THEN (f.valid_until - CURRENT_DATE)::int \
                   ELSE NULL END AS days_to_expiry, \
-                status \
-         FROM facility_regulatory_licenses \
-         WHERE tenant_id = $1 \
-         ORDER BY valid_until ASC NULLS LAST LIMIT 200",
+                f.status::text AS status \
+         FROM facility_regulatory_compliance f \
+         JOIN regulatory_bodies rb ON rb.id = f.regulatory_body_id \
+         WHERE f.tenant_id = $1 \
+         ORDER BY f.valid_until ASC NULLS LAST LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

@@ -180,6 +180,12 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                     # table.
                     if tbl.lower().startswith(("pg_", "information_schema")):
                         continue
+                    # A dot straight after the name means only the schema
+                    # prefix matched, because the table itself is a format
+                    # placeholder — `FROM public.{table}`. The real name is
+                    # not in the literal, so there is nothing to check.
+                    if body[m.end(1) :].startswith("."):
+                        continue
                     # `EXTRACT(EPOCH FROM AVG(...))` is not a table named AVG.
                     # A name followed by `(` is a function call, never a source.
                     # Checked here rather than as a lookahead in SOURCE, which
