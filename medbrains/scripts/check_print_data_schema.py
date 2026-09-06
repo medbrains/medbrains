@@ -91,7 +91,7 @@ UPDATE = re.compile(
 SET_COL = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.I)
 # A CTE is a source that exists only for the length of the statement, so it is
 # not in the catalogue and must not be reported missing.
-CTE = re.compile(r"(?:WITH|,)\s+([a-z_][a-z0-9_]*)\s+AS\s*\(", re.I)
+CTE = re.compile(r"(?:WITH(?:\s+RECURSIVE)?|,)\s+([a-z_][a-z0-9_]*)\s+AS\s*\(", re.I)
 # SQL functions that take FROM as an argument separator rather than a clause.
 FN_WITH_FROM = re.compile(r"\b(EXTRACT|SUBSTRING|TRIM|POSITION|OVERLAY)\s*\([^()]*$")
 # Not every string in a handler is SQL. "…components from the same donation…"

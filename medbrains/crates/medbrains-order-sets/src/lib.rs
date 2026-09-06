@@ -810,11 +810,16 @@ pub async fn activate_order_set(
                 medbrains_core::order_set::OrderSetItemType::Lab => {
                     if let Some(test_id) = ti.lab_test_id {
                         let order: OrderIdRow = sqlx::query_as(
+                            // `clinical_notes` is not a lab_orders column; the
+                            // note column is `notes`. The priority also needs an
+                            // explicit ::lab_priority cast — bound as text it is
+                            // rejected outright, so this INSERT had two reasons
+                            // never to run.
                             "INSERT INTO lab_orders \
                              (tenant_id, encounter_id, patient_id, test_id, status, \
-                              priority, clinical_notes, ordered_by) \
+                              priority, notes, ordered_by) \
                              VALUES ($1, $2, $3, $4, 'ordered', \
-                                     COALESCE($5, 'routine'), $6, $7) \
+                                     COALESCE($5::lab_priority, 'routine'), $6, $7) \
                              RETURNING id",
                         )
                         .bind(claims.tenant_id)
@@ -834,9 +839,15 @@ pub async fn activate_order_set(
                     // Create one prescription per activation, add items to it
                     if prescription_id.is_none() {
                         let rx: OrderIdRow = sqlx::query_as(
+                            // The prescriber column is `doctor_id`, and
+                            // `prescriptions` has no `status` at all — a
+                            // prescription's life is tracked by `is_signed` and
+                            // per-item `item_status`, not a header state. The
+                            // 'active' it tried to write had nowhere to go, so
+                            // it is dropped rather than given a new column.
                             "INSERT INTO prescriptions \
-                             (tenant_id, encounter_id, patient_id, prescribed_by, status) \
-                             VALUES ($1, $2, $3, $4, 'active') \
+                             (tenant_id, encounter_id, patient_id, doctor_id) \
+                             VALUES ($1, $2, $3, $4) \
                              RETURNING id",
                         )
                         .bind(claims.tenant_id)
@@ -851,7 +862,7 @@ pub async fn activate_order_set(
                     if let Some(pid) = prescription_id {
                         sqlx::query(
                             "INSERT INTO prescription_items \
-                             (tenant_id, prescription_id, drug_catalog_id, drug_name, \
+                             (tenant_id, prescription_id, catalog_item_id, drug_name, \
                               dosage, frequency, duration, route, instructions) \
                              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
                         )
@@ -873,17 +884,28 @@ pub async fn activate_order_set(
                 medbrains_core::order_set::OrderSetItemType::Nursing => {
                     if let Some(admission_id) = body.admission_id {
                         let task: OrderIdRow = sqlx::query_as(
+                            // `nursing_tasks` has no `assigned_by`. It has
+                            // `assigned_to` — the nurse who must do the task —
+                            // which is emphatically not the doctor activating
+                            // the order set. Binding the activator there would
+                            // have quietly made every order-set nursing task
+                            // the doctor's own to perform, so the column is
+                            // dropped instead.
+                            //
+                            // Who created a nursing task is therefore not
+                            // recorded anywhere. That is a real gap: it needs a
+                            // column and the screen that shows it, which is
+                            // separate work, not something to smuggle in here.
                             "INSERT INTO nursing_tasks \
                              (tenant_id, admission_id, task_type, description, \
-                              assigned_by, is_completed) \
-                             VALUES ($1, $2, COALESCE($3, 'general'), $4, $5, false) \
+                              is_completed) \
+                             VALUES ($1, $2, COALESCE($3, 'general'), $4, false) \
                              RETURNING id",
                         )
                         .bind(claims.tenant_id)
                         .bind(admission_id)
                         .bind(&ti.task_type)
                         .bind(&ti.task_description)
-                        .bind(claims.sub)
                         .fetch_one(&mut *tx)
                         .await?;
                         nursing_id = Some(task.id);
