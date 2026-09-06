@@ -826,6 +826,27 @@ const FACILITIES_WIDGETS: &[WidgetDef] = &[
         sort: 7,
         refresh_ms: None,
     },
+    // Ward-by-ward occupancy, which nothing rendered until now. The query
+    // existed and the widget was selectable in the catalogue, but it sat on no
+    // dashboard at all, so a facilities manager could not see which ward was
+    // full — the "Bed Occupancy" stat card above gives one number for the
+    // whole hospital.
+    WidgetDef {
+        wtype: "chart",
+        title: "Occupancy by Ward",
+        subtitle: "Beds occupied against beds mapped, per ward",
+        icon: "IconBed",
+        color: "indigo",
+        config: r#"{"chart_type": "bar", "x_axis": "ward", "y_axis": "occupied"}"#,
+        data_source: r#"{"type": "module_query", "module": "ipd", "query": "ward_wise_occupancy"}"#,
+        x: 0,
+        y: 8,
+        w: 12,
+        h: 3,
+        perm: "ipd.bed_dashboard.view",
+        sort: 8,
+        refresh_ms: Some(60000),
+    },
 ];
 
 // ── Hospital Admin/CEO Dashboard ──────────────────────────────
