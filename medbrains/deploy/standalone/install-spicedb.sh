@@ -96,30 +96,39 @@ say "service: $(systemctl is-active spicedb)"
 # infra/spicedb/schema.zed and is applied here, so the authoritative copy is
 # the one in version control rather than whatever happens to be loaded.
 if [ -f "$SCHEMA_FILE" ]; then
+    # Wait for the gRPC port. `set -e` is on, so every command in here must
+    # either succeed or be guarded — a bare command returning non-zero ends
+    # the script, which is exactly how the first run of this failed: a stray
+    # `grep -q . /dev/null` sat here and exited before the schema was applied,
+    # having already reported "service: active".
+    ready=0
     for _ in $(seq 1 20); do
-        grep -q . /dev/null
-        if /usr/local/bin/spicedb version >/dev/null 2>&1 && \
-           ss -ltn 2>/dev/null | grep -q 127.0.0.1:50051; then break; fi
+        if ss -ltn 2>/dev/null | grep -q 127.0.0.1:50051; then ready=1; break; fi
         sleep 1
     done
-    # shellcheck disable=SC1091
-    . /etc/spicedb/env
-    say "applying schema from $(basename "$SCHEMA_FILE")"
-    if command -v zed >/dev/null 2>&1; then
-        zed context set local 127.0.0.1:50051 "$SPICEDB_GRPC_PRESHARED_KEY" --insecure >/dev/null 2>&1 || true
-        zed schema write "$SCHEMA_FILE" --insecure >/dev/null && say "schema applied"
-    else
-        # zed is a separate download; the HTTP API takes the same schema.
-        payload="$(python3 -c 'import json,sys; print(json.dumps({"schema": open(sys.argv[1]).read()}))' "$SCHEMA_FILE")"
-        code="$(curl -s -o /tmp/spicedb-schema-write.out -w '%{http_code}' \
-            -X POST http://127.0.0.1:8443/v1/schema/write \
-            -H "Authorization: Bearer $SPICEDB_GRPC_PRESHARED_KEY" \
-            -H 'Content-Type: application/json' \
-            --data "$payload")"
-        if [ "$code" = "200" ]; then
-            say "schema applied"
+    if [ "$ready" != "1" ]; then
+        say "WARNING: SpiceDB is not listening on 50051 — schema not applied"
+    fi
+    if [ "$ready" = "1" ]; then
+        # shellcheck disable=SC1091
+        . /etc/spicedb/env
+        say "applying schema from $(basename "$SCHEMA_FILE")"
+        if command -v zed >/dev/null 2>&1; then
+            zed context set local 127.0.0.1:50051 "$SPICEDB_GRPC_PRESHARED_KEY" --insecure >/dev/null 2>&1 || true
+            zed schema write "$SCHEMA_FILE" --insecure >/dev/null && say "schema applied"
         else
-            say "WARNING: schema write returned $code — see /tmp/spicedb-schema-write.out"
+            # zed is a separate download; the HTTP API takes the same schema.
+            payload="$(python3 -c 'import json,sys; print(json.dumps({"schema": open(sys.argv[1]).read()}))' "$SCHEMA_FILE")"
+            code="$(curl -s -o /tmp/spicedb-schema-write.out -w '%{http_code}' \
+                -X POST http://127.0.0.1:8443/v1/schema/write \
+                -H "Authorization: Bearer $SPICEDB_GRPC_PRESHARED_KEY" \
+                -H 'Content-Type: application/json' \
+                --data "$payload" || true)"
+            if [ "$code" = "200" ]; then
+                say "schema applied"
+            else
+                say "WARNING: schema write returned $code — see /tmp/spicedb-schema-write.out"
+            fi
         fi
     fi
 else
