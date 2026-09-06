@@ -250,15 +250,16 @@ pub async fn list_chain_verifications(
 
     // Bounded: this is a history panel, not an export. One run per night means
     // 60 rows is two months, which is as far back as anyone reads on a screen.
-    let rows = sqlx::query_as::<_, ChainVerification>(
+    let rows = sqlx::query_as!(
+        ChainVerification,
         "SELECT id, completed_at, rows_checked, head_hash, broken_at, valid, \
                 duration_ms, triggered_by \
            FROM audit_chain_verifications \
           WHERE tenant_id = $1 AND deleted_at IS NULL \
           ORDER BY started_at DESC \
           LIMIT 60",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

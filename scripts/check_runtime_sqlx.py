@@ -39,9 +39,25 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# Every crate's src tree, not just medbrains-server/src/routes.
+#
+# This scanned only that one directory, which was right when the handlers
+# lived there. The backend crate split moved them into ~118 leaf crates and
+# the guard stayed pointed at the old address: 14 files and 133 call sites
+# watched, against 5,075 runtime queries across 111 crates — 2.6% of the
+# surface it was written to cover. The same failure as the tracing EnvFilter
+# that still named only `medbrains_server` after that split.
+#
+# Two crates stay out. medbrains-loadtest is regenerated wholesale by a
+# script, so its counts say nothing about anybody's code; medbrains-db is
+# pool and migration plumbing rather than domain queries.
+CRATES_DIR = REPO_ROOT / "medbrains" / "crates"
+SKIP_CRATES = {"medbrains-loadtest", "medbrains-db"}
 SCAN_DIRS = [
-    REPO_ROOT / "medbrains" / "crates" / "medbrains-server" / "src" / "routes",
-]
+    crate / "src"
+    for crate in sorted(CRATES_DIR.iterdir())
+    if (crate / "src").is_dir() and crate.name not in SKIP_CRATES
+] if CRATES_DIR.is_dir() else []
 BASELINE = REPO_ROOT / "scripts" / ".runtime_sqlx_baseline.json"
 
 # Match runtime variants only — the macros (with !) are explicitly excluded

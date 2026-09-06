@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, completed_at, rows_checked, head_hash, broken_at, valid, duration_ms, triggered_by FROM audit_chain_verifications WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 60",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "rows_checked",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "head_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "broken_at",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "valid",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "duration_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "triggered_by",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "8cbb702b256ed4f6b1a3bea1660d2eaf7a329bfc854dc02206b1b9859c35f3c0"
+}
