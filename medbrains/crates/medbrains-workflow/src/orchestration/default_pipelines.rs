@@ -31,9 +31,12 @@
 //! shouldn't break the originating request. They're logged at warn
 //! and surface in the audit log via the outbox worker's metrics.
 //!
-//! Extending: add a new `match` arm to [`dispatch_default_pipelines`]
-//! and a new `on_<event>` function below. Keep each handler ≤ 50
-//! lines; complex logic belongs in a dedicated module.
+//! Extending: write an `on_<event>` function below and add one row to
+//! [`PIPELINES`]. There is no second list to keep in step and no match arm
+//! to forget. Keep each handler small; complex logic belongs in its own
+//! module that the handler calls.
+
+use std::{future::Future, pin::Pin};
 
 use medbrains_core::clinical_events::ClinicalEventName;
 use serde_json::{Value, json};
@@ -42,43 +45,91 @@ use uuid::Uuid;
 
 use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
 
-/// Stable identifiers for every hardcoded subscriber. Exposed via
-/// `GET /api/integration/default-subscribers` so the Integration Hub
-/// UI can label events as "BUILT-IN" and warn before users build a
-/// duplicate pipeline.
-pub const DEFAULT_SUBSCRIBERS: &[(&str, &str)] = &[
-    (
-        ClinicalEventName::IpdDischargeInitiated.as_str(),
-        "Bed → housekeeping + MRD file + discharge SMS",
-    ),
-    (
-        ClinicalEventName::PharmacyOrderDispensed.as_str(),
-        "NDPS register row (Sched H1/X) + low-stock check",
-    ),
-    (
-        ClinicalEventName::LabResultPosted.as_str(),
-        "Critical-value SMS to ordering doctor",
-    ),
-    (
-        ClinicalEventName::BillingInvoiceCreated.as_str(),
-        "Payment link to patient (WhatsApp)",
-    ),
-    (
-        ClinicalEventName::BillingPaymentReceived.as_str(),
-        "Receipt email to patient",
-    ),
-    (
-        ClinicalEventName::OpdEncounterCreated.as_str(),
-        "Appointment confirmation SMS",
-    ),
-    (
-        ClinicalEventName::BloodTransfusionReactionReported.as_str(),
-        "Quarantine sibling components + raise incident + alert blood bank",
-    ),
+/// One pipeline. The event it answers, what it does, and the code that does
+/// it — in a single place.
+///
+/// Adding a pipeline used to mean three edits that could silently disagree:
+/// an entry in a description array, a match arm, and the function. The array
+/// fed the Integration Hub and the match arm decided what actually ran, so a
+/// pipeline could be advertised and never fire, or fire and never appear.
+/// Now they cannot drift, because they are the same row.
+#[derive(Debug)]
+pub struct Pipeline {
+    /// The event this pipeline answers.
+    pub event: ClinicalEventName,
+    /// What it does, shown in the Integration Hub.
+    pub description: &'static str,
+    /// The subscriber. Every pipeline is independent: it opens its own
+    /// transaction, reads only the payload, and cannot see or affect any
+    /// other pipeline's work. One failing does not stop the rest.
+    pub run: PipelineFn,
+}
+
+/// What every subscriber looks like: the pool, the tenant, the event payload.
+///
+/// Boxed because a `const` array cannot hold `async fn`s of differing types —
+/// each row wraps its function in `Box::pin`.
+pub type PipelineFn = for<'a> fn(
+    &'a PgPool,
+    Uuid,
+    &'a Value,
+) -> Pin<Box<dyn Future<Output = Result<(), sqlx::Error>> + Send + 'a>>;
+
+/// Every built-in pipeline.
+///
+/// To add one: write the subscriber below, then add a row here. That is the
+/// whole procedure — there is no second list to keep in step, and nothing to
+/// configure in a UI.
+pub const PIPELINES: &[Pipeline] = &[
+    Pipeline {
+        event: ClinicalEventName::IpdDischargeInitiated,
+        description: "Bed → housekeeping + MRD file + discharge SMS",
+        run: |p, t, v| Box::pin(on_ipd_discharge_initiated(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::PharmacyOrderDispensed,
+        description: "NDPS register row (Sched H1/X) + low-stock check",
+        run: |p, t, v| Box::pin(on_pharmacy_order_dispensed(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::LabResultPosted,
+        description: "Critical-value SMS to ordering doctor",
+        run: |p, t, v| Box::pin(on_lab_result_posted(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::BillingInvoiceCreated,
+        description: "Payment link to patient (WhatsApp)",
+        run: |p, t, v| Box::pin(on_billing_invoice_created(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::BillingPaymentReceived,
+        description: "Receipt email to patient",
+        run: |p, t, v| Box::pin(on_billing_payment_received(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::OpdEncounterCreated,
+        description: "Appointment confirmation SMS",
+        run: |p, t, v| Box::pin(on_opd_encounter_created(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::BloodTransfusionReactionReported,
+        description: "Quarantine sibling components + raise incident + alert blood bank",
+        run: |p, t, v| Box::pin(on_transfusion_reaction(p, t, v)),
+    },
 ];
 
+/// Event/description pairs for the Integration Hub, derived from the registry
+/// rather than maintained beside it.
+#[must_use]
+pub fn default_subscribers() -> Vec<(&'static str, &'static str)> {
+    PIPELINES
+        .iter()
+        .map(|p| (p.event.as_str(), p.description))
+        .collect()
+}
+
 /// Per-tenant opt-out check. Reads `tenant_settings` row with
-/// category=`default_pipelines` and a JSON array of disabled event_types.
+/// category=`default_pipelines` and a JSON array of disabled `event_types`.
 /// Failures (missing table, unparseable value) default to enabled —
 /// the safe choice is "fire the baseline workflow."
 async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
@@ -118,7 +169,6 @@ async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
 pub async fn dispatch_default_pipelines(
     pool: &PgPool,
     tenant_id: Uuid,
-    user_id: Uuid,
     event_type: &str,
     payload: &Value,
 ) {
@@ -131,44 +181,30 @@ pub async fn dispatch_default_pipelines(
         return;
     }
 
-    let result = match event_type.parse::<ClinicalEventName>() {
-        Ok(ClinicalEventName::IpdDischargeInitiated) => {
-            on_ipd_discharge_initiated(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::PharmacyOrderDispensed) => {
-            on_pharmacy_order_dispensed(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::LabResultPosted) => {
-            on_lab_result_posted(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::BillingInvoiceCreated) => {
-            on_billing_invoice_created(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::BillingPaymentReceived) => {
-            on_billing_payment_received(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::OpdEncounterCreated) => {
-            on_opd_encounter_created(pool, tenant_id, payload).await
-        }
-        Ok(ClinicalEventName::BloodTransfusionReactionReported) => {
-            on_transfusion_reaction(pool, tenant_id, payload).await
-        }
-        // Every other event is emitted and has no subscriber. That is a gap
-        // to close by writing one here, not by assembling something in a UI:
-        // `patient.created` has fired 154 times on this database with nothing
-        // listening, and the answer is a reviewed function, not a row.
-        _ => Ok(()),
+    let Ok(parsed) = event_type.parse::<ClinicalEventName>() else {
+        return;
     };
 
-    if let Err(e) = result {
-        tracing::warn!(
-            tenant_id = %tenant_id,
-            user_id = %user_id,
-            event_type = event_type,
-            error = %e,
-            "default_pipelines: subscriber failed (non-fatal, swallowed)"
-        );
+    // Every pipeline for this event runs, and each is independent: its own
+    // transaction, its own failure. One raising an error must not stop the
+    // next — a blood quarantine failing is no reason to skip an NDPS row.
+    //
+    // Events with no pipeline are not an error. They are a gap to close by
+    // writing a subscriber above: `patient.created` has fired 154 times on
+    // this database with nothing listening, and the answer is a reviewed
+    // function, not a row somebody assembled in a UI.
+    for pipeline in PIPELINES.iter().filter(|p| p.event == parsed) {
+        let result = (pipeline.run)(pool, tenant_id, payload).await;
+        if let Err(err) = result {
+            tracing::error!(
+                tenant_id = %tenant_id,
+                event_type = event_type,
+                error = %err,
+                "default_pipelines: subscriber failed"
+            );
+        }
     }
+
 }
 
 // ── 1. IPD discharge → housekeeping + MRD + claim assembly ─────────
@@ -563,19 +599,21 @@ async fn enqueue(
 mod tests {
     use medbrains_core::clinical_events::ClinicalEventName;
 
-    use super::DEFAULT_SUBSCRIBERS;
+    use super::PIPELINES;
 
     #[test]
     fn critical_lab_default_pipeline_follows_result_posting() {
+        // Asserted against the registry that actually dispatches, not a
+        // description array beside it — the point of merging the two.
         assert!(
-            DEFAULT_SUBSCRIBERS
+            PIPELINES
                 .iter()
-                .any(|(event, _)| *event == ClinicalEventName::LabResultPosted.as_str())
+                .any(|p| p.event == ClinicalEventName::LabResultPosted)
         );
         assert!(
-            !DEFAULT_SUBSCRIBERS
+            !PIPELINES
                 .iter()
-                .any(|(event, _)| *event == ClinicalEventName::LabOrderCompleted.as_str())
+                .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
         );
     }
 }

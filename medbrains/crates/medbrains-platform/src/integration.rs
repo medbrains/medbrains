@@ -583,12 +583,14 @@ pub async fn list_default_pipelines(
         })
         .unwrap_or_default();
 
-    let rows = medbrains_workflow::orchestration::default_pipelines::DEFAULT_SUBSCRIBERS
-        .iter()
+    // Derived from the pipeline registry itself, so the hub cannot advertise
+    // a pipeline that no longer runs, or miss one that does.
+    let rows = medbrains_workflow::orchestration::default_pipelines::default_subscribers()
+        .into_iter()
         .map(|(et, desc)| DefaultPipelineRow {
             event_type: et,
             description: desc,
-            disabled_for_tenant: disabled_set.contains(*et),
+            disabled_for_tenant: disabled_set.contains(et),
         })
         .collect();
 

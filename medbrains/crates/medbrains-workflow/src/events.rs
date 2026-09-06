@@ -98,7 +98,10 @@ pub async fn queue_clinical_event_in_tx(
 pub async fn dispatch_to_pipelines(
     pool: &PgPool,
     tenant_id: Uuid,
-    user_id: Uuid,
+    // The actor stays on this signature — every caller of `emit_event` already
+    // has it and the outbox fallback passes it through — but no built-in
+    // pipeline reads it, so it is not forwarded further.
+    _user_id: Uuid,
     event_type: &str,
     payload: &Value,
 ) -> Result<(), AppError> {
@@ -107,7 +110,7 @@ pub async fn dispatch_to_pipelines(
     // in `default_pipelines.rs` — version-controlled, code-reviewed,
     // tested. Tenant variants live in `tenant_settings`.
     crate::orchestration::default_pipelines::dispatch_default_pipelines(
-        pool, tenant_id, user_id, event_type, payload,
+        pool, tenant_id, event_type, payload,
     )
     .await;
     Ok(())
