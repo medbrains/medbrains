@@ -64,7 +64,13 @@ NOISE = {
 }
 HANDLER = re.compile(r"^pub async fn (\w+)\(", re.M)
 # `FROM tbl alias` / `JOIN tbl AS alias` — the alias is optional.
-SOURCE = re.compile(r"(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)(?:\s+(?:AS\s+)?([a-z][a-z0-9_]*))?", re.I)
+# The optional `schema.` prefix is consumed, not captured: `FROM
+# public.automation_credentials` was reading as a table named `public`.
+SOURCE = re.compile(
+    r"(?:FROM|JOIN)\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)"
+    r"(?:\s+(?:AS\s+)?([a-z][a-z0-9_]*))?",
+    re.I,
+)
 QUALIFIED = re.compile(r"\b([a-z][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b")
 # Only text inside a Rust string literal is SQL. Without this, `tenant.to_string()`
 # and `dept.format(..)` are read as `tenants.to_string` and `departments.format`
@@ -74,9 +80,14 @@ SQL_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"', re.S)
 # QUALIFIED above: a write names its columns bare, inside a list or after SET,
 # with no alias to hang them off. Both pipeline bugs were writes, which is why
 # a checker that only understood FROM/JOIN reported the file clean.
-INSERT = re.compile(r"INSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)", re.I | re.S)
-UPDATE = re.compile(r"UPDATE\s+([a-z_][a-z0-9_]*)\s+SET\s+(.*?)(?:\bWHERE\b|\bRETURNING\b|$)",
-                    re.I | re.S)
+INSERT = re.compile(
+    r"INSERT\s+INTO\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)\s*\(([^)]*)\)", re.I | re.S
+)
+UPDATE = re.compile(
+    r"UPDATE\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)\s+SET\s+(.*?)"
+    r"(?:\bWHERE\b|\bRETURNING\b|$)",
+    re.I | re.S,
+)
 SET_COL = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.I)
 # A CTE is a source that exists only for the length of the statement, so it is
 # not in the catalogue and must not be reported missing.
