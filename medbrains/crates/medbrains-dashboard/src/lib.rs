@@ -1198,8 +1198,22 @@ pub async fn batch_widget_data(
         medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
             .await?;
 
-        let data = resolve_widget_data(&mut tx, widget, &filters).await?;
-        let data = redact_widget_data(data, &widget.config, &restricted);
+        let data = match resolve_widget_data_isolated(&mut tx, widget, &filters).await {
+            Ok(data) => redact_widget_data(data, &widget.config, &restricted),
+            Err(err) => {
+                // The cause names a table and a column, so it is logged and
+                // not returned. The caller gets the shape the widget card
+                // already understands as "could not load" — which is not the
+                // same thing as "there is nothing", and must not render as it.
+                tracing::error!(
+                    widget_id = %widget.id,
+                    error = %err,
+                    "dashboard widget data could not be resolved"
+                );
+                serde_json::json!({ "error": "unavailable" })
+            }
+        };
+
         results.push(WidgetDataResponse {
             widget_id: widget.id,
             data,
@@ -1253,6 +1267,49 @@ async fn fetch_visible_widgets(
 }
 
 /// Resolve widget data based on its `data_source` configuration.
+/// [`resolve_widget_data`] inside a SAVEPOINT, so one tile cannot take the
+/// dashboard with it.
+///
+/// The batch loop used to propagate with `?`: a single widget whose query
+/// named a column that did not exist answered 500 for the whole request,
+/// every other tile included. A failed statement also leaves postgres with
+/// the transaction marked aborted, so there is nothing to carry on with
+/// unless the failure is contained.
+async fn resolve_widget_data_isolated(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    widget: &DashboardWidget,
+    filters: &DataFilters,
+) -> Result<serde_json::Value, AppError> {
+    sqlx::query("SAVEPOINT widget_data")
+        .execute(&mut **tx)
+        .await?;
+
+    match resolve_widget_data(tx, widget, filters).await {
+        Ok(data) => {
+            sqlx::query("RELEASE SAVEPOINT widget_data")
+                .execute(&mut **tx)
+                .await?;
+            Ok(data)
+        }
+        Err(error) => {
+            // Rolling back is what lets the next widget run at all, so a
+            // failure here is reported rather than swallowed — the caller
+            // still sees the original error, which is the more useful one.
+            if let Err(rollback_error) = sqlx::query("ROLLBACK TO SAVEPOINT widget_data")
+                .execute(&mut **tx)
+                .await
+            {
+                tracing::warn!(
+                    error = %rollback_error,
+                    widget_error = %error,
+                    "failed to roll back widget savepoint"
+                );
+            }
+            Err(error)
+        }
+    }
+}
+
 async fn resolve_widget_data(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     widget: &DashboardWidget,
@@ -1318,12 +1375,16 @@ async fn resolve_sql_count(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     source: &serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
+    // A misconfigured widget reports that it could not load, never a count.
+    // Both of these returned `0`, and a zero on "Patients Today" is a
+    // sentence about the hospital, not about the widget.
     let Some(table) = source.get("table").and_then(serde_json::Value::as_str) else {
-        return Ok(serde_json::json!({ "value": 0 }));
+        tracing::warn!("sql_count widget names no table");
+        return Ok(serde_json::json!({ "error": "unavailable" }));
     };
     if !SQL_COUNT_TABLES.contains(&table) {
         tracing::warn!(table, "sql_count widget references a non-allowlisted table");
-        return Ok(serde_json::json!({ "value": 0 }));
+        return Ok(serde_json::json!({ "error": "unavailable" }));
     }
 
     let filter = source

@@ -48,12 +48,37 @@ function dataUnavailable(data: unknown): boolean {
   return Boolean(field(data, "error"));
 }
 
-/** A muted "no data / unavailable" body shared by data widgets. */
+/** A muted "nothing to show" body shared by data widgets. */
 function EmptyBody({ label }: { label: string }) {
   return (
     <Text size="sm" c="dimmed" ta="center" py="md">
       {label}
     </Text>
+  );
+}
+
+/**
+ * A tile whose data could not be fetched.
+ *
+ * Kept visually distinct from {@link EmptyBody} on purpose. A failed fetch
+ * used to render as "No data" and "Nothing to show" — the same words an
+ * empty result gets — so a doctor whose appointments query was erroring read
+ * it as a clear morning. An outage must never be legible as a fact about the
+ * ward.
+ */
+function UnavailableBody() {
+  return (
+    <Stack gap={4} align="center" py="md">
+      <ThemeIcon variant="light" color="orange" size={28} radius="md">
+        <WidgetIcon name="IconAlertTriangle" size={16} />
+      </ThemeIcon>
+      <Text size="sm" c="dimmed" ta="center">
+        Couldn't load
+      </Text>
+      <Text size="xs" c="dimmed" ta="center">
+        This is a failed request, not an empty result. Refresh to try again.
+      </Text>
+    </Stack>
   );
 }
 
@@ -84,6 +109,20 @@ function WidgetShell({ widget, children }: { widget: DashboardWidget; children: 
 export function DashboardWidgetCard({ widget, data, loading }: Props) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((s) => s.hasPermission);
+
+  // Every data-backed tile answers the same way when its query failed, and it
+  // is checked before any of them — including stat_card, which otherwise
+  // renders a bare em-dash indistinguishable from a real zero.
+  //
+  // `quick_actions` is exempt: it is driven entirely by widget.config and
+  // never asks the server for data, so it has nothing to fail.
+  if (dataUnavailable(data) && widget.widget_type !== "quick_actions") {
+    return (
+      <WidgetShell widget={widget}>
+        <UnavailableBody />
+      </WidgetShell>
+    );
+  }
 
   if (widget.widget_type === "stat_card") {
     return (
@@ -157,8 +196,8 @@ export function DashboardWidgetCard({ widget, data, loading }: Props) {
     const items = rows(data);
     return (
       <WidgetShell widget={widget}>
-        {dataUnavailable(data) || items.length === 0 || cols.length === 0 ? (
-          <EmptyBody label="No data" />
+        {items.length === 0 || cols.length === 0 ? (
+          <EmptyBody label="Nothing to show" />
         ) : (
           <Table striped highlightOnHover withRowBorders={false}>
             <Table.Thead>
@@ -190,8 +229,8 @@ export function DashboardWidgetCard({ widget, data, loading }: Props) {
     const kind = String(field(widget.config, "chart_type") ?? "bar");
     return (
       <WidgetShell widget={widget}>
-        {dataUnavailable(data) || series.length === 0 ? (
-          <EmptyBody label="Chart data unavailable" />
+        {series.length === 0 ? (
+          <EmptyBody label="Nothing to show" />
         ) : kind === "line" ? (
           <LineChart h={160} data={series} dataKey={x} series={[{ name: y, color: "indigo.6" }]} />
         ) : (
