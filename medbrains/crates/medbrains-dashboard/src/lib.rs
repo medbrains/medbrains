@@ -1845,15 +1845,28 @@ async fn resolve_module_query(
         // ── Billing analytics ──
         ("billing", "revenue_by_department") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
-                "SELECT COALESCE(json_agg(r), '[]'::json) FROM ( \
-                 SELECT d.name as department, \
-                 COALESCE(SUM(ii.amount), 0)::float8 as revenue \
-                 FROM departments d \
-                 LEFT JOIN invoices i ON i.tenant_id = d.tenant_id \
-                 LEFT JOIN invoice_items ii ON ii.invoice_id = i.id \
-                   AND ii.department_id = d.id \
-                   AND i.created_at >= CURRENT_DATE - INTERVAL '30 days' \
-                 GROUP BY d.name ORDER BY revenue DESC LIMIT 20 \
+                // `invoice_items.amount` does not exist — the column is
+                // `total_price`, and reversals carry it negative, so the sum is
+                // already net.
+                //
+                // Driven from invoice_items rather than departments so every
+                // rupee lands somewhere. `department_id` is unset on every item
+                // this billing path writes, and grouping from the department
+                // side rendered that as a column of zeros — a hospital that had
+                // taken no money. It is charged revenue nobody has attributed
+                // yet, and it says so.
+                //
+                // The old shape also joined every invoice to every department
+                // before filtering, which is the cross product of two growing
+                // tables for a thirty-day figure.
+                "SELECT COALESCE(json_agg(r ORDER BY r.revenue DESC), '[]'::json) FROM ( \
+                 SELECT COALESCE(d.name, 'Unattributed') AS department, \
+                        SUM(ii.total_price)::float8 AS revenue \
+                 FROM invoice_items ii \
+                 LEFT JOIN departments d ON d.id = ii.department_id \
+                   AND d.tenant_id = ii.tenant_id \
+                 WHERE ii.created_at >= CURRENT_DATE - INTERVAL '30 days' \
+                 GROUP BY 1 ORDER BY revenue DESC LIMIT 20 \
                  ) r",
             )
             .fetch_one(&mut **tx)
@@ -1878,11 +1891,15 @@ async fn resolve_module_query(
         // ── OPD analytics ──
         ("opd", "footfall_trend") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                // There is no `opd_visits` table. An OPD visit is an
+                // `encounters` row with `encounter_type = 'opd'` — 484 of them
+                // against the nothing this returned.
                 "SELECT COALESCE(json_agg(r ORDER BY r.date), '[]'::json) FROM ( \
-                 SELECT DATE(visit_date)::text as date, COUNT(*)::bigint as visits \
-                 FROM opd_visits \
-                 WHERE visit_date >= CURRENT_DATE - INTERVAL '30 days' \
-                 GROUP BY DATE(visit_date) \
+                 SELECT encounter_date::text AS date, COUNT(*)::bigint AS visits \
+                 FROM encounters \
+                 WHERE encounter_type = 'opd' \
+                   AND encounter_date >= CURRENT_DATE - INTERVAL '30 days' \
+                 GROUP BY encounter_date \
                  ) r",
             )
             .fetch_one(&mut **tx)
@@ -1892,10 +1909,11 @@ async fn resolve_module_query(
         ("opd", "by_department") => {
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
                 "SELECT COALESCE(json_agg(r), '[]'::json) FROM ( \
-                 SELECT d.name as department, COUNT(*)::bigint as visits \
-                 FROM opd_visits v \
-                 JOIN departments d ON d.id = v.department_id \
-                 WHERE v.visit_date >= CURRENT_DATE - INTERVAL '30 days' \
+                 SELECT d.name AS department, COUNT(*)::bigint AS visits \
+                 FROM encounters e \
+                 JOIN departments d ON d.id = e.department_id \
+                 WHERE e.encounter_type = 'opd' \
+                   AND e.encounter_date >= CURRENT_DATE - INTERVAL '30 days' \
                  GROUP BY d.name ORDER BY visits DESC \
                  ) r",
             )
@@ -1906,24 +1924,46 @@ async fn resolve_module_query(
 
         // ── IPD analytics ──
         ("ipd", "bed_occupancy_rate") => {
+            // `beds` is empty and has no `status` column — the bed inventory is
+            // `ward_bed_mappings` and the live state is `bed_states.status`,
+            // which is what the ward bed board reads. Counting the old way
+            // errored; had it not, it would have reported a hospital with no
+            // beds at all.
+            //
+            // Out-of-service is reported separately rather than folded into
+            // either side: a bed under maintenance is neither occupied nor
+            // available, and hiding it inflates the free-bed count.
             let row = sqlx::query_scalar::<_, serde_json::Value>(
                 "SELECT json_build_object( \
-                 'total_beds', (SELECT COUNT(*) FROM beds), \
-                 'occupied_beds', (SELECT COUNT(*) FROM beds \
-                  WHERE status = 'occupied'))",
+                   'total_beds', COUNT(*), \
+                   'occupied_beds', COUNT(*) FILTER ( \
+                      WHERE bs.status IN ('occupied', 'occupied_transfer_pending')), \
+                   'out_of_service_beds', COUNT(*) FILTER ( \
+                      WHERE bs.status IN ('maintenance', 'blocked'))) \
+                 FROM ward_bed_mappings wbm \
+                 JOIN bed_states bs ON bs.location_id = wbm.bed_location_id \
+                   AND bs.tenant_id = wbm.tenant_id \
+                 WHERE wbm.is_active = true",
             )
             .fetch_one(&mut **tx)
             .await?;
             Ok(row)
         }
         ("ipd", "ward_wise_occupancy") => {
+            // LEFT JOINed from `wards` so a ward with no beds mapped yet still
+            // appears with a zero, rather than vanishing from the list.
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
                 "SELECT COALESCE(json_agg(r), '[]'::json) FROM ( \
-                 SELECT w.name as ward, \
-                 COUNT(b.id)::bigint as total_beds, \
-                 COUNT(CASE WHEN b.status = 'occupied' THEN 1 END)::bigint as occupied \
+                 SELECT w.name AS ward, \
+                        COUNT(wbm.id)::bigint AS total_beds, \
+                        COUNT(*) FILTER ( \
+                          WHERE bs.status IN ('occupied', 'occupied_transfer_pending') \
+                        )::bigint AS occupied \
                  FROM wards w \
-                 LEFT JOIN beds b ON b.ward_id = w.id \
+                 LEFT JOIN ward_bed_mappings wbm ON wbm.ward_id = w.id \
+                   AND wbm.tenant_id = w.tenant_id AND wbm.is_active = true \
+                 LEFT JOIN bed_states bs ON bs.location_id = wbm.bed_location_id \
+                   AND bs.tenant_id = wbm.tenant_id \
                  GROUP BY w.name ORDER BY w.name \
                  ) r",
             )
@@ -1978,13 +2018,16 @@ async fn resolve_module_query(
         ("opd", "my_appointments") => {
             let uid = filters.user_id.unwrap_or_default();
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
-                "SELECT COALESCE(json_agg(r ORDER BY r.scheduled_time), '[]'::json) FROM (
+                // `appointments` has `slot_start` and `appointment_type`; it
+                // has never had `scheduled_time` or `visit_type`. This is the
+                // tile a doctor opens to see who they are seeing today.
+                "SELECT COALESCE(json_agg(r ORDER BY r.slot_start), '[]'::json) FROM (
                  SELECT a.id::text, p.first_name || ' ' || p.last_name AS patient_name,
-                        a.scheduled_time::text, a.visit_type, a.status::text
+                        a.slot_start::text, a.appointment_type::text, a.status::text
                  FROM appointments a
                  JOIN patients p ON p.id = a.patient_id
                  WHERE a.doctor_id = $1 AND a.appointment_date = CURRENT_DATE
-                 ORDER BY a.scheduled_time LIMIT 20
+                 ORDER BY a.slot_start LIMIT 20
                  ) r",
             )
             .bind(uid)
@@ -2144,7 +2187,7 @@ async fn resolve_module_query(
                         n.action::text, n.quantity, n.balance_after AS balance,
                         n.created_at::text
                  FROM pharmacy_ndps_register n
-                 JOIN pharmacy_catalog pc ON pc.id = n.drug_id
+                 JOIN pharmacy_catalog pc ON pc.id = n.catalog_item_id
                  ORDER BY n.created_at DESC LIMIT 10
                  ) r",
             )

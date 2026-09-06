@@ -129,41 +129,53 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
         marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
         for i, (handler, start) in enumerate(marks):
             end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-            # SQL only — see SQL_LITERAL and SQL_VERB. A `\`-continued query
-            # is a single literal, so each one is a whole statement.
-            body = " ".join(
-                lit for lit in SQL_LITERAL.findall(text[start:end]) if SQL_VERB.search(lit)
-            )
-
-            alias: dict[str, str] = {}
             missing_tables: list[str] = []
-            ctes = {m.lower() for m in CTE.findall(body)}
-            for tbl, al in SOURCE.findall(body):
-                if tbl in NOISE or tbl.lower() in ctes:
-                    continue
-                if tbl not in tables:
-                    if tbl not in missing_tables:
-                        missing_tables.append(tbl)
-                    continue
-                alias[al or tbl] = tbl
-                alias[tbl] = tbl
-
             missing_cols: list[str] = []
-            for tbl, col in write_columns(body):
-                if tbl not in tables:
-                    if tbl not in missing_tables:
-                        missing_tables.append(tbl)
-                    continue
-                ref = f"{tbl}.{col}"
-                if ref not in cols and ref not in missing_cols:
-                    missing_cols.append(ref)
 
-            for al, col in QUALIFIED.findall(body):
-                if al not in alias:
+            # One statement at a time. Pooling a handler's literals lets an
+            # alias from one query answer for another -- `e` is `encounters`
+            # in one widget and `bme_equipment` in the next, and the pooled
+            # map reported `bme_equipment.patient_id` against a query that
+            # never mentions it. A `\`-continued query is a single literal,
+            # so each literal is a whole statement.
+            for body in SQL_LITERAL.findall(text[start:end]):
+                if not SQL_VERB.search(body):
                     continue
-                ref = f"{alias[al]}.{col}"
-                if ref not in cols and ref not in missing_cols:
-                    missing_cols.append(ref)
+
+                alias: dict[str, str] = {}
+                ctes = {m.lower() for m in CTE.findall(body)}
+                for m in SOURCE.finditer(body):
+                    tbl, al = m.group(1), m.group(2)
+                    # `EXTRACT(EPOCH FROM AVG(...))` is not a table named AVG.
+                    # A name followed by `(` is a function call, never a source.
+                    # Checked here rather than as a lookahead in SOURCE, which
+                    # just backtracks to a shorter name that satisfies it.
+                    if body[m.end(1) :].lstrip().startswith("("):
+                        continue
+                    if tbl in NOISE or tbl.lower() in ctes:
+                        continue
+                    if tbl not in tables:
+                        if tbl not in missing_tables:
+                            missing_tables.append(tbl)
+                        continue
+                    alias[al or tbl] = tbl
+                    alias[tbl] = tbl
+
+                for tbl, col in write_columns(body):
+                    if tbl not in tables:
+                        if tbl not in missing_tables:
+                            missing_tables.append(tbl)
+                        continue
+                    ref = f"{tbl}.{col}"
+                    if ref not in cols and ref not in missing_cols:
+                        missing_cols.append(ref)
+
+                for al, col in QUALIFIED.findall(body):
+                    if al not in alias:
+                        continue
+                    ref = f"{alias[al]}.{col}"
+                    if ref not in cols and ref not in missing_cols:
+                        missing_cols.append(ref)
 
             out.append((name, handler, missing_tables, missing_cols))
     return out
