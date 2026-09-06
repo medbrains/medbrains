@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 979 permissions, one per constant in the Rust source. */
+/** 980 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3521,6 +3521,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "integration.execute",
     label: "Execute Pipeline",
     description: "Manually trigger pipeline execution",
+    module: "integration",
+  },
+  {
+    code: "integration.pipelines.toggle",
+    label: "Toggle Pipelines",
+    description: "Turn a built-in pipeline on or off for this hospital.",
     module: "integration",
   },
   // specialty
@@ -7253,6 +7259,10 @@ export const P = {
     DELETE: "integration.delete",
     EXECUTE: "integration.execute",
     LIST: "integration.list",
+    PIPELINES: {
+      TOGGLE: "integration.pipelines.toggle",
+    },
+    PIPELINES_TOGGLE: "integration.pipelines.toggle",
     UPDATE: "integration.update",
     VIEW: "integration.view",
   },

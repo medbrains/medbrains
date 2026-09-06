@@ -552,10 +552,8 @@ pub struct DefaultPipelineRow {
     pub disabled_for_tenant: bool,
 }
 
-/// `GET /api/integration/default-pipelines` — exposes the hardcoded
-/// Rust `DEFAULT_SUBSCRIBERS` list joined with the per-tenant
-/// `default_pipelines.disabled` setting. Read-only — operators
-/// edit via tenant_settings, not here.
+/// `GET /api/integration/default-pipelines` — the pipeline registry joined
+/// with this tenant's `default_pipelines.disabled` setting.
 pub async fn list_default_pipelines(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -595,4 +593,97 @@ pub async fn list_default_pipelines(
         .collect();
 
     Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPipelineEnabledRequest {
+    pub disabled: bool,
+}
+
+/// `PUT /api/integration/default-pipelines/{event_type}` — turn one built-in
+/// pipeline on or off for this hospital.
+///
+/// This is the whole of per-client pipeline configuration, and until now it
+/// had no door: the setting was read on every dispatch but could only be
+/// written by editing `tenant_settings` in the database by hand, which nobody
+/// ever did — the category has never held a row. A control the product
+/// documents and cannot perform is not a control.
+///
+/// `event_type` is validated against the registry rather than trusted, so a
+/// typo cannot silently disable nothing while reading as success, and the
+/// stored array cannot accumulate names no pipeline answers to.
+pub async fn set_default_pipeline_enabled(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(event_type): Path<String>,
+    Json(body): Json<SetPipelineEnabledRequest>,
+) -> Result<Json<DefaultPipelineRow>, AppError> {
+    require_permission(&claims, permissions::integration::pipelines::TOGGLE)?;
+
+    let Some((registered, description)) =
+        medbrains_workflow::orchestration::default_pipelines::default_subscribers()
+            .into_iter()
+            .find(|(et, _)| *et == event_type)
+    else {
+        return Err(AppError::NotFound);
+    };
+
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+
+    let existing: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'default_pipelines' AND key = 'disabled' \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?;
+
+    // Rebuilt from the registry each time, so an event that has since been
+    // removed from PIPELINES does not linger in the tenant's disabled list.
+    let mut disabled: Vec<String> = existing
+        .as_ref()
+        .and_then(serde_json::Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .filter(|et| {
+                    medbrains_workflow::orchestration::default_pipelines::default_subscribers()
+                        .iter()
+                        .any(|(known, _)| known == et)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    disabled.retain(|et| et != registered);
+    if body.disabled {
+        disabled.push(registered.to_owned());
+    }
+    disabled.sort_unstable();
+
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'default_pipelines', 'disabled', $2) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(serde_json::json!(disabled))
+    .execute(&mut *conn)
+    .await?;
+
+    tracing::info!(
+        tenant_id = %claims.tenant_id,
+        actor = %claims.sub,
+        event_type = registered,
+        disabled = body.disabled,
+        "built-in pipeline toggled for tenant"
+    );
+
+    Ok(Json(DefaultPipelineRow {
+        event_type: registered,
+        description,
+        disabled_for_tenant: body.disabled,
+    }))
 }

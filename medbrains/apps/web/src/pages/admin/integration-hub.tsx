@@ -1,18 +1,29 @@
 import { Card, Code, Group, List, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Alert, Badge, Table } from "@/components/ui";
+import { Alert, Badge, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { integrationService } from "@/services/integration.service";
 
 export function IntegrationHubPage() {
   useRequirePermission(P.INTEGRATION.LIST);
+  const canToggle = useHasPermission(P.INTEGRATION.PIPELINES_TOGGLE);
+  const queryClient = useQueryClient();
 
   const { data: pipelines = [], isLoading } = useQuery({
     queryKey: ["default-pipelines"],
     queryFn: () => integrationService.listDefaultPipelines(),
+  });
+
+  const toggle = useMutation({
+    mutationFn: ({ eventType, disabled }: { eventType: string; disabled: boolean }) =>
+      integrationService.setDefaultPipelineEnabled(eventType, disabled),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["default-pipelines"] });
+    },
   });
 
   return (
@@ -29,9 +40,18 @@ export function IntegrationHubPage() {
         <Text span fw={600}>
           Settings → Pipeline Settings
         </Text>{" "}
-        (template ids, recipient lists, thresholds). To disable a subscriber for one tenant, add its
-        trigger event to the <Code>default_pipelines.disabled</Code> array in tenant_settings.
+        Which of them run for this hospital is set in the Status column below, and is the only
+        per-tenant control: the pipelines themselves are code, and a hospital that needs different
+        behaviour needs a reviewed change, not a switch.
       </Alert>
+
+      {/* A rejected toggle otherwise just snaps the switch back on refetch,
+          which reads as "it didn't take" rather than "you may not do that". */}
+      {toggle.isError && (
+        <Alert tone="danger" title="That pipeline could not be changed">
+          {(toggle.error as Error).message}
+        </Alert>
+      )}
 
       <Card withBorder shadow="sm" radius="md">
         <Card.Section withBorder inheritPadding py="xs">
@@ -46,7 +66,7 @@ export function IntegrationHubPage() {
             <Table.Tr>
               <Table.Th>Trigger event</Table.Th>
               <Table.Th>What it does</Table.Th>
-              <Table.Th style={{ width: 140 }}>Status</Table.Th>
+              <Table.Th style={{ width: 180 }}>Status</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -79,7 +99,20 @@ export function IntegrationHubPage() {
                   <Text size="sm">{p.description}</Text>
                 </Table.Td>
                 <Table.Td>
-                  {p.disabled_for_tenant ? (
+                  {canToggle ? (
+                    <Switch
+                      checked={!p.disabled_for_tenant}
+                      disabled={toggle.isPending}
+                      onChange={(event) =>
+                        toggle.mutate({
+                          eventType: p.event_type,
+                          disabled: !event.currentTarget.checked,
+                        })
+                      }
+                      label={p.disabled_for_tenant ? "Disabled" : "Active"}
+                      aria-label={`${p.disabled_for_tenant ? "Enable" : "Disable"} ${p.description}`}
+                    />
+                  ) : p.disabled_for_tenant ? (
                     <Badge tone="neutral">Disabled</Badge>
                   ) : (
                     <Badge tone="success">Active</Badge>

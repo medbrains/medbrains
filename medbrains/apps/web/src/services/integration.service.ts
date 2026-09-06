@@ -3,6 +3,8 @@ import { api } from "@medbrains/api";
 export const integrationService = {
   listDefaultPipelines: (...args: Parameters<typeof api.listDefaultPipelines>) =>
     api.listDefaultPipelines(...args),
+  setDefaultPipelineEnabled: (...args: Parameters<typeof api.setDefaultPipelineEnabled>) =>
+    api.setDefaultPipelineEnabled(...args),
   getJobStats: (...args: Parameters<typeof api.getJobStats>) => api.getJobStats(...args),
   listJobs: (...args: Parameters<typeof api.listJobs>) => api.listJobs(...args),
   listNodeTemplates: (...args: Parameters<typeof api.listNodeTemplates>) =>

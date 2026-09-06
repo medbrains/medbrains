@@ -289,10 +289,10 @@ import type {
   CleaningTask,
   ClientErrorReportRequest,
   ClientErrorReportResponse,
-  ClinicalScoreRow,
   ClinicalCorpusEntry,
   ClinicalIndicatorRow,
   ClinicalProtocol,
+  ClinicalScoreRow,
   ClinicalTrial,
   CmeCertificatePrintData,
   CmsAuthor,
@@ -1665,11 +1665,11 @@ import type {
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
-  RecordScoreRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
   RecordPaymentRequest,
   RecordReactionRequest,
+  RecordScoreRequest,
   RecordTransfusionObservationRequest,
   ReferralWithNames,
   Refund,
@@ -8406,9 +8406,10 @@ export const api = {
   // ── Integration Hub ────────────────────────────────────
 
   /**
-   * Built-in (Rust hardcoded) default pipelines. Read-only —
-   * operators disable individual subscribers via tenant_settings,
-   * not by editing this list.
+   * Built-in (Rust hardcoded) default pipelines, with this tenant's
+   * enable/disable state. The list itself is code and cannot be edited here;
+   * which of them run for this hospital can be, via
+   * {@link setDefaultPipelineEnabled}.
    */
   listDefaultPipelines: () =>
     request<
@@ -8418,6 +8419,17 @@ export const api = {
         disabled_for_tenant: boolean;
       }>
     >("/integration/default-pipelines"),
+
+  /** Turn one built-in pipeline on or off for this hospital. */
+  setDefaultPipelineEnabled: (eventType: string, disabled: boolean) =>
+    request<{
+      event_type: string;
+      description: string;
+      disabled_for_tenant: boolean;
+    }>(`/integration/default-pipelines/${encodeURIComponent(eventType)}`, {
+      method: "PUT",
+      body: JSON.stringify({ disabled }),
+    }),
 
   listPipelines: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";

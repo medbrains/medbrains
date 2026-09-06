@@ -1565,6 +1565,20 @@ pub mod integration {
     pub const UPDATE: &str = "integration.update";
     pub const DELETE: &str = "integration.delete";
     pub const EXECUTE: &str = "integration.execute";
+
+    /// Which built-in pipelines run for this hospital.
+    ///
+    /// Deliberately not `integration.update`, which covers editing an
+    /// integration's own connection settings. Turning a built-in pipeline off
+    /// stops a cross-module automation for the whole tenant — the critical-lab
+    /// SMS to the ordering doctor, the blood-bank quarantine on a transfusion
+    /// reaction — and it fails silently, because a pipeline that does not run
+    /// looks exactly like one with nothing to do. Widening `integration.update`
+    /// would have handed that to everyone who can edit a connector's API key.
+    pub mod pipelines {
+        /// Turn a built-in pipeline on or off for this hospital.
+        pub const TOGGLE: &str = "integration.pipelines.toggle";
+    }
 }
 
 pub mod specialty {

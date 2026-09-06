@@ -75,6 +75,10 @@ pub fn router() -> Router<AppState> {
             get(integration::list_default_pipelines),
         )
         .route(
+            "/api/integration/default-pipelines/{event_type}",
+            put(integration::set_default_pipeline_enabled),
+        )
+        .route(
             "/api/integration/pipelines",
             get(integration::list_pipelines).post(integration::create_pipeline),
         )
