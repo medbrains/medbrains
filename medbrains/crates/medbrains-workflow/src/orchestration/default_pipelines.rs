@@ -83,12 +83,12 @@ pub type PipelineFn = for<'a> fn(
 pub const PIPELINES: &[Pipeline] = &[
     Pipeline {
         event: ClinicalEventName::IpdDischargeInitiated,
-        description: "Bed → housekeeping + MRD file + discharge SMS",
+        description: "MRD file request + discharge-summary link to the patient",
         run: |p, t, v| Box::pin(on_ipd_discharge_initiated(p, t, v)),
     },
     Pipeline {
         event: ClinicalEventName::PharmacyOrderDispensed,
-        description: "NDPS register row (Sched H1/X) + low-stock check",
+        description: "Low-stock check on every dispensed item",
         run: |p, t, v| Box::pin(on_pharmacy_order_dispensed(p, t, v)),
     },
     Pipeline {
@@ -215,25 +215,22 @@ async fn on_ipd_discharge_initiated(
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
     let admission_id = uuid_from_payload(payload, "admission_id");
-    let bed_id = uuid_from_payload(payload, "bed_id");
     let patient_id = uuid_from_payload(payload, "patient_id");
 
     let mut tx = pool.begin().await?;
 
-    // a) Mark bed dirty so housekeeping picks it up.
-    if let Some(bed) = bed_id {
-        sqlx::query(
-            "UPDATE beds SET status = 'dirty', updated_at = now() \
-             WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(bed)
-        .bind(tenant_id)
-        .execute(&mut *tx)
-        .await
-        .ok(); // table may not exist in skinny tenants
-    }
+    // The bed is deliberately not touched here. This pipeline used to run
+    // `UPDATE beds SET status = 'dirty'` — against a column that does not
+    // exist (`beds` has `is_occupied`; the live state is `bed_states.status`),
+    // reading a `bed_id` this event has never carried, with the error
+    // swallowed by `.ok()`. It marked nothing dirty for as long as it existed.
+    //
+    // It is also not this subscriber's job. `discharge_patient` already calls
+    // `release_admission_bed`, which sets `bed_states` to `vacant_dirty` in the
+    // same transaction as the discharge. A bed freed by an async subscriber
+    // that may fail is a bed the board can disagree with.
 
-    // b) Queue an SMS/WhatsApp discharge-summary link to the patient.
+    // a) Queue an SMS/WhatsApp discharge-summary link to the patient.
     if let Some(p) = patient_id {
         let _ = enqueue(
             &mut tx,
@@ -252,7 +249,7 @@ async fn on_ipd_discharge_initiated(
         .await;
     }
 
-    // c) Queue MRD file-creation request (if MRD module is wired).
+    // b) Queue MRD file-creation request (if MRD module is wired).
     if let Some(a) = admission_id {
         let _ = enqueue(
             &mut tx,
@@ -270,44 +267,28 @@ async fn on_ipd_discharge_initiated(
     Ok(())
 }
 
-// ── 2. Pharmacy dispense → NDPS register + low-stock auto-indent ───
+// ── 2. Pharmacy dispense → low-stock auto-indent ───
 
 async fn on_pharmacy_order_dispensed(
     pool: &PgPool,
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
-    let order_id = uuid_from_payload(payload, "order_id");
     let items = payload.get("items").and_then(Value::as_array);
 
     let mut tx = pool.begin().await?;
 
-    // a) For each Schedule H1/X dispense, insert an NDPS register row.
-    //    Schema: pharmacy_ndps_register (tenant_id, order_id, drug_id,
-    //    drug_name, schedule, qty, dispensed_by, dispensed_at).
-    if let Some(items) = items {
-        for item in items {
-            let schedule = item.get("schedule").and_then(Value::as_str).unwrap_or("");
-            if schedule != "H1" && schedule != "X" {
-                continue;
-            }
-            sqlx::query(
-                "INSERT INTO pharmacy_ndps_register \
-                    (tenant_id, order_id, drug_id, drug_name, schedule, qty, action, action_at) \
-                 VALUES ($1, $2, $3, $4, $5, $6, 'dispensed', now()) \
-                 ON CONFLICT DO NOTHING",
-            )
-            .bind(tenant_id)
-            .bind(order_id)
-            .bind(uuid_from_value(item.get("drug_id")))
-            .bind(item.get("drug_name").and_then(Value::as_str).unwrap_or(""))
-            .bind(schedule)
-            .bind(item.get("qty").and_then(Value::as_i64).unwrap_or(0) as i32)
-            .execute(&mut *tx)
-            .await
-            .ok();
-        }
-    }
+    // The NDPS register is deliberately not written here. This pipeline used
+    // to insert into `pharmacy_ndps_register` naming `order_id`, `drug_id`,
+    // `drug_name`, `schedule`, `qty` and `action_at` — none of which are
+    // columns on that table — with the error swallowed by `.ok()`. Not one row
+    // was ever written by it.
+    //
+    // The dispense handler already writes the register correctly, in the same
+    // transaction as the stock movement, with the running `balance_after`, the
+    // witness, the patient and the prescription. That is where a statutory
+    // narcotics register belongs: a register written by a subscriber that can
+    // fail is a register that can disagree with what was dispensed.
 
     // b) For each item whose post-dispense stock dropped below reorder_level,
     //    queue a low-stock alert event. The alert is consumed by an

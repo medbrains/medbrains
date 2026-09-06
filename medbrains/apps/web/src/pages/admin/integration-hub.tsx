@@ -1,4 +1,4 @@
-import { Card, Group, Stack, Text } from "@mantine/core";
+import { Card, Code, Group, List, Stack, Text } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -23,12 +23,14 @@ export function IntegrationHubPage() {
       />
 
       <Alert icon={<IconInfoCircle size={16} />} tone="info" title="Pipelines are code, not config">
-        Cross-module workflows live in <code>orchestration/default_pipelines.rs</code>. Each
+        Cross-module workflows live in <Code>orchestration/default_pipelines.rs</Code>. Each
         subscriber writes to the outbox with a stable idempotency key, so retries and accidental
         double-fires never produce duplicate side effects. To customise behaviour per tenant, use{" "}
-        <strong>Settings → Pipeline Settings</strong> (template ids, recipient lists, thresholds).
-        To disable a subscriber for one tenant, add the event_type to the
-        <code>default_pipelines.disabled</code> array in tenant_settings.
+        <Text span fw={600}>
+          Settings → Pipeline Settings
+        </Text>{" "}
+        (template ids, recipient lists, thresholds). To disable a subscriber for one tenant, add its
+        trigger event to the <Code>default_pipelines.disabled</Code> array in tenant_settings.
       </Alert>
 
       <Card withBorder shadow="sm" radius="md">
@@ -94,19 +96,23 @@ export function IntegrationHubPage() {
           <Text fw={600} size="sm">
             How a new pipeline gets added
           </Text>
-          <Text size="sm" c="dimmed">
-            1. Open an issue describing the trigger event + side effects.
-            <br />
-            2. Add a new arm to <code>match event_type</code> in <code>default_pipelines.rs</code>
-            .
-            <br />
-            3. Implement the handler (~30–60 LoC) with a stable idempotency key.
-            <br />
-            4. Add a unit test, code review, merge, deploy.
-          </Text>
+          <List type="ordered" size="sm" c="dimmed" spacing="xs">
+            <List.Item>Open an issue describing the trigger event and its side effects.</List.Item>
+            <List.Item>
+              Write an <Code>on_&lt;event&gt;</Code> function in <Code>default_pipelines.rs</Code>{" "}
+              with a stable idempotency key.
+            </List.Item>
+            <List.Item>
+              Add one row to <Code>PIPELINES</Code> — the event, this description, and the function.
+              There is no second list to keep in step.
+            </List.Item>
+            <List.Item>Add a unit test, code review, merge, deploy.</List.Item>
+          </List>
           <Text size="xs" c="dimmed">
-            Total: 2–4 hours per new pipeline. The dynamic graph builder has been retired —
-            cross-module logic must be auditable in <code>git log</code>, not edited at 2 AM.
+            Every pipeline is independent: its own transaction, its own failure. One erroring does
+            not stop the others registered for the same event. The dynamic graph builder has been
+            retired — cross-module logic must be auditable in <Code>git log</Code>, not edited at 2
+            AM.
           </Text>
         </Stack>
       </Card>
