@@ -914,37 +914,6 @@ pub struct BackupHistory {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ONBOARDING WIZARD
-// ══════════════════════════════════════════════════════════════
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct OnboardingProgress {
-    pub id: Uuid,
-    pub tenant_id: Uuid,
-    pub wizard_type: String,
-    pub current_step: String,
-    pub completed_steps: Vec<String>,
-    pub step_data: serde_json::Value,
-    pub is_completed: bool,
-    pub completed_at: Option<DateTime<Utc>>,
-    pub started_by: Option<Uuid>,
-    pub started_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateOnboardingRequest {
-    pub current_step: String,
-    pub step_data: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CompleteOnboardingStepRequest {
-    pub step: String,
-    pub step_data: Option<serde_json::Value>,
-}
-
-// ══════════════════════════════════════════════════════════════
 // INCENTIVE CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 

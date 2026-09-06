@@ -326,7 +326,6 @@ import type {
   CommTemplateRow,
   CompileRustRequest,
   CompileRustResult,
-  CompleteItSecurityOnboardingStepRequest,
   CompletenessCheck,
   CompleteTatRecordRequest,
   ComplianceCalendarEvent,
@@ -1171,7 +1170,6 @@ import type {
   IssueMrdRecordRequest,
   IssueTokenInput,
   IssueToPatientRequest,
-  ItSecurityOnboardingProgress,
   IvFluidOrder,
   JobListResponse,
   JobStats,
@@ -14577,19 +14575,6 @@ export const api = {
   listBackups: () => request<BackupHistory[]>("/backups"),
 
   // ══════════════════════════════════════════════════════════════
-  // IT SECURITY: ONBOARDING WIZARD
-  // ══════════════════════════════════════════════════════════════
-
-  getOnboardingProgress: () =>
-    request<ItSecurityOnboardingProgress | null>("/it-onboarding/progress"),
-
-  completeOnboardingStep: (data: CompleteItSecurityOnboardingStepRequest) =>
-    request<ItSecurityOnboardingProgress>("/it-onboarding/complete-step", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
-  // ══════════════════════════════════════════════════════════════
   // IT SECURITY: INCENTIVE CONFIGURATION
   // ══════════════════════════════════════════════════════════════
 
@@ -16399,15 +16384,6 @@ export const api = {
     }),
   seedE2eCanonicalFixtures: () =>
     request<unknown>("/debug/e2e/canonical-fixtures", {
-      method: "POST",
-    }),
-  updateItSecurityOnboardingProgress: (data: Record<string, unknown>) =>
-    request<unknown>("/it-onboarding/progress", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  completeItSecurityOnboarding: () =>
-    request<unknown>("/it-onboarding/complete", {
       method: "POST",
     }),
   getOpdAppointmentReminderConfig: () => request<unknown>("/opd/appointments/reminder-config"),

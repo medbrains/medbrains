@@ -7324,30 +7324,6 @@ export interface BackupHistory {
 // IT SECURITY: ONBOARDING WIZARD
 // ══════════════════════════════════════════════════════════════
 
-export interface ItSecurityOnboardingProgress {
-  id: string;
-  tenant_id: string;
-  wizard_type: string;
-  current_step: string;
-  completed_steps: string[];
-  step_data: unknown;
-  is_completed: boolean;
-  completed_at: string | null;
-  started_by: string | null;
-  started_at: string;
-  updated_at: string;
-}
-
-export interface UpdateItSecurityOnboardingRequest {
-  current_step: string;
-  step_data?: unknown;
-}
-
-export interface CompleteItSecurityOnboardingStepRequest {
-  step: string;
-  step_data?: unknown;
-}
-
 // ══════════════════════════════════════════════════════════════
 // IT SECURITY: INCENTIVE CONFIGURATION
 // ══════════════════════════════════════════════════════════════

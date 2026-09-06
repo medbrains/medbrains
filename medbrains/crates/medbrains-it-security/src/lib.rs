@@ -38,7 +38,6 @@ use medbrains_core::it_security::{
     BreakGlassEventSummary,
     BreakGlassQuery,
     CalculateIncentiveRequest,
-    CompleteOnboardingStepRequest,
     CompleteTatRecordRequest,
     ComplianceRequirement,
     // Break-Glass
@@ -79,7 +78,6 @@ use medbrains_core::it_security::{
     // Data Migration
     MigrationQuery,
     // Onboarding
-    OnboardingProgress,
     ReportToCertInRequest,
     ResolveIssueRequest,
     ReviewBreakGlassRequest,
@@ -103,7 +101,6 @@ use medbrains_core::it_security::{
     TatRecord,
     TatRecordSummary,
     UpdateComplianceRequest,
-    UpdateOnboardingRequest,
     UpdateSecurityIncidentRequest,
     UpdateVulnerabilityRequest,
     Vulnerability,
@@ -2143,114 +2140,6 @@ pub async fn list_backups(
 }
 
 // ══════════════════════════════════════════════════════════════
-// ONBOARDING WIZARD
-// ══════════════════════════════════════════════════════════════
-
-/// Get onboarding progress
-pub async fn get_onboarding_progress(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Option<OnboardingProgress>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, OnboardingProgress>(
-        "SELECT * FROM onboarding_progress WHERE wizard_type = 'initial_setup'",
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Update onboarding progress
-pub async fn update_onboarding_progress(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<UpdateOnboardingRequest>,
-) -> Result<Json<OnboardingProgress>, AppError> {
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, OnboardingProgress>(
-        "INSERT INTO onboarding_progress (id, tenant_id, wizard_type, current_step, started_by, step_data)
-         VALUES ($1, $2, 'initial_setup', $3, $4, COALESCE($5, '{}'::jsonb))
-         ON CONFLICT (tenant_id, wizard_type) DO UPDATE SET
-         current_step = $3,
-         step_data = onboarding_progress.step_data || COALESCE($5, '{}'::jsonb),
-         updated_at = now()
-         RETURNING *"
-    )
-    .bind(Uuid::new_v4())
-    .bind(claims.tenant_id)
-    .bind(&body.current_step)
-    .bind(claims.sub)
-    .bind(&body.step_data)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Complete onboarding step
-pub async fn complete_onboarding_step(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CompleteOnboardingStepRequest>,
-) -> Result<Json<OnboardingProgress>, AppError> {
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, OnboardingProgress>(
-        "UPDATE onboarding_progress SET
-         completed_steps = array_append(completed_steps, $2),
-         step_data = step_data || COALESCE($3, '{}'::jsonb),
-         updated_at = now()
-         WHERE wizard_type = 'initial_setup'
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(&body.step)
-    .bind(&body.step_data)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Complete onboarding
-pub async fn complete_onboarding(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<OnboardingProgress>, AppError> {
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, OnboardingProgress>(
-        "UPDATE onboarding_progress SET
-         is_completed = true, completed_at = now(), updated_at = now()
-         WHERE wizard_type = 'initial_setup'
-         RETURNING *",
-    )
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-// ══════════════════════════════════════════════════════════════
 // INCENTIVE CONFIGURATION
 // ══════════════════════════════════════════════════════════════
 
@@ -2636,15 +2525,6 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/system-health", get(system_health_dashboard))
         .route("/api/backups", get(list_backups))
         .route(
-            "/api/it-onboarding/progress",
-            get(get_onboarding_progress).post(update_onboarding_progress),
-        )
-        .route(
-            "/api/it-onboarding/complete-step",
-            post(complete_onboarding_step),
-        )
-        .route("/api/it-onboarding/complete", post(complete_onboarding))
-        .route(
             "/api/incentive-plans",
             get(list_incentive_plans).post(create_incentive_plan),
         )
@@ -2679,8 +2559,8 @@ mod authz_coverage_tests {
     ///
     /// This scans the source rather than listing handlers, so a newly added
     /// ungated handler fails the test instead of slipping through review.
-    /// Self-scoped handlers (`*_my_*`, onboarding progress) are exempt: their
-    /// queries are already constrained to `claims.sub`.
+    /// Self-scoped handlers (`*_my_*`) are exempt: their queries are already
+    /// constrained to `claims.sub`.
     #[test]
     fn every_db_handler_is_gated_or_self_scoped() {
         const SRC: &str = include_str!("lib.rs");
@@ -2689,10 +2569,6 @@ mod authz_coverage_tests {
             "get_my_digest_subscription",
             "upsert_digest_subscription",
             "list_digest_history",
-            "get_onboarding_progress",
-            "update_onboarding_progress",
-            "complete_onboarding_step",
-            "complete_onboarding",
         ];
 
         let mut ungated = Vec::new();
