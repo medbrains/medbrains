@@ -1930,6 +1930,23 @@ pub mod care_view {
     pub const HANDOVER: &str = "care_view.handover";
     pub const DISCHARGE_TRACKER: &str = "care_view.discharge_tracker";
     pub const MANAGE_TASKS: &str = "care_view.manage_tasks";
+
+    /// Clinical assessment scores recorded against a patient.
+    ///
+    /// Separate from `icu.scores.*`, which covers the same table from the
+    /// intensive-care side. A recovery nurse scoring an Aldrete or a midwife
+    /// scoring a MEOWS is not ICU staff, and granting them an ICU permission
+    /// to record a ward assessment would hand them the ICU module as well.
+    pub mod scores {
+        /// See a patient's recorded assessment scores.
+        pub const LIST: &str = "care_view.scores.list";
+        /// Record an assessment score against a patient.
+        ///
+        /// The score is the clinical record, not a calculation: an Aldrete is
+        /// the evidence a patient was fit to leave recovery, and NEWS2 only
+        /// means anything as a trend.
+        pub const RECORD: &str = "care_view.scores.record";
+    }
 }
 
 pub mod chronic {

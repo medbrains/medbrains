@@ -21,6 +21,7 @@ export const IPD_WORKSPACE_TABS = [
   { value: "overview", label: "Overview", section: "Command" },
   { value: "notes", label: "Progress Notes", section: "Command" },
   { value: "assessments", label: "Clinical", section: "Command" },
+  { value: "scores", label: "Scores", section: "Command" },
   { value: "mar", label: "MAR", section: "Command" },
   { value: "prescriptions", label: "Prescriptions", section: "Command" },
   { value: "io", label: "I/O Chart", section: "Command" },

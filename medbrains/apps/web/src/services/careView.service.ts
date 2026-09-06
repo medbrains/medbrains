@@ -9,4 +9,6 @@ export const careViewService = {
   completeTask: api.completeCareViewTask,
   handoverSummary: api.handoverSummary,
   dischargeReadiness: api.dischargeReadiness,
+  listPatientScores: api.listPatientScores,
+  recordPatientScore: api.recordPatientScore,
 };

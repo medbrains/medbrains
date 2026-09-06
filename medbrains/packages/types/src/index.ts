@@ -89,6 +89,7 @@ export * from "./blood-bank-phase2";
 export * from "./bloodbank-ot-forms";
 export * from "./bme-engineering";
 export * from "./care-view";
+export type { ClinicalScoreRow, RecordScoreRequest } from "./care-view-scores";
 export * from "./cath-lab";
 export * from "./chronic-care";
 export * from "./clinical-identity-forms";

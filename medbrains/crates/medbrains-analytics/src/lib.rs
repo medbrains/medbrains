@@ -146,6 +146,10 @@ pub fn router() -> Router<AppState> {
             get(care_view::discharge_readiness),
         )
         .route(
+            "/api/care-view/scores/{admission_id}",
+            get(care_view::list_scores).post(care_view::record_score),
+        )
+        .route(
             "/api/care-view/tasks/{task_id}/complete",
             post(care_view::complete_task),
         )

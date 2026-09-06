@@ -289,6 +289,7 @@ import type {
   CleaningTask,
   ClientErrorReportRequest,
   ClientErrorReportResponse,
+  ClinicalScoreRow,
   ClinicalCorpusEntry,
   ClinicalIndicatorRow,
   ClinicalProtocol,
@@ -1664,6 +1665,7 @@ import type {
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
+  RecordScoreRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
   RecordPaymentRequest,
@@ -11866,6 +11868,15 @@ export const api = {
   completeCareViewTask: (taskId: string) =>
     request<{ completed: boolean }>(`/care-view/tasks/${taskId}/complete`, {
       method: "POST",
+    }),
+
+  listPatientScores: (admissionId: string) =>
+    request<ClinicalScoreRow[]>(`/care-view/scores/${admissionId}`),
+
+  recordPatientScore: (admissionId: string, body: RecordScoreRequest) =>
+    request<ClinicalScoreRow>(`/care-view/scores/${admissionId}`, {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   updatePrimaryNurse: (admissionId: string, body: UpdatePrimaryNurseRequest) =>

@@ -103,6 +103,7 @@ import { MarTab } from "./mar";
 import { MlcTab } from "./mlc";
 import { NursingTab } from "./nursing";
 import { OverviewTab } from "./overview";
+import { PatientScoresPanel } from "./patient-scores";
 import { PrintAdmissionButton } from "./print-admission-button";
 import { ProgressNotesTab } from "./progress-notes";
 import { TransferTab } from "./transfer";
@@ -601,6 +602,9 @@ export function AdmissionDetail({
             </Tabs.Panel>
             <Tabs.Panel value="assessments" pt="md">
               <AssessmentsTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="scores" pt="md">
+              <PatientScoresPanel admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="mar" pt="md">
               <MarTab admissionId={admissionId} />

@@ -671,3 +671,119 @@ pub async fn update_primary_nurse(
 
     Ok(Json(serde_json::json!({ "updated": true })))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Clinical assessment scores
+// ══════════════════════════════════════════════════════════
+//
+// The Care View calculators compute a number and discard it. That is the
+// wrong shape for what these are: an Aldrete is the evidence a patient was
+// fit to leave recovery, and NEWS2 only means anything as a trend. A score
+// nobody can retrieve is not an assessment, it is arithmetic.
+//
+// These write to `icu_scores`, which is a general clinical-assessment record
+// that happens to be named for where it started — admission_id, score_type,
+// score_value, score_details for the inputs, scored_by and scored_at. It has
+// a working handler and screen on the ICU side; migration 1011 widened its
+// enum so ward scores can live there too rather than in a second table that
+// would have to be kept in step.
+//
+// The permission is care_view.scores.*, not icu.scores.*. A recovery nurse
+// scoring an Aldrete is not ICU staff, and handing them an ICU permission to
+// record a ward assessment would grant them the ICU module with it.
+
+#[derive(Debug, Deserialize)]
+pub struct RecordScoreRequest {
+    pub score_type: String,
+    pub score_value: i32,
+    /// The inputs the score was computed from. Kept because a total of 8
+    /// without its parameters cannot be reviewed, corrected, or defended.
+    #[serde(default)]
+    pub score_details: Option<serde_json::Value>,
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ClinicalScoreRow {
+    pub id: Uuid,
+    pub admission_id: Uuid,
+    pub score_type: String,
+    pub score_value: i32,
+    pub score_details: Option<serde_json::Value>,
+    pub scored_at: DateTime<Utc>,
+    pub scored_by: Uuid,
+    pub scored_by_name: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `GET /api/care-view/scores/{admission_id}` — this patient's recorded scores.
+pub async fn list_scores(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+) -> Result<Json<Vec<ClinicalScoreRow>>, AppError> {
+    require_permission(&claims, permissions::care_view::scores::LIST)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Newest first: the current state of the patient is the question being
+    // asked, and the trend is read downward from it.
+    let rows = sqlx::query_as::<_, ClinicalScoreRow>(
+        "SELECT s.id, s.admission_id, s.score_type::text AS score_type, s.score_value, \
+                s.score_details, s.scored_at, s.scored_by, u.full_name AS scored_by_name, s.notes \
+         FROM icu_scores s \
+         LEFT JOIN users u ON u.id = s.scored_by \
+         WHERE s.tenant_id = $1 AND s.admission_id = $2 AND s.deleted_at IS NULL \
+         ORDER BY s.scored_at DESC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// `POST /api/care-view/scores/{admission_id}` — record a score for this patient.
+pub async fn record_score(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+    Json(body): Json<RecordScoreRequest>,
+) -> Result<Json<ClinicalScoreRow>, AppError> {
+    require_permission(&claims, permissions::care_view::scores::RECORD)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // The cast fails loudly on an unknown score type rather than storing
+    // something no reader can interpret.
+    let row = sqlx::query_as::<_, ClinicalScoreRow>(
+        "WITH inserted AS ( \
+           INSERT INTO icu_scores \
+             (tenant_id, admission_id, score_type, score_value, score_details, scored_by, notes) \
+           VALUES ($1, $2, $3::icu_score_type, $4, COALESCE($5, '{}'::jsonb), $6, $7) \
+           RETURNING * \
+         ) \
+         SELECT i.id, i.admission_id, i.score_type::text AS score_type, i.score_value, \
+                i.score_details, i.scored_at, i.scored_by, u.full_name AS scored_by_name, i.notes \
+         FROM inserted i LEFT JOIN users u ON u.id = i.scored_by",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .bind(&body.score_type)
+    .bind(body.score_value)
+    .bind(&body.score_details)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}

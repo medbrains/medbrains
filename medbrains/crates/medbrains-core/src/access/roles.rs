@@ -236,6 +236,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Care View
             permissions::care_view::VIEW,
             permissions::care_view::DISCHARGE_TRACKER,
+            permissions::care_view::scores::LIST,
+            permissions::care_view::scores::RECORD,
             // Chronic Care
             permissions::chronic::programs::LIST,
             permissions::chronic::enrollments::LIST,
@@ -458,6 +460,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::care_view::HANDOVER,
             permissions::care_view::DISCHARGE_TRACKER,
             permissions::care_view::MANAGE_TASKS,
+            // Nursing does most of the scoring: Aldrete in recovery, MEOWS on
+            // the obstetric ward, NEWS2 on every round.
+            permissions::care_view::scores::LIST,
+            permissions::care_view::scores::RECORD,
             // Chronic Care
             permissions::chronic::enrollments::LIST,
             permissions::chronic::timeline::VIEW,

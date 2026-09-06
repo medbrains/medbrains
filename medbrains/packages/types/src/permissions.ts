@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 977 permissions, one per constant in the Rust source. */
+/** 979 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4296,6 +4296,18 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Manage Tasks Care View",
     module: "care_view",
   },
+  {
+    code: "care_view.scores.list",
+    label: "See a patient's recorded assessment scores",
+    description: "See a patient's recorded assessment scores",
+    module: "care_view",
+  },
+  {
+    code: "care_view.scores.record",
+    label: "Record an assessment score against a patient",
+    description: "The score is the clinical record, not a calculation: an Aldrete is the evidence a patient was fit to leave recovery, and NEWS2 only means anything as a trend.",
+    module: "care_view",
+  },
   // chronic
   {
     code: "chronic.programs.list",
@@ -6524,6 +6536,12 @@ export const P = {
     HANDOVER: "care_view.handover",
     MANAGE_TASKS: "care_view.manage_tasks",
     MY_TASKS: "care_view.my_tasks",
+    SCORES: {
+      LIST: "care_view.scores.list",
+      RECORD: "care_view.scores.record",
+    },
+    SCORES_LIST: "care_view.scores.list",
+    SCORES_RECORD: "care_view.scores.record",
     VIEW: "care_view.view",
   },
   CASE_MGMT: {
@@ -8894,6 +8912,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BEDSIDE.SESSIONS.LIST,
       P.BEDSIDE.VIEW,
       P.CARE_VIEW.DISCHARGE_TRACKER,
+      P.CARE_VIEW.SCORES.LIST,
+      P.CARE_VIEW.SCORES.RECORD,
       P.CARE_VIEW.VIEW,
       P.CHRONIC.ENROLLMENTS.CREATE,
       P.CHRONIC.ENROLLMENTS.LIST,
@@ -9175,6 +9195,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CARE_VIEW.HANDOVER,
       P.CARE_VIEW.MANAGE_TASKS,
       P.CARE_VIEW.MY_TASKS,
+      P.CARE_VIEW.SCORES.LIST,
+      P.CARE_VIEW.SCORES.RECORD,
       P.CARE_VIEW.VIEW,
       P.CHRONIC.ADHERENCE.CREATE,
       P.CHRONIC.ADHERENCE.LIST,
