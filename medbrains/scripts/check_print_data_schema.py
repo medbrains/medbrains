@@ -174,6 +174,12 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                 ctes = {m.lower() for m in CTE.findall(body)}
                 for m in SOURCE.finditer(body):
                     tbl, al = m.group(1), m.group(2)
+                    # System catalogs are real tables that information_schema
+                    # does not list — `pg_roles` in the outbox worker's
+                    # BYPASSRLS assertion is legitimate SQL, not a missing
+                    # table.
+                    if tbl.lower().startswith(("pg_", "information_schema")):
+                        continue
                     # `EXTRACT(EPOCH FROM AVG(...))` is not a table named AVG.
                     # A name followed by `(` is a function call, never a source.
                     # Checked here rather than as a lookahead in SOURCE, which

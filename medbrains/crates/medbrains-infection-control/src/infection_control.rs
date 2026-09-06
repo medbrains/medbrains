@@ -1522,6 +1522,19 @@ pub async fn surgical_prophylaxis(
     let from = params.from_date.as_deref().map(parse_date).transpose()?;
     let to = params.to_date.as_deref().map(parse_date).transpose()?;
 
+    // The denominator counted `ip_admissions WHERE admission_type = 'surgical'`.
+    // Neither exists: the table is `admissions`, and its `ip_type` is a room
+    // class -- general, private, icu, isolation -- not a reason for admission.
+    // Nothing on an admission records that it was surgical, so this rate could
+    // not have been derived from admissions however the names were spelled.
+    //
+    // A surgical procedure is an `ot_bookings` row, which is also the
+    // denominator NABH and NHSN use for an SSI rate: infections per hundred
+    // operative procedures, not per hundred admissions. Department comes
+    // through the booking's admission, since ot_bookings carries none.
+    //
+    // The CTE is `surgeries`, not `admissions`: a CTE named for the table it
+    // reads turns the reference inside it into a self-reference.
     let rows = sqlx::query_as::<_, SurgicalProphylaxisRow>(
         "WITH ssi AS ( \
            SELECT department_id, COUNT(*) AS total_ssi_events \
@@ -1531,21 +1544,22 @@ pub async fn surgical_prophylaxis(
              AND ($3::date IS NULL OR infection_date <= $3::date) \
            GROUP BY department_id \
          ), \
-         admissions AS ( \
-           SELECT department_id, COUNT(*) AS total_surgical_admissions \
-           FROM ip_admissions \
-           WHERE tenant_id = $1 AND admission_type = 'surgical' \
-             AND ($2::date IS NULL OR admitted_at >= $2::timestamptz) \
-             AND ($3::date IS NULL OR admitted_at <= $3::timestamptz) \
-           GROUP BY department_id \
+         surgeries AS ( \
+           SELECT a.department_id, COUNT(*) AS total_surgical_admissions \
+           FROM ot_bookings ob \
+           JOIN admissions a ON a.id = ob.admission_id AND a.tenant_id = ob.tenant_id \
+           WHERE ob.tenant_id = $1 AND ob.status = 'completed' \
+             AND ($2::date IS NULL OR ob.scheduled_date >= $2::date) \
+             AND ($3::date IS NULL OR ob.scheduled_date <= $3::date) \
+           GROUP BY a.department_id \
          ) \
-         SELECT COALESCE(s.department_id, a.department_id) AS department_id, \
+         SELECT COALESCE(s.department_id, g.department_id) AS department_id, \
                 COALESCE(s.total_ssi_events, 0) AS total_ssi_events, \
-                COALESCE(a.total_surgical_admissions, 0) AS total_surgical_admissions, \
-                CASE WHEN COALESCE(a.total_surgical_admissions, 0) > 0 \
-                  THEN (COALESCE(s.total_ssi_events, 0)::float8 / a.total_surgical_admissions::float8) * 100.0 \
+                COALESCE(g.total_surgical_admissions, 0) AS total_surgical_admissions, \
+                CASE WHEN COALESCE(g.total_surgical_admissions, 0) > 0 \
+                  THEN (COALESCE(s.total_ssi_events, 0)::float8 / g.total_surgical_admissions::float8) * 100.0 \
                   ELSE NULL END AS ssi_rate \
-         FROM ssi s FULL OUTER JOIN admissions a ON s.department_id = a.department_id \
+         FROM ssi s FULL OUTER JOIN surgeries g ON s.department_id = g.department_id \
          ORDER BY total_ssi_events DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)

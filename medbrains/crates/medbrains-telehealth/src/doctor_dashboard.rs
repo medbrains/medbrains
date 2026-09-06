@@ -153,22 +153,42 @@ async fn compute_today_counts(
 ) -> Result<TodayCounts, AppError> {
     let mut t = TodayCounts::default();
 
-    // OPD appointments today (best-effort, table may have different shape)
-    if let Ok((total, remaining)) = sqlx::query_as::<_, (i64, i64)>(
+    // There is no `opd_appointments` table -- appointments live in
+    // `appointments` -- and 'arrived' was never a value of appointment_status,
+    // whose states are scheduled, confirmed, checked_in, in_consultation,
+    // completed, cancelled and no_show. The doctor's day has always shown no
+    // appointments at all.
+    //
+    // Remaining is every state before the consultation is finished, including
+    // the patient currently in the room: a doctor reading "remaining" wants
+    // the work still in front of them, and the count should not drop the
+    // moment somebody walks in.
+    let counts = sqlx::query_as::<_, (i64, i64)>(
         "SELECT \
             COUNT(*)::bigint, \
-            COUNT(*) FILTER (WHERE status IN ('scheduled','confirmed','arrived'))::bigint \
-         FROM opd_appointments \
+            COUNT(*) FILTER (WHERE status::text IN \
+              ('scheduled','confirmed','checked_in','in_consultation'))::bigint \
+         FROM appointments \
          WHERE tenant_id = $1 AND doctor_id = $2 \
            AND appointment_date = current_date",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_one(&mut **tx)
-    .await
-    {
-        t.appointments_total = total;
-        t.appointments_remaining = remaining;
+    .await;
+
+    match counts {
+        Ok((total, remaining)) => {
+            t.appointments_total = total;
+            t.appointments_remaining = remaining;
+        }
+        // Left as zero, but said out loud. Swallowing this is how it went
+        // unnoticed that the query named a table that does not exist.
+        Err(err) => tracing::error!(
+            doctor_id = %claims.sub,
+            error = %err,
+            "doctor day: today's appointment counts could not be read"
+        ),
     }
 
     Ok(t)
