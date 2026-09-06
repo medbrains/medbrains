@@ -35,6 +35,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai";
 import { Brand } from "@/components/Brand";
+import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
@@ -604,11 +605,29 @@ export function AppLayout() {
             )}
           </Box>
 
-          {/* Version */}
+          {/* Which build is this?
+              The badge here read a hardcoded "v0.1" — the same string on
+              every deploy since it was written, which is worse than none:
+              it answers the support question confidently and wrongly. It now
+              carries the real version, the commit the deploy fingerprints,
+              and the build date, so a stale cached bundle is visible rather
+              than indistinguishable from a current one. Collapsed to the
+              rail there is no room for the commit, so only the version
+              shows and the tooltip carries the rest. */}
           <Box className={classes.versionBadge}>
-            <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
-              v0.1
-            </Text>
+            {isExpanded ? (
+              <BuildVersion />
+            ) : (
+              <Tooltip
+                label={`v${__APP_VERSION__} · ${__APP_COMMIT__} · built ${new Date(__APP_BUILT__).toLocaleString()}`}
+                position="right"
+                withArrow
+              >
+                <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
+                  v{__APP_VERSION__}
+                </Text>
+              </Tooltip>
+            )}
           </Box>
         </AppShell.Section>
       </AppShell.Navbar>

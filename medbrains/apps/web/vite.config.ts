@@ -4,6 +4,8 @@ import { compression } from "vite-plugin-compression2";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import path from "path";
+import { execSync } from "child_process";
+import pkg from "./package.json" with { type: "json" };
 
 export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
@@ -40,7 +42,43 @@ export default defineConfig(async ({ command }) => {
     );
   }
 
+  // Build identity, baked in at build time.
+  //
+  // "Which version are you on?" had no answer anywhere — not in the UI, not
+  // in /api/health, not in a footer. On a hospital system that is the first
+  // question support asks and the last one anybody can answer, and a browser
+  // holding a stale cached bundle looks identical to one that is up to date.
+  //
+  // The commit is the same identity the deploy already fingerprints in
+  // scripts/source-fingerprint.sh, so the string on the screen and the string
+  // terraform prints are the same commit rather than two schemes that drift.
+  const gitCommit = (() => {
+    try {
+      return execSync("git rev-parse --short=12 HEAD", { cwd: workspaceRoot })
+        .toString()
+        .trim();
+    } catch {
+      // A tarball or a container build with no .git is a normal way to build
+      // this. Say so rather than pretending to a commit.
+      return "unknown";
+    }
+  })();
+  const gitDirty = (() => {
+    try {
+      return execSync("git status --porcelain -- crates apps packages", { cwd: workspaceRoot })
+        .toString()
+        .trim().length > 0;
+    } catch {
+      return false;
+    }
+  })();
+
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+      __APP_COMMIT__: JSON.stringify(gitDirty ? `${gitCommit}+local` : gitCommit),
+      __APP_BUILT__: JSON.stringify(new Date().toISOString()),
+    },
     cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(__dirname, "node_modules/.vite"),
     plugins,
     // Vite 8 changed CJS default-import interop: `import X from "cjs-dual-pkg"`
