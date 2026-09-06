@@ -49,12 +49,23 @@ STAR = re.compile(r"(SELECT|RETURNING)\s+\*", re.I)
 SOURCE = re.compile(r"\b(?:FROM|INTO|UPDATE)\s+(?:[a-z_]+\.)?([a-z_][a-z0-9_]*)", re.I)
 
 
-def structs() -> dict[str, set[str]]:
-    """{struct -> column names it expects, after honouring sqlx renames}."""
-    out: dict[str, set[str]] = {}
+def structs() -> dict[str, dict[str, set[str]]]:
+    """{crate -> {struct -> column names it expects}}, honouring sqlx renames.
+
+    Kept per crate because struct names are NOT unique across 100+ crates and
+    resolving them globally pairs the wrong one. `IoEntry` exists in
+    medbrains-nursing, matching intake_output_entries exactly, and again in
+    medbrains-core/print_data.rs with a wide print shape; a global first-wins
+    lookup compared the print DTO against the nursing table and reported six
+    columns missing from code that is entirely correct. `ShiftDefinition`
+    collides the same way.
+    """
+    out: dict[str, dict[str, set[str]]] = {}
     for crate in sorted(CRATES.iterdir()):
         if not (crate / "src").is_dir() or crate.name in SKIP:
             continue
+        here: dict[str, set[str]] = {}
+        ambiguous: set[str] = set()
         for path in (crate / "src").rglob("*.rs"):
             text = path.read_text(encoding="utf-8", errors="replace")
             for m in STRUCT.finditer(text):
@@ -62,9 +73,36 @@ def structs() -> dict[str, set[str]]:
                     f.group("ren") or f.group("name")
                     for f in FIELD.finditer(m.group(2))
                 }
-                if cols:
-                    out.setdefault(m.group(1), cols)
+                name = m.group(1)
+                if name in here:
+                    # Defined twice in one crate — medbrains-core holds both a
+                    # `GrnItem` in procurement.rs and a print DTO of the same
+                    # name in print_data.rs. There is no way to tell from the
+                    # call site which one a query means, so neither is used.
+                    ambiguous.add(name)
+                elif cols:
+                    here[name] = cols
+        for name in ambiguous:
+            here.pop(name, None)
+        out[crate.name] = here
     return out
+
+
+def resolve(known: dict[str, dict[str, set[str]]], crate: str, struct: str) -> set[str] | None:
+    """The struct as the querying crate would see it: its own, else imported.
+
+    A crate's own definition always wins. Otherwise the struct came in from
+    another crate — usually medbrains-core — and is only trusted when exactly
+    one crate defines that name, because more than one is the collision this
+    function exists to avoid.
+    """
+    own = known.get(crate, {}).get(struct)
+    if own is not None:
+        return own
+    holders = [c for c, m in known.items() if struct in m]
+    if len(holders) == 1:
+        return known[holders[0]][struct]
+    return None
 
 
 def pairs(only: str | None) -> list[tuple[str, str, str]]:
@@ -128,9 +166,10 @@ def main(argv: list[str]) -> int:
             print(f"MISSING TABLE  {crate:30} {struct:26} <- {table}")
             flagged += 1
             continue
-        if struct not in known:
+        fields = resolve(known, crate, struct)
+        if fields is None:
             continue
-        missing = [f for f in sorted(known[struct]) if f not in cols[table]]
+        missing = [f for f in sorted(fields) if f not in cols[table]]
         if missing:
             print(f"CHECK          {crate:30} {struct:26} <- {table:28} {', '.join(missing[:6])}")
             flagged += 1
