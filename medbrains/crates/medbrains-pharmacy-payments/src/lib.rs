@@ -22,7 +22,12 @@ use medbrains_server_core::{
 pub struct PharmacyPaymentTransaction {
     pub id: Uuid,
     pub tenant_id: Uuid,
-    pub transaction_number: String,
+    // No `transaction_number` column exists on
+    // pharmacy_payment_transactions, so `RETURNING *` could never fill it and
+    // this struct could not decode. The generated PTXN- reference is still
+    // built and carried into the payment's note; it simply has no column of
+    // its own. A payment therefore has no human-readable reference of record
+    // — a real gap, needing the column and the receipt that shows it.
     pub pos_sale_id: Option<Uuid>,
     pub order_id: Option<Uuid>,
     pub invoice_id: Option<Uuid>,
@@ -83,28 +88,38 @@ pub struct DayReconciliationQuery {
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct PharmacyDaySettlement {
+    // Mirrors `pharmacy_day_settlements` exactly. It previously declared
+    // total_system, matched_count, pending_count and updated_at -- none of
+    // which are columns -- while omitting six that are, so `RETURNING *`
+    // could not decode and every settlement handler failed. The TypeScript
+    // type already matched the table; only this drifted.
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub settlement_date: NaiveDate,
-    pub cash_system: Decimal,
-    pub card_system: Decimal,
-    pub upi_system: Decimal,
-    pub insurance_system: Decimal,
-    pub credit_system: Decimal,
-    pub total_system: Decimal,
+    pub counter_id: Option<String>,
+    pub shift_id: Option<String>,
+    pub cash_system: Option<Decimal>,
     pub cash_counted: Option<Decimal>,
     pub cash_difference: Option<Decimal>,
-    pub transactions_count: i32,
-    pub matched_count: i32,
-    pub pending_count: i32,
-    pub status: String,
+    pub card_system: Option<Decimal>,
+    pub card_settled: Option<Decimal>,
+    pub upi_system: Option<Decimal>,
+    pub upi_matched: Option<Decimal>,
+    pub upi_unmatched: Option<Decimal>,
+    pub insurance_system: Option<Decimal>,
+    pub credit_system: Option<Decimal>,
+    pub total_sales: Option<Decimal>,
+    pub total_returns: Option<Decimal>,
+    pub net_collection: Option<Decimal>,
+    pub transactions_count: Option<i32>,
+    pub returns_count: Option<i32>,
+    pub status: Option<String>,
     pub closed_by: Option<Uuid>,
     pub closed_at: Option<DateTime<Utc>>,
     pub verified_by: Option<Uuid>,
     pub verified_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -166,15 +181,14 @@ pub async fn create_payment(
 
     let row = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "INSERT INTO pharmacy_payment_transactions \
-         (tenant_id, transaction_number, pos_sale_id, order_id, invoice_id, \
+         (tenant_id, pos_sale_id, order_id, invoice_id, \
           payment_mode, amount, reference_number, device_terminal_id, \
           upi_transaction_id, card_last_four, card_network, card_approval_code, \
           shift_id, counter_id, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(&transaction_number)
     .bind(body.pos_sale_id)
     .bind(body.order_id)
     .bind(body.invoice_id)
@@ -207,7 +221,7 @@ pub async fn create_payment(
         };
         sqlx::query(
             "INSERT INTO payments \
-             (tenant_id, invoice_id, amount, mode, reference_number, notes, paid_at, created_by) \
+             (tenant_id, invoice_id, amount, mode, reference_number, notes, paid_at, received_by) \
              VALUES ($1, $2, $3, $4::payment_mode, $5, $6, now(), $7)",
         )
         .bind(claims.tenant_id)
@@ -403,11 +417,23 @@ pub async fn get_settlement(
         .unwrap_or_else(|| Utc::now().date_naive());
 
     let row = sqlx::query_as::<_, PharmacyDaySettlement>(
+        // `total_system`, `matched_count` and `pending_count` are not columns.
+        // The sum of the day's payments is `total_sales`; how many of them are
+        // matched or still pending is recorded nowhere on a settlement row, so
+        // those two counts are dropped rather than forced into `upi_matched`,
+        // which is a UPI amount and not a count of anything. The reconciliation
+        // screen never showed them -- the TypeScript type has never had them
+        // either.
+        //
+        // The conflict target carries the partial index's predicate so it
+        // matches idx_settlements_tenant_date_no_counter (migration 1013).
+        // Naming (tenant_id, settlement_date) alone matched no unique index at
+        // all, and adding counter_id would not have helped: this settlement is
+        // tenant-wide, counter_id is NULL, and NULLs do not conflict.
         "INSERT INTO pharmacy_day_settlements \
          (tenant_id, settlement_date, \
           cash_system, card_system, upi_system, insurance_system, \
-          credit_system, total_system, transactions_count, \
-          matched_count, pending_count) \
+          credit_system, total_sales, transactions_count) \
          SELECT $1, $2, \
            COALESCE(SUM(CASE WHEN payment_mode='cash' \
                THEN amount ELSE 0 END), 0), \
@@ -420,22 +446,18 @@ pub async fn get_settlement(
            COALESCE(SUM(CASE WHEN payment_mode='credit' \
                THEN amount ELSE 0 END), 0), \
            COALESCE(SUM(amount), 0), \
-           COUNT(*)::int, \
-           COUNT(*) FILTER (WHERE reconciliation_status='matched')::int, \
-           COUNT(*) FILTER (WHERE reconciliation_status='pending')::int \
+           COUNT(*)::int \
          FROM pharmacy_payment_transactions \
          WHERE tenant_id = $1 AND created_at::date = $2 \
-         ON CONFLICT (tenant_id, settlement_date) DO UPDATE SET \
+         ON CONFLICT (tenant_id, settlement_date) \
+           WHERE counter_id IS NULL AND deleted_at IS NULL DO UPDATE SET \
            cash_system = EXCLUDED.cash_system, \
            card_system = EXCLUDED.card_system, \
            upi_system = EXCLUDED.upi_system, \
            insurance_system = EXCLUDED.insurance_system, \
            credit_system = EXCLUDED.credit_system, \
-           total_system = EXCLUDED.total_system, \
-           transactions_count = EXCLUDED.transactions_count, \
-           matched_count = EXCLUDED.matched_count, \
-           pending_count = EXCLUDED.pending_count, \
-           updated_at = now() \
+           total_sales = EXCLUDED.total_sales, \
+           transactions_count = EXCLUDED.transactions_count \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -466,8 +488,7 @@ pub async fn close_settlement(
          status = 'closed', \
          closed_by = $4, \
          closed_at = now(), \
-         notes = COALESCE($5, notes), \
-         updated_at = now() \
+         notes = COALESCE($5, notes) \
          WHERE id = $1 AND tenant_id = $2 AND status = 'open' \
          RETURNING *",
     )
@@ -499,8 +520,7 @@ pub async fn verify_settlement(
         "UPDATE pharmacy_day_settlements SET \
          status = 'verified', \
          verified_by = $3, \
-         verified_at = now(), \
-         updated_at = now() \
+         verified_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'closed' \
          RETURNING *",
     )

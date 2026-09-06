@@ -109,9 +109,7 @@ pub struct PharmacySubstitute {
     pub price_difference: Option<rust_decimal::Decimal>,
     pub is_therapeutic_equivalent: bool,
     pub notes: Option<String>,
-    pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -475,12 +473,19 @@ pub async fn create_substitute(
                (SELECT mrp FROM pharmacy_catalog WHERE id = $3) AS brand_mrp, \
                (SELECT mrp FROM pharmacy_catalog WHERE id = $4) AS generic_mrp \
          ) \
+         // `pharmacy_substitutes` has no `created_by` and no `updated_at`,
+         // though it does have deleted_by — an asymmetry that left the struct
+         // asking for two columns the table has never had, so RETURNING *
+         // could not decode and this handler never created a substitution
+         // rule. Both are dropped rather than added: who authored a
+         // substitution is worth recording, but it needs the column and the
+         // screen that shows it, and neither exists.
          INSERT INTO pharmacy_substitutes \
          (tenant_id, brand_drug_id, generic_drug_id, \
-          price_difference, is_therapeutic_equivalent, notes, created_by) \
+          price_difference, is_therapeutic_equivalent, notes) \
          SELECT $1, $3, $4, \
                 COALESCE(p.brand_mrp, 0) - COALESCE(p.generic_mrp, 0), \
-                $5, $6, $7 \
+                $5, $6 \
          FROM prices p \
          RETURNING *, \
            (SELECT name FROM pharmacy_catalog WHERE id = brand_drug_id) AS brand_name, \
@@ -496,7 +501,6 @@ pub async fn create_substitute(
     .bind(body.generic_drug_id)                           // $4
     .bind(body.is_therapeutic_equivalent.unwrap_or(false)) // $5
     .bind(&body.notes)                                    // $6
-    .bind(claims.sub)                                     // $7
     .fetch_one(&mut *tx)
     .await?;
 

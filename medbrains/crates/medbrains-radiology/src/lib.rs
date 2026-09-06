@@ -1659,9 +1659,13 @@ pub async fn create_radiology_appointment(
         .await?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
+        // `clinical_notes` is not a column. The free-text note column is
+        // `notes`; `clinical_indication` also exists but is the justification
+        // for the study, a distinct regulatory field, and the request's plain
+        // `notes` must not be silently promoted into it.
         "INSERT INTO radiology_orders \
          (tenant_id, patient_id, encounter_id, modality_id, status, \
-          priority, clinical_notes, ordered_by) \
+          priority, notes, ordered_by) \
          VALUES ($1, $2, $3, $4, 'ordered'::radiology_order_status, \
                  COALESCE($5, 'routine')::radiology_priority, $6, $7) \
          RETURNING *",

@@ -1722,9 +1722,15 @@ pub async fn create_admission(
 
     let (ward_name, bed_number) = if let Some(bid) = admission.bed_id {
         sqlx::query_as::<_, (Option<String>, Option<String>)>(
+            // `locations` has no ward_id — a bed location reaches its ward
+            // through `ward_bed_mappings`, which is what the bed board reads.
+            // The result feeds the admission event's ward and bed name, and
+            // the error was swallowed, so both have always been blank.
             "SELECT w.name, l.name \
              FROM locations l \
-             LEFT JOIN wards w ON w.id = l.ward_id \
+             LEFT JOIN ward_bed_mappings wbm ON wbm.bed_location_id = l.id \
+               AND wbm.is_active = true \
+             LEFT JOIN wards w ON w.id = wbm.ward_id \
              WHERE l.id = $1",
         )
         .bind(bid)
