@@ -61,12 +61,54 @@ fi
 
 # Backups. OnFailure= on the backup unit only fires when that unit RUNS -
 # a timer that stopped firing produces no failure and therefore no page.
-# The dump on disk is the evidence that it ran, so check the evidence.
+# The dump itself is the evidence that it ran, so check the evidence -
+# WHERE THE DUMP ACTUALLY GOES.
 #
-# Local destination only. The S3 tiers need an `aws s3 ls` to answer the
-# same question; worth adding, but it is a network call with its own
-# failure modes and this check must not page about AWS being slow.
-if [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR:-/nonexistent}" ]]; then
+# This checked the local directory unconditionally. On a host that ships to
+# S3, BACKUP_DIR still exists holding whatever was there before the switch
+# and nothing since, so the check reported "no dump newer than 26h" every
+# hour while backups were landing in the bucket on schedule. It also matched
+# '*.dump' where S3 objects are named '*.sql.gz', so it could not have found
+# them even pointed at the right place.
+#
+# A permanently failing check is worse than none: the unit sits in `failed`,
+# so a REAL backup failure looks exactly like the standing false one, and
+# OnFailure= pages hourly until nobody reads it.
+#
+# The earlier note here said an `aws s3 ls` "must not page about AWS being
+# slow". That is right, and it has an answer rather than an omission: three
+# outcomes, not two. A listing that FAILS is unknown - say so, do not fail.
+# A listing that SUCCEEDS and shows nothing recent is a real absence.
+if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+    prefix="${BACKUP_PREFIX:-pg-backups}"
+    prefix="${prefix%/}"
+    s3_path="s3://${BACKUP_BUCKET}/${prefix}/$(hostname)/"
+
+    if ! listing="$(aws s3 ls "$s3_path" 2>/dev/null)"; then
+        # Network, credentials, throttling. Not evidence of a missing backup.
+        echo "backup: could not list $s3_path — unknown, not treated as failed" >&2
+    else
+        # `aws s3 ls` prints "YYYY-MM-DD HH:MM:SS <size> <key>", so the
+        # lexical sort is also the chronological one.
+        newest="$(grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2} ' <<<"$listing" | sort | tail -1)"
+        if [[ -z "$newest" ]]; then
+            echo "BACKUP: no objects at all under $s3_path" >&2
+            failed=1
+        else
+            stamp="$(awk '{print $1" "$2}' <<<"$newest")"
+            # 26h, not 24h: the timer carries RandomizedDelaySec and
+            # Persistent, so a run can legitimately land later than exactly a
+            # day apart.
+            if (( $(date -u -d "$stamp" +%s) < $(date -u +%s) - 93600 )); then
+                echo "BACKUP: newest object at $s3_path is $stamp, over 26h old" >&2
+                systemctl status medbrains-pg-backup.timer --no-pager -l 2>&1 | tail -5 >&2 || true
+                failed=1
+            else
+                echo "backup: an object landed in the last 26h ($stamp)"
+            fi
+        fi
+    fi
+elif [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR:-/nonexistent}" ]]; then
     # 26h, not 24h: the timer carries RandomizedDelaySec and Persistent,
     # so a run can legitimately land later than exactly a day apart.
     if [[ -z "$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -mmin -1560 2>/dev/null)" ]]; then
