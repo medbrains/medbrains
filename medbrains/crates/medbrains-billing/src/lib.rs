@@ -2050,10 +2050,22 @@ pub async fn trigger_auto_charge(
             }
             "ot" => {
                 // OT auto-billing: charge completed OT bookings
+                // `ot_bookings` has no encounter_id — a booking reaches an
+                // encounter through its admission. This query has always
+                // errored, so no completed OT procedure has ever been
+                // auto-charged and the theatre's work never reached an
+                // invoice.
+                //
+                // The join is inner on purpose: `admission_id` is nullable, and
+                // a day-care booking with no admission has no encounter to
+                // charge against. Those need their own path, not a row
+                // silently billed to whichever encounter was passed in.
                 let bookings = sqlx::query_as::<_, OtBookingInfo>(
                     "SELECT ob.id, ob.patient_id, ob.procedure_name, ob.ot_room_id \
                      FROM ot_bookings ob \
-                     WHERE ob.encounter_id = $1 AND ob.tenant_id = $2 \
+                     JOIN admissions a ON a.id = ob.admission_id \
+                       AND a.tenant_id = ob.tenant_id \
+                     WHERE a.encounter_id = $1 AND ob.tenant_id = $2 \
                        AND ob.status = 'completed'",
                 )
                 .bind(body.encounter_id)
@@ -2699,9 +2711,14 @@ pub async fn check_billing_threshold(
 
     // Get threshold from ip_type_configurations via admission
     let threshold = sqlx::query_scalar::<_, Option<Decimal>>(
+        // There is no `ip_admissions` table and no `admissions.admission_type`
+        // column; the table is `admissions` and the column is `ip_type`, which
+        // is what `ip_type_configurations` keys on. The threshold that warns
+        // when an inpatient's bill runs past their plan has never been read.
         "SELECT itc.billing_alert_threshold \
-         FROM ip_admissions a \
-         JOIN ip_type_configurations itc ON itc.ip_type = a.admission_type AND itc.tenant_id = a.tenant_id \
+         FROM admissions a \
+         JOIN ip_type_configurations itc ON itc.ip_type = a.ip_type \
+           AND itc.tenant_id = a.tenant_id \
          WHERE a.encounter_id = $1 AND a.tenant_id = $2 \
          LIMIT 1",
     )
