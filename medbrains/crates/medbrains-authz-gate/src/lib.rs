@@ -640,26 +640,26 @@ pub async fn require_patient_access(
     // on SpiceDB, and by the recursive-CTE check in a later phase).
     let mut items: Vec<(String, medbrains_authz::Relation, Uuid)> = Vec::new();
 
-    let encounter_ids: Vec<Uuid> = sqlx::query_scalar(
+    let encounter_ids: Vec<Uuid> = sqlx::query_scalar!(
         "SELECT id FROM encounters WHERE patient_id = $1 AND tenant_id = $2 \
          ORDER BY encounter_date DESC LIMIT $3",
+        patient_id,
+        claims.tenant_id,
+        MAX_FANOUT,
     )
-    .bind(patient_id)
-    .bind(claims.tenant_id)
-    .bind(MAX_FANOUT)
     .fetch_all(&mut *conn)
     .await?;
     for eid in encounter_ids {
         items.push(("encounter".to_owned(), medbrains_authz::Relation::Viewer, eid));
     }
 
-    let admission_ids: Vec<Uuid> = sqlx::query_scalar(
+    let admission_ids: Vec<Uuid> = sqlx::query_scalar!(
         "SELECT id FROM admissions WHERE patient_id = $1 AND tenant_id = $2 \
          ORDER BY admitted_at DESC LIMIT $3",
+        patient_id,
+        claims.tenant_id,
+        MAX_FANOUT,
     )
-    .bind(patient_id)
-    .bind(claims.tenant_id)
-    .bind(MAX_FANOUT)
     .fetch_all(&mut *conn)
     .await?;
     for aid in admission_ids {
