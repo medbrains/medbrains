@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tenant_settings (tenant_id, category, key, value) VALUES ($1, 'email', 'config', $2) ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9008cb8490bff44b5f718ac1aff29e4218af5f524de88db595b643ae8e4db7a5"
+}

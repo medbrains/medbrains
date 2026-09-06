@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO procedure_catalog (tenant_id, code, name, category, base_price, duration_minutes, requires_consent, requires_anesthesia) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name, category = COALESCE(EXCLUDED.category, procedure_catalog.category), base_price = COALESCE(EXCLUDED.base_price, procedure_catalog.base_price), duration_minutes = COALESCE(EXCLUDED.duration_minutes, procedure_catalog.duration_minutes), requires_consent = EXCLUDED.requires_consent, requires_anesthesia = EXCLUDED.requires_anesthesia, is_active = true, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Int4",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4aab50787ffa2f18a34a68c6d1d39d9d88322a03b42f3726f3e2453a9e8d59f"
+}

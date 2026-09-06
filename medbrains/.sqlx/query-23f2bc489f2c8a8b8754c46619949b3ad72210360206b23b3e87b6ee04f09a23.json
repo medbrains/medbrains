@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO master_insurance_providers (tenant_id, code, name, provider_type, contact_phone, contact_email, website) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name, provider_type = EXCLUDED.provider_type, contact_phone = COALESCE(EXCLUDED.contact_phone, master_insurance_providers.contact_phone), contact_email = COALESCE(EXCLUDED.contact_email, master_insurance_providers.contact_email), website = COALESCE(EXCLUDED.website, master_insurance_providers.website), is_active = true",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "23f2bc489f2c8a8b8754c46619949b3ad72210360206b23b3e87b6ee04f09a23"
+}

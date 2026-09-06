@@ -110,7 +110,7 @@ pub async fn import_lab_catalog(
         let fasting_hours: Option<i32> =
             optional(cell(values, fasting_hours_idx)).and_then(|v| v.parse().ok());
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO lab_test_catalog \
              (tenant_id, code, name, sample_type, normal_range, unit, price, \
               tat_hours, loinc_code, critical_low, critical_high, \
@@ -131,21 +131,21 @@ pub async fn import_lab_catalog(
                fasting_required = COALESCE($13, lab_test_catalog.fasting_required), \
                fasting_hours = COALESCE(EXCLUDED.fasting_hours, lab_test_catalog.fasting_hours), \
                is_active = true, updated_at = now()",
+            claims.tenant_id,
+            code,
+            name,
+            optional(cell(values, sample_type_idx)),
+            optional(cell(values, normal_range_idx)),
+            optional(cell(values, unit_idx)),
+            price,
+            tat_hours,
+            optional(cell(values, loinc_idx)),
+            critical_low,
+            critical_high,
+            optional(cell(values, container_idx)),
+            fasting_required,
+            fasting_hours,
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(optional(cell(values, sample_type_idx)))
-        .bind(optional(cell(values, normal_range_idx)))
-        .bind(optional(cell(values, unit_idx)))
-        .bind(price)
-        .bind(tat_hours)
-        .bind(optional(cell(values, loinc_idx)))
-        .bind(critical_low)
-        .bind(critical_high)
-        .bind(optional(cell(values, container_idx)))
-        .bind(fasting_required)
-        .bind(fasting_hours)
         .execute(&mut *tx)
         .await;
 
@@ -245,7 +245,7 @@ pub async fn import_pharmacy_catalog(
         // Schedule X and NDPS are controlled by definition (D&C / NDPS Act).
         let is_controlled = matches!(schedule.as_deref(), Some("X" | "NDPS"));
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO pharmacy_catalog \
              (tenant_id, code, name, generic_name, category, manufacturer, unit, \
               base_price, tax_percent, reorder_level, drug_schedule, is_controlled, \
@@ -266,22 +266,22 @@ pub async fn import_pharmacy_catalog(
                atc_code = COALESCE(EXCLUDED.atc_code, pharmacy_catalog.atc_code), \
                mrp = COALESCE(EXCLUDED.mrp, pharmacy_catalog.mrp), \
                updated_at = now()",
+            claims.tenant_id,
+            code,
+            name,
+            optional(cell(values, generic_idx)),
+            optional(cell(values, category_idx)),
+            optional(cell(values, manufacturer_idx)),
+            optional(cell(values, unit_idx)),
+            base_price,
+            tax_percent,
+            reorder_level,
+            schedule.as_deref(),
+            is_controlled,
+            optional(cell(values, inn_idx)),
+            optional(cell(values, atc_idx)),
+            mrp,
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(optional(cell(values, generic_idx)))
-        .bind(optional(cell(values, category_idx)))
-        .bind(optional(cell(values, manufacturer_idx)))
-        .bind(optional(cell(values, unit_idx)))
-        .bind(base_price)
-        .bind(tax_percent)
-        .bind(reorder_level)
-        .bind(schedule.as_deref())
-        .bind(is_controlled)
-        .bind(optional(cell(values, inn_idx)))
-        .bind(optional(cell(values, atc_idx)))
-        .bind(mrp)
         .execute(&mut *tx)
         .await;
 
@@ -356,7 +356,7 @@ pub async fn import_procedure_catalog(
         let duration: Option<i32> =
             optional(cell(values, duration_idx)).and_then(|v| v.parse().ok());
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO procedure_catalog \
              (tenant_id, code, name, category, base_price, duration_minutes, \
               requires_consent, requires_anesthesia) \
@@ -370,15 +370,15 @@ pub async fn import_procedure_catalog(
                requires_consent = EXCLUDED.requires_consent, \
                requires_anesthesia = EXCLUDED.requires_anesthesia, \
                is_active = true, updated_at = now()",
+            claims.tenant_id,
+            code,
+            name,
+            optional(cell(values, category_idx)),
+            base_price,
+            duration,
+            parse_bool(cell(values, consent_idx)),
+            parse_bool(cell(values, anaes_idx)),
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(optional(cell(values, category_idx)))
-        .bind(base_price)
-        .bind(duration)
-        .bind(parse_bool(cell(values, consent_idx)))
-        .bind(parse_bool(cell(values, anaes_idx)))
         .execute(&mut *tx)
         .await;
 
@@ -451,7 +451,7 @@ pub async fn import_charge_master(
         let tax_percent = parse_decimal(cell(values, tax_idx)).unwrap_or(Decimal::ZERO);
         let gst_category = optional(cell(values, gst_idx)).unwrap_or("healthcare");
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO charge_master \
              (tenant_id, code, name, category, base_price, tax_percent, \
               hsn_sac_code, gst_category) \
@@ -464,15 +464,15 @@ pub async fn import_charge_master(
                hsn_sac_code = COALESCE(EXCLUDED.hsn_sac_code, charge_master.hsn_sac_code), \
                gst_category = EXCLUDED.gst_category, \
                is_active = true, updated_at = now()",
+            claims.tenant_id,
+            code,
+            name,
+            category,
+            base_price,
+            tax_percent,
+            optional(cell(values, hsn_idx)),
+            gst_category,
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(category)
-        .bind(base_price)
-        .bind(tax_percent)
-        .bind(optional(cell(values, hsn_idx)))
-        .bind(gst_category)
         .execute(&mut *tx)
         .await;
 
@@ -541,10 +541,10 @@ pub async fn import_services(
         let department_id = optional(cell(values, dept_idx))
             .and_then(|v| uuid::Uuid::parse_str(v).ok());
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO services \
              (tenant_id, code, name, service_type, base_price, department_id, description) \
-             VALUES ($1, $2, $3, $4::service_type, $5, $6, $7) \
+             VALUES ($1, $2, $3, $4::text::service_type, $5, $6, $7) \
              ON CONFLICT (tenant_id, code) DO UPDATE SET \
                name = EXCLUDED.name, \
                service_type = EXCLUDED.service_type, \
@@ -552,14 +552,14 @@ pub async fn import_services(
                department_id = COALESCE(EXCLUDED.department_id, services.department_id), \
                description = COALESCE(EXCLUDED.description, services.description), \
                is_active = true, updated_at = now()",
+            claims.tenant_id,
+            code,
+            name,
+            service_type,
+            base_price,
+            department_id,
+            optional(cell(values, desc_idx)),
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(service_type)
-        .bind(base_price)
-        .bind(department_id)
-        .bind(optional(cell(values, desc_idx)))
         .execute(&mut *tx)
         .await;
 
@@ -631,7 +631,7 @@ pub async fn import_insurance_providers(
             continue;
         }
 
-        let result = sqlx::query(
+        let result = sqlx::query!(
             "INSERT INTO master_insurance_providers \
              (tenant_id, code, name, provider_type, contact_phone, contact_email, website) \
              VALUES ($1, $2, $3, $4, $5, $6, $7) \
@@ -644,14 +644,14 @@ pub async fn import_insurance_providers(
                  master_insurance_providers.contact_email), \
                website = COALESCE(EXCLUDED.website, master_insurance_providers.website), \
                is_active = true",
+            claims.tenant_id,
+            code,
+            name,
+            provider_type,
+            optional(cell(values, phone_idx)),
+            optional(cell(values, email_idx)),
+            optional(cell(values, website_idx)),
         )
-        .bind(claims.tenant_id)
-        .bind(code)
-        .bind(name)
-        .bind(provider_type)
-        .bind(optional(cell(values, phone_idx)))
-        .bind(optional(cell(values, email_idx)))
-        .bind(optional(cell(values, website_idx)))
         .execute(&mut *tx)
         .await;
 

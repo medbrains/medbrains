@@ -172,36 +172,36 @@ async fn create(
 
     // The identity first, because the key references it. Both or neither —
     // see the module note.
-    let service_user_id: Uuid = sqlx::query_scalar(
+    let service_user_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO users (tenant_id, username, email, full_name, role, is_service_account, \
          is_active, email_verified) \
          VALUES ($1, $2, $3, $4, 'service_account', true, true, false) \
          RETURNING id",
+        claims.tenant_id,
+        &username,
+        // Routable nowhere on purpose: `.invalid` is reserved by RFC 2606, so a
+        // notification addressed here fails loudly instead of reaching a stranger.
+        format!("{username}@service.invalid"),
+        &name,
     )
-    .bind(claims.tenant_id)
-    .bind(&username)
-    // Routable nowhere on purpose: `.invalid` is reserved by RFC 2606, so a
-    // notification addressed here fails loudly instead of reaching a stranger.
-    .bind(format!("{username}@service.invalid"))
-    .bind(&name)
     .fetch_one(&mut *tx)
     .await?;
 
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO api_keys (id, tenant_id, name, description, key_prefix, key_hash, \
          permissions, expires_at, created_by, service_user_id) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        key_id,
+        claims.tenant_id,
+        &name,
+        body.description.as_deref(),
+        &minted.prefix,
+        &minted.hash,
+        serde_json::json!(body.permissions),
+        expires_at,
+        claims.sub,
+        service_user_id,
     )
-    .bind(key_id)
-    .bind(claims.tenant_id)
-    .bind(&name)
-    .bind(&body.description)
-    .bind(&minted.prefix)
-    .bind(&minted.hash)
-    .bind(serde_json::json!(body.permissions))
-    .bind(expires_at)
-    .bind(claims.sub)
-    .bind(service_user_id)
     .execute(&mut *tx)
     .await?;
 
@@ -253,13 +253,14 @@ async fn list(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // `key_hash` is never selected. There is nothing useful a console does
     // with it and every place it travels is another place it can leak.
-    let rows = sqlx::query_as::<_, KeySummary>(
+    let rows = sqlx::query_as!(
+        KeySummary,
         "SELECT k.id, k.name, k.description, k.key_prefix, k.permissions, k.expires_at, \
          k.last_used_at, k.revoked_at, k.created_at, u.full_name AS created_by_name \
          FROM api_keys k LEFT JOIN users u ON u.id = k.created_by \
          WHERE k.tenant_id = $1 ORDER BY k.created_at DESC",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -286,15 +287,15 @@ async fn revoke(
     // `revoked_at IS NULL` in the predicate rather than a read-then-write:
     // two administrators revoking at once would otherwise overwrite each
     // other's reason, and the second would report success having done nothing.
-    let service_user_id: Option<Uuid> = sqlx::query_scalar(
+    let service_user_id: Option<Uuid> = sqlx::query_scalar!(
         "UPDATE api_keys SET revoked_at = now(), revoked_by = $3, revoke_reason = $4 \
          WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL \
          RETURNING service_user_id",
+        id,
+        claims.tenant_id,
+        claims.sub,
+        body.reason.as_deref(),
     )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .bind(&body.reason)
     .fetch_optional(&mut *tx)
     .await?
     .flatten();
@@ -353,13 +354,14 @@ async fn usage(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // Bounded: this table grows by one row per request the key makes, so an
     // unbounded select is a busy integration's way of exhausting memory.
-    let rows = sqlx::query_as::<_, UsageRow>(
+    let rows = sqlx::query_as!(
+        UsageRow,
         "SELECT method, path, status_code, occurred_at FROM api_key_usage \
          WHERE api_key_id = $1 AND tenant_id = $2 \
          ORDER BY occurred_at DESC LIMIT 500",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

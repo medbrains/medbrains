@@ -57,11 +57,11 @@ pub async fn get_ai_settings(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let stored = sqlx::query_scalar::<_, serde_json::Value>(
+    let stored = sqlx::query_scalar!(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'ai' AND key = 'config' AND deleted_at IS NULL",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -118,14 +118,14 @@ pub async fn update_ai_settings(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'ai', 'config', $2) \
          ON CONFLICT (tenant_id, category, key) \
          DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+        claims.tenant_id,
+        &value,
     )
-    .bind(claims.tenant_id)
-    .bind(&value)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -163,11 +163,11 @@ pub async fn get_email_settings(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let stored = sqlx::query_scalar::<_, serde_json::Value>(
+    let stored = sqlx::query_scalar!(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'email' AND key = 'config' AND deleted_at IS NULL",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -245,14 +245,14 @@ pub async fn update_email_settings(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'email', 'config', $2) \
          ON CONFLICT (tenant_id, category, key) \
          DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+        claims.tenant_id,
+        &value,
     )
-    .bind(claims.tenant_id)
-    .bind(&value)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;

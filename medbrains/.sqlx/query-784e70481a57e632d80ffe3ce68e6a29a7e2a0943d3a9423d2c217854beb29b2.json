@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pharmacy_catalog (tenant_id, code, name, generic_name, category, manufacturer, unit, base_price, tax_percent, reorder_level, drug_schedule, is_controlled, inn_name, atc_code, mrp) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) ON CONFLICT (tenant_id, code) WHERE is_active DO UPDATE SET name = EXCLUDED.name, generic_name = COALESCE(EXCLUDED.generic_name, pharmacy_catalog.generic_name), category = COALESCE(EXCLUDED.category, pharmacy_catalog.category), manufacturer = COALESCE(EXCLUDED.manufacturer, pharmacy_catalog.manufacturer), unit = COALESCE(EXCLUDED.unit, pharmacy_catalog.unit), base_price = EXCLUDED.base_price, tax_percent = EXCLUDED.tax_percent, reorder_level = EXCLUDED.reorder_level, drug_schedule = COALESCE(EXCLUDED.drug_schedule, pharmacy_catalog.drug_schedule), is_controlled = EXCLUDED.is_controlled OR pharmacy_catalog.is_controlled, inn_name = COALESCE(EXCLUDED.inn_name, pharmacy_catalog.inn_name), atc_code = COALESCE(EXCLUDED.atc_code, pharmacy_catalog.atc_code), mrp = COALESCE(EXCLUDED.mrp, pharmacy_catalog.mrp), updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Numeric",
+        "Int4",
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Numeric"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "784e70481a57e632d80ffe3ce68e6a29a7e2a0943d3a9423d2c217854beb29b2"
+}

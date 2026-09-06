@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO lab_test_catalog (tenant_id, code, name, sample_type, normal_range, unit, price, tat_hours, loinc_code, critical_low, critical_high, container, fasting_required, fasting_hours) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13, false), $14) ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name, sample_type = COALESCE(EXCLUDED.sample_type, lab_test_catalog.sample_type), normal_range = COALESCE(EXCLUDED.normal_range, lab_test_catalog.normal_range), unit = COALESCE(EXCLUDED.unit, lab_test_catalog.unit), price = EXCLUDED.price, tat_hours = COALESCE(EXCLUDED.tat_hours, lab_test_catalog.tat_hours), loinc_code = COALESCE(EXCLUDED.loinc_code, lab_test_catalog.loinc_code), critical_low = COALESCE(EXCLUDED.critical_low, lab_test_catalog.critical_low), critical_high = COALESCE(EXCLUDED.critical_high, lab_test_catalog.critical_high), container = COALESCE(EXCLUDED.container, lab_test_catalog.container), fasting_required = COALESCE($13, lab_test_catalog.fasting_required), fasting_hours = COALESCE(EXCLUDED.fasting_hours, lab_test_catalog.fasting_hours), is_active = true, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Int4",
+        "Varchar",
+        "Numeric",
+        "Numeric",
+        "Text",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "999e2408a378e82b140116895cf00ee999006b775b442b38f824081577a60d30"
+}

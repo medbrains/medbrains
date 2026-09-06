@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO users (tenant_id, username, email, full_name, role, is_service_account, is_active, email_verified) VALUES ($1, $2, $3, $4, 'service_account', true, true, false) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e67fc7c0fe794adfabf612c7ba5be06ef2af69a67cc982cea218e7334e019d22"
+}

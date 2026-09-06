@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO services (tenant_id, code, name, service_type, base_price, department_id, description) VALUES ($1, $2, $3, $4::text::service_type, $5, $6, $7) ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name, service_type = EXCLUDED.service_type, base_price = EXCLUDED.base_price, department_id = COALESCE(EXCLUDED.department_id, services.department_id), description = COALESCE(EXCLUDED.description, services.description), is_active = true, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Numeric",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ce39abe2c5015569491fb7a4090f2aebbf92c74d2f86185ba0d718ec412625f5"
+}

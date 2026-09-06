@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pharmacy_catalog SET current_stock = current_stock - $1, updated_at = now() WHERE id = $2 AND tenant_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0ae74998322925972b1b5e329dfdde8ce2231cabf89ad6f36c4c0ac7833cb0a1"
+}

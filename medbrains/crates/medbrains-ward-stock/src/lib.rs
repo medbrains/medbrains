@@ -38,18 +38,19 @@ pub async fn list_ward_stock(
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, WardStockRow>(
+    let rows = sqlx::query_as!(
+        WardStockRow,
         "SELECT p.catalog_item_id, c.name AS drug_name, p.par_qty, p.min_qty, \
-                COALESCE(s.quantity, 0) AS on_hand, \
-                GREATEST(p.par_qty - COALESCE(s.quantity, 0), 0) AS gap \
+                COALESCE(s.quantity, 0) AS \"on_hand!\", \
+                GREATEST(p.par_qty - COALESCE(s.quantity, 0), 0) AS \"gap!\" \
          FROM ward_par_levels p \
          JOIN pharmacy_catalog c ON c.id = p.catalog_item_id \
          LEFT JOIN ward_stock s ON s.tenant_id = p.tenant_id \
               AND s.department_id = p.department_id AND s.catalog_item_id = p.catalog_item_id \
          WHERE p.tenant_id = $1 AND p.department_id = $2 ORDER BY c.name LIMIT 5000",
+        claims.tenant_id,
+        q.department_id,
     )
-    .bind(claims.tenant_id)
-    .bind(q.department_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -76,17 +77,17 @@ pub async fn set_ward_par(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO ward_par_levels (tenant_id, department_id, catalog_item_id, par_qty, min_qty) \
          VALUES ($1, $2, $3, $4, COALESCE($5, 0)) \
          ON CONFLICT (tenant_id, department_id, catalog_item_id) DO UPDATE SET \
            par_qty = EXCLUDED.par_qty, min_qty = EXCLUDED.min_qty, updated_at = now()",
+        claims.tenant_id,
+        body.department_id,
+        body.catalog_item_id,
+        body.par_qty,
+        body.min_qty,
     )
-    .bind(claims.tenant_id)
-    .bind(body.department_id)
-    .bind(body.catalog_item_id)
-    .bind(body.par_qty)
-    .bind(body.min_qty)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -111,7 +112,7 @@ pub async fn replenish_ward(
 
     let gaps: Vec<(Uuid, i32, i32)> = sqlx::query_as(
         "SELECT p.catalog_item_id, \
-                GREATEST(p.par_qty - COALESCE(s.quantity, 0), 0) AS gap, \
+                GREATEST(p.par_qty - COALESCE(s.quantity, 0), 0) AS \"gap!\", \
                 COALESCE(c.current_stock, 0) AS available \
          FROM ward_par_levels p \
          JOIN pharmacy_catalog c ON c.id = p.catalog_item_id \
@@ -132,25 +133,25 @@ pub async fn replenish_ward(
         if issue <= 0 {
             continue;
         }
-        sqlx::query(
+        sqlx::query!(
             "UPDATE pharmacy_catalog SET current_stock = current_stock - $1, updated_at = now() \
              WHERE id = $2 AND tenant_id = $3",
+            issue,
+            catalog_item_id,
+            claims.tenant_id,
         )
-        .bind(issue)
-        .bind(catalog_item_id)
-        .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO ward_stock (tenant_id, department_id, catalog_item_id, quantity) \
              VALUES ($1, $2, $3, $4) \
              ON CONFLICT (tenant_id, department_id, catalog_item_id) DO UPDATE SET \
                quantity = ward_stock.quantity + EXCLUDED.quantity, updated_at = now()",
+            claims.tenant_id,
+            body.department_id,
+            catalog_item_id,
+            issue,
         )
-        .bind(claims.tenant_id)
-        .bind(body.department_id)
-        .bind(catalog_item_id)
-        .bind(issue)
         .execute(&mut *tx)
         .await?;
         items_replenished += 1;
@@ -183,15 +184,15 @@ pub async fn consume_ward_stock(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let remaining: Option<i32> = sqlx::query_scalar(
+    let remaining: Option<i32> = sqlx::query_scalar!(
         "UPDATE ward_stock SET quantity = quantity - $1, updated_at = now() \
          WHERE tenant_id = $2 AND department_id = $3 AND catalog_item_id = $4 \
            AND quantity >= $1 RETURNING quantity",
+        body.quantity,
+        claims.tenant_id,
+        body.department_id,
+        body.catalog_item_id,
     )
-    .bind(body.quantity)
-    .bind(claims.tenant_id)
-    .bind(body.department_id)
-    .bind(body.catalog_item_id)
     .fetch_optional(&mut *tx)
     .await?;
     let Some(remaining) = remaining else {

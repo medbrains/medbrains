@@ -100,19 +100,20 @@ pub async fn create(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, InvitationRow>(
+    let row = sqlx::query_as!(
+        InvitationRow,
         "INSERT INTO user_invitations \
          (tenant_id, email, role, full_name, token_hash, invited_by, expires_at) \
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING id, email, role, full_name, expires_at, created_at",
+        claims.tenant_id,
+        &email,
+        role,
+        body.full_name.as_deref(),
+        &token_hash,
+        claims.sub,
+        expires_at,
     )
-    .bind(claims.tenant_id)
-    .bind(&email)
-    .bind(role)
-    .bind(&body.full_name)
-    .bind(&token_hash)
-    .bind(claims.sub)
-    .bind(expires_at)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -152,11 +153,12 @@ pub async fn list(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<InvitationRow>>, AppError> {
     require_permission(&claims, permissions::admin::users::LIST)?;
-    let rows = sqlx::query_as::<_, InvitationRow>(
+    let rows = sqlx::query_as!(
+        InvitationRow,
         "SELECT id, email, role, full_name, expires_at, created_at FROM user_invitations \
          WHERE tenant_id = $1 AND accepted_at IS NULL ORDER BY created_at DESC",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(rows))
@@ -169,11 +171,11 @@ pub async fn revoke(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::CREATE)?;
-    sqlx::query(
+    sqlx::query!(
         "DELETE FROM user_invitations WHERE id = $1 AND tenant_id = $2 AND accepted_at IS NULL",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .execute(&state.db)
     .await?;
     Ok(Json(json!({ "status": "ok" })))
@@ -265,16 +267,16 @@ pub async fn accept(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     // Invited email is proven → email_verified = true.
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, email_verified) \
-         VALUES ($1, $2, $3, $4, $5, $6::user_role, true)",
+         VALUES ($1, $2, $3, $4, $5, $6::text::user_role, true)",
+        tenant_id,
+        body.username.trim(),
+        &email,
+        &password_hash,
+        &full_name,
+        &role,
     )
-    .bind(tenant_id)
-    .bind(body.username.trim())
-    .bind(&email)
-    .bind(&password_hash)
-    .bind(&full_name)
-    .bind(&role)
     .execute(&mut *tx)
     .await
     .map_err(|_| {
