@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT tenant_id, topology, patroni_writer_url, patroni_reader_url FROM tenant_db_topology WHERE tenant_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "topology",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "patroni_writer_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "patroni_reader_url",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "264ebd8556cefb385df49e1024210ab3e39dc1d66832c2d0ee01842fee40b66f"
+}

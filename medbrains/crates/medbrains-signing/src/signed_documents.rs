@@ -74,7 +74,8 @@ pub async fn fetch_signature_for_print(
     record_type: &str,
     record_id: Uuid,
 ) -> Result<Option<SignatureForPrint>, AppError> {
-    let row = sqlx::query_as::<_, SigRow>(
+    let row = sqlx::query_as!(
+        SigRow,
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
                 COALESCE(dp.display_name, u.full_name) AS signer_name \
@@ -89,10 +90,10 @@ pub async fn fetch_signature_for_print(
            AND sr.signer_role = 'primary' \
          ORDER BY sr.signed_at DESC \
          LIMIT 1",
+        tenant_id,
+        record_type,
+        record_id,
     )
-    .bind(tenant_id)
-    .bind(record_type)
-    .bind(record_id)
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -116,7 +117,8 @@ pub async fn fetch_all_signatures_for_print(
     record_type: &str,
     record_id: Uuid,
 ) -> Result<Vec<SignatureForPrint>, AppError> {
-    let rows = sqlx::query_as::<_, SigRow>(
+    let rows = sqlx::query_as!(
+        SigRow,
         "SELECT sr.id, sr.signed_at, sr.signer_user_id, \
                 sr.display_image_snapshot, sr.display_block, sr.legal_class, \
                 COALESCE(dp.display_name, u.full_name) AS signer_name \
@@ -129,10 +131,10 @@ pub async fn fetch_all_signatures_for_print(
            AND sr.record_type = $2 \
            AND sr.record_id = $3 \
          ORDER BY sr.signed_at LIMIT 5000",
+        tenant_id,
+        record_type,
+        record_id,
     )
-    .bind(tenant_id)
-    .bind(record_type)
-    .bind(record_id)
     .fetch_all(&mut **tx)
     .await?;
 

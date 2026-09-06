@@ -48,11 +48,12 @@ impl TopologyResolver for PostgresTopologyResolver {
     async fn resolve(&self, tenant_id: Uuid) -> Result<Option<DbTopologyRow>, TopologyError> {
         // allow-raw-sql: topology lookup is a one-shot self-contained query;
         // belongs in db-topology crate not medbrains-db
-        let row: Option<DbTopologyRow> = sqlx::query_as::<_, DbTopologyRow>(
+        let row: Option<DbTopologyRow> = sqlx::query_as!(
+            DbTopologyRow,
             "SELECT tenant_id, topology, patroni_writer_url, patroni_reader_url \
              FROM tenant_db_topology WHERE tenant_id = $1",
+            tenant_id,
         )
-        .bind(tenant_id)
         .fetch_optional(&self.pool)
         .await?;
         Ok(row)
