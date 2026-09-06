@@ -46,7 +46,13 @@ STRUCT = re.compile(r"pub struct (\w+)\s*\{(.*?)\n\}", re.S)
 FIELD = re.compile(r'(?:#\[sqlx\(rename\s*=\s*"(?P<ren>[^"]+)"\)\]\s*)?\n\s*pub (?P<name>\w+)\s*:')
 QUERY_AS = re.compile(r'query_as::<\s*_\s*,\s*(\w+)\s*>\s*\(\s*"((?:[^"\\]|\\.)*)"', re.S)
 STAR = re.compile(r"(SELECT|RETURNING)\s+\*", re.I)
+# A star over a subquery: `SELECT * FROM ( ... )`.
+DERIVED = re.compile(r"(?:SELECT|RETURNING)\s+\*\s+FROM\s*\(", re.I)
+# `... AS alias` — a column the projection supplies itself.
+ALIAS = re.compile(r"\bAS\s+([a-z_][a-z0-9_]*)", re.I)
 SOURCE = re.compile(r"\b(?:FROM|INTO|UPDATE)\s+(?:[a-z_]+\.)?([a-z_][a-z0-9_]*)", re.I)
+# The row a write returns belongs to its own target table.
+WRITE_TARGET = re.compile(r"\b(?:INSERT\s+INTO|UPDATE)\s+(?:[a-z_]+\.)?([a-z_][a-z0-9_]*)", re.I)
 
 
 def structs() -> dict[str, dict[str, set[str]]]:
@@ -105,10 +111,17 @@ def resolve(known: dict[str, dict[str, set[str]]], crate: str, struct: str) -> s
     return None
 
 
-def pairs(only: str | None) -> list[tuple[str, str, str]]:
-    """(crate, struct, table) for every star-projecting query_as."""
+def pairs(only: str | None) -> list[tuple[str, str, str, frozenset[str]]]:
+    """(crate, struct, table, aliases) for every star-projecting query_as.
+
+    `aliases` are the columns the projection supplies on top of the star —
+    `SELECT p.*, u.full_name AS user_name` and
+    `RETURNING *, (SELECT name ...) AS brand_name`. Without them a joined or
+    computed field reads as missing from the base table, which was most of
+    what this audit reported.
+    """
     seen: set[tuple[str, str, str]] = set()
-    out: list[tuple[str, str, str]] = []
+    out: list[tuple[str, str, str, frozenset[str]]] = []
     for crate in sorted(CRATES.iterdir()):
         if not (crate / "src").is_dir() or crate.name in SKIP:
             continue
@@ -120,13 +133,30 @@ def pairs(only: str | None) -> list[tuple[str, str, str]]:
                 sql = re.sub(r"\\\s*\n\s*", " ", m.group(2))
                 if not STAR.search(sql):
                     continue
-                src = SOURCE.search(sql)
+                # `SELECT * FROM ( ... UNION ALL ... )` projects a derived
+                # table whose columns are computed aliases, not any real
+                # table's. The patient timeline builds occurred_at, category,
+                # title, subtitle and ref_id that way; matching the inner
+                # `FROM encounters` compared correct code against the wrong
+                # thing entirely.
+                if DERIVED.search(sql):
+                    continue
+                # `RETURNING *` returns the row that was written, so the table
+                # is the INSERT/UPDATE target — not whatever a CTE reads. The
+                # substitutes query computes prices in `WITH ... FROM
+                # pharmacy_catalog` before inserting, and matching the first
+                # FROM compared the inserted row against the catalogue.
+                src = (
+                    WRITE_TARGET.search(sql)
+                    if re.search(r"RETURNING\s+\*", sql, re.I)
+                    else None
+                ) or SOURCE.search(sql)
                 if not src:
                     continue
                 key = (crate.name, m.group(1), src.group(1))
                 if key not in seen:
                     seen.add(key)
-                    out.append(key)
+                    out.append((*key, frozenset(ALIAS.findall(sql))))
     return out
 
 
@@ -158,10 +188,10 @@ def main(argv: list[str]) -> int:
     only = argv[0] if argv and not argv[0].startswith("-") else None
     known = structs()
     rows = pairs(only)
-    cols = schema(sorted({t for _c, _s, t in rows}))
+    cols = schema(sorted({t for _c, _s, t, _a in rows}))
 
     flagged = 0
-    for crate, struct, table in rows:
+    for crate, struct, table, aliases in rows:
         if table not in cols:
             print(f"MISSING TABLE  {crate:30} {struct:26} <- {table}")
             flagged += 1
@@ -169,7 +199,8 @@ def main(argv: list[str]) -> int:
         fields = resolve(known, crate, struct)
         if fields is None:
             continue
-        missing = [f for f in sorted(fields) if f not in cols[table]]
+        supplied = cols[table] | {a.lower() for a in aliases}
+        missing = [f for f in sorted(fields) if f.lower() not in supplied]
         if missing:
             print(f"CHECK          {crate:30} {struct:26} <- {table:28} {', '.join(missing[:6])}")
             flagged += 1
