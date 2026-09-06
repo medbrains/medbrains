@@ -121,44 +121,48 @@ pub async fn list_subjects(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let users = sqlx::query_as::<_, SharingSubjectOption>(
-        "SELECT id::text AS id, full_name AS label, role::text AS subtitle \
+    let users = sqlx::query_as!(
+        SharingSubjectOption,
+        "SELECT id::text AS \"id!\", full_name AS label, role::text AS subtitle \
          FROM users \
          WHERE tenant_id = $1 AND is_active = true \
          ORDER BY full_name \
          LIMIT 500",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    let roles = sqlx::query_as::<_, SharingSubjectOption>(
+    let roles = sqlx::query_as!(
+        SharingSubjectOption,
         "SELECT code AS id, name AS label, description AS subtitle \
          FROM roles \
          WHERE tenant_id = $1 AND is_active = true \
          ORDER BY name LIMIT 5000",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    let departments = sqlx::query_as::<_, SharingSubjectOption>(
-        "SELECT id::text AS id, name AS label, code AS subtitle \
+    let departments = sqlx::query_as!(
+        SharingSubjectOption,
+        "SELECT id::text AS \"id!\", name AS label, code AS \"subtitle?\" \
          FROM departments \
          WHERE tenant_id = $1 AND is_active = true \
          ORDER BY name LIMIT 5000",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    let groups = sqlx::query_as::<_, SharingSubjectOption>(
-        "SELECT id::text AS id, name AS label, code AS subtitle \
+    let groups = sqlx::query_as!(
+        SharingSubjectOption,
+        "SELECT id::text AS \"id!\", name AS label, code AS \"subtitle?\" \
          FROM access_groups \
          WHERE tenant_id = $1 AND is_active = true \
          ORDER BY name LIMIT 5000",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

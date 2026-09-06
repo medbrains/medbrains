@@ -1,0 +1,113 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO oauth_connections (tenant_id, provider, grant_type, access_token_enc, refresh_token_enc, token_type, scope, expires_at, status, connected_by) VALUES ($1, $2, 'authorization_code', $3, COALESCE($4, NULL), $5, $6, $7, 'connected', $8) ON CONFLICT (tenant_id, provider) DO UPDATE SET access_token_enc = EXCLUDED.access_token_enc, refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, oauth_connections.refresh_token_enc), token_type = EXCLUDED.token_type, scope = EXCLUDED.scope, expires_at = EXCLUDED.expires_at, status = 'connected', last_error = NULL, updated_at = now() RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tenant_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "grant_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "access_token_enc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "refresh_token_enc",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "token_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "external_account_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "connected_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "ab854c8c85025a10a5f99a238bd9b3b70ce020c59895407d507674d2bb0ea000"
+}

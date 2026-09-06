@@ -100,12 +100,12 @@ fn decrypt(key: &[u8], enc: &str) -> Result<String, AppError> {
 async fn read_creds(state: &AppState, tenant_id: &Uuid, provider: &str) -> Result<ProviderCreds, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await?;
     let key = format!("{provider}_config");
-    let row = sqlx::query_scalar::<_, serde_json::Value>(
+    let row = sqlx::query_scalar!(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'oauth' AND key = $2",
+        tenant_id,
+        &key,
     )
-    .bind(tenant_id)
-    .bind(&key)
     .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::ServiceUnavailable(format!("{provider} OAuth app not configured")))?;
@@ -224,7 +224,8 @@ async fn store_tokens(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
-    let conn = sqlx::query_as::<_, OAuthConnection>(
+    let conn = sqlx::query_as!(
+        OAuthConnection,
         "INSERT INTO oauth_connections \
          (tenant_id, provider, grant_type, access_token_enc, refresh_token_enc, \
           token_type, scope, expires_at, status, connected_by) \
@@ -236,15 +237,15 @@ async fn store_tokens(
            expires_at = EXCLUDED.expires_at, status = 'connected', last_error = NULL, \
            updated_at = now() \
          RETURNING *",
+        tenant_id,
+        provider,
+        &access_enc,
+        refresh_enc.as_ref(),
+        token.token_type.unwrap_or_else(|| "Bearer".to_owned()),
+        token.scope,
+        expires_at,
+        connected_by,
     )
-    .bind(tenant_id)
-    .bind(provider)
-    .bind(&access_enc)
-    .bind(refresh_enc.as_ref())
-    .bind(token.token_type.unwrap_or_else(|| "Bearer".to_owned()))
-    .bind(token.scope)
-    .bind(expires_at)
-    .bind(connected_by)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -263,11 +264,12 @@ pub async fn get_valid_token(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
-    let conn = sqlx::query_as::<_, OAuthConnection>(
+    let conn = sqlx::query_as!(
+        OAuthConnection,
         "SELECT * FROM oauth_connections WHERE tenant_id = $1 AND provider = $2",
+        tenant_id,
+        provider,
     )
-    .bind(tenant_id)
-    .bind(provider)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::ServiceUnavailable(format!("{provider} is not connected")))?;

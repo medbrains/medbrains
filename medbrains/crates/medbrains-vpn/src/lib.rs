@@ -121,12 +121,12 @@ pub async fn enroll(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let device_id: Uuid = sqlx::query_scalar(
+    let device_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO vpn_devices (tenant_id, user_id, name) VALUES ($1, $2, $3) RETURNING id",
+        claims.tenant_id,
+        claims.sub,
+        &req.device_name,
     )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .bind(&req.device_name)
     .fetch_one(&mut *tx)
     .await?;
     medbrains_db::audit::AuditLogger::log(
@@ -157,12 +157,13 @@ pub async fn status(
     require_permission(&claims, permissions::vpn::ENROLL)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let devices = sqlx::query_as::<_, VpnDevice>(
+    let devices = sqlx::query_as!(
+        VpnDevice,
         "SELECT id, name, created_at, last_seen_at, revoked_at FROM vpn_devices \
          WHERE tenant_id = $1 AND user_id = $2 ORDER BY created_at DESC",
+        claims.tenant_id,
+        claims.sub,
     )
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

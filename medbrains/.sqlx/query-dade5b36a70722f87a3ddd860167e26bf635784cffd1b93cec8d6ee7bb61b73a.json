@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, e.doctor_id, u.full_name AS doctor_display, e.encounter_type::text AS \"encounter_type!\", e.status::text AS \"status!\", e.created_at AS started_at, CASE WHEN e.status::text IN ('closed','completed','discharged') THEN e.updated_at ELSE NULL END AS ended_at FROM encounters e LEFT JOIN patients p ON p.id = e.patient_id LEFT JOIN users u ON u.id = e.doctor_id WHERE e.id = $1 AND e.tenant_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_display",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "doctor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "doctor_display",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "encounter_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      true,
+      false,
+      null,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "dade5b36a70722f87a3ddd860167e26bf635784cffd1b93cec8d6ee7bb61b73a"
+}

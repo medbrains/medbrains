@@ -91,11 +91,11 @@ async fn resolve_dept_label(
     let Some(dept) = department_id else {
         return Ok(None);
     };
-    let name = sqlx::query_scalar::<_, String>(
+    let name = sqlx::query_scalar!(
         "SELECT name FROM departments WHERE id = $1 AND tenant_id = $2",
+        dept,
+        tenant_id,
     )
-    .bind(dept)
-    .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
     Ok(name)

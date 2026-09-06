@@ -39,10 +39,11 @@ pub async fn list_oauth_providers(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let conns = sqlx::query_as::<_, OAuthConnection>(
+    let conns = sqlx::query_as!(
+        OAuthConnection,
         "SELECT * FROM oauth_connections WHERE tenant_id = $1",
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -134,11 +135,11 @@ pub async fn oauth_disconnect(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let deleted = sqlx::query(
+    let deleted = sqlx::query!(
         "DELETE FROM oauth_connections WHERE tenant_id = $1 AND provider = $2",
+        claims.tenant_id,
+        &provider,
     )
-    .bind(claims.tenant_id)
-    .bind(&provider)
     .execute(&mut *tx)
     .await?
     .rows_affected();

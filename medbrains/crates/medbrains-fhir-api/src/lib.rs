@@ -48,13 +48,14 @@ pub async fn read_patient(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row: Option<PatientView> = sqlx::query_as::<_, PatientRow>(
+    let row: Option<PatientView> = sqlx::query_as!(
+        PatientRow,
         "SELECT id, uhid, abha_id, prefix, first_name, middle_name, last_name, \
-                gender::text AS gender, date_of_birth, phone, email, is_active \
+                gender::text AS \"gender!\", date_of_birth, phone, email, is_active \
          FROM patients WHERE id = $1 AND tenant_id = $2",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .map(Into::into);
@@ -111,10 +112,11 @@ pub async fn read_encounter(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row: Option<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
+    let row: Option<EncounterRow> = sqlx::query_as!(
+        EncounterRow,
         "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
                 e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS encounter_type, e.status::text AS status, \
+                e.encounter_type::text AS \"encounter_type!\", e.status::text AS \"status!\", \
                 e.created_at AS started_at, \
                 CASE WHEN e.status::text IN ('closed','completed','discharged') \
                      THEN e.updated_at ELSE NULL END AS ended_at \
@@ -122,9 +124,9 @@ pub async fn read_encounter(
          LEFT JOIN patients p ON p.id = e.patient_id \
          LEFT JOIN users u ON u.id = e.doctor_id \
          WHERE e.id = $1 AND e.tenant_id = $2",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -173,13 +175,14 @@ pub async fn patient_everything(
         .await?;
 
     // Fetch patient
-    let p_row: PatientRow = sqlx::query_as::<_, PatientRow>(
+    let p_row: PatientRow = sqlx::query_as!(
+        PatientRow,
         "SELECT id, uhid, abha_id, prefix, first_name, middle_name, last_name, \
-                gender::text AS gender, date_of_birth, phone, email, is_active \
+                gender::text AS \"gender!\", date_of_birth, phone, email, is_active \
          FROM patients WHERE id = $1 AND tenant_id = $2",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -187,10 +190,11 @@ pub async fn patient_everything(
     let patient_resource = patient_to_fhir(&patient_view);
 
     // Recent encounters (last 90 days, max 50)
-    let encs: Vec<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
+    let encs: Vec<EncounterRow> = sqlx::query_as!(
+        EncounterRow,
         "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
                 e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS encounter_type, e.status::text AS status, \
+                e.encounter_type::text AS \"encounter_type!\", e.status::text AS \"status!\", \
                 e.created_at AS started_at, \
                 CASE WHEN e.status::text IN ('closed','completed','discharged') \
                      THEN e.updated_at ELSE NULL END AS ended_at \
@@ -200,9 +204,9 @@ pub async fn patient_everything(
          WHERE e.patient_id = $1 AND e.tenant_id = $2 \
            AND e.created_at >= now() - interval '90 days' \
          ORDER BY e.created_at DESC LIMIT 50",
+        id,
+        claims.tenant_id,
     )
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
