@@ -73,15 +73,6 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
       ),
     },
     {
-      key: "nursing_cleared",
-      label: "Nursing",
-      render: (row) => (
-        <Badge size="xs" tone={row.nursing_cleared ? "success" : "neutral"}>
-          {row.nursing_cleared ? "Cleared" : "Pending"}
-        </Badge>
-      ),
-    },
-    {
       key: "doctor_cleared",
       label: "Doctor",
       render: (row) => (

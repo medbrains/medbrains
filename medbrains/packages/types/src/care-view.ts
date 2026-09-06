@@ -110,7 +110,6 @@ export interface DischargeReadinessRow {
   expected_discharge_date: string | null;
   billing_cleared: boolean;
   pharmacy_cleared: boolean;
-  nursing_cleared: boolean;
   doctor_cleared: boolean;
   pending_lab_count: number;
   readiness_pct: number;

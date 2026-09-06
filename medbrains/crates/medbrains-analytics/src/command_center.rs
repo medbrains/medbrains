@@ -408,16 +408,20 @@ pub async fn list_pending_discharges(
            a.expected_discharge_date, \
            EXTRACT(DAY FROM now() - a.admitted_at)::int4 AS days_admitted, \
            COALESCE((SELECT COUNT(*) FROM lab_orders lo \
-             WHERE lo.tenant_id = $1 AND lo.admission_id = a.id \
+             WHERE lo.tenant_id = $1 AND lo.encounter_id = a.encounter_id \
              AND lo.status::text NOT IN ('completed','cancelled')), 0) AS pending_labs, \
            COALESCE((SELECT COUNT(*) FROM invoices inv \
              WHERE inv.tenant_id = $1 AND inv.admission_id = a.id \
              AND inv.status::text = 'draft') > 0, false) AS pending_billing, \
            COALESCE(a.discharge_summary IS NOT NULL, false) AS summary_draft, \
            0::int8 AS checklist_pending \
+         -- `lab_orders` has no admission_id and `admissions` has no
+         -- location_id: labs hang off the encounter, and the bed is
+         -- `admissions.bed_id`, whose foreign key points at locations(id).
+         -- Both were wrong, so this board has never rendered.
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id \
-         LEFT JOIN locations loc ON loc.id = a.location_id \
+         LEFT JOIN locations loc ON loc.id = a.bed_id \
          LEFT JOIN locations w ON w.id = loc.parent_id \
          LEFT JOIN users u ON u.id = a.attending_doctor_id \
          WHERE a.tenant_id = $1 AND a.status::text = 'admitted' \
