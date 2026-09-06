@@ -4941,7 +4941,10 @@ pub async fn bed_dashboard_beds(
          FROM bed_states bs \
          JOIN locations l ON l.id = bs.location_id \
          LEFT JOIN wards w ON w.id = bs.ward_id \
-         LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
+         LEFT JOIN ward_bed_mappings wbm ON wbm.bed_location_id = bs.location_id \
+             AND wbm.tenant_id = bs.tenant_id \
+         LEFT JOIN bed_types bt ON bt.id = COALESCE(wbm.bed_type_id, l.bed_type_id) \
+             AND bt.tenant_id = bs.tenant_id \
          LEFT JOIN users cb ON cb.id = bs.changed_by \
          LEFT JOIN admissions a ON a.id = bs.admission_id \
              AND a.status = 'admitted'::admission_status \
