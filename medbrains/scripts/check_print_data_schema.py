@@ -92,6 +92,8 @@ SET_COL = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.I)
 # A CTE is a source that exists only for the length of the statement, so it is
 # not in the catalogue and must not be reported missing.
 CTE = re.compile(r"(?:WITH|,)\s+([a-z_][a-z0-9_]*)\s+AS\s*\(", re.I)
+# SQL functions that take FROM as an argument separator rather than a clause.
+FN_WITH_FROM = re.compile(r"\b(EXTRACT|SUBSTRING|TRIM|POSITION|OVERLAY)\s*\([^()]*$")
 # Not every string in a handler is SQL. "…components from the same donation…"
 # reads as `FROM the` if prose and statements are pooled together, so each
 # literal is judged on its own and only the ones carrying a SQL verb are read.
@@ -159,7 +161,12 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
             # map reported `bme_equipment.patient_id` against a query that
             # never mentions it. A `\`-continued query is a single literal,
             # so each literal is a whole statement.
-            for body in SQL_LITERAL.findall(text[start:end]):
+            for raw in SQL_LITERAL.findall(text[start:end]):
+                # A `\` at end of line is Rust's string continuation, not SQL.
+                # Left in place it separates a comma from the CTE name that
+                # follows it, so `, \<newline> dept_expense AS (` was not read
+                # as a CTE and the CTE was reported as a missing table.
+                body = re.sub(r"\\\s*\n\s*", " ", raw)
                 if not SQL_VERB.search(body):
                     continue
 
@@ -172,6 +179,11 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                     # Checked here rather than as a lookahead in SOURCE, which
                     # just backtracks to a shorter name that satisfies it.
                     if body[m.end(1) :].lstrip().startswith("("):
+                        continue
+                    # `EXTRACT(DAY FROM p.paid_at - ...)` — the FROM belongs to
+                    # the function call, and what follows it is a column.
+                    before = body[max(0, m.start() - 60) : m.start()].upper()
+                    if FN_WITH_FROM.search(before):
                         continue
                     # Matched case-insensitively: SOURCE is, so `DESC` and
                     # `AND` arrive uppercase and never matched the lowercase set.
