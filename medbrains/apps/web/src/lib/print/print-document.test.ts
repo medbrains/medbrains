@@ -94,9 +94,28 @@ describe("the generated registry", () => {
     expect(ungated.map((d) => d.key)).toEqual([]);
   });
 
-  it("covers well over a hundred documents, not just the consents", async () => {
+  it("covers the wider document set, not just the consents", async () => {
     const { ALL_PRINT_DOCUMENTS } =
       await vi.importActual<typeof import("./print-registry")>("./print-registry");
-    expect(ALL_PRINT_DOCUMENTS.length).toBeGreaterThan(100);
+    // The point of this assertion is that the registry reaches past the eleven
+    // hand-written consent forms into the generated set.
+    //
+    // It used to demand more than a hundred, which stopped being a quality
+    // signal the moment the generator started excluding handlers that query
+    // tables no migration creates: 56 of the 106 did, and each was a button
+    // that 500s rather than a document. Counting those made the number go up
+    // and the registry go down. Guard the floor, not the headline.
+    expect(ALL_PRINT_DOCUMENTS.length).toBeGreaterThan(40);
+  });
+
+  it("offers no document whose handler queries a table that does not exist", async () => {
+    const { ALL_PRINT_DOCUMENTS } =
+      await vi.importActual<typeof import("./print-registry")>("./print-registry");
+    // Culture sensitivity is the sentinel: it reads antibiotic_sensitivities
+    // and culture_results, neither of which any migration creates, and it was
+    // offered on the lab order print menu until the generator checked.
+    const keys = ALL_PRINT_DOCUMENTS.map((d) => d.key);
+    expect(keys).not.toContain("culture-sensitivity");
+    expect(keys).not.toContain("rca-template");
   });
 });

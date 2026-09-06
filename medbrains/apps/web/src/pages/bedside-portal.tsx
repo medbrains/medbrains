@@ -41,6 +41,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
 import { IpdBedsideContextStrip } from "./bedside-portal/context-strip";
 import { DietOrderSection } from "./bedside-portal/diet-order-section";
+import { EducationLibraryTab } from "./bedside-portal/education-library";
 import { LabResultsSection } from "./bedside-portal/lab-results-section";
 import { BedsideOperationsPanel } from "./bedside-portal/operations-panel";
 import { REQUEST_TYPE_CONFIG } from "./bedside-portal/shared";
@@ -104,6 +105,9 @@ export function BedsidePortalPage() {
   const canListFeedback = useHasPermission(P.BEDSIDE.FEEDBACK_LIST);
   const canListSessions = useHasPermission(P.BEDSIDE.SESSIONS_LIST);
   const canManageSessions = useHasPermission(P.BEDSIDE.SESSIONS_MANAGE);
+  // Publishing is a separate permission from watching: the ward can see the
+  // library without being able to change what every patient is shown.
+  const canManageVideos = useHasPermission(P.BEDSIDE.VIDEOS_MANAGE);
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
 
@@ -273,6 +277,20 @@ export function BedsidePortalPage() {
             />
           )}
         </SimpleGrid>
+
+        {/* The library is not patient-scoped, so it lives here rather than
+            behind the session gate above. Deciding what plays on every bed in
+            the hospital is exactly what you do when you are not standing at
+            one particular bed, and requiring an admission first would have
+            made the only screen that can publish a video unreachable. */}
+        {canManageVideos && (
+          <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
+            <Title order={4} mb="md">
+              Patient education library
+            </Title>
+            <EducationLibraryTab />
+          </Card>
+        )}
       </div>
     );
   }
@@ -629,6 +647,11 @@ export function BedsidePortalPage() {
               canManageSessions={canManageSessions}
               canViewRequests={canViewPortal}
             />
+          </Tabs.Panel>
+        )}
+        {canManageVideos && (
+          <Tabs.Panel value="library">
+            <EducationLibraryTab />
           </Tabs.Panel>
         )}
       </Tabs>

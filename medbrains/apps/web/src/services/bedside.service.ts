@@ -15,6 +15,10 @@ export const bedsideService = {
     api.getBedsideVitals(...args),
   listBedsideVideos: (...args: Parameters<typeof api.listBedsideVideos>) =>
     api.listBedsideVideos(...args),
+  createBedsideVideo: (...args: Parameters<typeof api.createBedsideVideo>) =>
+    api.createBedsideVideo(...args),
+  updateBedsideVideo: (...args: Parameters<typeof api.updateBedsideVideo>) =>
+    api.updateBedsideVideo(...args),
   listBedsideFeedback: (...args: Parameters<typeof api.listBedsideFeedback>) =>
     api.listBedsideFeedback(...args),
   createBedsideNurseRequest: (...args: Parameters<typeof api.createBedsideNurseRequest>) =>
