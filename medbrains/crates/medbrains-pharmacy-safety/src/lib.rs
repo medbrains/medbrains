@@ -75,7 +75,12 @@ pub struct PharmacyDestructionLog {
     pub notes: Option<String>,
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    // `pharmacy_destruction_log` has no `updated_at`. With `SELECT *`
+    // feeding this struct, FromRow could not find the column, so the NDPS
+    // destruction register has never listed a row — the statutory record of
+    // destroyed controlled substances, unreadable. A destruction is a single
+    // witnessed event and is not edited, so there is nothing for an
+    // updated_at to mean here.
 }
 
 #[derive(Debug, Deserialize)]
