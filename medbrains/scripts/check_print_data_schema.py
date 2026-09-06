@@ -61,13 +61,18 @@ NOISE = {
     "when", "then", "else", "end", "left", "right", "inner", "outer", "full",
     "cross", "natural", "using", "returning", "values", "set", "into", "the",
     "it", "a", "an",
+    # English stopwords. A Rust error message such as "Select an active staff
+    # member from this tenant" opens with a SQL verb and contains a FROM, so
+    # it reaches this far before anything can tell it is a sentence.
+    "this", "that", "these", "those", "our", "your", "their", "its", "each",
+    "every", "any", "both", "one", "here", "there", "which", "what",
 }
 HANDLER = re.compile(r"^pub async fn (\w+)\(", re.M)
 # `FROM tbl alias` / `JOIN tbl AS alias` — the alias is optional.
 # The optional `schema.` prefix is consumed, not captured: `FROM
 # public.automation_credentials` was reading as a table named `public`.
 SOURCE = re.compile(
-    r"(?:FROM|JOIN)\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)"
+    r"\b(?:FROM|JOIN)\s+(?:[a-z_][a-z0-9_]*\.)?([a-z_][a-z0-9_]*)"
     r"(?:\s+(?:AS\s+)?([a-z][a-z0-9_]*))?",
     re.I,
 )
@@ -94,9 +99,13 @@ SET_COL = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.I)
 CTE = re.compile(r"(?:WITH(?:\s+RECURSIVE)?|,)\s+([a-z_][a-z0-9_]*)\s+AS\s*\(", re.I)
 # SQL functions that take FROM as an argument separator rather than a clause.
 FN_WITH_FROM = re.compile(r"\b(EXTRACT|SUBSTRING|TRIM|POSITION|OVERLAY)\s*\([^()]*$")
+# The tail of `IS [NOT] DISTINCT FROM`, immediately before the FROM.
+DISTINCT_FROM = re.compile(r"\bDISTINCT\s*$")
 # Not every string in a handler is SQL. "…components from the same donation…"
 # reads as `FROM the` if prose and statements are pooled together, so each
 # literal is judged on its own and only the ones carrying a SQL verb are read.
+# A SQL string constant: '...' with '' as the escaped quote.
+SQL_STRING = re.compile(r"'(?:[^']|'')*'")
 SQL_VERB = re.compile(
     r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|JOIN|WITH\s+[a-z_]+\s+AS)\b", re.I
 )
@@ -169,6 +178,12 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                 body = re.sub(r"\\\s*\n\s*", " ", raw)
                 if not SQL_VERB.search(body):
                     continue
+                # Blank the contents of SQL string constants. They are data,
+                # not clauses, and prose inside one reads as SQL: an INSERT
+                # whose value is 'Auto-generated from reorder levels' was
+                # reported as selecting FROM a table called `reorder`. Spaces
+                # of equal length keep every offset valid for the checks below.
+                body = SQL_STRING.sub(lambda m: " " * len(m.group(0)), body)
 
                 alias: dict[str, str] = {}
                 ctes = {m.lower() for m in CTE.findall(body)}
@@ -196,6 +211,10 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                     # the function call, and what follows it is a column.
                     before = body[max(0, m.start() - 60) : m.start()].upper()
                     if FN_WITH_FROM.search(before):
+                        continue
+                    # `a IS NOT DISTINCT FROM b` — FROM belongs to the
+                    # comparison operator, and what follows it is a column.
+                    if DISTINCT_FROM.search(before):
                         continue
                     # Matched case-insensitively: SOURCE is, so `DESC` and
                     # `AND` arrive uppercase and never matched the lowercase set.

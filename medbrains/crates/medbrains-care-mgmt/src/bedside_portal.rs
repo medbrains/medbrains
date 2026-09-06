@@ -325,12 +325,49 @@ pub async fn get_vitals(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, VitalReading>(
-        "SELECT v.id, v.vital_type, v.value_numeric, v.value_text, v.unit, v.recorded_at \
-         FROM vitals v \
-         JOIN encounters e ON e.id = v.encounter_id \
-         JOIN admissions a ON a.encounter_id = e.id \
-         WHERE a.id = $1 \
-         ORDER BY v.recorded_at DESC LIMIT 10",
+        // `vitals` is wide -- one row per observation set, with a named column
+        // per measurement -- and this asked it for vital_type/value_numeric/
+        // value_text/unit, which is the tall shape the bedside cards render.
+        // None of those four are columns, so a patient at their bedside has
+        // never seen a single reading.
+        //
+        // The latest observation set is unpivoted into one reading per card.
+        // Blood pressure is composed as text because 130/90 is one reading a
+        // patient recognises, not two numbers.
+        //
+        // `pulse_rate`/`pulse` and `bp_systolic`/`systolic_bp` are duplicate
+        // pairs left by earlier migrations; only one of each is populated, so
+        // both are coalesced rather than guessed at.
+        //
+        // The id is derived from the row and the reading name so each card has
+        // a stable, distinct key -- the grid keys on it.
+        "SELECT (md5(v.vid::text || r.vital_type))::uuid AS id, \
+                r.vital_type, r.value_numeric, r.value_text, r.unit, v.recorded_at \
+         FROM ( \
+           SELECT vt.id AS vid, vt.recorded_at, vt.temperature, \
+                  COALESCE(vt.pulse_rate, vt.pulse) AS pulse, \
+                  COALESCE(vt.bp_systolic, vt.systolic_bp) AS sys, \
+                  COALESCE(vt.bp_diastolic, vt.diastolic_bp) AS dia, \
+                  vt.respiratory_rate, vt.spo2, vt.pain_score, vt.weight_kg \
+           FROM vitals vt \
+           JOIN encounters e ON e.id = vt.encounter_id \
+           JOIN admissions a ON a.encounter_id = e.id \
+           WHERE a.id = $1 \
+           ORDER BY vt.recorded_at DESC NULLS LAST \
+           LIMIT 1 \
+         ) v \
+         CROSS JOIN LATERAL (VALUES \
+           ('Temperature',      v.temperature::float8,      NULL::text, 'C'), \
+           ('Pulse',            v.pulse::float8,            NULL,       'bpm'), \
+           ('Blood pressure',   NULL::float8, \
+              CASE WHEN v.sys IS NOT NULL AND v.dia IS NOT NULL \
+                THEN v.sys::text || '/' || v.dia::text END,             'mmHg'), \
+           ('Respiratory rate', v.respiratory_rate::float8, NULL,       '/min'), \
+           ('SpO2',             v.spo2::float8,             NULL,       '%'), \
+           ('Pain score',       v.pain_score::float8,       NULL,       '/10'), \
+           ('Weight',           v.weight_kg::float8,        NULL,       'kg') \
+         ) AS r(vital_type, value_numeric, value_text, unit) \
+         WHERE r.value_numeric IS NOT NULL OR r.value_text IS NOT NULL",
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
