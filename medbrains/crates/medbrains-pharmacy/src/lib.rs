@@ -2160,9 +2160,12 @@ async fn notify_pharmacists_low_stock_in_tx(
     reorder_level: i32,
 ) -> Result<(), AppError> {
     let pharmacists = sqlx::query_scalar::<_, Uuid>(
+        // `users` has no `role_id` — the role is the `users.role` enum, and
+        // `roles` is keyed by name for permission lookup, not joined from
+        // here. This query has always errored, so none of the 94 pharmacists
+        // on this tenant has ever been told a drug crossed its reorder level.
         "SELECT u.id FROM users u \
-         JOIN roles r ON r.id = u.role_id AND r.tenant_id = u.tenant_id \
-         WHERE u.tenant_id = $1 AND r.code = 'pharmacist' AND u.is_active = true",
+         WHERE u.tenant_id = $1 AND u.role = 'pharmacist' AND u.is_active = true",
     )
     .bind(tenant_id)
     .fetch_all(&mut **tx)
@@ -3341,8 +3344,14 @@ async fn enforce_schedule_compliance(
             blocks.push("Schedule X witness must differ from prescriber".to_owned());
         }
 
+        // There is no `doctors` table; the flag lives on `doctor_profiles`.
+        // The gate did fail closed, because the error propagated and the
+        // dispense failed — but it refused with a database error rather than
+        // the statutory reason, so a pharmacist blocked on a Schedule X
+        // dispense was told nothing they could act on. It now answers with
+        // the authorisation itself.
         let prescriber_authorised: Option<bool> = sqlx::query_scalar(
-            "SELECT can_prescribe_schedule_x FROM doctors \
+            "SELECT can_prescribe_schedule_x FROM doctor_profiles \
              WHERE user_id = $1 AND tenant_id = $2",
         )
         .bind(ordered_by)
@@ -5956,13 +5965,18 @@ pub async fn prescription_audit(
         .await?;
 
     let rows = sqlx::query_as::<_, PrescriptionAuditRow>(
-        "SELECT a.id, a.action, a.performed_by AS changed_by, \
-         a.performed_at AS changed_at, \
+        // `audit_log` has never had `performed_by`, `performed_at`,
+        // `record_id` or `table_name`. Every column this named was wrong, so
+        // the endpoint that answers "who changed this prescription" has never
+        // returned a row — while 246 audit entries for `prescriptions` sit in
+        // the table waiting to be read.
+        "SELECT a.id, a.action, a.user_id AS changed_by, \
+         a.created_at AS changed_at, \
          a.old_values, a.new_values \
          FROM audit_log a \
-         WHERE a.record_id = $1 AND a.tenant_id = $2 \
-           AND a.table_name = 'prescriptions' \
-         ORDER BY a.performed_at DESC \
+         WHERE a.entity_id = $1 AND a.tenant_id = $2 \
+           AND a.entity_type = 'prescriptions' \
+         ORDER BY a.created_at DESC \
          LIMIT 200",
     )
     .bind(prescription_id)
