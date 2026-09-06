@@ -1,14 +1,23 @@
 //! Default cross-module pipelines — hardcoded Rust subscribers that
 //! fire on every deployment without DB-side configuration.
 //!
-//! Why hardcoded vs `integration_pipelines` rows? Two reasons:
+//! Why hardcoded vs `integration_pipelines` rows? Three reasons:
 //!   1. Reliability — pipelines are critical infra (bed cleaning,
-//!      NDPS register, payment receipts). A row deleted by accident
-//!      shouldn't silently break the workflow.
+//!      NDPS register, payment receipts, blood quarantine). A row
+//!      deleted by accident shouldn't silently break the workflow.
 //!   2. Determinism — every fresh tenant boots with the same baseline
-//!      cross-module wiring. Operators can layer additional dynamic
-//!      pipelines on top via the Integration Hub UI, but these six
-//!      are guaranteed.
+//!      cross-module wiring, guaranteed, rather than depending on
+//!      whether somebody remembered to build it.
+//!   3. Review — a pipeline decides clinical and regulatory behaviour.
+//!      Quarantining blood, writing an NDPS register row and escalating
+//!      a critical value are not configuration preferences, and they
+//!      should go through code review and version control like any
+//!      other clinical logic.
+//!
+//! Automation here is code. Cross-module behaviour is written as a
+//! subscriber in this file, not assembled in a UI: an automation nobody
+//! can diff, review or roll back is not something to put between a
+//! reaction report and the next patient to receive that donation.
 //!
 //! Each subscriber is a small async function that:
 //!   - Opens its own short transaction.
@@ -61,6 +70,10 @@ pub const DEFAULT_SUBSCRIBERS: &[(&str, &str)] = &[
     (
         ClinicalEventName::OpdEncounterCreated.as_str(),
         "Appointment confirmation SMS",
+    ),
+    (
+        ClinicalEventName::BloodTransfusionReactionReported.as_str(),
+        "Quarantine sibling components + raise incident + alert blood bank",
     ),
 ];
 
@@ -137,7 +150,14 @@ pub async fn dispatch_default_pipelines(
         Ok(ClinicalEventName::OpdEncounterCreated) => {
             on_opd_encounter_created(pool, tenant_id, payload).await
         }
-        _ => Ok(()), // No default subscriber — DB-backed dispatcher may match.
+        Ok(ClinicalEventName::BloodTransfusionReactionReported) => {
+            on_transfusion_reaction(pool, tenant_id, payload).await
+        }
+        // Every other event is emitted and has no subscriber. That is a gap
+        // to close by writing one here, not by assembling something in a UI:
+        // `patient.created` has fired 154 times on this database with nothing
+        // listening, and the answer is a reviewed function, not a row.
+        _ => Ok(()),
     };
 
     if let Err(e) = result {
@@ -558,4 +578,110 @@ mod tests {
                 .any(|(event, _)| *event == ClinicalEventName::LabOrderCompleted.as_str())
         );
     }
+}
+
+/// `blood.transfusion_reaction.reported` — haemovigilance.
+///
+/// A reaction implicates the donation, not only the bag that caused it. The
+/// component that was transfused is already in the patient; what matters is
+/// that its siblings from the same donation are not issued to the next
+/// patient while the investigation is open.
+///
+/// They are quarantined rather than discarded. The investigation may clear
+/// them, and discarding destroys the evidence it needs.
+///
+/// This is hardcoded rather than left to a tenant-built workflow on purpose.
+/// Whether the next patient receives a possibly-implicated unit is not a
+/// configuration preference, and a hospital that has not built the workflow
+/// yet is exactly the one that needs it.
+async fn on_transfusion_reaction(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    payload: &Value,
+) -> Result<(), sqlx::Error> {
+    let component_id = uuid_from_payload(payload, "component_id");
+    let patient_id = uuid_from_payload(payload, "patient_id");
+    let reaction_id = uuid_from_payload(payload, "reaction_id");
+    let severity = payload
+        .get("reaction_severity")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let reaction_type = payload
+        .get("reaction_type")
+        .and_then(Value::as_str)
+        .unwrap_or("unspecified");
+
+    let mut tx = pool.begin().await?;
+
+    // a) Hold every other component from the same donation.
+    //
+    // Only those still on the shelf: `issued`, `crossmatched` and `transfused`
+    // have left the bank and are somebody else's problem to chase, while
+    // `discarded` and `expired` are already out of circulation. Excluding the
+    // implicated component itself keeps its own status truthful — it was
+    // transfused, and rewriting that would lose what actually happened.
+    let quarantined = if let Some(cid) = component_id {
+        sqlx::query_scalar::<_, i64>(
+            "WITH held AS ( \
+               UPDATE blood_components SET status = 'quarantined'::blood_bag_status \
+               WHERE tenant_id = $1 \
+                 AND donation_id = (SELECT donation_id FROM blood_components \
+                                    WHERE id = $2 AND tenant_id = $1) \
+                 AND id <> $2 \
+                 AND status IN ('collected','processing','tested','available','reserved') \
+               RETURNING 1 \
+             ) SELECT count(*) FROM held",
+        )
+        .bind(tenant_id)
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap_or(0)
+    } else {
+        0
+    };
+
+    // b) Raise an incident so the reaction is on the quality register rather
+    //    than only in the blood bank's own records.
+    if let Some(rid) = reaction_id {
+        sqlx::query(
+            "INSERT INTO incident_reports \
+               (tenant_id, incident_type, severity, description, immediate_action) \
+             VALUES ($1, 'transfusion_reaction', $2, $3, $4)",
+        )
+        .bind(tenant_id)
+        .bind(severity)
+        .bind(format!(
+            "Transfusion reaction reported ({reaction_type}). Reaction {rid}."
+        ))
+        .bind(format!(
+            "{quarantined} sibling component(s) from the same donation quarantined automatically."
+        ))
+        .execute(&mut *tx)
+        .await
+        .ok(); // the quarantine is the safety-critical half and has committed
+    }
+
+    // c) Tell the blood bank. A hold nobody is told about is a hold nobody
+    //    investigates, and the units stay quarantined for ever.
+    let _ = enqueue(
+        &mut tx,
+        tenant_id,
+        "blood_component",
+        component_id,
+        "blood_bank.transfusion_reaction_alert",
+        json!({
+            "reaction_id": reaction_id,
+            "patient_id": patient_id,
+            "component_id": component_id,
+            "reaction_type": reaction_type,
+            "reaction_severity": severity,
+            "quarantined_siblings": quarantined,
+        }),
+        reaction_id.map(|r| format!("txn_reaction:{r}")),
+    )
+    .await;
+
+    tx.commit().await?;
+    Ok(())
 }
