@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Which print-data handlers can actually run against the schema.
+"""Which runtime-SQL handlers can actually run against the schema.
 
     python3 scripts/check_print_data_schema.py            # summary
     python3 scripts/check_print_data_schema.py --detail   # per handler
+    python3 scripts/check_print_data_schema.py --src crates/medbrains-workflow/src/orchestration
+
+Runtime `sqlx::query` is not checked at compile time, so a statement naming a
+column that does not exist compiles, ships, and fails only when it runs -- and
+if the caller ends in `.ok()`, not even then. Two pipeline steps sat in
+`default_pipelines.rs` that way: `UPDATE beds SET status` (no such column; the
+live state is `bed_states.status`) and an INSERT into the statutory NDPS
+register naming six columns that table does not have. Neither had ever written
+anything, and nothing said so.
 
 Reports, it does not gate — the answer is "build the schema or delete the
 handler", and neither belongs in a pre-commit check.
@@ -35,7 +44,7 @@ import sys
 from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(ROOT, "crates", "medbrains-print-data", "src")
+DEFAULT_SRC = os.path.join("crates", "medbrains-print-data", "src")
 
 PSQL = [
     "docker", "compose", "exec", "-T", "postgres",
@@ -51,6 +60,23 @@ QUALIFIED = re.compile(r"\b([a-z][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b")
 # and `dept.format(..)` are read as `tenants.to_string` and `departments.format`
 # — two columns that do not exist, reported against handlers that are fine.
 SQL_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"', re.S)
+# Reads and writes fail differently, and only reads are covered by SOURCE +
+# QUALIFIED above: a write names its columns bare, inside a list or after SET,
+# with no alias to hang them off. Both pipeline bugs were writes, which is why
+# a checker that only understood FROM/JOIN reported the file clean.
+INSERT = re.compile(r"INSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)", re.I | re.S)
+UPDATE = re.compile(r"UPDATE\s+([a-z_][a-z0-9_]*)\s+SET\s+(.*?)(?:\bWHERE\b|\bRETURNING\b|$)",
+                    re.I | re.S)
+SET_COL = re.compile(r"([a-z_][a-z0-9_]*)\s*=", re.I)
+# A CTE is a source that exists only for the length of the statement, so it is
+# not in the catalogue and must not be reported missing.
+CTE = re.compile(r"(?:WITH|,)\s+([a-z_][a-z0-9_]*)\s+AS\s*\(", re.I)
+# Not every string in a handler is SQL. "…components from the same donation…"
+# reads as `FROM the` if prose and statements are pooled together, so each
+# literal is judged on its own and only the ones carrying a SQL verb are read.
+SQL_VERB = re.compile(
+    r"\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|JOIN|WITH\s+[a-z_]+\s+AS)\b", re.I
+)
 
 
 def schema() -> tuple[set[str], set[str]]:
@@ -71,23 +97,49 @@ def schema() -> tuple[set[str], set[str]]:
     return tables, cols
 
 
-def audit(tables: set[str], cols: set[str]) -> list[tuple[str, str, list[str], list[str]]]:
+def write_columns(body: str) -> list[tuple[str, str]]:
+    """Every (table, column) a write in this body names."""
+    refs: list[tuple[str, str]] = []
+    ctes = {m.lower() for m in CTE.findall(body)}
+    for tbl, collist in INSERT.findall(body):
+        if tbl.lower() in ctes:
+            continue
+        for col in collist.split(","):
+            col = col.strip().strip('"')
+            if re.fullmatch(r"[a-z_][a-z0-9_]*", col or "", re.I):
+                refs.append((tbl, col))
+    for tbl, assigns in UPDATE.findall(body):
+        if tbl.lower() in ctes:
+            continue
+        # `SET a = $1, b = now()` -- take the left of each assignment only, so
+        # a function call on the right is not read as a column.
+        for part in assigns.split(","):
+            m = SET_COL.match(part.strip())
+            if m:
+                refs.append((tbl, m.group(1)))
+    return refs
+
+
+def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, list[str], list[str]]]:
     out = []
-    for name in sorted(os.listdir(SRC)):
+    for name in sorted(os.listdir(src)):
         if not name.endswith(".rs"):
             continue
-        text = open(os.path.join(SRC, name), encoding="utf-8", errors="replace").read()
+        text = open(os.path.join(src, name), encoding="utf-8", errors="replace").read()
         marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
         for i, (handler, start) in enumerate(marks):
             end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-            # SQL only — see SQL_LITERAL. Joined so a statement split across
-            # several adjacent literals still reads as one string.
-            body = " ".join(SQL_LITERAL.findall(text[start:end]))
+            # SQL only — see SQL_LITERAL and SQL_VERB. A `\`-continued query
+            # is a single literal, so each one is a whole statement.
+            body = " ".join(
+                lit for lit in SQL_LITERAL.findall(text[start:end]) if SQL_VERB.search(lit)
+            )
 
             alias: dict[str, str] = {}
             missing_tables: list[str] = []
+            ctes = {m.lower() for m in CTE.findall(body)}
             for tbl, al in SOURCE.findall(body):
-                if tbl in NOISE:
+                if tbl in NOISE or tbl.lower() in ctes:
                     continue
                 if tbl not in tables:
                     if tbl not in missing_tables:
@@ -97,6 +149,15 @@ def audit(tables: set[str], cols: set[str]) -> list[tuple[str, str, list[str], l
                 alias[tbl] = tbl
 
             missing_cols: list[str] = []
+            for tbl, col in write_columns(body):
+                if tbl not in tables:
+                    if tbl not in missing_tables:
+                        missing_tables.append(tbl)
+                    continue
+                ref = f"{tbl}.{col}"
+                if ref not in cols and ref not in missing_cols:
+                    missing_cols.append(ref)
+
             for al, col in QUALIFIED.findall(body):
                 if al not in alias:
                     continue
@@ -111,10 +172,19 @@ def audit(tables: set[str], cols: set[str]) -> list[tuple[str, str, list[str], l
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--detail", action="store_true")
+    ap.add_argument(
+        "--src",
+        default=DEFAULT_SRC,
+        help="directory of .rs files to audit, relative to the repo root",
+    )
     args = ap.parse_args()
 
+    src = args.src if os.path.isabs(args.src) else os.path.join(ROOT, args.src)
+    if not os.path.isdir(src):
+        raise SystemExit(f"no such directory: {src}")
+
     tables, cols = schema()
-    rows = audit(tables, cols)
+    rows = audit(tables, cols, src)
 
     def state(mt: list[str], mc: list[str]) -> str:
         if mt and mc:
@@ -126,7 +196,7 @@ def main() -> int:
         return "runnable"
 
     counts = Counter(state(mt, mc) for _, _, mt, mc in rows)
-    print(f"print-data handlers: {len(rows)}\n")
+    print(f"{os.path.relpath(src, ROOT)}: {len(rows)} handler(s)\n")
     for k in ("runnable", "BROKEN(table)", "BROKEN(column)", "BROKEN(table+column)"):
         if counts[k]:
             print(f"  {k:22} {counts[k]:>4}")
