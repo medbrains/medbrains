@@ -51,7 +51,17 @@ PSQL = [
     "psql", "-U", "medbrains", "-d", "medbrains", "-tAc",
 ]
 # SQL keywords and CTE-ish names that follow FROM/JOIN but are not tables.
-NOISE = {"select", "lateral", "unnest", "generate_series", "combined", "age"}
+# Keywords that follow FROM/JOIN in a fragment rather than naming a source.
+# Dynamic SQL is assembled from pieces here — `" ORDER BY x DESC"` appended to
+# a base query reads as `FROM ... DESC` once the pieces are scanned separately.
+NOISE = {
+    "select", "lateral", "unnest", "generate_series", "combined", "age",
+    "and", "or", "not", "desc", "asc", "limit", "offset", "order", "group",
+    "where", "having", "on", "as", "by", "union", "all", "distinct", "case",
+    "when", "then", "else", "end", "left", "right", "inner", "outer", "full",
+    "cross", "natural", "using", "returning", "values", "set", "into", "the",
+    "it", "a", "an",
+}
 HANDLER = re.compile(r"^pub async fn (\w+)\(", re.M)
 # `FROM tbl alias` / `JOIN tbl AS alias` — the alias is optional.
 SOURCE = re.compile(r"(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)(?:\s+(?:AS\s+)?([a-z][a-z0-9_]*))?", re.I)
@@ -152,7 +162,9 @@ def audit(tables: set[str], cols: set[str], src: str) -> list[tuple[str, str, li
                     # just backtracks to a shorter name that satisfies it.
                     if body[m.end(1) :].lstrip().startswith("("):
                         continue
-                    if tbl in NOISE or tbl.lower() in ctes:
+                    # Matched case-insensitively: SOURCE is, so `DESC` and
+                    # `AND` arrive uppercase and never matched the lowercase set.
+                    if tbl.lower() in NOISE or tbl.lower() in ctes:
                         continue
                     if tbl not in tables:
                         if tbl not in missing_tables:
