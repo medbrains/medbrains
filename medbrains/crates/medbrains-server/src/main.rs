@@ -49,7 +49,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            "medbrains_server=debug,tower_http=debug"
+            // The leading `info` is the global default, and it is what makes
+            // the rest of the application audible at all. Route handlers moved
+            // out of this crate into ~118 leaf crates, whose targets are
+            // `medbrains_dashboard`, `medbrains_pharmacy` and so on — none of
+            // which `medbrains_server=debug` matches. 173 warn!/error! sites
+            // outside this crate were being dropped before they reached a log,
+            // against 55 inside it that were not.
+            //
+            // Found when a dashboard widget failure logged nothing: the handler
+            // reported the failing relation by name and the line went nowhere.
+            "info,medbrains_server=debug,tower_http=debug"
                 .parse()
                 .unwrap_or_default()
         }))
