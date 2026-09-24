@@ -88,15 +88,23 @@ export interface VideoConsentPrintData {
   hospital_name: string;
 }
 
+/**
+ * One recorded monitoring round on a restrained patient.
+ *
+ * Follows `restraint_monitoring_logs`, which records what the nurse observed.
+ * The previous shape carried booleans for hydration, toileting and position
+ * changes that nothing in the system stores — they could only be invented,
+ * and the print handler duly invented them.
+ */
 export interface RestraintMonitoring {
   datetime: string;
   nurse_name: string;
   patient_condition: string;
+  /** True only because a circulation observation was written down. */
   circulation_checked: boolean;
-  hydration_offered: boolean;
-  toileting_offered: boolean;
-  position_changed: boolean;
-  continued_need_assessed: boolean;
+  skin_checked: boolean;
+  circulation_finding: string | null;
+  skin_finding: string | null;
   remarks: string | null;
 }
 

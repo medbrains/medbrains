@@ -290,3 +290,61 @@ export function qs(params: Record<string, unknown>): string {
   const s = search.toString();
   return s ? `?${s}` : "";
 }
+
+// ─── Async effects ───────────────────────────────────────────────────
+//
+// Pipelines run after the request returns: the handler writes an outbox row,
+// the worker polls every 2 s and hands the event to the subscriber, which
+// opens its own transaction. An effect in another module therefore appears
+// 0–3 s later, and a test that reads it immediately learns nothing.
+
+/**
+ * Re-read until `pred` holds. Throws with the last value when it never does,
+ * and says the one thing worth checking first when nothing ever arrives.
+ */
+export async function pollUntil<T>(
+  fn: () => Promise<T>,
+  pred: (value: T) => boolean,
+  opts: { timeoutMs?: number; everyMs?: number; label?: string } = {},
+): Promise<T> {
+  const timeoutMs = opts.timeoutMs ?? 20_000;
+  const everyMs = opts.everyMs ?? 1_000;
+  const deadline = Date.now() + timeoutMs;
+  let last: T | undefined;
+  for (;;) {
+    last = await fn();
+    if (pred(last)) return last;
+    if (Date.now() >= deadline) break;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+  throw new Error(
+    `${opts.label ?? "effect"}: not observed within ${timeoutMs}ms — if nothing ever arrives, ` +
+      `check the outbox worker is running (MEDBRAINS_DISABLE_OUTBOX_WORKER unset). Last value: ` +
+      JSON.stringify(last).slice(0, 800),
+  );
+}
+
+/**
+ * The negative half: keep reading for `forMs` (three worker cycles by default)
+ * and pass only if `pred` NEVER held. A negative that reads once proves
+ * nothing about an effect that arrives two seconds later.
+ */
+export async function expectAbsent<T>(
+  fn: () => Promise<T>,
+  pred: (value: T) => boolean,
+  opts: { forMs?: number; everyMs?: number; label?: string } = {},
+): Promise<void> {
+  const forMs = opts.forMs ?? 6_000;
+  const everyMs = opts.everyMs ?? 1_000;
+  const deadline = Date.now() + forMs;
+  for (;;) {
+    const value = await fn();
+    if (pred(value)) {
+      throw new Error(
+        `${opts.label ?? "effect"}: must not happen, but it did: ${JSON.stringify(value).slice(0, 800)}`,
+      );
+    }
+    if (Date.now() >= deadline) return;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+}

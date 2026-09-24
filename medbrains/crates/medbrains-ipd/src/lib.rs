@@ -55,7 +55,6 @@
 //! working and should be tested — or adding a ward filter, which is the
 //! smaller change and the one the three worklists beside it already make.
 
-
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -73,8 +72,8 @@ use medbrains_core::ipd::{
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
     IpdMedicationAdministration, IpdNoDuesCertificate, IpdNursingAssessment, IpdProgressNote,
     IpdTransferLog, IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift,
-    NursingTask,
-    ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
+    NursingTask, ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward,
+    WardBedMapping,
 };
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
@@ -83,12 +82,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
-use axum::routing::{get,post,put,delete};
+use axum::routing::{delete, get, post, put};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_any_permission, require_permission,
+};
 use medbrains_server_core::middleware::field_access;
-use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -1304,16 +1305,20 @@ pub async fn list_admissions(
         None
     } else {
         Some(
-            match state.authz.list_accessible(&authz_ctx, "admission", medbrains_authz::Relation::Viewer).await {
-            Ok(ids) => ids,
-            Err(e) => {
-                tracing::error!(error = %e, object_type = "admission",
+            match state
+                .authz
+                .list_accessible(&authz_ctx, "admission", medbrains_authz::Relation::Viewer)
+                .await
+            {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::error!(error = %e, object_type = "admission",
                     "rebac: list_accessible failed; refusing rather than showing an empty list");
-                return Err(AppError::ServiceUnavailable(
-                    "authorization backend unavailable".to_owned(),
-                ));
-            }
-        },
+                    return Err(AppError::ServiceUnavailable(
+                        "authorization backend unavailable".to_owned(),
+                    ));
+                }
+            },
         )
     };
 
@@ -1383,7 +1388,13 @@ pub async fn list_admissions(
          JOIN encounters e ON e.id = a.encounter_id \
          WHERE {where_clause}"
     );
+    // The ReBAC scope is the first condition after the tenant ($2), so its
+    // array binds before the filters: bound after them, a nurse with any
+    // visible admission got "operator does not exist: text = uuid[]".
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
+    if let Some(ref ids) = visible_ids {
+        count_q = count_q.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             count_q = count_q.bind(u);
@@ -1391,9 +1402,6 @@ pub async fn list_admissions(
         if let Some(ref s) = b.string_val {
             count_q = count_q.bind(s.clone());
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        count_q = count_q.bind(ids.clone());
     }
     let total = count_q.fetch_one(&mut *tx).await?;
 
@@ -1413,6 +1421,9 @@ pub async fn list_admissions(
         bind_idx + 1
     );
     let mut data_q = sqlx::query_as::<_, AdmissionRow>(&data_sql).bind(claims.tenant_id);
+    if let Some(ref ids) = visible_ids {
+        data_q = data_q.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             data_q = data_q.bind(u);
@@ -1420,9 +1431,6 @@ pub async fn list_admissions(
         if let Some(ref s) = b.string_val {
             data_q = data_q.bind(s.clone());
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        data_q = data_q.bind(ids.clone());
     }
     let admissions = data_q
         .bind(per_page)
@@ -1504,7 +1512,9 @@ pub async fn create_admission(
         )));
     }
 
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
     let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
     let target_bed = if let Some(bed_id) = body.bed_id {
@@ -1622,86 +1632,18 @@ pub async fn create_admission(
 
     tx.commit().await?;
 
-    // Link the care team on BOTH the inline encounter and the admission so
-    // per-encounter and per-admission reads resolve (ReBAC). Department viewer
-    // = the whole treating department (one tuple, no per-user fan-out);
-    // attending = the admitting doctor; ward_member (below) covers ward staff.
-    // Mirrors create_encounter / patient registration.
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    for (object_type, object_id) in [("encounter", encounter.id), ("admission", admission.id)] {
-        state
-            .authz
-            .grant_raw(
-                &authz_ctx,
-                object_type,
-                object_id,
-                "dept_member",
-                medbrains_authz::Subject::Department(body.department_id),
-                None,
-                Some("admission_department".to_owned()),
-            )
-            .await
-            .map_err(|e| {
-                AppError::Internal(format!("{object_type} dept authz grant failed: {e}"))
-            })?;
-    }
-    state
-        .authz
-        .write_tuple(
-            &authz_ctx,
-            "encounter",
-            encounter.id,
-            medbrains_authz::Relation::AttendingPhysician,
-            medbrains_authz::Subject::User(doctor_id),
-            None,
-            Some("admission_encounter_attending".to_owned()),
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("encounter attending authz grant failed: {e}")))?;
-    state
-        .authz
-        .write_tuple(
-            &authz_ctx,
-            "admission",
-            admission.id,
-            medbrains_authz::Relation::AttendingPhysician,
-            medbrains_authz::Subject::User(admission.admitting_doctor),
-            None,
-            Some("admission_attending".to_owned()),
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("admission attending authz grant failed: {e}")))?;
-
-    // Ward-level visibility: link the ward's department so ward staff (who may
-    // sit in a different department than the admitting one) resolve on the
-    // admission. Best-effort lookup; the grant itself is fatal like the others.
-    if let Some(ward_id) = effective_ward_id {
-        let ward_dept: Option<Uuid> =
-            sqlx::query_scalar("SELECT department_id FROM wards WHERE id = $1 AND tenant_id = $2")
-                .bind(ward_id)
-                .bind(claims.tenant_id)
-                .fetch_optional(&state.db)
-                .await
-                .ok()
-                .flatten();
-        if let Some(dept) = ward_dept {
-            state
-                .authz
-                .grant_raw(
-                    &authz_ctx,
-                    "admission",
-                    admission.id,
-                    "ward_member",
-                    medbrains_authz::Subject::Department(dept),
-                    None,
-                    Some("admission_ward".to_owned()),
-                )
-                .await
-                .map_err(|e| {
-                    AppError::Internal(format!("admission ward authz grant failed: {e}"))
-                })?;
-        }
-    }
+    medbrains_authz_gate::grant_admission_care_team(
+        &state,
+        &claims,
+        medbrains_authz_gate::AdmissionCareTeam {
+            encounter_id: encounter.id,
+            admission_id: admission.id,
+            department_id: Some(body.department_id),
+            admitting_doctor_id: admission.admitting_doctor,
+            ward_id: effective_ward_id,
+        },
+    )
+    .await?;
 
     let doctor_name = sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
         .bind(admission.admitting_doctor)
@@ -1783,7 +1725,15 @@ pub async fn get_admission(
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
-                state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", id,).await,
+                state
+                    .authz
+                    .check(
+                        &authz_ctx,
+                        medbrains_authz::Relation::Viewer,
+                        "admission",
+                        id,
+                    )
+                    .await,
                 "admission",
             ),
         )?;
@@ -1847,10 +1797,7 @@ pub async fn update_admission(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     if body.bed_id.is_some() {
         return Err(AppError::BadRequest(
             "Use the admission transfer endpoint to move beds so transfer reason, audit, and charge impact are recorded".to_owned(),
@@ -1911,10 +1858,7 @@ pub async fn transfer_bed(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     let transfer_reason = body
         .notes
         .as_deref()
@@ -2076,10 +2020,7 @@ pub async fn discharge_patient(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2245,7 +2186,12 @@ pub async fn discharge_patient(
 
     // Auto-billing: charge room/bed for length of stay
     if !daily_rent_billed
-        && medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ipd_room").await?
+        && medbrains_server_services::billing::is_auto_billing_enabled(
+            &mut tx,
+            &claims.tenant_id,
+            "ipd_room",
+        )
+        .await?
     {
         let los_hours = (Utc::now() - admission.admitted_at).num_hours();
         #[allow(clippy::cast_precision_loss)]
@@ -2314,8 +2260,12 @@ pub async fn discharge_patient(
     // 'issued' so discharge ends with a settled-or-collectable bill
     // instead of an editable draft nobody revisits. Opt-out via
     // billing.auto_charge_discharge_finalize = false.
-    if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "discharge_finalize")
-        .await?
+    if medbrains_server_services::billing::is_auto_billing_enabled(
+        &mut tx,
+        &claims.tenant_id,
+        "discharge_finalize",
+    )
+    .await?
     {
         let finalized = sqlx::query(
             "UPDATE invoices SET status = 'issued'::invoice_status, \
@@ -2410,10 +2360,7 @@ pub async fn list_nursing_tasks(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2450,10 +2397,7 @@ pub async fn create_nursing_task(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2523,8 +2467,7 @@ pub async fn update_nursing_task(
     Json(body): Json<UpdateNursingTaskRequest>,
 ) -> Result<Json<NursingTask>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2603,10 +2546,7 @@ pub async fn list_progress_notes(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2643,10 +2583,7 @@ pub async fn create_progress_note(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2737,7 +2674,13 @@ async fn auto_bill_doctor_round_in_tx(
     admission: &Admission,
     note: &IpdProgressNote,
 ) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "ipd_doctor_round").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(
+        tx,
+        &claims.tenant_id,
+        "ipd_doctor_round",
+    )
+    .await?
+    {
         return Ok(());
     }
 
@@ -2772,8 +2715,7 @@ pub async fn update_progress_note(
     Json(body): Json<UpdateProgressNoteRequest>,
 ) -> Result<Json<IpdProgressNote>, AppError> {
     require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2819,10 +2761,7 @@ pub async fn list_assessments(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2859,10 +2798,7 @@ pub async fn create_assessment(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2918,10 +2854,7 @@ pub async fn list_mar(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2958,10 +2891,7 @@ pub async fn create_mar(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3026,7 +2956,10 @@ async fn administer_mar_dose_in_tx(
 
     // A dose already recorded as administered is immutable: re-marking it either double-documents
     // the administration (reads as a double dose) or silently overwrites who/when it was given.
-    if matches!(existing.status, MarStatus::Given | MarStatus::SelfAdministered) {
+    if matches!(
+        existing.status,
+        MarStatus::Given | MarStatus::SelfAdministered
+    ) {
         return Err(AppError::Conflict(
             "This dose is already recorded as administered and cannot be changed.".to_owned(),
         ));
@@ -3072,19 +3005,39 @@ async fn administer_mar_dose_in_tx(
             }
         }
         MarStatus::Held if body.hold_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to hold a dose.".to_owned()));
+            return Err(AppError::BadRequest(
+                "A reason is required to hold a dose.".to_owned(),
+            ));
         }
-        MarStatus::Refused if body.refused_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to record a refusal.".to_owned()));
+        MarStatus::Refused
+            if body
+                .refused_reason
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .is_empty() =>
+        {
+            return Err(AppError::BadRequest(
+                "A reason is required to record a refusal.".to_owned(),
+            ));
         }
-        MarStatus::Missed if body.missed_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to record a missed dose.".to_owned()));
+        MarStatus::Missed
+            if body
+                .missed_reason
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .is_empty() =>
+        {
+            return Err(AppError::BadRequest(
+                "A reason is required to record a missed dose.".to_owned(),
+            ));
         }
         _ => {}
     }
 
-    let administered_by = matches!(status, MarStatus::Given | MarStatus::SelfAdministered)
-        .then_some(actor_sub);
+    let administered_by =
+        matches!(status, MarStatus::Given | MarStatus::SelfAdministered).then_some(actor_sub);
 
     let row = sqlx::query_as::<_, IpdMedicationAdministration>(
         "UPDATE ipd_medication_administration SET \
@@ -3117,7 +3070,10 @@ async fn administer_mar_dose_in_tx(
     .fetch_one(&mut **tx)
     .await?;
 
-    if matches!(status, MarStatus::Held | MarStatus::Refused | MarStatus::Missed) {
+    if matches!(
+        status,
+        MarStatus::Held | MarStatus::Refused | MarStatus::Missed
+    ) {
         notify_prescriber_dose_not_given_in_tx(tx, &tenant_id, &row, &body.status).await?;
     }
 
@@ -3150,17 +3106,22 @@ pub async fn update_mar(
     Json(body): Json<UpdateMarRequest>,
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
     require_permission(&claims, permissions::ipd::mar::UPDATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     require_mar_status_permission(&claims, &body.status)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row =
-        administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, Some(id), &body)
-            .await?;
+    let row = administer_mar_dose_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        claims.sub,
+        mar_id,
+        Some(id),
+        &body,
+    )
+    .await?;
 
     tx.commit().await?;
 
@@ -3206,7 +3167,10 @@ pub async fn list_mar_due_now(
     Extension(claims): Extension<Claims>,
     Query(params): Query<MarDueQuery>,
 ) -> Result<Json<Vec<MarDueRow>>, AppError> {
-    require_any_permission(&claims, &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW])?;
+    require_any_permission(
+        &claims,
+        &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW],
+    )?;
     // Deliberately NOT filtered to the caller's own patients, and this is the
     // one place where that filtering would be the dangerous choice. A medication
     // round is a shift's work, not a care-team roster: a nurse covering a ward
@@ -3217,7 +3181,8 @@ pub async fn list_mar_due_now(
     let window_min = params.window_min.unwrap_or(60).clamp(0, 1440);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, MarDueRow>(
         "SELECT m.id, m.admission_id, a.patient_id, \
@@ -3251,17 +3216,18 @@ pub async fn list_mar_for_patient(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<IpdMedicationAdministration>>, AppError> {
-    require_any_permission(&claims, &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW])?;
+    require_any_permission(
+        &claims,
+        &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW],
+    )?;
 
     // Keyed on patient_id, not admission — this is the patient's whole MAR
     // history, so the gate is patient access rather than one admission.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT m.* FROM ipd_medication_administration m \
@@ -3289,7 +3255,10 @@ pub async fn update_mar_round(
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
     require_any_permission(
         &claims,
-        &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
+        &[
+            permissions::ipd::mar::UPDATE,
+            permissions::nurse::mar::ADMINISTER,
+        ],
     )?;
     require_mar_status_permission(&claims, &body.status)?;
 
@@ -3304,10 +3273,11 @@ pub async fn update_mar_round(
     .await?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
-    let row =
-        administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, None, &body).await?;
+    let row = administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, None, &body)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -3341,7 +3311,10 @@ pub async fn verify_mar_barcode(
 ) -> Result<Json<BarcodeVerifyResult>, AppError> {
     require_any_permission(
         &claims,
-        &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
+        &[
+            permissions::ipd::mar::UPDATE,
+            permissions::nurse::mar::ADMINISTER,
+        ],
     )?;
 
     // The URL names a child record; the care relationship is one hop away on
@@ -3354,7 +3327,8 @@ pub async fn verify_mar_barcode(
     )
     .await?;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let mar = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT * FROM ipd_medication_administration WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
@@ -3403,14 +3377,23 @@ pub async fn verify_mar_barcode(
     let (right_drug, drug_reason) = match (ordered_item, scanned) {
         (Some(ordered), Some((scanned_item, expired))) => {
             if ordered != scanned_item {
-                (false, "Wrong drug — the scanned barcode does not match the ordered medication.")
+                (
+                    false,
+                    "Wrong drug — the scanned barcode does not match the ordered medication.",
+                )
             } else if expired {
-                (false, "Expired batch — do not administer; quarantine this stock.")
+                (
+                    false,
+                    "Expired batch — do not administer; quarantine this stock.",
+                )
             } else {
                 (true, "")
             }
         }
-        _ => (false, "Wrong drug — the scanned barcode does not match the ordered medication."),
+        _ => (
+            false,
+            "Wrong drug — the scanned barcode does not match the ordered medication.",
+        ),
     };
 
     let verified = right_patient && right_drug;
@@ -3434,7 +3417,12 @@ pub async fn verify_mar_barcode(
     }
     tx.commit().await?;
 
-    Ok(Json(BarcodeVerifyResult { verified, right_patient, right_drug, reason }))
+    Ok(Json(BarcodeVerifyResult {
+        verified,
+        right_patient,
+        right_drug,
+        reason,
+    }))
 }
 
 /// Notify the prescribing doctor that a scheduled dose was held/refused/missed.
@@ -3502,10 +3490,7 @@ pub async fn list_intake_output(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3542,10 +3527,7 @@ pub async fn create_intake_output(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3597,10 +3579,7 @@ pub async fn get_io_balance(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3678,13 +3657,11 @@ pub async fn list_infusions(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let rows = sqlx::query_as::<_, IvFluidOrder>(
         "SELECT * FROM iv_fluid_orders \
@@ -3713,16 +3690,15 @@ pub async fn create_infusion(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     if body.fluid_name.trim().is_empty() {
         return Err(AppError::BadRequest("Fluid name is required.".to_owned()));
     }
     if body.volume_ml <= 0 {
-        return Err(AppError::BadRequest("Volume must be greater than zero.".to_owned()));
+        return Err(AppError::BadRequest(
+            "Volume must be greater than zero.".to_owned(),
+        ));
     }
 
     // Setting up the pump starts the infusion; planned end = now + duration.
@@ -3732,7 +3708,8 @@ pub async fn create_infusion(
         .map(|h| Utc::now() + chrono::Duration::milliseconds((h * 3_600_000.0) as i64));
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     // Y-site admixture guard: this infusion's own additives, plus anything
     // running on the same site, must be chemically compatible. Reuses the CDS
@@ -3776,7 +3753,12 @@ pub async fn create_infusion(
                 && combined.contains(b.as_str())
                 && (new_text.contains(a.as_str()) || new_text.contains(b.as_str()))
         })
-        .map(|(a, b, mech)| format!("{a} + {b}{}", mech.as_deref().map_or(String::new(), |m| format!(" ({m})"))))
+        .map(|(a, b, mech)| {
+            format!(
+                "{a} + {b}{}",
+                mech.as_deref().map_or(String::new(), |m| format!(" ({m})"))
+            )
+        })
         .collect();
     let ysite_reason = body
         .ysite_override_reason
@@ -3825,24 +3807,34 @@ pub async fn update_infusion(
     Json(body): Json<UpdateInfusionRequest>,
 ) -> Result<Json<IvFluidOrder>, AppError> {
     require_permission(&claims, permissions::ipd::io_chart::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     if let Some(status) = &body.status {
         if !INFUSION_STATUSES.contains(&status.as_str()) {
-            return Err(AppError::BadRequest(format!("Invalid infusion status '{status}'.")));
+            return Err(AppError::BadRequest(format!(
+                "Invalid infusion status '{status}'."
+            )));
         }
-        if status == "discontinued" && body.discontinued_reason.as_deref().unwrap_or("").trim().is_empty() {
+        if status == "discontinued"
+            && body
+                .discontinued_reason
+                .as_deref()
+                .unwrap_or("")
+                .trim()
+                .is_empty()
+        {
             return Err(AppError::BadRequest(
                 "A reason is required to discontinue an infusion.".to_owned(),
             ));
         }
     }
 
-    let discontinued_by = matches!(body.status.as_deref(), Some("discontinued")).then_some(claims.sub);
+    let discontinued_by =
+        matches!(body.status.as_deref(), Some("discontinued")).then_some(claims.sub);
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, IvFluidOrder>(
         "UPDATE iv_fluid_orders SET \
@@ -3891,10 +3883,7 @@ pub async fn list_nursing_assessments(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3931,10 +3920,7 @@ pub async fn create_nursing_assessment(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3985,8 +3971,7 @@ pub async fn update_nursing_assessment(
     Json(body): Json<CreateNursingAssessmentRequest>,
 ) -> Result<Json<IpdNursingAssessment>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4048,10 +4033,7 @@ pub async fn list_care_plans(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4088,10 +4070,7 @@ pub async fn create_care_plan(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4134,8 +4113,7 @@ pub async fn update_care_plan(
     Json(body): Json<UpdateCarePlanRequest>,
 ) -> Result<Json<IpdCarePlan>, AppError> {
     require_permission(&claims, permissions::ipd::care_plans::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4191,10 +4169,7 @@ pub async fn list_handovers(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4231,10 +4206,7 @@ pub async fn create_handover(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4281,8 +4253,7 @@ pub async fn acknowledge_handover(
     Path((id, hid)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<IpdHandoverReport>, AppError> {
     require_permission(&claims, permissions::ipd::handover::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4321,10 +4292,7 @@ pub async fn list_discharge_checklist(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4357,14 +4325,26 @@ pub async fn list_discharge_checklist(
 fn default_discharge_checklist_items() -> Vec<DischargeChecklistItem> {
     [
         ("discharge_summary", "Discharge summary prepared and signed"),
-        ("summary_explained", "Summary explained to patient or attendant"),
+        (
+            "summary_explained",
+            "Summary explained to patient or attendant",
+        ),
         ("medicines_dispensed", "Take-home medicines dispensed"),
         ("medicines_counselled", "Medicines and doses explained"),
-        ("red_flags_explained", "Warning signs explained — when to come back"),
+        (
+            "red_flags_explained",
+            "Warning signs explained — when to come back",
+        ),
         ("follow_up_given", "Follow-up appointment given"),
-        ("reports_returned", "Original investigation reports returned"),
+        (
+            "reports_returned",
+            "Original investigation reports returned",
+        ),
         ("lines_removed", "Cannulae, catheters and drains removed"),
-        ("valuables_returned", "Patient property and valuables returned"),
+        (
+            "valuables_returned",
+            "Patient property and valuables returned",
+        ),
         ("accounts_cleared", "Accounts cleared or clearance recorded"),
     ]
     .into_iter()
@@ -4389,10 +4369,7 @@ pub async fn init_discharge_checklist(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4445,8 +4422,7 @@ pub async fn update_discharge_checklist_item(
     Json(body): Json<UpdateChecklistItemRequest>,
 ) -> Result<Json<IpdDischargeChecklist>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4997,7 +4973,11 @@ pub async fn update_bed_status(
     // out of service, and cleared otherwise, so a stale reason from last
     // week cannot hang off a bed that is now clean and free.
     let blocks_the_bed = matches!(body.status.as_str(), "blocked" | "maintenance");
-    let reason = body.reason.as_deref().map(str::trim).filter(|r| !r.is_empty());
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
 
     if blocks_the_bed && reason.is_none() {
         return Err(AppError::BadRequest(
@@ -5053,10 +5033,7 @@ pub async fn list_attenders(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -5100,10 +5077,7 @@ pub async fn create_attender(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -5147,14 +5121,13 @@ pub async fn delete_attender(
     Path((admission_id, attender_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ipd::attenders::MANAGE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "DELETE FROM admission_attenders \
          WHERE id = $1 AND admission_id = $2 AND tenant_id = $3",
     )
@@ -5163,6 +5136,9 @@ pub async fn delete_attender(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
 
@@ -5244,10 +5220,7 @@ pub async fn get_discharge_summary(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5277,8 +5250,7 @@ pub async fn create_discharge_summary(
     Json(body): Json<CreateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
@@ -5341,8 +5313,7 @@ pub async fn update_discharge_summary(
     Json(body): Json<UpdateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
@@ -5448,10 +5419,7 @@ pub async fn finalize_discharge_summary(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5505,10 +5473,21 @@ pub async fn finalize_discharge_summary(
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| {
-        AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
-    })?;
+    .await?;
+    let Some(row) = row else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM ipd_discharge_summaries \
+             WHERE admission_id = $1 AND tenant_id = $2) AS \"exists!\"",
+            admission_id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Discharge summary is already finalized".to_owned()));
+    };
 
     #[derive(sqlx::FromRow)]
     struct DischargeFinalizedEventContext {
@@ -5579,10 +5558,7 @@ pub async fn get_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5616,10 +5592,7 @@ pub async fn issue_no_dues_certificate(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6250,10 +6223,7 @@ pub async fn list_admission_checklist(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6291,10 +6261,7 @@ pub async fn create_admission_checklist_items(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6338,10 +6305,7 @@ pub async fn toggle_checklist_item(
     // The URL names an admission; authorize it and scope the statement by it.
     // Binding the parent and discarding it let `/admissions/{A}/…/{child}` act on
     // a child belonging to admission B, and the audit row still said A.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6440,8 +6404,7 @@ pub async fn create_bed_reservation(
     // No route-derived id here, so the caller picks the subject of its own
     // check. Weaker than a path id, but it stops a row being filed against
     // something outside the caller's reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6668,10 +6631,7 @@ pub async fn list_clinical_docs(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6717,10 +6677,7 @@ pub async fn create_clinical_doc(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6773,10 +6730,7 @@ pub async fn update_clinical_doc(
     // The URL names an admission; authorize it and scope the statement by it.
     // Binding the parent and discarding it let `/admissions/{A}/…/{child}` act on
     // a child belonging to admission B, and the audit row still said A.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6818,10 +6772,7 @@ pub async fn resolve_clinical_doc(
     // The URL names an admission; authorize it and scope the statement by it.
     // Binding the parent and discarding it let `/admissions/{A}/…/{child}` act on
     // a child belonging to admission B, and the audit row still said A.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6837,8 +6788,22 @@ pub async fn resolve_clinical_doc(
     .bind(claims.sub)
     .bind(admission_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Document not found or already resolved".to_owned()))?;
+    .await?;
+    let Some(row) = row else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM ipd_clinical_documentations \
+             WHERE id = $1 AND tenant_id = $2 AND admission_id = $3) AS \"exists!\"",
+            doc_id,
+            claims.tenant_id,
+            admission_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Document is already resolved".to_owned()));
+    };
 
     tx.commit().await?;
     Ok(Json(row))
@@ -6856,10 +6821,7 @@ pub async fn list_restraint_checks(
     require_permission(&claims, permissions::ipd::clinical_docs::LIST)?;
 
     // The URL names an admission; authorize it and scope the statement by it.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6896,10 +6858,7 @@ pub async fn create_restraint_check(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6949,10 +6908,7 @@ pub async fn list_transfers(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6984,10 +6940,7 @@ pub async fn create_transfer(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let transfer_type = match body.transfer_type.as_str() {
         "inter_ward" | "inter_department" | "inter_hospital" => body.transfer_type,
         _ => return Err(AppError::BadRequest("Invalid transfer type".to_owned())),
@@ -7091,10 +7044,7 @@ pub async fn get_death_summary(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7120,8 +7070,7 @@ pub async fn create_death_summary(
     Json(body): Json<CreateDeathSummaryRequest>,
 ) -> Result<Json<IpdDeathSummary>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7192,8 +7141,7 @@ pub async fn update_death_summary(
     Json(body): Json<UpdateDeathSummaryRequest>,
 ) -> Result<Json<IpdDeathSummary>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7248,10 +7196,7 @@ pub async fn list_birth_records(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7283,10 +7228,7 @@ pub async fn create_birth_record(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7343,10 +7285,7 @@ pub async fn update_birth_record(
     require_permission(&claims, permissions::ipd::birth_records::MANAGE)?;
 
     // The URL names an admission; authorize it and scope the statement by it.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7413,10 +7352,7 @@ pub async fn get_discharge_tat(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7441,8 +7377,7 @@ pub async fn initiate_discharge_tat(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdDischargeTatLog>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_tat::UPDATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7677,10 +7612,7 @@ pub async fn get_investigations(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7770,10 +7702,7 @@ pub async fn get_estimated_cost(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7839,10 +7768,7 @@ pub async fn get_admission_advances(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7887,10 +7813,7 @@ pub async fn get_admission_prior_auth(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7932,10 +7855,7 @@ pub async fn link_mlc(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
 
@@ -7981,10 +7901,7 @@ pub async fn get_admission_mlc(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -8041,10 +7958,7 @@ pub async fn get_billing_summary(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8120,10 +8034,7 @@ pub async fn get_admission_print_data(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -8316,10 +8227,7 @@ pub async fn get_admission_diet_orders(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8351,10 +8259,7 @@ pub async fn get_admission_consents(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8391,8 +8296,7 @@ pub async fn generate_discharge_summary(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8502,10 +8406,7 @@ pub async fn bed_transfer(
     // same as being on this patient's care team. Without this, any holder of
     // the code could read or write any admission in the tenant — RLS scopes
     // by tenant only.
-    medbrains_authz_gate::require_admission_access(
-        &state, &claims, admission_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     let transfer_type = match body.transfer_type.as_deref().unwrap_or("inter_ward") {
         "inter_ward" | "inter_department" | "inter_hospital" => body
             .transfer_type
@@ -8694,7 +8595,9 @@ pub async fn expected_discharges(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
 
     let rows = sqlx::query_as::<_, ExpectedDischargeRow>(
         "SELECT a.id AS admission_id, a.patient_id, \
@@ -8744,7 +8647,14 @@ mod discharge_summary_tests {
     #[test]
     fn blank_and_missing_fields_are_reported() {
         let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
-        assert_eq!(missing, vec!["condition at discharge", "course in hospital", "follow-up instructions"]);
+        assert_eq!(
+            missing,
+            vec![
+                "condition at discharge",
+                "course in hospital",
+                "follow-up instructions"
+            ]
+        );
     }
 }
 
@@ -8753,19 +8663,16 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/nurse/mar/due-now", get(list_mar_due_now))
         .route("/api/nurse/mar/{id}", put(update_mar_round))
-        .route("/api/nurse/mar/{id}/verify-barcode", post(verify_mar_barcode))
+        .route(
+            "/api/nurse/mar/{id}/verify-barcode",
+            post(verify_mar_barcode),
+        )
         .route(
             "/api/nurse/mar/patient/{patient_id}",
             get(list_mar_for_patient),
         )
-        .route(
-            "/api/ipd/wards",
-            get(list_wards).post(create_ward),
-        )
-        .route(
-            "/api/ipd/wards/{id}",
-            get(get_ward).put(update_ward),
-        )
+        .route("/api/ipd/wards", get(list_wards).post(create_ward))
+        .route("/api/ipd/wards/{id}", get(get_ward).put(update_ward))
         .route(
             "/api/ipd/wards/{id}/beds",
             get(list_ward_beds).post(assign_bed_to_ward),
@@ -8775,14 +8682,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/wards/{wid}/beds/{mid}",
             delete(remove_bed_from_ward),
         )
-        .route(
-            "/api/ipd/bed-dashboard",
-            get(bed_dashboard_summary),
-        )
-        .route(
-            "/api/ipd/bed-dashboard/beds",
-            get(bed_dashboard_beds),
-        )
+        .route("/api/ipd/bed-dashboard", get(bed_dashboard_summary))
+        .route("/api/ipd/bed-dashboard/beds", get(bed_dashboard_beds))
         .route(
             "/api/ipd/bed-dashboard/beds/{bed_id}/status",
             put(update_bed_status),
@@ -8791,26 +8692,14 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/discharge-templates",
             get(list_discharge_templates).post(create_discharge_template),
         )
-        .route(
-            "/api/ipd/reports/census",
-            get(report_census),
-        )
-        .route(
-            "/api/ipd/reports/occupancy",
-            get(report_occupancy),
-        )
-        .route(
-            "/api/ipd/reports/alos",
-            get(report_alos),
-        )
+        .route("/api/ipd/reports/census", get(report_census))
+        .route("/api/ipd/reports/occupancy", get(report_occupancy))
+        .route("/api/ipd/reports/alos", get(report_alos))
         .route(
             "/api/ipd/reports/discharge-stats",
             get(report_discharge_stats),
         )
-        .route(
-            "/api/ipd/beds/available",
-            get(list_available_beds),
-        )
+        .route("/api/ipd/beds/available", get(list_available_beds))
         .route(
             "/api/ipd/admissions",
             get(list_admissions).post(create_admission),
@@ -8823,10 +8712,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/admissions/{id}/transfer",
             put(transfer_bed).post(bed_transfer),
         )
-        .route(
-            "/api/ipd/admissions/{id}/discharge",
-            put(discharge_patient),
-        )
+        .route("/api/ipd/admissions/{id}/discharge", put(discharge_patient))
         .route(
             "/api/ipd/admissions/{id}/tasks",
             get(list_nursing_tasks).post(create_nursing_task),
@@ -8873,18 +8759,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/admissions/{id}/mar",
             get(list_mar).post(create_mar),
         )
-        .route(
-            "/api/ipd/admissions/{id}/mar/{mar_id}",
-            put(update_mar),
-        )
+        .route("/api/ipd/admissions/{id}/mar/{mar_id}", put(update_mar))
         .route(
             "/api/ipd/admissions/{id}/io",
             get(list_intake_output).post(create_intake_output),
         )
-        .route(
-            "/api/ipd/admissions/{id}/io/balance",
-            get(get_io_balance),
-        )
+        .route("/api/ipd/admissions/{id}/io/balance", get(get_io_balance))
         .route(
             "/api/ipd/admissions/{id}/infusions",
             get(list_infusions).post(create_infusion),
@@ -8925,14 +8805,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/admissions/{id}/discharge-checklist/{cid}",
             put(update_discharge_checklist_item),
         )
-        .route(
-            "/api/ipd/ip-types",
-            get(list_ip_types).post(create_ip_type),
-        )
-        .route(
-            "/api/ipd/ip-types/{id}",
-            put(update_ip_type),
-        )
+        .route("/api/ipd/ip-types", get(list_ip_types).post(create_ip_type))
+        .route("/api/ipd/ip-types/{id}", put(update_ip_type))
         .route(
             "/api/ipd/bed-reservations",
             get(list_bed_reservations).post(create_bed_reservation),
@@ -9041,8 +8915,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/ipd/admissions/{id}/consents",
             get(get_admission_consents),
         )
-        .route(
-            "/api/ipd/discharges/expected",
-            get(expected_discharges),
-        )
+        .route("/api/ipd/discharges/expected", get(expected_discharges))
 }

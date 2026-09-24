@@ -21,6 +21,7 @@ All RFCs live in `RFCs/` at the project root.
 | `RFC-HMS-2026-003-TechStack (1).docx` | **Tech stack DRAFT** — detailed dev standards, clippy rules, CI/CD gates, SQLx strategy |
 | `RFC-HMS-2026-003-TechStack (2).docx` | **Tech stack APPROVED** — finalized stack decisions (Mantine v7, React Native CLI + Paper v5, pnpm + Turborepo) |
 | `ACMSRC_HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
+| `RFC-NATIVE-MOBILE.md` | **Native device apps (APPROVED 2026-09-13)** — SwiftUI + Compose/M3 Expressive + Compose for TV replace React Native; supersedes the mobile/TV rows of RFC-003 |
 
 ### RFC Priority
 
@@ -31,8 +32,8 @@ All RFCs live in `RFCs/` at the project root.
 | Decision | APPROVED (File 2) | DRAFT (File 1) |
 |----------|-------------------|----------------|
 | Web UI library | Mantine v7 | Shadcn/UI + Tailwind CSS 4 |
-| Mobile framework | React Native CLI (bare) + Paper v5 | React Native Expo |
-| TV displays | React Native (Android TV) | React Native for TV (same direction) |
+| Mobile framework | **Native: SwiftUI (iOS) + Jetpack Compose / Material 3 Expressive (Android)** per `RFCs/RFC-NATIVE-MOBILE.md` (supersedes React Native CLI + Paper v5) | React Native Expo |
+| TV displays | **Native: Kotlin + Compose for TV** per `RFCs/RFC-NATIVE-MOBILE.md` (supersedes React Native) | React Native for TV |
 | Monorepo tools | pnpm + Turborepo | Not specified |
 | Linting (JS/TS) | ESLint + Prettier (overridden — using Biome) | ESLint (mentioned) |
 
@@ -91,16 +92,16 @@ All RFCs live in `RFCs/` at the project root.
 
 | Layer | Technology |
 |-------|------------|
-| Framework | React Native CLI (bare workflow, New Architecture) |
-| UI library | React Native Paper v5 |
+| Framework | **Swift 6 + SwiftUI (iOS 17+, iOS 26 SDK) and Kotlin + Jetpack Compose (Android)** — `RFCs/RFC-NATIVE-MOBILE.md`; React Native CLI + Paper is the outgoing stack, no new RN screens |
+| UI library | Apple HIG system components (incl. iPhone Duo adaptivity) / Material 3 Expressive (`MaterialExpressiveTheme`) |
 | Navigation | React Navigation v7 |
-| Offline storage | WatermelonDB |
+| Offline storage | SwiftData / Room, keys in Keychain / Keystore; offline authz + CRDT via the Rust core (`crates/medbrains-edge-rn`, UniFFI Swift + Kotlin) |
 
 ### TV Displays
 
 | Layer | Technology |
 |-------|------------|
-| Framework | React Native (Android TV target) |
+| Framework | Kotlin + Compose for TV (Android TV target) — `RFCs/RFC-NATIVE-MOBILE.md`; React Native outgoing |
 | Real-time | WebSocket-driven updates |
 
 ### Monorepo
@@ -205,8 +206,9 @@ medbrains/
 │   └── medbrains-server/         # Axum HTTP server, routes, middleware
 ├── apps/
 │   ├── web/                      # React 18 + Mantine v7 + SCSS
-│   ├── mobile/                   # React Native CLI + Paper v5 (skeleton)
-│   └── tv/                       # React Native Android TV (skeleton)
+│   ├── ios/                      # SwiftUI apps: MedBrainsStaff / Patient / Camp / Vendor + Core/Kit/UI packages
+│   ├── android/                  # Compose apps: app-staff / patient / camp / vendor / tv + core/kit/ui modules
+│   ├── mobile-*/, tv/            # React Native (outgoing — deleted per app at parity)
 └── packages/
     ├── types/                    # Shared TypeScript interfaces
     ├── api/                      # HTTP client (auth methods only currently)
@@ -631,7 +633,7 @@ Every module follows this. No skipping.
 5. **DB layer** — migration `crates/medbrains-db/src/migrations/NNN_<module>.sql`, masters first, RLS, indexes.
 6. **Backend** — types in `medbrains-core/src/<module>.rs`, handlers in `medbrains-server/src/routes/<module>.rs`, register in `routes/mod.rs`. `cargo clippy` clean.
 7. **Frontend** — types in `packages/types/src/index.ts`, API methods in `packages/api/src/client.ts`, page in `apps/web/src/pages/<module>.tsx` (operational view + masters tab), routes in `App.tsx`. `pnpm typecheck && pnpm build && make check-api`.
-   - **7b Mobile (if Mobile=Y)**: `apps/mobile/src/screens/<Module>/`, RN Paper v5, React Navigation, WatermelonDB offline.
+   - **7b Mobile (if Mobile=Y)**: native, both platforms in lockstep — `apps/ios/…/Features/<Module>/` (SwiftUI) and `apps/android/app-*/…/<module>/` (Compose), per `RFCs/RFC-NATIVE-MOBILE.md`.
    - **7c TV (if TV=Y)**: `apps/tv/src/screens/<Module>/`, D-pad focus nav, WebSocket realtime, large fonts.
 8. **Static checks** — `make check-all` (check-api, check-ui-api, check-types). `make generate-smoke`.
 9. **Smoke tests** — `make dev-backend && make smoke-test`.

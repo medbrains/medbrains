@@ -44,6 +44,18 @@ pub mod automation {
 
 pub mod patients {
     pub const LIST: &str = "patients.list";
+    /// Find any patient at the desk.
+    ///
+    /// A desk lookup, not a browse. It searches every patient in the tenant by
+    /// UHID, phone or name and returns identity only — name, UHID, phone, date
+    /// of birth, sex — never a chart, never a diagnosis. `patients.list` is
+    /// relationship-scoped, so a receptionist could not find a patient a
+    /// colleague had registered and the returning patient was registered a
+    /// second time, which is how a hospital ends up with two records and half
+    /// a history in each. Widening `list` would have handed a tenant-wide
+    /// browse to everyone already holding it; this is the narrower grant, and
+    /// the lookup is audited like every other read under `/api/patients`.
+    pub const FIND: &str = "patients.find";
     pub const VIEW: &str = "patients.view";
     pub const CREATE: &str = "patients.create";
     pub const UPDATE: &str = "patients.update";
@@ -165,6 +177,23 @@ pub mod lab {
         pub const CREATE: &str = "lab.results.create";
         pub const UPDATE: &str = "lab.results.update";
         pub const AMEND: &str = "lab.results.amend";
+        /// Release lab results to the treating team.
+        ///
+        /// Verification is the clinical signature on a result, not another
+        /// edit of it, and it was gated on `lab.results.update` — the same
+        /// code that types the value in. One account could therefore enter a
+        /// result and release it, which NABL and ISO 15189 both write rules
+        /// against.
+        ///
+        /// Splitting the code does not by itself split the duty: this system
+        /// has a single lab role, and a night shift with one technologist
+        /// still has to be able to report, so `lab_technician` holds this too
+        /// and the hard four-eyes rule stays where the harm is — a critical
+        /// value may not be released by the person who entered it. What the
+        /// separate code buys is the ability to grant release to a supervisor
+        /// role without also granting result entry, which could not be
+        /// expressed at all before.
+        pub const VERIFY: &str = "lab.results.verify";
     }
 
     pub mod qc {
@@ -2528,6 +2557,18 @@ pub mod order_basket {
     pub const VIEW_AUDIT: &str = "clinical.order_basket.view_audit";
 }
 
+pub mod ai {
+    pub mod assistant {
+        /// Use the AI assistant.
+        ///
+        /// Chat, and the caller's own conversation history. The three
+        /// handlers behind it checked nothing at all: any signed-in account
+        /// could send a prompt about a patient to the model. Held by the
+        /// clinical roles the assistant is built for.
+        pub const USE: &str = "ai.assistant.use";
+    }
+}
+
 pub mod nurse {
     pub mod profile {
         pub const VIEW: &str = "nurse.profile.view";
@@ -2536,6 +2577,20 @@ pub mod nurse {
     pub mod shift {
         pub const VIEW: &str = "nurse.shift.view";
         pub const MANAGE: &str = "nurse.shift.manage";
+    }
+    pub mod roster {
+        /// See who is rostered on a ward.
+        ///
+        /// The ward's on-duty list, per shift and date. Distinct from
+        /// `nurse.shift.*`, which covers a nurse's own duty session.
+        pub const VIEW: &str = "nurse.roster.view";
+        /// Roster nurses onto ward shifts.
+        ///
+        /// Deciding who staffs a ward. Held by no built-in role: with no
+        /// charge-nurse role to give it to, granting it to every nurse
+        /// would let any of them restaff the ward. Admins hold it by
+        /// bypass, and it can be granted to a custom role.
+        pub const MANAGE: &str = "nurse.roster.manage";
     }
     pub mod mar {
         pub const VIEW: &str = "nurse.mar.view";
@@ -2606,6 +2661,12 @@ pub mod nurse {
     pub mod code_blue {
         pub const VIEW: &str = "nurse.code_blue.view";
         pub const RECORD: &str = "nurse.code_blue.record";
+        /// Say you are responding to a code blue.
+        ///
+        /// The page is one-way until somebody answers it. Held by everyone
+        /// the activation reaches, so the team lead can see who is coming.
+        /// The first response is also the arrival time NABH measures.
+        pub const RESPOND: &str = "nurse.code_blue.respond";
     }
     pub mod equipment {
         pub const VIEW: &str = "nurse.equipment.view";

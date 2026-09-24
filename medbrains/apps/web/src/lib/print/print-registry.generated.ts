@@ -24,6 +24,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getAdvanceReceiptPrintData(id),
   },
   {
+    key: "aebas-attendance",
+    label: "Aebas Attendance",
+    idKind: "record",
+    permission: "hr.attendance.list",
+    fetch: (id) => api.getAebasAttendancePrintData(id),
+  },
+  {
     key: "appointment-slip",
     label: "Appointment Slip",
     idKind: "record",
@@ -50,6 +57,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "admission",
     permission: "ipd.admissions.view",
     fetch: (id) => api.getCaseSheetCoverPrintData(id),
+  },
+  {
+    key: "cashless-claim",
+    label: "Cashless Claim",
+    idKind: "record",
+    permission: "billing.invoices.view",
+    fetch: (id) => api.getCashlessClaimPrintData(id),
   },
   {
     key: "component-slip",
@@ -99,6 +113,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "admission",
     permission: "ipd.admissions.view",
     fetch: (id) => api.getDischargePrintData(id),
+  },
+  {
+    key: "dispensing-label",
+    label: "Dispensing Label",
+    idKind: "record",
+    permission: "pharmacy.dispensing.create",
+    fetch: (id) => api.getDispensingLabelPrintData(id),
   },
   {
     key: "dpdp-consent",
@@ -155,6 +176,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "admission",
     permission: "ipd.admissions.view",
     fetch: (id) => api.getFluidBalanceChartPrintData(id),
+  },
+  {
+    key: "gcs-chart",
+    label: "Gcs Chart",
+    idKind: "admission",
+    permission: "ipd.admissions.view",
+    fetch: (id) => api.getGcsChartPrintData(id),
   },
   {
     key: "gst-invoice",
@@ -241,6 +269,20 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getMlcRegisterSummaryPrintData(id),
   },
   {
+    key: "nabh-quality-report",
+    label: "Nabh Quality Report",
+    idKind: "record",
+    permission: "quality.indicators.list",
+    fetch: (id) => api.getNabhQualityReportPrintData(id),
+  },
+  {
+    key: "nabl-quality-report",
+    label: "Nabl Quality Report",
+    idKind: "record",
+    permission: "lab.qc.list",
+    fetch: (id) => api.getNablQualityReportPrintData(id),
+  },
+  {
     key: "mrd.nursing-assessment",
     label: "Nursing Assessment",
     idKind: "admission",
@@ -262,6 +304,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getOpdPrescriptionPrintData(id),
   },
   {
+    key: "consent.organ-donation",
+    label: "Organ Donation",
+    idKind: "patient",
+    permission: "patients.view",
+    fetch: (id) => api.getOrganDonationConsentPrintData(id),
+  },
+  {
     key: "package-bill",
     label: "Package Bill",
     idKind: "record",
@@ -276,11 +325,25 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getPainAssessmentPrintData(id),
   },
   {
+    key: "patient-card",
+    label: "Patient Card",
+    idKind: "patient",
+    permission: "patients.view",
+    fetch: (id) => api.getPatientCardPrintData(id),
+  },
+  {
     key: "pcpndt-report",
     label: "Pcpndt Report",
     idKind: "record",
     permission: "regulatory.pcpndt.list",
     fetch: (id) => api.getPcpndtReportPrintData(id),
+  },
+  {
+    key: "peso-compliance",
+    label: "Peso Compliance",
+    idKind: "record",
+    permission: "facilities.gas.list",
+    fetch: (id) => api.getPesoCompliancePrintData(id),
   },
   {
     key: "prescription",
@@ -311,6 +374,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     fetch: (id) => api.getRadiologyPrintData(id),
   },
   {
+    key: "refund-receipt",
+    label: "Refund Receipt",
+    idKind: "record",
+    permission: "billing.invoices.view",
+    fetch: (id) => api.getRefundReceiptPrintData(id),
+  },
+  {
     key: "registration-card",
     label: "Registration Card",
     idKind: "patient",
@@ -335,7 +405,7 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     key: "surgical-safety-checklist",
     label: "Surgical Safety Checklist",
     idKind: "booking",
-    permission: "ipd.admissions.view",
+    permission: "ot.safety_checklist.list",
     fetch: (id) => api.getSurgicalSafetyChecklistPrintData(id),
   },
   {
@@ -372,5 +442,12 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "admission",
     permission: "ipd.admissions.view",
     fetch: (id) => api.getVitalsChartPrintData(id),
+  },
+  {
+    key: "work-order",
+    label: "Work Order",
+    idKind: "record",
+    permission: "facilities.work_orders.list",
+    fetch: (id) => api.getWorkOrderPrintData(id),
   },
 ];

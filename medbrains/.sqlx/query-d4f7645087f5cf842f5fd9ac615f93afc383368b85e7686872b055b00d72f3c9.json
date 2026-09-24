@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT consent_date AS \"consent_date!\", consented_by AS \"consented_by?\", consented_by_relation AS \"consented_by_relation?\" FROM patient_consents WHERE patient_id = $1 AND tenant_id = $2 AND consent_type::text ILIKE '%organ%' AND revoked_at IS NULL AND deleted_at IS NULL ORDER BY consent_date DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "consent_date!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "consented_by?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "consented_by_relation?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d4f7645087f5cf842f5fd9ac615f93afc383368b85e7686872b055b00d72f3c9"
+}

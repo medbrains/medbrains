@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2",
+  "query": "SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       false
     ]
   },
-  "hash": "020dddc6df23f588c8351218a85974efca52a0a2f3b19a00c632df3271d50071"
+  "hash": "4c1e9b7ce7b6084a543e9c745c150becb23aa4988f341bd087d5097858bcfab2"
 }

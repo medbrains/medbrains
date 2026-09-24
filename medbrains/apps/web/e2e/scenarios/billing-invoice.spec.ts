@@ -1,13 +1,16 @@
-import { test, expect } from "@playwright/test";
-import { getAuthContextFromCookies, api } from "../helpers/api";
+import { expect, test } from "@playwright/test";
+import { api, getAuthContextFromCookies } from "../helpers/api";
 import {
-  createPatientApi,
   createEncounter,
   createInvoice,
+  createPatientApi,
+  getInvoiceDetail,
+  issueInvoice,
+  recordBillingPayment,
 } from "../helpers/journey-steps";
 
 test.describe("Billing invoice journey", () => {
-  test("invoice → add item → record payment → verify totals", async ({ request }) => {
+  test("invoice → add item → issue → record payment → paid", async ({ request }) => {
     test.info().annotations.push({
       type: "tcms",
       description: "Billing::Generate invoice + line item + payment",
@@ -16,47 +19,31 @@ test.describe("Billing invoice journey", () => {
     const ctx = await getAuthContextFromCookies(request);
     const patient = await createPatientApi(ctx);
     const encounterId = await createEncounter(ctx, patient.id);
-    const invoiceId = await createInvoice(ctx, {
-      patientId: patient.id,
-      encounterId,
+    const invoiceId = await createInvoice(ctx, { patientId: patient.id, encounterId });
+
+    await api(ctx, "POST", `/api/billing/invoices/${invoiceId}/items`, {
+      charge_code: "CONS-001",
+      description: "Consultation fee",
+      source: "manual",
+      quantity: 1,
+      unit_price: 500,
     });
 
-    // Add a manual line item (best-effort shape — charge-master FK varies).
-    try {
-      await api(ctx, "POST", `/api/billing/invoices/${invoiceId}/items`, {
-        charge_code: "CONS-001",
-        description: "Consultation fee",
-        source: "manual",
-        quantity: 1,
-        unit_price: 500,
-      });
-    } catch {
-      // Some seeds enforce charge-master FK; skip silently.
-    }
+    const draft = await getInvoiceDetail(ctx, invoiceId);
+    expect(draft.invoice.id).toBe(invoiceId);
+    expect(draft.items.map((i) => i.description)).toContain("Consultation fee");
+    expect(Number(draft.invoice.total_amount)).toBeGreaterThan(0);
 
-    // GET returns { invoice, items, payments }
-    const detail = await api<{ invoice: { id: string; status: string } }>(
-      ctx,
-      "GET",
-      `/api/billing/invoices/${invoiceId}`,
-    );
-    expect(detail.invoice.id).toBe(invoiceId);
-
-    // Payment best-effort.
-    try {
-      await api(ctx, "PUT", `/api/billing/invoices/${invoiceId}/issue`, {});
-      await api(ctx, "POST", `/api/billing/invoices/${invoiceId}/payments`, {
-        amount: 500,
-        method: "cash",
-      });
-    } catch {
-      // Payment shape differs across seeds — non-fatal for this journey.
-    }
+    // Issue is a POST and a payment names its `mode`; this once sent PUT and
+    // `method` inside a try/catch, so neither ever happened.
+    await issueInvoice(ctx, invoiceId);
+    await recordBillingPayment(ctx, invoiceId, Number(draft.invoice.total_amount));
+    expect((await getInvoiceDetail(ctx, invoiceId)).invoice.status).toBe("paid");
   });
 
   test("invoices list returns paginated shape", async ({ request }) => {
     const ctx = await getAuthContextFromCookies(request);
-    const list = await api<unknown>(ctx, "GET", "/api/billing/invoices");
-    expect(list).toBeTruthy();
+    const list = await api<{ invoices: unknown[] }>(ctx, "GET", "/api/billing/invoices");
+    expect(Array.isArray(list.invoices)).toBe(true);
   });
 });

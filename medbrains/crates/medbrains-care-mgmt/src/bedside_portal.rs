@@ -746,6 +746,19 @@ pub async fn submit_feedback(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Bypass roles pass the gate above unconditionally, and the table carries no
+    // FK on admission_id — so the admission's existence is checked here.
+    let admission_exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM admissions WHERE id = $1 AND tenant_id = $2) AS \"exists!\"",
+        admission_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !admission_exists {
+        return Err(AppError::NotFound);
+    }
+
     let row = sqlx::query_as::<_, BedsideRealtimeFeedback>(
         "INSERT INTO bedside_realtime_feedback \
          (tenant_id, admission_id, patient_id, pain_level, comfort_level, \

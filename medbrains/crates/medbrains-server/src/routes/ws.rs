@@ -49,6 +49,24 @@ pub async fn queue_ws_handler(
     ws.on_upgrade(move |socket| handle_queue_socket(socket, department_id, state))
 }
 
+/// Which hospital a board belongs to, taken from the department it is pointed
+/// at.
+///
+/// These sockets are public — a board has no credentials — so the department
+/// in the path is the only thing that says whose display this is. A department
+/// nobody owns means a misconfigured board, and it gets no feed at all rather
+/// than everybody's.
+async fn tenant_of_department(state: &AppState, department_id: Uuid) -> Option<Uuid> {
+    sqlx::query_scalar!( // allow-raw-sql: resolves the tenant itself, so none can scope it
+        "SELECT tenant_id FROM departments WHERE id = $1",
+        department_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+}
+
 /// WebSocket endpoint for all-department updates (multi-display).
 ///
 /// GET /ws/queue
@@ -66,6 +84,11 @@ pub async fn queue_ws_handler_all(
 async fn handle_queue_socket(socket: WebSocket, department_id: Uuid, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
+    let Some(tenant_id) = tenant_of_department(&state, department_id).await else {
+        tracing::warn!(%department_id, "queue socket refused — no such department");
+        return;
+    };
+
     let mut queue_rx = state
         .queue_broadcaster
         .get_or_create_channel(department_id)
@@ -82,7 +105,12 @@ async fn handle_queue_socket(socket: WebSocket, department_id: Uuid, state: AppS
                     Err(broadcast::error::RecvError::Closed) => break,
                 },
                 ev = announce_rx.recv() => match ev {
-                    Ok(event) => serde_json::to_string(&event).ok(),
+                    // One global channel carries every hospital's
+                    // announcements; this board only shows its own.
+                    Ok(event) if event.tenant_id == tenant_id => {
+                        serde_json::to_string(&event).ok()
+                    }
+                    Ok(_) => continue,
                     Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(broadcast::error::RecvError::Closed) => break,
                 },

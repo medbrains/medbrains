@@ -622,10 +622,13 @@ pub async fn delete_sensitive_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("DELETE FROM sensitive_patients WHERE id = $1")
+    let result = sqlx::query("DELETE FROM sensitive_patients WHERE id = $1")
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"deleted": true})))

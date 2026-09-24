@@ -740,7 +740,10 @@ pub async fn create_transfusion(
 
     // ABO/Rh compatibility check
     let patient_blood_group = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT attributes->>'blood_group' FROM patients WHERE id = $1",
+        // The patient's group lives in the typed column; only legacy rows
+        // carry it in `attributes`. Reading the JSON alone refused every
+        // transfusion for a patient registered through the API.
+        "SELECT COALESCE(blood_group::text, attributes->>'blood_group') FROM patients WHERE id = $1",
     )
     .bind(body.patient_id)
     .fetch_one(&mut *tx)

@@ -214,6 +214,18 @@ pub async fn issue_verify_link(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Bypass roles pass the gate above without the encounter existing.
+    let encounter_exists: bool = sqlx::query_scalar!( // allow-raw-sql: existence check
+        "SELECT EXISTS(SELECT 1 FROM encounters WHERE id = $1 AND tenant_id = $2) AS \"exists!\"",
+        encounter_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !encounter_exists {
+        return Err(AppError::NotFound);
+    }
+
     let existing: Option<String> = sqlx::query_scalar( // allow-raw-sql: prescription verify link lookup
         "SELECT token FROM prescription_verify_links \
          WHERE tenant_id = $1 AND encounter_id = $2 AND expires_at > now() \

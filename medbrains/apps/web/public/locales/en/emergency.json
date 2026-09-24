@@ -21,6 +21,8 @@
   "label.admittingDoctor": "Admitting Doctor",
   "placeholder.enterDoctorId": "Enter doctor ID",
   "label.admissionNotes": "Admission Notes",
+  "label.treatingDepartment": "Treating department",
+  "label.emergencyDepartmentDefault": "Emergency department unless chosen",
   "placeholder.reasonForAdmission,ClinicalNotes...": "Reason for admission, clinical notes...",
   "label.viewDetails": "View Details",
   "label.document": "Document",

@@ -13,9 +13,9 @@ Applies to every surface whose device-catalog `class` is **not** `ui-desktop`/we
 
 | Class | Surfaces | Runtime |
 |---|---|---|
-| `ui-display` | all `TV-*` boards | React Native (Android TV) |
-| `ui-touch` | `Desktop-Kiosk`, wayfinding | RN / kiosk-mode browser |
-| `ui-mobile` | all `Mobile-*` | React Native + Paper |
+| `ui-display` | all `TV-*` boards | Kotlin + Compose for TV (Android TV); React Native outgoing |
+| `ui-touch` | `Desktop-Kiosk`, wayfinding | kiosk-mode browser |
+| `ui-mobile` | all `Mobile-*` | Swift + SwiftUI (iOS), Kotlin + Compose (Android); React Native + Paper outgoing — RFC-NATIVE-MOBILE |
 | `headless-edge` | edge gateway, device bridge | Rust daemon |
 | `headless-iot` | cold-chain / environment sensors, adapters | firmware / bridge |
 

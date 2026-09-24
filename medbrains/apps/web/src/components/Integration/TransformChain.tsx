@@ -124,7 +124,6 @@ export function TransformChain({ chain, onChange, compact }: TransformChainProps
     [chain, onChange],
   );
 
-
   // ── Compact mode: horizontal badges ──
   if (compact) {
     const maxVisible = 3;
@@ -172,7 +171,6 @@ export function TransformChain({ chain, onChange, compact }: TransformChainProps
       </Group>
     );
   }
-
 
   // ── Full mode: vertical chain with drag-sort ──
   return (

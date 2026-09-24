@@ -70,8 +70,7 @@ impl AuthzBackend for PgAuthzBackend {
 
         // Implications — for "user has Viewer", any relation that IMPLIES
         // Viewer satisfies (Owner, Editor, AttendingPhysician, Consultant, ...)
-        let candidate_relations: Vec<&'static str> =
-            relation.implied_by().iter().map(|r| r.as_code()).collect();
+        let candidate_relations = candidate_relation_codes(relation);
 
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
@@ -205,8 +204,7 @@ impl AuthzBackend for PgAuthzBackend {
             return Ok(Vec::new());
         }
 
-        let candidate_relations: Vec<&'static str> =
-            relation.implied_by().iter().map(|r| r.as_code()).collect();
+        let candidate_relations = candidate_relation_codes(relation);
 
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
@@ -425,3 +423,22 @@ fn parse_source(s: &str) -> TupleSource {
         _ => TupleSource::Explicit,
     }
 }
+
+/// The tuple relations that satisfy a check for `relation` — the enum
+/// relations implying it, plus the raw membership relations the SpiceDB
+/// schema folds into `permission view` (`infra/spicedb/schema.zed`:
+/// `view = … + dept_member + ward_member + …`, never `edit`). The routes
+/// write those as `department#member` subjects (`dept_member` on encounters
+/// and admissions, `ward_member` on admissions); without them here the
+/// fallback refuses every department-based read SpiceDB would allow, and a
+/// nurse is told the arrival she just registered does not exist.
+pub(crate) fn candidate_relation_codes(relation: Relation) -> Vec<&'static str> {
+    let mut codes: Vec<&'static str> = relation.implied_by().iter().map(|r| r.as_code()).collect();
+    if relation == Relation::Viewer {
+        codes.extend(RAW_VIEW_RELATIONS);
+    }
+    codes
+}
+
+/// Raw relations (no `Relation` variant) that grant `view` in the schema.
+pub(crate) const RAW_VIEW_RELATIONS: &[&str] = &["dept_member", "ward_member"];

@@ -386,13 +386,16 @@ pub async fn remove_hospital_from_group(
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
     require_super_admin(&claims)?;
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE tenants SET group_id = NULL, region_id = NULL, branch_code = NULL, \
             updated_at = now() WHERE id = $1",
     )
     .bind(tenant_id)
     .execute(&state.db)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -543,7 +546,7 @@ pub async fn delete_user_assignment(
     Path(assignment_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE user_hospital_assignments \
          SET is_active = false, deleted_at = now(), deleted_by = $2 WHERE id = $1 \
            AND ($3 OR tenant_id = $4 OR tenant_id IN (SELECT id FROM tenants \
@@ -555,6 +558,9 @@ pub async fn delete_user_assignment(
     .bind(claims.tenant_id)
     .execute(&state.db)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1219,13 +1225,16 @@ pub async fn delete_doctor_rotation(
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE doctor_rotation_schedules SET deleted_at = now(), deleted_by = $2 WHERE id = $1",
     )
     .bind(id)
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

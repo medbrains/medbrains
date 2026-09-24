@@ -7,6 +7,7 @@ use axum::{
     extract::{Path, State},
 };
 use axum::routing::get;
+use chrono::Datelike;
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -106,6 +107,21 @@ pub async fn get_employee_id_card_print_data(
 // ── Duty Roster ───────────────────────────────────────────────────────────────
 
 /// GET /print-data/duty-roster/{department_id}/{period}
+#[derive(Debug, sqlx::FromRow)]
+struct ShiftRow {
+    name: String,
+    start_time: chrono::NaiveTime,
+    end_time: chrono::NaiveTime,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RosterDayRow {
+    employee_id: Uuid,
+    roster_date: chrono::NaiveDate,
+    is_on_call: Option<bool>,
+    shift_code: Option<String>,
+}
+
 pub async fn get_duty_roster_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -142,31 +158,34 @@ pub async fn get_duty_roster_print_data(
     let days_in_month = days_in_month(year, month);
     let period_end = format!("{days_in_month:02}-{month:02}-{year}");
 
-    // Sample shifts
-    let shifts = vec![
-        ShiftDefinition {
-            shift_name: "Morning".to_string(),
-            start_time: "07:00".to_string(),
-            end_time: "15:00".to_string(),
-            color_code: Some("#4CAF50".to_string()),
-        },
-        ShiftDefinition {
-            shift_name: "Evening".to_string(),
-            start_time: "15:00".to_string(),
-            end_time: "23:00".to_string(),
-            color_code: Some("#2196F3".to_string()),
-        },
-        ShiftDefinition {
-            shift_name: "Night".to_string(),
-            start_time: "23:00".to_string(),
-            end_time: "07:00".to_string(),
-            color_code: Some("#9C27B0".to_string()),
-        },
-    ];
+    // The hospital's own shifts, not three invented ones.
+    //
+    // This printed Morning 07:00, Evening 15:00 and Night 23:00 with fixed
+    // colours regardless of how the hospital actually runs its day.
+    // `shift_definitions` is where its shifts live.
+    let shifts = sqlx::query_as!(
+        ShiftRow,
+        "SELECT name AS \"name!\", start_time AS \"start_time!\", end_time AS \"end_time!\" \
+           FROM shift_definitions \
+          WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
+          ORDER BY start_time",
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| ShiftDefinition {
+        shift_name: row.name,
+        start_time: row.start_time.format("%H:%M").to_string(),
+        end_time: row.end_time.format("%H:%M").to_string(),
+        color_code: None,
+    })
+    .collect::<Vec<_>>();
 
     // Get staff in department
     #[derive(sqlx::FromRow)]
     struct StaffRow {
+        id: Uuid,
         employee_code: String,
         full_name: String,
         designation: Option<String>,
@@ -175,6 +194,7 @@ pub async fn get_duty_roster_print_data(
     let staff = sqlx::query_as::<_, StaffRow>(
         r"
         SELECT
+            u.id,
             u.employee_code,
             u.full_name,
             d.name as designation
@@ -188,23 +208,57 @@ pub async fn get_duty_roster_print_data(
     .fetch_all(&mut *conn)
     .await?;
 
+    // Who is actually rostered.
+    //
+    // This used to deal shifts out with `(staff_index + day) % 4`: Morning,
+    // Evening, Night, week off, round and round, for every named member of
+    // staff for the whole month. A duty roster tells a nurse when to come to
+    // work, and is what a hospital shows for its staffing ratios. An invented
+    // one is a rota nobody agreed to, printed with their name on it.
+    //
+    // `duty_rosters` holds the real assignments. A day nobody rostered prints
+    // blank, because an empty rota is one that has not been written yet.
+    let rostered = sqlx::query_as!(
+        RosterDayRow,
+        "SELECT r.employee_id AS \"employee_id!\", r.roster_date AS \"roster_date!\", \
+                r.is_on_call AS \"is_on_call?\", \
+                COALESCE(sd.code, sd.name) AS \"shift_code?\" \
+           FROM duty_rosters r \
+           LEFT JOIN shift_definitions sd ON sd.id = r.shift_id AND sd.tenant_id = r.tenant_id \
+          WHERE r.tenant_id = $1 AND r.department_id = $2 \
+            AND EXTRACT(YEAR FROM r.roster_date)::int = $3 \
+            AND EXTRACT(MONTH FROM r.roster_date)::int = $4 \
+            AND r.deleted_at IS NULL",
+        claims.tenant_id,
+        department_id,
+        year,
+        i32::try_from(month).unwrap_or(1),
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+
     let roster_entries: Vec<RosterEntry> = staff
         .into_iter()
-        .enumerate()
-        .map(|(idx, s)| {
+        .map(|s| {
+            let mine: Vec<&RosterDayRow> =
+                rostered.iter().filter(|r| r.employee_id == s.id).collect();
             let schedule: Vec<DayShift> = (1..=days_in_month)
                 .map(|day| {
-                    let shift_idx = (idx + day as usize) % 4;
-                    let (shift, is_off) = match shift_idx {
-                        0 => ("M".to_string(), false),
-                        1 => ("E".to_string(), false),
-                        2 => ("N".to_string(), false),
-                        _ => ("WO".to_string(), true),
-                    };
+                    let entry = mine.iter().find(|r| Datelike::day(&r.roster_date) == day);
                     DayShift {
                         date: format!("{day:02}-{month:02}-{year}"),
-                        shift,
-                        is_off,
+                        // Blank, not "WO". A day with no roster row is a day
+                        // nobody rostered, which is not a day off and must not
+                        // read as one.
+                        shift: entry.map_or_else(String::new, |r| {
+                            let code = r.shift_code.clone().unwrap_or_default();
+                            if r.is_on_call.unwrap_or(false) {
+                                format!("{code} (on call)")
+                            } else {
+                                code
+                            }
+                        }),
+                        is_off: false,
                     }
                 })
                 .collect();
@@ -332,6 +386,16 @@ pub async fn get_leave_application_print_data(
 // ── Staff Attendance Report ───────────────────────────────────────────────────
 
 /// GET /print-data/staff-attendance/{department_id}/{month}/{year}
+#[derive(Debug, sqlx::FromRow)]
+struct AttendanceMarkRow {
+    employee_id: Uuid,
+    attendance_date: chrono::NaiveDate,
+    status: String,
+    check_in: Option<chrono::DateTime<Utc>>,
+    check_out: Option<chrono::DateTime<Utc>>,
+    is_late: Option<bool>,
+}
+
 pub async fn get_staff_attendance_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -356,6 +420,7 @@ pub async fn get_staff_attendance_print_data(
     // Get staff in department
     #[derive(sqlx::FromRow)]
     struct StaffRow {
+        id: Uuid,
         employee_code: String,
         full_name: String,
         designation: Option<String>,
@@ -364,6 +429,7 @@ pub async fn get_staff_attendance_print_data(
     let staff = sqlx::query_as::<_, StaffRow>(
         r"
         SELECT
+            u.id,
             u.employee_code,
             u.full_name,
             d.name as designation
@@ -378,15 +444,44 @@ pub async fn get_staff_attendance_print_data(
     .await?;
 
     let days = days_in_month(year, month);
+
+    // The attendance that was actually recorded.
+    //
+    // This used to compute it: `(staff_index + day) % 10` decided present,
+    // late, leave or absent, and the check-in time alternated between 08:55
+    // and 09:15. It produced a complete, plausible monthly register for named
+    // staff — a document that feeds payroll, duty-hour limits and an AEBAS
+    // submission — out of arithmetic on a loop counter.
+    //
+    // `attendance_records` is where the real marks live. A month nobody
+    // recorded prints as a month of blanks, which is what an empty register
+    // looks like and is a thing a hospital needs to be able to see.
+    let marks = sqlx::query_as!(
+        AttendanceMarkRow,
+        "SELECT employee_id AS \"employee_id!\", attendance_date AS \"attendance_date!\", \
+                status::text AS \"status!\", check_in AS \"check_in?\", \
+                check_out AS \"check_out?\", is_late AS \"is_late?\" \
+           FROM attendance_records \
+          WHERE tenant_id = $1 \
+            AND EXTRACT(YEAR FROM attendance_date)::int = $2 \
+            AND EXTRACT(MONTH FROM attendance_date)::int = $3 \
+            AND deleted_at IS NULL",
+        claims.tenant_id,
+        year,
+        i32::try_from(month).unwrap_or(1),
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+
     let mut total_present = 0;
     let mut total_absent = 0;
     let mut total_leave = 0;
 
     let attendance_records: Vec<AttendanceRecord> = staff
         .into_iter()
-        .enumerate()
-        .map(|(idx, s)| {
-            // Generate sample attendance
+        .map(|s| {
+            let mine: Vec<&AttendanceMarkRow> =
+                marks.iter().filter(|m| m.employee_id == s.id).collect();
             let mut present = 0;
             let mut absent = 0;
             let mut leave = 0;
@@ -394,35 +489,41 @@ pub async fn get_staff_attendance_print_data(
 
             let daily: Vec<DailyAttendance> = (1..=days)
                 .map(|day| {
-                    let status_idx = (idx + day as usize) % 10;
-                    let (status, in_t, out_t) = match status_idx {
-                        0..=6 => {
+                    let mark = mine
+                        .iter()
+                        .find(|m| Datelike::day(&m.attendance_date) == day);
+                    // No row is no mark. It is not an absence either — nobody
+                    // recorded anything, and a register that turns silence
+                    // into an "A" against somebody's name is a disciplinary
+                    // document written by a loop.
+                    let status = match mark.map(|m| m.status.as_str()) {
+                        Some("present") | Some("PRESENT") => {
                             present += 1;
-                            if status_idx == 0 {
-                                late += 1;
-                            }
-                            (
-                                "P",
-                                Some(if status_idx == 0 { "09:15" } else { "08:55" }),
-                                Some("17:30"),
-                            )
+                            "P"
                         }
-                        7 => {
-                            leave += 1;
-                            ("L", None, None)
-                        }
-                        8 | 9 => ("WO", None, None),
-                        _ => {
+                        Some("absent") | Some("ABSENT") => {
                             absent += 1;
-                            ("A", None, None)
+                            "A"
                         }
+                        Some("leave") | Some("LEAVE") | Some("on_leave") => {
+                            leave += 1;
+                            "L"
+                        }
+                        Some(_) => "?",
+                        None => "",
                     };
-
+                    if mark.is_some_and(|m| m.is_late.unwrap_or(false)) {
+                        late += 1;
+                    }
                     DailyAttendance {
                         date: format!("{day:02}-{month:02}-{year}"),
                         status: status.to_string(),
-                        in_time: in_t.map(String::from),
-                        out_time: out_t.map(String::from),
+                        in_time: mark
+                            .and_then(|m| m.check_in)
+                            .map(|t| t.format("%H:%M").to_string()),
+                        out_time: mark
+                            .and_then(|m| m.check_out)
+                            .map(|t| t.format("%H:%M").to_string()),
                     }
                 })
                 .collect();
@@ -434,7 +535,7 @@ pub async fn get_staff_attendance_print_data(
             AttendanceRecord {
                 employee_name: s.full_name,
                 employee_id: s.employee_code,
-                designation: s.designation.unwrap_or_else(|| "Staff".to_string()),
+                designation: s.designation.unwrap_or_default(),
                 days_present: present,
                 days_absent: absent,
                 days_leave: leave,
@@ -672,31 +773,16 @@ pub async fn get_staff_credentials_print_data(
     .fetch_all(&mut *conn)
     .await?;
 
-    let credentials: Vec<CredentialDetail> = if creds.is_empty() {
-        // Sample credentials if none exist
-        vec![
-            CredentialDetail {
-                credential_type: "Degree".to_string(),
-                credential_name: "MBBS".to_string(),
-                issuing_authority: "Medical University".to_string(),
-                credential_number: "MED-123456".to_string(),
-                issue_date: Some("01-01-2020".to_string()),
-                expiry_date: None,
-                verification_status: "Verified".to_string(),
-                document_attached: true,
-            },
-            CredentialDetail {
-                credential_type: "Registration".to_string(),
-                credential_name: "Medical Council Registration".to_string(),
-                issuing_authority: "State Medical Council".to_string(),
-                credential_number: "SMC-789012".to_string(),
-                issue_date: Some("15-03-2020".to_string()),
-                expiry_date: Some("14-03-2025".to_string()),
-                verification_status: "Verified".to_string(),
-                document_attached: true,
-            },
-        ]
-    } else {
+    // A credentialing file with nothing in it prints as empty.
+    //
+    // This used to invent two credentials for any employee who had none: an
+    // MBBS from "Medical University", a state council registration, both
+    // marked "Verified", both with document attached. Credentialing is what a
+    // hospital shows an accreditor to prove the person treating patients is
+    // qualified, and NABH audits it. An invented "Verified" is the assertion
+    // that somebody checked a doctor's degree when nobody did — and an empty
+    // file is a finding the hospital needs to see, not a gap to paper over.
+    let credentials: Vec<CredentialDetail> = {
         creds
             .into_iter()
             .map(|c| CredentialDetail {
@@ -712,9 +798,14 @@ pub async fn get_staff_credentials_print_data(
             .collect()
     };
 
-    let all_verified = credentials
-        .iter()
-        .all(|c| c.verification_status == "Verified");
+    // `.all()` on an empty list is true, so a file with nothing in it would
+    // print "Complete" — the same false assurance the invented credentials
+    // gave, reached a different way.
+    let has_credentials = !credentials.is_empty();
+    let all_verified = has_credentials
+        && credentials
+            .iter()
+            .all(|c| c.verification_status == "Verified");
     let hospital = get_hospital_info(&state.db).await?;
 
     Ok(Json(StaffCredentialFormPrintData {
@@ -725,8 +816,17 @@ pub async fn get_staff_credentials_print_data(
         designation: emp.designation.unwrap_or_else(|| "Staff".to_string()),
         department: emp.department_name.unwrap_or_else(|| "General".to_string()),
         credentials,
-        verification_status: if all_verified { "Complete" } else { "Pending" }.to_string(),
-        verified_by: Some("HR Department".to_string()),
+        verification_status: if !has_credentials {
+            "No credentials on file"
+        } else if all_verified {
+            "Complete"
+        } else {
+            "Pending"
+        }
+        .to_string(),
+        // Nothing records who checked these, so nobody is named. It used to
+        // say "HR Department" on every sheet.
+        verified_by: None,
         remarks: None,
         hospital_name: hospital.name,
     }))
@@ -798,24 +898,14 @@ pub async fn get_visitor_register_print_data(
     .fetch_all(&mut *conn)
     .await?;
 
-    let entries: Vec<VisitorEntry> = if visitors.is_empty() {
-        // Sample entries if none exist
-        vec![VisitorEntry {
-            serial_no: 1,
-            visitor_name: "Sample Visitor".to_string(),
-            visitor_phone: Some("9876543210".to_string()),
-            visitor_id_type: Some("Aadhaar".to_string()),
-            visitor_id_number: Some("XXXX-XXXX-1234".to_string()),
-            purpose: "Patient Visit".to_string(),
-            visiting_department: Some("General Medicine".to_string()),
-            visiting_person: None,
-            patient_name: Some("Patient Name".to_string()),
-            patient_uhid: Some("UHID001".to_string()),
-            in_time: "10:30".to_string(),
-            out_time: Some("12:15".to_string()),
-            badge_number: Some("V-001".to_string()),
-        }]
-    } else {
+    // A visitor register with no entries prints as empty.
+    //
+    // It used to invent one: "Sample Visitor", a masked Aadhaar number, a
+    // "Patient Name" at "UHID001", in at 10:30 and out at 12:15. The register
+    // is a security record — it is what a hospital reads back after an
+    // incident to say who was in the building — so an invented row is a
+    // person who was never there, with an ID number that belongs to nobody.
+    let entries: Vec<VisitorEntry> = {
         visitors
             .into_iter()
             .map(|v| VisitorEntry {

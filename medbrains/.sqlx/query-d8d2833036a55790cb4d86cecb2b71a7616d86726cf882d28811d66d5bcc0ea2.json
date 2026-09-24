@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name AS \"name!\", start_time AS \"start_time!\", end_time AS \"end_time!\" FROM shift_definitions WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY start_time",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time!",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 2,
+        "name": "end_time!",
+        "type_info": "Time"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d8d2833036a55790cb4d86cecb2b71a7616d86726cf882d28811d66d5bcc0ea2"
+}

@@ -828,7 +828,7 @@ pub async fn remove_location_staff(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    sqlx::query(
+    let deleted = sqlx::query(
         "DELETE FROM staff_location_assignments \
          WHERE location_id = $1 AND user_id = $2 AND tenant_id = $3",
     )
@@ -837,6 +837,9 @@ pub async fn remove_location_staff(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
@@ -5820,7 +5823,7 @@ pub async fn remove_access_group_member(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    sqlx::query(
+    let deleted = sqlx::query(
         "DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2 AND tenant_id = $3",
     )
     .bind(group_id)
@@ -5828,6 +5831,9 @@ pub async fn remove_access_group_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     sqlx::query(
         "UPDATE users SET perm_version = perm_version + 1 WHERE id = $1 AND tenant_id = $2",
     )

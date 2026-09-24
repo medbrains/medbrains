@@ -118,6 +118,17 @@ pub async fn list_bedside_transfusions(
     Ok(Json(rows))
 }
 
+/// The unit as the blood bank holds it, which is what the checks are made
+/// against — never the fields the handset sent.
+#[derive(Debug, sqlx::FromRow)]
+struct UnitOnRecord {
+    id: Uuid,
+    blood_group: String,
+    expiry_at: DateTime<Utc>,
+    status: String,
+    issued_to_patient: Option<Uuid>,
+}
+
 /// `POST /api/ipd/admissions/{admission_id}/transfusions` — hang a unit.
 ///
 /// Every refusal below is a documented cause of a transfusion death, and each
@@ -167,6 +178,134 @@ pub async fn start_bedside_transfusion(
             "This unit has expired. Do not transfuse it; quarantine it and tell the blood bank."
                 .to_owned(),
         ));
+    }
+
+    // The bag itself, read from the hospital's own record rather than from
+    // the handset.
+    //
+    // Everything above this point checked what the nurse *said*: a
+    // `crossmatch_compatible` boolean they set, a blood group and an expiry
+    // date they typed. Nothing looked the bag up, so a unit crossmatched for
+    // another patient — the one sentence that describes most fatal
+    // transfusion errors — was accepted without complaint. The scanned bag
+    // number now has to resolve to a real unit, and that unit has to be this
+    // patient's.
+    let unit = sqlx::query_as!(
+        UnitOnRecord,
+        "SELECT c.id AS \"id!\", c.blood_group::text AS \"blood_group!\", \
+                c.expiry_at AS \"expiry_at!\", c.status::text AS \"status!\", \
+                c.issued_to_patient AS \"issued_to_patient?\" \
+           FROM blood_components c \
+          WHERE c.tenant_id = $1 AND upper(c.bag_number) = upper($2) \
+            AND c.deleted_at IS NULL \
+          LIMIT 1",
+        claims.tenant_id,
+        body.bag_number.trim(),
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(unit) = unit else {
+        return Err(AppError::BadRequest(format!(
+            "No unit with bag number {} is on record in this hospital. Do not transfuse it; \
+             check the label with the blood bank.",
+            body.bag_number.trim()
+        )));
+    };
+
+    let patient_id = sqlx::query_scalar!(
+        "SELECT patient_id AS \"patient_id!\" FROM admissions WHERE id = $1 AND tenant_id = $2",
+        admission_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Issued to somebody else is the wrong-blood-in-patient case, and it is
+    // worth its own sentence: the nurse is holding a bag meant for a
+    // different bed.
+    if let Some(issued_to) = unit.issued_to_patient {
+        if issued_to != patient_id {
+            return Err(AppError::BadRequest(
+                "This unit was issued for a different patient. Do not transfuse it; return it to \
+                 the blood bank and check the compatibility label against the wristband."
+                    .to_owned(),
+            ));
+        }
+    }
+
+    // A crossmatch for this unit that belongs to somebody else says the same
+    // thing from the other direction.
+    let crossmatched_elsewhere = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM crossmatch_requests \
+          WHERE tenant_id = $1 AND component_id = $2 AND patient_id <> $3 \
+            AND deleted_at IS NULL) AS \"exists!\"",
+        claims.tenant_id,
+        unit.id,
+        patient_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if crossmatched_elsewhere {
+        return Err(AppError::BadRequest(
+            "This unit is crossmatched against a different patient. Do not transfuse it; return \
+             it to the blood bank."
+                .to_owned(),
+        ));
+    }
+
+    // Expiry from the record, not from the form. The date on the screen is
+    // whatever was typed there.
+    let expired_on_record = sqlx::query_scalar!(
+        "SELECT $1::timestamptz < now() AS \"expired!\"",
+        unit.expiry_at,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if expired_on_record {
+        return Err(AppError::BadRequest(
+            "This unit is past its expiry on the blood bank's own record. Do not transfuse it; \
+             quarantine it and tell the blood bank."
+                .to_owned(),
+        ));
+    }
+
+    if unit.status == "discarded" || unit.status == "quarantined" {
+        return Err(AppError::BadRequest(format!(
+            "This unit is {} in the blood bank's record. Do not transfuse it.",
+            unit.status
+        )));
+    }
+
+    // ABO/Rh, against the patient's recorded group and the unit's — the same
+    // matrix the blood bank's own issue path uses.
+    let patient_group = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT COALESCE(blood_group::text, attributes->>'blood_group') \
+           FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+    match patient_group.as_deref() {
+        Some(group) => {
+            if !medbrains_clinical_core::transfusion::abo_compatible(group, &unit.blood_group) {
+                return Err(AppError::BadRequest(format!(
+                    "ABO/Rh incompatible: a {} patient cannot receive a {} unit. Do not \
+                     transfuse it.",
+                    group, unit.blood_group
+                )));
+            }
+        }
+        None => {
+            return Err(AppError::BadRequest(
+                "This patient has no blood group on record, so compatibility cannot be checked. \
+                 Group and hold before transfusing."
+                    .to_owned(),
+            ));
+        }
     }
 
     let verifier_active = sqlx::query_scalar::<_, bool>(

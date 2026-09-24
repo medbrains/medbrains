@@ -19,12 +19,16 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Badge, Button, Table } from "@/components/ui";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { ReasonModal } from "./reason-modal";
 
 export function DispatchPage() {
+  useRequirePermission(P.PHARMACY.FULFILMENT.DISPATCH);
   const queryClient = useQueryClient();
   const canDispatch = useHasPermission(P.PHARMACY.FULFILMENT.DISPATCH);
+  // The queue endpoint requires the pick permission, not dispatch.
+  const canPick = useHasPermission(P.PHARMACY.FULFILMENT.PICK);
   const canRelease = useHasPermission(P.PHARMACY.FULFILMENT.RELEASE);
 
   const [releasing, setReleasing] = useState<FulfilmentQueueRow | null>(null);
@@ -32,7 +36,7 @@ export function DispatchPage() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-fulfilment-queue"],
     queryFn: () => pharmacyService.listFulfilmentQueue(),
-    enabled: canDispatch,
+    enabled: canDispatch && canPick,
     refetchInterval: 15_000,
   });
 

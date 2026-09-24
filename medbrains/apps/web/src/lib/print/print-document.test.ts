@@ -28,6 +28,18 @@ vi.mock("./print-registry", async (importOriginal) => {
 
 const { printDocument } = await import("./printDocument");
 
+/** What the print window was handed, joined into one string. */
+function captureWrite(): () => string {
+  const chunks: string[] = [];
+  vi.stubGlobal(
+    "open",
+    vi.fn(() => ({
+      document: { write: (html: string) => chunks.push(html), close: vi.fn() },
+    })),
+  );
+  return () => chunks.join("");
+}
+
 describe("printDocument", () => {
   beforeEach(() => {
     fetchImpl = async () => ({ patient_name: "Asha R", uhid: "UH-1" });
@@ -117,5 +129,41 @@ describe("the generated registry", () => {
     const keys = ALL_PRINT_DOCUMENTS.map((d) => d.key);
     expect(keys).not.toContain("culture-sensitivity");
     expect(keys).not.toContain("rca-template");
+  });
+
+  /**
+   * A checklist lives under `phases`, and nested values used to be dropped, so
+   * the sheet printed the letterhead and none of the safety record. The ticks
+   * and the unticked boxes both have to survive: an unticked box is the
+   * document saying the step was not recorded, which is the whole point of
+   * printing it.
+   */
+  it("prints nested sections, and an unticked box as unticked", async () => {
+    fetchImpl = async () => ({
+      patient_name: "Asha R",
+      phases: [
+        {
+          label: "Sign in — before induction of anaesthesia",
+          recorded: true,
+          items: [
+            { key: "site_marked", label: "Surgical site marked", checked: true },
+            { key: "allergy", label: "Known allergy reviewed", checked: false },
+          ],
+        },
+      ],
+    });
+    const written = captureWrite();
+    await printDocument("consent.general", "adm-1");
+    const html = written();
+    expect(html).toContain("Sign in — before induction of anaesthesia");
+    expect(html).toContain("[x] Surgical site marked");
+    expect(html).toContain("[ ] Known allergy reviewed");
+  });
+
+  it("still prints the scalar fields beside the sections", async () => {
+    fetchImpl = async () => ({ uhid: "UH-1", phases: [{ label: "Sign out", items: [] }] });
+    const written = captureWrite();
+    await printDocument("consent.general", "adm-1");
+    expect(written()).toContain("UH-1");
   });
 });

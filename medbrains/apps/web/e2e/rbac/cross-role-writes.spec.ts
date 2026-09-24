@@ -39,7 +39,7 @@ const DELETES: DeleteEntry[] = [
   // wrong; loosening the handler to match it would have let anyone who can
   // bill delete pricing.
   { path: `/api/billing/charge-master/${NIL_UUID}`, perm: "billing.catalog.manage" },
-  { path: `/api/lab/panels/${NIL_UUID}`, perm: "lab.orders.create" },
+  { path: `/api/lab/panels/${NIL_UUID}`, perm: "lab.catalog.manage" },
   { path: `/api/radiology/modalities/${NIL_UUID}`, perm: "radiology.modalities.manage" },
   { path: `/api/ot/surgeon-preferences/${NIL_UUID}`, perm: "ot.preferences.manage" },
   { path: `/api/opd/prescription-templates/${NIL_UUID}`, perm: "opd.visit.update" },

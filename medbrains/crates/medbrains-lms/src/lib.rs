@@ -1303,11 +1303,15 @@ pub async fn remove_path_course(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("DELETE FROM lms_learning_path_courses WHERE path_id = $1 AND course_id = $2")
-        .bind(path_id)
-        .bind(course_id)
-        .execute(&mut *tx)
-        .await?;
+    let result =
+        sqlx::query("DELETE FROM lms_learning_path_courses WHERE path_id = $1 AND course_id = $2")
+            .bind(path_id)
+            .bind(course_id)
+            .execute(&mut *tx)
+            .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"deleted": true})))

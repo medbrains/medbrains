@@ -9,9 +9,9 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger \
+       check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
-       check-migration-headers \
+       check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
@@ -351,6 +351,12 @@ check-conditional-authz: ## Ban a record check nested inside a branch
 check-ui-permission-match: ## Report pages calling an endpoint they do not gate on
 	python3 scripts/check_ui_permission_match.py
 
+check-ui-permission-match-strict: ## Ratchet: no NEW page→API call under-gated, no link counter rising (scripts/ui_permission_match.baseline.json)
+	python3 scripts/check_ui_permission_match.py --check
+
+check-ui-permission-match-update-baseline: ## Record the current under-gated set as the floor
+	python3 scripts/check_ui_permission_match.py --update-baseline
+
 check-authz-collapse: ## Ban collapsing an authz check's error into a denial
 	python3 scripts/check_authz_collapse.py
 
@@ -362,6 +368,15 @@ check-boundary-filter: ## Ban a deploy mode that needs PHI egress filtering from
 
 authz-ledger: ## Report authorization conformance per module (4 axes)
 	python3 scripts/authz_ledger.py
+
+coverage-ledger: ## Report e2e coverage per module (API cells + screens), computed from routes and specs
+	python3 scripts/coverage_ledger.py
+
+coverage-ledger-check: ## Ratchet: no coverage cell may fall below scripts/coverage_ledger.baseline.json
+	python3 scripts/coverage_ledger.py --check
+
+coverage-ledger-update-baseline: ## Record the current coverage counts as the floor
+	python3 scripts/coverage_ledger.py --update-baseline
 
 check-parent-id-scoping: ## Ban nested routes that discard their parent id
 	python3 scripts/check_parent_id_scoping.py
@@ -432,6 +447,9 @@ check-tracing: ## Verify route handlers carry #[tracing::instrument(... fields(t
 
 check-migration-headers: ## Verify migrations >=124 carry RLS-Posture header block
 	python3 ../scripts/migration_header_lint.py
+
+check-migration-immutable: ## A migration already on master may never change (sqlx checksums)
+	python3 ../scripts/check_migration_immutable.py
 
 check-region-pinning: ## DPDP residency check — region-pinned configs may not reference other regions
 	python3 ../scripts/check_region_pinning.py
@@ -561,8 +579,50 @@ collections: ## Generate importable OpenAPI + Postman collections (positive + ne
 
 # ── Layered E2E Suite (per the comprehensive E2E plan) ────
 
-e2e-smoke-generate: ## Regenerate Layer 1 API smoke specs from routes/mod.rs
+e2e-smoke-generate: ## Regenerate Layer 1 API smoke specs from every crate router
 	node apps/web/scripts/generate-api-smoke.mjs
+
+e2e-writes-generate: ## Regenerate Layer 1b write negatives (missing required fields → 4xx, absent record → 404) from every crate router
+	node apps/web/scripts/generate-api-writes.mjs
+
+## ── Native device apps (RFCs/RFC-NATIVE-MOBILE.md) ─────────────────────────
+NATIVE_TARGET_DIR ?= /tmp/mb-target
+IOS_SIM ?= 6A6844C9-82B6-4710-89DC-1DC3C07657AF
+
+native-tokens: ## Carbon tokens → Swift + Kotlin (apps/ios/…/Generated/Carbon.swift, apps/android/ui/…/Carbon.kt)
+	python3 scripts/generate_native_tokens.py
+
+native-core: ## Build the Rust core for iOS + Android and regenerate the UniFFI Swift/Kotlin bindings + xcframework
+	bash scripts/build_guard.sh --wait
+	CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo build -p medbrains-edge-rn --release
+	CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios-sim
+	CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo build -p medbrains-edge-rn --release --target aarch64-apple-ios
+	rm -rf apps/ios/Packages/MedBrainsCore/Generated && mkdir -p apps/ios/Packages/MedBrainsCore/Generated apps/android/core/src/main/kotlin
+	CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate --library $(NATIVE_TARGET_DIR)/release/libmedbrains_edge_rn.dylib --language swift --out-dir apps/ios/Packages/MedBrainsCore/Generated
+	CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo run -q -p medbrains-edge-rn --bin uniffi-bindgen -- generate --library $(NATIVE_TARGET_DIR)/release/libmedbrains_edge_rn.dylib --language kotlin --out-dir apps/android/core/src/main/kotlin
+	rm -rf $(NATIVE_TARGET_DIR)/edge-rn-headers apps/ios/Packages/MedBrainsCore/MedBrainsEdgeRn.xcframework && mkdir -p $(NATIVE_TARGET_DIR)/edge-rn-headers
+	cp apps/ios/Packages/MedBrainsCore/Generated/edge_rnFFI.h $(NATIVE_TARGET_DIR)/edge-rn-headers/ && cp apps/ios/Packages/MedBrainsCore/Generated/edge_rnFFI.modulemap $(NATIVE_TARGET_DIR)/edge-rn-headers/module.modulemap
+	xcodebuild -create-xcframework -library $(NATIVE_TARGET_DIR)/aarch64-apple-ios-sim/release/libmedbrains_edge_rn.a -headers $(NATIVE_TARGET_DIR)/edge-rn-headers -library $(NATIVE_TARGET_DIR)/aarch64-apple-ios/release/libmedbrains_edge_rn.a -headers $(NATIVE_TARGET_DIR)/edge-rn-headers -output apps/ios/Packages/MedBrainsCore/MedBrainsEdgeRn.xcframework
+	ANDROID_NDK_HOME=$$(ls -d $$HOME/Library/Android/sdk/ndk/27* | head -1) CARGO_TARGET_DIR=$(NATIVE_TARGET_DIR) cargo ndk -t arm64-v8a -t x86_64 -o apps/android/core/src/main/jniLibs build --release -p medbrains-edge-rn
+
+native-ios: ## Generate the Xcode project and build MedBrainsStaff for the simulator
+	cd apps/ios && xcodegen generate && xcodebuild -project MedBrains.xcodeproj -scheme MedBrainsStaff -destination "platform=iOS Simulator,id=$(IOS_SIM)" -derivedDataPath DerivedData build | grep -E "error:|BUILD (SUCCEEDED|FAILED)"
+
+native-ios-test: ## Run the Swift package tests (MedBrainsKit)
+	cd apps/ios/Packages/MedBrainsKit && swift test
+
+native-android: ## Build the Android staff app and run the kit unit tests
+	cd apps/android && JAVA_HOME=$$(/usr/libexec/java_home -v 17) ./gradlew :kit:testDebugUnitTest :app-staff:assembleDebug -q
+
+e2e-rbac-generate: ## Regenerate Layer 1c permission denials (every guarded route as a role lacking its permission → 403)
+	python3 scripts/emit_rbac_routes.py apps/web/e2e/generated/rbac-routes.json
+	node apps/web/scripts/generate-api-rbac-deny.mjs
+
+e2e-generate: e2e-smoke-generate e2e-writes-generate e2e-rbac-generate ## Regenerate everything the e2e layers derive from source (smoke specs, write + permission negatives, page gates)
+	python3 scripts/coverage_ledger.py --emit-page-gates apps/web/e2e/generated/page-gates.json
+
+e2e-writes: ## Layer 1b — generated write negatives
+	cd apps/web && pnpm exec playwright test --project=writes
 
 e2e-smoke: ## Layer 1 — API smoke (every parameterless GET endpoint)
 	cd apps/web && pnpm exec playwright test --project=smoke
@@ -582,11 +642,17 @@ e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
 
+e2e-linkages: ## Layer 5b — Cross-module linkages (an action in one module, its effect asserted in another)
+	cd apps/web && pnpm exec playwright test --project=linkages
+
+e2e-screens: ## Layer 3b — Every nav screen renders for a role holding its gate and redirects one that does not
+	cd apps/web && pnpm exec playwright test --project=screens
+
 e2e-ui-aaa: ## Accessibility — WCAG 2 AAA UI journey gates
 	cd apps/web && pnpm exec playwright test --project=accessibility
 
-e2e-full: ## Full E2E gate: smoke + CRUD + forms + analytics + RBAC + journeys
-	cd apps/web && pnpm exec playwright test --project=smoke --project=crud --project=forms --project=analytics --project=rbac --project=journeys
+e2e-full: ## Full E2E gate: smoke + CRUD + forms + analytics + RBAC + journeys + linkages + screens + accessibility
+	cd apps/web && pnpm exec playwright test --project=smoke --project=writes --project=crud --project=forms --project=analytics --project=rbac --project=journeys --project=linkages --project=screens --project=accessibility
 
 e2e-all: e2e-full ## Alias for the full E2E gate used before deploy
 
@@ -674,6 +740,7 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 	@echo "── 5/10 API + UI + type contract ─────────"
 	@$(MAKE) -s check-api
 	@$(MAKE) -s check-ui-api
+	@$(MAKE) -s check-ui-permission-match-strict
 	@$(MAKE) -s check-types
 	@$(MAKE) -s check-nav-drift
 	@echo "── 6/10 RLS + audit + tenant + tracing + sqlx ──"
@@ -687,8 +754,10 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 	@$(MAKE) -s check-no-card-logging
 	@$(MAKE) -s check-egress-allowlist
 	@$(MAKE) -s check-migration-headers
-	@echo "── 8/10 screen audit (strict) ───────────"
+	@$(MAKE) -s check-migration-immutable
+	@echo "── 8/10 screen audit (strict) + coverage ratchet ──"
 	@python3 ../scripts/audit_screens.py --strict
+	@$(MAKE) -s coverage-ledger-check
 	@echo "── 9/10 full E2E gate ───────────────────"
 	@$(MAKE) -s e2e-full
 	@echo "── 10/10 release build ──────────────────"
@@ -697,7 +766,7 @@ ship: ## Full CI gate (no deploy). Includes full E2E before release build.
 
 ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
 	@echo "── deploy ──────────────────────────────"
-	@cd infra/terraform/envs/standalone/alagappa && $(MAKE) apply
+	@cd infra/terraform/envs/clients/alagappa && $(MAKE) apply
 	@echo "── post-deploy smoke ───────────────────"
 	@curl -sS --fail --max-time 10 https://hims.amh.org.in/api/health > /dev/null \
 		&& echo "✅ /api/health 200" \
@@ -709,7 +778,7 @@ hotpush-ui: ## Build and deploy only the web SPA to the standalone host
 	if [ -f infra/.env ]; then set -a; . infra/.env; set +a; fi; \
 	: "$${TF_VAR_ssh_private_key_path:?Set TF_VAR_ssh_private_key_path in infra/.env}"; \
 	DOMAIN="$${TF_VAR_domain:-hims.amh.org.in}"; \
-	SSH_ENDPOINT="$$(cd infra/terraform/envs/standalone/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
+	SSH_ENDPOINT="$$(cd infra/terraform/envs/clients/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
 	if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then SSH_ENDPOINT="ubuntu@$$DOMAIN"; fi; \
 	echo "── hotpush-ui: typecheck web ───────────"; \
 	pnpm --filter @medbrains/web typecheck; \
@@ -794,3 +863,6 @@ hybrid-tf-validate: ## Validate every hybrid TF module without applying
 	    (cd "$$d" && terraform init -backend=false -no-color > /dev/null && terraform validate -no-color) || exit $$?; \
 	done
 	@echo "✓ all hybrid modules valid"
+
+check-fabricated-print: ## Find printed documents that invent their contents
+	python3 scripts/check_fabricated_print_data.py

@@ -106,14 +106,13 @@ pub async fn get_amc_contract_print_data(
     .fetch_all(&mut *conn)
     .await?;
 
-    let equipment_covered: Vec<EquipmentCoverage> = if equipment.is_empty() {
-        vec![EquipmentCoverage {
-            equipment_name: "Medical Equipment".to_string(),
-            equipment_id: "EQ-001".to_string(),
-            location: "ICU".to_string(),
-            serial_number: Some("SN-12345".to_string()),
-        }]
-    } else {
+    // A contract covering nothing prints as covering nothing.
+    //
+    // It used to invent a covered item — "Medical Equipment", EQ-001, in ICU —
+    // so a service contract schedule listed a machine that does not exist,
+    // and a contract with nothing attached to it looked like a contract doing
+    // its job.
+    let equipment_covered: Vec<EquipmentCoverage> = {
         equipment
             .into_iter()
             .map(|e| EquipmentCoverage {
@@ -246,25 +245,16 @@ pub async fn get_calibration_certificate_print_data(
 
     let hospital = get_hospital_info(&state.db).await?;
 
-    // Sample parameters
-    let parameters = vec![
-        CalibrationParameter {
-            parameter_name: "Accuracy".to_string(),
-            unit: "%".to_string(),
-            nominal_value: "±0.5".to_string(),
-            measured_value: "0.3".to_string(),
-            tolerance: "±0.5".to_string(),
-            result: "Pass".to_string(),
-        },
-        CalibrationParameter {
-            parameter_name: "Linearity".to_string(),
-            unit: "%".to_string(),
-            nominal_value: "±1.0".to_string(),
-            measured_value: "0.8".to_string(),
-            tolerance: "±1.0".to_string(),
-            result: "Pass".to_string(),
-        },
-    ];
+    // No parameter readings are printed, because none are recorded.
+    //
+    // This used to invent two: accuracy measured 0.3% against a ±0.5%
+    // tolerance, linearity 0.8% against ±1.0%, both "Pass". Those are
+    // metrology readings nobody took, on a certificate an inspector reads to
+    // decide whether a machine attached to patients measures what it claims.
+    // Nothing in this system stores per-parameter results — `bme_calibrations`
+    // keeps a single in-tolerance flag — so the certificate carries the
+    // overall result and leaves the table empty rather than filling it in.
+    let parameters: Vec<CalibrationParameter> = Vec::new();
 
     Ok(Json(CalibrationCertificatePrintData {
         certificate_number: calib.certificate_number,
@@ -402,6 +392,32 @@ pub async fn get_equipment_breakdown_print_data(
 // ── Equipment History Card ────────────────────────────────────────────────────
 
 /// GET /print-data/equipment-history/{equipment_id}
+#[derive(Debug, sqlx::FromRow)]
+struct MaintenanceRow {
+    completed_at: Option<chrono::DateTime<Utc>>,
+    order_type: String,
+    description: Option<String>,
+    performed_by: Option<String>,
+    total_cost: Option<rust_decimal::Decimal>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct BreakdownRow {
+    reported_at: chrono::DateTime<Utc>,
+    description: Option<String>,
+    downtime_minutes: Option<i32>,
+    total_repair_cost: Option<rust_decimal::Decimal>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CalibrationRow {
+    last_calibrated_date: Option<chrono::NaiveDate>,
+    next_due_date: Option<chrono::NaiveDate>,
+    is_in_tolerance: Option<bool>,
+    certificate_number: Option<String>,
+    agency: Option<String>,
+}
+
 pub async fn get_equipment_history_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -460,37 +476,100 @@ pub async fn get_equipment_history_print_data(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    // Sample history events
-    let maintenance_history = vec![
-        MaintenanceEvent {
-            date: "15-01-2026".to_string(),
-            maintenance_type: "PM".to_string(),
-            description: "Quarterly preventive maintenance".to_string(),
-            performed_by: "BME Team".to_string(),
-            cost: Some(5000.0),
-        },
-        MaintenanceEvent {
-            date: "10-10-2025".to_string(),
-            maintenance_type: "PM".to_string(),
-            description: "Annual service".to_string(),
-            performed_by: "Vendor Engineer".to_string(),
-            cost: Some(15000.0),
-        },
-    ];
+    // The service history this machine actually has.
+    //
+    // All three lists used to be invented: two preventive-maintenance visits
+    // by "BME Team" and a "Vendor Engineer", a power-supply breakdown, and a
+    // calibration reading "Pass" from "Calibration Services Ltd". An
+    // equipment history card is what a hospital shows an inspector to prove a
+    // machine attached to patients has been serviced and calibrated, so a
+    // fabricated "Pass" is a fabricated compliance record on a medical device.
+    // An empty card is a machine with no history on file, which is a finding.
+    let maintenance_history = sqlx::query_as!(
+        MaintenanceRow,
+        "SELECT w.completed_at AS \"completed_at?\", w.order_type::text AS \"order_type!\", \
+                w.description AS \"description?\", u.full_name AS \"performed_by?\", \
+                w.total_cost AS \"total_cost?\" \
+           FROM bme_work_orders w \
+           LEFT JOIN users u ON u.id = w.technician_sign_off_by \
+          WHERE w.equipment_id = $1 AND w.completed_at IS NOT NULL \
+            AND w.deleted_at IS NULL \
+          ORDER BY w.completed_at DESC \
+          LIMIT 50",
+        equipment_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| MaintenanceEvent {
+        date: row
+            .completed_at
+            .map_or_else(String::new, |d| d.format("%d-%m-%Y").to_string()),
+        maintenance_type: row.order_type,
+        description: row.description.unwrap_or_default(),
+        performed_by: row.performed_by.unwrap_or_else(|| "Not recorded".to_owned()),
+        cost: row.total_cost.and_then(|c| c.to_string().parse().ok()),
+    })
+    .collect::<Vec<_>>();
 
-    let breakdown_history = vec![BreakdownEvent {
-        date: "05-12-2025".to_string(),
-        fault: "Power supply failure".to_string(),
-        downtime_hours: 4.0,
-        repair_cost: Some(8000.0),
-    }];
+    let breakdown_history = sqlx::query_as!(
+        BreakdownRow,
+        "SELECT reported_at AS \"reported_at!\", description AS \"description?\", \
+                downtime_minutes AS \"downtime_minutes?\", \
+                total_repair_cost AS \"total_repair_cost?\" \
+           FROM bme_breakdowns \
+          WHERE equipment_id = $1 AND deleted_at IS NULL \
+          ORDER BY reported_at DESC \
+          LIMIT 50",
+        equipment_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| BreakdownEvent {
+        date: row.reported_at.format("%d-%m-%Y").to_string(),
+        fault: row.description.unwrap_or_default(),
+        downtime_hours: f64::from(row.downtime_minutes.unwrap_or(0)) / 60.0,
+        repair_cost: row.total_repair_cost.and_then(|c| c.to_string().parse().ok()),
+    })
+    .collect::<Vec<_>>();
 
-    let calibration_history = vec![CalibrationEvent {
-        date: "01-01-2026".to_string(),
-        agency: "Calibration Services Ltd".to_string(),
-        result: "Pass".to_string(),
-        next_due: "01-01-2027".to_string(),
-    }];
+    let calibration_history = sqlx::query_as!(
+        CalibrationRow,
+        "SELECT c.last_calibrated_date AS \"last_calibrated_date?\", \
+                c.next_due_date AS \"next_due_date?\", \
+                c.is_in_tolerance AS \"is_in_tolerance?\", \
+                c.certificate_number AS \"certificate_number?\", v.name AS \"agency?\" \
+           FROM bme_calibrations c \
+           LEFT JOIN vendors v ON v.id = c.calibration_vendor_id \
+          WHERE c.equipment_id = $1 AND c.deleted_at IS NULL \
+          ORDER BY c.last_calibrated_date DESC NULLS LAST \
+          LIMIT 50",
+        equipment_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| CalibrationEvent {
+        date: row
+            .last_calibrated_date
+            .map_or_else(String::new, |d| d.format("%d-%m-%Y").to_string()),
+        agency: row
+            .agency
+            .or(row.certificate_number)
+            .unwrap_or_else(|| "Not recorded".to_owned()),
+        // Pass/fail comes from the recorded tolerance, and an unrecorded
+        // tolerance is not a pass.
+        result: match row.is_in_tolerance {
+            Some(true) => "Pass".to_owned(),
+            Some(false) => "Fail".to_owned(),
+            None => "Not recorded".to_owned(),
+        },
+        next_due: row
+            .next_due_date
+            .map_or_else(String::new, |d| d.format("%d-%m-%Y").to_string()),
+    })
+    .collect::<Vec<_>>();
 
     let hospital = get_hospital_info(&state.db).await?;
 

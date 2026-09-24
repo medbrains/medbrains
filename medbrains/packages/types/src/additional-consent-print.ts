@@ -32,8 +32,14 @@ export interface OrganDonationConsentPrintData {
   address: string | null;
   consent_date: string;
   consent_type: string;
+  /** False when nothing is on record and this is a blank pledge form. */
+  is_recorded_consent: boolean;
+  /** What the donor agreed to. Empty until an organ-by-organ record exists. */
   organs_consented: string[];
   tissues_consented: string[];
+  /** What the form lists for a donor to tick. */
+  organs_offered: string[];
+  tissues_offered: string[];
   next_of_kin_name: string | null;
   next_of_kin_relation: string | null;
   next_of_kin_phone: string | null;
@@ -72,8 +78,14 @@ export interface AbdmConsentPrintData {
   abha_address: string | null;
   consent_date: string;
   consent_type: string;
+  /** False when nothing is on record and this is a blank form to be signed. */
+  is_recorded_consent: boolean;
+  /** What was agreed to. Empty until a purpose-by-purpose record exists. */
   purposes_consented: string[];
   health_info_types: string[];
+  /** What the form offers for the patient to tick. */
+  purposes_offered: string[];
+  health_info_types_offered: string[];
   hip_name: string;
   hiu_name: string | null;
   validity_period: string | null;

@@ -984,8 +984,21 @@ pub async fn consume_package_visit(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Package is exhausted or not active".to_owned()))?;
+    .await?;
+    let Some(row) = row else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM home_care_packages WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Package is exhausted or not active".to_owned()));
+    };
     tx.commit().await?;
     Ok(Json(row))
 }

@@ -16,10 +16,12 @@ use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_na
 use serde::Deserialize;
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_any_permission, require_permission,
+};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
@@ -69,6 +71,10 @@ pub struct AdmitFromErRequest {
     pub ward_id: Option<Uuid>,
     pub bed_id: Uuid,
     pub admitting_doctor_id: Uuid,
+    /// The treating department the patient is admitted under. Defaults to
+    /// the Emergency department, so the ER team keeps its patient in view
+    /// until the ward's specialty takes over.
+    pub department_id: Option<Uuid>,
     pub admission_notes: Option<String>,
 }
 
@@ -783,16 +789,24 @@ pub async fn create_visit(
     // ER visits are encounter-backed so every charge for the visit
     // (consultation, consumables, orders) lands on one bill — mirrors the
     // encounter admit_from_er creates when the patient is admitted.
+    //
+    // The encounter belongs to the Emergency department — that is what lets
+    // the ER's own doctors and nurses reach the patient. Without it no one
+    // but a bypass role could triage the arrival they had just registered.
+    let department_id = emergency_department_id(&mut tx, &claims).await?;
     let encounter_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO encounters \
-         (tenant_id, patient_id, encounter_type, visit_type, notes, attributes) \
-         VALUES ($1, $2, 'emergency'::encounter_type, 'emergency', $3, $4) \
+         (tenant_id, patient_id, encounter_type, visit_type, notes, attributes, department_id, \
+          created_by) \
+         VALUES ($1, $2, 'emergency'::encounter_type, 'emergency', $3, $4, $5, $6) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
     .bind(row.patient_id)
     .bind(row.chief_complaint.as_deref())
     .bind(serde_json::json!({ "source": "er", "er_visit_id": row.id }))
+    .bind(department_id)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -807,9 +821,13 @@ pub async fn create_visit(
     .await?;
 
     // Auto-bill ER consultation charge
-    if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
-        .await
-        .unwrap_or(false)
+    if medbrains_server_services::billing::is_auto_billing_enabled(
+        &mut tx,
+        &claims.tenant_id,
+        "emergency",
+    )
+    .await
+    .unwrap_or(false)
     {
         let _ = medbrains_server_services::billing::auto_charge(
             &mut tx,
@@ -851,8 +869,48 @@ pub async fn create_visit(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
-    signal_triage_board(&state, &claims, ClinicalEventName::EmergencyVisitCreated.as_str(), row.id);
+    // Whoever registered the arrival owns its encounter; the department grant
+    // below is what gets the rest of the ER to it.
+    medbrains_authz_gate::grant_encounter_owner(&state, &claims, encounter_id).await?;
+    if let Some(dept_id) = department_id {
+        state
+            .authz
+            .grant_raw(
+                &medbrains_server_core::middleware::authorization::authz_context(&claims),
+                "encounter",
+                encounter_id,
+                "dept_member",
+                medbrains_authz::Subject::Department(dept_id),
+                None,
+                Some("encounter_department".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("encounter dept authz grant failed: {e}")))?;
+    }
+    signal_triage_board(
+        &state,
+        &claims,
+        ClinicalEventName::EmergencyVisitCreated.as_str(),
+        row.id,
+    );
     Ok(Json(row))
+}
+
+/// The department an ER encounter belongs to: the tenant's Emergency
+/// department, or the registering user's own when the tenant has none.
+async fn emergency_department_id(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+) -> Result<Option<Uuid>, AppError> {
+    let emergency = sqlx::query_scalar!(
+        "SELECT id FROM departments \
+          WHERE tenant_id = $1 AND code = 'EMERGENCY' AND is_active AND deleted_at IS NULL \
+          LIMIT 1",
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(emergency.or_else(|| claims.department_ids.first().copied()))
 }
 
 /// Nudge the triage board. Emergency is the one board where a poll interval is
@@ -2420,13 +2478,19 @@ pub async fn admit_from_er(
         }
     }
     let admission_ward_id = bed_ward_id.or(body.ward_id);
+    let department_id = match body.department_id {
+        Some(dept) => Some(dept),
+        None => emergency_department_id(&mut tx, &claims).await?,
+    };
 
     let encounter_date =
-        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
     let encounter_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO encounters \
-         (tenant_id, patient_id, encounter_type, status, doctor_id, encounter_date, notes, attributes) \
-         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6) \
+         (tenant_id, patient_id, encounter_type, status, doctor_id, encounter_date, notes, \
+          attributes, department_id, created_by) \
+         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -2438,6 +2502,8 @@ pub async fn admit_from_er(
         "source": "er",
         "er_visit_id": id,
     }))
+    .bind(department_id)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2548,6 +2614,22 @@ pub async fn admit_from_er(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &bed_event).await?;
 
     tx.commit().await?;
+
+    medbrains_authz_gate::grant_encounter_owner(&state, &claims, encounter_id).await?;
+    // The same care-team links a direct IPD admission writes — without them
+    // the doctor the ER named cannot open the admission it just created.
+    medbrains_authz_gate::grant_admission_care_team(
+        &state,
+        &claims,
+        medbrains_authz_gate::AdmissionCareTeam {
+            encounter_id,
+            admission_id,
+            department_id,
+            admitting_doctor_id: body.admitting_doctor_id,
+            ward_id: admission_ward_id,
+        },
+    )
+    .await?;
     Ok(Json(serde_json::json!({
         "er_visit_id": id,
         "admission_id": admission_id,
@@ -2968,18 +3050,12 @@ pub async fn update_bay(
 /// Emergency department (triage, ER register, MLC, disaster) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/emergency/visits",
-            get(list_visits).post(create_visit),
-        )
+        .route("/api/emergency/visits", get(list_visits).post(create_visit))
         .route(
             "/api/emergency/visits/{id}",
             get(get_visit).put(update_visit),
         )
-        .route(
-            "/api/emergency/bays",
-            get(list_bays).post(create_bay),
-        )
+        .route("/api/emergency/bays", get(list_bays).post(create_bay))
         .route("/api/emergency/bays/{id}", put(update_bay))
         .route(
             "/api/emergency/visits/{id}/discharge-summary",
@@ -3007,18 +3083,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/emergency/codes",
             get(list_code_activations).post(create_code_activation),
         )
-        .route(
-            "/api/emergency/codes/{id}/deactivate",
-            put(deactivate_code),
-        )
+        .route("/api/emergency/codes/{id}/deactivate", put(deactivate_code))
         .route(
             "/api/emergency/mlc",
             get(list_mlc_cases).post(create_mlc_case),
         )
-        .route(
-            "/api/emergency/mlc/{id}",
-            put(update_mlc_case),
-        )
+        .route("/api/emergency/mlc/{id}", put(update_mlc_case))
         .route(
             "/api/emergency/mlc/{mlc_id}/documents",
             get(list_mlc_documents).post(create_mlc_document),
@@ -3039,8 +3109,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/emergency/mass-casualty/{id}",
             put(update_mass_casualty_event),
         )
-        .route(
-            "/api/emergency/visits/{id}/admit",
-            post(admit_from_er),
-        )
+        .route("/api/emergency/visits/{id}/admit", post(admit_from_er))
 }

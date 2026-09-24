@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT employee_id AS \"employee_id!\", attendance_date AS \"attendance_date!\", status::text AS \"status!\", check_in AS \"check_in?\", check_out AS \"check_out?\", is_late AS \"is_late?\" FROM attendance_records WHERE tenant_id = $1 AND EXTRACT(YEAR FROM attendance_date)::int = $2 AND EXTRACT(MONTH FROM attendance_date)::int = $3 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "employee_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attendance_date!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "check_in?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "check_out?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_late?",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a0a2825c4b567fa22c0a3a04beefe8e2d0b7546f8a15d1aa464ec5fdc9977898"
+}

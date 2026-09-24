@@ -3,6 +3,7 @@ import { notifications } from "@mantine/notifications";
 import type { HypoglycemiaView } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, NumberField, Select, Switch } from "@/components/ui";
 import { hypoglycemiaService } from "@/services/hypoglycemia.service";
@@ -175,6 +176,8 @@ export function HypoglycemiaTab() {
   return (
     <Stack gap="md" maw={680}>
       <PatientSearchSelect value={patientId} onChange={setPatientId} />
+      {/* A hypoglycaemia event charted against the wrong patient is a treatment given to the wrong patient. */}
+      {patientId && <PatientContextBanner patientId={patientId} />}
       {patientId ? (
         <Panel patientId={patientId} />
       ) : (

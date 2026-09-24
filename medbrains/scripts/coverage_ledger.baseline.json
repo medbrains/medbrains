@@ -1,0 +1,1418 @@
+{
+ "_root": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "abdm": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 4,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "accept-invite": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "access": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "access-alerts": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "access-groups": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "admin": {
+  "api.neg.notfound": 6,
+  "api.neg.validation": 7,
+  "api.perm": 0,
+  "api.smoke": 28,
+  "api.write": 0,
+  "ui.touched": 3
+ },
+ "advance-directives": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "aebas": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ai": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ambulance": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 7,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "analytics": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 10,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "app": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "approvals": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 6,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "assets": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 4,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "assistant": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "audit": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 13,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "auth": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 5,
+  "api.perm": 1,
+  "api.smoke": 4,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "backups": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "bedside": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 4,
+  "api.perm": 0,
+  "api.smoke": 10,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "bedside-portal": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "bereavement": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "billing": {
+  "api.neg.notfound": 20,
+  "api.neg.validation": 18,
+  "api.perm": 4,
+  "api.smoke": 53,
+  "api.write": 10,
+  "ui.touched": 1
+ },
+ "blog": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "blood-bank": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 4,
+  "api.perm": 2,
+  "api.smoke": 15,
+  "api.write": 4,
+  "ui.touched": 0
+ },
+ "bme": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 11,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "break-glass": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "bridge": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "camp": {
+  "api.neg.notfound": 7,
+  "api.neg.validation": 6,
+  "api.perm": 2,
+  "api.smoke": 19,
+  "api.write": 2,
+  "ui.touched": 1
+ },
+ "care-view": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 6,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "case-management": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "case-mgmt": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "case-sheet-review": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "case-sheets": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "cds": {
+  "api.neg.notfound": 6,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "chronic-care": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 5,
+  "api.perm": 0,
+  "api.smoke": 11,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ckb": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "client-errors": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "clinical": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 25,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "clinical-kb": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "clinical-trials": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "cms": {
+  "api.neg.notfound": 5,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 24,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "command-center": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 13,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "communications": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "compliance-requirements": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "components-inputs": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "consent": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 3,
+  "api.smoke": 7,
+  "api.write": 3,
+  "ui.touched": 0
+ },
+ "cssd": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 2,
+  "api.smoke": 9,
+  "api.write": 5,
+  "ui.touched": 1
+ },
+ "dashboard": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "dashboards": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "data-quality": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "debug": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "demo": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "device-ingest": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "device-pairing": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "devices": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 10,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "diet": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 2,
+  "api.smoke": 8,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "diet-kitchen": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "digest": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "directory": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "disposals": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "doctor": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "doctors": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "document-ingestion": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "documents": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 7,
+  "api.perm": 0,
+  "api.smoke": 16,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "emergency": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 12,
+  "api.write": 3,
+  "ui.touched": 1
+ },
+ "facilities": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 13,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "fhir": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "force-password-change": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "forgot-password": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "front-office": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 0,
+  "api.perm": 2,
+  "api.smoke": 9,
+  "api.write": 1,
+  "ui.touched": 1
+ },
+ "geo": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 8,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "health": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "health-packages": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "health-pulse": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "home-health": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 11,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "home-healthcare": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "home-visits": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "hospice": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "hospital-groups": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "housekeeping": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 11,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "hr": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 5,
+  "api.perm": 2,
+  "api.smoke": 19,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "iam": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "icu": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "incentive-assignments": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "incentive-calculations": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "incentive-plans": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "indent": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 6,
+  "api.perm": 2,
+  "api.smoke": 17,
+  "api.write": 4,
+  "ui.touched": 0
+ },
+ "infection-control": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 5,
+  "api.perm": 2,
+  "api.smoke": 19,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "insurance": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 9,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "integration": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 4,
+  "api.perm": 3,
+  "api.smoke": 9,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "integrations": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "inter-hospital-stock": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "inter-hospital-transfers": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ipd": {
+  "api.neg.notfound": 7,
+  "api.neg.validation": 10,
+  "api.perm": 0,
+  "api.smoke": 53,
+  "api.write": 6,
+  "ui.touched": 1
+ },
+ "kiosk": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "lab": {
+  "api.neg.notfound": 15,
+  "api.neg.validation": 16,
+  "api.perm": 5,
+  "api.smoke": 38,
+  "api.write": 7,
+  "ui.touched": 1
+ },
+ "lms": {
+  "api.neg.notfound": 6,
+  "api.neg.validation": 10,
+  "api.perm": 0,
+  "api.smoke": 13,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "login": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "long-term-care": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ltc": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "marketing": {
+  "api.neg.notfound": 8,
+  "api.neg.validation": 8,
+  "api.perm": 0,
+  "api.smoke": 27,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "masters": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "materials": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "mfa-enroll": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "microsite": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 5,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "microsite-settings": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "migrations": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "mrd": {
+  "api.neg.notfound": 5,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 16,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "multi-hospital": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 26,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "nabh": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "news": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "news-feed": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "nhcx": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "notifications": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "nurse": {
+  "api.neg.notfound": 5,
+  "api.neg.validation": 11,
+  "api.perm": 0,
+  "api.smoke": 16,
+  "api.write": 4,
+  "ui.touched": 1
+ },
+ "oauth": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "occ-health": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 11,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "occupational-health": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "onboarding": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "opd": {
+  "api.neg.notfound": 17,
+  "api.neg.validation": 11,
+  "api.perm": 3,
+  "api.smoke": 40,
+  "api.write": 5,
+  "ui.touched": 2
+ },
+ "orchestration": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 4,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "order-sets": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 7,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "orders": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ot": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 4,
+  "api.smoke": 14,
+  "api.write": 3,
+  "ui.touched": 1
+ },
+ "patient-packages": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "patients": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 20,
+  "api.write": 1,
+  "ui.touched": 2
+ },
+ "payments": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 8,
+  "api.perm": 0,
+  "api.smoke": 6,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "pharmacy": {
+  "api.neg.notfound": 22,
+  "api.neg.validation": 28,
+  "api.perm": 2,
+  "api.smoke": 56,
+  "api.write": 16,
+  "ui.touched": 1
+ },
+ "portal": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 5,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "print-data": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 134,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "privacy": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "procurement": {
+  "api.neg.notfound": 5,
+  "api.neg.validation": 2,
+  "api.perm": 2,
+  "api.smoke": 14,
+  "api.write": 4,
+  "ui.touched": 1
+ },
+ "profile": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "public": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 6,
+  "api.perm": 0,
+  "api.smoke": 13,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "quality": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 3,
+  "api.perm": 0,
+  "api.smoke": 21,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "radiology": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 5,
+  "api.perm": 4,
+  "api.smoke": 11,
+  "api.write": 4,
+  "ui.touched": 1
+ },
+ "regulatory": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 18,
+  "api.write": 0,
+  "ui.touched": 1
+ },
+ "remote-access": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "reports": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "retrospective": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "roi-requests": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "scheduling": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 5,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "schema": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 4,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "security": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "security-incidents": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "sensitive-patients": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "setup": {
+  "api.neg.notfound": 2,
+  "api.neg.validation": 22,
+  "api.perm": 2,
+  "api.smoke": 31,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "sharing": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 2,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "signatures": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "specialty": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 43,
+  "api.write": 1,
+  "ui.touched": 0
+ },
+ "station-handoffs": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "stations": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "system-health": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "tat": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "telemedicine": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 2,
+  "api.perm": 0,
+  "api.smoke": 9,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "terminology": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 3,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "terms": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "testimonials": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "token-board": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "token-console": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "tokens": {
+  "api.neg.notfound": 4,
+  "api.neg.validation": 4,
+  "api.perm": 0,
+  "api.smoke": 6,
+  "api.write": 2,
+  "ui.touched": 0
+ },
+ "trial-adverse-events": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "trial-irb": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "trial-randomizations": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "trial-visits": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "tv": {
+  "api.neg.notfound": 3,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 12,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "upload": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "utilization-review": {
+  "api.neg.notfound": 1,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 8,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "verify-email": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "vpn": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "vte-assessments": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 1,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "vulnerabilities": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ward-stock": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "webhooks": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 0,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "widget-templates": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ },
+ "ws": {
+  "api.neg.notfound": 0,
+  "api.neg.validation": 0,
+  "api.perm": 0,
+  "api.smoke": 1,
+  "api.write": 0,
+  "ui.touched": 0
+ }
+}

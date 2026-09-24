@@ -15,7 +15,6 @@ import {
   createPoliceIntimation,
   createLabOrder,
 } from "../helpers/journey-steps";
-import { getFirstLabTest } from "../helpers/seed-resolvers";
 
 test.describe("Emergency — triage, encounter, MLC workflow", () => {
   test("nurse triages patient; severity red; emergency visit created", async ({
@@ -33,9 +32,9 @@ test.describe("Emergency — triage, encounter, MLC workflow", () => {
     expect(visit.id).toBeTruthy();
     expect(visit.patient_id).toBe(patient.id);
 
-    const triage = await createTriage(nurseCtx, visit.id, "red");
-    expect(triage.severity).toBe("red");
-    expect(triage.visit_id).toBe(visit.id);
+    const triage = await createTriage(nurseCtx, visit.id, "immediate");
+    expect(triage.triage_level).toBe("immediate");
+    expect(triage.er_visit_id).toBe(visit.id);
   });
 
   test("doctor places STAT lab order from active emergency visit", async ({
@@ -46,34 +45,26 @@ test.describe("Emergency — triage, encounter, MLC workflow", () => {
     const labTechCtx = await loginAsRoleApi(request, "lab_technician");
 
     const patient = await createPatientApi(doctorCtx);
-    const labTest = await getFirstLabTest(doctorCtx);
 
     const visit = await createEmergencyVisit(nurseCtx, patient.id, {
       arrivalMode: "walk_in",
       chiefComplaint: "Altered consciousness",
     });
-    await createTriage(nurseCtx, visit.id, "orange");
+    expect(visit.encounter_id, "an ER visit is encounter-backed").toBeTruthy();
+    await createTriage(nurseCtx, visit.id, "emergent");
 
-    // Doctor places STAT lab order referencing emergency visit
+    // Doctor places a STAT lab order on the visit's encounter
     const labOrderId = await createLabOrder(doctorCtx, {
       patientId: patient.id,
-      testId: labTest.id,
-      urgency: "stat",
-      sourceType: "emergency",
-      sourceId: visit.id,
+      encounterId: visit.encounter_id ?? undefined,
+      priority: "stat",
     });
     expect(labOrderId).toBeTruthy();
 
-    // Lab tech verifies STAT order appears in stat queue
+    // Lab tech sees it in the STAT queue
     const { api } = await import("../helpers/api");
-    const statOrders = await api<{ id: string; urgency: string }[]>(
-      labTechCtx,
-      "GET",
-      "/api/lab/stat-orders",
-    );
-    const found = statOrders.find((o) => o.id === labOrderId);
-    expect(found).toBeDefined();
-    expect(found!.urgency).toBe("stat");
+    const statOrders = await api<{ order_id: string }[]>(labTechCtx, "GET", "/api/lab/stat-orders");
+    expect(statOrders.map((o) => o.order_id)).toContain(labOrderId);
   });
 
   test("MLC flag created; police intimation generated; MLC number assigned", async ({
@@ -86,16 +77,21 @@ test.describe("Emergency — triage, encounter, MLC workflow", () => {
 
     const visit = await createEmergencyVisit(nurseCtx, patient.id, {
       arrivalMode: "police",
-      chiefComplaint: "Multiple trauma injuries — RTA",
+      // No medico-legal keyword: the MLC below is the doctor's explicit decision.
+      chiefComplaint: "Multiple fractures, polytrauma",
     });
-    await createTriage(nurseCtx, visit.id, "red");
+    await createTriage(nurseCtx, visit.id, "immediate");
 
     // Doctor flags as MLC
-    const mlcCase = await createMlcCase(doctorCtx, visit.id, "road_traffic_accident");
+    const mlcCase = await createMlcCase(doctorCtx, {
+      patientId: patient.id,
+      visitId: visit.id,
+      caseType: "road_traffic_accident",
+    });
     expect(mlcCase.id).toBeTruthy();
     expect(mlcCase.mlc_number).toMatch(/MLC/i);
-    expect(mlcCase.visit_id).toBe(visit.id);
-    expect(mlcCase.mlc_type).toBe("road_traffic_accident");
+    expect(mlcCase.er_visit_id).toBe(visit.id);
+    expect(mlcCase.case_type).toBe("road_traffic_accident");
 
     // Police intimation generated
     const intimation = await createPoliceIntimation(
@@ -104,7 +100,7 @@ test.describe("Emergency — triage, encounter, MLC workflow", () => {
       "Central Police Station E2E",
     );
     expect(intimation.id).toBeTruthy();
-    expect(intimation.mlc_id).toBe(mlcCase.id);
+    expect(intimation.mlc_case_id).toBe(mlcCase.id);
     expect(intimation.sent_at).not.toBeNull();
   });
 
@@ -117,12 +113,16 @@ test.describe("Emergency — triage, encounter, MLC workflow", () => {
     const patient = await createPatientApi(doctorCtx);
     const visit = await createEmergencyVisit(nurseCtx, patient.id, {
       arrivalMode: "walk_in",
-      chiefComplaint: "Stab wound, right abdomen",
+      chiefComplaint: "Penetrating wound, right abdomen",
     });
-    await createTriage(nurseCtx, visit.id, "red");
+    await createTriage(nurseCtx, visit.id, "immediate");
 
-    const mlcCase = await createMlcCase(doctorCtx, visit.id, "assault");
-    expect(mlcCase.mlc_type).toBe("assault");
+    const mlcCase = await createMlcCase(doctorCtx, {
+      patientId: patient.id,
+      visitId: visit.id,
+      caseType: "assault",
+    });
+    expect(mlcCase.case_type).toBe("assault");
 
     const { api } = await import("../helpers/api");
     const intimations = await api<{ id: string }[]>(

@@ -11,7 +11,7 @@ import {
   getAvailableBed,
   getIpdDept,
 } from "./seed-resolvers";
-import type { AuthContext } from "./types";
+import type { ApiCallOptions, AuthContext } from "./types";
 
 interface PatientLite {
   id: string;
@@ -199,6 +199,7 @@ export async function createPatientApi(
     lastName?: string;
     phone?: string;
     gender?: string;
+    email?: string;
   } = {},
 ): Promise<PatientLite> {
   const ts = Date.now() + Math.floor(Math.random() * 1000);
@@ -212,6 +213,7 @@ export async function createPatientApi(
     last_name: lastName,
     phone,
     gender,
+    email: base.email,
   });
   return created;
 }
@@ -254,11 +256,27 @@ export async function createConsultation(
   );
 }
 
+export interface PrescriptionFanout {
+  id: string;
+  /** The pharmacist's review-queue entry the prescription raised. */
+  pharmacyRxQueueId: string | null;
+  /** The pharmacy order the prescription raised. */
+  pharmacyOrderId: string | null;
+}
+
 export async function createPrescription(
   ctx: AuthContext,
   encounterId: string,
   opts: { drugId?: string; drugName?: string; itemCount?: number } = {},
 ): Promise<string> {
+  return (await createPrescriptionDetailed(ctx, encounterId, opts)).id;
+}
+
+export async function createPrescriptionDetailed(
+  ctx: AuthContext,
+  encounterId: string,
+  opts: { drugId?: string; drugName?: string; itemCount?: number } = {},
+): Promise<PrescriptionFanout> {
   const drug = opts.drugId
     ? { id: opts.drugId, name: opts.drugName ?? "Unknown" }
     : await getFirstDrug(ctx);
@@ -281,13 +299,21 @@ export async function createPrescription(
   // genuinely cannot re-prove identity.
   const signing = ctx.password ? await withStepUp(ctx) : ctx;
 
-  const resp = await api<{ prescription: { id: string } }>(
+  const resp = await api<{
+    prescription: { id: string };
+    pharmacy_rx_queue_id: string | null;
+    pharmacy_order_id: string | null;
+  }>(
     signing,
     "POST",
     `/api/opd/encounters/${encounterId}/prescriptions`,
     { items },
   );
-  return resp.prescription.id;
+  return {
+    id: resp.prescription.id,
+    pharmacyRxQueueId: resp.pharmacy_rx_queue_id,
+    pharmacyOrderId: resp.pharmacy_order_id,
+  };
 }
 
 export async function createPharmacyOrder(
@@ -297,10 +323,15 @@ export async function createPharmacyOrder(
     prescriptionId?: string;
     encounterId?: string;
     quantity?: number;
+    /** A specific catalogue item; the shared FEFO drug when omitted. */
+    drugId?: string;
+    drugName?: string;
     unitPrice?: number;
   },
 ): Promise<{ id: string; itemId: string }> {
-  const drug = await getFirstDrug(ctx);
+  const drug = args.drugId
+    ? { id: args.drugId, name: args.drugName ?? "E2E drug" }
+    : await getFirstDrug(ctx);
   // POST returns { order: { id }, items: [{ id }] }
   const resp = await api<{
     order: { id: string };
@@ -366,9 +397,9 @@ export async function createLabOrder(
 export async function cancelLabOrder(
   ctx: AuthContext,
   labOrderId: string,
-  reason = "spec test cancellation",
+  opts: ApiCallOptions = {},
 ): Promise<void> {
-  await api(ctx, "PUT", `/api/lab/orders/${labOrderId}/cancel`, { reason });
+  await api(ctx, "PUT", `/api/lab/orders/${labOrderId}/cancel`, undefined, opts);
 }
 
 export async function createInvoice(
@@ -394,6 +425,62 @@ export async function addBillingItem(
     quantity: args.quantity ?? 1,
     unit_price: args.unitPrice ?? 500,
   });
+}
+
+export interface InvoiceItemLite {
+  id: string;
+  charge_code: string;
+  description: string;
+  source: string | null;
+  source_id: string | null;
+  quantity: number;
+  total_price: string | number;
+}
+
+export interface InvoiceDetailLite {
+  invoice: { id: string; status: string; total_amount: string | number; patient_id: string };
+  items: InvoiceItemLite[];
+  payments: Array<{ id: string }>;
+}
+
+export async function getInvoiceDetail(ctx: AuthContext, invoiceId: string): Promise<InvoiceDetailLite> {
+  return api(ctx, "GET", `/api/billing/invoices/${invoiceId}`);
+}
+
+export async function listPatientInvoices(
+  ctx: AuthContext,
+  patientId: string,
+): Promise<Array<{ id: string; status: string }>> {
+  const resp = await api<{ invoices: Array<{ id: string; status: string }> }>(
+    ctx,
+    "GET",
+    `/api/billing/invoices${qs({ patient_id: patientId })}`,
+  );
+  return resp.invoices;
+}
+
+/** The invoice item a module's auto-charge wrote for one source record. */
+export async function findChargeFor(
+  ctx: AuthContext,
+  patientId: string,
+  source: string,
+  sourceId: string,
+): Promise<{ invoiceId: string; item: InvoiceItemLite } | undefined> {
+  for (const inv of await listPatientInvoices(ctx, patientId)) {
+    const detail = await getInvoiceDetail(ctx, inv.id);
+    const item = detail.items.find((i) => i.source === source && i.source_id === sourceId);
+    if (item) return { invoiceId: inv.id, item };
+  }
+  return undefined;
+}
+
+export async function setTenantSetting(
+  ctx: AuthContext,
+  category: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  await api(ctx, "PUT", "/api/setup/settings", { category, key, value });
 }
 
 export async function issueInvoice(
@@ -447,18 +534,69 @@ export async function transferAdmissionBedIfAvailable(
     "GET",
     `/api/ipd/admissions/${admissionId}`,
   );
-  const beds = await api<Array<{ id: string }>>(
-    ctx,
-    "GET",
-    "/api/ipd/beds/available",
-  );
-  const bed = beds.find((candidate) => candidate.id !== detail.admission.bed_id);
+  const beds = await listAvailableBeds(ctx);
+  const bed = beds.find((candidate) => candidate.bed_id !== detail.admission.bed_id);
   if (!bed) return undefined;
-  await api(ctx, "PUT", `/api/ipd/admissions/${admissionId}/transfer`, {
-    bed_id: bed.id,
-    notes: "E2E transfer during golden patient journey",
-  });
-  return bed.id;
+  await transferAdmissionBed(ctx, admissionId, bed.bed_id, "E2E transfer during golden patient journey");
+  return bed.bed_id;
+}
+
+export interface AvailableBedLite {
+  bed_id: string;
+  bed_number: string;
+  ward_id: string | null;
+}
+
+/** Uncached, unlike seed-resolvers' `getAvailableBed`: a bed journey needs the list as it is now. */
+export async function listAvailableBeds(ctx: AuthContext): Promise<AvailableBedLite[]> {
+  return api(ctx, "GET", "/api/ipd/beds/available");
+}
+
+export interface BedDashboardRowLite {
+  bed_location_id: string;
+  bed_status: string;
+  admission_id: string | null;
+  patient_id: string | null;
+}
+
+export async function getBedDashboardBeds(ctx: AuthContext): Promise<BedDashboardRowLite[]> {
+  return api(ctx, "GET", "/api/ipd/bed-dashboard/beds");
+}
+
+export async function setBedStatus(
+  ctx: AuthContext,
+  bedId: string,
+  status: string,
+  reason?: string,
+): Promise<void> {
+  await api(ctx, "PUT", `/api/ipd/bed-dashboard/beds/${bedId}/status`, { status, reason });
+}
+
+export async function transferAdmissionBed(
+  ctx: AuthContext,
+  admissionId: string,
+  bedId: string,
+  notes: string,
+  opts: ApiCallOptions = {},
+): Promise<void> {
+  await api(ctx, "PUT", `/api/ipd/admissions/${admissionId}/transfer`, { bed_id: bedId, notes }, opts);
+}
+
+export interface BedTurnaroundLite {
+  id: string;
+  bed_id: string;
+  admission_id: string | null;
+  vacated_at: string;
+  ready_at: string | null;
+  turnaround_minutes: number | null;
+}
+
+export async function listBedTurnaround(ctx: AuthContext): Promise<BedTurnaroundLite[]> {
+  return api(ctx, "GET", "/api/ipd/bed-turnaround");
+}
+
+export async function completeBedTurnaround(ctx: AuthContext, id: string): Promise<BedTurnaroundLite> {
+  return api(ctx, "POST", `/api/ipd/bed-turnaround/${id}/complete`, { notes: "E2E cleaned" });
 }
 
 export async function createIpdProgressNote(
@@ -827,7 +965,6 @@ export async function dischargeAdmission(
   await api(ctx, "PUT", `/api/ipd/admissions/${admissionId}/discharge`, {
     discharge_type: "normal",
     discharge_summary: "E2E golden journey discharge",
-    follow_up_instructions: "Follow up in OPD after seven days.",
   });
 }
 
@@ -927,11 +1064,14 @@ export interface CriticalAlertLite {
   acknowledged_by: string | null;
 }
 
+/** Collection confirms identity first: the identifier must match the order's patient. */
 export async function collectLabSample(
   ctx: AuthContext,
   orderId: string,
+  patientIdentifier: string,
 ): Promise<void> {
   await api(ctx, "PUT", `/api/lab/orders/${orderId}/collect`, {
+    patient_identifier: patientIdentifier,
     collected_at: new Date().toISOString(),
     collection_notes: "E2E sample collection",
   });
@@ -962,8 +1102,9 @@ export async function completeLabOrder(
 export async function verifyLabResults(
   ctx: AuthContext,
   orderId: string,
+  opts: ApiCallOptions = {},
 ): Promise<void> {
-  await api(ctx, "PUT", `/api/lab/orders/${orderId}/verify`, {});
+  await api(ctx, "PUT", `/api/lab/orders/${orderId}/verify`, {}, opts);
 }
 
 export async function listCriticalAlerts(
@@ -975,11 +1116,17 @@ export async function listCriticalAlerts(
 export async function acknowledgeLabCriticalAlert(
   ctx: AuthContext,
   alertId: string,
-  actionNote: string,
+  readbackValue: string,
+  opts: ApiCallOptions = {},
 ): Promise<CriticalAlertLite> {
-  return api(ctx, "PUT", `/api/lab/critical-alerts/${alertId}/acknowledge`, {
-    action_taken: actionNote,
-  });
+  // Closing the loop means reading the value back; it must match what was reported.
+  return api(
+    ctx,
+    "PUT",
+    `/api/lab/critical-alerts/${alertId}/acknowledge`,
+    { readback_value: readbackValue },
+    opts,
+  );
 }
 
 export async function getDoctorCriticalAlerts(
@@ -995,30 +1142,44 @@ export async function getDoctorCriticalAlerts(
 export interface EmergencyVisitLite {
   id: string;
   patient_id: string;
+  encounter_id: string | null;
   visit_number: string;
   status: string;
+  triage_level: string | null;
+  admission_id: string | null;
+  is_mlc: boolean;
 }
+
+export type TriageLevel =
+  | "immediate"
+  | "emergent"
+  | "urgent"
+  | "less_urgent"
+  | "non_urgent"
+  | "expectant";
 
 export interface TriageLite {
   id: string;
-  visit_id: string;
-  severity: "red" | "orange" | "yellow" | "green" | "black";
-  chief_complaint: string;
+  er_visit_id: string;
+  triage_level: TriageLevel;
+  chief_complaint: string | null;
 }
 
 export interface MlcCaseLite {
   id: string;
   mlc_number: string;
-  visit_id: string;
-  mlc_type: string;
+  er_visit_id: string | null;
+  patient_id: string;
+  case_type: string | null;
   status: string;
 }
 
 export interface PoliceIntimationLite {
   id: string;
-  mlc_id: string;
+  mlc_case_id: string;
+  intimation_number: string;
   police_station: string;
-  intimation_method: string;
+  sent_via: string | null;
   sent_at: string;
 }
 
@@ -1031,59 +1192,95 @@ export async function createEmergencyVisit(
     patient_id: patientId,
     arrival_mode: opts.arrivalMode ?? "walk_in",
     chief_complaint: opts.chiefComplaint ?? "E2E test complaint",
-    presenting_complaints: [opts.chiefComplaint ?? "E2E test complaint"],
   });
+}
+
+export async function getEmergencyVisit(ctx: AuthContext, visitId: string): Promise<EmergencyVisitLite> {
+  return api(ctx, "GET", `/api/emergency/visits/${visitId}`);
 }
 
 export async function createTriage(
   ctx: AuthContext,
   visitId: string,
-  severity: "red" | "orange" | "yellow" | "green" | "black" = "yellow",
+  triageLevel: TriageLevel = "urgent",
 ): Promise<TriageLite> {
   return api(ctx, "POST", `/api/emergency/visits/${visitId}/triage`, {
-    severity,
+    triage_level: triageLevel,
     chief_complaint: "E2E triage assessment",
-    pulse: 88,
-    bp_systolic: 120,
-    bp_diastolic: 80,
+    pulse_rate: 88,
+    blood_pressure_systolic: 120,
+    blood_pressure_diastolic: 80,
     spo2: 98,
-    temperature: 37.2,
     respiratory_rate: 16,
-    gcs: 15,
+    gcs_score: 15,
     pain_score: 4,
-    triage_notes: "E2E triage note",
+    notes: "E2E triage note",
   });
 }
 
 export async function createMlcCase(
   ctx: AuthContext,
-  visitId: string,
-  mlcType:
-    | "road_traffic_accident"
-    | "assault"
-    | "poisoning"
-    | "unnatural_death"
-    | "other" = "road_traffic_accident",
+  args: { patientId: string; visitId?: string; caseType?: string },
+  opts: ApiCallOptions = {},
 ): Promise<MlcCaseLite> {
-  return api(ctx, "POST", "/api/emergency/mlc", {
-    visit_id: visitId,
-    mlc_type: mlcType,
-    incident_description: "E2E MLC case — road traffic accident",
-    wound_description: "Laceration 3 cm on forehead, antemortem",
-    examining_doctor_notes: "Patient conscious, GCS 15",
-  });
+  return api(
+    ctx,
+    "POST",
+    "/api/emergency/mlc",
+    {
+      patient_id: args.patientId,
+      er_visit_id: args.visitId,
+      case_type: args.caseType ?? "road_traffic_accident",
+      history_of_incident: "E2E MLC case",
+      examination_findings: "Laceration 3 cm on forehead; conscious, GCS 15",
+    },
+    opts,
+  );
 }
 
 export async function createPoliceIntimation(
   ctx: AuthContext,
   mlcId: string,
   policeStation = "E2E Police Station",
+  opts: ApiCallOptions = {},
 ): Promise<PoliceIntimationLite> {
-  return api(ctx, "POST", `/api/emergency/mlc/${mlcId}/police-intimations`, {
-    police_station: policeStation,
-    intimation_method: "in_person",
-    intimation_notes: "E2E police intimation",
-  });
+  return api(
+    ctx,
+    "POST",
+    `/api/emergency/mlc/${mlcId}/police-intimations`,
+    { police_station: policeStation, sent_via: "in_person", notes: "E2E police intimation" },
+    opts,
+  );
+}
+
+export interface ErAdmissionLite {
+  er_visit_id: string;
+  admission_id: string;
+  encounter_id: string;
+  patient_id: string;
+  ward_id: string | null;
+  bed_id: string;
+  status: string;
+}
+
+export async function admitFromEr(
+  ctx: AuthContext,
+  visitId: string,
+  args: { bedId: string; admittingDoctorId: string; wardId?: string },
+  opts: ApiCallOptions = {},
+): Promise<ErAdmissionLite> {
+  return api(
+    ctx,
+    "POST",
+    `/api/emergency/visits/${visitId}/admit`,
+    {
+      bed_id: args.bedId,
+      admitting_doctor_id: args.admittingDoctorId,
+      ward_id: args.wardId,
+      admission_notes: "E2E admitted from the ER",
+    },
+    opts,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1303,4 +1500,306 @@ export async function getBillingAgingReport(
   ctx: AuthContext,
 ): Promise<Record<string, unknown>> {
   return api(ctx, "GET", "/api/billing/reports/aging");
+}
+
+// ─── Notifications ───────────────────────────────────────────────────
+
+export interface NotificationLite {
+  id: string;
+  title: string;
+  body?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  action_url?: string | null;
+  is_read: boolean;
+}
+
+/** The caller's own feed. `unread` narrows to what the bell would show. */
+export async function listNotifications(
+  ctx: AuthContext,
+  opts: { unread?: boolean; limit?: number } = {},
+): Promise<NotificationLite[]> {
+  const resp = await api<{ notifications: NotificationLite[] }>(
+    ctx,
+    "GET",
+    `/api/notifications${qs({ unread: opts.unread ? "true" : undefined, limit: opts.limit ?? 50 })}`,
+  );
+  return resp.notifications;
+}
+
+// ─── Nurse roster ────────────────────────────────────────────────────
+
+export interface RosterCandidateLite {
+  id: string;
+  full_name: string;
+}
+
+export interface RosterEntryLite {
+  id: string;
+  nurse_user_id: string;
+  ward_id: string | null;
+  shift_date: string;
+  shift_type: string;
+  is_charge: boolean | null;
+}
+
+/** Needs `nurse.roster.manage`, which no built-in role holds — call as a bypass role. */
+export async function getRosterCandidates(ctx: AuthContext): Promise<RosterCandidateLite[]> {
+  return api(ctx, "GET", "/api/nurse/roster/candidates");
+}
+
+export async function rosterNurse(
+  ctx: AuthContext,
+  args: {
+    nurseUserId: string;
+    wardId: string;
+    shiftType?: "day" | "evening" | "night";
+    shiftDate?: string;
+    isCharge?: boolean;
+  },
+  opts: ApiCallOptions = {},
+): Promise<{ id: string }> {
+  return api(
+    ctx,
+    "POST",
+    "/api/nurse/roster",
+    {
+      nurse_user_id: args.nurseUserId,
+      ward_id: args.wardId,
+      shift_type: args.shiftType ?? "day",
+      shift_date: args.shiftDate,
+      is_charge: args.isCharge ?? false,
+    },
+    opts,
+  );
+}
+
+export async function listRoster(
+  ctx: AuthContext,
+  args: { wardId?: string; shiftDate?: string } = {},
+): Promise<RosterEntryLite[]> {
+  return api(ctx, "GET", `/api/nurse/roster${qs({ ward_id: args.wardId, shift_date: args.shiftDate })}`);
+}
+
+export async function deleteRosterEntry(ctx: AuthContext, id: string): Promise<void> {
+  await api(ctx, "DELETE", `/api/nurse/roster/${id}`);
+}
+
+// ─── Code blue ───────────────────────────────────────────────────────
+
+export interface CodeBlueResponderLite {
+  code_blue_id: string;
+  user_id: string;
+  user_name: string;
+  seconds_after_call: number;
+}
+
+export async function startCodeBlue(
+  ctx: AuthContext,
+  args: { patientId: string; location: string; encounterId?: string },
+): Promise<{ id: string }> {
+  return api(ctx, "POST", "/api/nurse/code-blue", {
+    patient_id: args.patientId,
+    location: args.location,
+    encounter_id: args.encounterId,
+  });
+}
+
+export async function respondCodeBlue(
+  ctx: AuthContext,
+  id: string,
+  opts: ApiCallOptions = {},
+): Promise<unknown> {
+  return api(ctx, "POST", `/api/nurse/code-blue/${id}/respond`, undefined, opts);
+}
+
+/** Everyone who has answered every arrest still in progress. */
+export async function listCodeBlueResponders(ctx: AuthContext): Promise<CodeBlueResponderLite[]> {
+  return api(ctx, "GET", "/api/nurse/code-blue/responders");
+}
+
+export async function endCodeBlue(
+  ctx: AuthContext,
+  id: string,
+  outcome = "rosc",
+): Promise<{ id: string; ended_at: string | null }> {
+  return api(ctx, "PUT", `/api/nurse/code-blue/${id}/end`, { outcome });
+}
+
+// ─── Nursing tasks ───────────────────────────────────────────────────
+
+export interface NursingTaskLite {
+  id: string;
+  admission_id: string;
+  assigned_to: string | null;
+  task_type: string;
+  due_at: string | null;
+}
+
+export async function listAdmissionTasks(ctx: AuthContext, admissionId: string): Promise<NursingTaskLite[]> {
+  return api(ctx, "GET", `/api/ipd/admissions/${admissionId}/tasks`);
+}
+
+// ─── Blood bank ──────────────────────────────────────────────────────
+
+export interface BloodComponentLite {
+  id: string;
+  donation_id: string;
+  status: string;
+}
+
+/** A patient with a blood group — the transfusion handler refuses one without. */
+export async function createPatientWithBloodGroup(
+  ctx: AuthContext,
+  bloodGroup: string,
+): Promise<{ id: string }> {
+  const ts = Date.now().toString(36);
+  // Digits only: the patient validator rejects base-36 letters in a phone.
+  const digits = Date.now().toString().slice(-8);
+  return api(ctx, "POST", "/api/patients", {
+    first_name: `E2E${ts}`,
+    last_name: "Transfusion",
+    gender: "female",
+    phone: `98${digits}`,
+    blood_group: bloodGroup,
+  });
+}
+
+export async function createDonor(ctx: AuthContext, bloodGroup: string): Promise<{ id: string }> {
+  const ts = Date.now().toString(36);
+  return api(ctx, "POST", "/api/blood-bank/donors", {
+    donor_number: `E2E-D-${ts}`,
+    first_name: "E2E",
+    last_name: `Donor${ts}`,
+    blood_group: bloodGroup,
+  });
+}
+
+export async function createDonation(ctx: AuthContext, donorId: string): Promise<{ id: string }> {
+  return api(ctx, "POST", `/api/blood-bank/donors/${donorId}/donations`, {
+    bag_number: `E2E-BAG-${Date.now().toString(36)}`,
+    volume_ml: 450,
+  });
+}
+
+export async function createBloodComponent(
+  ctx: AuthContext,
+  args: { donationId: string; bloodGroup: string; componentType: string },
+): Promise<{ id: string }> {
+  const expiry = new Date(Date.now() + 30 * 24 * 3_600_000).toISOString();
+  return api(ctx, "POST", "/api/blood-bank/components", {
+    donation_id: args.donationId,
+    component_type: args.componentType,
+    bag_number: `E2E-C-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    blood_group: args.bloodGroup,
+    volume_ml: 250,
+    expiry_at: expiry,
+  });
+}
+
+export async function setBloodComponentStatus(ctx: AuthContext, id: string, status: string): Promise<void> {
+  await api(ctx, "PUT", `/api/blood-bank/components/${id}/status`, { status });
+}
+
+export async function listBloodComponents(ctx: AuthContext): Promise<BloodComponentLite[]> {
+  return api(ctx, "GET", "/api/blood-bank/components");
+}
+
+export async function createTransfusion(
+  ctx: AuthContext,
+  args: { patientId: string; componentId: string; patientVerifiedBy: string; productVerifiedBy: string },
+): Promise<{ id: string }> {
+  return api(ctx, "POST", "/api/blood-bank/transfusions", {
+    patient_id: args.patientId,
+    component_id: args.componentId,
+    patient_verified_by: args.patientVerifiedBy,
+    product_verified_by: args.productVerifiedBy,
+  });
+}
+
+export async function recordTransfusionReaction(
+  ctx: AuthContext,
+  transfusionId: string,
+  args: { reactionType: string; severity: "mild" | "moderate" | "severe" | "fatal" },
+): Promise<unknown> {
+  return api(ctx, "PUT", `/api/blood-bank/transfusions/${transfusionId}/reaction`, {
+    reaction_type: args.reactionType,
+    reaction_severity: args.severity,
+  });
+}
+
+// ─── BME ─────────────────────────────────────────────────────────────
+
+export interface BmeEquipmentLite {
+  id: string;
+  status: string;
+}
+
+export async function createBmeEquipment(
+  ctx: AuthContext,
+  args: { name: string; status: "active" | "under_maintenance" | "out_of_service" | "condemned" },
+): Promise<BmeEquipmentLite> {
+  return api(ctx, "POST", "/api/bme/equipment", { name: args.name, status: args.status });
+}
+
+export async function getBmeEquipment(ctx: AuthContext, id: string): Promise<BmeEquipmentLite> {
+  return api(ctx, "GET", `/api/bme/equipment/${id}`);
+}
+
+export async function createBreakdown(
+  ctx: AuthContext,
+  args: { equipmentId: string; description?: string },
+): Promise<{ id: string }> {
+  return api(ctx, "POST", "/api/bme/breakdowns", {
+    equipment_id: args.equipmentId,
+    description: args.description ?? "E2E breakdown",
+  });
+}
+
+// ─── Quality ─────────────────────────────────────────────────────────
+
+export interface QualityIncidentLite {
+  id: string;
+  title: string;
+  incident_type: string;
+  severity: string;
+  patient_id: string | null;
+}
+
+export async function createQualityIncident(
+  ctx: AuthContext,
+  args: {
+    title: string;
+    incidentType: string;
+    severity: "near_miss" | "minor" | "moderate" | "major" | "sentinel";
+    patientId?: string;
+  },
+): Promise<QualityIncidentLite> {
+  return api(ctx, "POST", "/api/quality/incidents", {
+    title: args.title,
+    incident_type: args.incidentType,
+    severity: args.severity,
+    incident_date: new Date().toISOString(),
+    patient_id: args.patientId,
+    description: "E2E linkage incident",
+  });
+}
+
+/** No incident_type filter server-side; filter here. */
+export async function listQualityIncidents(ctx: AuthContext): Promise<QualityIncidentLite[]> {
+  return api(ctx, "GET", "/api/quality/incidents");
+}
+
+export async function listSentinelIncidents(ctx: AuthContext): Promise<QualityIncidentLite[]> {
+  return api(ctx, "GET", "/api/quality/incidents/sentinel");
+}
+
+/** Current-month rollup value for one NABH indicator, or null when it has none. */
+export async function nabhIndicator(ctx: AuthContext, code: string): Promise<number | null> {
+  const resp = await api<{ indicators: Array<{ code: string; value_current_month: number | null }> }>(
+    ctx,
+    "GET",
+    "/api/nabh/indicators",
+  );
+  return resp.indicators.find((i) => i.code === code)?.value_current_month ?? null;
 }

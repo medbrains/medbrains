@@ -981,8 +981,8 @@ pub async fn create_encounter(
     let encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
-          encounter_date, notes, attributes, visit_type, is_dummy, chief_complaints) \
-         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8, $9, $10) \
+          encounter_date, notes, attributes, visit_type, is_dummy, chief_complaints, created_by) \
+         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -995,6 +995,7 @@ pub async fn create_encounter(
     .bind(visit_type)
     .bind(is_dummy)
     .bind(chief_complaint.as_deref())
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1094,6 +1095,10 @@ pub async fn create_encounter(
     // per-user fan-out); attending_physician = the assigned doctor. Mirrors the
     // grant written for patients at registration (patients::create_patient).
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+    // The desk that started this visit. Without it a receptionist cannot open
+    // the record they just created, because patient access is reached through
+    // the patient's recent encounters and this user held none of them.
+    medbrains_authz_gate::grant_encounter_owner(&state, &claims, encounter.id).await?;
     if let Some(dept_id) = encounter.department_id {
         state
             .authz
@@ -2142,7 +2147,7 @@ pub async fn create_consultation(
     tx.commit().await?;
 
     for lab_order_id in created_lab_order_ids {
-        medbrains_lab::grant_lab_order_creator_viewer(
+        medbrains_lab::grant_lab_order_access(
             &state,
             &claims,
             lab_order_id,
@@ -3503,7 +3508,7 @@ pub async fn delete_prescription_template(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let deleted = sqlx::query(
         "DELETE FROM prescription_templates \
          WHERE id = $1 AND tenant_id = $2 AND created_by = $3",
     )
@@ -3512,6 +3517,9 @@ pub async fn delete_prescription_template(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
@@ -6172,8 +6180,8 @@ pub async fn admit_from_opd(
     let ipd_encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
-          encounter_date, notes, attributes) \
-         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7) \
+          encounter_date, notes, attributes, created_by) \
+         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -6183,6 +6191,7 @@ pub async fn admit_from_opd(
     .bind(today)
     .bind(&body.notes)
     .bind(ipd_attributes)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -6324,6 +6333,10 @@ pub async fn admit_from_opd(
     .await?;
 
     tx.commit().await?;
+
+    // The ward clerk or doctor who admitted them owns the IPD encounter they
+    // created, the same as the desk owns a walk-in's.
+    medbrains_authz_gate::grant_encounter_owner(&state, &claims, ipd_encounter.id).await?;
 
     let admit_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")

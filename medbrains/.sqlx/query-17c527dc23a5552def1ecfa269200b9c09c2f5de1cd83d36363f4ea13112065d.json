@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.check_time AS \"check_time!\", u.full_name AS \"checked_by?\", m.status::text AS \"status?\", m.circulation_status AS \"circulation_status?\", m.skin_status AS \"skin_status?\", m.patient_response AS \"patient_response?\", m.notes AS \"notes?\" FROM restraint_monitoring_logs m LEFT JOIN users u ON u.id = m.checked_by WHERE m.clinical_doc_id = $1 AND m.tenant_id = $2 AND m.deleted_at IS NULL ORDER BY m.check_time LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "check_time!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "checked_by?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "circulation_status?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "skin_status?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "patient_response?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "notes?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "17c527dc23a5552def1ecfa269200b9c09c2f5de1cd83d36363f4ea13112065d"
+}

@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.last_calibrated_date AS \"last_calibrated_date?\", c.next_due_date AS \"next_due_date?\", c.is_in_tolerance AS \"is_in_tolerance?\", c.certificate_number AS \"certificate_number?\", v.name AS \"agency?\" FROM bme_calibrations c LEFT JOIN vendors v ON v.id = c.calibration_vendor_id WHERE c.equipment_id = $1 AND c.deleted_at IS NULL ORDER BY c.last_calibrated_date DESC NULLS LAST LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_calibrated_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "next_due_date?",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_in_tolerance?",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "certificate_number?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "agency?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "b785d81173fa1541c6167f060d5cd78c62e0f0fabf6b7cf6ea04344aa37437b9"
+}

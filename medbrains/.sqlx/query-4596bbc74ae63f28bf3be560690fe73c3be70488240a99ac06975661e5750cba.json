@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO nurse_shift_assignments (tenant_id, nurse_user_id, ward_id, shift_date, shift_type, patient_ids, primary_assigned, charge_nurse_user_id) VALUES ($1::uuid, $2::uuid, $3::uuid, COALESCE($4::date, CURRENT_DATE), $5::text, ARRAY[]::uuid[], COALESCE($6::bool, true), CASE WHEN COALESCE($7::bool, false) THEN $2::uuid ELSE NULL END) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Date",
+        "Text",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4596bbc74ae63f28bf3be560690fe73c3be70488240a99ac06975661e5750cba"
+}

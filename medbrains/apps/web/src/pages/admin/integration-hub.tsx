@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, Badge, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { formatDateTime } from "@/lib/date-utils";
 import { integrationService } from "@/services/integration.service";
 
 export function IntegrationHubPage() {
@@ -16,6 +17,14 @@ export function IntegrationHubPage() {
   const { data: pipelines = [], isLoading } = useQuery({
     queryKey: ["default-pipelines"],
     queryFn: () => integrationService.listDefaultPipelines(),
+  });
+
+  // The other half of the picture. A page listing only the subscribers that
+  // exist looks complete at ten rows, and gives no hint of how much is
+  // landing nowhere.
+  const { data: uncovered = [], isLoading: uncoveredLoading } = useQuery({
+    queryKey: ["uncovered-events"],
+    queryFn: () => integrationService.listUncoveredEvents(),
   });
 
   const toggle = useMutation({
@@ -117,6 +126,72 @@ export function IntegrationHubPage() {
                   ) : (
                     <Badge tone="success">Active</Badge>
                   )}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Card>
+
+      <Card withBorder shadow="sm" radius="md">
+        <Card.Section withBorder inheritPadding py="xs">
+          <Group justify="space-between">
+            <Text fw={600}>Events landing nowhere</Text>
+            <Badge tone={uncovered.length > 0 ? "warning" : "success"}>
+              {uncovered.length} without a subscriber
+            </Badge>
+          </Group>
+        </Card.Section>
+
+        <Text size="sm" c="dimmed" mt="sm">
+          Clinical events this hospital has actually raised that no pipeline listens to, busiest
+          first. Read from the event log rather than from the list of events the code can name, so
+          it reflects what this hospital really does. An event with no subscriber is not
+          automatically a defect — many need no consequence — but nothing is decided by leaving it
+          off the page.
+        </Text>
+
+        <Table verticalSpacing="sm" highlightOnHover mt="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Event</Table.Th>
+              <Table.Th style={{ width: 120 }}>Times raised</Table.Th>
+              <Table.Th style={{ width: 200 }}>Last raised</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {uncoveredLoading && (
+              <Table.Tr>
+                <Table.Td colSpan={3}>
+                  <Text c="dimmed" size="sm" ta="center" py="md">
+                    Loading…
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+            {!uncoveredLoading && uncovered.length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={3}>
+                  <Text c="dimmed" size="sm" ta="center" py="md">
+                    Every clinical event this hospital has raised has a subscriber.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+            {uncovered.map((event) => (
+              <Table.Tr key={event.event_type}>
+                <Table.Td>
+                  <Text ff="monospace" size="xs">
+                    {event.event_type}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{event.fired}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm" c="dimmed">
+                    {formatDateTime(event.last_fired)}
+                  </Text>
                 </Table.Td>
               </Table.Tr>
             ))}

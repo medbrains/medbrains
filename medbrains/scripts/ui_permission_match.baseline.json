@@ -1,0 +1,20 @@
+{
+ "ungated": [
+  "apps/web/src/pages/OAuthCallbackPage.tsx:oauthService.exchangeOAuthCode",
+  "apps/web/src/pages/admin/doctors.tsx:adminDoctorsService.createSetupUser",
+  "apps/web/src/pages/admin/doctors.tsx:adminDoctorsService.listDepartments",
+  "apps/web/src/pages/admin/doctors.tsx:adminDoctorsService.listDoctors",
+  "apps/web/src/pages/admin/doctors.tsx:adminDoctorsService.listSetupUsers",
+  "apps/web/src/pages/admin/paired-devices.tsx:settingsSetupService.listLocationDirectory",
+  "apps/web/src/pages/camp/clinical-route.tsx:campService.getCamp",
+  "apps/web/src/pages/camp/clinical-route.tsx:campService.listCampRegistrations",
+  "apps/web/src/pages/camp/followup-create.tsx:campService.createCampFollowup",
+  "apps/web/src/pages/camp/followup-create.tsx:campService.listCampRegistrations",
+  "apps/web/src/pages/camp/registration-create.tsx:lookupsService.listDepartments",
+  "apps/web/src/pages/lab/cumulative-drawer.tsx:labService.getLabCumulativeReport",
+  "apps/web/src/pages/pharmacy/otc-sale.tsx:pharmacyService.createOtcSale",
+  "apps/web/src/pages/pharmacy/verify-view.tsx:pharmacyService.getFulfilmentPickList"
+ ],
+ "unresolved_calls": 130,
+ "routes_without_permission": 760
+}

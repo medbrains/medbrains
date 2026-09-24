@@ -54,6 +54,7 @@ cast_precision_loss = "allow"
 
 [dependencies]
 medbrains-offline-core = { path = "../medbrains-offline-core" }
+medbrains-clinical-core = { path = "../medbrains-clinical-core" }
 loro = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

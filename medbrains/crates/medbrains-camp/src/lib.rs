@@ -6844,11 +6844,14 @@ pub async fn remove_team_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({
         "deleted": false,
-        "archived": result.rows_affected() > 0
+        "archived": true
     })))
 }
 
@@ -7594,7 +7597,7 @@ pub async fn link_lab_sample(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::BadRequest("camp lab sample not found".to_owned()))?;
+    .ok_or(AppError::NotFound)?;
 
     if sample_context.sent_to_lab {
         return Err(AppError::BadRequest(

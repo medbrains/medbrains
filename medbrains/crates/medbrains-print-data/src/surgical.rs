@@ -12,8 +12,8 @@ use medbrains_core::print_data::{
     AnesthesiaDrug, AnesthesiaRecordPrintData, AnesthesiaVitalEntry, BloodProductEntry,
     CaseSheetCoverPrintData, FluidEntry, OperationNotesPrintData, PostopFluidOrder,
     PostopMedicationOrder, PostopOrdersPrintData, PreopAssessmentPrintData, PreopLabResult,
-    PreopVitals, SurgicalSafetyChecklistPrintData, SurgicalSignIn, SurgicalSignOut,
-    SurgicalTimeOut, TransfusionMonitoringEntry, TransfusionMonitoringPrintData, TransfusionVitals,
+    PreopVitals, SurgicalChecklistItem, SurgicalChecklistPhase, SurgicalSafetyChecklistPrintData,
+    TransfusionMonitoringEntry, TransfusionMonitoringPrintData, TransfusionVitals,
 };
 
 use medbrains_server_core::error::AppError;
@@ -323,31 +323,224 @@ pub async fn get_preop_assessment_print_data(
 
 // ── Surgical Safety Checklist (WHO) ──────────────────────
 
+/// The WHO checklist's three phases, in the order a theatre performs them,
+/// with the items each one requires. Kept beside the print handler because a
+/// phase that was never recorded must still print its blanks, and that means
+/// knowing what the blanks are without a row to read them from. Mirrors
+/// `who_checklist_items` in `medbrains-ot`.
+type WhoItem = (&'static str, &'static str);
+/// phase key, printed heading, the items that phase requires.
+type WhoPhase = (&'static str, &'static str, &'static [WhoItem]);
+
+const WHO_PHASES: &[WhoPhase] = &[
+    (
+        "sign_in",
+        "Sign in — before induction of anaesthesia",
+        &[
+            ("patient_identity", "Patient confirmed: identity, site, procedure, consent"),
+            ("site_marked", "Surgical site marked (or not applicable)"),
+            ("anaesthesia_check", "Anaesthesia machine and medication check complete"),
+            ("pulse_oximeter", "Pulse oximeter on patient and functioning"),
+            ("allergy", "Known allergy reviewed"),
+            ("airway_risk", "Difficult airway / aspiration risk assessed"),
+            ("blood_loss_risk", "Risk of >500ml blood loss assessed (IV access / fluids)"),
+        ],
+    ),
+    (
+        "time_out",
+        "Time out — before skin incision",
+        &[
+            ("team_introductions", "Team members introduced by name and role"),
+            ("confirm_patient", "Surgeon, anaesthetist and nurse confirm patient, site, procedure"),
+            ("antibiotic_prophylaxis", "Antibiotic prophylaxis given within the last 60 minutes"),
+            ("imaging", "Essential imaging displayed (or not required)"),
+            ("critical_steps", "Surgeon reviews critical or unexpected steps"),
+            ("anaesthesia_concerns", "Anaesthesia reviews patient-specific concerns"),
+            ("sterility", "Nursing confirms sterility and equipment readiness"),
+        ],
+    ),
+    (
+        "sign_out",
+        "Sign out — before the patient leaves theatre",
+        &[
+            ("procedure_recorded", "Name of the procedure recorded"),
+            ("counts_correct", "Instrument, sponge and needle counts correct"),
+            ("specimen_labelled", "Specimen labelled (including patient name)"),
+            ("equipment_problems", "Any equipment problems identified and addressed"),
+            ("recovery_concerns", "Key concerns for recovery and management reviewed"),
+        ],
+    ),
+];
+
 #[derive(Debug, sqlx::FromRow)]
 struct SurgicalSafetyRow {
     patient_name: String,
     uhid: String,
-    surgery_id: Uuid,
+    booking_id: Uuid,
     procedure_name: String,
     surgery_date: chrono::NaiveDate,
     ot_number: String,
     surgeon_name: Option<String>,
-    anesthesiologist_name: String,
-    scrub_nurse_name: String,
-    circulating_nurse_name: Option<String>,
+    anesthetist_name: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct ChecklistPhaseRow {
+    phase: String,
+    items: serde_json::Value,
+    completed: bool,
+    completed_by: Option<String>,
+    completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    verified_by: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct StoredItem {
+    key: String,
+    #[serde(default)]
+    label: Option<String>,
+    #[serde(default)]
+    checked: bool,
+}
+
+
+/// Turn the rows that exist into the three phases a sheet always prints.
+///
+/// Driven by `WHO_PHASES`, never by the stored payload: an item missing from a
+/// row prints unticked rather than disappearing from the sheet, and a phase
+/// with no row at all prints its blanks with `recorded: false`. A checklist
+/// that quietly omits the step nobody did would read as a complete checklist.
+fn build_phases(recorded: &[ChecklistPhaseRow]) -> Vec<SurgicalChecklistPhase> {
+    WHO_PHASES
+        .iter()
+        .map(|(phase, label, required)| {
+            let found = recorded.iter().find(|r| r.phase == *phase);
+            let stored: Vec<StoredItem> = found
+                .map(|r| serde_json::from_value(r.items.clone()).unwrap_or_default())
+                .unwrap_or_default();
+            let items = required
+                .iter()
+                .map(|(key, label)| {
+                    let state = stored.iter().find(|s| s.key == *key);
+                    SurgicalChecklistItem {
+                        key: (*key).to_owned(),
+                        label: state
+                            .and_then(|s| s.label.clone())
+                            .unwrap_or_else(|| (*label).to_owned()),
+                        checked: state.is_some_and(|s| s.checked),
+                    }
+                })
+                .collect();
+            SurgicalChecklistPhase {
+                phase: (*phase).to_owned(),
+                label: (*label).to_owned(),
+                recorded: found.is_some(),
+                completed: found.is_some_and(|r| r.completed),
+                completed_by: found.and_then(|r| r.completed_by.clone()),
+                completed_at: found
+                    .and_then(|r| r.completed_at)
+                    .map(|t| t.format("%d-%b-%Y %H:%M").to_string()),
+                verified_by: found.and_then(|r| r.verified_by.clone()),
+                items,
+            }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod who_checklist_tests {
+    use super::{build_phases, ChecklistPhaseRow};
+
+    fn row(phase: &str, items: serde_json::Value, completed: bool) -> ChecklistPhaseRow {
+        ChecklistPhaseRow {
+            phase: phase.to_owned(),
+            items,
+            completed,
+            completed_by: Some("Sr. Mary".to_owned()),
+            completed_at: None,
+            verified_by: None,
+        }
+    }
+
+    #[test]
+    fn a_theatre_that_recorded_nothing_prints_three_blank_phases() {
+        let phases = build_phases(&[]);
+        assert_eq!(phases.len(), 3);
+        assert!(phases.iter().all(|p| !p.recorded && !p.completed));
+        assert!(
+            phases.iter().all(|p| p.items.iter().all(|i| !i.checked)),
+            "nothing recorded must print as nothing ticked — the old handler answered true"
+        );
+        assert!(phases.iter().all(|p| p.completed_by.is_none()), "and nobody's name on it");
+    }
+
+    #[test]
+    fn an_item_missing_from_the_stored_row_prints_unticked_not_absent() {
+        // Only one of sign-in's seven items is present in the payload.
+        let phases = build_phases(&[row(
+            "sign_in",
+            serde_json::json!([{ "key": "site_marked", "label": "Surgical site marked", "checked": true }]),
+            false,
+        )]);
+        let sign_in = &phases[0];
+        assert_eq!(sign_in.items.len(), 7, "every required item is on the sheet");
+        assert!(sign_in.items.iter().find(|i| i.key == "site_marked").unwrap().checked);
+        assert!(
+            sign_in.items.iter().filter(|i| i.key != "site_marked").all(|i| !i.checked),
+            "the six nobody recorded print as empty boxes"
+        );
+    }
+
+    #[test]
+    fn the_counts_item_is_never_silently_ticked() {
+        // Sign-out recorded, counts explicitly false: a retained-swab check
+        // that failed must survive to paper exactly as it was recorded.
+        let phases = build_phases(&[row(
+            "sign_out",
+            serde_json::json!([{ "key": "counts_correct", "checked": false }]),
+            false,
+        )]);
+        let counts = phases[2].items.iter().find(|i| i.key == "counts_correct").unwrap();
+        assert!(!counts.checked);
+        assert_eq!(counts.label, "Instrument, sponge and needle counts correct");
+    }
+
+    #[test]
+    fn a_completed_phase_carries_who_completed_it() {
+        let phases = build_phases(&[row("time_out", serde_json::json!([]), true)]);
+        assert!(phases[1].recorded && phases[1].completed);
+        assert_eq!(phases[1].completed_by.as_deref(), Some("Sr. Mary"));
+        assert!(!phases[0].recorded, "and says nothing about the phases it is not");
+    }
+}
+
+/// The printed WHO Surgical Safety Checklist for one OT booking.
+///
+/// It used to answer with every box ticked — `patient_confirmed_identity:
+/// true`, `instrument_count_correct: true`, `sponge_count_correct: true` —
+/// hardcoded, for any surgery, with the scrub nurse named as the person who
+/// completed it. The checklist table was empty, so the document attested to a
+/// pause that had never happened, in a named clinician's name. For NABH and
+/// JCI that sheet is the evidence of IPSG-4 compliance; fabricating it is worse
+/// than not printing it.
+///
+/// It now reads `ot_surgical_safety_checklists` for the booking and prints what
+/// is there. A phase with no row prints its required items unticked and says
+/// `recorded: false` — a blank checklist, which is an honest thing for a
+/// document to be.
 pub async fn get_surgical_safety_checklist_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(surgery_id): Path<Uuid>,
+    Path(booking_id): Path<Uuid>,
 ) -> Result<Json<SurgicalSafetyChecklistPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    // Gated on the checklist's own permission, not `ipd.admissions.view`: this
+    // is the OT safety record, and the code for reading it already exists.
+    require_permission(&claims, permissions::ot::safety_checklist::LIST)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::SURGERY,
-        surgery_id,
+        medbrains_authz_gate::links::OT_BOOKING,
+        booking_id,
     )
     .await?;
 
@@ -359,77 +552,54 @@ pub async fn get_surgical_safety_checklist_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           s.id AS surgery_id, \
-           s.procedure_name, \
-           s.surgery_date, \
-           COALESCE(ot.name, 'OT-1') AS ot_number, \
+           b.id AS booking_id, \
+           b.procedure_name, \
+           b.scheduled_date AS surgery_date, \
+           COALESCE(room.name, 'OT') AS ot_number, \
            surgeon.full_name AS surgeon_name, \
-           COALESCE(anesth.full_name, 'N/A') AS anesthesiologist_name, \
-           COALESCE(scrub.full_name, 'N/A') AS scrub_nurse_name, \
-           circ.full_name AS circulating_nurse_name \
-         FROM surgeries s \
-         JOIN admissions a ON a.id = s.admission_id AND a.tenant_id = s.tenant_id \
-         JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-         LEFT JOIN locations ot ON ot.id = s.ot_id AND ot.tenant_id = s.tenant_id \
-         LEFT JOIN users surgeon ON surgeon.id = s.surgeon_id \
-         LEFT JOIN users anesth ON anesth.id = s.anesthesiologist_id \
-         LEFT JOIN users scrub ON scrub.id = s.scrub_nurse_id \
-         LEFT JOIN users circ ON circ.id = s.circulating_nurse_id \
-         WHERE s.id = $1 AND s.tenant_id = $2",
+           anesth.full_name AS anesthetist_name \
+         FROM ot_bookings b \
+         JOIN patients p ON p.id = b.patient_id AND p.tenant_id = b.tenant_id \
+         LEFT JOIN locations room ON room.id = b.ot_room_id AND room.tenant_id = b.tenant_id \
+         LEFT JOIN users surgeon ON surgeon.id = b.primary_surgeon_id \
+         LEFT JOIN users anesth ON anesth.id = b.anesthetist_id \
+         WHERE b.id = $1 AND b.tenant_id = $2 AND b.deleted_at IS NULL",
     )
-    .bind(surgery_id)
+    .bind(booking_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
+    // One query for all three phases; the phases are then matched in memory.
+    let recorded = sqlx::query_as!(
+        ChecklistPhaseRow,
+        "SELECT c.phase::text AS \"phase!\", c.items AS \"items!\", \
+                c.completed AS \"completed!\", done.full_name AS \"completed_by?\", \
+                c.completed_at AS \"completed_at?\", checker.full_name AS \"verified_by?\" \
+         FROM ot_surgical_safety_checklists c \
+         LEFT JOIN users done ON done.id = c.completed_by \
+         LEFT JOIN users checker ON checker.id = c.verified_by \
+         WHERE c.booking_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL",
+        booking_id,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
 
-    // Default checklist values (in practice, these would be fetched from DB)
+    let phases = build_phases(&recorded);
+
     Ok(Json(SurgicalSafetyChecklistPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        surgery_id: row.surgery_id.to_string(),
+        booking_id: row.booking_id.to_string(),
         procedure_name: row.procedure_name,
         surgery_date: row.surgery_date.format("%d-%b-%Y").to_string(),
         ot_number: row.ot_number,
-        sign_in: SurgicalSignIn {
-            patient_confirmed_identity: true,
-            site_marked: true,
-            consent_signed: true,
-            anesthesia_check_complete: true,
-            pulse_oximeter_working: true,
-            known_allergy: None,
-            difficult_airway_risk: false,
-            blood_loss_risk: false,
-            completed_by: row.anesthesiologist_name.clone(),
-            completed_at: String::new(),
-        },
-        time_out: SurgicalTimeOut {
-            team_members_introduced: true,
-            patient_name_confirmed: true,
-            procedure_confirmed: true,
-            site_confirmed: true,
-            antibiotics_given: true,
-            antibiotics_time: None,
-            essential_imaging_displayed: true,
-            anticipated_critical_events: None,
-            completed_by: row.surgeon_name.clone().unwrap_or_default(),
-            completed_at: String::new(),
-        },
-        sign_out: SurgicalSignOut {
-            procedure_recorded: true,
-            instrument_count_correct: true,
-            sponge_count_correct: true,
-            specimens_labeled: true,
-            equipment_issues: None,
-            recovery_concerns: None,
-            completed_by: row.scrub_nurse_name.clone(),
-            completed_at: String::new(),
-        },
-        surgeon_name: row.surgeon_name.unwrap_or_default(),
-        anesthesiologist_name: row.anesthesiologist_name,
-        scrub_nurse_name: row.scrub_nurse_name,
-        circulating_nurse_name: row.circulating_nurse_name,
+        surgeon_name: row.surgeon_name.unwrap_or_else(|| "—".to_owned()),
+        anesthetist_name: row.anesthetist_name.unwrap_or_else(|| "—".to_owned()),
+        phases,
     }))
 }
 
@@ -1131,7 +1301,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_preop_assessment_print_data),
         )
         .route(
-            "/api/print-data/surgical-safety-checklist/{surgery_id}",
+            "/api/print-data/surgical-safety-checklist/{booking_id}",
             get(get_surgical_safety_checklist_print_data),
         )
         .route(

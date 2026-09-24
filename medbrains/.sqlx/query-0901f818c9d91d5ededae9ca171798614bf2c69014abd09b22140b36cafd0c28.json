@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.patient_id AS \"patient_id!\" FROM pharmacy_order_items i JOIN pharmacy_orders o ON o.id = i.order_id AND o.tenant_id = i.tenant_id WHERE i.id = $1 AND i.tenant_id = $2 AND i.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patient_id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0901f818c9d91d5ededae9ca171798614bf2c69014abd09b22140b36cafd0c28"
+}

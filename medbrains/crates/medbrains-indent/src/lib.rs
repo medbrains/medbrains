@@ -467,8 +467,21 @@ pub async fn submit_requisition(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Requisition not found or not in draft status".into()))?;
+    .await?;
+    let Some(req) = req else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM indent_requisitions WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Requisition is not in draft status".into()));
+    };
 
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -562,10 +575,21 @@ pub async fn approve_requisition(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| {
-        AppError::BadRequest("Requisition not found or not in submitted status".into())
-    })?;
+    .await?;
+    let Some(requisition) = requisition else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM indent_requisitions WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Requisition is not in submitted status".into()));
+    };
 
     let mut any_approved = false;
     let mut all_approved_fully = true;
@@ -772,10 +796,21 @@ pub async fn reject_requisition(
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| {
-        AppError::BadRequest("Requisition not found or not in submitted status".into())
-    })?;
+    .await?;
+    let Some(req) = req else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM indent_requisitions WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("Requisition is not in submitted status".into()));
+    };
 
     tx.commit().await?;
     Ok(Json(req))
@@ -950,8 +985,23 @@ pub async fn cancel_requisition(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Requisition not found or cannot be cancelled".into()))?;
+    .await?;
+    let Some(req) = req else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM indent_requisitions WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest(
+            "Requisition cannot be cancelled in its current status".into(),
+        ));
+    };
 
     tx.commit().await?;
     Ok(Json(req))

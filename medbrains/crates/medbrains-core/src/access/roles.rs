@@ -97,6 +97,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::emergency::mlc::UPDATE,
             permissions::emergency::mlc::PRINT,
             permissions::emergency::mlc::REPRINT,
+            permissions::emergency::mlc_police_intimations::LIST,
+            permissions::emergency::mlc_police_intimations::CREATE,
             permissions::emergency::mlc_documents::SBAR_CREATE,
             permissions::emergency::mlc_documents::AGE_ESTIMATION_CREATE,
             permissions::emergency::mlc_documents::POCSO_CREATE,
@@ -332,6 +334,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::pmr::psychometric::LIST,
             permissions::specialty::pmr::psychometric::MANAGE,
             permissions::specialty::psychiatry::restraint::MANAGE,
+            // A doctor is paged by the code blue and answers it like a nurse does.
+            permissions::nurse::code_blue::RESPOND,
+            permissions::ai::assistant::USE,
         ],
     },
     BuiltInRole {
@@ -348,6 +353,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::diagnoses::LIST,
             // Emergency nursing work
             permissions::emergency::visits::LIST,
+            permissions::emergency::visits::CREATE,
             permissions::emergency::triage::LIST,
             permissions::emergency::triage::CREATE,
             permissions::emergency::resuscitation::LIST,
@@ -486,6 +492,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::dashboard::VIEW,
             permissions::nurse::profile::VIEW,
             permissions::nurse::shift::VIEW,
+            permissions::nurse::roster::VIEW,
+            permissions::ai::assistant::USE,
             permissions::nurse::mar::VIEW,
             permissions::nurse::mar::ADMINISTER,
             permissions::nurse::mar::HOLD,
@@ -510,6 +518,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::handoff::RECORD,
             permissions::nurse::code_blue::VIEW,
             permissions::nurse::code_blue::RECORD,
+            permissions::nurse::code_blue::RESPOND,
             permissions::nurse::equipment::VIEW,
             permissions::nurse::equipment::RECORD,
             permissions::mrd::forms::VIEW,
@@ -599,6 +608,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
+            // The desk's own lookup. `list` only reaches patients this
+            // receptionist has a relationship with, which is every patient
+            // they registered themselves and none of the ones the morning
+            // shift registered.
+            permissions::patients::FIND,
             permissions::patients::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,
@@ -668,6 +682,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::orders::CREATE,
             permissions::lab::results::CREATE,
             permissions::lab::results::UPDATE,
+            // The single lab role releases as well as enters; the four-eyes
+            // rule on critical values is what keeps the duties apart.
+            permissions::lab::results::VERIFY,
             permissions::lab::results::AMEND,
             permissions::lab::qc::LIST,
             permissions::lab::qc::CREATE,

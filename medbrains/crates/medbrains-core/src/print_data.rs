@@ -1038,10 +1038,24 @@ pub struct OrganDonationConsentPrintData {
     pub age: Option<String>,
     pub gender: String,
     pub address: Option<String>,
+    /// Empty on a blank form. A consent sheet with today's date on it reads as
+    /// consent given today.
     pub consent_date: String,
     pub consent_type: String, // pledge, family_consent, cadaver
+    /// False when no consent is on record and this is a blank form to be
+    /// filled in and signed. The endpoint used to print a completed pledge for
+    /// any patient — every organ and tissue listed as consented, dated today,
+    /// with their name and UHID on it — having asked nobody. Under the
+    /// Transplantation of Human Organs Act that sheet is the consent.
+    pub is_recorded_consent: bool,
+    /// What the donor actually agreed to. Nothing in this system records an
+    /// organ-by-organ selection yet, so on a recorded consent this stays empty
+    /// rather than assuming everything, and `organs_offered` is what the form
+    /// lists for someone to tick.
     pub organs_consented: Vec<String>,
     pub tissues_consented: Vec<String>,
+    pub organs_offered: Vec<String>,
+    pub tissues_offered: Vec<String>,
     pub next_of_kin_name: Option<String>,
     pub next_of_kin_relation: Option<String>,
     pub next_of_kin_phone: Option<String>,
@@ -1082,8 +1096,22 @@ pub struct AbdmConsentPrintData {
     pub abha_address: Option<String>,
     pub consent_date: String,
     pub consent_type: String, // registration, linking, data_sharing
+    /// False when nothing is on record and this is a blank ABDM consent form
+    /// to be filled in and signed. It used to print a completed one for any
+    /// patient — care management, disease research and public health, with
+    /// prescriptions, diagnostic reports, consultations and discharge
+    /// summaries all shared, dated today. ABDM consent is governed by the DPDP
+    /// Act; a sheet that says someone agreed to share their record is the
+    /// evidence they did.
+    pub is_recorded_consent: bool,
+    /// What was actually agreed to. Empty on a blank form, and empty on a
+    /// recorded consent too: `dpdp_consents` stores that consent was given,
+    /// not a purpose-by-purpose breakdown, so the purposes below are the ones
+    /// the form offers rather than ones anybody ticked.
     pub purposes_consented: Vec<String>,
     pub health_info_types: Vec<String>,
+    pub purposes_offered: Vec<String>,
+    pub health_info_types_offered: Vec<String>,
     pub hip_name: String,
     pub hiu_name: Option<String>,
     pub validity_period: Option<String>,
@@ -1327,64 +1355,51 @@ pub struct PreopLabResult {
     pub flag: Option<String>,
 }
 
+/// The WHO Surgical Safety Checklist as it was actually recorded.
+///
+/// This used to be three structs of fixed booleans that the handler filled in
+/// with `true` — every item, every surgery, including the instrument and sponge
+/// counts, with a named nurse as `completed_by`. A printed checklist is the
+/// evidence that the pause happened; one that asserts a pause nobody took is
+/// worse than no document at all.
+///
+/// So the shape now mirrors the record: the phases that exist, the items as
+/// they were ticked, and an explicit `recorded` flag for a phase that was
+/// never filled in — which prints as blanks, the way a paper checklist waiting
+/// to be used looks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurgicalSafetyChecklistPrintData {
     pub patient_name: String,
     pub uhid: String,
-    pub surgery_id: String,
+    pub booking_id: String,
     pub procedure_name: String,
     pub surgery_date: String,
     pub ot_number: String,
-    // Sign In (Before Anesthesia)
-    pub sign_in: SurgicalSignIn,
-    // Time Out (Before Skin Incision)
-    pub time_out: SurgicalTimeOut,
-    // Sign Out (Before Patient Leaves OT)
-    pub sign_out: SurgicalSignOut,
     pub surgeon_name: String,
-    pub anesthesiologist_name: String,
-    pub scrub_nurse_name: String,
-    pub circulating_nurse_name: Option<String>,
+    pub anesthetist_name: String,
+    pub phases: Vec<SurgicalChecklistPhase>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SurgicalSignIn {
-    pub patient_confirmed_identity: bool,
-    pub site_marked: bool,
-    pub consent_signed: bool,
-    pub anesthesia_check_complete: bool,
-    pub pulse_oximeter_working: bool,
-    pub known_allergy: Option<String>,
-    pub difficult_airway_risk: bool,
-    pub blood_loss_risk: bool,
-    pub completed_by: String,
-    pub completed_at: String,
+pub struct SurgicalChecklistPhase {
+    /// `sign_in` | `time_out` | `sign_out`.
+    pub phase: String,
+    pub label: String,
+    /// Whether a checklist row exists for this phase at all. False prints the
+    /// required items unticked rather than pretending they were done.
+    pub recorded: bool,
+    pub completed: bool,
+    pub completed_by: Option<String>,
+    pub completed_at: Option<String>,
+    pub verified_by: Option<String>,
+    pub items: Vec<SurgicalChecklistItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SurgicalTimeOut {
-    pub team_members_introduced: bool,
-    pub patient_name_confirmed: bool,
-    pub procedure_confirmed: bool,
-    pub site_confirmed: bool,
-    pub antibiotics_given: bool,
-    pub antibiotics_time: Option<String>,
-    pub essential_imaging_displayed: bool,
-    pub anticipated_critical_events: Option<String>,
-    pub completed_by: String,
-    pub completed_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SurgicalSignOut {
-    pub procedure_recorded: bool,
-    pub instrument_count_correct: bool,
-    pub sponge_count_correct: bool,
-    pub specimens_labeled: bool,
-    pub equipment_issues: Option<String>,
-    pub recovery_concerns: Option<String>,
-    pub completed_by: String,
-    pub completed_at: String,
+pub struct SurgicalChecklistItem {
+    pub key: String,
+    pub label: String,
+    pub checked: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -4718,16 +4733,22 @@ pub struct RestraintDocumentationPrintData {
     pub hospital_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+/// One recorded monitoring round on a restrained patient.
+///
+/// The fields follow `restraint_monitoring_logs`, which records what the
+/// nurse observed rather than which boxes they ticked. The previous shape had
+/// five booleans — hydration offered, toileting offered, position changed —
+/// that nothing in the system stores, so they could only ever be invented.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RestraintMonitoring {
     pub datetime: String,
     pub nurse_name: String,
     pub patient_condition: String,
+    /// True only because a circulation observation was written down.
     pub circulation_checked: bool,
-    pub hydration_offered: bool,
-    pub toileting_offered: bool,
-    pub position_changed: bool,
-    pub continued_need_assessed: bool,
+    pub skin_checked: bool,
+    pub circulation_finding: Option<String>,
+    pub skin_finding: Option<String>,
     pub remarks: Option<String>,
 }
 
@@ -5393,4 +5414,42 @@ pub struct HospitalRegistration {
     pub registration_type: String, // CEA, NABH, NABL, Drug License, etc.
     pub registration_number: String,
     pub valid_until: Option<String>,
+}
+
+/// The label that goes on the box a patient carries home.
+///
+/// Not a receipt: a receipt says what was paid for, a label says what to take
+/// and when. It is the only part of a dispense the patient still has at
+/// 2am, so it carries the directions, the batch and expiry that make a recall
+/// possible, and the schedule warning the Drugs and Cosmetics Act requires on
+/// a prescription-only medicine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DispensingLabelPrintData {
+    pub hospital_name: String,
+    pub patient_name: String,
+    pub uhid: String,
+    /// Age and sex, printed together the way a label prints them — a second
+    /// identifier beside the name, per IPSG-1.
+    pub patient_age_sex: Option<String>,
+    pub drug_name: String,
+    pub generic_name: Option<String>,
+    pub strength: Option<String>,
+    pub dosage_form: Option<String>,
+    pub quantity_dispensed: String,
+    /// "1 tablet twice daily after food" — assembled from the prescription,
+    /// blank when the dispense has no prescription behind it.
+    pub directions: Option<String>,
+    pub route: Option<String>,
+    pub duration: Option<String>,
+    pub batch_number: Option<String>,
+    pub expiry_date: Option<String>,
+    pub storage_conditions: Option<String>,
+    /// "Schedule H — to be sold by retail on the prescription of a registered
+    /// medical practitioner only", and the rest of the D&C Act wording.
+    pub schedule_warning: Option<String>,
+    pub black_box_warning: Option<String>,
+    pub is_controlled: bool,
+    pub dispensed_on: String,
+    pub dispensed_by: Option<String>,
+    pub prescriber_name: Option<String>,
 }

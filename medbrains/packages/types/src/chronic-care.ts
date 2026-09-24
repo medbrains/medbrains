@@ -886,6 +886,8 @@ export interface SharpReplacementRequest {
 export interface AdmitFromErRequest {
   bed_id: string;
   admitting_doctor_id: string;
+  /** Treating department; the Emergency department when omitted. */
+  department_id?: string;
   admission_notes?: string;
 }
 

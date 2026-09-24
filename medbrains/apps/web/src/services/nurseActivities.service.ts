@@ -2,6 +2,14 @@ import { api } from "@medbrains/api";
 import type { IpdMedicationAdministration, MarDueRow, UpdateMarRoundInput } from "@medbrains/types";
 
 export const nurseActivitiesService = {
+  listNurseRoster: (...args: Parameters<typeof api.listNurseRoster>) =>
+    api.listNurseRoster(...args),
+  createNurseRosterEntry: (...args: Parameters<typeof api.createNurseRosterEntry>) =>
+    api.createNurseRosterEntry(...args),
+  deleteNurseRosterEntry: (...args: Parameters<typeof api.deleteNurseRosterEntry>) =>
+    api.deleteNurseRosterEntry(...args),
+  listNurseRosterCandidates: (...args: Parameters<typeof api.listNurseRosterCandidates>) =>
+    api.listNurseRosterCandidates(...args),
   listMarDueNow: (params?: { window_min?: number; ward_id?: string; patient_id?: string }) =>
     api.listMarDueNow(params) as Promise<MarDueRow[]>,
   updateMarRound: (id: string, data: UpdateMarRoundInput) =>
@@ -50,6 +58,10 @@ export const nurseActivitiesService = {
   listCodeBlue: (...args: Parameters<typeof api.listCodeBlue>) => api.listCodeBlue(...args),
   startCodeBlue: (...args: Parameters<typeof api.startCodeBlue>) => api.startCodeBlue(...args),
   endCodeBlue: (...args: Parameters<typeof api.endCodeBlue>) => api.endCodeBlue(...args),
+  listCodeBlueResponders: (...args: Parameters<typeof api.listCodeBlueResponders>) =>
+    api.listCodeBlueResponders(...args),
+  respondToCodeBlue: (...args: Parameters<typeof api.respondToCodeBlue>) =>
+    api.respondToCodeBlue(...args),
   listEquipmentChecks: (...args: Parameters<typeof api.listEquipmentChecks>) =>
     api.listEquipmentChecks(...args),
   createEquipmentCheck: (...args: Parameters<typeof api.createEquipmentCheck>) =>

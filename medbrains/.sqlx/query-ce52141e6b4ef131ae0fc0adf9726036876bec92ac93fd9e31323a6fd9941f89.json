@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, full_name FROM users WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL AND role::text = 'nurse' ORDER BY full_name LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "full_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ce52141e6b4ef131ae0fc0adf9726036876bec92ac93fd9e31323a6fd9941f89"
+}

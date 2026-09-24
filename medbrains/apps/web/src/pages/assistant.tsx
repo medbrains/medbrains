@@ -1,5 +1,6 @@
 import { Box, Flex, Group, ScrollArea, Stack, Text, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { P } from "@medbrains/types";
 import {
   IconDownload,
   IconLayoutSidebarLeftCollapse,
@@ -22,6 +23,7 @@ import {
   useAiChat,
 } from "@/components/ai";
 import { Button, IconButton } from "@/components/ui";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import classes from "./assistant.module.scss";
 
 /** Download the current thread as a markdown transcript (programmatic, no UI markup). */
@@ -36,6 +38,9 @@ function downloadTranscript(lines: string): void {
 }
 
 export function AssistantPage() {
+  // The page had no gate and neither did its endpoints. Both check the same
+  // permission now, so the screen never offers what the server will refuse.
+  useRequirePermission(P.AI.ASSISTANT_USE);
   const navigate = useNavigate();
   const transport = useMemo(() => new SseTransport(), []);
   const controller = useAiChat({ transport });

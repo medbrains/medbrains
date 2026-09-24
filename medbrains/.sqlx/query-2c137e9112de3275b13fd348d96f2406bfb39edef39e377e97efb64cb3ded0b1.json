@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT nsa.id, nsa.nurse_user_id, u.full_name AS nurse_name, nsa.ward_id, w.name AS \"ward_name?\", nsa.shift_date, nsa.shift_type, nsa.primary_assigned, (nsa.charge_nurse_user_id = nsa.nurse_user_id) AS is_charge, COALESCE(array_length(nsa.patient_ids, 1), 0) AS \"patient_count!\" FROM nurse_shift_assignments nsa JOIN users u ON u.id = nsa.nurse_user_id LEFT JOIN wards w ON w.id = nsa.ward_id WHERE nsa.tenant_id = $1 AND nsa.deleted_at IS NULL AND ($2::uuid IS NULL OR nsa.ward_id = $2) AND nsa.shift_date = COALESCE($3::date, CURRENT_DATE) ORDER BY nsa.shift_type, nsa.primary_assigned DESC, u.full_name LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "nurse_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "nurse_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "ward_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "ward_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "shift_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "shift_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "primary_assigned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_charge",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "patient_count!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "2c137e9112de3275b13fd348d96f2406bfb39edef39e377e97efb64cb3ded0b1"
+}

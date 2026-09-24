@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO notifications (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) SELECT DISTINCT $1::uuid, n.user_id, 'info', $3::text, $4::text, 'emergency', 'code_blue', $2::uuid, n.action_url FROM notifications n WHERE n.tenant_id = $1::uuid AND n.entity_type = 'code_blue' AND n.entity_id = $2::uuid AND n.title = 'CODE BLUE' AND NOT EXISTS ( SELECT 1 FROM notifications c WHERE c.tenant_id = $1::uuid AND c.entity_type = 'code_blue' AND c.entity_id = $2::uuid AND c.title = $3::text AND c.user_id = n.user_id) LIMIT 500",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7058741dd65b802e5b2e08a30712689a3a3ac471d18649ad44344a29d2ff7f22"
+}

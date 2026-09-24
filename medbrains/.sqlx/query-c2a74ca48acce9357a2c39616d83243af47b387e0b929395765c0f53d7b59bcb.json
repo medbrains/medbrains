@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id AS \"id!\", c.blood_group::text AS \"blood_group!\", c.expiry_at AS \"expiry_at!\", c.status::text AS \"status!\", c.issued_to_patient AS \"issued_to_patient?\" FROM blood_components c WHERE c.tenant_id = $1 AND upper(c.bag_number) = upper($2) AND c.deleted_at IS NULL LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "blood_group!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "expiry_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "issued_to_patient?",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "c2a74ca48acce9357a2c39616d83243af47b387e0b929395765c0f53d7b59bcb"
+}

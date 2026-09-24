@@ -402,7 +402,7 @@ pub async fn sign_basket(
     tx.commit().await?;
 
     for created_order in created.iter().filter(|item| item.order_type == "lab") {
-        medbrains_lab::grant_lab_order_creator_viewer(
+        medbrains_lab::grant_lab_order_access(
             &state,
             &claims,
             created_order.order_id,

@@ -1107,13 +1107,16 @@ pub async fn delete_output_signature(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "DELETE FROM document_output_signatures WHERE id = $1 AND document_output_id = $2",
     )
-        .bind(sig_id)
-        .bind(output_id)
-        .execute(&mut *tx)
-        .await?;
+    .bind(sig_id)
+    .bind(output_id)
+    .execute(&mut *tx)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": true })))

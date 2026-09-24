@@ -13,6 +13,7 @@ import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconClipboardList,
+  IconPrinter,
   IconReplace,
   IconShieldCheck,
   IconTrash,
@@ -32,6 +33,7 @@ import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { usePatientName } from "@/hooks/usePatientName";
 import { confirmDestructive } from "@/lib/confirm-destructive";
+import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
 import { EditablePharmacyQuantity } from "./editable-quantity";
@@ -180,7 +182,14 @@ export function PharmacyOrderDetail({
   const canSubstitute =
     canSubstituteDrug &&
     (detail.order.status === "ordered" || detail.order.status === "partially_dispensed");
-  const showItemActions = canEditOrderItems || canSubstitute;
+  // A label belongs to a line that has actually been handed over, so it
+  // appears once the order is dispensed rather than while it is being picked.
+  // One label per line: a bag of three medicines needs three, each with its
+  // own directions.
+  const canPrintLabel =
+    canDispense &&
+    (detail.order.status === "dispensed" || detail.order.status === "partially_dispensed");
+  const showItemActions = canEditOrderItems || canSubstitute || canPrintLabel;
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const isAwaitingDispense = detail.order.status === "ordered";
   const dispenseHandoffMessage = !isAwaitingDispense
@@ -374,6 +383,20 @@ export function PharmacyOrderDetail({
                 {showItemActions && (
                   <Table.Td>
                     <Group gap={4} wrap="nowrap">
+                      {canPrintLabel && (
+                        <Tooltip label="Print the label for this medicine">
+                          <IconButton
+                            size="sm"
+                            tone="default"
+                            onClick={() => {
+                              void printDocument("dispensing-label", item.id);
+                            }}
+                            aria-label={`Print label for ${item.drug_name}`}
+                          >
+                            <IconPrinter size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {canSubstitute && (
                         <Tooltip label="Substitute medication">
                           <IconButton

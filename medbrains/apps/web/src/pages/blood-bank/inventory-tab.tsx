@@ -401,6 +401,7 @@ export function InventoryTab() {
                 "reserved",
                 "crossmatched",
                 "issued",
+                "quarantined",
                 "expired",
               ]}
               clearable

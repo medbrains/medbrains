@@ -1482,6 +1482,19 @@ pub async fn check_polypharmacy(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Bypass roles pass the gate above unconditionally; an unknown patient
+    // must not answer with an empty (clean-looking) interaction list.
+    let patient_exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM patients WHERE id = $1 AND tenant_id = $2) AS \"exists!\"",
+        patient_id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !patient_exists {
+        return Err(AppError::NotFound);
+    }
+
     // Get active drugs from timeline
     let active_drugs = sqlx::query_as::<_, ActiveDrugRow>(
         "SELECT DISTINCT ON (drug_name) \

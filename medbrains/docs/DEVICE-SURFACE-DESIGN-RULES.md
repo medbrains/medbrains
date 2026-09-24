@@ -30,20 +30,25 @@ Carbon **2x grid** (8px mini-unit, fluid columns, 16px padding, breakpoint margi
 sharp 2px corners, IBM Plex, WCAG 2.2 AA. See `DESIGN-RULES.md` + the `CARBON-*-RULES.md` docs.
 Sources: carbondesignsystem.com/elements/2x-grid, /elements/spacing, ibm.com/design/language/2x-grid.
 
-### Mobile (`ui-mobile`, all `Mobile-*`) — Carbon Native Mobile + platform HIG
-- **Authoritative kit:** IBM **Carbon for React Native** (`carbon-design-system/carbon-react-native`, "Carbon
-  Native Mobile", Carbon v11 tokens) — mobile-specific components, NOT the web library. Today MedBrains uses
-  **React Native Paper (Material 3)** themed from `@medbrains/design-system` via `buildDeviceTheme` +
-  `@medbrains/ui-mobile`; that is a valid Carbon-tokens-on-Material approach. Evaluate adopting
-  `carbon-react-native` where its Native-Mobile patterns beat hand-rolled Paper.
-- **Touch targets ≥ 44px** (Carbon/HIG); pad a 22px icon into a 48px hit area. (WCAG 2.2 SC 2.5.8 ≥24px is the
-  floor; use 44px.)
-- Platform conventions: Material 3 (Android) / Apple HIG (iOS) navigation, safe-area insets, gestures.
-- Carbon brand: colour/type/spacing from `@medbrains/ui-mobile` tokens (never raw hex).
-Sources: github.com/carbon-design-system/carbon-react-native, medium.com/carbondesign Carbon-for-RN,
-carbondesignsystem.com/elements/icons/usage (44px targets).
+### Mobile (`ui-mobile`, all `Mobile-*`) — native SwiftUI + Compose, Carbon tokens (RFC-NATIVE-MOBILE)
+- **iOS: Swift + SwiftUI, Apple Human Interface Guidelines** including *Designing for iPhone Duo*: system
+  containers only (`TabView`, `NavigationStack`/`NavigationSplitView`, `ToolbarItemGroup` with a
+  `Label(title, systemImage:)` on every item), size-class-driven layout, no fixed widths, safe areas
+  everywhere; Liquid Glass comes from the system components. Dynamic Type; reduced motion honoured.
+- **Android: Kotlin + Jetpack Compose, Material 3 Expressive** (`MaterialExpressiveTheme`,
+  `MotionScheme.expressive()`): `NavigationSuiteScaffold` + `WindowSizeClass` for foldables, edge-to-edge
+  with IME insets on forms, expressive components (button groups, FAB menu, loading indicator).
+- **Touch targets ≥ 44pt (iOS) / 48dp (Android)**; pad a 22px icon into the hit area. (WCAG 2.2 SC 2.5.8
+  ≥24px is the floor.)
+- Carbon brand: colour/type/spacing from `@medbrains/design-system` tokens generated into Swift `Carbon`
+  and Kotlin `Carbon` (never raw hex, never a per-surface palette fork). Layout is the platform's, never
+  the web 2x grid.
+- React Native + Paper is the **outgoing** stack: no new RN screens; each RN app is deleted when its
+  native pair reaches parity on `packages/e2e-mobile/src/journeys.ts`.
+Sources: developer.apple.com/design/human-interface-guidelines (Designing for iOS, Designing for iPhone Duo),
+m3.material.io (Material 3 Expressive), developer.android.com/develop/ui/compose.
 
-### TV (`ui-display`, all `TV-*`) — 10-foot UI (Android TV / Google TV), NOT web Carbon layout
+### TV (`ui-display`, all `TV-*`) — 10-foot UI (Android TV / Google TV) on Compose for TV, NOT web Carbon layout
 - **D-pad focus is the core interaction:** every screen has a **default-focused element**; explicit directional
   logic (up/down/left/right/select); the focused element has an **obvious visual state** (bold border / colour
   / scale). No hover, scroll, or pinch. → wire `hasTVPreferredFocus` / `TVFocusGuideView` in `apps/tv`.

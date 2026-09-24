@@ -80,6 +80,15 @@ pub struct AppointmentWithPatient {
     pub appointment: Appointment,
     pub patient_name: Option<String>,
     pub doctor_name: String,
+    /// Whether this caller may check the booking in or mark it missed.
+    ///
+    /// The list is not narrowed per record but the mutations are:
+    /// `check_in_appointment` and `mark_appointment_no_show` hop to the
+    /// patient (`links::APPOINTMENT`) and answer 404 without access. A desk
+    /// that was shown *Check in* and got "not found" learned nothing except
+    /// that the screen lies, so the row carries the answer the mutation will
+    /// give and the screen offers only what the server will accept.
+    pub can_manage: bool,
 }
 
 #[derive(Debug, Deserialize)]

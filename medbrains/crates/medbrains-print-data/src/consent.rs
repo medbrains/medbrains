@@ -852,10 +852,38 @@ pub async fn get_organ_donation_consent_print_data(
         .await?
         .flatten();
 
+    // The consent itself, if this patient ever gave one. Absent is the common
+    // case and prints a blank form — a legitimate thing to hand somebody,
+    // unlike a completed one they never signed.
+    let recorded = sqlx::query_as!(
+        RecordedOrganConsent,
+        "SELECT consent_date AS \"consent_date!\", consented_by AS \"consented_by?\", \
+                consented_by_relation AS \"consented_by_relation?\" \
+           FROM patient_consents \
+          WHERE patient_id = $1 AND tenant_id = $2 \
+            AND consent_type::text ILIKE '%organ%' \
+            AND revoked_at IS NULL AND deleted_at IS NULL \
+          ORDER BY consent_date DESC \
+          LIMIT 1",
+        patient_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
     tx.commit().await?;
 
-    let now = chrono::Utc::now();
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
+
+    // What the form lists for a donor to tick. Options, not assertions.
+    let organs_offered = ["Heart", "Lungs", "Liver", "Kidneys", "Pancreas", "Intestines"]
+        .iter()
+        .map(|o| (*o).to_owned())
+        .collect::<Vec<_>>();
+    let tissues_offered = ["Corneas", "Skin", "Heart Valves", "Bone", "Tendons"]
+        .iter()
+        .map(|t| (*t).to_owned())
+        .collect::<Vec<_>>();
 
     Ok(Json(OrganDonationConsentPrintData {
         patient_name: row.patient_name,
@@ -863,31 +891,38 @@ pub async fn get_organ_donation_consent_print_data(
         age: age_str,
         gender: row.gender,
         address: row.address,
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_type: "pledge".to_string(),
-        organs_consented: vec![
-            "Heart".to_string(),
-            "Lungs".to_string(),
-            "Liver".to_string(),
-            "Kidneys".to_string(),
-            "Pancreas".to_string(),
-            "Intestines".to_string(),
-        ],
-        tissues_consented: vec![
-            "Corneas".to_string(),
-            "Skin".to_string(),
-            "Heart Valves".to_string(),
-            "Bone".to_string(),
-            "Tendons".to_string(),
-        ],
-        next_of_kin_name: None,
-        next_of_kin_relation: None,
+        // A recorded consent prints its own date; a blank form has none,
+        // because the date on a consent is when the person agreed.
+        consent_date: recorded
+            .as_ref()
+            .map(|c| c.consent_date.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
+        consent_type: if recorded.is_some() {
+            "pledge".to_owned()
+        } else {
+            "blank_form".to_owned()
+        },
+        is_recorded_consent: recorded.is_some(),
+        // Nothing stores an organ-by-organ selection, so nothing is claimed.
+        organs_consented: Vec::new(),
+        tissues_consented: Vec::new(),
+        organs_offered,
+        tissues_offered,
+        next_of_kin_name: recorded.as_ref().and_then(|c| c.consented_by.clone()),
+        next_of_kin_relation: recorded.as_ref().and_then(|c| c.consented_by_relation.clone()),
         next_of_kin_phone: None,
         thoa_registration_number: None,
         transplant_coordinator: None,
         hospital_name: h_name,
         language: "en".to_string(),
     }))
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RecordedOrganConsent {
+    consent_date: chrono::DateTime<chrono::Utc>,
+    consented_by: Option<String>,
+    consented_by_relation: Option<String>,
 }
 
 // ── Research Participation Consent ──────────────────────
@@ -1024,29 +1059,49 @@ pub async fn get_abdm_consent_print_data(
         .await?
         .flatten();
 
-    tx.commit().await?;
+    // Whether this patient ever gave one. Absent prints a blank form.
+    let recorded_date: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar!(
+        "SELECT created_at AS \"created_at?\" FROM dpdp_consents \
+          WHERE patient_id = $1 AND tenant_id = $2 AND consent_given = true \
+            AND deleted_at IS NULL \
+          ORDER BY created_at DESC LIMIT 1",
+        patient_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
 
-    let now = chrono::Utc::now();
+    tx.commit().await?;
 
     Ok(Json(AbdmConsentPrintData {
         patient_name: row.0,
         uhid: row.1,
         abha_number: row.2,
         abha_address: row.3,
-        consent_date: now.format("%d-%b-%Y").to_string(),
+        consent_date: recorded_date
+            .map(|d| d.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
         consent_type: "data_sharing".to_string(),
-        purposes_consented: vec![
-            "Care Management".to_string(),
-            "Disease Research".to_string(),
-            "Public Health".to_string(),
-        ],
-        health_info_types: vec![
-            "Prescription".to_string(),
-            "Diagnostic Report".to_string(),
-            "OP Consultation".to_string(),
-            "Discharge Summary".to_string(),
-            "Immunization Record".to_string(),
-        ],
+        is_recorded_consent: recorded_date.is_some(),
+        // Nothing stores a purpose-by-purpose breakdown, so nothing is
+        // claimed; the lists below are what the form offers.
+        purposes_consented: Vec::new(),
+        health_info_types: Vec::new(),
+        purposes_offered: ["Care Management", "Disease Research", "Public Health"]
+            .iter()
+            .map(|p| (*p).to_owned())
+            .collect(),
+        health_info_types_offered: [
+            "Prescription",
+            "Diagnostic Report",
+            "OP Consultation",
+            "Discharge Summary",
+            "Immunization Record",
+        ]
+        .iter()
+        .map(|t| (*t).to_owned())
+        .collect(),
         hip_name: h_name.unwrap_or_else(|| "Hospital".to_string()),
         hiu_name: None,
         validity_period: Some("1 year".to_string()),

@@ -3,6 +3,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::patient::BloodGroup;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "donation_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +41,11 @@ pub enum BloodBagStatus {
     Returned,
     Expired,
     Discarded,
+    /// Held pending a transfusion-reaction investigation. Migration 1012
+    /// added the label to Postgres and the reaction pipeline writes it; the
+    /// Rust enum was never told, so the first held unit broke every
+    /// components list with a 500.
+    Quarantined,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -72,7 +79,11 @@ pub struct BloodDonor {
     pub last_name: String,
     pub date_of_birth: Option<NaiveDate>,
     pub gender: Option<String>,
-    pub blood_group: String,
+    /// The column is the `blood_group` enum. Decoding it into a `String`
+    /// failed on every read, so creating a donor returned 500 — the donor
+    /// register was unusable through the API. The typed enum serialises to
+    /// the same snake_case label the string held.
+    pub blood_group: BloodGroup,
     pub phone: Option<String>,
     pub email: Option<String>,
     pub address: Option<String>,
@@ -112,7 +123,8 @@ pub struct BloodComponent {
     pub donation_id: Uuid,
     pub component_type: BloodComponentType,
     pub bag_number: String,
-    pub blood_group: String,
+    /// Same enum column as the donor's, same 500 on every `RETURNING *`.
+    pub blood_group: BloodGroup,
     pub volume_ml: i32,
     pub status: BloodBagStatus,
     pub collected_at: DateTime<Utc>,

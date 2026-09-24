@@ -28,6 +28,7 @@ import { InventoryView } from "@/components/Materials/InventoryView";
 import { RequisitionsInbox } from "@/components/Materials/RequisitionsInbox";
 import { PageHeader } from "@/components/PageHeader";
 import { type RailItem, WorkspaceRail } from "@/components/WorkspaceRail";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { AssetsPage } from "./assets";
 import { IndentPage } from "./indent";
 import { ProcurementPage } from "./procurement";
@@ -37,6 +38,16 @@ interface Section extends RailItem {
 }
 
 export function MaterialsPage() {
+  // The page had no gate of its own — every section checked its own read,
+  // so a user with none of them landed on an empty shell. Any one of the
+  // reads the sections need is enough to be here; none of them is not.
+  useRequirePermission([
+    P.INDENT.LIST,
+    P.ASSETS.LIST,
+    P.PROCUREMENT.PO_LIST,
+    P.PROCUREMENT.VENDORS_LIST,
+    P.PROCUREMENT.GRN_LIST,
+  ]);
   const canRequisitions = useHasPermission(P.INDENT.LIST);
   const canAssets = useHasPermission(P.ASSETS.LIST);
   const canProcurement = useHasAnyPermission([

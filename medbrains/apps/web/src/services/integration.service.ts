@@ -5,6 +5,8 @@ export const integrationService = {
     api.listDefaultPipelines(...args),
   setDefaultPipelineEnabled: (...args: Parameters<typeof api.setDefaultPipelineEnabled>) =>
     api.setDefaultPipelineEnabled(...args),
+  listUncoveredEvents: (...args: Parameters<typeof api.listUncoveredEvents>) =>
+    api.listUncoveredEvents(...args),
   getJobStats: (...args: Parameters<typeof api.getJobStats>) => api.getJobStats(...args),
   listJobs: (...args: Parameters<typeof api.listJobs>) => api.listJobs(...args),
   listNodeTemplates: (...args: Parameters<typeof api.listNodeTemplates>) =>

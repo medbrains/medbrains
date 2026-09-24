@@ -317,8 +317,13 @@ async fn generate_number(
         let pad = usize::try_from(s.pad_width).unwrap_or(6);
         Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
     } else {
+        // Two incidents in the same second collided on the unique
+        // (tenant, incident_number) and the second was refused with a 409 —
+        // found by a test that filed three in a row. A short random tail
+        // keeps the fallback unique without a sequence row.
         let ts = chrono::Utc::now().format("%Y%m%d%H%M%S");
-        Ok(format!("{fallback_prefix}-{ts}"))
+        let tail = Uuid::new_v4().simple().to_string();
+        Ok(format!("{fallback_prefix}-{ts}-{}", &tail[..4]))
     }
 }
 

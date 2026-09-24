@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 980 permissions, one per constant in the Rust source. */
+/** 986 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -56,6 +56,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.list",
     label: "List Patients",
     description: "View patient directory",
+    module: "patients",
+  },
+  {
+    code: "patients.find",
+    label: "Find any patient at the desk",
+    description: "A desk lookup, not a browse. It searches every patient in the tenant by UHID, phone or name and returns identity only — name, UHID, phone, date of birth, sex — never a chart, never a diagnosis. `patients.list` is relationship-scoped, so a receptionist could not find a patient a colleague had registered and the returning patient was registered a second time, which is how a hospital ends up with two records and half a history in each. Widening `list` would have handed a tenant-wide browse to everyone already holding it; this is the narrower grant, and the lookup is audited like every other read under `/api/patients`.",
     module: "patients",
   },
   {
@@ -364,6 +370,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.results.amend",
     label: "Amend Results",
     description: "Amend finalized lab results with audit trail",
+    module: "lab",
+  },
+  {
+    code: "lab.results.verify",
+    label: "Release lab results to the treating team",
+    description: "Verification is the clinical signature on a result, not another edit of it, and it was gated on `lab.results.update` — the same code that types the value in. One account could therefore enter a result and release it, which NABL and ISO 15189 both write rules against. Splitting the code does not by itself split the duty: this system has a single lab role, and a night shift with one technologist still has to be able to report, so `lab_technician` holds this too and the hard four-eyes rule stays where the harm is — a critical value may not be released by the person who entered it. What the separate code buys is the ability to grant release to a supervisor role without also granting result entry, which could not be expressed at all before.",
     module: "lab",
   },
   {
@@ -5618,6 +5630,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "View order_basket_signatures audit trail",
     module: "order_basket",
   },
+  // ai
+  {
+    code: "ai.assistant.use",
+    label: "Use the AI assistant",
+    description: "Chat, and the caller's own conversation history. The three handlers behind it checked nothing at all: any signed-in account could send a prompt about a patient to the model. Held by the clinical roles the assistant is built for.",
+    module: "ai",
+  },
   // nurse
   {
     code: "nurse.profile.view",
@@ -5641,6 +5660,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "nurse.shift.manage",
     label: "Manage Nurse Shifts",
     description: "Edit shift assignments",
+    module: "nurse",
+  },
+  {
+    code: "nurse.roster.view",
+    label: "See who is rostered on a ward",
+    description: "The ward's on-duty list, per shift and date. Distinct from `nurse.shift.*`, which covers a nurse's own duty session.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.roster.manage",
+    label: "Roster nurses onto ward shifts",
+    description: "Deciding who staffs a ward. Held by no built-in role: with no charge-nurse role to give it to, granting it to every nurse would let any of them restaff the ward. Admins hold it by bypass, and it can be granted to a custom role.",
     module: "nurse",
   },
   {
@@ -5803,6 +5834,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "nurse.code_blue.record",
     label: "Record Code Blue",
     description: "Start, append to, and end code blue events",
+    module: "nurse",
+  },
+  {
+    code: "nurse.code_blue.respond",
+    label: "Say you are responding to a code blue",
+    description: "The page is one-way until somebody answers it. Held by everyone the activation reaches, so the team lead can see who is coming. The first response is also the arrival time NABH measures.",
     module: "nurse",
   },
   {
@@ -6217,6 +6254,12 @@ export const P = {
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",
+  },
+  AI: {
+    ASSISTANT: {
+      USE: "ai.assistant.use",
+    },
+    ASSISTANT_USE: "ai.assistant.use",
   },
   AMBULANCE: {
     DRIVERS: {
@@ -7474,10 +7517,12 @@ export const P = {
       AMEND: "lab.results.amend",
       CREATE: "lab.results.create",
       UPDATE: "lab.results.update",
+      VERIFY: "lab.results.verify",
     },
     RESULTS_AMEND: "lab.results.amend",
     RESULTS_CREATE: "lab.results.create",
     RESULTS_UPDATE: "lab.results.update",
+    RESULTS_VERIFY: "lab.results.verify",
     SAMPLES: {
       LIST: "lab.samples.list",
       MANAGE: "lab.samples.manage",
@@ -7665,9 +7710,11 @@ export const P = {
   NURSE: {
     CODE_BLUE: {
       RECORD: "nurse.code_blue.record",
+      RESPOND: "nurse.code_blue.respond",
       VIEW: "nurse.code_blue.view",
     },
     CODE_BLUE_RECORD: "nurse.code_blue.record",
+    CODE_BLUE_RESPOND: "nurse.code_blue.respond",
     CODE_BLUE_VIEW: "nurse.code_blue.view",
     DASHBOARD: {
       VIEW: "nurse.dashboard.view",
@@ -7735,6 +7782,12 @@ export const P = {
     },
     RESTRAINT_RECORD: "nurse.restraint.record",
     RESTRAINT_VIEW: "nurse.restraint.view",
+    ROSTER: {
+      MANAGE: "nurse.roster.manage",
+      VIEW: "nurse.roster.view",
+    },
+    ROSTER_MANAGE: "nurse.roster.manage",
+    ROSTER_VIEW: "nurse.roster.view",
     SHIFT: {
       MANAGE: "nurse.shift.manage",
       VIEW: "nurse.shift.view",
@@ -7993,6 +8046,7 @@ export const P = {
   PATIENTS: {
     CREATE: "patients.create",
     DELETE: "patients.delete",
+    FIND: "patients.find",
     LIST: "patients.list",
     NOTES: {
       EDIT: "patients.notes.edit",
@@ -8917,6 +8971,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.VIEW,
       P.ADMIN.SETTINGS.READ,
+      P.AI.ASSISTANT.USE,
       P.AUDIT.BREAK_GLASS_START,
       P.BEDSIDE.FEEDBACK.LIST,
       P.BEDSIDE.SESSIONS.LIST,
@@ -8967,6 +9022,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC_DOCUMENTS.COURT_SUMMONS_CREATE,
       P.EMERGENCY.MLC_DOCUMENTS.POCSO_CREATE,
       P.EMERGENCY.MLC_DOCUMENTS.SBAR_CREATE,
+      P.EMERGENCY.MLC_POLICE_INTIMATIONS.CREATE,
+      P.EMERGENCY.MLC_POLICE_INTIMATIONS.LIST,
       P.EMERGENCY.RESUSCITATION.CREATE,
       P.EMERGENCY.RESUSCITATION.LIST,
       P.EMERGENCY.TRIAGE.CREATE,
@@ -9037,6 +9094,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.NURSE.CODE_BLUE.RESPOND,
       P.OPD.CERTIFICATES.CREATE,
       P.OPD.CERTIFICATES.LIST,
       P.OPD.CERTIFICATES.PRINT,
@@ -9191,6 +9249,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Nurse",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.AI.ASSISTANT.USE,
       P.AUDIT.BREAK_GLASS_START,
       P.BEDSIDE.CALLS.BOARD,
       P.BEDSIDE.FEEDBACK.CREATE,
@@ -9228,6 +9287,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.RESUSCITATION.LIST,
       P.EMERGENCY.TRIAGE.CREATE,
       P.EMERGENCY.TRIAGE.LIST,
+      P.EMERGENCY.VISITS.CREATE,
       P.EMERGENCY.VISITS.LIST,
       P.ICU.DEVICES.LIST,
       P.ICU.DEVICES.MANAGE,
@@ -9289,6 +9349,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.FORMS.MANAGE,
       P.MRD.FORMS.VIEW,
       P.NURSE.CODE_BLUE.RECORD,
+      P.NURSE.CODE_BLUE.RESPOND,
       P.NURSE.CODE_BLUE.VIEW,
       P.NURSE.DASHBOARD.VIEW,
       P.NURSE.EQUIPMENT.RECORD,
@@ -9311,6 +9372,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.PROFILE.VIEW,
       P.NURSE.RESTRAINT.RECORD,
       P.NURSE.RESTRAINT.VIEW,
+      P.NURSE.ROSTER.VIEW,
       P.NURSE.SHIFT.VIEW,
       P.NURSE.SHIFT_NOTES.EDIT,
       P.NURSE.SHIFT_NOTES.VIEW,
@@ -9454,6 +9516,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.CREATE,
+      P.PATIENTS.FIND,
       P.PATIENTS.LIST,
       P.PATIENTS.UPDATE,
       P.PATIENTS.VIEW,
@@ -9486,6 +9549,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.RESULTS.AMEND,
       P.LAB.RESULTS.CREATE,
       P.LAB.RESULTS.UPDATE,
+      P.LAB.RESULTS.VERIFY,
       P.LAB.SAMPLES.LIST,
       P.LAB.SAMPLES.MANAGE,
       P.LAB.SPECIALIZED.LIST,

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH ent AS ( SELECT r.id, r.action, r.quantity, r.patient_id, c.name AS item_name FROM pharmacy_ndps_register r LEFT JOIN pharmacy_catalog c ON c.id = r.catalog_item_id AND c.tenant_id = r.tenant_id WHERE r.id = $2 AND r.tenant_id = $1 AND COALESCE(r.requires_dual_sign, false) = true AND r.witnessed_by IS NULL ), seq AS ( UPDATE sequences SET current_val = current_val + 1 WHERE tenant_id = $1 AND seq_type = 'INC' AND EXISTS (SELECT 1 FROM ent) RETURNING prefix, current_val, pad_width ) INSERT INTO quality_incidents (tenant_id, incident_number, title, description, incident_type, severity, patient_id, is_reportable, regulatory_body, incident_date) SELECT $1, COALESCE((SELECT prefix || lpad(current_val::text, pad_width, '0') FROM seq), 'INC-' || to_char(now(), 'YYYYMMDDHH24MISS') || '-' || substr(md5(random()::text), 1, 4)), $3::text, 'NDPS register entry ' || ent.id || ' (' || ent.action || ' ' || ent.quantity || ' of ' || COALESCE(ent.item_name, 'unknown item') || ') requires a witness and has none.', 'ndps_dual_signature_missing', 'major'::incident_severity, ent.patient_id, true, 'NDPS', now() FROM ent WHERE NOT EXISTS ( SELECT 1 FROM quality_incidents q WHERE q.tenant_id = $1 AND q.title = $3::text AND q.deleted_at IS NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a351ffb2359d5f58a557b448f61840deb0cff133d4edbc64e60d6b57d9fa0a2d"
+}

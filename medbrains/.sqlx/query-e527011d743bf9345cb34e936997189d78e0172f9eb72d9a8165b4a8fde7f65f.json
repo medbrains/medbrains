@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bme_equipment SET status = 'under_maintenance'::bme_equipment_status, updated_at = now() WHERE tenant_id = $1 AND id = $2 AND status = 'active'::bme_equipment_status AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e527011d743bf9345cb34e936997189d78e0172f9eb72d9a8165b4a8fde7f65f"
+}

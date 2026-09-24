@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tv_announcements (id, tenant_id, message, priority, created_by) VALUES ($1, $2, $3, 'emergency', $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c2d6d365e87d5e2c12c9489b69446b08f08aca361d73280eb01204ad092334e"
+}

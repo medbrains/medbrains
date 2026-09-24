@@ -1,0 +1,9 @@
+# Bindings generated from the UDL (no host link needed) must name the library
+# the way library-mode generation did, or the phone looks for a .so that is
+# not there.
+[bindings.kotlin]
+cdylib_name = "medbrains_edge_rn"
+package_name = "uniffi.edge_rn"
+
+[bindings.swift]
+cdylib_name = "medbrains_edge_rn"

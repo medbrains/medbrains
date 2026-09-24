@@ -244,7 +244,49 @@ pub async fn start_code_blue(
     }
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // Every board in the hospital, without anybody typing.
+    //
+    // The display path existed and only an operator could start it: somebody
+    // had to open the TV admin screen and write an announcement. During a
+    // cardiac arrest nobody is doing that, so the code that pages the crash
+    // team left the corridor screens showing the outpatient queue. The row is
+    // stored as well as broadcast, so a board that connects thirty seconds
+    // later still shows it.
+    //
+    // The location is what a responder needs and the only patient detail on
+    // it. No name, no UHID: these screens face a waiting room.
+    let where_it_is = if row.location.trim().is_empty() {
+        "location not given"
+    } else {
+        row.location.trim()
+    };
+    let announcement = format!("CODE BLUE — {where_it_is}");
+    let announcement_id = Uuid::new_v4();
+    sqlx::query!(
+        "INSERT INTO tv_announcements (id, tenant_id, message, priority, created_by) \
+         VALUES ($1, $2, $3, 'emergency', $4)",
+        announcement_id,
+        claims.tenant_id,
+        &announcement,
+        claims.sub,
+    )
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
+
+    // After the commit: a board that lights up for a code blue nobody
+    // recorded is worse than one that lights up a moment late.
+    state.queue_broadcaster.broadcast_announcement(
+        medbrains_server_core::queue_broadcast::AnnouncementEvent {
+            tenant_id: claims.tenant_id,
+            id: announcement_id,
+            message: announcement,
+            priority: "emergency".to_owned(),
+            created_at: Utc::now(),
+        },
+    );
+
     Ok(Json(row))
 }
 

@@ -92,5 +92,11 @@
       "trailingCommas": "all",
       "semicolons": "always"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/types/src/permissions.ts"],
+      "formatter": { "enabled": false }
+    }
+  ]
 }

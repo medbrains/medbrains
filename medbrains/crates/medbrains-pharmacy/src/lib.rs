@@ -3110,8 +3110,11 @@ pub async fn dispense_order(
                 let ndps_entry = sqlx::query_as::<_, NdpsRegisterEntry>(
                     "INSERT INTO pharmacy_ndps_register \
                      (tenant_id, catalog_item_id, action, quantity, balance_after, \
-                      patient_id, prescription_id, dispensed_by, witnessed_by) \
-                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7, $8) \
+                      patient_id, prescription_id, dispensed_by, witnessed_by, \
+                      requires_dual_sign) \
+                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7, $8, \
+                             (SELECT is_controlled OR drug_schedule IN ('X', 'NDPS') \
+                                FROM pharmacy_catalog WHERE id = $2)) \
                      RETURNING *",
                 )
                 .bind(claims.tenant_id)
@@ -3472,6 +3475,18 @@ pub async fn validate_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let order_exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2) \
+         AS \"exists!\"",
+        id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !order_exists {
+        return Err(AppError::NotFound);
+    }
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
@@ -4500,10 +4515,16 @@ pub async fn create_ndps_entry(
     }
 
     let entry = sqlx::query_as::<_, NdpsRegisterEntry>(
+        // requires_dual_sign was a column nothing wrote. The deficiency
+        // pipeline reads it, so a Schedule X movement with no second witness
+        // was never raised — the register looked compliant by omission.
         "INSERT INTO pharmacy_ndps_register \
          (tenant_id, catalog_item_id, action, quantity, balance_after, \
-          dispensed_by, witnessed_by, notes) \
-         VALUES ($1, $2, $3::ndps_register_action, $4, $5, $6, $7, $8) RETURNING *",
+          dispensed_by, witnessed_by, notes, requires_dual_sign) \
+         VALUES ($1, $2, $3::ndps_register_action, $4, $5, $6, $7, $8, \
+                 (SELECT is_controlled OR drug_schedule IN ('X', 'NDPS') \
+                    FROM pharmacy_catalog WHERE id = $2)) \
+         RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.catalog_item_id)
@@ -5120,11 +5141,15 @@ pub async fn remove_pharmacy_staff(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    sqlx::query("DELETE FROM user_pharmacy_assignments WHERE id = $1 AND tenant_id = $2")
-        .bind(id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
+    let deleted =
+        sqlx::query("DELETE FROM user_pharmacy_assignments WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+    if deleted.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "removed" })))
 }
@@ -5273,6 +5298,31 @@ struct TransferItem {
     quantity: i32,
 }
 
+/// A conditional `SELECT … FOR UPDATE` on a transfer came back empty: tell an
+/// absent row (404) apart from one in the wrong state (400).
+async fn transfer_state_error(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    id: Uuid,
+    state_msg: &str,
+) -> AppError {
+    sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM pharmacy_transfer_requests \
+         WHERE id = $1 AND tenant_id = $2) AS \"exists!\"",
+        id,
+        tenant_id,
+    )
+    .fetch_one(&mut **tx)
+    .await
+    .map_or_else(AppError::from, |exists| {
+        if exists {
+            AppError::BadRequest(state_msg.to_owned())
+        } else {
+            AppError::NotFound
+        }
+    })
+}
+
 /// `POST /api/pharmacy/transfers/{id}/dispatch` — FEFO-decrement the source location's
 /// batch stock for each requested item and record the exact batches taken.
 pub async fn dispatch_transfer(
@@ -5286,17 +5336,18 @@ pub async fn dispatch_transfer(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (from_location, items): (Uuid, serde_json::Value) = sqlx::query_as(
+    let row: Option<(Uuid, serde_json::Value)> = sqlx::query_as(
         "SELECT from_location_id, items FROM pharmacy_transfer_requests \
          WHERE id = $1 AND tenant_id = $2 AND status = 'approved' FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| {
-        AppError::BadRequest("Transfer not found or not in approved state".to_owned())
-    })?;
+    .await?;
+    let Some((from_location, items)) = row else {
+        let msg = "Transfer is not in approved state";
+        return Err(transfer_state_error(&mut tx, claims.tenant_id, id, msg).await);
+    };
 
     let requested: Vec<TransferItem> = serde_json::from_value(items)
         .map_err(|_| AppError::BadRequest("Transfer items are malformed".to_owned()))?;
@@ -5348,15 +5399,18 @@ pub async fn receive_transfer(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (to_location, dispatched): (Uuid, serde_json::Value) = sqlx::query_as(
+    let row: Option<(Uuid, serde_json::Value)> = sqlx::query_as(
         "SELECT to_location_id, dispatched_lines FROM pharmacy_transfer_requests \
          WHERE id = $1 AND tenant_id = $2 AND status = 'dispatched' FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Transfer not found or not dispatched".to_owned()))?;
+    .await?;
+    let Some((to_location, dispatched)) = row else {
+        let msg = "Transfer is not dispatched";
+        return Err(transfer_state_error(&mut tx, claims.tenant_id, id, msg).await);
+    };
 
     let lines: Vec<medbrains_db::stock::StockLine> = serde_json::from_value(dispatched)
         .map_err(|_| AppError::BadRequest("Dispatched lines are malformed".to_owned()))?;

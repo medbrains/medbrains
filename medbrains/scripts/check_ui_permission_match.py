@@ -40,6 +40,7 @@ on its narrowest read and offers stricter controls inside it.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -449,6 +450,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--detail", action="store_true")
     ap.add_argument("--limit", type=int, default=20)
+    ap.add_argument("--baseline", default=os.path.join(ROOT, "scripts", "ui_permission_match.baseline.json"))
+    ap.add_argument("--check", action="store_true", help="fail on any under-gated call not in the baseline")
+    ap.add_argument("--update-baseline", action="store_true")
     args = ap.parse_args()
 
     paths = catalogue()
@@ -459,15 +463,22 @@ def main() -> int:
 
     ungated: list[tuple[str, str, str]] = []
     resolved = 0
+    # The links the walk could not follow. Each is a hole in the chain
+    # page → service → client → route → permission, and a hole reads as
+    # "nothing to report" unless it is counted.
+    unresolved_calls: list[tuple[str, str]] = []
+    routes_without_permission: set[tuple[str, str]] = set()
     for page, (calls, gates, per_call) in sorted(pages.items()):
         for call in sorted(calls):
             # Prefer the service-qualified entry; fall back to the bare client
             # method, which is what a pass-through service resolves to.
             route = methods.get(call) or methods.get(call.split(".", 1)[1])
             if route is None:
+                unresolved_calls.append((page, call))
                 continue
             required = perms_by_path.get(route)
             if not required:
+                routes_without_permission.add(route)
                 continue
             resolved += 1
             # A page satisfies a call if it gates on ANY code that call accepts —
@@ -486,7 +497,43 @@ def main() -> int:
 
     print(f"pages with API calls : {len(pages)}")
     print(f"calls resolved to a permission : {resolved}")
+    print(f"calls that resolve to no client method / route : {len(unresolved_calls)}")
+    # Bounded by what this walker can see: a `permissions::` reference inside the
+    # handler body. Extractor-style guards are invisible to it — the enforcement
+    # question proper is check_permission_enforcement.py. Counted so it may only fall.
+    print(f"routes where the walker sees no permission : {len(routes_without_permission)}")
     print(f"\n  calls whose page gates on none of the required codes : {len(ungated)}")
+
+    keys = sorted(f"{os.path.relpath(page, ROOT)}:{call}" for page, call, _ in ungated)
+    snapshot = {
+        "ungated": keys,
+        "unresolved_calls": len(unresolved_calls),
+        "routes_without_permission": len(routes_without_permission),
+    }
+    if args.update_baseline:
+        with open(args.baseline, "w", encoding="utf-8") as fh:
+            json.dump(snapshot, fh, indent=1)
+            fh.write("\n")
+        print(f"\nbaseline written: {os.path.relpath(args.baseline, ROOT)}")
+        return 0
+    if args.check:
+        if not os.path.exists(args.baseline):
+            print("\nno baseline — run with --update-baseline first", file=sys.stderr)
+            return 2
+        with open(args.baseline, encoding="utf-8") as fh:
+            base = json.load(fh)
+        new_keys = sorted(set(keys) - set(base.get("ungated", [])))
+        problems = [f"new under-gated call: {k}" for k in new_keys]
+        for counter in ("unresolved_calls", "routes_without_permission"):
+            if snapshot[counter] > base.get(counter, 0):
+                problems.append(f"{counter} rose: {base.get(counter, 0)} → {snapshot[counter]}")
+        if problems:
+            print("\nui-permission ratchet failed:")
+            for item in problems:
+                print(f"  ✗ {item}")
+            return 1
+        print("\nui-permission ratchet: OK (nothing new under-gated, no link counter rose)")
+        return 0
 
     if args.detail:
         by_page: dict[str, list[tuple[str, str]]] = defaultdict(list)

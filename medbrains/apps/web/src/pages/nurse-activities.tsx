@@ -15,6 +15,7 @@ import { HandoffWorkflowPanel } from "./nurse-activities/handoff-workflow-panel"
 import { IoTab } from "./nurse-activities/io-tab";
 import { MarTab } from "./nurse-activities/mar-tab";
 import { NurseRxTab } from "./nurse-activities/nurse-rx-tab";
+import { RosterTab } from "./nurse-activities/roster-tab";
 import { SafetyTab } from "./nurse-activities/safety-tab";
 import { VitalsTab } from "./nurse-activities/vitals-tab";
 
@@ -27,6 +28,7 @@ type NurseTabKey =
   | "handoff"
   | "shift-notes"
   | "equipment"
+  | "roster"
   | "prescriptions";
 
 const NURSE_PAGE_PERMISSIONS = [
@@ -50,6 +52,8 @@ const NURSE_PAGE_PERMISSIONS = [
   P.NURSE.HANDOFF_RECORD,
   P.NURSE.EQUIPMENT_VIEW,
   P.NURSE.EQUIPMENT_RECORD,
+  P.NURSE.ROSTER_VIEW,
+  P.NURSE.ROSTER_MANAGE,
 ] as const;
 
 function nurseTabFromSearch(value: string | null): NurseTabKey | null {
@@ -62,6 +66,7 @@ function nurseTabFromSearch(value: string | null): NurseTabKey | null {
     value === "handoff" ||
     value === "shift-notes" ||
     value === "equipment" ||
+    value === "roster" ||
     value === "prescriptions"
   ) {
     return value;
@@ -99,6 +104,9 @@ export function NurseActivitiesPage() {
   const canViewEquipment = useHasPermission(P.NURSE.EQUIPMENT_VIEW);
   const canRecordEquipment = useHasPermission(P.NURSE.EQUIPMENT_RECORD);
   const canDraftRx = useHasPermission(P.NURSE.PRESCRIPTIONS_DRAFT);
+  const canViewRoster = useHasPermission(P.NURSE.ROSTER_VIEW);
+  const canManageRoster = useHasPermission(P.NURSE.ROSTER_MANAGE);
+  const canOpenRoster = canViewRoster || canManageRoster;
   const canOpenVitals = canViewVitals || canRecordVitals;
   const canOpenIo = canViewIo || canRecordIo;
   const canOpenSafety =
@@ -120,6 +128,7 @@ export function NurseActivitiesPage() {
     { value: "handoff" as const, label: "Handoff", visible: canOpenHandoff },
     { value: "shift-notes" as const, label: "Shift Notes", visible: canViewHandoff },
     { value: "equipment" as const, label: "Equipment", visible: canOpenEquipment },
+    { value: "roster" as const, label: "Roster", visible: canOpenRoster },
     {
       value: "prescriptions" as const,
       label: "Prescriptions",
@@ -237,6 +246,11 @@ export function NurseActivitiesPage() {
           {canOpenEquipment && (
             <Tabs.Panel value="equipment" pt="md">
               <EquipmentTab />
+            </Tabs.Panel>
+          )}
+          {canOpenRoster && (
+            <Tabs.Panel value="roster" pt="md">
+              <RosterTab />
             </Tabs.Panel>
           )}
           {canDraftRx && contextEncounterId && (

@@ -4593,6 +4593,31 @@ export interface NdpsTransaction {
   reference_number: string;
 }
 
+/** The label that goes on the box a patient carries home. */
+export interface DispensingLabelPrintData {
+  hospital_name: string;
+  patient_name: string;
+  uhid: string;
+  patient_age_sex: string | null;
+  drug_name: string;
+  generic_name: string | null;
+  strength: string | null;
+  dosage_form: string | null;
+  quantity_dispensed: string;
+  directions: string | null;
+  route: string | null;
+  duration: string | null;
+  batch_number: string | null;
+  expiry_date: string | null;
+  storage_conditions: string | null;
+  schedule_warning: string | null;
+  black_box_warning: string | null;
+  is_controlled: boolean;
+  dispensed_on: string;
+  dispensed_by: string | null;
+  prescriber_name: string | null;
+}
+
 export interface DrugExpiryAlertPrintData {
   report_date: string;
   store_name: string;
@@ -8127,3 +8152,63 @@ export interface CreateInstallmentRequest {
 
 export type { PermissionGroup } from "./permission-helpers";
 export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";
+
+/** One nurse rostered onto a ward's shift. */
+export interface NurseRosterEntry {
+  id: string;
+  nurse_user_id: string;
+  nurse_name: string;
+  ward_id: string | null;
+  ward_name: string | null;
+  shift_date: string;
+  shift_type: string;
+  primary_assigned: boolean;
+  is_charge: boolean | null;
+  patient_count: number;
+}
+
+export interface CreateNurseRosterEntryRequest {
+  nurse_user_id: string;
+  ward_id: string;
+  shift_type: "day" | "evening" | "night";
+  shift_date?: string;
+  primary_assigned?: boolean;
+  is_charge?: boolean;
+}
+
+/** One person who answered a code blue page. */
+export interface CodeBlueResponder {
+  code_blue_id: string;
+  user_id: string;
+  user_name: string;
+  responded_at: string;
+  /** Seconds between the call and this person answering it. */
+  seconds_after_call: number;
+}
+
+/** An arrest in progress, as the code blue list returns it. */
+export interface CodeBlueEventRow {
+  id: string;
+  patient_id: string;
+  encounter_id?: string | null;
+  location: string;
+  started_at: string;
+  ended_at?: string | null;
+  outcome?: string | null;
+}
+
+/** One emergency code called on the floor — fire, abduction, disaster, and the rest. */
+export interface EmergencyCodeActivation {
+  id: string;
+  code_type: string;
+  activated_at: string;
+  deactivated_at: string | null;
+  location: string | null;
+  outcome: string | null;
+}
+
+/** A nurse who can be put on a ward's shift. */
+export interface NurseRosterCandidate {
+  id: string;
+  full_name: string;
+}

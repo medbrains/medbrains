@@ -265,11 +265,14 @@ const fn device_admitted(live: Option<bool>) -> bool {
     matches!(live, Some(true))
 }
 
-/// Reject tokens whose `perm_version` is stale.
+/// Reject tokens whose `perm_version` is stale, or whose user is gone.
 ///
 /// Compares the JWT's `perm_version` against the current DB value.
 /// Returns `Unauthorized` if the token is outdated, missing a permission
-/// version, or references a user row that no longer exists.
+/// version, or references a user who was deactivated or deleted. Deleting a
+/// user soft-deletes the row and leaves `perm_version` untouched, so a live
+/// token stayed valid until it expired — the account was gone from every
+/// list while its phone kept a ward screen.
 async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     if claims.perm_version <= 0 {
@@ -277,7 +280,8 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppErro
     }
 
     let current: Option<i32> = sqlx::query_scalar!(
-        "SELECT perm_version FROM users WHERE id = $1 AND tenant_id = $2",
+        "SELECT perm_version FROM users \
+         WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
         claims.sub,
         claims.tenant_id
     )

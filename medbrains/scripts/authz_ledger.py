@@ -47,6 +47,19 @@ PERMISSION_CHECK = re.compile(
     r"require_admin|require_super_admin|require_upload_permission|"
     r"require_sign_permission|require_basket_item_permissions|"
     r"require_module_enabled|require_step_up|require_tenant_in_group|"
+    # Four more found by diffing every `require_*` helper in the workspace
+    # against this pattern, rather than by reading the unpermissioned list
+    # again. Each delegates to `require_permission`:
+    #   require_board_read           admin.tv_displays.board, or
+    #                                display.board.read on a paired device
+    #   require_queue_manage         opd.token_manage / front_office.queue.manage
+    #   require_queue_worklist       opd.queue.list / front_office.queue.list
+    #   require_mar_status_permission nurse.mar.hold / .refuse per status
+    # `require_board_read` alone accounted for nine of the eleven handlers the
+    # TV module was scored as leaving open, which made the worst-looking module
+    # in the ledger a reporting defect rather than a hole.
+    r"require_board_read|require_queue_manage|require_queue_worklist|"
+    r"require_mar_status_permission|"
     r"require_ownership|require_group_access|require_department_access|"
     r"Authorized<|AllOf<|AnyOf<|is_bypass_role|permissions::"
 )

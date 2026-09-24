@@ -3711,6 +3711,8 @@ export const erVisitFormSchema = z.object({
 export const erAdmitFormSchema = z.object({
   bed_id: requiredTrimmed("Bed is required"),
   admitting_doctor_id: requiredTrimmed("Admitting doctor is required"),
+  /** Treating department; empty means the Emergency department. */
+  department_id: z.string(),
   admission_notes: z.string(),
 });
 
@@ -5710,9 +5712,7 @@ export type ChronicProgramFormInput = z.infer<typeof chronicProgramFormSchema>;
 export type ChronicEnrollmentFormInput = z.infer<typeof chronicEnrollmentFormSchema>;
 export type MobileShellLoginFormInput = z.infer<typeof mobileShellLoginFormSchema>;
 export type MobileLoginFormInput = z.infer<typeof mobileLoginFormSchema>;
-export type MobileCampRegistrationFormInput = z.infer<
-  typeof mobileCampRegistrationFormSchema
->;
+export type MobileCampRegistrationFormInput = z.infer<typeof mobileCampRegistrationFormSchema>;
 export type MobileVitalsEntryFormInput = z.infer<typeof mobileVitalsEntryFormSchema>;
 export type MobileStaffPatientRegistrationFormInput = z.infer<
   typeof mobileStaffPatientRegistrationFormSchema

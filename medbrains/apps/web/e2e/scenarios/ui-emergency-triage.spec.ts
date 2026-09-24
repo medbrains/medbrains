@@ -8,7 +8,7 @@
 import { test, expect } from "@playwright/test";
 import { loginAsRole, navigateTo, routeApiDirect } from "../helpers";
 import { getE2EIdentity } from "../helpers/e2e-identities";
-import { loginAsRoleApi } from "../helpers/api";
+import { getAuthContextFromCookies, loginAsRoleApi } from "../helpers/api";
 import {
   createPatientApi,
   createEmergencyVisit,
@@ -35,7 +35,7 @@ test.describe("Emergency Triage — UI", () => {
     ).toBeVisible();
   });
 
-  test("Register ER Visit modal opens with patient and chief complaint fields", async ({
+  test("Register ER Visit opens the registration form with patient and chief complaint fields", async ({
     page,
   }) => {
     const identity = getE2EIdentity("nurse");
@@ -47,11 +47,10 @@ test.describe("Emergency Triage — UI", () => {
       .first()
       .click();
 
-    const modal = page.getByRole("dialog");
-    await expect(modal).toBeVisible({ timeout: 8_000 });
-
+    await expect(page.getByRole("heading", { name: /Register ER Visit/i })).toBeVisible({ timeout: 8_000 });
     // Must have patient selection and chief complaint
-    await expect(modal.getByRole("combobox").first()).toBeVisible();
+    await expect(page.getByRole("textbox", { name: /Patient/i })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: /Chief Complaint/i })).toBeVisible();
   });
 
   test("created ER visit appears in emergency queue", async ({
@@ -61,7 +60,7 @@ test.describe("Emergency Triage — UI", () => {
     const nurseIdentity = getE2EIdentity("nurse");
     const nurseCtx = await loginAsRoleApi(request, "nurse");
 
-    const patient = await createPatientApi(nurseCtx);
+    const patient = await createPatientApi(await getAuthContextFromCookies(request));
     await createEmergencyVisit(nurseCtx, patient.id, {
       chiefComplaint: "Chest pain with shortness of breath",
     });
@@ -82,16 +81,18 @@ test.describe("Emergency Triage — UI", () => {
     const nurseCtx = await loginAsRoleApi(request, "nurse");
     const nurseIdentity = getE2EIdentity("nurse");
 
-    const patient = await createPatientApi(nurseCtx);
+    const patient = await createPatientApi(await getAuthContextFromCookies(request));
+    // The nurse registers the arrival; marking it medico-legal is the
+    // doctor's decision (and the doctor's permission).
     const visit = await createEmergencyVisit(nurseCtx, patient.id, {
-      chiefComplaint: "Road traffic accident — polytrauma",
+      chiefComplaint: "Multiple fractures, polytrauma",
     });
-    await createMlcCase(nurseCtx, visit.id, "rta");
+    await createMlcCase(await loginAsRoleApi(request, "doctor"), { patientId: patient.id, visitId: visit.id });
 
     await loginAsRole(page, nurseIdentity.username, nurseIdentity.password);
     await navigateTo(page, "/emergency");
 
     // MLC tag should surface somewhere in the visit list
-    await expect(page.getByText(/MLC/i)).toBeVisible({ timeout: 12_000 });
+    await expect(page.getByText(/MLC/i).first()).toBeVisible({ timeout: 12_000 });
   });
 });

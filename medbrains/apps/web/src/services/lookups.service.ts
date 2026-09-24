@@ -13,6 +13,7 @@ export const lookupsService = {
   listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
     api.listDepartments(...args),
   listPatients: (...args: Parameters<typeof api.listPatients>) => api.listPatients(...args),
+  findPatients: (...args: Parameters<typeof api.findPatients>) => api.findPatients(...args),
   listPatientVisits: (...args: Parameters<typeof api.listPatientVisits>) =>
     api.listPatientVisits(...args),
 };

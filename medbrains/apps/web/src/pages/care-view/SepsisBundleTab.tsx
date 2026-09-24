@@ -1,5 +1,6 @@
 import { Stack, Text } from "@mantine/core";
 import { useState } from "react";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { SepsisBundlePanel } from "@/components/SepsisBundlePanel";
 
@@ -9,6 +10,8 @@ export function SepsisBundleTab() {
   return (
     <Stack gap="md" maw={720}>
       <PatientSearchSelect value={patientId} onChange={setPatientId} />
+      {/* An hour-1 bundle is charted fast. The banner is what makes it fast on the right patient. */}
+      {patientId && <PatientContextBanner patientId={patientId} />}
       {patientId ? (
         <SepsisBundlePanel patientId={patientId} />
       ) : (

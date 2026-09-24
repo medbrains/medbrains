@@ -1,5 +1,10 @@
 {
-  "_doc": "Endpoints whose smoke test should skip with a reason. Key formats: 'METHOD /api/...' or '/api/...' (matches both methods). Add an entry while a 500 is being investigated; remove once fixed.",
+  "_doc": "Endpoints whose generated test should skip with a reason. Smoke keys: 'METHOD /api/...' or '/api/...' (both methods). Write-negative keys are namespaced 'NOTFOUND METHOD /api/...' / 'VALIDATION METHOD /api/...' so a skipped positive never hides a negative. Every entry is a finding, not a pardon: remove it when the handler is fixed.",
   "endpoints": {
+    "NOTFOUND POST /api/cms/posts/{id}/archive": "handler is not implemented (501)",
+    "NOTFOUND POST /api/cms/posts/{id}/medical-review": "handler is not implemented (501)",
+    "NOTFOUND POST /api/cms/posts/{id}/schedule": "handler is not implemented (501)",
+    "NOTFOUND PUT /api/document-ingestion/items/{item_id}/ocr": "needs object storage, which the dev stack does not configure",
+    "NOTFOUND PUT /api/lab/qc-results/{id}/review": "the reviewer self-check runs before the lookup, so an absent run answers 400"
   }
 }

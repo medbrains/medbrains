@@ -277,7 +277,7 @@ pub async fn acknowledge_alert(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = Utc::now();
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE department_alerts \
          SET acknowledged_by = $1, acknowledged_at = $2 \
          WHERE id = $3 AND tenant_id = $4",
@@ -288,6 +288,9 @@ pub async fn acknowledge_alert(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "acknowledged" })))
@@ -700,7 +703,7 @@ pub async fn assign_transport(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = Utc::now();
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE transport_requests \
          SET assigned_to = $1, assigned_at = $2, status = 'assigned'::transport_status \
          WHERE id = $3 AND tenant_id = $4",
@@ -711,6 +714,9 @@ pub async fn assign_transport(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "assigned" })))
@@ -727,7 +733,7 @@ pub async fn complete_transport(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let now = Utc::now();
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE transport_requests \
          SET completed_at = $1, status = 'completed'::transport_status \
          WHERE id = $2 AND tenant_id = $3",
@@ -737,6 +743,9 @@ pub async fn complete_transport(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "completed" })))

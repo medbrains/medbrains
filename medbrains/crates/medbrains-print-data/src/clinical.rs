@@ -1988,11 +1988,16 @@ struct LabReportFullRow {
     uhid: String,
     age: Option<f64>,
     gender: String,
-    sample_id: String,
-    accession_number: String,
-    order_date: chrono::DateTime<Utc>,
+    // Every one of these is nullable in `lab_orders`, and three of them were
+    // declared non-null here. An order that has not been reported yet has no
+    // `report_date`, so the row failed to decode and the endpoint answered
+    // 500 — which read as a broken server rather than as "this has not been
+    // released", and hid the missing release gate underneath it.
+    sample_id: Option<String>,
+    accession_number: Option<String>,
+    order_date: Option<chrono::DateTime<Utc>>,
     collection_date: Option<chrono::DateTime<Utc>>,
-    report_date: chrono::DateTime<Utc>,
+    report_date: Option<chrono::DateTime<Utc>>,
     referring_doctor: Option<String>,
     department_name: Option<String>,
     ward_name: Option<String>,
@@ -2087,6 +2092,18 @@ pub async fn get_lab_report_full_print_data(
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    // Same rule as the short report: authorisation comes before reporting.
+    // This is the fuller sheet — it carries the pathologist's and the
+    // technologist's names — so printing it unreleased reads as released by
+    // two named people.
+    if row.verified_at.is_none() {
+        return Err(AppError::BadRequest(
+            "These results have not been released yet. A pathologist or lab supervisor must \
+             verify the order before its report can be printed."
+                .to_owned(),
+        ));
+    }
 
     let parameters = sqlx::query_as::<_, LabParameterRow>(
         // `lab_results` carries two vocabularies for the same facts. Result
@@ -2183,20 +2200,29 @@ pub async fn get_lab_report_full_print_data(
     let age_display = row
         .age
         .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
-    let barcode_data = format!("LAB:{}", row.accession_number);
+    let barcode_data = row
+        .accession_number
+        .as_ref()
+        .map_or_else(String::new, |a| format!("LAB:{a}"));
 
     Ok(Json(LabReportFullPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
         age_display,
         gender: row.gender,
-        sample_id: row.sample_id,
-        accession_number: row.accession_number,
-        order_date: row.order_date.format("%d-%b-%Y").to_string(),
+        sample_id: row.sample_id.unwrap_or_default(),
+        accession_number: row.accession_number.unwrap_or_default(),
+        order_date: row
+            .order_date
+            .map(|d| d.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
         collection_date: row
             .collection_date
             .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
-        report_date: row.report_date.format("%d-%b-%Y %H:%M").to_string(),
+        report_date: row
+            .report_date
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string())
+            .unwrap_or_default(),
         referring_doctor: row.referring_doctor,
         department: row.department_name,
         ward_name: row.ward_name,
@@ -3588,6 +3614,17 @@ pub async fn get_video_consent_print_data(
 // ── Restraint Documentation Form ──────────────────────────────────────────────
 
 /// GET /print-data/restraint-documentation/{restraint_id}
+#[derive(Debug, sqlx::FromRow)]
+struct RestraintMonitoringRow {
+    check_time: chrono::DateTime<Utc>,
+    checked_by: Option<String>,
+    status: Option<String>,
+    circulation_status: Option<String>,
+    skin_status: Option<String>,
+    patient_response: Option<String>,
+    notes: Option<String>,
+}
+
 pub async fn get_restraint_documentation_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3681,35 +3718,57 @@ pub async fn get_restraint_documentation_print_data(
 
     let tenant = get_tenant_info(&state.db).await?;
 
-    // Sample monitoring records
-    let monitoring = vec![
-        RestraintMonitoring {
-            datetime: (restraint.start_datetime + chrono::Duration::minutes(30))
-                .format("%d-%m-%Y %H:%M")
-                .to_string(),
-            nurse_name: "Nurse on duty".to_string(),
-            patient_condition: "Calm, vitals stable".to_string(),
-            circulation_checked: true,
-            hydration_offered: true,
-            toileting_offered: true,
-            position_changed: true,
-            continued_need_assessed: true,
-            remarks: None,
-        },
-        RestraintMonitoring {
-            datetime: (restraint.start_datetime + chrono::Duration::hours(1))
-                .format("%d-%m-%Y %H:%M")
-                .to_string(),
-            nurse_name: "Nurse on duty".to_string(),
-            patient_condition: "Resting, no distress".to_string(),
-            circulation_checked: true,
-            hydration_offered: true,
-            toileting_offered: false,
-            position_changed: true,
-            continued_need_assessed: true,
-            remarks: None,
-        },
-    ];
+    // The monitoring rounds that were actually recorded.
+    //
+    // This used to be a hardcoded pair — "Nurse on duty", "Calm, vitals
+    // stable", every box ticked — at timestamps derived from the restraint's
+    // start time. A restraint record is a legal document: under the Mental
+    // Healthcare Act 2017 and NABH it is what proves a restrained patient had
+    // their circulation checked and was offered fluids and toileting. Printing
+    // rounds nobody performed, in a nurse's name, is fabricated evidence about
+    // somebody who was tied to a bed.
+    //
+    // `restraint_monitoring_logs` is where the real rounds live. An empty list
+    // prints as an empty list, which is the document saying nobody checked.
+    let monitoring = sqlx::query_as!(
+        RestraintMonitoringRow,
+        "SELECT m.check_time AS \"check_time!\", u.full_name AS \"checked_by?\", \
+                m.status::text AS \"status?\", m.circulation_status AS \"circulation_status?\", \
+                m.skin_status AS \"skin_status?\", \
+                m.patient_response AS \"patient_response?\", m.notes AS \"notes?\" \
+           FROM restraint_monitoring_logs m \
+           LEFT JOIN users u ON u.id = m.checked_by \
+          WHERE m.clinical_doc_id = $1 AND m.tenant_id = $2 AND m.deleted_at IS NULL \
+          ORDER BY m.check_time \
+          LIMIT 200",
+        restraint_id,
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?
+    .into_iter()
+    .map(|row| RestraintMonitoring {
+        datetime: row.check_time.format("%d-%m-%Y %H:%M").to_string(),
+        nurse_name: row.checked_by.unwrap_or_else(|| "Not recorded".to_owned()),
+        patient_condition: row
+            .patient_response
+            .or(row.status)
+            .unwrap_or_else(|| "Not recorded".to_owned()),
+        // Recorded as observations, not tick-boxes: "checked" is only true
+        // when somebody wrote down what they saw.
+        circulation_checked: row
+            .circulation_status
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty()),
+        skin_checked: row
+            .skin_status
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty()),
+        circulation_finding: row.circulation_status,
+        skin_finding: row.skin_status,
+        remarks: row.notes,
+    })
+    .collect::<Vec<_>>();
 
     Ok(Json(RestraintDocumentationPrintData {
         form_number: restraint.form_number,
@@ -3722,11 +3781,12 @@ pub async fn get_restraint_documentation_print_data(
         restraint_type: restraint.restraint_type,
         restraint_device: restraint.restraint_device,
         indication: restraint.indication,
-        alternatives_tried: vec![
-            "Verbal de-escalation".to_string(),
-            "Environmental modification".to_string(),
-            "PRN medication offered".to_string(),
-        ],
+        // Nothing records what was tried before the restraint, so nothing is
+        // claimed. This was three hardcoded sentences asserting de-escalation,
+        // environmental modification and PRN medication had all been offered —
+        // which under the Mental Healthcare Act is the justification for the
+        // restraint itself, printed without anyone having said it.
+        alternatives_tried: Vec::new(),
         start_datetime: restraint
             .start_datetime
             .format("%d-%m-%Y %H:%M")

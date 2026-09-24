@@ -24,7 +24,7 @@ impl InMemoryBackend {
         Self::default()
     }
 
-    fn matches(t: &RelationTuple, ctx: &AuthzContext, target_relations: &[Relation]) -> bool {
+    fn matches(t: &RelationTuple, ctx: &AuthzContext, target_relations: &[&str]) -> bool {
         if t.tenant_id != ctx.tenant_id {
             return false;
         }
@@ -39,8 +39,7 @@ impl InMemoryBackend {
                 return false;
             }
         }
-        let rel_codes: Vec<&str> = target_relations.iter().map(|r| r.as_code()).collect();
-        if !rel_codes.contains(&t.relation.as_str()) {
+        if !target_relations.contains(&t.relation.as_str()) {
             return false;
         }
         match &t.subject {
@@ -73,7 +72,9 @@ impl AuthzBackend for InMemoryBackend {
                 object_type: object_type.to_string(),
             });
         }
-        let candidates: Vec<Relation> = relation.implied_by();
+        // The same relations the Postgres backend accepts — the enum
+        // implications plus the raw membership relations that grant `view`.
+        let candidates = crate::backend_pg::candidate_relation_codes(relation);
         let tuples = self
             .tuples
             .lock()
@@ -115,7 +116,9 @@ impl AuthzBackend for InMemoryBackend {
         if ctx.is_bypass {
             return Ok(Vec::new());
         }
-        let candidates: Vec<Relation> = relation.implied_by();
+        // The same relations the Postgres backend accepts — the enum
+        // implications plus the raw membership relations that grant `view`.
+        let candidates = crate::backend_pg::candidate_relation_codes(relation);
         let tuples = self
             .tuples
             .lock()
@@ -307,6 +310,53 @@ mod tests {
         assert_eq!(tuples.len(), 1);
         assert_eq!(tuples[0].relation, "dept_member");
         assert!(matches!(tuples[0].subject, Subject::Department(d) if d == dept));
+    }
+
+    #[tokio::test]
+    async fn department_member_can_view_but_not_edit() {
+        // schema.zed: encounter `view` includes dept_member, `edit` does not.
+        // The ER registers an arrival, links the Emergency department, and
+        // its nurse must be able to open the visit — and only open it.
+        let backend = InMemoryBackend::new();
+        let tenant = Uuid::new_v4();
+        let nurse = Uuid::new_v4();
+        let dept = Uuid::new_v4();
+        let encounter = Uuid::new_v4();
+        let mut nurse_ctx = ctx(tenant, nurse, "nurse");
+        nurse_ctx.department_ids = vec![dept];
+        backend
+            .grant_raw(
+                &nurse_ctx,
+                "encounter",
+                encounter,
+                "dept_member",
+                Subject::Department(dept),
+                None,
+                Some("encounter_department".to_owned()),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            backend
+                .check(&nurse_ctx, Relation::Viewer, "encounter", encounter)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !backend
+                .check(&nurse_ctx, Relation::Editor, "encounter", encounter)
+                .await
+                .unwrap()
+        );
+
+        let outsider_ctx = ctx(tenant, Uuid::new_v4(), "nurse");
+        assert!(
+            !backend
+                .check(&outsider_ctx, Relation::Viewer, "encounter", encounter)
+                .await
+                .unwrap()
+        );
     }
 
     #[tokio::test]

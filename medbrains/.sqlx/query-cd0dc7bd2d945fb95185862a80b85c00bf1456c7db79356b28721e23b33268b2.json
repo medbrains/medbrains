@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO notifications (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) VALUES ($1, $2, 'sla_breach', $3, $4, 'nursing', 'bedside_nurse_request', $5, '/nursing#calls')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cd0dc7bd2d945fb95185862a80b85c00bf1456c7db79356b28721e23b33268b2"
+}

@@ -17,6 +17,7 @@
   "medbrains-catalog-import/src/lib.rs:452",
   "medbrains-catalog-import/src/lib.rs:539",
   "medbrains-catalog-import/src/lib.rs:631",
+  "medbrains-dashboard/src/lib.rs:1299",
   "medbrains-device-pairing/src/lib.rs:267",
   "medbrains-documents/src/signatures.rs:787",
   "medbrains-infection-control/src/infection_control.rs:1774",

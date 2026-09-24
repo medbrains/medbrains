@@ -1,6 +1,6 @@
 // BLOOD-BANK TransfusionsTab — split from blood-bank.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Textarea, TextInput } from "@mantine/core";
+import { Drawer, Group, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateTransfusionRequest, TransfusionRecord } from "@medbrains/types";
@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, toast } from "@/components/ui";
@@ -61,24 +62,67 @@ function CreateTransfusionForm({
     procedureType: "blood_transfusion",
   });
   const [consentOverride, setConsentOverride] = useState(false);
+
+  // A blood bag chosen by typing a UUID is a blood bag chosen by whoever
+  // pasted last. These are the units the bank can actually issue, named the
+  // way the label names them.
+  const { data: components = [], isLoading: componentsLoading } = useQuery({
+    queryKey: ["blood-components", "issuable"],
+    queryFn: () => bloodBankService.listBloodComponents({ status: "available" }),
+  });
+  const componentOptions = components.map((component) => ({
+    value: component.id,
+    label: `${component.bag_number} · ${component.blood_group} ${component.component_type.replace(/_/g, " ")} · exp ${new Date(component.expiry_at).toLocaleDateString()}`,
+  }));
+
+  // Scoped to the patient on the form: offering another patient's crossmatch
+  // is offering the mistake this screen exists to prevent.
+  const { data: crossmatches } = useQuery({
+    queryKey: ["crossmatch-requests", patientId],
+    queryFn: () => bloodBankService.listCrossmatchRequests({ limit: 100 }),
+    enabled: Boolean(patientId),
+  });
+  const crossmatchOptions = (crossmatches?.data ?? [])
+    .filter((request) => request.patient_id === patientId)
+    .map((request) => ({
+      value: request.id,
+      label: `${request.blood_group ?? "group unknown"} · ${request.status}${
+        request.result ? ` · ${request.result}` : ""
+      }`,
+    }));
+
   const consentSettled =
     consentGate.outcome === "allow" || consentGate.outcome === "checking" || consentOverride;
 
   return (
     <Stack>
       <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-      <TextInput
-        label="Component ID"
+      {/* Who this is. A transfusion form without the patient's allergies and
+          flags in front of the person filling it is the wrong-patient error
+          waiting to be made (IPSG-1). */}
+      {patientId && <PatientContextBanner patientId={patientId} />}
+      <Select
+        label="Blood unit"
+        description="Bag number, group and expiry — the label you are holding."
+        placeholder={componentsLoading ? "Loading units…" : "Select the unit being transfused"}
+        data={componentOptions}
+        value={componentId || null}
+        onChange={(value) => setComponentId(value ?? "")}
+        searchable
         required
-        value={componentId}
-        onChange={(e) => setComponentId(e.currentTarget.value)}
-        placeholder="Blood component UUID"
+        nothingFoundMessage="No issuable unit in stock"
       />
-      <TextInput
-        label="Crossmatch ID"
-        value={crossmatchId}
-        onChange={(e) => setCrossmatchId(e.currentTarget.value)}
-        placeholder="Optional crossmatch UUID"
+      <Select
+        label="Crossmatch"
+        description="Optional, and only this patient's crossmatches are offered."
+        placeholder="Select the crossmatch this unit was matched on"
+        data={crossmatchOptions}
+        value={crossmatchId || null}
+        onChange={(value) => setCrossmatchId(value ?? "")}
+        searchable
+        clearable
+        disabled={!patientId}
+        nothingFoundMessage="No crossmatch on record for this patient"
       />
       <Select
         label="Patient verified by (bedside)"

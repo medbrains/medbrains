@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { FormModal } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
@@ -31,6 +32,7 @@ import { EmergencyVisitSignals } from "./shared";
 const emptyErAdmitForm: ErAdmitFormInput = {
   bed_id: "",
   admitting_doctor_id: "",
+  department_id: "",
   admission_notes: "",
 };
 
@@ -125,6 +127,7 @@ export function EmergencyVisitCommandBar({
     admitMutation.mutate({
       bed_id: values.bed_id,
       admitting_doctor_id: values.admitting_doctor_id,
+      department_id: values.department_id || undefined,
       admission_notes: emergencyOptionalText(values.admission_notes),
     });
   };
@@ -216,6 +219,20 @@ export function EmergencyVisitCommandBar({
             {errors.admitting_doctor_id.message}
           </Text>
         )}
+        <Controller
+          name="department_id"
+          control={control}
+          render={({ field }) => (
+            <DepartmentSelect
+              value={field.value}
+              onChange={field.onChange}
+              label={t("label.treatingDepartment")}
+              placeholder={t("label.emergencyDepartmentDefault")}
+              departmentType="clinical"
+              clearable
+            />
+          )}
+        />
         <Controller
           name="admission_notes"
           control={control}

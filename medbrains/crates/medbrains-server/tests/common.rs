@@ -82,6 +82,42 @@ impl TestApp {
     /// (death flows through IPD discharge / death summary), so tests that need
     /// to exercise the deceased-patient guards set it here. Tenant context is
     /// set so RLS permits the update.
+    /// Outbox rows of one event type whose payload mentions `needle` (an id)
+    /// — the emit half of a pipeline, asserted without the worker, which
+    /// `spawn_app` never starts.
+    pub async fn outbox_rows(&self, event_type: &str, needle: &str) -> Vec<serde_json::Value> {
+        sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT payload FROM outbox_events \
+              WHERE event_type = $1 AND payload::text LIKE '%' || $2 || '%' \
+              ORDER BY created_at",
+        )
+        .bind(event_type)
+        .bind(needle)
+        .fetch_all(&self.db)
+        .await
+        .expect("outbox query")
+    }
+
+    /// The consume half: run the built-in pipelines for one event, exactly
+    /// as the outbox fallback handler would. Deterministic, so a test can
+    /// call it twice and prove idempotency.
+    pub async fn dispatch(
+        &self,
+        tenant_id: uuid::Uuid,
+        event_type: &str,
+        payload: &serde_json::Value,
+    ) {
+        medbrains_workflow::events::dispatch_to_pipelines(
+            &self.db,
+            tenant_id,
+            uuid::Uuid::nil(),
+            event_type,
+            payload,
+        )
+        .await
+        .expect("dispatch");
+    }
+
     pub async fn mark_patient_deceased(&self, patient_id: uuid::Uuid, tenant_id: uuid::Uuid) {
         let mut tx = self.db.begin().await.expect("begin tx");
         medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id)

@@ -655,6 +655,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // notify the prescriber + supervisor (NABH medication safety).
     medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
 
+    // Nurse-call escalation — an unanswered call reaches the ward's on-call
+    // nurse, then the supervisor. The board already coloured it; nobody was
+    // told (NABH CL-3).
+    medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
+
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
     medbrains_server::services::retention::spawn(db_pool.clone());

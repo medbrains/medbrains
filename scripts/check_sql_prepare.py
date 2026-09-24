@@ -107,7 +107,7 @@ def main() -> int:
     try:
         # Apply any migration the schema database has not seen. Cheap, and it
         # means a new migration is covered the day it is written.
-        migrations = sorted((ROOT / "crates/medbrains-db/src/migrations").glob("*.sql"))
+        migrations = sorted((ROOT / "crates/medbrains-db-migrations/src/migrations").glob("*.sql"))
         for path in migrations:
             psql(SCRATCH, path.read_text(errors="ignore"), stop_on_error=False)
 

@@ -987,6 +987,7 @@ pub async fn chat(
     Extension(claims): Extension<Claims>,
     Json(req): Json<ChatRequest>,
 ) -> Result<Sse<axum::response::sse::KeepAliveStream<SseBody>>, AppError> {
+    require_permission(&claims, permissions::ai::assistant::USE)?;
     let message = req.message.trim().to_owned();
     if message.is_empty() {
         return Err(AppError::BadRequest("message must not be empty".to_owned()));
@@ -1431,6 +1432,7 @@ pub async fn list_conversations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ConversationSummary>>, AppError> {
+    require_permission(&claims, permissions::ai::assistant::USE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ConversationSummary>(
@@ -1453,6 +1455,7 @@ pub async fn conversation_messages(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<ConversationMessage>>, AppError> {
+    require_permission(&claims, permissions::ai::assistant::USE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

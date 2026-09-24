@@ -1,5 +1,6 @@
 import { Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreateLabOrderRequest, LabPriority } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconArrowLeft, IconFlask } from "@tabler/icons-react";
@@ -47,6 +48,8 @@ function LabOrderCreatePageInner() {
   const [encounterId, setEncounterId] = useState("");
   const [priority, setPriority] = useState<LabPriority>("routine");
   const [clinicalNotes, setClinicalNotes] = useState("");
+  // Visit lookup is a patient read the create permission does not imply.
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
 
   // Read separately from EncounterSelect so the screen can say *why* the
   // encounter box is empty. TanStack de-duplicates the two reads — this is
@@ -54,7 +57,7 @@ function LabOrderCreatePageInner() {
   const { data: visits, isLoading: visitsLoading } = useQuery({
     queryKey: ["encounter-search", patientId],
     queryFn: () => lookupsService.listPatientVisits(patientId),
-    enabled: Boolean(patientId),
+    enabled: Boolean(patientId) && canViewPatient,
     staleTime: 30_000,
   });
   const hasNoVisits = Boolean(patientId) && !visitsLoading && (visits ?? []).length === 0;

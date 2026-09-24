@@ -85,7 +85,9 @@ export default defineConfig({
     // Layer 5 — End-to-end journeys (hybrid UI + REST)
     {
       name: "journeys",
-      testMatch: /scenarios\/.*\.spec\.ts/,
+      // e2e/journeys/ used to fall through to the default project, which the
+      // deploy gate never runs; four journey specs sat outside it.
+      testMatch: /(scenarios|journeys)\/.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: authStatePath,
@@ -104,6 +106,38 @@ export default defineConfig({
       dependencies: ["setup"],
     },
 
+    // Linkages — one module's action asserted through another module's
+    // effect. Longer per-test budget because pipeline effects are polled.
+    {
+      name: "linkages",
+      testMatch: /linkages\/.*\.spec\.ts/,
+      timeout: 90_000,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStatePath,
+      },
+      dependencies: ["setup"],
+    },
+
+    // Screens — every nav route rendered as a role that holds its gate, and
+    // refused for one that does not. Logs in per role, so no storageState.
+    {
+      // Layer 1b — generated negatives: a write with its required fields
+      // missing is refused as 400/422, a write against an absent record is
+      // refused as 404. Logs in itself, like smoke.
+      name: "writes",
+      testMatch: /writes\/.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+    {
+      name: "screens",
+      testMatch: /screens\/.*\.spec\.ts/,
+      timeout: 60_000,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
+
     // Default project — every spec not in a layered directory.
     {
       name: "chromium",
@@ -112,7 +146,8 @@ export default defineConfig({
         storageState: authStatePath,
       },
       dependencies: ["setup"],
-      testIgnore: /(mock|smoke\/api|crud|forms|analytics|rbac|passmark)\/.*\.spec\.ts/,
+      testIgnore:
+        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|passmark|scenarios|journeys|accessibility|linkages|screens)\/.*\.spec\.ts/,
     },
 
     {

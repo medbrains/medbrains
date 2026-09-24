@@ -1233,6 +1233,33 @@ async fn transition(
         None
     };
 
+    // Calling a patient to a room is an event the rest of the hospital can act
+    // on — it is what a token-call SMS is for — and it was told to nobody but
+    // the board over a WebSocket. `opd.queue.called` was in the event
+    // vocabulary from the start and never emitted by anything.
+    if status == "called" {
+        let event = medbrains_core::clinical_events::ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            medbrains_core::clinical_events::ClinicalEventName::OpdQueueCalled,
+            token.id,
+            claims.sub,
+            serde_json::json!({
+                "token_id": token.id,
+                "token_number": token.number,
+                "module": token.module,
+                "patient_id": token.patient_id,
+                "scope_id": token.scope_id,
+                "room": token.scope_label,
+                "counter": token.counter_label,
+            }),
+        );
+        let event = match token.patient_id {
+            Some(patient_id) => event.with_patient(patient_id),
+            None => event,
+        };
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
 
     // The receiving board has a new head of queue; tell it so the doctor's

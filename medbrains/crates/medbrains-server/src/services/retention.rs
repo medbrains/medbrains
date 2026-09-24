@@ -76,7 +76,10 @@ async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
     // for every table registered in `partition_config`. Global (not tenant-scoped)
     // and best-effort: a failure here must not block the retention pass below.
     // See RFC-DATA-INFRASTRUCTURE.md.
-    match sqlx::query("SELECT ensure_partitions()").execute(pool).await {
+    // The wrapper, not the bare function: a partition created without RLS is
+    // a month of audit rows a direct query can read across tenants, and
+    // `ensure_partitions()` made one every month.
+    match sqlx::query("SELECT ensure_partitions_with_rls()").execute(pool).await {
         Ok(_) => tracing::debug!("partition maintenance complete"),
         Err(error) => tracing::error!(%error, "partition maintenance failed"),
     }

@@ -111,6 +111,7 @@ export async function ensureE2EIdentities(
   // nurse who could not open a single visit — and the UI, reading a refusal,
   // told her the visit did not exist. Give them the department real staff have.
   const clinicalDepartmentIds = await firstClinicalDepartmentId(request, admin);
+  const labDepartmentIds = await labDepartmentId(request, admin);
 
   try {
     for (const roleDef of E2E_ROLE_DEFINITIONS) {
@@ -125,6 +126,9 @@ export async function ensureE2EIdentities(
       };
       if (CLINICAL_ROLES.has(roleDef.role) && clinicalDepartmentIds.length > 0) {
         payload.department_ids = clinicalDepartmentIds;
+      }
+      if (LAB_ROLES.has(roleDef.role) && labDepartmentIds.length > 0) {
+        payload.department_ids = labDepartmentIds;
       }
       if (roleDef.role === "doctor") {
         payload.specialization = "General Medicine";
@@ -298,6 +302,22 @@ function compactRunId(runId: string): string {
 
 /** Roles that work inside a department and are gated per encounter by it. */
 const CLINICAL_ROLES = new Set(["doctor", "nurse"]);
+/** Roles that work in the laboratory: an order for the lab links its encounter to that department. */
+const LAB_ROLES = new Set(["lab_technician", "phlebotomist"]);
+
+async function labDepartmentId(request: APIRequestContext, admin: AuthSession): Promise<string[]> {
+  try {
+    const resp = await request.get(`${E2E_BACKEND_URL}/api/setup/departments`, {
+      headers: authHeaders(admin),
+    });
+    if (resp.status() !== 200) return [];
+    const rows = (await resp.json()) as Array<{ id: string; code?: string; is_active?: boolean }>;
+    const lab = rows.find((d) => d.is_active !== false && d.code === "PATHOLOGY");
+    return lab ? [lab.id] : [];
+  } catch {
+    return [];
+  }
+}
 
 /**
  * The department clinical fixtures belong to.
@@ -326,7 +346,10 @@ async function firstClinicalDepartmentId(
     const preferred =
       active.find((d) => d.code === "GEN-MEDICINE") ??
       active.find((d) => d.department_type === "clinical");
-    return preferred ? [preferred.id] : [];
+    // ER visits belong to the Emergency department; a clinician who also
+    // covers the ER (the physician on ER call) can act on them.
+    const emergency = active.find((d) => d.code === "EMERGENCY");
+    return [preferred, emergency].filter((d): d is NonNullable<typeof d> => !!d).map((d) => d.id);
   } catch {
     return [];
   }

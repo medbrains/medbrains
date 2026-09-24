@@ -150,6 +150,24 @@ pub async fn get_lab_report_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // An unreleased report is not a report.
+    //
+    // `verify_results` is where a lab result becomes clinical: it refuses on
+    // unacknowledged critical values, on a failed QC run nobody reviewed, and
+    // on a critical value released by the person who entered it. None of that
+    // meant anything while the report itself could be printed straight past
+    // it — and a printed lab report carries the hospital's letterhead, the
+    // pathologist's name field and a reference range, so it reads as released
+    // whether or not anybody released it. NABL and ISO 15189 both put
+    // authorisation before reporting.
+    if header.verified_at.is_none() {
+        return Err(AppError::BadRequest(
+            "These results have not been released yet. A pathologist or lab supervisor must \
+             verify the order before its report can be printed."
+                .to_owned(),
+        ));
+    }
+
     let results = sqlx::query_as::<_, LabResultLine>(
         "SELECT parameter_name, value, unit, normal_range, flag::text AS flag, \
                 previous_value, delta_percent::text AS delta_percent, is_delta_flagged \

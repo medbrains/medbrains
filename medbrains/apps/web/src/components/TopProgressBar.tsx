@@ -109,7 +109,16 @@ function TopProgressBarInner() {
       {/* Glowing dot at spike start */}
       <div className={styles.glowDot} style={{ left: `${beatCenter}px` }} />
 
-      <svg className={styles.traceSvg} viewBox={viewBox} preserveAspectRatio="none" fill="none">
+      {/* Decorative: the trace draws the progress the bar already conveys, so
+          it is hidden from assistive tech rather than given a title nobody
+          needs read aloud on every navigation. */}
+      <svg
+        className={styles.traceSvg}
+        viewBox={viewBox}
+        preserveAspectRatio="none"
+        fill="none"
+        aria-hidden="true"
+      >
         <defs>
           <mask id="scanMask">
             <rect

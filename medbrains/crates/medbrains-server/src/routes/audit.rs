@@ -239,6 +239,7 @@ pub struct ChainVerification {
 /// audit log whose verdict nobody can see provides no evidence of anything:
 /// a broken chain — the single event the whole mechanism exists to detect —
 /// would reach stderr and a table with no reader.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_chain_verifications(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -250,7 +251,7 @@ pub async fn list_chain_verifications(
 
     // Bounded: this is a history panel, not an export. One run per night means
     // 60 rows is two months, which is as far back as anyone reads on a screen.
-    let rows = sqlx::query_as!(
+    let rows = sqlx::query_as!( // allow-raw-sql: compile-time checked, filtered by tenant_id
         ChainVerification,
         "SELECT id, completed_at, rows_checked, head_hash, broken_at, valid, \
                 duration_ms, triggered_by \

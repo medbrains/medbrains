@@ -1,0 +1,124 @@
+name: MedBrains
+options:
+  bundleIdPrefix: com.medbrains
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: true
+packages:
+  MedBrainsCore:
+    path: Packages/MedBrainsCore
+  MedBrainsKit:
+    path: Packages/MedBrainsKit
+  MedBrainsUI:
+    path: Packages/MedBrainsUI
+  MedBrainsOffline:
+    path: Packages/MedBrainsOffline
+targets:
+  MedBrainsStaff:
+    type: application
+    platform: iOS
+    sources:
+      - path: MedBrainsStaff
+    dependencies:
+      - package: MedBrainsCore
+      - package: MedBrainsKit
+      - package: MedBrainsUI
+      - package: MedBrainsOffline
+    info:
+      path: MedBrainsStaff/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: MedBrains Staff
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSCameraUsageDescription: Scan wristbands, drug barcodes and sample labels.
+        NSFaceIDUsageDescription: Unlock MedBrains with Face ID.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.staff
+        SWIFT_VERSION: "5.10"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+  MedBrainsPatient:
+    type: application
+    platform: iOS
+    sources:
+      - path: MedBrainsPatient
+    dependencies:
+      - package: MedBrainsCore
+      - package: MedBrainsKit
+      - package: MedBrainsUI
+    info:
+      path: MedBrainsPatient/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: MedBrains
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSFaceIDUsageDescription: Unlock MedBrains with Face ID.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.medbrains.patient
+        SWIFT_VERSION: "5.10"
+        SWIFT_STRICT_CONCURRENCY: complete
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+  MedBrainsPatientUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MedBrainsPatientUITests
+    dependencies:
+      - target: MedBrainsPatient
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+  MedBrainsStaffUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: MedBrainsStaffUITests
+    dependencies:
+      - target: MedBrainsStaff
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+schemes:
+  MedBrainsPatient:
+    build:
+      targets:
+        MedBrainsPatient: all
+        MedBrainsPatientUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MedBrainsPatientUITests
+  MedBrainsStaff:
+    build:
+      targets:
+        MedBrainsStaff: all
+        MedBrainsStaffUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MedBrainsStaffUITests

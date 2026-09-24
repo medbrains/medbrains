@@ -2,7 +2,7 @@
 """
 RLS Coverage Check — verifies every tenant_id-bearing table has matching RLS policy.
 
-Statically parses every SQL migration under crates/medbrains-db/src/migrations/:
+Statically parses every SQL migration under crates/medbrains-db-migrations/src/migrations/:
   - Detect CREATE TABLE statements with `tenant_id UUID` column
   - Detect ALTER TABLE ... ADD COLUMN tenant_id (later additions)
   - Detect ALTER TABLE ... ENABLE ROW LEVEL SECURITY
@@ -25,12 +25,36 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS_DIR = REPO_ROOT / "medbrains" / "crates" / "medbrains-db" / "src" / "migrations"
+# The migrations moved to their own crate. This pointed at the old path, so
+# the check that proves every tenant table has an RLS policy exited 2 without
+# reading a single migration — and with CI blocked on billing, nobody saw it
+# fail.
+MIGRATIONS_DIR = (
+    REPO_ROOT / "medbrains" / "crates" / "medbrains-db-migrations" / "src" / "migrations"
+)
 
 # Tables that intentionally have tenant_id but skip RLS. Add with care.
 ALLOWLIST = {
     # Add table names here only with explicit justification in header
 }
+
+# Synonyms authors actually wrote. A migration that has been applied anywhere
+# cannot be edited — `sqlx` validates its checksum, and changing one stops the
+# server with `VersionMismatch` — so a posture that says the right thing in
+# different words is accepted rather than corrected in place. Learned the hard
+# way: adding a header to an applied migration took the server down on the next
+# restart.
+POSTURE_SYNONYMS = {
+    "tenant-scoped (per table)": "tenant-scoped",
+    "not-tenant-scoped": "not-applicable",
+    "unchanged": "not-applicable",
+    "none": "not-applicable",
+}
+
+# The last migration applied before the header rule could be enforced. Raising
+# this excuses a new migration from declaring its posture, which is the one
+# thing it must not do.
+HEADER_EXEMPT_THROUGH = 1016
 
 VALID_POSTURES = {
     "tenant-scoped",
@@ -126,8 +150,16 @@ def main() -> int:
         # Migration number is leading zero-padded prefix.
         m = re.match(r"(\d+)_", path.name)
         mig_no = int(m.group(1)) if m else 0
-        if mig_no >= 124:  # 123_drop_builders.sql predates RFC-INFRA-2026-002
+        # 22 migrations at or below 1016 have no header and never will: they
+        # have been applied, so `sqlx` holds their checksum and editing one
+        # stops the server. What matters for them is actual coverage, which
+        # this check verifies below and which is currently complete. The header
+        # is a rule for migrations written from here on.
+        if 124 <= mig_no <= HEADER_EXEMPT_THROUGH:
+            pass
+        elif mig_no > HEADER_EXEMPT_THROUGH:
             posture = header.get("RLS-Posture")
+            posture = POSTURE_SYNONYMS.get(posture.strip().lower(), posture) if posture else posture
             if not posture:
                 header_errors.append(f"{path.name}: missing 'RLS-Posture:' header")
             elif posture not in VALID_POSTURES:

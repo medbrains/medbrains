@@ -97,6 +97,7 @@ export function LabOrderDetail({
   canCreateResult,
   canCreateOrder,
   canVerify,
+  canUpdateResults,
   canAmend,
   canPrintReports,
 }: {
@@ -109,7 +110,10 @@ export function LabOrderDetail({
    * does not enter results -- was hidden two controls they hold.
    */
   canCreateOrder: boolean;
+  /** May release results to the treating team (`lab.results.verify`). */
   canVerify: boolean;
+  /** May enter, amend and acknowledge (`lab.results.update`). */
+  canUpdateResults: boolean;
   canAmend: boolean;
   canPrintReports: boolean;
 }) {
@@ -488,7 +492,7 @@ export function LabOrderDetail({
                   `lab.results.update`, which a nurse does not hold. They were
                   shown the NABH read-back control, typed the value a critical
                   result needs documenting against, and got a 403. */}
-              {canVerify && (
+              {canUpdateResults && (
                 <Button
                   tone="subtle-danger"
                   size="xs"
@@ -671,7 +675,7 @@ export function LabOrderDetail({
       )}
 
       {/* Report status controls */}
-      {canVerify &&
+      {canUpdateResults &&
         (order.status === "completed" || order.status === "verified") &&
         !order.is_report_locked && (
           <Group>

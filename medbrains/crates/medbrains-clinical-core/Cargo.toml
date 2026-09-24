@@ -1,0 +1,12 @@
+[package]
+name = "medbrains-clinical-core"
+description = "Framework-free bedside decisions shared by every device app through the edge-rn FFI: BCMA rights, the transfusion observation schedule, nurse-call escalation, fall-risk banding, the emergency-flash silence gesture."
+version.workspace = true
+edition = "2024"
+rust-version.workspace = true
+license = "Apache-2.0"
+
+[dependencies]
+
+[lints]
+workspace = true

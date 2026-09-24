@@ -31,6 +31,8 @@ export function LoadContentsDrawer({
 }) {
   const queryClient = useQueryClient();
   const canAdd = useHasPermission(P.CSSD.STERILIZATION_CREATE);
+  // The sets list needs its own read; a screen without it must not issue the fetch.
+  const canListSets = useHasPermission(P.CSSD.SETS_LIST);
   const [setId, setSetId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
 
@@ -47,7 +49,7 @@ export function LoadContentsDrawer({
   const { data: sets = [] } = useQuery({
     queryKey: ["cssd-sets"],
     queryFn: () => cssdService.listCssdSets(),
-    enabled: opened,
+    enabled: opened && canListSets,
   });
 
   const addItem = useMutation({

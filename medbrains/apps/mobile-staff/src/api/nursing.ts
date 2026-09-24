@@ -3,7 +3,13 @@
  * `crates/medbrains-nursing/src/nurse_handoff.rs`.
  */
 
-import type { ActiveNurseCall, NurseCallBoard } from "@medbrains/types";
+import type {
+  ActiveNurseCall,
+  CodeBlueEventRow,
+  CodeBlueResponder,
+  EmergencyCodeActivation,
+  NurseCallBoard,
+} from "@medbrains/types";
 import { request } from "./client.js";
 import { apiConfig } from "./config.js";
 
@@ -110,4 +116,35 @@ export async function updateNurseCallStatus(
 export async function listOpenNurseCalls(wardId?: string): Promise<ActiveNurseCall[]> {
   const board = await listActiveNurseCalls(wardId);
   return board.calls;
+}
+
+// ── Code blue ──────────────────────────────────────────────────────
+
+/** Every arrest still in progress. */
+export async function listActiveCodeBlues(): Promise<CodeBlueEventRow[]> {
+  return request<CodeBlueEventRow[]>(apiConfig, "GET", "/api/nurse/code-blue?active_only=true");
+}
+
+/** Who has answered, for every active arrest, in one call. */
+export async function listCodeBlueResponders(): Promise<CodeBlueResponder[]> {
+  return request<CodeBlueResponder[]>(apiConfig, "GET", "/api/nurse/code-blue/responders");
+}
+
+/** Say you are on your way. Idempotent; the first answer is the team's arrival. */
+export async function respondToCodeBlue(id: string): Promise<{ responded: boolean }> {
+  return request<{ responded: boolean }>(
+    apiConfig,
+    "POST",
+    `/api/nurse/code-blue/${encodeURIComponent(id)}/respond`,
+  );
+}
+
+/**
+ * Every emergency code still open — fire, abduction, disaster, hazmat, bomb,
+ * and the ER's own cardiac codes. The server returns the hundred most recent;
+ * the open ones are the ones that matter to a phone.
+ */
+export async function listOpenEmergencyCodes(): Promise<EmergencyCodeActivation[]> {
+  const rows = await request<EmergencyCodeActivation[]>(apiConfig, "GET", "/api/emergency/codes");
+  return rows.filter((r) => r.deactivated_at === null);
 }

@@ -693,10 +693,21 @@ pub async fn public_unsubscribe(
 
 /// Record post view (public)
 pub async fn public_record_view(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let _ = post_id;
+    // Public route: no tenant claims, so only a published post is acknowledged.
+    let exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM cms_posts WHERE id = $1 AND status = 'published') \
+         AS \"exists!\"",
+        post_id,
+    )
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Could not look up the post".to_string()))?;
+    if !exists {
+        return Err((StatusCode::NOT_FOUND, "Post not found".to_string()));
+    }
     Ok(StatusCode::OK)
 }
 

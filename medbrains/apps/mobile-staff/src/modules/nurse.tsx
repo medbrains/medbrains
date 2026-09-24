@@ -17,6 +17,7 @@ import { AdministerDoseScreen } from "./nurse/administer-dose.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
 import { BedsideActionScreen } from "./nurse/bedside-action.js";
 import { NurseCallBoardScreen } from "./nurse/call-board.js";
+import { CodeBlueScreen } from "./nurse/code-blue.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
 import { PatientWorkspaceScreen } from "./nurse/patient-workspace.js";
 import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
@@ -52,6 +53,13 @@ function NurseHome(): ReactNode {
           description: "Select a patient, then capture BP, HR, SpO2 and temperature.",
           permission: P.NURSE.VITALS_RECORD,
           onPress: () => router.push("admissions"),
+        },
+        {
+          id: "code-blue",
+          label: "Code blue",
+          description: "Arrests in progress. Answer the page here.",
+          permission: P.NURSE.CODE_BLUE_VIEW,
+          onPress: () => router.push("code-blue"),
         },
         {
           id: "calls",
@@ -94,6 +102,7 @@ function NurseScreen(): ReactNode {
         home: <NurseHome />,
         admissions: <AdmissionsListScreen />,
         calls: <NurseCallBoardScreen />,
+        "code-blue": <CodeBlueScreen />,
         transfusions: (payload) => <TransfusionMonitorScreen admission={payload as AdmissionRow} />,
         "patient-workspace": (payload) => (
           <PatientWorkspaceScreen admission={payload as AdmissionRow} />

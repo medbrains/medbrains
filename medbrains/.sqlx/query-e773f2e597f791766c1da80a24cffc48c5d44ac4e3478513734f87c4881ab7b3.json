@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.code_blue_id, r.user_id, u.full_name AS user_name, r.responded_at, EXTRACT(EPOCH FROM (r.responded_at - e.started_at))::int AS \"seconds_after_call!\" FROM code_blue_responses r JOIN code_blue_events e ON e.id = r.code_blue_id AND e.tenant_id = r.tenant_id JOIN users u ON u.id = r.user_id WHERE r.tenant_id = $1 AND r.deleted_at IS NULL AND e.ended_at IS NULL ORDER BY r.code_blue_id, r.responded_at LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code_blue_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "responded_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "seconds_after_call!",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "e773f2e597f791766c1da80a24cffc48c5d44ac4e3478513734f87c4881ab7b3"
+}

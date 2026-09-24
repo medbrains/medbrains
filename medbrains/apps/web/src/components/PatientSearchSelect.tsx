@@ -24,6 +24,17 @@ interface PatientSearchSelectProps {
   excludeIds?: string[];
 }
 
+/** What both lookups return and all this picker ever renders: identity. */
+interface PickerPatient {
+  id: string;
+  uhid: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string | null;
+  phone: string;
+  gender: string;
+}
+
 function formatAge(dob: string | null): string {
   if (!dob) return "";
   const birth = new Date(dob);
@@ -57,20 +68,32 @@ export function PatientSearchSelect({
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
+  // `patients.list` is relationship-scoped: it reaches the patients this user
+  // already has something to do with. A desk picking a returning patient needs
+  // the hospital, not its own history, so prefer the wide lookup when the
+  // caller holds the code for it. Same fields either way — this picker only
+  // ever shows identity.
+  const canFindPatients = useHasPermission(P.PATIENTS.FIND);
   const canCreatePatient = useHasPermission(P.PATIENTS.CREATE);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const phoneAccess = useProtectedFieldAccess("patients.phone");
   const dobAccess = useProtectedFieldAccess("patients.date_of_birth");
 
+  // Three characters is the server's floor for the hospital-wide lookup; the
+  // scoped list has always answered from two.
+  const minChars = canFindPatients ? 3 : 2;
   const { data } = useQuery({
-    queryKey: ["patient-search", debounced],
-    queryFn: () => lookupsService.listPatients({ search: debounced, per_page: 15 }),
-    enabled: canListPatients && debounced.length >= 2,
+    queryKey: ["patient-search", canFindPatients, debounced],
+    queryFn: async (): Promise<PickerPatient[]> =>
+      canFindPatients
+        ? await lookupsService.findPatients(debounced)
+        : (await lookupsService.listPatients({ search: debounced, per_page: 15 })).patients,
+    enabled: (canFindPatients || canListPatients) && debounced.length >= minChars,
     staleTime: 30_000,
   });
 
-  const patients = (data?.patients ?? []).filter((patient) => !excludeIds.includes(patient.id));
+  const patients = (data ?? []).filter((patient) => !excludeIds.includes(patient.id));
   const patientDisplay = (patient: (typeof patients)[number]) => {
     const name =
       fieldAccessText(
@@ -99,7 +122,13 @@ export function PatientSearchSelect({
       selectedDisplay={selectedDisplay}
       onSelect={(patient) => onChange(patient.id)}
       onClear={() => onChange("")}
-      emptyLabel={canListPatients ? "No patients found" : "Patient search restricted"}
+      emptyLabel={
+        canFindPatients
+          ? "No patient in the hospital by that name, UHID or phone"
+          : canListPatients
+            ? "No patients found among yours — a colleague's registration needs patients.find"
+            : "Patient search restricted"
+      }
       canCreate={canCreatePatient}
       createButtonLabel="Register new patient"
       createButtonIcon={<IconUserPlus size={14} />}

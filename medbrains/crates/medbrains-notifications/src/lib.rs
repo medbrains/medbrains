@@ -116,12 +116,15 @@ pub async fn mark_notification_read(
 ) -> Result<Json<UnreadCountResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query("UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2 AND tenant_id = $3")
+    let updated = sqlx::query("UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2 AND tenant_id = $3")
         .bind(id)
         .bind(claims.sub)
         .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     let unread_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false AND tenant_id = $2")
             .bind(claims.sub)

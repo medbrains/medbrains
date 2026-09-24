@@ -458,7 +458,12 @@ function LabOrderDetailPageInner() {
   const { orderId } = useParams();
   const canCreateOrder = useHasPermission(P.LAB.ORDERS_CREATE);
   const canCreateResult = useHasPermission(P.LAB.RESULTS_CREATE);
-  const canVerify = useHasPermission(P.LAB.RESULTS_UPDATE);
+  // Releasing results and editing them are separate codes now: a supervisor
+  // can be granted the release without result entry. The acknowledge and
+  // report-status controls still need `update`, which is what their handlers
+  // enforce — a control must ask for the permission its own call requires.
+  const canVerify = useHasPermission(P.LAB.RESULTS_VERIFY);
+  const canUpdateResults = useHasPermission(P.LAB.RESULTS_UPDATE);
   const canAmend = useHasPermission(P.LAB.RESULTS_AMEND);
   const canPrintReports = useHasPermission(P.LAB.ORDERS_VIEW);
 
@@ -483,6 +488,7 @@ function LabOrderDetailPageInner() {
           canCreateResult={canCreateResult}
           canCreateOrder={canCreateOrder}
           canVerify={canVerify}
+          canUpdateResults={canUpdateResults}
           canAmend={canAmend}
           canPrintReports={canPrintReports}
         />

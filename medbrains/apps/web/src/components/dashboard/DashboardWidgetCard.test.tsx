@@ -46,24 +46,26 @@ function widget(widget_type: WidgetType, config: Record<string, unknown> = {}): 
 const FAILED = { error: "unavailable" };
 
 describe("DashboardWidgetCard — a failure is not an emptiness", () => {
-  it.each<WidgetType>(["data_table", "list", "chart", "stat_card"] as WidgetType[])(
-    "%s says it could not load, and does not say it is empty",
-    (type) => {
-      render(
-        <DashboardWidgetCard
-          widget={widget(type, { columns: ["patient_name"] })}
-          data={FAILED}
-          loading={false}
-        />,
-      );
+  it.each<WidgetType>([
+    "data_table",
+    "list",
+    "chart",
+    "stat_card",
+  ] as WidgetType[])("%s says it could not load, and does not say it is empty", (type) => {
+    render(
+      <DashboardWidgetCard
+        widget={widget(type, { columns: ["patient_name"] })}
+        data={FAILED}
+        loading={false}
+      />,
+    );
 
-      expect(screen.getByText("Couldn't load")).toBeInTheDocument();
-      // The words an empty result uses must be absent, or the two states are
-      // indistinguishable to the person reading the screen.
-      expect(screen.queryByText("Nothing to show")).not.toBeInTheDocument();
-      expect(screen.queryByText("No data")).not.toBeInTheDocument();
-    },
-  );
+    expect(screen.getByText("Couldn't load")).toBeInTheDocument();
+    // The words an empty result uses must be absent, or the two states are
+    // indistinguishable to the person reading the screen.
+    expect(screen.queryByText("Nothing to show")).not.toBeInTheDocument();
+    expect(screen.queryByText("No data")).not.toBeInTheDocument();
+  });
 
   it("an empty result still reads as empty, not as a failure", () => {
     render(

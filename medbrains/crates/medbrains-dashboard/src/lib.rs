@@ -2578,7 +2578,7 @@ pub async fn my_toggle_widget(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE dashboard_widgets SET is_visible = $1
          WHERE id = $2 AND dashboard_id IN (
              SELECT id FROM dashboards WHERE user_id = $3 AND is_active = true
@@ -2589,6 +2589,9 @@ pub async fn my_toggle_widget(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"is_visible": req.is_visible})))

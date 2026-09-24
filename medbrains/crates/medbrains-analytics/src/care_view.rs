@@ -646,7 +646,7 @@ pub async fn complete_task(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE nursing_tasks SET is_completed = true, completed_at = NOW(), completed_by = $1 \
          WHERE id = $2",
     )
@@ -654,6 +654,9 @@ pub async fn complete_task(
     .bind(task_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
 

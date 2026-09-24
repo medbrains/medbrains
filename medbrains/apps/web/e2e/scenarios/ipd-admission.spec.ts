@@ -1,12 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { getAuthContextFromCookies, api } from "../helpers/api";
-import {
-  createPatientApi,
-  admitToIpd,
-} from "../helpers/journey-steps";
+import { admitToIpd, createPatientApi, dischargeAdmission } from "../helpers/journey-steps";
 
 test.describe("IPD admission journey", () => {
-  test("admit → fetch → discharge (best-effort)", async ({ request }) => {
+  test("admit → fetch → discharge", async ({ request }) => {
     test.info().annotations.push({
       type: "tcms",
       description: "IPD::Admit + bed allocation + discharge",
@@ -17,21 +14,19 @@ test.describe("IPD admission journey", () => {
     const admissionId = await admitToIpd(ctx, { patientId: patient.id });
 
     // GET returns { admission, encounter, tasks }
-    const detail = await api<{ admission: { id: string; patient_id: string } }>(
-      ctx,
-      "GET",
-      `/api/ipd/admissions/${admissionId}`,
-    );
-    expect(detail.admission.patient_id).toBe(patient.id);
+    const admission = async () =>
+      (
+        await api<{ admission: { id: string; patient_id: string; status: string } }>(
+          ctx,
+          "GET",
+          `/api/ipd/admissions/${admissionId}`,
+        )
+      ).admission;
+    expect(await admission()).toMatchObject({ patient_id: patient.id, status: "admitted" });
 
-    try {
-      await api(ctx, "POST", `/api/ipd/admissions/${admissionId}/discharge`, {
-        discharge_disposition: "home",
-        discharge_notes: "spec test discharge",
-      });
-    } catch {
-      // Discharge may need a discharge summary first — non-fatal.
-    }
+    // Discharge is a PUT; the POST this once sent was a 405 hidden in a try/catch.
+    await dischargeAdmission(ctx, admissionId);
+    expect((await admission()).status).toBe("discharged");
   });
 
   test("bed dashboard + available beds + admissions list", async ({ request }) => {

@@ -40,7 +40,12 @@ async fn require_object_view(
     let outcome = outcome_of(
         state
             .authz
-            .check(&ctx, medbrains_authz::Relation::Viewer, object_type, object_id)
+            .check(
+                &ctx,
+                medbrains_authz::Relation::Viewer,
+                object_type,
+                object_id,
+            )
             .await,
         object_type,
     );
@@ -159,8 +164,7 @@ pub mod links {
 
     /// The draw that happens at somebody's address, where the only person
     /// present is the phlebotomist. It carries `patient_id` itself.
-    pub const LAB_HOME_COLLECTION: ParentLink =
-        ParentLink::on_patient("lab_home_collections");
+    pub const LAB_HOME_COLLECTION: ParentLink = ParentLink::on_patient("lab_home_collections");
 
     /// A panic value and who was telephoned about it.
     pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink::on_patient("lab_critical_alerts");
@@ -271,8 +275,7 @@ pub mod links {
         column: "admission_id",
         parent: ParentKind::Admission,
     };
-    pub const BEDSIDE_NURSE_REQUEST: ParentLink =
-        ParentLink::on_patient("bedside_nurse_requests");
+    pub const BEDSIDE_NURSE_REQUEST: ParentLink = ParentLink::on_patient("bedside_nurse_requests");
 
     /// Case management. Barriers and referrals carry no patient of their own —
     /// they hang off the case assignment, which is where the patient lives.
@@ -308,23 +311,18 @@ pub mod links {
     ///
     /// Keyed on `patient_id`, which is NOT NULL, rather than on the nullable
     /// `encounter_id`/`admission_id` — a packet may be assembled from either.
-    pub const CASE_SHEET_PACKET: ParentLink =
-        ParentLink::on_patient("mrd_case_sheet_packets");
+    pub const CASE_SHEET_PACKET: ParentLink = ParentLink::on_patient("mrd_case_sheet_packets");
 
     /// Clinical-trial subject records. Each carries a NOT NULL `patient_id`
     /// beside its `trial_id`, so the hop is direct — the trial is the roster,
     /// the patient is the subject, and an update names only the record.
     pub const TRIAL_VISIT: ParentLink = ParentLink::on_patient("trial_visits");
-    pub const TRIAL_ADVERSE_EVENT: ParentLink =
-        ParentLink::on_patient("trial_adverse_events");
-    pub const TRIAL_RANDOMIZATION: ParentLink =
-        ParentLink::on_patient("trial_randomizations");
+    pub const TRIAL_ADVERSE_EVENT: ParentLink = ParentLink::on_patient("trial_adverse_events");
+    pub const TRIAL_RANDOMIZATION: ParentLink = ParentLink::on_patient("trial_randomizations");
 
     /// Ward safety records, each keyed straight on the patient they concern.
-    pub const HYPOGLYCEMIA_EVENT: ParentLink =
-        ParentLink::on_patient("hypoglycemia_events");
-    pub const MED_RECONCILIATION: ParentLink =
-        ParentLink::on_patient("medication_reconciliations");
+    pub const HYPOGLYCEMIA_EVENT: ParentLink = ParentLink::on_patient("hypoglycemia_events");
+    pub const MED_RECONCILIATION: ParentLink = ParentLink::on_patient("medication_reconciliations");
     pub const SEPSIS_BUNDLE: ParentLink = ParentLink::on_patient("sepsis_hour1_bundles");
 
     /// A patient reminder — cancelling one stops an outreach to that person.
@@ -413,8 +411,7 @@ pub mod links {
     pub const HOME_MED_ADMINISTRATION: ParentLink =
         ParentLink::on_patient("home_med_administrations");
     pub const HOME_ESCALATION: ParentLink = ParentLink::on_patient("home_escalations");
-    pub const HOME_DISCHARGE_ITEM: ParentLink =
-        ParentLink::on_patient("home_discharge_program");
+    pub const HOME_DISCHARGE_ITEM: ParentLink = ParentLink::on_patient("home_discharge_program");
     pub const HOSPICE_ENROLLMENT: ParentLink = ParentLink::on_patient("hospice_enrollments");
     /// An advance directive — what a person wants done, and not done.
     pub const ADVANCE_DIRECTIVE: ParentLink = ParentLink::on_patient("advance_directives");
@@ -626,7 +623,12 @@ pub async fn require_patient_access(
     let direct = outcome_of(
         state
             .authz
-            .check(&ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+            .check(
+                &ctx,
+                medbrains_authz::Relation::Viewer,
+                "patient",
+                patient_id,
+            )
             .await,
         "patient",
     );
@@ -650,7 +652,11 @@ pub async fn require_patient_access(
     .fetch_all(&mut *conn)
     .await?;
     for eid in encounter_ids {
-        items.push(("encounter".to_owned(), medbrains_authz::Relation::Viewer, eid));
+        items.push((
+            "encounter".to_owned(),
+            medbrains_authz::Relation::Viewer,
+            eid,
+        ));
     }
 
     let admission_ids: Vec<Uuid> = sqlx::query_scalar!(
@@ -663,7 +669,11 @@ pub async fn require_patient_access(
     .fetch_all(&mut *conn)
     .await?;
     for aid in admission_ids {
-        items.push(("admission".to_owned(), medbrains_authz::Relation::Viewer, aid));
+        items.push((
+            "admission".to_owned(),
+            medbrains_authz::Relation::Viewer,
+            aid,
+        ));
     }
 
     // No encounters and no admissions is a definite `Deny` for the hierarchy
@@ -675,9 +685,13 @@ pub async fn require_patient_access(
     }
 
     let reachable = match state.authz.bulk_check(&ctx, &items).await {
-        Ok(results) => any(results
-            .values()
-            .map(|&allowed| if allowed { Outcome::Allow } else { Outcome::Deny })),
+        Ok(results) => any(results.values().map(|&allowed| {
+            if allowed {
+                Outcome::Allow
+            } else {
+                Outcome::Deny
+            }
+        })),
         Err(err) => {
             tracing::error!(target: "authz", error = %err, check = "patient_fanout",
                 objects = items.len(),
@@ -764,4 +778,137 @@ pub async fn patient_filter(
         }
         None => visible_patient_ids(state, claims).await,
     }
+}
+
+/// The care team an admission links, for [`grant_admission_care_team`].
+pub struct AdmissionCareTeam {
+    pub encounter_id: Uuid,
+    pub admission_id: Uuid,
+    /// The treating department; `None` when the admit path names none (ER).
+    pub department_id: Option<Uuid>,
+    pub admitting_doctor_id: Uuid,
+    pub ward_id: Option<Uuid>,
+}
+
+/// Link the care team on BOTH the admission's encounter and the admission so
+/// per-encounter and per-admission reads resolve (ReBAC). Department viewer
+/// = the whole treating department (one tuple, no per-user fan-out);
+/// attending = the admitting doctor; ward_member covers ward staff, who may
+/// sit in a different department than the admitting one. Every admit path
+/// (direct IPD, from the ER) must call this after its commit — an admission
+/// without these tuples is one its own doctor cannot open.
+pub async fn grant_admission_care_team(
+    state: &AppState,
+    claims: &Claims,
+    team: AdmissionCareTeam,
+) -> Result<(), AppError> {
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let objects = [
+        ("encounter", team.encounter_id),
+        ("admission", team.admission_id),
+    ];
+    if let Some(dept_id) = team.department_id {
+        for (object_type, object_id) in objects {
+            state
+                .authz
+                .grant_raw(
+                    &authz_ctx,
+                    object_type,
+                    object_id,
+                    "dept_member",
+                    medbrains_authz::Subject::Department(dept_id),
+                    None,
+                    Some("admission_department".to_owned()),
+                )
+                .await
+                .map_err(|e| {
+                    AppError::Internal(format!("{object_type} dept authz grant failed: {e}"))
+                })?;
+        }
+    }
+    for (object_type, object_id) in objects {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                object_type,
+                object_id,
+                medbrains_authz::Relation::AttendingPhysician,
+                medbrains_authz::Subject::User(team.admitting_doctor_id),
+                None,
+                Some("admission_attending".to_owned()),
+            )
+            .await
+            .map_err(|e| {
+                AppError::Internal(format!("{object_type} attending authz grant failed: {e}"))
+            })?;
+    }
+    // Best-effort lookup of the ward's department; the grant itself is fatal
+    // like the others.
+    let Some(ward_id) = team.ward_id else {
+        return Ok(());
+    };
+    let ward_dept: Option<Uuid> = sqlx::query_scalar!(
+        "SELECT department_id FROM wards WHERE id = $1 AND tenant_id = $2",
+        ward_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .flatten();
+    if let Some(dept) = ward_dept {
+        state
+            .authz
+            .grant_raw(
+                &authz_ctx,
+                "admission",
+                team.admission_id,
+                "ward_member",
+                medbrains_authz::Subject::Department(dept),
+                None,
+                Some("admission_ward".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("admission ward authz grant failed: {e}")))?;
+    }
+    Ok(())
+}
+
+/// The user who started a visit owns that encounter.
+///
+/// `schema.zed` has said so since it was written — `relation owner: user //
+/// FK: encounters.created_by` — and nothing ever wrote either side. The column
+/// was NULL on every encounter a hospital desk or ward created (545 of 914
+/// locally; only the camp app filled it), so there was no record of who started
+/// a visit, and no tuple for the backfill to derive from.
+///
+/// What it costs to leave out: `require_patient_access` reaches a patient
+/// through their recent encounters, so a receptionist who registers a walk-in
+/// and sends them to a clinic cannot open the record they just created. The
+/// grant is deliberately on the *encounter*, not the patient — it names the
+/// visit this user actually handled, and it falls out of reach as newer
+/// encounters push it out of the window, rather than becoming standing access
+/// to a person forever.
+pub async fn grant_encounter_owner(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "encounter",
+            encounter_id,
+            medbrains_authz::Relation::Owner,
+            medbrains_authz::Subject::User(claims.sub),
+            None,
+            Some("encounter_created".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("encounter owner authz grant failed: {e}")))?;
+    Ok(())
 }

@@ -142,8 +142,16 @@ pub struct QueueTokenInfo {
 }
 
 /// Announcement event for emergency broadcasts.
+///
+/// `tenant_id` is not decoration. The announcement channel is one global
+/// broadcast for every connected board, and the event carried no tenant, so
+/// every display in every hospital received every other hospital's
+/// announcements — a message an operator types, which may name a ward, a bed
+/// or a patient. Each socket now drops anything that is not its own
+/// hospital's.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnouncementEvent {
+    pub tenant_id: Uuid,
     pub id: Uuid,
     pub message: String,
     pub priority: String,

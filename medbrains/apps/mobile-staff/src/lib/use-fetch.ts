@@ -14,9 +14,20 @@ export interface FetchState<T> {
   refetch: () => void;
 }
 
+export interface FetchOptions {
+  /**
+   * Re-fetch on this cadence while the screen is mounted. The timer is
+   * cleared on unmount and when the option is turned off, so a screen that
+   * leaves the foreground stops asking (`docs/DEVICE-CONSTRAINED-RULES.md`:
+   * tear down every timer).
+   */
+  intervalMs?: number;
+}
+
 export function useFetch<T>(
   fn: () => Promise<T>,
   deps: ReadonlyArray<unknown> = [],
+  options: FetchOptions = {},
 ): FetchState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +55,13 @@ export function useFetch<T>(
       cancelled = true;
     };
   }, [tick, ...deps]);
+
+  const intervalMs = options.intervalMs;
+  useEffect(() => {
+    if (!intervalMs) return;
+    const timer = setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
 
   return {
     data,

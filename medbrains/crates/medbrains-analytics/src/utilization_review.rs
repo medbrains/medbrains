@@ -402,14 +402,25 @@ pub async fn update_review(
 pub async fn ai_extract_stub(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<AiExtractResponse>, AppError> {
     require_permission(&claims, permissions::ur::reviews::UPDATE)?;
 
-    // Validate tenant context even though this is a stub
+    // Stub, but the review it is asked about must exist
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM utilization_reviews WHERE id = $1 AND tenant_id = $2) \
+         AS \"exists!\"",
+        id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
+    if !exists {
+        return Err(AppError::NotFound);
+    }
 
     Ok(Json(AiExtractResponse {
         status: "stub".to_owned(),

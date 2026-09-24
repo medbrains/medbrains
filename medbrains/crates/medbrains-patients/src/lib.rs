@@ -3295,6 +3295,94 @@ pub async fn match_patients(
 }
 
 // ══════════════════════════════════════════════════════════
+//  GET /api/patients/find
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct FindPatientsQuery {
+    /// A UHID, a phone number, or part of a name — whatever the desk was told.
+    pub q: String,
+}
+
+/// The front desk's lookup: one box, everything the desk might be given.
+///
+/// `GET /api/patients` is relationship-scoped, which is right for browsing and
+/// wrong for a desk. A returning patient walks up and gives a UHID or a phone
+/// number; the receptionist who registered them last year is not on shift, so
+/// the list returns nothing and the desk registers them a second time. This
+/// reaches every patient in the tenant deliberately — the same argument
+/// `match_patients` already makes for duplicate detection — and pays for it by
+/// returning identity only. The permission is the control, and the read is
+/// audited by the `/api/patients` prefix like every other PHI list.
+pub async fn find_patients(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<FindPatientsQuery>,
+) -> Result<Json<Vec<MatchResult>>, AppError> {
+    require_permission(&claims, permissions::patients::FIND)?;
+
+    // Two characters match half the hospital. A desk lookup is a lookup for
+    // someone in particular, not a way to page through the register.
+    let q = params.q.trim();
+    if q.len() < 3 {
+        return Ok(Json(Vec::new()));
+    }
+
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    // One query, bounded: exact identifiers score highest, then a prefix of
+    // either, then trigram on the name. No second round trip to rank.
+    let like = format!("%{q}%");
+    let rows = sqlx::query_as_unchecked!(
+        MatchResult,
+        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
+         ( \
+           CASE WHEN upper(uhid) = upper($2) THEN 1.0 \
+                WHEN phone = $2 THEN 0.95 \
+                WHEN uhid ILIKE $3 THEN 0.80 \
+                WHEN phone LIKE $3 THEN 0.75 \
+                ELSE COALESCE(similarity(first_name || ' ' || last_name, $2), 0) \
+           END \
+         )::float8 AS score \
+         FROM patients \
+         WHERE tenant_id = $1 \
+           AND is_merged = false \
+           AND is_active = true \
+           AND ( \
+             upper(uhid) = upper($2) \
+             OR phone = $2 \
+             OR uhid ILIKE $3 \
+             OR phone LIKE $3 \
+             OR similarity(first_name || ' ' || last_name, $2) > 0.3 \
+           ) \
+         ORDER BY score DESC, last_name, first_name \
+         LIMIT 20",
+        claims.tenant_id,
+        q,
+        &like,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|m| filter_match_result(m, &restricted))
+            .collect(),
+    ))
+}
+
+// ══════════════════════════════════════════════════════════
 //  Masters — Religions, Occupations, Relations
 // ══════════════════════════════════════════════════════════
 
@@ -4329,13 +4417,17 @@ pub async fn update_patient_photo(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    sqlx::query!(
+    let updated = sqlx::query!(
         "UPDATE patients SET photo_url = $1, photo_captured_at = now(), updated_at = now() WHERE id = $2",
         &body.photo_url,
         patient_id,
     )
     .execute(&mut *tx)
     .await?;
+    // Bypass roles pass `require_patient_access` without the row existing.
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "photo_url": body.photo_url })))
@@ -4871,6 +4963,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/patients",
             get(list_patients).post(create_patient),
         )
+        .route("/api/patients/find", get(find_patients))
         .route("/api/patients/match", post(match_patients))
         .route("/api/patients/merge", post(merge_patients))
         .route(

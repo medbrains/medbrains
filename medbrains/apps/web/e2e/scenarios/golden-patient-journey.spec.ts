@@ -59,12 +59,23 @@ test.describe("Golden patient journey", () => {
     const failedUiApiCalls: string[] = [];
 
     page.on("console", (msg) => {
-      if (msg.type() === "error") consoleErrors.push(msg.text());
+      // Vite's HMR socket and the bare "failed to load resource" line are the
+      // dev harness; a failing API call is caught by the response sweep below.
+      if (msg.type() === "error" && !/vite|WebSocket|Failed to load resource/i.test(msg.text())) {
+        consoleErrors.push(msg.text());
+      }
     });
-    page.on("pageerror", (err) => pageErrors.push(err.message));
+    page.on("pageerror", (err) => {
+      // The notifications socket cannot be proxied by route interception.
+      if (!/WebSocket closed/.test(err.message)) pageErrors.push(err.message);
+    });
     page.on("response", (response) => {
       const url = new URL(response.url());
-      if (url.pathname.startsWith("/api/") && response.status() >= 400) {
+      // 404 from tenant-by-host is its documented answer for a host with no
+      // custom domain — the login page then renders the default brand.
+      const isNoCustomDomain =
+        url.pathname === "/api/public/tenant-by-host" && response.status() === 404;
+      if (url.pathname.startsWith("/api/") && response.status() >= 400 && !isNoCustomDomain) {
         failedUiApiCalls.push(`${response.status()} ${url.pathname}`);
       }
     });

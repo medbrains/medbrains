@@ -908,8 +908,21 @@ pub async fn send_purchase_order(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("PO not found or not approved".into()))?;
+    .await?;
+    let Some(po) = po else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM purchase_orders WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("PO is not approved".into()));
+    };
 
     tx.commit().await?;
     Ok(Json(po))
@@ -935,8 +948,21 @@ pub async fn cancel_purchase_order(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("PO not found or cannot be cancelled".into()))?;
+    .await?;
+    let Some(po) = po else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM purchase_orders WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("PO cannot be cancelled in its current status".into()));
+    };
 
     tx.commit().await?;
     Ok(Json(po))
@@ -1374,8 +1400,21 @@ pub async fn complete_grn(
     .bind(claims.tenant_id)
     .bind(claims.sub)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("GRN not found or cannot be completed".into()))?;
+    .await?;
+    let Some(grn) = grn else {
+        let exists: bool = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM goods_receipt_notes WHERE id = $1 AND tenant_id = $2) \
+             AS \"exists!\"",
+            id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::NotFound);
+        }
+        return Err(AppError::BadRequest("GRN cannot be completed in its current status".into()));
+    };
 
     tx.commit().await?;
     Ok(Json(grn))

@@ -1,0 +1,60 @@
+/* The emergency banner a queue board shows when a code is called.
+ *
+ * Colours come from the fixed emergency-code layer, which is not themeable:
+ * a code blue is the same blue on every deployment because the people
+ * reacting to it learned that colour somewhere else. */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg);
+  background: var(--code-blue);
+  color: #fff;
+  border-radius: 0;
+}
+
+.emergency {
+  background: var(--code-blue);
+}
+
+.urgent {
+  background: var(--code-orange);
+}
+
+.message {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.since {
+  margin-left: auto;
+  font-size: 0.875rem;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+
+/* A board is watched from across a room, so the banner pulses rather than
+ * relying on colour alone. Anyone who has asked not to see motion still gets
+ * the banner — it simply stops moving. */
+.pulse {
+  animation: board-alert-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes board-alert-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}

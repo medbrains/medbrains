@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 /**
- * Generate Layer 1 API smoke specs from `crates/medbrains-server/src/routes/mod.rs`.
+ * Generate Layer 1 API smoke specs from every crate that registers routes.
+ *
+ * It used to read only `crates/medbrains-server/src/routes/mod.rs`. After the
+ * crate split that file holds 23 routes; the other ~2,760 live in the leaf
+ * crates' `router()` fns. The generated specs on disk were dated 18 May and
+ * `make e2e-full` was green against them. Sources are now walked the way
+ * `scripts/check_api_contract.py::backend_route_sources` walks them.
  *
  * What this generator does:
  *   - Parses every `.route("...", ...)` declaration from the routes module.
@@ -23,13 +29,35 @@
  * Run from repo root:  node apps/web/scripts/generate-api-smoke.mjs
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "../../..");
-const ROUTES_FILE = resolve(REPO_ROOT, "crates/medbrains-server/src/routes/mod.rs");
+const CRATES_DIR = resolve(REPO_ROOT, "crates");
+
+/** Every `.rs` under a `crates/medbrains-<name>/src` tree that registers a route. */
+export function routeSourceFiles() {
+  const out = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = resolve(dir, name);
+      if (statSync(full).isDirectory()) {
+        if (name === "target" || name === "node_modules") continue;
+        walk(full);
+      } else if (name.endsWith(".rs") && readFileSync(full, "utf8").includes(".route(")) {
+        out.push(full);
+      }
+    }
+  };
+  for (const crate of readdirSync(CRATES_DIR)) {
+    if (!crate.startsWith("medbrains-")) continue;
+    const src = resolve(CRATES_DIR, crate, "src");
+    if (existsSync(src)) walk(src);
+  }
+  return out.sort();
+}
 const SEED_FILE = resolve(__dirname, "../e2e/helpers/canonical-seed.ts");
 const FIXTURES_FILE = resolve(__dirname, "../e2e/smoke/fixtures.ts");
 const OUTPUT_DIR = resolve(__dirname, "../e2e/smoke/api");
@@ -37,10 +65,13 @@ const SKIP_FILE = resolve(OUTPUT_DIR, "_skiplist.json");
 
 // ─── Parse routes/mod.rs ──────────────────────────────────────────
 
-function parseRoutes(source) {
+export function parseRoutes(source) {
   const routes = [];
   const stripped = source.replace(/\/\/[^\n]*/g, "");
-  const re = /\.route\s*\(\s*"([^"]+)"\s*,\s*([\s\S]*?)\)\s*[\.;]/g;
+  // The handler block ends at a `)` followed by `.` or `;`. That trailing
+  // character must be a LOOKAHEAD: consuming it ate the dot of the next
+  // `.route(`, so every second registration in a chain was skipped.
+  const re = /\.route\s*\(\s*"([^"]+)"\s*,\s*([\s\S]*?)\)\s*(?=[.;])/g;
   let m;
   while ((m = re.exec(stripped)) !== null) {
     const path = m[1];
@@ -56,7 +87,7 @@ function parseRoutes(source) {
   return routes;
 }
 
-function moduleOf(path) {
+export function moduleOf(path) {
   const m = /^\/api\/([a-zA-Z0-9_-]+)/.exec(path);
   if (!m) return "_misc";
   return m[1].replace(/[^a-zA-Z0-9]/g, "_");
@@ -64,7 +95,7 @@ function moduleOf(path) {
 
 // ─── Parse PARAM_TO_SEED + PARENT_SEGMENT_TO_SEED from canonical-seed.ts ──
 
-function parseSeedMap() {
+export function parseSeedMap() {
   const src = readFileSync(SEED_FILE, "utf8");
 
   // Extract SEED keys + values
@@ -100,7 +131,7 @@ function parseSeedMap() {
   return { seed, paramMap, parentRules };
 }
 
-function substituteParams(path, seedData) {
+export function substituteParams(path, seedData) {
   const { seed, paramMap, parentRules } = seedData;
 
   return path.replace(/\{(\w+)\}/g, (match, name) => {
@@ -135,7 +166,7 @@ function substituteParams(path, seedData) {
 
 // ─── Parse SMOKE_BODIES ───────────────────────────────────────────
 
-function parseSmokeBodies() {
+export function parseSmokeBodies() {
   // Lazy parse: just scan for keys; we don't need full evaluation.
   // The generated test imports SMOKE_BODIES at runtime.
   const src = readFileSync(FIXTURES_FILE, "utf8");
@@ -148,7 +179,7 @@ function parseSmokeBodies() {
   return keys;
 }
 
-function parseSkipEndpoints() {
+export function parseSkipEndpoints() {
   const src = readFileSync(FIXTURES_FILE, "utf8");
   const m = src.match(/SKIP_ENDPOINTS[\s\S]*?=\s*\[([\s\S]*?)\]/);
   if (!m) return new Set();
@@ -178,7 +209,7 @@ function specForModule(moduleName, cases) {
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { test, expect } from "@playwright/test";
 import { E2E_BACKEND_URL, loginAsAdmin } from "../../helpers/api";
 import type { AuthContext } from "../../helpers/types";
@@ -282,8 +313,19 @@ test.describe("smoke ${moduleName}", () => {
 // ─── Main ────────────────────────────────────────────────────────
 
 function main() {
-  const source = readFileSync(ROUTES_FILE, "utf8");
-  const routes = parseRoutes(source);
+  // One route may be registered in more than one file (mod.rs and a leaf
+  // crate during a split); dedupe by path so a spec is generated once.
+  const byPath = new Map();
+  const sources = routeSourceFiles();
+  for (const file of sources) {
+    for (const r of parseRoutes(readFileSync(file, "utf8"))) {
+      const seen = byPath.get(r.path) ?? new Set();
+      for (const m of r.methods) seen.add(m);
+      byPath.set(r.path, seen);
+    }
+  }
+  const routes = [...byPath].map(([path, methods]) => ({ path, methods: [...methods] }));
+  console.log(`routes: ${routes.length} across ${sources.length} source files`);
   if (routes.length === 0) {
     console.error("no routes parsed — aborting");
     process.exit(1);
@@ -333,4 +375,5 @@ function main() {
   );
 }
 
-main();
+// Run only as a script; generate-api-writes.mjs imports the parsers above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

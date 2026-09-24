@@ -34,6 +34,8 @@ use uuid::Uuid;
 
 use medbrains_offline_core as offline;
 
+use medbrains_clinical_core as clinical;
+
 uniffi::include_scaffolding!("edge_rn");
 
 #[derive(Debug, Error)]
@@ -327,6 +329,326 @@ pub fn is_action_offline_required(object_type: String, action: String) -> bool {
     offline::ONLINE_REQUIRED_ACTIONS
         .iter()
         .any(|(t, a)| *t == object_type && *a == action)
+}
+
+// ── Bedside decisions ──────────────────────────────────────────────
+// Thin FFI faces over `medbrains-clinical-core`; the logic and its tests
+// live there so the Swift and Kotlin apps share one answer.
+
+#[derive(Debug, Clone)]
+pub struct WitnessCandidate {
+    pub nurse_user_id: String,
+    pub nurse_name: String,
+    pub is_charge: bool,
+}
+
+impl From<WitnessCandidate> for clinical::bcma::WitnessCandidate {
+    fn from(w: WitnessCandidate) -> Self {
+        Self { nurse_user_id: w.nurse_user_id, nurse_name: w.nurse_name, is_charge: w.is_charge }
+    }
+}
+
+impl From<clinical::bcma::WitnessCandidate> for WitnessCandidate {
+    fn from(w: clinical::bcma::WitnessCandidate) -> Self {
+        Self { nurse_user_id: w.nurse_user_id, nurse_name: w.nurse_name, is_charge: w.is_charge }
+    }
+}
+
+pub fn bcma_eligible_witnesses(on_duty: Vec<WitnessCandidate>, actor_id: String) -> Vec<WitnessCandidate> {
+    clinical::bcma::eligible_witnesses(on_duty.into_iter().map(Into::into).collect(), &actor_id)
+        .into_iter()
+        .map(Into::into)
+        .collect()
+}
+
+pub fn bcma_can_record_given(is_high_alert: bool, witness_id: Option<String>) -> bool {
+    clinical::bcma::can_record_given(is_high_alert, witness_id.as_deref())
+}
+
+pub fn bcma_scan_rights_summary(right_patient: bool, right_drug: bool) -> String {
+    clinical::bcma::scan_rights_summary(right_patient, right_drug)
+}
+
+#[derive(Debug, Clone)]
+pub struct TransfusionPhaseState {
+    pub phase: String,
+    pub recorded: bool,
+    pub overdue: bool,
+}
+
+pub fn transfusion_phase_states(
+    started_unix: Option<i64>,
+    ended: bool,
+    recorded_phases: Vec<String>,
+    now_unix: i64,
+) -> Vec<TransfusionPhaseState> {
+    clinical::transfusion::phase_states(started_unix, ended, &recorded_phases, now_unix)
+        .into_iter()
+        .map(|p| TransfusionPhaseState { phase: p.phase, recorded: p.recorded, overdue: p.overdue })
+        .collect()
+}
+
+pub fn transfusion_is_running(started_unix: Option<i64>, ended: bool) -> bool {
+    clinical::transfusion::is_running(started_unix, ended)
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+pub fn transfusion_can_start(
+    bag_number: String,
+    blood_group: String,
+    product_type: String,
+    expiry_date: String,
+    consent_on_file: bool,
+    crossmatch_compatible: bool,
+    second_nurse_id: Option<String>,
+) -> bool {
+    clinical::transfusion::can_start_transfusion(
+        &bag_number,
+        &blood_group,
+        &product_type,
+        &expiry_date,
+        consent_on_file,
+        crossmatch_compatible,
+        second_nurse_id.as_deref(),
+    )
+}
+
+pub fn nurse_call_wait_label(waiting_seconds: i64) -> String {
+    clinical::nurse_calls::wait_label(waiting_seconds)
+}
+
+pub fn nurse_call_is_open(status: String) -> bool {
+    clinical::nurse_calls::is_open_nurse_call(&status)
+}
+
+pub fn nurse_call_is_overdue(escalation: String) -> bool {
+    clinical::nurse_calls::is_overdue_nurse_call(&escalation)
+}
+
+pub fn fall_risk_morse_level(score: i64) -> String {
+    clinical::fall_risk::morse_level(score).to_owned()
+}
+
+#[derive(Debug, Clone)]
+pub struct CodeBlueRef {
+    pub id: String,
+    pub location: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct EmergencyCodeRef {
+    pub id: String,
+    pub code_type: String,
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OpenEmergencyCode {
+    pub key: String,
+    pub label: String,
+    pub code_type: String,
+    pub location: String,
+    pub code_blue_id: Option<String>,
+}
+
+pub fn emergency_open_codes(
+    code_blues: Vec<CodeBlueRef>,
+    er_codes: Vec<EmergencyCodeRef>,
+    silenced_keys: Vec<String>,
+) -> Vec<OpenEmergencyCode> {
+    let cbs: Vec<clinical::emergency::CodeBlueRef> = code_blues
+        .into_iter()
+        .map(|c| clinical::emergency::CodeBlueRef { id: c.id, location: c.location })
+        .collect();
+    let ers: Vec<clinical::emergency::EmergencyCodeRef> = er_codes
+        .into_iter()
+        .map(|e| clinical::emergency::EmergencyCodeRef { id: e.id, code_type: e.code_type, location: e.location })
+        .collect();
+    clinical::emergency::open_codes(&cbs, &ers, &silenced_keys)
+        .into_iter()
+        .map(|c| OpenEmergencyCode {
+            key: c.key,
+            label: c.label,
+            code_type: c.code_type,
+            location: c.location,
+            code_blue_id: c.code_blue_id,
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct TapOutcome {
+    pub taps_ms: Vec<i64>,
+    pub triple: bool,
+}
+
+pub fn emergency_register_tap(taps_ms: Vec<i64>, now_ms: i64) -> TapOutcome {
+    let out = clinical::emergency::register_tap(&taps_ms, now_ms);
+    TapOutcome { taps_ms: out.taps, triple: out.triple }
+}
+
+pub fn clinic_order(start_times: Vec<Option<String>>) -> Vec<u32> {
+    clinical::clinic_day::clinic_order(&start_times)
+}
+
+pub fn clinic_next_patient(start_times: Vec<Option<String>>, statuses: Vec<String>) -> Option<u32> {
+    clinical::clinic_day::next_patient(&start_times, &statuses)
+}
+
+pub fn clinic_remaining_count(statuses: Vec<String>) -> u32 {
+    clinical::clinic_day::remaining_count(&statuses)
+}
+
+pub fn clinic_is_still_to_come(status: String) -> bool {
+    clinical::clinic_day::is_still_to_come(&status)
+}
+
+pub fn consultation_problem(chief_complaint: String, examination: String, assessment: String, plan: String) -> Option<String> {
+    clinical::consultation::consultation_problem(&chief_complaint, &examination, &assessment, &plan)
+}
+
+/// What the desk typed, as the registration rules see it (UDL record).
+#[derive(Debug, Clone)]
+pub struct RegistrationDraft {
+    pub first_name: String,
+    pub last_name: String,
+    pub phone: String,
+    pub date_of_birth: String,
+    pub age_years: Option<u32>,
+    pub is_medico_legal: bool,
+    pub mlc_number: String,
+    pub abha_number: String,
+}
+
+impl From<RegistrationDraft> for clinical::registration::RegistrationDraft {
+    fn from(d: RegistrationDraft) -> Self {
+        Self {
+            first_name: d.first_name,
+            last_name: d.last_name,
+            phone: d.phone,
+            date_of_birth: d.date_of_birth,
+            age_years: d.age_years,
+            is_medico_legal: d.is_medico_legal,
+            mlc_number: d.mlc_number,
+            abha_number: d.abha_number,
+        }
+    }
+}
+
+/// A refusal on one registration field, in the desk's words (UDL record).
+#[derive(Debug, Clone)]
+pub struct RegistrationProblem {
+    pub field: String,
+    pub message: String,
+}
+
+impl From<clinical::registration::RegistrationProblem> for RegistrationProblem {
+    fn from(p: clinical::registration::RegistrationProblem) -> Self {
+        Self { field: p.field, message: p.message }
+    }
+}
+
+pub fn registration_action(check_unavailable: bool, matches: u32) -> String {
+    clinical::registration::registration_action(check_unavailable, matches).to_owned()
+}
+
+pub fn registration_carries_over(field: String) -> bool {
+    clinical::registration::registration_carries_over(&field)
+}
+
+pub fn registration_problem(draft: RegistrationDraft) -> Option<RegistrationProblem> {
+    clinical::registration::registration_problem(&draft.into()).map(Into::into)
+}
+
+pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {
+    clinical::registration::estimated_date_of_birth(age_years, today_year)
+}
+
+pub fn appointment_actions(status: String, is_today: bool) -> Vec<String> {
+    clinical::appointment::appointment_actions(&status, is_today).into_iter().map(str::to_owned).collect()
+}
+
+pub fn slot_is_bookable(date: String, start_time: String, today: String, now_time: String, is_available: bool) -> bool {
+    clinical::appointment::slot_is_bookable(&date, &start_time, &today, &now_time, is_available)
+}
+
+pub fn pass_state(status: String, valid_until: String, now: String) -> String {
+    clinical::visitors::pass_state(&status, &valid_until, &now).to_owned()
+}
+
+pub fn pass_is_inside(state: String, checked_out: bool) -> bool {
+    clinical::visitors::pass_is_inside(&state, checked_out)
+}
+
+pub fn pass_actions(state: String, inside: bool) -> Vec<String> {
+    clinical::visitors::pass_actions(&state, inside).into_iter().map(str::to_owned).collect()
+}
+
+pub fn companion_access(licensed_by_hospital: Option<bool>, band_paired: Option<bool>, purchased: Option<bool>) -> Option<String> {
+    clinical::companion::companion_access(licensed_by_hospital, band_paired, purchased).map(str::to_owned)
+}
+
+pub fn band_state(last_synced_unix: Option<i64>, now_unix: i64) -> String {
+    clinical::companion::band_state(last_synced_unix, now_unix).to_owned()
+}
+
+pub fn describe_band_state(state: String) -> String {
+    clinical::companion::describe_band_state(&state).to_owned()
+}
+
+#[derive(Debug, Clone)]
+pub struct MedicationPlan {
+    pub id: String,
+    pub name: String,
+    pub instructions: String,
+    pub times: Vec<String>,
+    pub started_on: String,
+    pub ends_on: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AdherenceEvent {
+    pub plan_id: String,
+    pub scheduled_for: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DoseSlot {
+    pub plan_id: String,
+    pub name: String,
+    pub instructions: String,
+    pub time: String,
+    pub scheduled_for: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DailyBrief {
+    pub slots: Vec<DoseSlot>,
+    pub adherence_percent: Option<u32>,
+    pub streak_days: u32,
+    pub confidence: String,
+    pub verdict: String,
+}
+
+pub fn daily_brief(medications: Vec<MedicationPlan>, adherence: Vec<AdherenceEvent>, observation_days: Vec<String>, now_unix: i64) -> DailyBrief {
+    let meds: Vec<clinical::companion::MedicationPlan> = medications
+        .into_iter()
+        .map(|m| clinical::companion::MedicationPlan { id: m.id, name: m.name, instructions: m.instructions, times: m.times, started_on: m.started_on, ends_on: m.ends_on })
+        .collect();
+    let events: Vec<clinical::companion::AdherenceEvent> = adherence
+        .into_iter()
+        .map(|a| clinical::companion::AdherenceEvent { plan_id: a.plan_id, scheduled_for: a.scheduled_for, status: a.status })
+        .collect();
+    let b = clinical::companion::daily_brief(&meds, &events, &observation_days, now_unix);
+    DailyBrief {
+        slots: b.slots.into_iter().map(|s| DoseSlot { plan_id: s.plan_id, name: s.name, instructions: s.instructions, time: s.time, scheduled_for: s.scheduled_for, status: s.status }).collect(),
+        adherence_percent: b.adherence_percent,
+        streak_days: b.streak_days,
+        confidence: b.confidence,
+        verdict: b.verdict,
+    }
 }
 
 // ── Peer-to-peer sync identity ─────────────────────────────────────

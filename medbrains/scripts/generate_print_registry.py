@@ -90,8 +90,16 @@ def handlers() -> tuple[dict, dict]:
             # often enough to matter — it bisected `blood_...` into a table
             # called `bloo`, which then excluded a working document for
             # querying a table that "does not exist".
-            body = text[m.end():m.end() + 6000]
-            body = body[:body.rfind("\n") + 1] if "\n" in body else body
+            # Stop at the next item, not at a byte count. A fixed window runs
+            # past the end of a short handler and reads the next one's SQL:
+            # rewriting the surgical-safety checklist handler pushed the
+            # anaesthesia record's `FROM anesthesia_records` inside the window,
+            # and a working document dropped out of the print menu for querying
+            # a table it never touches. Same class as the `bloo` bisection
+            # below, one layer up.
+            rest = text[m.end():]
+            stop = re.search(r"\n(?:pub |/// |#\[|// ── )", rest)
+            body = rest[: stop.start()] if stop else rest[:6000]
             perm = re.search(r"require_permission\(&claims,\s*permissions::([\w:]+)\)", body[:900])
             guards[m.group(1)] = {
                 "perm": perm.group(1) if perm else None,

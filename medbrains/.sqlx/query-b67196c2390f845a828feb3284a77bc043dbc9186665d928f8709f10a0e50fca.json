@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH nurse AS ( SELECT COALESCE(nsa.charge_nurse_user_id, nsa.nurse_user_id) AS uid FROM nurse_shift_assignments nsa WHERE nsa.tenant_id = $1 AND nsa.ward_id = $2 AND nsa.shift_date = CURRENT_DATE AND nsa.deleted_at IS NULL ORDER BY nsa.primary_assigned DESC, (nsa.charge_nurse_user_id IS NULL) LIMIT 1 ) INSERT INTO nursing_tasks (tenant_id, admission_id, assigned_to, task_type, description, category, priority, due_at) SELECT $1, $3, nurse.uid, 'initial_assessment', 'Initial nursing assessment — due within 24 hours of admission (NABH).', 'other'::nursing_task_category, 'urgent'::nursing_task_priority, now() + interval '24 hours' FROM nurse WHERE NOT EXISTS ( SELECT 1 FROM nursing_tasks nt WHERE nt.tenant_id = $1 AND nt.admission_id = $3 AND nt.task_type = 'initial_assessment' AND nt.deleted_at IS NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b67196c2390f845a828feb3284a77bc043dbc9186665d928f8709f10a0e50fca"
+}

@@ -325,6 +325,25 @@ async fn execute_run(
 
 // ── Approve / Reject pending runs ───────────────────────────────────
 
+/// Tenant scoping comes from the RLS context already set on `tx`, as for
+/// every other `simulator_runs` statement here.
+async fn require_run_exists(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    run_id: Uuid,
+) -> Result<(), AppError> {
+    let exists: bool = sqlx::query_scalar!( // allow-raw-sql: test simulator generates arbitrary data
+        "SELECT EXISTS(SELECT 1 FROM simulator_runs WHERE id = $1) AS \"exists!\"",
+        run_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if exists {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn approve_run(
     State(state): State<AppState>,
@@ -341,12 +360,13 @@ pub async fn approve_run(
     .bind(run_id)
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
     if res.rows_affected() == 0 {
+        require_run_exists(&mut tx, run_id).await?;
         return Err(AppError::BadRequest(
             "Run is not in pending_approval state".into(),
         ));
     }
+    tx.commit().await?;
     Ok(Json(json!({ "approved": true, "run_id": run_id })))
 }
 
@@ -359,6 +379,8 @@ pub async fn reject_run(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    require_run_exists(&mut tx, run_id).await?;
 
     // Walk run steps and DELETE each target row by step_type. We only
     // delete rows that are still flagged is_dummy = true, defensive

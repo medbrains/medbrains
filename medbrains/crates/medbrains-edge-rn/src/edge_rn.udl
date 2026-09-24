@@ -39,6 +39,155 @@ namespace edge_rn {
     /// Recover the node id from a stored secret, on later launches.
     [Throws=BridgeError]
     string node_id_for_secret(string secret_hex);
+
+    // ── Bedside decisions (medbrains-clinical-core) ───────────────
+    // The rules the server enforces, answered on the device before the
+    // tap so the refusal is explained rather than merely returned.
+
+    /// Who may witness a high-alert dose: everyone on duty except the
+    /// nurse giving it.
+    sequence<WitnessCandidate> bcma_eligible_witnesses(sequence<WitnessCandidate> on_duty, string actor_id);
+    /// Whether "Give now" may be pressed.
+    boolean bcma_can_record_given(boolean is_high_alert, string? witness_id);
+    /// "Wristband matched. Drug did not match." — both rights, every time.
+    string bcma_scan_rights_summary(boolean right_patient, boolean right_drug);
+
+    /// The transfusion chart, phase by phase, with what is overdue.
+    sequence<TransfusionPhaseState> transfusion_phase_states(i64? started_unix, boolean ended, sequence<string> recorded_phases, i64 now_unix);
+    boolean transfusion_is_running(i64? started_unix, boolean ended);
+    boolean transfusion_can_start(string bag_number, string blood_group, string product_type, string expiry_date, boolean consent_on_file, boolean crossmatch_compatible, string? second_nurse_id);
+
+    /// `4m 07s`, clamped at zero.
+    string nurse_call_wait_label(i64 waiting_seconds);
+    boolean nurse_call_is_open(string status);
+    boolean nurse_call_is_overdue(string escalation);
+
+    /// Morse banding: low / moderate / high.
+    string fall_risk_morse_level(i64 score);
+
+    /// Which open codes own the flash, code blue first, silenced ones dropped.
+    sequence<OpenEmergencyCode> emergency_open_codes(sequence<CodeBlueRef> code_blues, sequence<EmergencyCodeRef> er_codes, sequence<string> silenced_keys);
+    /// Feed one tap of the silence gesture.
+    TapOutcome emergency_register_tap(sequence<i64> taps_ms, i64 now_ms);
+
+    /// A doctor's clinic, earliest first; indices into the caller's list, timeless last.
+    sequence<u32> clinic_order(sequence<string?> start_times);
+    /// The earliest still-open appointment, as an index, or none when the clinic is finished.
+    u32? clinic_next_patient(sequence<string?> start_times, sequence<string> statuses);
+    u32 clinic_remaining_count(sequence<string> statuses);
+    boolean clinic_is_still_to_come(string status);
+    /// The message that stops a consultation note being saved, or none.
+    string? consultation_problem(string chief_complaint, string examination, string assessment, string plan);
+    /// After the duplicate-patient check: "confirm" | "proceed" | "proceed_unverified".
+    string registration_action(boolean check_unavailable, u32 matches);
+    /// Whether a registration field is desk context kept for the next walk-in.
+    boolean registration_carries_over(string field);
+    /// The first field that stops a registration, or none.
+    RegistrationProblem? registration_problem(RegistrationDraft draft);
+    /// 1 January of the birth year, for someone who only knows their age.
+    string estimated_date_of_birth(u32 age_years, i32 today_year);
+    /// What a booking offers the desk: "check_in" and "no_show" on its day while still open, else nothing.
+    sequence<string> appointment_actions(string status, boolean is_today);
+    /// Whether a slot may be offered: available and not already behind us (ISO date + HH:MM:SS).
+    boolean slot_is_bookable(string date, string start_time, string today, string now_time, boolean is_available);
+    /// What the desk should call a visitor pass now: "active" | "overdue" | "expired" | "revoked".
+    string pass_state(string status, string valid_until, string now);
+    /// Whether this pass counts among the people inside the building.
+    boolean pass_is_inside(string state, boolean checked_out);
+    /// What the desk may do with a pass: "check_in"/"check_out" then "revoke", or nothing.
+    sequence<string> pass_actions(string state, boolean inside);
+
+    /// Why the companion is open ("hospital" | "band" | "purchase"), or none: hidden.
+    string? companion_access(boolean? licensed_by_hospital, boolean? band_paired, boolean? purchased);
+    /// "reporting" | "stale" | "never_synced".
+    string band_state(i64? last_synced_unix, i64 now_unix);
+    string describe_band_state(string state);
+    /// The day's brief from the phone's own record.
+    DailyBrief daily_brief(sequence<MedicationPlan> medications, sequence<AdherenceEvent> adherence, sequence<string> observation_days, i64 now_unix);
+};
+
+dictionary RegistrationDraft {
+    string first_name;
+    string last_name;
+    string phone;
+    string date_of_birth;
+    u32? age_years;
+    boolean is_medico_legal;
+    string mlc_number;
+    string abha_number;
+};
+
+dictionary RegistrationProblem {
+    string field;
+    string message;
+};
+
+dictionary MedicationPlan {
+    string id;
+    string name;
+    string instructions;
+    sequence<string> times;
+    string started_on;
+    string? ends_on;
+};
+
+dictionary AdherenceEvent {
+    string plan_id;
+    string scheduled_for;
+    string status;
+};
+
+dictionary DoseSlot {
+    string plan_id;
+    string name;
+    string instructions;
+    string time;
+    string scheduled_for;
+    string status;
+};
+
+dictionary DailyBrief {
+    sequence<DoseSlot> slots;
+    u32? adherence_percent;
+    u32 streak_days;
+    string confidence;
+    string verdict;
+};
+
+dictionary WitnessCandidate {
+    string nurse_user_id;
+    string nurse_name;
+    boolean is_charge;
+};
+
+dictionary TransfusionPhaseState {
+    string phase;
+    boolean recorded;
+    boolean overdue;
+};
+
+dictionary CodeBlueRef {
+    string id;
+    string location;
+};
+
+dictionary EmergencyCodeRef {
+    string id;
+    string code_type;
+    string? location;
+};
+
+dictionary OpenEmergencyCode {
+    string key;
+    string label;
+    string code_type;
+    string location;
+    string? code_blue_id;
+};
+
+dictionary TapOutcome {
+    sequence<i64> taps_ms;
+    boolean triple;
 };
 
 /// A device's peer-to-peer sync identity.

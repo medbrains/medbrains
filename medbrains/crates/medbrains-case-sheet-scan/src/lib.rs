@@ -136,6 +136,30 @@ pub async fn get_scan(
     Ok(Json(scan))
 }
 
+/// A state-conditional UPDATE that hit no row: absent scan → 404, wrong state → the given 400.
+async fn scan_state_error(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+    tenant_id: Uuid,
+    state_msg: &str,
+) -> AppError {
+    sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM case_sheet_scans WHERE id = $1 AND tenant_id = $2) \
+         AS \"exists!\"",
+        id,
+        tenant_id,
+    )
+    .fetch_one(&mut **tx)
+    .await
+    .map_or_else(AppError::from, |exists| {
+        if exists {
+            AppError::BadRequest(state_msg.to_owned())
+        } else {
+            AppError::NotFound
+        }
+    })
+}
+
 /// `POST /api/case-sheets/scans/{id}/submit` — queue for parsing (worker picks it up).
 pub async fn submit_scan(
     State(state): State<AppState>,
@@ -153,8 +177,16 @@ pub async fn submit_scan(
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Scan is not in a submittable state".to_owned()))?;
+    .await?;
+    let Some(scan) = scan else {
+        return Err(scan_state_error(
+            &mut tx,
+            id,
+            claims.tenant_id,
+            "Scan is not in a submittable state",
+        )
+        .await);
+    };
     tx.commit().await?;
     Ok(Json(scan))
 }
@@ -224,8 +256,16 @@ pub async fn save_review(
     .bind(claims.tenant_id)
     .bind(&body.extracted_json)
     .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("Scan is not in a reviewable state".to_owned()))?;
+    .await?;
+    let Some(scan) = scan else {
+        return Err(scan_state_error(
+            &mut tx,
+            id,
+            claims.tenant_id,
+            "Scan is not in a reviewable state",
+        )
+        .await);
+    };
     tx.commit().await?;
     Ok(Json(scan))
 }

@@ -1,10 +1,58 @@
-import { Group } from "@mantine/core";
+import { Box, Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { ModuleToken } from "@medbrains/types";
 import { IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Badge, type BadgeTone, IconButton, TokenDashboard, type TokenItem } from "@/components/ui";
+import classes from "./token-board-alert.module.scss";
+
+/** An emergency announcement, as the board received it. */
+interface BoardAlert {
+  id: string;
+  message: string;
+  priority: string;
+}
+
+/** How long a code stays on the board before it stops shouting. */
+const ALERT_VISIBLE_MS = 5 * 60 * 1000;
+
+/**
+ * What arrived on the board's socket.
+ *
+ * Two different shapes come down one channel. A queue event is tagged
+ * (`type: "token_called"`); an announcement is not tagged at all, which is why
+ * the board used to drop every one of them — a code blue reached every screen
+ * in the hospital and lit up none of them.
+ */
+export type BoardFrame =
+  | { kind: "token"; tokenNumber: string; where?: string }
+  | { kind: "alert"; alert: BoardAlert }
+  | { kind: "ignore" };
+
+export function classifyBoardFrame(raw: unknown): BoardFrame {
+  if (!raw || typeof raw !== "object") return { kind: "ignore" };
+  const frame = raw as Record<string, unknown>;
+  if (frame.type === "token_called" && typeof frame.token_number === "string") {
+    const where = frame.room ?? frame.counter;
+    return {
+      kind: "token",
+      tokenNumber: frame.token_number,
+      where: typeof where === "string" ? where : undefined,
+    };
+  }
+  if (typeof frame.message === "string" && typeof frame.priority === "string") {
+    return {
+      kind: "alert",
+      alert: {
+        id: typeof frame.id === "string" ? frame.id : frame.message,
+        message: frame.message,
+        priority: frame.priority,
+      },
+    };
+  }
+  return { kind: "ignore" };
+}
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   waiting: "neutral",
@@ -45,6 +93,17 @@ function announceCall(tokenNumber: string, where?: string | null) {
   window.speechSynthesis.speak(utter);
 }
 
+/** Say an emergency announcement out loud, twice, over anything queued. */
+function speak(message: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  for (let i = 0; i < 2; i += 1) {
+    const utter = new SpeechSynthesisUtterance(message);
+    utter.rate = 0.9;
+    window.speechSynthesis.speak(utter);
+  }
+}
+
 export interface TokenBoardLiveProps {
   title: string;
   module: string;
@@ -81,6 +140,8 @@ export function TokenBoardLive({
     refetchInterval: 8000,
   });
 
+  const [alert, setAlert] = useState<BoardAlert | null>(null);
+
   // Instant refresh + voice announce on token events (external WS system).
   useEffect(() => {
     if (!scopeId) return;
@@ -90,9 +151,12 @@ export function TokenBoardLive({
       void queryClient.invalidateQueries({ queryKey });
       if (mutedRef.current) return;
       try {
-        const message = JSON.parse(event.data);
-        if (message?.type === "token_called") {
-          announceCall(message.token_number, message.room ?? message.counter);
+        const frame = classifyBoardFrame(JSON.parse(event.data));
+        if (frame.kind === "token") {
+          announceCall(frame.tokenNumber, frame.where);
+        } else if (frame.kind === "alert") {
+          setAlert(frame.alert);
+          speak(frame.alert.message);
         }
       } catch {
         // non-JSON frame — ignore
@@ -103,8 +167,16 @@ export function TokenBoardLive({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeId, module, scope, queryClient]);
 
+  // The code clears itself. A banner that stays up all afternoon is one the
+  // staff stop seeing, and the next one arrives on a screen nobody reads.
+  useEffect(() => {
+    if (!alert) return;
+    const timer = window.setTimeout(() => setAlert(null), ALERT_VISIBLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [alert]);
+
   const tokens = (data ?? []).map((token) => toItem(token, publicMode));
-  return (
+  const board = (
     <TokenDashboard
       title={title}
       tokens={tokens}
@@ -122,5 +194,22 @@ export function TokenBoardLive({
         </Group>
       }
     />
+  );
+
+  if (!alert) return board;
+  return (
+    <Stack gap={0}>
+      <Box
+        className={`${classes.banner} ${
+          alert.priority === "emergency" ? classes.emergency : classes.urgent
+        } ${classes.pulse}`}
+        role="alert"
+        aria-live="assertive"
+      >
+        <Text className={classes.message}>{alert.message}</Text>
+        <Text className={classes.since}>Announced just now</Text>
+      </Box>
+      {board}
+    </Stack>
   );
 }

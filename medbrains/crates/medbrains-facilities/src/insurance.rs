@@ -900,7 +900,7 @@ pub async fn remove_document(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "DELETE FROM prior_auth_documents \
          WHERE id = $1 AND prior_auth_id = $2 AND tenant_id = $3",
     )
@@ -909,6 +909,9 @@ pub async fn remove_document(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": true })))

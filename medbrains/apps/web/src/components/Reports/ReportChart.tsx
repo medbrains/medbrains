@@ -211,7 +211,9 @@ export function ReportChart({
 
     return () => {
       window.cancelAnimationFrame(frame);
-      delayedResizes.forEach((timer) => window.clearTimeout(timer));
+      for (const timer of delayedResizes) {
+        window.clearTimeout(timer);
+      }
       resizeObserver.disconnect();
       chart.dispose();
       expandedChartRef.current = null;

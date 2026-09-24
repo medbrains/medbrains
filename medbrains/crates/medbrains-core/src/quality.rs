@@ -199,7 +199,10 @@ pub struct QualityIncident {
     pub department_id: Option<Uuid>,
     pub location: Option<String>,
     pub incident_date: DateTime<Utc>,
-    pub reported_by: Uuid,
+    /// Absent for incidents the system raised itself — an NDPS deficiency,
+    /// a transfusion reaction. Declaring it non-null made one such row
+    /// break the whole incident list with a 500.
+    pub reported_by: Option<Uuid>,
     pub is_anonymous: bool,
     pub patient_id: Option<Uuid>,
     pub affected_persons: Value,
@@ -232,7 +235,10 @@ pub struct QualityIncidentListItem {
     pub department_id: Option<Uuid>,
     pub location: Option<String>,
     pub incident_date: DateTime<Utc>,
-    pub reported_by: Uuid,
+    /// Absent for incidents the system raised itself — an NDPS deficiency,
+    /// a transfusion reaction. Declaring it non-null made one such row
+    /// break the whole incident list with a 500.
+    pub reported_by: Option<Uuid>,
     pub is_anonymous: bool,
     pub patient_id: Option<Uuid>,
     pub assigned_to: Option<Uuid>,

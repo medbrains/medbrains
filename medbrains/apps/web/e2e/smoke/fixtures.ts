@@ -86,9 +86,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
     admission_type: "elective",
   },
   "PUT /api/ipd/admissions/{id}/transfer": {
-    target_ward_id: SEED.ward,
-    target_bed_id: SEED.bed,
-    reason: "smoke",
+    bed_id: SEED.bed,
+    notes: "smoke",
   },
 
   // ── Emergency ───────────────────────────────────────────────
@@ -105,7 +104,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
   "POST /api/admin/signature-credentials/{id}/revoke": { reason: "smoke" },
   "POST /api/admin/doctor-packages/{id}/inclusions": {
     service_id: SEED.service,
-    quantity: 1,
+    inclusion_type: "service",
+    included_quantity: 1,
   },
 
   // ── Camp ────────────────────────────────────────────────────
@@ -114,8 +114,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
   },
 
   // ── CDS ─────────────────────────────────────────────────────
-  "PUT /api/cds/co-signatures/{id}": { signed: true },
-  "PUT /api/cds/restricted-drug-approvals/{id}": { decision: "approved" },
+  "PUT /api/cds/co-signatures/{id}": { status: "approved" },
+  "PUT /api/cds/restricted-drug-approvals/{id}": { status: "approved" },
 
   // ── Chronic care ────────────────────────────────────────────
   "PUT /api/chronic-care/enrollments/{id}/status": { status: "active" },
@@ -130,8 +130,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
     name: "smoke-bridge",
     endpoint: "https://example.invalid/bridge",
   },
-  "POST /api/cms/posts/{id}/medical-review": { status: "approved" },
-  "POST /api/cms/posts/{id}/schedule": { publish_at: "2099-01-01T00:00:00Z" },
+  "POST /api/cms/posts/{id}/medical-review": { action: "approve" },
+  "POST /api/cms/posts/{id}/schedule": { scheduled_at: "2099-01-01T00:00:00Z" },
   "POST /api/cms/tags/bulk-delete": { ids: [] },
 
   // ── Consent ─────────────────────────────────────────────────
@@ -230,8 +230,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
   // ── Lab extra ───────────────────────────────────────────────
   "POST /api/lab/orders/{id}/add-on": { test_id: SEED.lab_test },
   "POST /api/lab/orders/{id}/results/amend": {
-    parameter_name: "smoke",
-    value: "0",
+    result_id: SEED.lab_result,
+    amended_value: "0",
     reason: "smoke",
   },
   "POST /api/lab/reports/bulk-print": { order_ids: [] },
@@ -303,7 +303,7 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
     exposure_date: "2099-01-01",
   },
   "PATCH /api/infection-control/stewardship/{id}": {
-    decision: "approved",
+    request_status: "approved",
   },
 
   // ── Quality ─────────────────────────────────────────────────
@@ -383,14 +383,14 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
 
   // ── Radiology ───────────────────────────────────────────────
   "POST /api/radiology/orders/{id}/dose": {
+    modality_code: "CT",
     dose_value: 0,
     dose_unit: "mGy",
   },
 
   // ── Regulatory ──────────────────────────────────────────────
   "POST /api/regulatory/checklists/{id}/items": {
-    requirement: "smoke",
-    status: "pending",
+    items: [{ item_number: 1, criterion: "smoke", status: "not_started" }],
   },
 
   // ── Retrospective ───────────────────────────────────────────
@@ -415,10 +415,6 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
   },
 
   // ── CMS ─────────────────────────────────────────────────────
-  "POST /api/cms/posts/{id}/medical-review": { status: "approved" },
-  "POST /api/cms/posts/{id}/schedule": { publish_at: "2099-01-01T00:00:00Z" },
-  "POST /api/cms/tags/bulk-delete": { ids: [] },
-
   // ── Multi-hospital ──────────────────────────────────────────
   "POST /api/multi-hospital/transfers/stock": {
     source_hospital_id: SEED.tenant,
@@ -456,8 +452,8 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
   },
   "PUT /api/blood-bank/components/{id}/status": { status: "available" },
   "PUT /api/blood-bank/transfusions/{id}/reaction": {
-    reaction_type: "none",
-    severity: "mild",
+    reaction_type: "febrile",
+    reaction_severity: "mild",
   },
 
   // ── CSSD / Diet ─────────────────────────────────────────────

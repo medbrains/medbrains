@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { loginAsRoleApi } from "../helpers/api";
+import { getAuthContextFromCookies, loginAsRoleApi } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -42,13 +42,12 @@ test.describe("Lab orders — result entry and critical value acknowledgement", 
     const labOrderId = await createLabOrder(doctorCtx, {
       encounterId,
       patientId: patient.id,
-      testId: labTest.id,
-      urgency: "urgent",
+      priority: "urgent",
     });
     expect(labOrderId).toBeTruthy();
 
     // --- Lab tech: collect sample ---
-    await collectLabSample(labTechCtx, labOrderId);
+    await collectLabSample(labTechCtx, labOrderId, patient.uhid);
 
     // --- Lab tech: process ---
     await processLabOrder(labTechCtx, labOrderId);
@@ -63,11 +62,11 @@ test.describe("Lab orders — result entry and critical value acknowledgement", 
       },
     ]);
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].flag).toMatch(/critical/);
+    expect(results[0]?.flag).toMatch(/critical/);
 
-    // --- Lab tech: complete + verify (releases result) ---
+    // --- The report cannot be released while a critical value awaits its read-back ---
     await completeLabOrder(labTechCtx, labOrderId);
-    await verifyLabResults(labTechCtx, labOrderId);
+    await verifyLabResults(labTechCtx, labOrderId, { expectStatus: 400 });
 
     // --- Critical alert must exist ---
     const alerts = await listCriticalAlerts(labTechCtx);
@@ -81,11 +80,8 @@ test.describe("Lab orders — result entry and critical value acknowledgement", 
     expect(doctorAlert).toBeDefined();
 
     // --- Lab tech acknowledges on behalf of doctor (lab::results::UPDATE required) ---
-    const acked = await acknowledgeLabCriticalAlert(
-      labTechCtx,
-      alert!.id,
-      "Patient reviewed — stat IV potassium replacement ordered",
-    );
+    // The read-back must repeat the reported value.
+    const acked = await acknowledgeLabCriticalAlert(labTechCtx, alert!.id, "2.1");
     expect(acked.acknowledged_at).not.toBeNull();
     expect(acked.acknowledged_by).not.toBeNull();
 
@@ -95,6 +91,11 @@ test.describe("Lab orders — result entry and critical value acknowledgement", 
       (a) => a.order_id === labOrderId && a.acknowledged_at === null,
     );
     expect(unacked.length).toBe(0);
+
+    // --- With the read-back done, a second person releases the report:
+    // a critical result is never verified by whoever entered it ---
+    await verifyLabResults(labTechCtx, labOrderId, { expectStatus: 400 });
+    await verifyLabResults(await getAuthContextFromCookies(request), labOrderId);
   });
 
   test("routine result releases without critical alert", async ({ request }) => {
@@ -112,11 +113,10 @@ test.describe("Lab orders — result entry and critical value acknowledgement", 
     const labOrderId = await createLabOrder(doctorCtx, {
       encounterId,
       patientId: patient.id,
-      testId: labTest.id,
-      urgency: "routine",
+      priority: "routine",
     });
 
-    await collectLabSample(labTechCtx, labOrderId);
+    await collectLabSample(labTechCtx, labOrderId, patient.uhid);
     await processLabOrder(labTechCtx, labOrderId);
     await addLabResults(labTechCtx, labOrderId, [
       { parameter_name: labTest.name, value: "4.2", unit: "mEq/L", flag: "normal" },

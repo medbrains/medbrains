@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT event_type, count(*) AS \"fired!\", max(created_at) AS last_fired FROM outbox_events WHERE tenant_id = $1 GROUP BY event_type ORDER BY count(*) DESC LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "event_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "fired!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "last_fired",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "f428ca8cb234f0edce80b2922500d96dd54bd384c3f708122f39054df5757cb8"
+}

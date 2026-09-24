@@ -17,7 +17,7 @@ use axum::extract::{Path, State};
 use axum::routing::get;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
+    DispensingLabelPrintData, DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
     GrnPrintData, IndentFormPrintData, IndentItem, IssueItem, MaterialIssueVoucherPrintData,
     NdpsBalance, NdpsRegisterPrintData, NdpsTransaction, PartReplaced, PmChecklistItem,
     PmChecklistPrintData, PoItem, PurchaseOrderPrintData, RepairHistoryEntry,
@@ -1631,6 +1631,219 @@ fn two_digit_to_words(n: i64, ones: &[&str], tens: &[&str]) -> String {
     }
 }
 
+
+// ── Dispensing label ─────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow)]
+struct DispensingLabelRow {
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: Option<String>,
+    drug_name: String,
+    generic_name: Option<String>,
+    strength: Option<String>,
+    dosage_form: Option<String>,
+    quantity_dispensed: Option<rust_decimal::Decimal>,
+    quantity: Option<rust_decimal::Decimal>,
+    batch_number: Option<String>,
+    expiry_date: Option<chrono::NaiveDate>,
+    storage_conditions: Option<String>,
+    black_box_warning: Option<String>,
+    drug_schedule: Option<String>,
+    is_controlled: Option<bool>,
+    dosage: Option<String>,
+    frequency: Option<String>,
+    duration: Option<String>,
+    route: Option<String>,
+    instructions: Option<String>,
+    dispensed_at: Option<chrono::DateTime<chrono::Utc>>,
+    dispensed_by: Option<String>,
+    prescriber_name: Option<String>,
+}
+
+/// The wording the Drugs and Cosmetics Act requires on the label, by schedule.
+///
+/// Printing the schedule letter alone means nothing to the person holding the
+/// box; the sentence is what the Act asks for and what a patient can act on.
+fn schedule_warning(schedule: Option<&str>) -> Option<String> {
+    let s = schedule?.trim().to_ascii_uppercase();
+    let s = s.trim_start_matches("SCHEDULE").trim().to_owned();
+    match s.as_str() {
+        "H" => Some(
+            "Schedule H — To be sold by retail on the prescription of a registered medical \
+             practitioner only."
+                .to_owned(),
+        ),
+        "H1" => Some(
+            "Schedule H1 — To be sold by retail on the prescription of a registered medical \
+             practitioner only. Warning: taking this medicine without medical supervision may be \
+             dangerous, and its misuse contributes to antimicrobial resistance."
+                .to_owned(),
+        ),
+        "X" => Some(
+            "Schedule X — To be sold by retail on the prescription of a registered medical \
+             practitioner only. The prescription is retained by the pharmacy for two years."
+                .to_owned(),
+        ),
+        "G" => Some(
+            "Schedule G — Caution: this drug is to be taken under medical supervision only."
+                .to_owned(),
+        ),
+        _ => None,
+    }
+}
+
+/// How the directions read on the box.
+///
+/// The parts come from the prescription and any of them may be missing, so
+/// this joins what exists rather than printing "None" at a patient. Nothing at
+/// all returns nothing, and the label then says the directions are on the
+/// prescription instead of pretending to carry them.
+fn directions_line(
+    dosage: Option<&str>,
+    frequency: Option<&str>,
+    route: Option<&str>,
+    instructions: Option<&str>,
+) -> Option<String> {
+    let parts: Vec<&str> = [dosage, frequency, route, instructions]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+/// `GET /api/print-data/dispensing-label/{order_item_id}`
+///
+/// One label per dispensed line. The struct for it did not exist and neither
+/// did the endpoint, so medication left the counter in a bag with a receipt:
+/// what was paid for, not what to take. The label is the only part of a
+/// dispense the patient still has at home, which is why the directions, the
+/// batch and expiry that make a recall possible, and the schedule warning all
+/// belong on it.
+pub async fn get_dispensing_label_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(order_item_id): Path<Uuid>,
+) -> Result<axum::Json<DispensingLabelPrintData>, AppError> {
+    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+
+    // The patient is two hops off the path id — item, order, patient — and
+    // there is no single-column link for that, so resolve then authorize. A
+    // label carries a name, a UHID and what somebody is taking.
+    let patient_id = sqlx::query_scalar!(
+        "SELECT o.patient_id AS \"patient_id!\" FROM pharmacy_order_items i \
+           JOIN pharmacy_orders o ON o.id = i.order_id AND o.tenant_id = i.tenant_id \
+          WHERE i.id = $1 AND i.tenant_id = $2 AND i.deleted_at IS NULL",
+        order_item_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as!(
+        DispensingLabelRow,
+        "SELECT \
+           (p.first_name || ' ' || p.last_name) AS \"patient_name!\", \
+           p.uhid AS \"uhid!\", \
+           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS \"age?\", \
+           p.gender::text AS \"gender?\", \
+           i.drug_name AS \"drug_name!\", \
+           c.generic_name AS \"generic_name?\", \
+           c.strength AS \"strength?\", \
+           c.dosage_form AS \"dosage_form?\", \
+           i.quantity_dispensed::numeric AS \"quantity_dispensed?\", \
+           i.quantity::numeric AS \"quantity?\", \
+           i.batch_number AS \"batch_number?\", \
+           i.expiry_date AS \"expiry_date?\", \
+           c.storage_conditions AS \"storage_conditions?\", \
+           c.black_box_warning AS \"black_box_warning?\", \
+           c.drug_schedule::text AS \"drug_schedule?\", \
+           c.is_controlled AS \"is_controlled?\", \
+           pi.dosage AS \"dosage?\", pi.frequency AS \"frequency?\", \
+           pi.duration AS \"duration?\", pi.route AS \"route?\", \
+           pi.instructions AS \"instructions?\", \
+           o.dispensed_at AS \"dispensed_at?\", \
+           disp.full_name AS \"dispensed_by?\", \
+           presc.full_name AS \"prescriber_name?\" \
+         FROM pharmacy_order_items i \
+         JOIN pharmacy_orders o ON o.id = i.order_id AND o.tenant_id = i.tenant_id \
+         JOIN patients p ON p.id = o.patient_id AND p.tenant_id = o.tenant_id \
+         LEFT JOIN pharmacy_catalog c ON c.id = i.catalog_item_id AND c.tenant_id = i.tenant_id \
+         LEFT JOIN prescription_items pi ON pi.prescription_id = o.prescription_id \
+              AND pi.catalog_item_id = i.catalog_item_id AND pi.tenant_id = i.tenant_id \
+              AND pi.deleted_at IS NULL \
+         LEFT JOIN users disp ON disp.id = o.dispensed_by \
+         LEFT JOIN users presc ON presc.id = o.ordered_by \
+         WHERE i.id = $1 AND i.tenant_id = $2 AND i.deleted_at IS NULL \
+         LIMIT 1",
+        order_item_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let hospital_name =
+        sqlx::query_scalar!("SELECT name FROM tenants WHERE id = $1", claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .unwrap_or_default();
+    tx.commit().await?;
+
+    // The dispensed quantity, falling back to what was ordered only when the
+    // line has not recorded one — never silently zero, which on a label reads
+    // as "none supplied".
+    let quantity = row
+        .quantity_dispensed
+        .or(row.quantity)
+        .map_or_else(|| "—".to_owned(), |q| q.normalize().to_string());
+
+    Ok(axum::Json(DispensingLabelPrintData {
+        hospital_name,
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        patient_age_sex: match (row.age, row.gender.as_deref()) {
+            (Some(a), Some(g)) => Some(format!("{}y {}", a as i64, g)),
+            (Some(a), None) => Some(format!("{}y", a as i64)),
+            (None, Some(g)) => Some(g.to_owned()),
+            (None, None) => None,
+        },
+        drug_name: row.drug_name,
+        generic_name: row.generic_name,
+        strength: row.strength,
+        dosage_form: row.dosage_form,
+        quantity_dispensed: quantity,
+        directions: directions_line(
+            row.dosage.as_deref(),
+            row.frequency.as_deref(),
+            row.route.as_deref(),
+            row.instructions.as_deref(),
+        ),
+        route: row.route,
+        duration: row.duration,
+        batch_number: row.batch_number,
+        expiry_date: row.expiry_date.map(|d| d.format("%b %Y").to_string()),
+        storage_conditions: row.storage_conditions,
+        schedule_warning: schedule_warning(row.drug_schedule.as_deref()),
+        black_box_warning: row.black_box_warning,
+        is_controlled: row.is_controlled.unwrap_or(false),
+        dispensed_on: row
+            .dispensed_at
+            .map_or_else(String::new, |d| d.format("%d-%b-%Y %H:%M").to_string()),
+        dispensed_by: row.dispensed_by,
+        prescriber_name: row.prescriber_name,
+    }))
+}
+
 /// Print-data admin/materials routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -1659,6 +1872,10 @@ pub fn router() -> axum::Router<AppState> {
             get(get_ndps_register_print_data),
         )
         .route(
+            "/api/print-data/dispensing-label/{order_item_id}",
+            get(get_dispensing_label_print_data),
+        )
+        .route(
             "/api/print-data/drug-expiry-alert/{store_id}",
             get(get_drug_expiry_alert_print_data),
         )
@@ -1674,3 +1891,37 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/pm-checklist/{pm_id}",
             get(get_pm_checklist_print_data),
         )}
+
+#[cfg(test)]
+mod dispensing_label_tests {
+    use super::{directions_line, schedule_warning};
+
+    #[test]
+    fn a_schedule_h_label_carries_the_act_wording_not_the_letter() {
+        // "H" on a box means nothing to the person holding it.
+        let h = schedule_warning(Some("H")).expect("schedule H has wording");
+        assert!(h.contains("prescription of a registered medical practitioner"));
+        assert!(schedule_warning(Some("Schedule H1")).expect("H1").contains("antimicrobial"));
+        assert!(schedule_warning(Some("X")).expect("X").contains("two years"));
+    }
+
+    #[test]
+    fn an_unscheduled_drug_gets_no_warning_invented_for_it() {
+        assert!(schedule_warning(None).is_none());
+        assert!(schedule_warning(Some("")).is_none());
+        assert!(schedule_warning(Some("OTC")).is_none());
+    }
+
+    #[test]
+    fn directions_join_what_exists_and_stay_empty_when_nothing_does() {
+        assert_eq!(
+            directions_line(Some("1 tablet"), Some("twice daily"), Some("oral"), Some("after food")),
+            Some("1 tablet · twice daily · oral · after food".to_owned())
+        );
+        // A prescription with only a frequency still says something useful.
+        assert_eq!(directions_line(None, Some("twice daily"), None, None), Some("twice daily".to_owned()));
+        // Nothing at all prints nothing, rather than "None" at a patient.
+        assert_eq!(directions_line(None, None, None, None), None);
+        assert_eq!(directions_line(Some("  "), None, None, None), None);
+    }
+}

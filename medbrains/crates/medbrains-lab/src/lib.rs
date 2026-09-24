@@ -12,19 +12,20 @@ use medbrains_core::lab::{
     LabNablDocument, LabOrder, LabOutsourcedOrder, LabPanelTest, LabPhlebotomyQueue,
     LabProficiencyTest, LabQcResult, LabReagentLot, LabReportDispatch, LabReportTemplate,
     LabReportTemplateListItem, LabResult, LabResultAmendment, LabResultFlag, LabSampleArchive,
-    LabTestCatalog,
-    LabTestPanel,
+    LabTestCatalog, LabTestPanel,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
-use medbrains_notifications::{NewNotification, create_notification};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 mod order_filter;
@@ -76,7 +77,6 @@ pub struct CreateOrderRequest {
     pub is_dummy: Option<bool>,
 }
 
-
 #[derive(Debug, Serialize)]
 pub struct OrderDetailResponse {
     pub order: LabOrder,
@@ -126,31 +126,86 @@ fn has_operational_lab_order_scope(claims: &Claims) -> bool {
     claims_have_any_permission(claims, LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS)
 }
 
-pub async fn grant_lab_order_creator_viewer(
+/// Link the people who will act on a new lab order. The creator gets Viewer
+/// on the order. The laboratory department gets `dept_member` on the order's
+/// encounter — the lab is on the case once a test is ordered, and without
+/// that link no technician could collect the sample the doctor just asked
+/// for, since every lab route resolves access through the patient.
+// ponytail: PATHOLOGY assumed as the laboratory department; a per-tenant
+// setting when a hospital names its lab otherwise.
+pub async fn grant_lab_order_access(
     state: &AppState,
     claims: &Claims,
     order_id: Uuid,
     reason: &str,
 ) -> Result<(), AppError> {
-    if is_bypass_role(claims) {
-        return Ok(());
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    if !is_bypass_role(claims) {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "lab_order",
+                order_id,
+                medbrains_authz::Relation::Viewer,
+                medbrains_authz::Subject::User(claims.sub),
+                None,
+                Some(reason.to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("lab order authz grant failed: {e}")))?;
     }
 
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    let encounter_id: Option<Uuid> = sqlx::query_scalar!(
+        "SELECT encounter_id FROM lab_orders WHERE id = $1 AND tenant_id = $2",
+        order_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    let Some(encounter_id) = encounter_id else {
+        return Ok(());
+    };
+    let lab_department: Option<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM departments \
+          WHERE tenant_id = $1 AND code = 'PATHOLOGY' AND is_active AND deleted_at IS NULL \
+          LIMIT 1",
+        claims.tenant_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    let Some(lab_department) = lab_department else {
+        return Ok(());
+    };
+    // One link per encounter, however many tests the lab is asked for.
+    let linked: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM relation_tuples \
+          WHERE tenant_id = $1 AND object_type = 'encounter' AND object_id = $2 \
+            AND relation = 'dept_member' AND subject_type = 'department' AND subject_id = $3 \
+            AND status = 'active') AS \"exists!\"",
+        claims.tenant_id,
+        encounter_id,
+        lab_department.to_string(),
+    )
+    .fetch_one(&state.db)
+    .await?;
+    if linked {
+        return Ok(());
+    }
     state
         .authz
-        .write_tuple(
+        .grant_raw(
             &authz_ctx,
-            "lab_order",
-            order_id,
-            medbrains_authz::Relation::Viewer,
-            medbrains_authz::Subject::User(claims.sub),
+            "encounter",
+            encounter_id,
+            "dept_member",
+            medbrains_authz::Subject::Department(lab_department),
             None,
-            Some(reason.to_owned()),
+            Some("lab_order_department".to_owned()),
         )
         .await
         .map(|_| ())
-        .map_err(|e| AppError::Internal(format!("lab order authz grant failed: {e}")))
+        .map_err(|e| AppError::Internal(format!("lab department authz grant failed: {e}")))
 }
 
 #[derive(Debug, Deserialize)]
@@ -407,12 +462,17 @@ pub async fn list_orders(
 
     // ── ReBAC scope — only lab orders caller has `view` on ────
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<Uuid>> =
-        if authz_ctx.is_bypass || has_operational_lab_order_scope(&claims) {
-            None
-        } else {
-            Some(
-                match state.authz.list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer).await {
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass
+        || has_operational_lab_order_scope(&claims)
+    {
+        None
+    } else {
+        Some(
+            match state
+                .authz
+                .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
+                .await
+            {
                 Ok(ids) => ids,
                 Err(e) => {
                     tracing::error!(error = %e, object_type = "lab_order",
@@ -422,8 +482,8 @@ pub async fn list_orders(
                     ));
                 }
             },
-            )
-        };
+        )
+    };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -489,7 +549,7 @@ pub async fn create_order(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let order = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
-    grant_lab_order_creator_viewer(&state, &claims, order.id, "lab_order_created").await?;
+    grant_lab_order_access(&state, &claims, order.id, "lab_order_created").await?;
     Ok(Json(order))
 }
 
@@ -630,7 +690,9 @@ async fn auto_bill_lab_order_in_tx(
     claims: &Claims,
     order: &LabOrder,
 ) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "lab").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "lab")
+        .await?
+    {
         return Ok(());
     }
 
@@ -690,7 +752,15 @@ pub async fn get_order(
     if !has_operational_lab_order_scope(&claims) {
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
-                state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "lab_order", id,).await,
+                state
+                    .authz
+                    .check(
+                        &authz_ctx,
+                        medbrains_authz::Relation::Viewer,
+                        "lab_order",
+                        id,
+                    )
+                    .await,
                 "lab_order",
             ),
         )?;
@@ -795,7 +865,10 @@ async fn mark_order_collected(
         .fetch_optional(&mut **tx)
         .await?
         .flatten();
-    if !uhid.as_deref().is_some_and(|u| u.trim().eq_ignore_ascii_case(provided)) {
+    if !uhid
+        .as_deref()
+        .is_some_and(|u| u.trim().eq_ignore_ascii_case(provided))
+    {
         return Err(AppError::BadRequest(
             "The scanned ID does not match this order's patient - do NOT collect. Re-check the \
              identification against the order."
@@ -1032,12 +1105,10 @@ pub async fn verify_results(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
-    // Still `UPDATE`, which is the same code that enters and edits a value --
-    // so the account that types a result also releases it. Splitting that
-    // needs a new `lab.results.verify` constant in `medbrains-core`, and that
-    // file currently carries another change in progress; the split lands on
-    // its own once that is in.
-    require_permission(&claims, permissions::lab::results::UPDATE)?;
+    // Releasing is its own act, so it is its own code. It used to be `UPDATE`
+    // — the code that types the value in — so nothing could grant release to a
+    // supervisor without also granting result entry.
+    require_permission(&claims, permissions::lab::results::VERIFY)?;
 
     // The URL names a child record; the care relationship is one hop away on
     // its parent. Resolve then authorize — see medbrains_authz_gate::links.
@@ -1308,12 +1379,27 @@ async fn patient_lab_band(
     .fetch_optional(&mut **tx)
     .await?;
     let (dob, sex) = row.unwrap_or((None, None));
-    let adult = if sex.as_deref() == Some("female") { "adult_f" } else { "adult_m" };
-    let Some(dob) = dob else {
-        return Ok(PatientLabContext { band: adult.to_owned(), age_years: None, sex });
+    let adult = if sex.as_deref() == Some("female") {
+        "adult_f"
+    } else {
+        "adult_m"
     };
-    let age_days = chrono::Utc::now().date_naive().signed_duration_since(dob).num_days();
-    let elderly = if sex.as_deref() == Some("female") { "elderly_f" } else { "elderly_m" };
+    let Some(dob) = dob else {
+        return Ok(PatientLabContext {
+            band: adult.to_owned(),
+            age_years: None,
+            sex,
+        });
+    };
+    let age_days = chrono::Utc::now()
+        .date_naive()
+        .signed_duration_since(dob)
+        .num_days();
+    let elderly = if sex.as_deref() == Some("female") {
+        "elderly_f"
+    } else {
+        "elderly_m"
+    };
     let band = if age_days < 28 {
         "neonate"
     } else if age_days < 365 {
@@ -1401,7 +1487,6 @@ async fn tenant_critical(
     }
     Ok(TenantCritical::WithinLimits)
 }
-
 
 /// Judge a result against the global `cds_lab_reference`.
 ///
@@ -1519,8 +1604,14 @@ pub async fn add_results(
         // Auto-detect a critical value from the global CDS lab reference when
         // the technician hasn't already flagged one (NABL critical-value
         // reporting — a value out of the critical range is never missed).
-        let verdict =
-            auto_flag(&mut tx, claims.tenant_id, &r.parameter_name, &r.value, &lab_band).await?;
+        let verdict = auto_flag(
+            &mut tx,
+            claims.tenant_id,
+            &r.parameter_name,
+            &r.value,
+            &lab_band,
+        )
+        .await?;
         // The table only overrides the technologist when it actually judged
         // the value; otherwise their own flag stands.
         let effective_flag = match &verdict {
@@ -2191,7 +2282,10 @@ pub async fn reject_sample(
          started_at = NULL, completed_at = NULL, updated_at = now() \
          WHERE order_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
-    .bind(format!("Re-draw — previous sample rejected: {}", body.rejection_reason))
+    .bind(format!(
+        "Re-draw — previous sample rejected: {}",
+        body.rejection_reason
+    ))
     .bind(id)
     .bind(claims.tenant_id)
     .execute(&mut *tx)
@@ -2377,8 +2471,10 @@ pub async fn amend_result(
     .bind(order.ordered_by)
     .fetch_one(&mut *tx)
     .await?;
-    let corrected_body =
-        format!("{} was amended — review the corrected report.", original.parameter_name);
+    let corrected_body = format!(
+        "{} was amended — review the corrected report.",
+        original.parameter_name
+    );
     if recipient != claims.sub {
         create_notification(
             &mut tx,
@@ -2898,6 +2994,18 @@ pub async fn review_qc_result(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let exists: bool = sqlx::query_scalar!(
+        "SELECT EXISTS(SELECT 1 FROM lab_qc_results \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL) AS \"exists!\"",
+        id,
+        claims.tenant_id,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if !exists {
+        return Err(AppError::NotFound);
+    }
+
     // The reviewer is not the person who ran the control. Reviewing one's own
     // failed run is the same signature twice.
     let reason = body.reviewer_notes.trim();
@@ -2925,8 +3033,7 @@ pub async fn review_qc_result(
     .await?;
 
     let Some(row) = row else {
-        // Either it is not there, or the caller ran it themselves. Both are
-        // refusals a reviewer can act on without being told which.
+        // The run exists, so the caller ran it themselves.
         return Err(AppError::BadRequest(
             "This QC run cannot be reviewed by you. A run is reviewed by somebody other than the \
              person who performed it."
@@ -3400,7 +3507,7 @@ pub async fn add_on_test(
     .await?;
 
     tx.commit().await?;
-    grant_lab_order_creator_viewer(&state, &claims, order.id, "lab_add_on_order_created").await?;
+    grant_lab_order_access(&state, &claims, order.id, "lab_add_on_order_created").await?;
     Ok(Json(order))
 }
 
@@ -3850,7 +3957,11 @@ pub async fn update_home_collection_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let is_collection = body.status == "collected";
-    let collected_at = if is_collection { "now()" } else { "collected_at" };
+    let collected_at = if is_collection {
+        "now()"
+    } else {
+        "collected_at"
+    };
     let sql = format!(
         "UPDATE lab_home_collections SET \
          status = $1::lab_home_collection_status, collected_at = {collected_at}, \
@@ -5092,8 +5203,14 @@ pub async fn auto_validate_result(
     // depending on which code last wrote it. Most of the catalog carries no
     // critical bounds at all, so for most tests this answered a flat no.
     let band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
-    let verdict =
-        auto_flag(&mut tx, claims.tenant_id, &result.parameter_name, &result.value, &band).await?;
+    let verdict = auto_flag(
+        &mut tx,
+        claims.tenant_id,
+        &result.parameter_name,
+        &result.value,
+        &band,
+    )
+    .await?;
 
     // A technologist's own flag still stands: the reference table is a second
     // opinion, never an override of the person who looked at the sample.

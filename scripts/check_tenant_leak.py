@@ -18,7 +18,8 @@ Reality: 600+ existing call sites pre-date this rule. Hard ratchet:
 Other infrastructure code (middleware, seed, events, orchestration) is NOT
 gated — it runs with admin context.
 
-Escape hatch: `// allow-raw-sql: <reason>` on the same line suppresses
+Escape hatch: `// allow-raw-sql: <reason>` on the line, or the line above it
+(where rustfmt puts it), suppresses
 that line entirely (does not count toward the baseline either).
 
 Usage:
@@ -63,10 +64,14 @@ def collect_violations() -> tuple[dict[str, int], int, int]:
             continue
         rel = str(rs_file.relative_to(REPO_ROOT))
         count = 0
-        for line in text.splitlines():
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
             if not any(p.search(line) for p in PATTERNS):
                 continue
-            if ALLOW_COMMENT_RE.search(line):
+            # rustfmt moves a trailing comment after `query!(` onto its own
+            # line above the call, so the line before counts too.
+            previous = lines[i - 1] if i else ""
+            if ALLOW_COMMENT_RE.search(line) or ALLOW_COMMENT_RE.search(previous):
                 suppressed += 1
             else:
                 count += 1

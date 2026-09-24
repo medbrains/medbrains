@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bedside_nurse_requests SET escalation_level = $1, escalated_at = now(), escalated_to = $2 WHERE id = $3 AND tenant_id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "06aaf1bdfc3fe6ce5f0591b4657fd50809239f7552483056445fbc365136f129"
+}

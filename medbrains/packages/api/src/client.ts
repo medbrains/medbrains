@@ -313,6 +313,7 @@ import type {
   CmsSettings,
   CmsSubscriber,
   CmsTag,
+  CodeBlueResponder,
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
@@ -629,6 +630,7 @@ import type {
   CreateNewbornResponse,
   CreateNuclearMedAdminRequest,
   CreateNuclearMedSourceRequest,
+  CreateNurseRosterEntryRequest,
   CreateNursingAssessmentRequest,
   CreateNursingTaskRequest,
   CreateNutritionScreeningRequest,
@@ -883,6 +885,7 @@ import type {
   DischargeSummary,
   DischargeSummaryPrintData,
   DischargeSummaryTemplate,
+  DispensingLabelPrintData,
   DisposalQuery,
   DispositionRow,
   DltTemplate,
@@ -1377,6 +1380,8 @@ import type {
   NuclearMedAdministration,
   NuclearMedSource,
   NurseCallBoard,
+  NurseRosterCandidate,
+  NurseRosterEntry,
   NursingAssessmentPrintData,
   NursingTask,
   NutritionScreening,
@@ -3991,6 +3996,12 @@ export const api = {
     request<{ status: string }>(`/setup/masters/insurance-providers/${id}`, {
       method: "DELETE",
     }),
+
+  // The front desk's lookup. Unlike listPatients this is not scoped to the
+  // caller's own patients: a returning patient gives a UHID or a phone number
+  // and the desk has to find them whoever registered them. Identity only.
+  findPatients: (q: string) =>
+    request<MpiMatchResult[]>(`/patients/find?q=${encodeURIComponent(q)}`),
 
   // MPI
   matchPatients: (data: MpiMatchRequest) =>
@@ -6628,6 +6639,20 @@ export const api = {
   // ── IPD Phase 2 — Wards ──────────────────────────────────
 
   listWards: () => request<WardListRow[]>("/ipd/wards"),
+  listNurseRoster: (params?: { ward_id?: string; shift_date?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params as Record<string, string>)}` : "";
+    return request<NurseRosterEntry[]>(`/nurse/roster${qs}`);
+  },
+  createNurseRosterEntry: (data: CreateNurseRosterEntryRequest) =>
+    request<{ id: string }>("/nurse/roster", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteNurseRosterEntry: (id: string) =>
+    request<{ id: string }>(`/nurse/roster/${id}`, { method: "DELETE" }),
+  /** Nurses who can be rostered; gated on roster.manage, not the user directory. */
+  listNurseRosterCandidates: () => request<NurseRosterCandidate[]>("/nurse/roster/candidates"),
+
   wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
   listClinicalTrials: (status?: string) =>
     request<ClinicalTrial[]>(`/clinical-trials${status ? `?status=${status}` : ""}`),
@@ -8417,6 +8442,16 @@ export const api = {
         disabled_for_tenant: boolean;
       }>
     >("/integration/default-pipelines"),
+
+  /** Clinical events this hospital has raised that no pipeline listens to. */
+  listUncoveredEvents: () =>
+    request<
+      Array<{
+        event_type: string;
+        fired: number;
+        last_fired: string | null;
+      }>
+    >("/integration/uncovered-events"),
 
   /** Turn one built-in pipeline on or off for this hospital. */
   setDefaultPipelineEnabled: (eventType: string, disabled: boolean) =>
@@ -13380,8 +13415,9 @@ export const api = {
   getPreopAssessmentPrintData: (admissionId: string) =>
     request<PreopAssessmentPrintData>(`/print-data/preop-assessment/${admissionId}`),
 
-  getSurgicalSafetyChecklistPrintData: (surgeryId: string) =>
-    request<SurgicalSafetyChecklistPrintData>(`/print-data/surgical-safety-checklist/${surgeryId}`),
+  // The OT booking, not a surgery: the checklist rows hang off the booking.
+  getSurgicalSafetyChecklistPrintData: (bookingId: string) =>
+    request<SurgicalSafetyChecklistPrintData>(`/print-data/surgical-safety-checklist/${bookingId}`),
 
   getAnesthesiaRecordPrintData: (surgeryId: string) =>
     request<AnesthesiaRecordPrintData>(`/print-data/anesthesia-record/${surgeryId}`),
@@ -13557,6 +13593,11 @@ export const api = {
 
   getNdpsRegisterPrintData: (period: string) =>
     request<NdpsRegisterPrintData>(`/print-data/ndps-register/${period}`),
+
+  // One label per dispensed line, not per order: a bag of three medicines
+  // needs three labels, each with its own directions.
+  getDispensingLabelPrintData: (orderItemId: string) =>
+    request<DispensingLabelPrintData>(`/print-data/dispensing-label/${orderItemId}`),
 
   getDrugExpiryAlertPrintData: (storeId: string) =>
     request<DrugExpiryAlertPrintData>(`/print-data/drug-expiry-alert/${storeId}`),
@@ -15537,6 +15578,13 @@ export const api = {
     }),
   endCodeBlue: (id: string, data: { outcome: string; notes?: string }) =>
     request<unknown>(`/nurse/code-blue/${id}/end`, { method: "PUT", body: JSON.stringify(data) }),
+  /** Who has answered every code blue still in progress — one call for the screen. */
+  listCodeBlueResponders: () => request<CodeBlueResponder[]>("/nurse/code-blue/responders"),
+  /** Say you are on your way. Idempotent; the first response is the team's arrival. */
+  respondToCodeBlue: (id: string) =>
+    request<{ code_blue_id: string; responded: boolean }>(`/nurse/code-blue/${id}/respond`, {
+      method: "POST",
+    }),
 
   // Equipment checks
   listEquipmentChecks: (params?: {

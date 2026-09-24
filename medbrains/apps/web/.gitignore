@@ -1,5 +1,8 @@
-# E2E generated files (smoke/api/ is regenerated from routes/mod.rs)
+# E2E generated files (smoke/api/ is regenerated from every crate router;
+# generated/ holds the page-gates map the screens matrix judges by)
 e2e/smoke/api/
+e2e/writes/
+e2e/generated/
 e2e/.auth/
 playwright-report/
 test-results/

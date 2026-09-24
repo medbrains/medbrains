@@ -3,6 +3,7 @@ import { notifications } from "@mantine/notifications";
 import type { NutritionScreening } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, NumberField, Switch } from "@/components/ui";
 import { nutritionScreeningService } from "@/services/nutritionScreening.service";
@@ -136,6 +137,8 @@ export function NutritionTab() {
   return (
     <Stack gap="md" maw={680}>
       <PatientSearchSelect value={patientId} onChange={setPatientId} />
+      {/* A screening carries dietary restrictions and allergies; both belong beside it. */}
+      {patientId && <PatientContextBanner patientId={patientId} />}
       {patientId ? (
         <Card withBorder padding="md">
           <Panel patientId={patientId} />

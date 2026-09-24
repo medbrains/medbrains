@@ -38,10 +38,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PRINT_DATA = REPO_ROOT / "medbrains" / "crates" / "medbrains-print-data" / "src"
 
 # file -> number of recorded fallbacks. New ones fail; removing them is free.
-RECORDED: dict[str, int] = {
-    "bme.rs": 1,
-    "hr.rs": 2,
-}
+# Zero, and it stays zero. The allowances below grandfathered the exact
+# fabrications this check describes — an invented covered equipment item, an
+# invented visitor with a masked Aadhaar number, invented staff credentials
+# marked "Verified" — so the ratchet passed while the documents lied. They
+# were removed on 2026-09-21; a new one is a failure, not a new baseline.
+RECORDED: dict[str, int] = {}
 
 EMPTY_BRANCH_RE = re.compile(r"\.is_empty\(\)\s*\{")
 

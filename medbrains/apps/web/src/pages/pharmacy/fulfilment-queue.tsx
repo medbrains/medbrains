@@ -22,6 +22,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { DataTable } from "@/components";
 import { Alert, Badge, type BadgeProps, Button } from "@/components/ui";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { ReasonModal } from "./reason-modal";
 
@@ -51,6 +52,7 @@ function nextAction(row: FulfilmentQueueRow): string | null {
 }
 
 export function FulfilmentQueuePage() {
+  useRequirePermission(P.PHARMACY.FULFILMENT.PICK);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canPick = useHasPermission(P.PHARMACY.FULFILMENT.PICK);

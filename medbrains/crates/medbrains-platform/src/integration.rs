@@ -595,6 +595,71 @@ pub async fn list_default_pipelines(
     Ok(Json(rows))
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct UncoveredEventRow {
+    pub event_type: String,
+    pub fired: i64,
+    pub last_fired: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// `GET /api/integration/uncovered-events` — clinical events this hospital
+/// has actually raised that no built-in pipeline listens to.
+///
+/// The hub used to list only the pipelines that exist, which made the far
+/// larger number invisible: a page showing ten subscribers looks complete,
+/// and gives no hint that dozens of events are landing nowhere. What is
+/// missing is the more useful half of the picture.
+///
+/// It is derived from the outbox rather than from the list of every event
+/// the code can name, so it reports what this hospital is really doing and
+/// cannot drift out of date. An event type that does not parse as a clinical
+/// event is skipped — `sms.appointment_confirmation` and its neighbours are
+/// messages the pipelines produce, not events waiting for one.
+pub async fn list_uncovered_events(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<UncoveredEventRow>>, AppError> {
+    // The same read, on the same resource, behind the same page as the
+    // pipeline list above.
+    require_permission(&claims, permissions::integration::LIST)?;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+
+    let covered: std::collections::HashSet<&'static str> =
+        medbrains_workflow::orchestration::default_pipelines::default_subscribers()
+            .into_iter()
+            .map(|(event_type, _)| event_type)
+            .collect();
+
+    let seen = sqlx::query!(
+        "SELECT event_type, count(*) AS \"fired!\", max(created_at) AS last_fired \
+           FROM outbox_events \
+          WHERE tenant_id = $1 \
+          GROUP BY event_type \
+          ORDER BY count(*) DESC \
+          LIMIT 200",
+        claims.tenant_id,
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+
+    let rows = seen
+        .into_iter()
+        .filter(|row| {
+            row.event_type
+                .parse::<medbrains_core::clinical_events::ClinicalEventName>()
+                .is_ok()
+                && !covered.contains(row.event_type.as_str())
+        })
+        .map(|row| UncoveredEventRow {
+            event_type: row.event_type,
+            fired: row.fired,
+            last_fired: row.last_fired,
+        })
+        .collect();
+
+    Ok(Json(rows))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SetPipelineEnabledRequest {
     pub disabled: bool,

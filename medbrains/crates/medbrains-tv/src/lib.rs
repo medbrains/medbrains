@@ -947,6 +947,7 @@ pub async fn broadcast_announcement(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let event = AnnouncementEvent {
+        tenant_id: claims.tenant_id,
         id,
         message: req.message,
         priority: req.priority,

@@ -27,10 +27,21 @@ interface CatalogRow {
   batch_tracking_required?: boolean | null;
 }
 
+/**
+ * `GET /api/ipd/beds/available` returns `bed_id`, not `id`. This helper read
+ * `.id` — undefined — so every journey that "admitted to a bed" admitted
+ * without one, and the admission never got a ward. Mapped here, once.
+ */
 interface BedRow {
   id: string;
   bed_number: string;
+  ward_id: string | null;
   status?: string;
+}
+interface AvailableBedRow {
+  bed_id: string;
+  bed_number: string;
+  ward_id: string | null;
 }
 
 interface FefoBatchOption {
@@ -136,8 +147,13 @@ async function hasUsableFefoStock(
   }
 }
 
-async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
+export async function createSafeE2eDrug(
+  ctx: AuthContext,
+  opts: { reorderLevel?: number; batchQuantities?: number[] } = {},
+): Promise<CatalogRow> {
   const stamp = Date.now().toString(36);
+  const reorderLevel = opts.reorderLevel ?? 25;
+  const batchQuantities = opts.batchQuantities ?? [400, 400];
   const drug = await api<CatalogRow>(ctx, "POST", "/api/pharmacy/catalog", {
     code: `E2E-FEFO-${stamp}`,
     name: `E2E FEFO Paracetamol ${stamp}`,
@@ -148,7 +164,7 @@ async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
     base_price: 5,
     tax_percent: 0,
     current_stock: 0,
-    reorder_level: 25,
+    reorder_level: reorderLevel,
     drug_schedule: "OTC",
     is_controlled: false,
     inn_name: "paracetamol",
@@ -158,12 +174,15 @@ async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
     batch_tracking_required: true,
   });
 
-  await createUsableE2eBatch(ctx, drug.id, `${stamp}-A`, 180, 400);
-  await createUsableE2eBatch(ctx, drug.id, `${stamp}-B`, 540, 400);
-  return { ...drug, current_stock: 800, batch_tracking_required: true };
+  let stock = 0;
+  for (const [i, quantity] of batchQuantities.entries()) {
+    await createUsableE2eBatch(ctx, drug.id, `${stamp}-${String.fromCharCode(65 + i)}`, 180 + 360 * i, quantity);
+    stock += quantity;
+  }
+  return { ...drug, current_stock: stock, batch_tracking_required: true };
 }
 
-async function createUsableE2eBatch(
+export async function createUsableE2eBatch(
   ctx: AuthContext,
   catalogItemId: string,
   suffix: string,
@@ -247,9 +266,10 @@ export async function getAvailableBed(
   const c = getCache(ctx);
   if (c.bed) return c.bed;
   try {
-    const beds = await api<BedRow[]>(ctx, "GET", "/api/ipd/beds/available");
-    if (beds.length === 0) return undefined;
-    c.bed = beds[0];
+    const beds = await api<AvailableBedRow[]>(ctx, "GET", "/api/ipd/beds/available");
+    const first = beds[0];
+    if (!first) return undefined;
+    c.bed = { id: first.bed_id, bed_number: first.bed_number, ward_id: first.ward_id };
     return c.bed;
   } catch {
     return undefined;
