@@ -190,6 +190,16 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: CAMP_MANAGE,
         tone: "primary",
       },
+      {
+        // No further station for this patient — the doctor prescribed
+        // nothing, so there is no pharmacy queue to join.
+        id: "finish",
+        label: "Done — finished",
+        from: ["called", "serving"],
+        to: "completed",
+        permission: CAMP_MANAGE,
+        tone: "secondary",
+      },
       RECALL,
       NO_SHOW,
       HOLD,

@@ -6570,6 +6570,9 @@ pub struct AddCampCounterRequest {
     pub capacity_per_hour: Option<i32>,
     pub location_label: Option<String>,
     pub notes: Option<String>,
+    /// Join an existing step of the camp's route — a second doctor's room
+    /// calls from the Doctor queue. `None` keeps the counter off the route.
+    pub flow_position: Option<i16>,
 }
 
 fn trimmed(value: Option<&String>) -> Option<String> {
@@ -6671,18 +6674,37 @@ pub async fn add_camp_counter(
         ));
     }
 
+    // A room joins a step the route already has; the route's shape comes from
+    // its template, not from adding counters.
+    if let Some(step) = body.flow_position {
+        let exists = sqlx::query_scalar!(
+            r#"SELECT EXISTS(SELECT 1 FROM camp_counters WHERE camp_id = $1
+                              AND flow_position = $2 AND deleted_at IS NULL) AS "ok!""#,
+            camp_id,
+            step,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            return Err(AppError::BadRequest(
+                "Choose a step the camp's route already has".to_owned(),
+            ));
+        }
+    }
+
     // `source_key` is the natural key these tables were built around, and it
     // is what makes a repeated setup idempotent rather than duplicating rooms.
     let source_key = format!("counter:manual:{}", counter_name.to_lowercase());
     let counter_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO camp_counters \
           (tenant_id, camp_id, source_key, counter_type, counter_name, capacity_per_hour, \
-           location_label, status, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'planned', $8) \
+           location_label, status, notes, flow_position) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'planned', $8, $9) \
          ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
            counter_type = EXCLUDED.counter_type, counter_name = EXCLUDED.counter_name, \
            capacity_per_hour = EXCLUDED.capacity_per_hour, \
            location_label = EXCLUDED.location_label, notes = EXCLUDED.notes, \
+           flow_position = EXCLUDED.flow_position, \
            deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
          RETURNING id",
     )
@@ -6694,6 +6716,7 @@ pub async fn add_camp_counter(
     .bind(capacity)
     .bind(trimmed(body.location_label.as_ref()))
     .bind(trimmed(body.notes.as_ref()))
+    .bind(body.flow_position)
     .fetch_one(&mut *tx)
     .await?;
 

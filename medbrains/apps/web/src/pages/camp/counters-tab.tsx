@@ -23,6 +23,7 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
   const [departmentId, setDepartmentId] = useState("");
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState<number | string>(0);
+  const [step, setStep] = useState<string | null>(null);
 
   const {
     data: counters = [],
@@ -71,6 +72,16 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
     },
     onError: (error: Error) => toast.error(error.message, { title: "Stations not set up" }),
   });
+
+  // The route's steps, by the first counter at each: a second doctor's room
+  // joins "3 · Doctor" and calls from its queue.
+  const steps = Array.from(
+    new Map(
+      counters
+        .filter((c) => c.flow_position !== null)
+        .map((c) => [c.flow_position, `${c.flow_position} · ${c.counter_name}`] as const),
+    ),
+  ).map(([value, label]) => ({ value: String(value), label }));
 
   const columns: Column<CampCounter>[] = [
     {
@@ -141,12 +152,14 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
           <Input
             label="Counter"
             placeholder="Consultation room 1"
+            data-testid="field-counter-name"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
           />
           <Select
             label="Serves department"
             placeholder="Which department"
+            data-testid="picker-counter-department"
             data={(departments as DepartmentRow[]).map((d) => ({ value: d.id, label: d.name }))}
             value={departmentId}
             onChange={(value) => setDepartmentId(value ?? "")}
@@ -158,6 +171,17 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
             value={location}
             onChange={(event) => setLocation(event.currentTarget.value)}
           />
+          {steps.length > 0 && (
+            <Select
+              label="Part of step"
+              placeholder="Not on the route"
+              data={steps}
+              value={step}
+              onChange={setStep}
+              clearable
+              data-testid="picker-counter-step"
+            />
+          )}
           <NumberField
             label="Patients per hour"
             min={0}
@@ -166,6 +190,7 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
             onChange={setCapacity}
           />
           <Button
+            data-testid="btn-add-counter"
             tone="primary"
             leftSection={<IconPlus size={16} />}
             loading={add.isPending}
@@ -176,6 +201,7 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
                 department_id: departmentId,
                 location_label: location.trim() || undefined,
                 capacity_per_hour: Number(capacity) || 0,
+                flow_position: step ? Number(step) : null,
               })
             }
           >

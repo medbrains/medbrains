@@ -16,11 +16,13 @@ async fn next_station(
     counter_id: Uuid,
 ) -> Result<Option<Uuid>, AppError> {
     Ok(sqlx::query_scalar!(
+        // Several rooms may serve one step; the step's queue is its first
+        // counter's, and every room calls from it.
         "SELECT next.id FROM camp_counters here \
            JOIN camp_counters next ON next.camp_id = here.camp_id \
           WHERE here.id = $1 AND here.flow_position IS NOT NULL \
             AND next.flow_position > here.flow_position AND next.deleted_at IS NULL \
-          ORDER BY next.flow_position LIMIT 1",
+          ORDER BY next.flow_position, next.created_at, next.id LIMIT 1",
         counter_id,
     )
     .fetch_optional(&mut **tx)
@@ -89,8 +91,10 @@ pub async fn enter_camp_route_in_tx(
     // Registration is the first station; the patient now waits for the second.
     let Some(first_queue) = sqlx::query_scalar!(
         "SELECT id FROM camp_counters \
-          WHERE camp_id = $1 AND flow_position IS NOT NULL AND deleted_at IS NULL \
-          ORDER BY flow_position OFFSET 1 LIMIT 1",
+          WHERE camp_id = $1 AND deleted_at IS NULL \
+            AND flow_position > (SELECT MIN(flow_position) FROM camp_counters \
+                                  WHERE camp_id = $1 AND deleted_at IS NULL) \
+          ORDER BY flow_position, created_at, id LIMIT 1",
         entry.camp_id,
     )
     .fetch_optional(&mut **tx)
@@ -118,16 +122,18 @@ pub async fn enter_camp_route_in_tx(
     .await
 }
 
-/// A camp station a desk can work, for the console's station picker.
+/// A camp station a desk can work, for the console's station picker: the
+/// step's queue, and the rooms that call from it.
 #[derive(Debug, serde::Serialize)]
 pub struct CampStation {
     pub counter_id: Uuid,
     pub camp_name: String,
     pub name: String,
     pub flow_position: i16,
+    pub rooms: Vec<String>,
 }
 
-/// `GET /api/tokens/camp-stations` — the stations of camps still running, in
+/// `GET /api/tokens/camp-stations` — the steps of camps still running, in
 /// route order, for whoever calls patients through them.
 pub async fn list_camp_stations(
     axum::extract::State(state): axum::extract::State<medbrains_server_core::state::AppState>,
@@ -141,12 +147,17 @@ pub async fn list_camp_stations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let stations = sqlx::query_as!(
         CampStation,
-        r#"SELECT c.id AS counter_id, k.name AS camp_name, c.counter_name AS name,
-                  c.flow_position AS "flow_position!"
+        r#"SELECT DISTINCT ON (c.camp_id, c.flow_position)
+                  c.id AS counter_id, k.name AS camp_name, c.counter_name AS name,
+                  c.flow_position AS "flow_position!",
+                  ARRAY(SELECT r.counter_name FROM camp_counters r
+                         WHERE r.camp_id = c.camp_id AND r.flow_position = c.flow_position
+                           AND r.deleted_at IS NULL
+                         ORDER BY r.created_at, r.id) AS "rooms!"
              FROM camp_counters c JOIN camps k ON k.id = c.camp_id
             WHERE c.flow_position IS NOT NULL AND c.deleted_at IS NULL
               AND k.status::text NOT IN ('completed', 'cancelled')
-            ORDER BY k.scheduled_date DESC, k.name, c.flow_position
+            ORDER BY c.camp_id, c.flow_position, c.created_at, c.id
             LIMIT 200"#,
     )
     .fetch_all(&mut *tx)

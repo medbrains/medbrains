@@ -4785,6 +4785,8 @@ export interface CampStation {
   camp_name: string;
   name: string;
   flow_position: number;
+  /** The rooms that call from this step's queue. */
+  rooms: string[];
 }
 
 export interface CampCounter {
@@ -4813,6 +4815,8 @@ export interface AddCampCounterRequest {
   capacity_per_hour?: number;
   location_label?: string;
   notes?: string;
+  /** Join an existing step of the camp's route (a second doctor's room). */
+  flow_position?: number | null;
 }
 
 export interface CampBoardRow {

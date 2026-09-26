@@ -15,13 +15,18 @@ test("a patient who agrees to WhatsApp at the desk can withdraw it later", async
   request,
 }) => {
   const ctx = await getAuthContextFromCookies(request);
-  const suffix = String(Date.now()).slice(-7);
-  const lastName = `Consent${suffix}`;
+  // A random person each run: the desk's fuzzy duplicate check would
+  // otherwise stop registration on the patients earlier runs left behind.
+  const word = () =>
+    Array.from({ length: 8 }, () => "bcdfghjklmnpqrstvwxz"[Math.floor(Math.random() * 20)]).join("");
+  const firstName = `Ka${word()}`;
+  const lastName = `Co${word()}`;
+  const suffix = String(Math.floor(Math.random() * 1e7)).padStart(7, "0");
   await routeApiDirect(page);
 
   // At the desk.
   await page.goto("/patients/register");
-  await page.getByLabel("First Name").fill("Lakshmi");
+  await page.getByLabel("First Name").fill(firstName);
   await page.getByLabel("Last Name").fill(lastName);
   await page.getByLabel(/^Phone \(primary\)/).fill(`97${suffix}1`);
   await page.getByLabel("Gender").first().click();

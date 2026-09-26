@@ -1424,6 +1424,18 @@ async fn transition_from(
     (status, from): (&str, &[&str]),
     counter_label: Option<String>,
 ) -> Result<Token, AppError> {
+    transition_inner(state, claims, id, (status, from), (counter_label, true)).await
+}
+
+/// `transition_from`, saying whether a completed camp token moves on to the
+/// next station (`true`) or the patient's route ends here.
+async fn transition_inner(
+    state: &AppState,
+    claims: &Claims,
+    id: Uuid,
+    (status, from): (&str, &[&str]),
+    (counter_label, continue_route): (Option<String>, bool),
+) -> Result<Token, AppError> {
     // `status` reaches here from advance_token as an arbitrary client string
     // (tokens.status is a plain text column with no CHECK). Reject anything
     // outside the queue lifecycle so a caller can't set 'foo' or skip states.
@@ -1491,7 +1503,7 @@ async fn transition_from(
     let returned_to = if status == "completed" {
         match return_to_referrer(&mut tx, claims, &token).await? {
             // A camp patient moves on to the next station, same number.
-            None => {
+            None if continue_route => {
                 station_flow::send_to_next_station(&mut tx, claims.tenant_id, claims.sub, &token)
                     .await?
             }
@@ -1553,6 +1565,26 @@ pub async fn call_token(
 ) -> Result<Json<Token>, AppError> {
     Ok(Json(
         transition(&state, &claims, id, "called", body.counter_label).await?,
+    ))
+}
+
+/// POST /api/tokens/{id}/finish — a camp patient done here who needs no
+/// further station: the doctor prescribed nothing, so there is no pharmacy
+/// queue to join. Completes without sending them on.
+pub async fn finish_token(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Token>, AppError> {
+    Ok(Json(
+        transition_inner(
+            &state,
+            &claims,
+            id,
+            ("completed", allowed_from("completed")),
+            (None, false),
+        )
+        .await?,
     ))
 }
 
@@ -2127,6 +2159,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/{id}/advance", post(advance_token))
         .route("/api/tokens/{id}/call", post(call_token))
         .route("/api/tokens/{id}/serve", post(serve_token))
+        .route("/api/tokens/{id}/finish", post(finish_token))
         .route("/api/tokens/{id}/complete", post(complete_token))
         .route("/api/tokens/{id}/no-show", post(no_show_token))
         .route("/api/tokens/{id}/priority", put(escalate_priority))

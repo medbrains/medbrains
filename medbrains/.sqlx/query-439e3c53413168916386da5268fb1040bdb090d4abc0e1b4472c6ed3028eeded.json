@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM camp_counters WHERE camp_id = $1 AND deleted_at IS NULL AND flow_position > (SELECT MIN(flow_position) FROM camp_counters WHERE camp_id = $1 AND deleted_at IS NULL) ORDER BY flow_position, created_at, id LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "439e3c53413168916386da5268fb1040bdb090d4abc0e1b4472c6ed3028eeded"
+}

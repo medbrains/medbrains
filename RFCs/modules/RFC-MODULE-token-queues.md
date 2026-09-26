@@ -314,6 +314,17 @@ edge tier design already written in `medbrains-edge`.
     number only; **when** the screen is revoked, **then** it goes back to
     showing a code — never a dead board. A code that expires or is refused is
     replaced by itself.
+40. **Given** a camp's Doctor step with two rooms, **when** the doctor in room
+    2 presses *Call next*, **then** they get the next patient from the one
+    Doctor queue and the call names room 2 — neither room has its own line, so
+    nobody waits behind the slower doctor. Adding a room to a step is done on
+    the Counters tab, never by rearranging the route.
+41. **Given** a camp patient who needs no medicine, **when** the doctor presses
+    *Done — finished*, **then** the patient leaves the route there and the
+    Pharmacy queue never shows them; *Complete* still sends them on.
+42. **Given** two camps (or two runs of one camp), **then** both start at
+    `C-001` — a number names a patient only within its camp; anything that
+    finds a token looks it up by station, never by number alone.
 
 ## P0 progress (2026-09-26)
 
@@ -508,6 +519,15 @@ after the registration desk.
 
 **P4b** — skip a station (no pharmacy needed), and stations with more than one
 counter (two doctors). **P4c** — the camp native staff app module (per §10).
+
+*P4b built 2026-09-26:* migration 1027 lets several counters share one
+`flow_position`; the step's queue lives at its lead counter (oldest), so rooms
+share it and `counter_label` names the room that called. The Counters tab adds a
+room to an existing step ("Part of step"); the token console shows *Your room*
+when a step has more than one. `POST /api/tokens/{id}/finish` completes a token
+without sending it on (camp workflow *Done — finished*, `camp.queue.manage`).
+Proved by `camp_route_test::two_doctor_rooms_share_one_queue_and_a_patient_can_finish_early`
+and `e2e/journeys/camp-rooms.spec.ts` (§9 #40–42). Next: **P4c**.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

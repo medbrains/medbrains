@@ -64,6 +64,8 @@
   "tokenConsole.counter": "Counter / room",
   "tokenConsole.station": "Station",
   "tokenConsole.stationPlaceholder": "Which camp station you are at",
+  "tokenConsole.room": "Your room",
+  "tokenConsole.roomPlaceholder": "Which room you call to",
   "tokenConsole.counterPlaceholder": "e.g. Counter 2",
   "tokenConsole.callNext": "Call next",
   "tokenConsole.empty": "No tokens in the queue",

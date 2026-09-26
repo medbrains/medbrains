@@ -61,6 +61,7 @@ export function TokenConsolePage() {
   const [module, setModule] = useState<string>(canWorkDesk ? "opd" : "camp");
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [stationId, setStationId] = useState<string | null>(null);
+  const [counter, setCounter] = useState("");
   const isCamp = module === "camp";
   // Mirrors the server: the camp team reads its own stations' queues.
   const canViewBoard = canListQueues || (isCamp && canWorkCamps);
@@ -73,7 +74,10 @@ export function TokenConsolePage() {
     queryFn: () => api.listCampStations(),
     enabled: isCamp && canWorkCamps,
   });
-  const [counter, setCounter] = useState("");
+  const station = campStations.find((entry) => entry.counter_id === stationId);
+  // At a camp the call names the room: the one picked when a step has several
+  // (two doctors), otherwise the station itself.
+  const roomLabel = isCamp ? counter || station?.name || "" : counter;
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
@@ -122,14 +126,21 @@ export function TokenConsolePage() {
     toast.error(error.message, { title: t("tokenConsole.actionFailed") });
 
   const advance = useMutation({
-    mutationFn: (input: { id: string; status: string }) =>
-      api.advanceToken(input.id, input.status, counter || undefined),
+    mutationFn: (input: { id: string; status: string; finish?: boolean }) =>
+      input.finish
+        ? api.finishToken(input.id)
+        : api.advanceToken(input.id, input.status, roomLabel || undefined),
     onSuccess: invalidate,
     onError: onActionError,
   });
   const callNext = useMutation({
     mutationFn: () =>
-      api.callNextToken({ module, scope, scope_id: scopeId, counter_label: counter || undefined }),
+      api.callNextToken({
+        module,
+        scope,
+        scope_id: scopeId,
+        counter_label: roomLabel || undefined,
+      }),
     // `call-next` answers null for an empty queue rather than failing, so
     // success alone does not mean somebody was called. Silence here read as
     // a call that had been made, and the counter waited for a patient who
@@ -257,7 +268,9 @@ export function TokenConsolePage() {
               key={action.id}
               tone={action.tone ?? "secondary"}
               size="xs"
-              onClick={() => advance.mutate({ id: row.id, status: action.to })}
+              onClick={() =>
+                advance.mutate({ id: row.id, status: action.to, finish: action.id === "finish" })
+              }
               data-testid={`btn-${action.id}`}
             >
               {action.label}
@@ -320,10 +333,24 @@ export function TokenConsolePage() {
               label: `${station.camp_name} · ${station.flow_position}. ${station.name}`,
             }))}
             value={stationId}
-            onChange={setStationId}
+            onChange={(value) => {
+              setStationId(value);
+              setCounter("");
+            }}
             searchable
             data-testid="picker-station"
             style={{ width: 320 }}
+          />
+        )}
+        {isCamp && station && station.rooms.length > 1 && (
+          <Select
+            label={t("tokenConsole.room")}
+            placeholder={t("tokenConsole.roomPlaceholder")}
+            data={station.rooms}
+            value={counter || null}
+            onChange={(value) => setCounter(value ?? "")}
+            data-testid="picker-room"
+            style={{ width: 200 }}
           />
         )}
         {!isCamp && (

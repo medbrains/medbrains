@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM camp_counters WHERE camp_id = $1\n                              AND flow_position = $2 AND deleted_at IS NULL) AS \"ok!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "ok!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "96754b637c46fab517a8f92b4fa3dd0da0e3ed506cceb3f70b2fbd4a506a5a10"
+}
