@@ -3104,6 +3104,35 @@ fn split_person_name(person_name: &str) -> (String, String) {
     }
 }
 
+/// The next `CR-<camp>-NNNN` for a camp.
+///
+/// It was `COUNT(*) + 1` with no lock: two desks registering at once both
+/// counted the same rows and printed the same number on two patients' slips,
+/// and a deleted registration made the count reuse a number already issued.
+/// The lock serialises registrations per camp for the rest of the transaction,
+/// and the next number follows the highest one issued rather than the row count.
+async fn next_registration_number(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    camp_id: Uuid,
+    camp_code: &str,
+) -> Result<String, AppError> {
+    sqlx::query!(
+        "SELECT pg_advisory_xact_lock(hashtextextended('camp_registration:' || $1::text, 0))",
+        camp_id.to_string(),
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    let seq = sqlx::query_scalar!(
+        r#"SELECT COALESCE(MAX(substring(registration_number FROM '(\d+)$')::int), 0) + 1
+             AS "seq!"
+             FROM camp_registrations WHERE camp_id = $1"#,
+        camp_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(format!("CR-{camp_code}-{seq:04}"))
+}
+
 #[cfg(test)]
 mod person_name_tests {
     use super::split_person_name;
@@ -4154,14 +4183,7 @@ async fn apply_camp_sync_event(
                 create_or_link_patient_for_camp_registration(tx, claims, camp_id, &camp_ctx, &body)
                     .await?;
 
-            let count_row = sqlx::query_as::<_, CountRow>(
-                "SELECT COUNT(*)::bigint AS count FROM camp_registrations WHERE camp_id = $1",
-            )
-            .bind(camp_id)
-            .fetch_one(&mut **tx)
-            .await?;
-            let seq = count_row.count.unwrap_or(0) + 1;
-            let reg_number = format!("CR-{}-{seq:04}", camp.camp_code);
+            let reg_number = next_registration_number(tx, camp_id, &camp.camp_code).await?;
             let entity_id = event.client_entity_id.unwrap_or_else(Uuid::new_v4);
 
             let server_id = sqlx::query_scalar::<_, Uuid>(
@@ -6934,16 +6956,7 @@ pub async fn create_registration(
         .fetch_one(&mut *tx)
         .await?;
 
-    // Count existing registrations for sequence
-    let count_row = sqlx::query_as::<_, CountRow>(
-        "SELECT COUNT(*)::bigint AS count FROM camp_registrations WHERE camp_id = $1",
-    )
-    .bind(body.camp_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let seq = count_row.count.unwrap_or(0) + 1;
-    let reg_number = format!("CR-{}-{seq:04}", camp.camp_code);
+    let reg_number = next_registration_number(&mut tx, body.camp_id, &camp.camp_code).await?;
 
     // All camp participants see a doctor first; investigations follow only on
     // the doctor's advice. Default service_line to 'consultation' so the

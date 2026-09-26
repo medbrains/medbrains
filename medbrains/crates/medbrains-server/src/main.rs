@@ -749,6 +749,10 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // SMS counterparts for WhatsApp fallback targets that had none.
     registry.register(twilio::SmsSendHandler::new("sms.lab_report_ready"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_link"));
+    // The opt-in "your token has been called" message. The pipeline enqueued it
+    // from the start, but with no handler it fell to the user-pipeline
+    // fallback and was never sent.
+    registry.register(twilio::SmsSendHandler::new("sms.token_called"));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
@@ -922,4 +926,17 @@ fn decode_b64_or_pem(input: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>>
         .collect();
 
     Ok(STANDARD.decode(b64_content)?)
+}
+
+#[cfg(test)]
+mod tests {
+    /// The token-call SMS was enqueued by its pipeline from the start, but no
+    /// typed handler was registered, so the outbox handed it to the
+    /// user-pipeline fallback and it was never sent.
+    #[test]
+    fn the_token_call_sms_has_a_sender() {
+        let registry = super::build_outbox_registry();
+        let handler = registry.lookup("sms.token_called");
+        assert_eq!(handler.map(|h| h.event_type()), Some("sms.token_called"));
+    }
 }

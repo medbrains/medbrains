@@ -477,3 +477,11 @@
     filter: none;
   }
 }
+
+
+// Focus and scroll-into-view stop a control at the viewport's bottom edge,
+// which is exactly under the floating assistant launcher; this makes them stop
+// above it. The room to scroll into comes from AppShell.Main's bottom padding.
+:global(html) {
+  scroll-padding-bottom: calc(var(--mantine-spacing-xl) * 4);
+}

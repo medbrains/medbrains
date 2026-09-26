@@ -21,6 +21,8 @@ if [[ "$(id -u)" == "0" ]]; then
   exit 1
 fi
 
+ORIGIN="${DEV_HTTPS_ORIGIN:-https://medbrains.localhost}"
+
 # The proxy binds unprivileged 8080/8443; pf forwards the world's connections
 # from 80/443 to them. Without the anchor every dev URL refuses to connect, and
 # finding that out after a full compile is a bad way to learn it. Stop here,
@@ -39,7 +41,6 @@ if [[ ! -f /etc/pf.anchors/medbrains-dev ]] || ! grep -q 'medbrains-dev' /etc/pf
   echo "WARNING: pf port-forward not installed — $ORIGIN will refuse connections."
 fi
 
-ORIGIN="${DEV_HTTPS_ORIGIN:-https://medbrains.localhost}"
 DESKTOP_ORIGIN="${DEV_DESKTOP_HTTPS_ORIGIN:-https://medbrains-desktop.localhost}"
 SIMULATOR_ORIGIN="${DEV_SIMULATOR_HTTPS_ORIGIN:-https://medbrains-simulator.localhost}"
 ICD_ORIGIN="${DEV_ICD_HTTPS_ORIGIN:-https://medbrains-icd.localhost}"

@@ -633,7 +633,11 @@ export function AppLayout() {
       </AppShell.Navbar>
 
       {/* ── Main content ── */}
-      <AppShell.Main>
+      {/* Room below the last row: the assistant launcher and the activity
+          pill float over the bottom of every page, and a control underneath
+          them can be neither clicked nor seen focused (WCAG 2.2 SC 2.4.11).
+          A prop, because Mantine's own shell padding outranks a class. */}
+      <AppShell.Main pb="calc(var(--mantine-spacing-xl) * 4)">
         <VerifyEmailBanner />
         {breadcrumbItems.length > 0 && (
           <div className={classes.breadcrumbs}>

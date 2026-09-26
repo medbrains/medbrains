@@ -49,17 +49,19 @@ pub async fn queue_ws_handler(
     ws.on_upgrade(move |socket| handle_queue_socket(socket, department_id, state))
 }
 
-/// Which hospital a board belongs to, taken from the department it is pointed
-/// at.
+/// Which hospital a board belongs to, taken from the queue it is pointed at.
 ///
-/// These sockets are public — a board has no credentials — so the department
-/// in the path is the only thing that says whose display this is. A department
-/// nobody owns means a misconfigured board, and it gets no feed at all rather
-/// than everybody's.
-async fn tenant_of_department(state: &AppState, department_id: Uuid) -> Option<Uuid> {
+/// These sockets are public — a board has no credentials — so the id in the
+/// path is the only thing that says whose display this is. It is a token scope
+/// id: a department, a camp counter, a station or a location, because the
+/// engine broadcasts on whichever of those the token belongs to. Resolving it
+/// against `departments` alone refused every other kind, so a room or camp
+/// board never received a live update. An id no scope owns means a
+/// misconfigured board, and it gets no feed at all rather than everybody's.
+async fn tenant_of_scope(state: &AppState, scope_id: Uuid) -> Option<Uuid> {
     sqlx::query_scalar!( // allow-raw-sql: resolves the tenant itself, so none can scope it
-        "SELECT tenant_id FROM departments WHERE id = $1",
-        department_id,
+        r#"SELECT tenant_id AS "tenant_id!" FROM token_scopes WHERE scope_id = $1 LIMIT 1"#,
+        scope_id,
     )
     .fetch_optional(&state.db)
     .await
@@ -84,8 +86,8 @@ pub async fn queue_ws_handler_all(
 async fn handle_queue_socket(socket: WebSocket, department_id: Uuid, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
-    let Some(tenant_id) = tenant_of_department(&state, department_id).await else {
-        tracing::warn!(%department_id, "queue socket refused — no such department");
+    let Some(tenant_id) = tenant_of_scope(&state, department_id).await else {
+        tracing::warn!(scope_id = %department_id, "queue socket refused — no such queue scope");
         return;
     };
 

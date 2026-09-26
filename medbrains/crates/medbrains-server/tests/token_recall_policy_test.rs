@@ -22,7 +22,10 @@ use uuid::Uuid;
 static POLICY: LazyLock<tokio::sync::Mutex<()>> = LazyLock::new(|| tokio::sync::Mutex::new(()));
 
 async fn tenant_of(app: &common::TestApp) -> Uuid {
-    let row: (Uuid,) = sqlx::query_as("SELECT id FROM tenants LIMIT 1")
+    // The admin's own tenant: `tenants LIMIT 1` is unordered, and this
+    // database also holds an RLS probe tenant, so the policy was sometimes
+    // written to a hospital the test never issues tokens in.
+    let row: (Uuid,) = sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT tenant_id FROM departments WHERE id = $1",
+  "query": "SELECT tenant_id AS \"tenant_id!\" FROM token_scopes WHERE scope_id = $1 LIMIT 1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "tenant_id",
+        "name": "tenant_id!",
         "type_info": "Uuid"
       }
     ],
@@ -15,8 +15,8 @@
       ]
     },
     "nullable": [
-      false
+      true
     ]
   },
-  "hash": "102537b210622b00c4b6b0deb19cd1215c3863c67e86e86a0943df105f1f8365"
+  "hash": "e55c4b0c60e8ade69ab8a19a5faa5cf4c7c5a8b2fb34ba8b7cd191aaa585d460"
 }

@@ -6,11 +6,10 @@
 //!
 //! `tokens.patient_id` is NULLABLE — a token can be handed to somebody not yet
 //! identified, which is what a queue at a front desk is for. The permission is
-//! `front_office.queue.manage`, and **no built-in role holds it**
-//! (`scripts/check_permission_reachable.py`), so the handler is bypass-only.
-//!
-//! **What retires this:** granting the code to a desk role. The token queue
-//! then becomes a way to ask whether a named person is here today.
+//! `front_office.queue.manage`, held by the desk roles (receptionist,
+//! front_office_staff): putting somebody in a line is the desk's job whether or
+//! not their record is open to it. The token carries the number and name for
+//! the board, never the record, so issuing one grants no access to the chart.
 
 use axum::{
     Extension, Json,
@@ -981,6 +980,22 @@ pub struct CallTokenInput {
 const VALID_TOKEN_STATUSES: [&str; 6] =
     ["waiting", "called", "serving", "completed", "no_show", "cancelled"];
 
+/// The states a token may move *from* to reach `to`.
+///
+/// `transition` used to set any status from any status, so a stale console
+/// could put a completed patient back in the queue or call a no-show again.
+/// `waiting` is not reachable here at all: going back into the queue is
+/// `requeue`, which decides the position. Re-calling a called token is allowed
+/// — that is the desk repeating the announcement.
+fn allowed_from(to: &str) -> &'static [&'static str] {
+    match to {
+        "called" | "serving" | "no_show" => &["waiting", "called"],
+        "completed" => &["called", "serving"],
+        "cancelled" => &["waiting", "called", "serving"],
+        _ => &[],
+    }
+}
+
 /// Who may work a queue, by the module it belongs to.
 ///
 /// `front_office.queue.manage` is the desk's code: it works any module's
@@ -1180,6 +1195,21 @@ async fn transition(
     status: &str,
     counter_label: Option<String>,
 ) -> Result<Token, AppError> {
+    transition_from(state, claims, id, (status, allowed_from(status)), counter_label).await
+}
+
+/// `transition`, with the states the caller expects the token to be in.
+///
+/// The check and the write are one statement, so two desks acting on the same
+/// token cannot both succeed: the second finds it already moved and gets a
+/// 409, which the console already reports as "a colleague got there first".
+async fn transition_from(
+    state: &AppState,
+    claims: &Claims,
+    id: Uuid,
+    (status, from): (&str, &[&str]),
+    counter_label: Option<String>,
+) -> Result<Token, AppError> {
     // `status` reaches here from advance_token as an arbitrary client string
     // (tokens.status is a plain text column with no CHECK). Reject anything
     // outside the queue lifecycle so a caller can't set 'foo' or skip states.
@@ -1195,11 +1225,12 @@ async fn transition(
     // The permission depends on which queue this token is in, so the module has
     // to be read before the write. A token's module never changes, so there is
     // nothing to lock against between the two statements.
-    let module = sqlx::query_scalar::<_, String>("SELECT module FROM tokens WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let (module, current) =
+        sqlx::query_as::<_, (String, String)>("SELECT module, status FROM tokens WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     require_queue_manage(claims, &module)?;
 
     let token = sqlx::query_as::<_, Token>(&format!(
@@ -1209,15 +1240,21 @@ async fn transition(
            counter_label = COALESCE($4, counter_label), \
            served_at = CASE WHEN $2 = 'serving' THEN now() ELSE served_at END, \
            completed_at = CASE WHEN $2 IN ('completed', 'no_show') THEN now() ELSE completed_at END \
-         WHERE id = $1 RETURNING {SELECT}"
+         WHERE id = $1 AND status = ANY($5) RETURNING {SELECT}"
     ))
     .bind(id)
     .bind(status)
     .bind(claims.sub)
     .bind(counter_label)
+    .bind(from)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or(AppError::NotFound)?;
+    .ok_or_else(|| {
+        AppError::Conflict(format!(
+            "Token is already {}; it cannot be set to {status}",
+            current.replace('_', " ")
+        ))
+    })?;
 
     // Keep the OPD queue row in step. Without this the token moves and the
     // queue does not, so the desk sees "Waiting" and a live Call button for a
@@ -1234,29 +1271,36 @@ async fn transition(
     };
 
     // Calling a patient to a room is an event the rest of the hospital can act
-    // on — it is what a token-call SMS is for — and it was told to nobody but
-    // the board over a WebSocket. `opd.queue.called` was in the event
-    // vocabulary from the start and never emitted by anything.
-    if status == "called" {
+    // on — it is what a token-call SMS is for. `opd.queue.called` describes an
+    // OPD consultation queue, and its registry requires the queue entry, the
+    // encounter and the patient. It was emitted for every module without them,
+    // and the validator refused it — so every Call on every queue answered 400.
+    // Only a token that is an OPD encounter can say what the event means;
+    // other queues get their own call event with per-queue notifications.
+    let opd_encounter = (token.module == "opd" && token.entity_type.as_deref() == Some("encounter"))
+        .then_some(token.entity_id)
+        .flatten();
+    if let (true, Some(encounter_id), Some(patient_id)) =
+        (status == "called", opd_encounter, token.patient_id)
+    {
         let event = medbrains_core::clinical_events::ClinicalEventEnvelope::new(
             claims.tenant_id,
             medbrains_core::clinical_events::ClinicalEventName::OpdQueueCalled,
             token.id,
             claims.sub,
             serde_json::json!({
+                "queue_entry_id": token.id,
+                "encounter_id": encounter_id,
                 "token_id": token.id,
                 "token_number": token.number,
                 "module": token.module,
-                "patient_id": token.patient_id,
+                "patient_id": patient_id,
                 "scope_id": token.scope_id,
                 "room": token.scope_label,
                 "counter": token.counter_label,
             }),
-        );
-        let event = match token.patient_id {
-            Some(patient_id) => event.with_patient(patient_id),
-            None => event,
-        };
+        )
+        .with_patient(patient_id);
         medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
@@ -1370,6 +1414,40 @@ pub async fn call_next(
 ) -> Result<Json<Option<Token>>, AppError> {
     require_queue_manage(&claims, &body.module)?;
 
+    // Picking the head of the queue and calling it are two steps, so two desks
+    // pressing Call next together can pick the same patient. The call only
+    // succeeds from `waiting`; the desk that loses the race gets a conflict and
+    // takes the next head instead of calling the same person twice.
+    // ponytail: bounded retry, not SKIP LOCKED — enough for a handful of desks.
+    for _ in 0..CALL_NEXT_ATTEMPTS {
+        let Some(id) = next_waiting(&state, &claims, &body).await? else {
+            return Ok(Json(None));
+        };
+        let called = transition_from(
+            &state,
+            &claims,
+            id,
+            ("called", &["waiting"]),
+            body.counter_label.clone(),
+        )
+        .await;
+        match called {
+            Err(AppError::Conflict(_)) => {}
+            other => return other.map(|token| Json(Some(token))),
+        }
+    }
+    Err(AppError::Conflict(
+        "The queue is moving too fast to call the next patient; try again".to_owned(),
+    ))
+}
+
+const CALL_NEXT_ATTEMPTS: usize = 5;
+
+async fn next_waiting(
+    state: &AppState,
+    claims: &Claims,
+    body: &CallNextInput,
+) -> Result<Option<Uuid>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let next_id: Option<Uuid> = sqlx::query_scalar(
@@ -1385,14 +1463,7 @@ pub async fn call_next(
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
-
-    match next_id {
-        Some(id) => {
-            let token = transition(&state, &claims, id, "called", body.counter_label).await?;
-            Ok(Json(Some(token)))
-        }
-        None => Ok(Json(None)),
-    }
+    Ok(next_id)
 }
 
 /// Put the patient back in the queue that referred them, ahead of the people
@@ -1729,7 +1800,11 @@ pub async fn camp_board(
     Extension(claims): Extension<Claims>,
     Query(query): Query<CampBoardQuery>,
 ) -> Result<Json<Vec<CampBoardRow>>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::LIST)?;
+    // A camp board is a TV like any other: a paired display reads it with
+    // `display.board.read`, which the desk code alone refused.
+    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
+        require_permission(&claims, permissions::front_office::queue::LIST)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
