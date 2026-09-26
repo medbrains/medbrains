@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 989 permissions, one per constant in the Rust source. */
+/** 990 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -123,6 +123,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.visit.update",
     label: "Update Visit",
     description: "Modify OPD visit records",
+    module: "opd",
+  },
+  {
+    code: "opd.visit.transfer",
+    label: "Move a waiting visit to another department",
+    description: "For a patient registered to the wrong department, before any doctor has called them: the visit, its queue place and its token move together, and the new department's doctor gains access.",
     module: "opd",
   },
   {
@@ -7972,9 +7978,11 @@ export const P = {
     TOKEN_MANAGE: "opd.token.manage",
     VISIT: {
       CREATE: "opd.visit.create",
+      TRANSFER: "opd.visit.transfer",
       UPDATE: "opd.visit.update",
     },
     VISIT_CREATE: "opd.visit.create",
+    VISIT_TRANSFER: "opd.visit.transfer",
     VISIT_UPDATE: "opd.visit.update",
     VITALS: {
       CREATE: "opd.vitals.create",
@@ -9547,6 +9555,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.OPD.TOKEN_MANAGE,
       P.OPD.VISIT.CREATE,
+      P.OPD.VISIT.TRANSFER,
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.CREATE,
@@ -10292,6 +10301,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.OPD.VISIT.TRANSFER,
     ],
   },
   infection_control_officer: {

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tokens SET seq = seq + 1 WHERE module = 'opd' AND scope = 'department' AND scope_id = $1 AND token_date = CURRENT_DATE AND seq >= $2 AND id <> $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5dfbe18249c799a9a2fdd902de47401be9e40258055edfeefcacb9e0dfe0fecc"
+}

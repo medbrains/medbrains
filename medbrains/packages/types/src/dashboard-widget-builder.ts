@@ -945,6 +945,20 @@ export interface CreateEncounterResponse {
   token_refused: string | null;
 }
 
+/** Move a waiting visit to another department. */
+export interface TransferVisitRequest {
+  department_id: string;
+  /** The new department's doctor, if the desk knows who will see them. */
+  doctor_id?: string | null;
+}
+
+export interface TransferVisitResponse {
+  encounter_id: string;
+  department_id: string;
+  /** The number the new department's board will call. */
+  token_number: string | null;
+}
+
 export interface UpdateEncounterRequest {
   department_id?: string;
   doctor_id?: string;

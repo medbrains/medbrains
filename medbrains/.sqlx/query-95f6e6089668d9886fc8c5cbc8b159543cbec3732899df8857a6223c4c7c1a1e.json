@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_advisory_xact_lock(hashtextextended($1::uuid::text || ':' || 'opd' || ':' || 'department' || ':' || $2::uuid::text || ':' || CURRENT_DATE::text, 0))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pg_advisory_xact_lock",
+        "type_info": "Void"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "95f6e6089668d9886fc8c5cbc8b159543cbec3732899df8857a6223c4c7c1a1e"
+}

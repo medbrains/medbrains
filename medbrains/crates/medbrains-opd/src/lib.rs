@@ -6,6 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod transfer;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -1244,13 +1246,6 @@ pub async fn update_encounter(
     Json(body): Json<UpdateEncounterRequest>,
 ) -> Result<Json<Encounter>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-
-    // The route names an encounter; holding the module permission is not the
-    // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(
-        &state, &claims, id,
-    )
-    .await?;
 
     // The route names an encounter; holding the module permission is not the
     // same as being on this patient's care team.
@@ -6694,6 +6689,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/opd/encounters/{id}",
             get(get_encounter).put(update_encounter),
+        )
+        .route(
+            "/api/opd/encounters/{id}/transfer",
+            post(transfer::transfer_encounter),
         )
         .route(
             "/api/opd/registration-policy",

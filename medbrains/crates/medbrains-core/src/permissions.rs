@@ -76,6 +76,12 @@ pub mod opd {
     pub mod visit {
         pub const CREATE: &str = "opd.visit.create";
         pub const UPDATE: &str = "opd.visit.update";
+        /// Move a waiting visit to another department.
+        ///
+        /// For a patient registered to the wrong department, before any
+        /// doctor has called them: the visit, its queue place and its token
+        /// move together, and the new department's doctor gains access.
+        pub const TRANSFER: &str = "opd.visit.transfer";
     }
 
     pub mod vitals {

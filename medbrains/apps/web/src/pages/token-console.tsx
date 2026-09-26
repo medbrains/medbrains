@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { TransferVisitModal } from "@/components/Queues/TransferVisitModal";
 import { Alert, Badge, Button, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -121,6 +122,8 @@ export function TokenConsolePage() {
   });
 
   const [escalating, setEscalating] = useState<ModuleToken | null>(null);
+  const [moving, setMoving] = useState<ModuleToken | null>(null);
+  const canTransfer = useHasPermission(P.OPD.VISIT_TRANSFER);
 
   // Stations are the canonical counter names. An empty list disables the
   // picker rather than falling back to free text: a typed label that no door
@@ -242,6 +245,20 @@ export function TokenConsolePage() {
           ))}
           {/* Only while they are still waiting to be seen — escalating
               somebody already in the room changes nothing about their care. */}
+          {/* A visit registered to the wrong department moves before any
+              doctor has called the patient; after that it is a referral. */}
+          {canTransfer &&
+            row.entity_type === "encounter" &&
+            (row.status === "waiting" || row.status === "on_hold") && (
+              <Button
+                tone="tertiary"
+                size="xs"
+                onClick={() => setMoving(row)}
+                data-testid="btn-transfer"
+              >
+                Move
+              </Button>
+            )}
           {(row.status === "waiting" || row.status === "on_hold" || row.status === "called") && (
             <Button tone="tertiary" size="xs" onClick={() => setEscalating(row)}>
               Move up
@@ -258,6 +275,11 @@ export function TokenConsolePage() {
         token={escalating}
         onClose={() => setEscalating(null)}
         onDone={invalidate}
+      />
+      <TransferVisitModal
+        token={moving}
+        departments={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
+        onClose={() => setMoving(null)}
       />
       <PageHeader title={t("tokenConsole.title")} subtitle={t("tokenConsole.subtitle")} />
       <Group align="flex-end">

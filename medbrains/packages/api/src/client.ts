@@ -1983,6 +1983,8 @@ import type {
   UpdateDrugScreenRequest,
   UpdateEmailSettingsRequest,
   UpdateEmployeeRequest,
+  TransferVisitRequest,
+  TransferVisitResponse,
   UpdateEncounterRequest,
   UpdateEnrollmentStatusRequest,
   UpdateEqasResultRequest,
@@ -4336,6 +4338,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getEncounter: (id: string) => request<Encounter>(`/opd/encounters/${id}`),
+  transferEncounter: (id: string, data: TransferVisitRequest) =>
+    request<TransferVisitResponse>(`/opd/encounters/${id}/transfer`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateEncounter: (id: string, data: UpdateEncounterRequest) =>
     request<Encounter>(`/opd/encounters/${id}`, {
       method: "PUT",

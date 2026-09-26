@@ -48,4 +48,20 @@ export class TokenConsole {
   async expectStatus(number: string, label: string): Promise<void> {
     await expect(this.page.getByTestId(`row-token-${number}`)).toContainText(label);
   }
+
+  /** Move a waiting visit to another department; returns the new number. */
+  async transfer(number: string, department: string): Promise<string> {
+    await this.act(number, "transfer");
+    const dialog = this.page.getByRole("dialog", { name: `Move ${number}` });
+    await expect(dialog).toBeVisible();
+    await expectScreenAccessible(this.page, "transfer-visit");
+    await dialog.getByTestId("picker-transfer-department").fill(department);
+    await this.page.getByRole("option", { name: department, exact: true }).click();
+    const confirm = dialog.getByTestId("btn-confirm-transfer");
+    await expectUsable(confirm, "Move patient");
+    await confirm.click();
+    const told = this.page.getByText(/(?:new number|Same number) (\S+)/);
+    await expect(told).toBeVisible();
+    return (await told.innerText()).match(/(?:new number|Same number) (\S+)/)?.[1] ?? "";
+  }
 }

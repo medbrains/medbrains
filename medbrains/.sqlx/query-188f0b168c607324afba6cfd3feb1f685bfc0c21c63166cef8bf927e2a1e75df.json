@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE opd_queues SET department_id = $2, doctor_id = $3, updated_at = now() WHERE encounter_id = $1 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "188f0b168c607324afba6cfd3feb1f685bfc0c21c63166cef8bf927e2a1e75df"
+}

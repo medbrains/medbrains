@@ -24,6 +24,7 @@ pub mod queue_admin;
 pub mod queue_categories;
 pub mod queues;
 pub mod sessions;
+pub mod transfer;
 
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
@@ -275,18 +276,18 @@ async fn carried_over_priority<'a>(
 
 /// Where a new token goes: its queue (if one is configured), its position and
 /// the number on the slip.
-struct Placement {
-    queue_id: Option<Uuid>,
+pub(crate) struct Placement {
+    pub(crate) queue_id: Option<Uuid>,
     /// The configured queue's numbering period, on the hospital's clock.
-    period_key: Option<String>,
-    seq: i32,
-    number: String,
+    pub(crate) period_key: Option<String>,
+    pub(crate) seq: i32,
+    pub(crate) number: String,
 }
 
 /// Place the next token for a module at a place — or say, in the desk's words,
 /// why the configured queue cannot take one (paused, full, outside its dates).
 /// Callers hold the queue's advisory lock.
-async fn place_in_queue(
+pub(crate) async fn place_in_queue(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     (module, scope, scope_id): (&str, &str, Option<Uuid>),

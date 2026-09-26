@@ -278,6 +278,15 @@ edge tier design already written in `medbrains-edge`.
     **No-show**, and **Requeue** puts them back by the hospital's recall policy.
     A second button for the same thing would split one statistic in two.
 
+33. **Given** a walk-in registered to General Medicine who needs
+    Orthopaedics, one Ortho patient who arrived before them and one after,
+    **when** the desk moves the visit, **then** the visit, its queue row and its
+    token are in Ortho, the new department (and a named doctor) can open it,
+    and Ortho calls the earlier patient, then them, then the later one — the
+    registration mistake was the hospital's, so they are not sent to the back.
+    **Given** the doctor has already called them, **then** the move is refused:
+    that is a referral.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -368,8 +377,20 @@ themselves now carry the name, for the desk console.
   loading (a desk could pick one the server refuses) — it now waits. Admin →
   Queues gained a search box: with dozens of queues the one just created sat on
   page 2.
-  *Still to build:* **transfer** (wrong department — move to another queue);
-  it touches the OPD visit's department, so it is its own slice.
+  *Transfer built 2026-09-26:* `opd.visit.transfer` (receptionist, front
+  office), `POST /api/opd/encounters/{id}/transfer`, *Move* on the console for
+  waiting / on-hold OPD visits. The visit keeps its visit-wide number unless the
+  new department numbers its own queue, and the desk is told which. Tests: 1
+  server scenario (fails without the endpoint), the `queue-transfer` journey 3/3.
+  *Found:* changing a visit's department (`PUT /api/opd/encounters/{id}`) moved
+  only the encounter — the queue row and token stayed in the old department,
+  a patient waiting in a queue that would never call them — and nothing on
+  screen called it; the handler also ran its access check twice.
+  *Follow-up:* the old department's `dept_member` grant is not revoked (the
+  authz facade has no raw revoke); it keeps read access to a visit it
+  registered.
+
+**P2 done** (counters, hold, transfer). Next: **P3** — board and voice.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —
