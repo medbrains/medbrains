@@ -1,7 +1,10 @@
 .fab {
   // Position (edge + offset) is driven by useDraggableFab via inline style.
   position: fixed;
-  z-index: 300;
+  // Just beneath the modal layer: above the page, but never over an open
+  // drawer or dialog, where it sat on top of their Save buttons. (The
+  // live-activity island stays above dialogs — it carries emergency codes.)
+  z-index: calc(var(--mantine-z-index-modal) - 1);
   width: 60px;
   height: 60px;
   // Carbon: rounded-square, not a circle. Dual-mode --mb-brand-emphasis (blue in

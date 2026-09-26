@@ -132,6 +132,25 @@ pub async fn next_seq(
     .await?)
 }
 
+/// Whether a configured queue offers this lane.
+pub async fn offers_category(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    queue_id: Option<Uuid>,
+    code: &str,
+) -> Result<bool, AppError> {
+    let Some(queue_id) = queue_id else {
+        return Ok(false);
+    };
+    Ok(sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM queue_categories
+                          WHERE queue_id = $1 AND code = $2 AND is_active) AS "offered!""#,
+        queue_id,
+        code,
+    )
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::QueueConfig;

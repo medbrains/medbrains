@@ -8,6 +8,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { QUEUE_MODULES, QueueFormDrawer } from "@/components/Queues/QueueFormDrawer";
+import { QueueLanesDrawer } from "@/components/Queues/QueueLanesDrawer";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -32,6 +33,7 @@ export function QueuesPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<QueueRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [lanesOf, setLanesOf] = useState<QueueRow | null>(null);
   const queues = useQuery({ queryKey: ["queues"], queryFn: () => api.listQueues() });
 
   const setStatus = useMutation({
@@ -84,6 +86,9 @@ export function QueuesPage() {
           <Group gap={6} wrap="nowrap">
             <Button size="xs" tone="secondary" onClick={() => setEditing(row)}>
               Edit
+            </Button>
+            <Button size="xs" tone="secondary" onClick={() => setLanesOf(row)}>
+              Lanes
             </Button>
             <Button
               size="xs"
@@ -140,6 +145,7 @@ export function QueuesPage() {
           Only a hospital administrator can change queues.
         </Text>
       )}
+      <QueueLanesDrawer queue={lanesOf} onClose={() => setLanesOf(null)} />
       <QueueFormDrawer
         opened={creating || editing !== null}
         queue={editing}

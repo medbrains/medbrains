@@ -166,7 +166,6 @@ export * from "./marketing";
 export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./message-simulator";
-export * from "./queues";
 export * from "./mrd";
 export * from "./mrd-form-print";
 export * from "./nurse-calls";
@@ -271,6 +270,7 @@ export * from "./pmr-audiology";
 export * from "./print-data";
 export * from "./procurement-request";
 export * from "./psychiatry";
+export * from "./queues";
 export * from "./regulatory-compliance";
 export * from "./schema-registry";
 export * from "./screen-layout-zone";
@@ -7903,6 +7903,10 @@ export interface ModuleToken {
    *  up does not read as a queue-jump to whoever is still waiting. */
   priority_reason?: string | null;
   priority_changed_at?: string | null;
+  /** The configured queue this token belongs to, if any. */
+  queue_id?: string | null;
+  /** The queue's own name for this token's lane ("Staff"); null for built-in lanes. */
+  priority_label?: string | null;
 }
 
 /** Hospital-authored blog post (tenant-scoped — `blog_posts`). */

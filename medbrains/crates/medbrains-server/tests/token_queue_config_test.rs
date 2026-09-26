@@ -158,3 +158,92 @@ async fn an_unconfigured_place_is_unchanged() {
     assert_eq!(token["number"], "T-001");
     assert!(token.get("queue_id").is_none_or(Value::is_null));
 }
+
+async fn set_categories(app: &common::TestApp, csrf: &str, queue_id: &str, body: Value) -> StatusCode {
+    app.client
+        .put(app.url(&format!("/api/queues/{queue_id}/categories")))
+        .header("x-csrf-token", csrf)
+        .json(&body)
+        .send()
+        .await
+        .expect("set categories")
+        .status()
+}
+
+async fn issue_with(app: &common::TestApp, csrf: &str, department: Uuid, priority: &str) -> (StatusCode, Value) {
+    let resp = app
+        .client
+        .post(app.url("/api/tokens/issue"))
+        .header("x-csrf-token", csrf)
+        .json(&json!({ "module": "opd", "scope": "department", "scope_id": department, "priority": priority }))
+        .send()
+        .await
+        .expect("issue");
+    let status = resp.status();
+    (status, resp.json().await.unwrap_or(Value::Null))
+}
+
+async fn call_next(app: &common::TestApp, csrf: &str, department: Uuid) -> Value {
+    app.client
+        .post(app.url("/api/tokens/call-next"))
+        .header("x-csrf-token", csrf)
+        .json(&json!({ "module": "opd", "scope": "department", "scope_id": department }))
+        .send()
+        .await
+        .expect("call next")
+        .json()
+        .await
+        .expect("called token")
+}
+
+fn lane(code: &str, label: &str, rank: i16) -> Value {
+    json!({ "code": code, "label": label, "rank": rank, "kiosk_selectable": false, "is_active": true })
+}
+
+/// P1b, scenario 9 — Given a queue with a "Staff" lane ahead of normal, When a
+/// normal patient arrives first, Then staff is called first; And an urgent
+/// patient still beats every configured lane.
+#[tokio::test]
+async fn a_queue_calls_its_own_lanes_but_never_ahead_of_an_emergency() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let department = own_department(&app).await;
+    let (_, q) = configure(&app, &csrf, queue(department, json!({ "start_at": 1 }))).await;
+    let queue_id = q["id"].as_str().expect("queue id");
+    let status = set_categories(
+        &app,
+        &csrf,
+        queue_id,
+        json!([lane("staff", "Staff", 3), lane("normal", "General", 6)]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, normal) = issue_with(&app, &csrf, department, "normal").await;
+    let (_, staff) = issue_with(&app, &csrf, department, "staff").await;
+    assert_eq!(staff["priority_label"], "Staff", "the console shows the queue's own name");
+    let (_, urgent) = issue_with(&app, &csrf, department, "urgent").await;
+
+    assert_eq!(call_next(&app, &csrf, department).await["id"], urgent["id"]);
+    assert_eq!(call_next(&app, &csrf, department).await["id"], staff["id"]);
+    assert_eq!(call_next(&app, &csrf, department).await["id"], normal["id"]);
+}
+
+/// A protected patient is never ordered behind an ordinary one, no emergency
+/// lane can be configured, and a lane the queue does not offer is refused.
+#[tokio::test]
+async fn category_rules_that_protect_patients() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let department = own_department(&app).await;
+    let (_, q) = configure(&app, &csrf, queue(department, json!({}))).await;
+    let queue_id = q["id"].as_str().expect("queue id");
+
+    let behind = json!([lane("elderly", "Senior citizen", 8), lane("normal", "General", 5)]);
+    assert_eq!(set_categories(&app, &csrf, queue_id, behind).await, StatusCode::BAD_REQUEST);
+    let emergency = json!([lane("urgent", "Fast track", 3)]);
+    assert_eq!(set_categories(&app, &csrf, queue_id, emergency).await, StatusCode::BAD_REQUEST);
+
+    let (status, _) = issue_with(&app, &csrf, department, "staff").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "this queue offers no staff lane");
+}

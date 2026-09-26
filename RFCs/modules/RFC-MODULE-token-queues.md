@@ -269,6 +269,13 @@ themselves now carry the name, for the desk console.
   Server tests `token_queue_config_test.rs` 5/5.
 - **P1b — categories**: per-queue priority categories and weights replacing the
   hard-coded `token_priority_weight`.
+  *Built 2026-09-26:* `queue_categories` (migration 1021) with ranks 3–9 under
+  the locked clinical tiers; `token_queue_weight` drives board, call-next,
+  requeue and "ahead" counts; protected lanes (elderly/disabled/pregnant)
+  can never rank after normal; custom lanes accepted on issue and shown by
+  their own name (`priority_label`). Admin → Queues → Lanes editor. Found in
+  the journey: the assistant launcher sat above open drawers, covering Save —
+  now just beneath the modal layer.
 - **P1c — hours & sessions**: opening hours, session reset rule, close
   behaviour at the end of a session.
 

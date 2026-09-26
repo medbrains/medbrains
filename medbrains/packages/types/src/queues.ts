@@ -31,3 +31,16 @@ export interface QueuePlace {
 }
 
 export type QueueInput = Omit<QueueConfig, "id" | "scope_label">;
+
+/**
+ * A priority lane a queue offers. Stat, urgent and emergency referral are not
+ * configurable — they are always called first, in every queue.
+ */
+export interface QueueCategory {
+  code: string;
+  label: string;
+  /** 3 (called first) to 9 (called last). */
+  rank: number;
+  kiosk_selectable: boolean;
+  is_active: boolean;
+}

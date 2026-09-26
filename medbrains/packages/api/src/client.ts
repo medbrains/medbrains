@@ -1628,6 +1628,7 @@ import type {
   QualityIndicator,
   QualityIndicatorValue,
   QueueAnalytics,
+  QueueCategory,
   QueueConfig,
   QueueDisplayConfig,
   QueueEntry,
@@ -3599,6 +3600,12 @@ export const api = {
     request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
   updateQueue: (id: string, data: QueueInput) =>
     request<QueueConfig>(`/queues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  listQueueCategories: (id: string) => request<QueueCategory[]>(`/queues/${id}/categories`),
+  replaceQueueCategories: (id: string, data: QueueCategory[]) =>
+    request<QueueCategory[]>(`/queues/${id}/categories`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Patient messaging consent (WhatsApp / email) — append-only history
   getPatientContactConsents: (patientId: string) =>

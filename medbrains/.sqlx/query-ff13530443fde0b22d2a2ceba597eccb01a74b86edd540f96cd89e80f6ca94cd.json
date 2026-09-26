@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM queue_categories\n                          WHERE queue_id = $1 AND code = $2 AND is_active) AS \"offered!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "offered!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ff13530443fde0b22d2a2ceba597eccb01a74b86edd540f96cd89e80f6ca94cd"
+}

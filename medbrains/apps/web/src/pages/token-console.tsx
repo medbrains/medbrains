@@ -148,9 +148,14 @@ export function TokenConsolePage() {
         const aged = hasAged(row.priority, row.created_at);
         const badge =
           row.priority === "normal" ? null : (
-            <Tooltip label={TOKEN_PRIORITY_REASON[row.priority] ?? row.priority}>
+            <Tooltip
+              label={
+                TOKEN_PRIORITY_REASON[row.priority] ??
+                `${row.priority_label ?? row.priority} — a lane this queue offers`
+              }
+            >
               <Badge tone={row.priority === "carried_over" ? "accent" : "warning"}>
-                {TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
+                {row.priority_label ?? TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
               </Badge>
             </Tooltip>
           );

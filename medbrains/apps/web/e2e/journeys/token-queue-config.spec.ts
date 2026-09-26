@@ -76,3 +76,55 @@ test("a receptionist sees the queues but cannot change them", async ({ page }) =
   await expect(page.getByRole("button", { name: "New queue" })).toHaveCount(0);
   await expect(page.getByText("Only a hospital administrator can change queues.")).toBeVisible();
 });
+
+test("an administrator gives a queue its own lanes, and the desk calls by them", async ({
+  page,
+  request,
+}) => {
+  const ctx = await getAuthContextFromCookies(request);
+  const dept = await ownDepartment(ctx);
+  const name = `Lanes ${dept.name}`;
+  await api(ctx, "POST", "/api/queues", {
+    name, module: "opd", scope: "department", scope_id: dept.id, prefix: "L", start_at: 1,
+    pad_width: 3, reset_rule: "daily", max_tokens_per_period: null, lifecycle: "permanent",
+    valid_from: null, valid_until: null, status: "active",
+  });
+  await routeApiDirect(page);
+  await page.goto("/admin/queues");
+  await page.getByRole("row", { name: new RegExp(name) }).getByRole("button", { name: "Lanes" }).click();
+  const drawer = page.getByRole("dialog", { name: new RegExp(`Lanes — ${name}`) });
+  await expect(drawer.getByText("always called first")).toBeVisible();
+  await drawer.getByRole("button", { name: "Customise" }).click();
+
+  // A senior citizen cannot be put behind ordinary patients.
+  await drawer.getByRole("combobox", { name: "Called" }).first().click();
+  await page.getByRole("option", { name: "7th" }).click();
+  await drawer.getByRole("button", { name: "Save lanes" }).click();
+  await expect(page.getByText("cannot be called after ordinary patients")).toBeVisible();
+  await drawer.getByRole("combobox", { name: "Called" }).first().click();
+  await page.getByRole("option", { name: "1st" }).click();
+
+  // A staff lane, called first.
+  await drawer.getByRole("button", { name: "Add lane" }).click();
+  await drawer.getByLabel("Name").last().fill("Staff");
+  await drawer.getByRole("combobox", { name: "Called" }).last().click();
+  await page.getByRole("option", { name: "1st" }).click();
+  await drawer.getByRole("button", { name: "Save lanes" }).click();
+  await expect(page.getByText("Lanes saved")).toBeVisible();
+
+  // At the desk: an ordinary patient came first, a staff member after.
+  for (const priority of ["normal", "staff"]) {
+    await api(ctx, "POST", "/api/tokens/issue", {
+      module: "opd", scope: "department", scope_id: dept.id, priority,
+    });
+  }
+  await page.goto("/token-console");
+  const department = page.getByPlaceholder("All departments");
+  await department.click();
+  await department.fill(dept.name);
+  await page.getByRole("option", { name: dept.name, exact: true }).click();
+  await expect(page.getByRole("row", { name: /L-002/ })).toContainText("Staff");
+  await page.getByRole("button", { name: "Call next" }).click();
+  await expect(page.getByRole("row", { name: /L-002/ })).toContainText("Called");
+  await expect(page.getByRole("row", { name: /L-001/ })).toContainText("Waiting");
+});

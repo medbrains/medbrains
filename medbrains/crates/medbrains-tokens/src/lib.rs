@@ -64,13 +64,19 @@ pub struct Token {
     /// patient moved up does not read as a queue-jump to whoever is waiting.
     pub priority_reason: Option<String>,
     pub priority_changed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// The configured queue this token was issued in, if any.
+    pub queue_id: Option<Uuid>,
+    /// The queue's own name for this token's lane ("Staff", "Senior citizen");
+    /// `None` for the built-in vocabulary.
+    pub priority_label: Option<String>,
 }
 
 const SELECT: &str = "id, module, scope, scope_id, scope_label, number, seq, status, priority, \
      patient_id, patient_name, entity_type, entity_id, counter_label, visit_id, \
      referred_from_module, referred_from_scope, referred_from_scope_id, \
      returned_from_label, returned_at, called_at, served_at, \
-     completed_at, token_date, created_at, priority_reason, priority_changed_at";
+     completed_at, token_date, created_at, priority_reason, priority_changed_at, queue_id, \
+     token_priority_label(queue_id, priority) AS priority_label";
 
 fn token_prefix(module: &str) -> &'static str {
     match module {
@@ -609,11 +615,6 @@ pub async fn issue_token(
     require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     let scope = body.scope.unwrap_or_else(|| "department".to_owned());
     let priority = body.priority.unwrap_or_else(|| "normal".to_owned());
-    if !VALID_TOKEN_PRIORITIES.contains(&priority.as_str()) {
-        return Err(AppError::BadRequest(format!(
-            "Invalid token priority '{priority}'"
-        )));
-    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -650,6 +651,13 @@ pub async fn issue_token(
     )
     .await?
     .map_err(AppError::Conflict)?;
+    // The built-in lanes, or one this queue offers ("staff", "senior_80").
+    // Anything else would sort last and show the desk a raw code.
+    if !VALID_TOKEN_PRIORITIES.contains(&priority.as_str())
+        && !queues::offers_category(&mut tx, place.queue_id, &priority).await?
+    {
+        return Err(AppError::BadRequest(format!("Invalid token priority '{priority}'")));
+    }
     let (seq, number) = (place.seq, place.number.clone());
 
     let patient_name =
@@ -742,7 +750,7 @@ pub async fn list_board(
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'called', 'serving') \
                 OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
-         ORDER BY token_effective_weight(priority, created_at), seq ASC"
+         ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC"
     ))
     .bind(&query.module)
     .bind(&query.scope)
@@ -833,7 +841,7 @@ pub async fn list_worklist(
             AND ($3::uuid IS NULL OR t.scope_id = $3) \
             AND (t.status IN ('waiting', 'called', 'serving') \
                  OR ($4::bool AND t.status IN ('completed', 'no_show'))) \
-          ORDER BY token_effective_weight(t.priority, t.created_at), t.seq ASC \
+          ORDER BY token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq ASC \
           LIMIT 500",
     )
     .bind(&query.module)
@@ -1028,9 +1036,9 @@ pub async fn my_tokens(
               AND ahead.scope_id IS NOT DISTINCT FROM t.scope_id \
               AND ahead.token_date = t.token_date \
               AND ahead.status = 'waiting' \
-              AND (token_effective_weight(ahead.priority, ahead.created_at), \
+              AND (token_queue_weight(ahead.queue_id, ahead.priority, ahead.created_at), \
                    ahead.seq) \
-                < (token_effective_weight(t.priority, t.created_at), t.seq) \
+                < (token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq) \
          ) AS ahead \
          FROM tokens t \
          WHERE t.patient_id = $1 AND t.token_date = CURRENT_DATE \
@@ -1533,7 +1541,7 @@ async fn next_waiting(
         "SELECT id FROM tokens \
          WHERE module = $1 AND token_date = CURRENT_DATE AND status = 'waiting' \
            AND ($2::text IS NULL OR scope = $2) AND ($3::uuid IS NULL OR scope_id = $3) \
-         ORDER BY token_effective_weight(priority, created_at), seq ASC \
+         ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC \
          LIMIT 1",
     )
     .bind(&body.module)
@@ -1787,7 +1795,7 @@ async fn place_after(
     let boundary: Option<i32> = sqlx::query_scalar(
         "WITH ordered AS ( \
            SELECT seq, row_number() OVER ( \
-                    ORDER BY token_effective_weight(priority, created_at), \
+                    ORDER BY token_queue_weight(queue_id, priority, created_at), \
                              seq \
                   ) AS rn \
              FROM tokens \
@@ -1969,6 +1977,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/queues/places", get(queue_admin::list_places))
         .route("/api/queues/{id}", put(queue_admin::update_queue))
+        .route(
+            "/api/queues/{id}/categories",
+            get(queue_admin::list_categories).put(queue_admin::replace_categories),
+        )
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
         .route("/api/tokens/board/metrics", get(board_metrics))
