@@ -24,6 +24,7 @@ pub mod handler;
 pub mod handlers;
 pub mod metrics;
 pub mod queue;
+pub mod simulator;
 pub mod worker;
 
 pub use handler::{Handler, HandlerCtx, HandlerError, Registry};

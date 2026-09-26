@@ -273,3 +273,39 @@ async fn calling_an_opd_visit_token_announces_the_call() {
         events[0]
     );
 }
+
+/// Given a registered patient, When the system issues their token without
+/// naming them (every automatic path does), Then the token carries their name
+/// — the desk console showed "—" on every row, and a receptionist calling a
+/// number could not see whom they were calling.
+#[tokio::test]
+async fn a_token_for_a_registered_patient_carries_their_name() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let (tenant, department) = own_department(&app).await;
+    let suffix = &Uuid::new_v4().simple().to_string()[..8];
+    let patient: Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         VALUES ($1, $2, 'Meena', 'Raman', 'female'::gender, '9876500011') RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("UH-TQ-{suffix}"))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert patient");
+
+    let resp = app
+        .client
+        .post(app.url("/api/tokens/issue"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({
+            "module": "opd", "scope": "department", "scope_id": department,
+            "patient_id": patient,
+        }))
+        .send()
+        .await
+        .expect("issue request");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let token: serde_json::Value = resp.json().await.expect("token json");
+    assert_eq!(token["patient_name"], "Meena Raman");
+}

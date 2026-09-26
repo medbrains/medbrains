@@ -1780,6 +1780,8 @@ import type {
   SignRequest,
   SignResponse,
   SimulationDebriefingPrintData,
+  SimulatorInbox,
+  SimulatorInboxQuery,
   SiteDomain,
   SnfAdmission,
   SnomedCode,
@@ -3584,6 +3586,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // Message simulator (dev/test only; 404 when the simulator is off)
+  listSimulatedMessages: (params: SimulatorInboxQuery) =>
+    request<SimulatorInbox>(
+      `/admin/message-simulator/messages?${new URLSearchParams(
+        Object.entries(params).filter((entry): entry is [string, string] => Boolean(entry[1])),
+      )}`,
+    ),
 
   // Setup — generic tenant settings
   getTenantSettings: (category: string) =>

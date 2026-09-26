@@ -1,0 +1,15 @@
+// Layout only — colour comes from the theme.
+.phone {
+  width: 100%;
+  max-width: calc(var(--mantine-spacing-xl) * 16);
+}
+
+.thread {
+  max-height: calc(100vh - var(--mantine-spacing-xl) * 12);
+  overflow-y: auto;
+}
+
+.body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

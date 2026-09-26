@@ -2104,6 +2104,18 @@ pub mod admin {
         }
     }
 
+    pub mod notifications {
+        pub mod simulator {
+            /// Open the message simulator (dev and test only).
+            ///
+            /// Shows, as a phone would, every SMS, WhatsApp message and email
+            /// the system would have sent a patient or staff member. It exists
+            /// only on deployments running with the simulator on — never in
+            /// production — and shows real names and numbers from that database.
+            pub const VIEW: &str = "admin.notifications.simulator.view";
+        }
+    }
+
     /// Sprint B: per-tenant Patroni vs Aurora topology selector.
     pub mod db_topology {
         pub const VIEW: &str = "admin.db_topology.view";

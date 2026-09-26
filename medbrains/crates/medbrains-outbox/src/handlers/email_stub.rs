@@ -142,6 +142,21 @@ impl Handler for SmtpSendHandler {
             ));
         }
 
+        if crate::simulator::enabled() {
+            return crate::simulator::capture(
+                ctx,
+                crate::simulator::SimulatedMessage {
+                    channel: "email",
+                    recipient: to,
+                    subject: Some(subject),
+                    body: text.or(html).unwrap_or_default(),
+                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
+                    template_id: None,
+                },
+            )
+            .await;
+        }
+
         let config = load_email_config(ctx).await;
         let provider = cfg_or_secret(&config, ctx, "provider", "EMAIL_PROVIDER")
             .await

@@ -181,6 +181,21 @@ impl Handler for SmsSendHandler {
                 .to_owned()
         };
 
+        if crate::simulator::enabled() {
+            return crate::simulator::capture(
+                ctx,
+                crate::simulator::SimulatedMessage {
+                    channel: "sms",
+                    recipient: to,
+                    subject: None,
+                    body: &body,
+                    attachments: serde_json::json!([]),
+                    template_id: dlt_lookup.template_id.as_deref(),
+                },
+            )
+            .await;
+        }
+
         // Resolve credentials. Missing → graceful stub mode (dev/CI).
         let sid = match ctx.secret_resolver.get("TWILIO_ACCOUNT_SID").await {
             Ok(v) if !v.is_empty() => v,

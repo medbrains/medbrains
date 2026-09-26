@@ -100,6 +100,24 @@ impl Handler for WhatsAppSendHandler {
             .and_then(Value::as_str)
             .ok_or_else(|| HandlerError::Permanent("payload.to missing".to_owned()))?;
 
+        if crate::simulator::enabled() {
+            let body = crate::simulator::whatsapp_text(payload).ok_or_else(|| {
+                HandlerError::Permanent("payload must include template_name or text".to_owned())
+            })?;
+            return crate::simulator::capture(
+                ctx,
+                crate::simulator::SimulatedMessage {
+                    channel: "whatsapp",
+                    recipient: to,
+                    subject: None,
+                    body: &body,
+                    attachments: payload.get("attachments").cloned().unwrap_or_else(|| json!([])),
+                    template_id: payload.get("template_name").and_then(Value::as_str),
+                },
+            )
+            .await;
+        }
+
         let phone_number_id = match ctx.secret_resolver.get("WHATSAPP_PHONE_NUMBER_ID").await {
             Ok(v) if !v.is_empty() => v,
             _ => {

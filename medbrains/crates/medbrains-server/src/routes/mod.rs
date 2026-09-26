@@ -2,6 +2,7 @@ pub mod abdm;
 pub mod access;
 pub mod admin;
 pub mod admin_simulator;
+pub mod message_simulator;
 pub mod appointments;
 pub mod audit;
 pub mod coverage;
@@ -607,6 +608,11 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/simulator/schedules/{id}/run-now",
             post(admin_simulator::run_now),
+        )
+        // Message simulator phone view — 404 unless the simulator is on.
+        .route(
+            "/api/admin/message-simulator/messages",
+            get(message_simulator::list_messages),
         )
         .route("/api/admin/simulator/preview", post(admin_simulator::preview))
         .route(

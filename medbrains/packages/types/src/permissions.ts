@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 986 permissions, one per constant in the Rust source. */
+/** 987 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4517,6 +4517,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.notifications.simulator.view",
+    label: "Open the message simulator (dev and test only)",
+    description: "Shows, as a phone would, every SMS, WhatsApp message and email the system would have sent a patient or staff member. It exists only on deployments running with the simulator on — never in production — and shows real names and numbers from that database.",
+    module: "admin",
+  },
+  {
     code: "admin.db_topology.view",
     label: "View Db Topology",
     description: "View Db Topology",
@@ -6072,6 +6078,13 @@ export const P = {
     DOCTOR_PACKAGES_MANAGE: "admin.doctor_packages.manage",
     INCENTIVE_MANAGE: "admin.incentive.manage",
     MIGRATION_MANAGE: "admin.migration.manage",
+    NOTIFICATIONS: {
+      SIMULATOR: {
+        VIEW: "admin.notifications.simulator.view",
+      },
+      SIMULATOR_VIEW: "admin.notifications.simulator.view",
+    },
+    NOTIFICATIONS_SIMULATOR_VIEW: "admin.notifications.simulator.view",
     OUTBOX: {
       DLQ: {
         MANAGE: "admin.outbox.dlq.manage",

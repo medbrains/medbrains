@@ -231,6 +231,11 @@ edge tier design already written in `medbrains-edge`.
 20. **Given** a queue whose visits complete in under a minute, **then** the
     console says "under 1 min", not "Typically 0 min per patient".
 
+21. **Given** the desk console, **then** every token shows the patient's name
+    (the name half of 2-ID); **given** any board or the public socket, **then**
+    only the number — found in the simulator journey: every automatic path
+    issued tokens with no name, so the console showed "—" on every row.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -244,10 +249,10 @@ Found while testing: **every Call on every queue answered 400 on master** since
 Now emitted only for OPD encounter tokens, with them. Not deployed, so
 production never had it.
 
-**Carried to P3 (privacy):** the public `/ws/queue/{scope}` feed sends
-`patient_name` in `token_called` — pre-existing for department boards, and P0
-extends the same feed to room/counter/station boards. The board decision is
-number-only (§10), so P3 drops the name from the public event.
+**Done early (was carried to P3):** the public `/ws/queue/{scope}` feed no
+longer carries the patient's name in `token_called` — it sends the
+"Token only" placeholder, matching the number-only board decision (§10). Tokens
+themselves now carry the name, for the desk console.
 
 ## 10. Decided (2026-09-26)
 

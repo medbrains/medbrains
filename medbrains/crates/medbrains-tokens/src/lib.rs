@@ -23,7 +23,7 @@ use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
-use medbrains_server_core::queue_broadcast::QueueEvent;
+use medbrains_server_core::queue_broadcast::{QueueEvent, TOKEN_ONLY_QUEUE_PATIENT_NAME};
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -314,6 +314,13 @@ pub async fn issue_token_in_tx(
     let scope_label =
         resolve_scope(tx, input.scope, input.scope_id, input.scope_label).await?;
 
+    // Name the patient, for the same reason: every automatic path passed
+    // `patient_name: None`, so the desk console showed "—" on every row and a
+    // receptionist calling a number could not see whom they were calling — the
+    // name half of the two-identifier check. Boards never show it (they are
+    // number-only), and the public socket does not carry it.
+    let patient_name = patient_name_of(tx, input.patient_name, input.patient_id).await?;
+
     let priority =
         carried_over_priority(tx, tenant_id, input.module, input.patient_id, input.priority)
             .await?;
@@ -332,7 +339,7 @@ pub async fn issue_token_in_tx(
     .bind(seq)
     .bind(priority)
     .bind(input.patient_id)
-    .bind(input.patient_name)
+    .bind(patient_name.as_deref())
     .bind(input.entity_type)
     .bind(input.entity_id)
     .bind(input.issued_by)
@@ -340,6 +347,24 @@ pub async fn issue_token_in_tx(
     .execute(&mut **tx)
     .await?;
     Ok(Some(number))
+}
+
+/// The name to put on a token: the one the caller gave, else the patient's own.
+async fn patient_name_of(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    given: Option<&str>,
+    patient_id: Option<Uuid>,
+) -> Result<Option<String>, AppError> {
+    let (None, Some(patient_id)) = (given, patient_id) else {
+        return Ok(given.map(str::to_owned));
+    };
+    Ok(sqlx::query_scalar!(
+        r#"SELECT CONCAT_WS(' ', first_name, NULLIF(last_name, '')) AS "name!"
+             FROM patients WHERE id = $1"#,
+        patient_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?)
 }
 
 /// Issue a token only if the patient has no active (non-terminal) token for this
@@ -487,7 +512,8 @@ pub async fn announce_token(state: &AppState, token: &Token) {
                     scope_id,
                     QueueEvent::TokenCalled {
                         token_number: token.number.clone(),
-                        patient_name: token.patient_name.clone().unwrap_or_default(),
+                        // Boards are number-only: this socket is public.
+                        patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
                         room: token.scope_label.clone(),
                         counter: token.counter_label.clone(),
                     },
@@ -579,6 +605,8 @@ pub async fn issue_token(
         .await?
         .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(&body.module)));
 
+    let patient_name =
+        patient_name_of(&mut tx, body.patient_name.as_deref(), body.patient_id).await?;
     let token = sqlx::query_as::<_, Token>(&format!(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
@@ -596,7 +624,7 @@ pub async fn issue_token(
     .bind(seq)
     .bind(&priority)
     .bind(body.patient_id)
-    .bind(&body.patient_name)
+    .bind(&patient_name)
     .bind(&body.entity_type)
     .bind(body.entity_id)
     .bind(claims.sub)
@@ -1329,7 +1357,8 @@ async fn transition_from(
                     scope_id,
                     QueueEvent::TokenCalled {
                         token_number: token.number.clone(),
-                        patient_name: token.patient_name.clone().unwrap_or_default(),
+                        // Boards are number-only: this socket is public.
+                        patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
                         room: token.scope_label.clone(),
                         counter: token.counter_label.clone(),
                     },

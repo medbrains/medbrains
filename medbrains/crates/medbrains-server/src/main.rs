@@ -69,6 +69,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = AppConfig::from_env()?;
 
+    // The message simulator stores SMS, WhatsApp and email instead of sending
+    // them. On in production it would silently stop every real patient
+    // message, so the server does not start at all.
+    if medbrains_outbox::simulator::enabled() && config.environment == "production" {
+        return Err(format!(
+            "{} is on and MEDBRAINS_ENV=production — the message simulator would stop \
+             every real SMS, WhatsApp and email. Unset it.",
+            medbrains_outbox::simulator::ENV_FLAG
+        )
+        .into());
+    }
+
     // Sub-commands run via the same binary so we share code/config:
     //   medbrains-server audit verify-chain [--tenant=<uuid>|--all]
     // RFC-INFRA-2026-002 Phase 2 deliverable.

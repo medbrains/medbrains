@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO simulated_messages (tenant_id, channel, recipient, event_type, subject, body, attachments, template_id, outbox_event_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f301e45dc7597efc828dadee81be2729b2d956635dab277e489fc770558bfad0"
+}

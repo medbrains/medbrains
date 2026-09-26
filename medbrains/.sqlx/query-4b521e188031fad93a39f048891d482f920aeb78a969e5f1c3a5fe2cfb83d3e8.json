@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT CONCAT_WS(' ', first_name, NULLIF(last_name, '')) AS \"name!\"\n             FROM patients WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4b521e188031fad93a39f048891d482f920aeb78a969e5f1c3a5fe2cfb83d3e8"
+}
