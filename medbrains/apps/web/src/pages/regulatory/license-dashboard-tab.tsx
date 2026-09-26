@@ -20,16 +20,17 @@ export function LicenseDashboardTab() {
     expired: "danger",
     pending_renewal: "primary",
     not_applicable: "neutral",
+    pending: "neutral",
   };
 
   const expiredCount = licenses.filter(
-    (l) => l.days_until_expiry != null && l.days_until_expiry < 0,
+    (l) => l.days_to_expiry != null && l.days_to_expiry < 0,
   ).length;
   const expiringSoonCount = licenses.filter(
-    (l) => l.days_until_expiry != null && l.days_until_expiry >= 0 && l.days_until_expiry <= 90,
+    (l) => l.days_to_expiry != null && l.days_to_expiry >= 0 && l.days_to_expiry <= 90,
   ).length;
   const activeCount = licenses.filter(
-    (l) => l.days_until_expiry == null || l.days_until_expiry > 90,
+    (l) => l.days_to_expiry == null || l.days_to_expiry > 90,
   ).length;
 
   return (
@@ -89,23 +90,23 @@ export function LicenseDashboardTab() {
             render: (r: LicenseDashboardItem) => <Text size="sm">{r.license_number ?? "---"}</Text>,
           },
           {
-            key: "issued_date",
-            label: "Issued",
+            key: "valid_from",
+            label: "Valid from",
             render: (r: LicenseDashboardItem) => (
-              <Text size="sm">{r.issued_date ? r.issued_date.slice(0, 10) : "---"}</Text>
+              <Text size="sm">{r.valid_from ? r.valid_from.slice(0, 10) : "---"}</Text>
             ),
           },
           {
-            key: "expiry_date",
+            key: "valid_until",
             label: "Expiry",
             render: (r: LicenseDashboardItem) =>
-              r.expiry_date ? (
+              r.valid_until ? (
                 <Text
                   size="sm"
-                  c={r.days_until_expiry != null && r.days_until_expiry < 30 ? "danger" : undefined}
-                  fw={r.days_until_expiry != null && r.days_until_expiry < 30 ? 600 : undefined}
+                  c={r.days_to_expiry != null && r.days_to_expiry < 30 ? "danger" : undefined}
+                  fw={r.days_to_expiry != null && r.days_to_expiry < 30 ? 600 : undefined}
                 >
-                  {r.expiry_date.slice(0, 10)}
+                  {r.valid_until.slice(0, 10)}
                 </Text>
               ) : (
                 <Text size="sm" c="dimmed">
@@ -114,46 +115,46 @@ export function LicenseDashboardTab() {
               ),
           },
           {
-            key: "days_until_expiry",
+            key: "days_to_expiry",
             label: "Days Left",
             render: (r: LicenseDashboardItem) => {
-              if (r.days_until_expiry == null)
+              if (r.days_to_expiry == null)
                 return (
                   <Text size="sm" c="dimmed">
                     N/A
                   </Text>
                 );
               const color: BadgeTone =
-                r.days_until_expiry < 0
+                r.days_to_expiry < 0
                   ? "danger"
-                  : r.days_until_expiry < 30
+                  : r.days_to_expiry < 30
                     ? "danger"
-                    : r.days_until_expiry < 90
+                    : r.days_to_expiry < 90
                       ? "warning"
                       : "success";
               return (
                 <Badge tone={color} size="lg">
-                  {r.days_until_expiry < 0
-                    ? `EXPIRED (${Math.abs(r.days_until_expiry)}d)`
-                    : `${r.days_until_expiry}d`}
+                  {r.days_to_expiry < 0
+                    ? `EXPIRED (${Math.abs(r.days_to_expiry)}d)`
+                    : `${r.days_to_expiry}d`}
                 </Badge>
               );
             },
           },
           {
-            key: "renewal_status",
+            key: "status",
             label: "Status",
             render: (r: LicenseDashboardItem) => (
-              <Badge tone={renewalStatusColors[r.renewal_status] ?? "neutral"}>
-                {r.renewal_status.replace(/_/g, " ")}
+              <Badge tone={renewalStatusColors[r.status ?? ""] ?? "neutral"}>
+                {(r.status ?? "pending").replaceAll("_", " ")}
               </Badge>
             ),
           },
           {
-            key: "responsible_person",
-            label: "Responsible",
+            key: "issuing_authority",
+            label: "Issued by",
             render: (r: LicenseDashboardItem) => (
-              <Text size="sm">{r.responsible_person ?? "---"}</Text>
+              <Text size="sm">{r.issuing_authority ?? "---"}</Text>
             ),
           },
         ]}

@@ -2968,6 +2968,21 @@ export type RadiologyPriority = "routine" | "urgent" | "stat";
 
 export type RadiologyReportStatus = "draft" | "preliminary" | "final" | "amended";
 
+/** An open imaging order on the radiographer's day list. */
+export interface RadiologyAppointment {
+  id: string;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  modality: string;
+  body_part: string | null;
+  priority: string;
+  status: string;
+  notes: string | null;
+  scheduled_at: string | null;
+  created_at: string;
+}
+
 export interface RadiologyModality {
   id: string;
   tenant_id: string;

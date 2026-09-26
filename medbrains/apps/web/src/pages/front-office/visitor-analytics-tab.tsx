@@ -1,117 +1,87 @@
-// IPD VisitorAnalyticsTab — split from front-office.tsx (pure move).
+// Visitor analytics — who came, to which ward, at what hour.
 
 import { BarChart } from "@mantine/charts";
-import { Card, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import { SimpleGrid, Stack, Text } from "@mantine/core";
+import { DatePickerInput, type DatesRangeValue } from "@mantine/dates";
 import type { VisitorAnalytics } from "@medbrains/types";
+import { IconCalendar } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Alert, Card } from "@/components/ui";
 import { frontOfficeService } from "@/services/frontOffice.service";
 
 export function VisitorAnalyticsTab() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  // Empty means the server's default: the hospital's last 30 days.
+  const [range, setRange] = useState<DatesRangeValue<string>>([null, null]);
+  const [from, to] = range;
+  const complete = (from === null) === (to === null);
 
-  const { data: analytics, isLoading } = useQuery<VisitorAnalytics>({
+  const analytics = useQuery<VisitorAnalytics>({
     queryKey: ["front-office", "visitor-analytics", from, to],
     queryFn: () =>
-      frontOfficeService.visitorAnalytics({ from: from || undefined, to: to || undefined }),
+      frontOfficeService.visitorAnalytics({ from: from ?? undefined, to: to ?? undefined }),
+    enabled: complete,
   });
-
-  const byDeptChart = analytics
-    ? Object.entries(analytics.by_department).map(([dept, count]) => ({
-        department: dept,
-        visitors: count,
-      }))
-    : [];
-
-  const byHourChart = analytics
-    ? Object.entries(analytics.by_hour).map(([hour, count]) => ({
-        hour,
-        visitors: count,
-      }))
-    : [];
+  const data = analytics.data;
 
   return (
     <Stack gap="md">
-      <Group>
-        <TextInput
-          placeholder="From date"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.currentTarget.value)}
-          w={160}
-        />
-        <TextInput
-          placeholder="To date"
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.currentTarget.value)}
-          w={160}
-        />
-      </Group>
-
-      {isLoading && (
+      <DatePickerInput
+        type="range"
+        label="Dates"
+        placeholder="Last 30 days"
+        value={range}
+        onChange={setRange}
+        clearable
+        leftSection={<IconCalendar size={16} aria-hidden />}
+        w={280}
+        data-testid="picker-visitor-dates"
+      />
+      {analytics.isError && (
+        <Alert tone="danger">Visitor figures could not be loaded. Try again shortly.</Alert>
+      )}
+      {analytics.isLoading && (
         <Text size="sm" c="dimmed">
-          Loading analytics...
+          Loading visitor figures…
         </Text>
       )}
-
-      {analytics && (
+      {data && (
         <>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Card withBorder p="md">
+            <Card>
               <Text size="xs" c="dimmed">
-                Total Visitors
+                Visitors, {data.from} to {data.to}
               </Text>
-              <Text size="xl" fw={700} c="primary">
-                {analytics.total_visitors}
+              <Text size="xl" fw={700} data-testid="stat-total-visitors">
+                {data.total_visitors}
               </Text>
             </Card>
-            <Card withBorder p="md">
+            <Card>
               <Text size="xs" c="dimmed">
-                Avg Visit Duration
+                Average visit
               </Text>
-              <Text size="xl" fw={700} c="orange">
-                {Math.round(analytics.avg_visit_duration_minutes)} min
+              <Text size="xl" fw={700}>
+                {data.avg_visit_minutes === null
+                  ? "No check-outs yet"
+                  : `${Math.round(data.avg_visit_minutes)} min`}
               </Text>
             </Card>
           </SimpleGrid>
-
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <Card withBorder p="sm">
-              <Text fw={600} size="sm" mb="sm">
-                Visitors by Department
-              </Text>
-              {byDeptChart.length > 0 ? (
-                <BarChart
-                  h={220}
-                  data={byDeptChart}
-                  dataKey="department"
-                  series={[{ name: "visitors", color: "primary" }]}
-                />
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No data
-                </Text>
-              )}
-            </Card>
-            <Card withBorder p="sm">
-              <Text fw={600} size="sm" mb="sm">
-                Visitors by Hour
-              </Text>
-              {byHourChart.length > 0 ? (
-                <BarChart
-                  h={220}
-                  data={byHourChart}
-                  dataKey="hour"
-                  series={[{ name: "visitors", color: "teal" }]}
-                />
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No data
-                </Text>
-              )}
-            </Card>
+            <VisitorChart
+              title="Visitors by ward"
+              rows={data.by_ward.map((row) => ({
+                label: row.ward ?? "No ward",
+                visitors: row.visitors,
+              }))}
+            />
+            <VisitorChart
+              title="Check-ins by hour"
+              rows={data.by_hour.map((row) => ({
+                label: `${String(row.hour).padStart(2, "0")}:00`,
+                visitors: row.visitors,
+              }))}
+            />
           </SimpleGrid>
         </>
       )}
@@ -119,6 +89,29 @@ export function VisitorAnalyticsTab() {
   );
 }
 
-// ══════════════════════════════════════════════════════════
-//  Tab 6 — Queue Metrics
-// ══════════════════════════════════════════════════════════
+interface VisitorChartProps {
+  title: string;
+  rows: { label: string; visitors: number }[];
+}
+
+function VisitorChart({ title, rows }: VisitorChartProps) {
+  return (
+    <Card>
+      <Text fw={600} size="sm" mb="sm">
+        {title}
+      </Text>
+      {rows.length > 0 ? (
+        <BarChart
+          h={220}
+          data={rows}
+          dataKey="label"
+          series={[{ name: "visitors", label: "Visitors", color: "primary" }]}
+        />
+      ) : (
+        <Text size="sm" c="dimmed">
+          No visitors in these dates.
+        </Text>
+      )}
+    </Card>
+  );
+}

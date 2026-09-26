@@ -319,10 +319,15 @@ export interface EnergyAnalytics {
 
 // Front Office
 export interface VisitorAnalytics {
+  from: string;
+  to: string;
   total_visitors: number;
-  by_department: Record<string, number>;
-  by_hour: Record<string, number>;
-  avg_visit_duration_minutes: number;
+  /** Null until someone has checked out in the window. */
+  avg_visit_minutes: number | null;
+  /** `ward` is null for visitors registered without one. */
+  by_ward: { ward: string | null; visitors: number }[];
+  /** Hour of check-in in the hospital's time zone, 0–23. */
+  by_hour: { hour: number; visitors: number }[];
 }
 
 export interface QueueMetrics {

@@ -1091,22 +1091,27 @@ export interface CreateRegulatorySubmissionRequest {
 
 export interface StaffCredentialSummary {
   employee_id: string;
-  employee_name: string;
+  employee_name: string | null;
   credential_type: string;
+  credential_number: string | null;
+  issuing_authority: string | null;
+  issue_date: string | null;
   expiry_date: string | null;
-  days_until_expiry: number | null;
-  status: string;
+  /** Negative once expired; null when the credential never expires. */
+  days_to_expiry: number | null;
+  is_expired: boolean | null;
 }
 
 export interface LicenseDashboardItem {
   id: string;
   license_type: string;
   license_number: string | null;
-  issued_date: string | null;
-  expiry_date: string | null;
-  days_until_expiry: number | null;
-  renewal_status: string;
-  responsible_person: string | null;
+  issuing_authority: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  /** Negative once expired; null when the licence has no end date. */
+  days_to_expiry: number | null;
+  status: string | null;
 }
 
 export interface NablDocumentSummary {

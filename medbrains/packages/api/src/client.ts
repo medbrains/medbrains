@@ -1644,6 +1644,7 @@ import type {
   QuizAttemptStart,
   RadiationDoseRecord,
   RadiationSession,
+  RadiologyAppointment,
   RadiologyDicomStudy,
   RadiologyModality,
   RadiologyOrder,
@@ -5993,7 +5994,7 @@ export const api = {
     if (params?.modality_id) sp.set("modality_id", params.modality_id);
     if (params?.date) sp.set("date", params.date);
     const qs = sp.toString();
-    return request<Record<string, unknown>[]>(`/radiology/appointments${qs ? `?${qs}` : ""}`);
+    return request<RadiologyAppointment[]>(`/radiology/appointments${qs ? `?${qs}` : ""}`);
   },
   createRadiologyAppointment: (data: CreateRadiologyAppointmentRequest) =>
     request<Record<string, unknown>>("/radiology/appointments", {

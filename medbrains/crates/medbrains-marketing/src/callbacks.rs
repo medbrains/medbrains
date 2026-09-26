@@ -162,25 +162,26 @@ pub async fn callback_summary(
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: (i64, i64, i64, Option<f64>) = sqlx::query_as(
-        "SELECT count(*)::bigint, \
-                count(*) FILTER (WHERE due_at <= now())::bigint, \
-                count(*) FILTER (WHERE escalated_at IS NOT NULL)::bigint, \
-                max(EXTRACT(EPOCH FROM (now() - due_at))) \
-                    FILTER (WHERE due_at <= now()) \
-         FROM mkt_tasks WHERE tenant_id = $1 AND status = 'open'",
+    // Checked against the schema at compile time: EXTRACT returns NUMERIC, and
+    // decoding it as f64 at runtime made this endpoint a 500 on every call.
+    let row = sqlx::query!(
+        r#"SELECT count(*)::bigint AS "open!",
+                  count(*) FILTER (WHERE due_at <= now())::bigint AS "overdue!",
+                  count(*) FILTER (WHERE escalated_at IS NOT NULL)::bigint AS "breached!",
+                  (max(EXTRACT(EPOCH FROM (now() - due_at)))
+                      FILTER (WHERE due_at <= now()))::bigint AS oldest_overdue_seconds
+           FROM mkt_tasks WHERE tenant_id = $1 AND status = 'open'"#,
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    #[allow(clippy::cast_possible_truncation)]
     Ok(Json(CallbackSummary {
-        open: row.0,
-        overdue: row.1,
-        breached: row.2,
-        oldest_overdue_seconds: row.3.map(|s| s as i64),
+        open: row.open,
+        overdue: row.overdue,
+        breached: row.breached,
+        oldest_overdue_seconds: row.oldest_overdue_seconds,
     }))
 }
 

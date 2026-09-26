@@ -1,20 +1,23 @@
-// Radiology AppointmentsTab — split from radiology.tsx (pure move).
+// Radiology appointments — open imaging orders, soonest first.
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Modal, Select, Stack, Textarea } from "@mantine/core";
+import { Modal, Select, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { RadiologyAppointmentFormInput } from "@medbrains/schemas";
 import { radiologyAppointmentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateRadiologyAppointmentRequest, RadiologyModality } from "@medbrains/types";
+import type {
+  CreateRadiologyAppointmentRequest,
+  RadiologyAppointment,
+  RadiologyModality,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { EncounterSelect } from "@/components/EncounterSelect";
-import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
@@ -82,50 +85,49 @@ export function AppointmentsTab() {
 
   const columns = [
     {
-      key: "patient_id" as const,
+      key: "patient_name" as const,
       label: "Patient",
-      render: (r: Record<string, unknown>) => (
-        <PatientNameCell
-          patientId={typeof r.patient_id === "string" ? r.patient_id : null}
-          showUhid={false}
-        />
+      render: (r: RadiologyAppointment) => (
+        <Stack gap={0}>
+          <Text size="sm">{r.patient_name}</Text>
+          <Text size="xs" c="dimmed" ff="monospace">
+            {r.uhid}
+          </Text>
+        </Stack>
       ),
     },
     {
-      key: "modality_id" as const,
-      label: "Modality",
-      render: (r: Record<string, unknown>) => {
-        const mod = (modalities ?? []).find((m: RadiologyModality) => m.id === r.modality_id);
-        return mod ? `${mod.code} — ${mod.name}` : String(r.modality_id ?? "---");
-      },
-    },
-    {
-      key: "encounter_id" as const,
-      label: "Encounter",
-      render: (r: Record<string, unknown>) => String(r.encounter_id ?? "---").slice(0, 8),
+      key: "modality" as const,
+      label: "Study",
+      render: (r: RadiologyAppointment) =>
+        r.body_part ? `${r.modality} — ${r.body_part}` : r.modality,
     },
     {
       key: "priority" as const,
       label: "Priority",
-      render: (r: Record<string, unknown>) => {
-        const p = String(r.priority ?? "routine");
-        return (
-          <Badge size="xs" tone={colorToBadgeTone(statusColor(p))}>
-            {p}
-          </Badge>
-        );
-      },
+      render: (r: RadiologyAppointment) => (
+        <Badge size="xs" tone={colorToBadgeTone(statusColor(r.priority))}>
+          {r.priority}
+        </Badge>
+      ),
+    },
+    {
+      key: "status" as const,
+      label: "Status",
+      render: (r: RadiologyAppointment) => r.status.replaceAll("_", " "),
+    },
+    {
+      key: "scheduled_at" as const,
+      label: "When",
+      render: (r: RadiologyAppointment) =>
+        r.scheduled_at
+          ? new Date(r.scheduled_at).toLocaleString()
+          : `Not scheduled (ordered ${new Date(r.created_at).toLocaleDateString()})`,
     },
     {
       key: "notes" as const,
       label: "Notes",
-      render: (r: Record<string, unknown>) => String(r.notes ?? "---"),
-    },
-    {
-      key: "created_at" as const,
-      label: "Created",
-      render: (r: Record<string, unknown>) =>
-        r.created_at ? new Date(String(r.created_at)).toLocaleDateString() : "---",
+      render: (r: RadiologyAppointment) => r.notes ?? "—",
     },
   ];
 
@@ -148,12 +150,7 @@ export function AppointmentsTab() {
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={appointments}
-        rowKey={(r) => String(r.id ?? Math.random())}
-        loading={isLoading}
-      />
+      <DataTable columns={columns} data={appointments} rowKey={(r) => r.id} loading={isLoading} />
 
       <Modal
         opened={createOpen}

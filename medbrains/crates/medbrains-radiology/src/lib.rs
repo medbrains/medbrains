@@ -1578,14 +1578,31 @@ pub async fn record_dose(
 #[derive(Debug, Deserialize)]
 pub struct ListAppointmentsQuery {
     pub modality_id: Option<Uuid>,
-    pub date: Option<String>,
+    /// Only orders scheduled (or, if unscheduled, raised) on this hospital day.
+    pub date: Option<chrono::NaiveDate>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct RadiologyAppointment {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_name: String,
+    pub uhid: String,
+    pub modality: String,
+    pub body_part: Option<String>,
+    pub priority: String,
+    pub status: String,
+    pub notes: Option<String>,
+    pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Open imaging orders, soonest first — the radiographer's day list.
 pub async fn list_radiology_appointments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(query): Query<ListAppointmentsQuery>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Vec<RadiologyAppointment>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
@@ -1598,31 +1615,34 @@ pub async fn list_radiology_appointments(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT COALESCE(json_agg(r ORDER BY r.created_at), '[]'::json) FROM ( \
-         SELECT ro.id, \
-            p.first_name || ' ' || p.last_name as patient_name, \
-            rm.name as modality, \
-            ro.created_at::date::text as scheduled_date, \
-            ro.status::text, \
-            ro.priority::text, \
-            ro.created_at \
-         FROM radiology_orders ro \
-         JOIN patients p ON p.id = ro.patient_id \
-         JOIN radiology_modalities rm ON rm.id = ro.modality_id \
-         WHERE ro.tenant_id = $1 \
-           AND ro.status NOT IN ('cancelled', 'completed') \
-           AND ($2::uuid IS NULL OR ro.modality_id = $2) \
-         LIMIT 100 \
-         ) r",
+    let rows = sqlx::query_as!(
+        RadiologyAppointment,
+        r#"SELECT ro.id, ro.patient_id,
+                  p.first_name || ' ' || p.last_name AS "patient_name!",
+                  p.uhid, rm.name AS modality, ro.body_part,
+                  ro.priority::text AS "priority!", ro.status::text AS "status!",
+                  ro.notes, ro.scheduled_at, ro.created_at
+           FROM radiology_orders ro
+           JOIN patients p ON p.id = ro.patient_id
+           JOIN radiology_modalities rm ON rm.id = ro.modality_id
+           JOIN tenants t ON t.id = ro.tenant_id
+           WHERE ro.tenant_id = $1
+             AND ro.deleted_at IS NULL
+             AND ro.status NOT IN ('cancelled', 'completed')
+             AND ($2::uuid IS NULL OR ro.modality_id = $2)
+             AND ($3::date IS NULL
+                  OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)
+           ORDER BY COALESCE(ro.scheduled_at, ro.created_at)
+           LIMIT 100"#,
+        claims.tenant_id,
+        query.modality_id,
+        query.date,
     )
-    .bind(claims.tenant_id)
-    .bind(query.modality_id)
-    .fetch_one(&mut *tx)
+    .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"appointments": rows})))
+    Ok(Json(rows))
 }
 
 // ══════════════════════════════════════════════════════════

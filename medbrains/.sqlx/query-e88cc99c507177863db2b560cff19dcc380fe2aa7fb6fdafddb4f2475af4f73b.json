@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ro.id, ro.patient_id,\n                  p.first_name || ' ' || p.last_name AS \"patient_name!\",\n                  p.uhid, rm.name AS modality, ro.body_part,\n                  ro.priority::text AS \"priority!\", ro.status::text AS \"status!\",\n                  ro.notes, ro.scheduled_at, ro.created_at\n           FROM radiology_orders ro\n           JOIN patients p ON p.id = ro.patient_id\n           JOIN radiology_modalities rm ON rm.id = ro.modality_id\n           JOIN tenants t ON t.id = ro.tenant_id\n           WHERE ro.tenant_id = $1\n             AND ro.deleted_at IS NULL\n             AND ro.status NOT IN ('cancelled', 'completed')\n             AND ($2::uuid IS NULL OR ro.modality_id = $2)\n             AND ($3::date IS NULL\n                  OR (COALESCE(ro.scheduled_at, ro.created_at) AT TIME ZONE t.timezone)::date = $3)\n           ORDER BY COALESCE(ro.scheduled_at, ro.created_at)\n           LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "patient_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "patient_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "uhid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "modality",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "body_part",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "priority!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "scheduled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      null,
+      null,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e88cc99c507177863db2b560cff19dcc380fe2aa7fb6fdafddb4f2475af4f73b"
+}

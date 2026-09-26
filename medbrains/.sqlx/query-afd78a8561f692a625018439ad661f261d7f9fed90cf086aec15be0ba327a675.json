@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXTRACT(HOUR FROM vl.check_in_at AT TIME ZONE t.timezone)::int AS \"hour!\",\n                  count(*) AS \"visitors!\"\n           FROM visitor_logs vl\n           JOIN visitor_passes vp ON vp.id = vl.pass_id\n           JOIN visitor_registrations vr ON vr.id = vp.registration_id\n           JOIN tenants t ON t.id = vr.tenant_id\n           WHERE vr.tenant_id = $1\n             AND (vl.check_in_at AT TIME ZONE t.timezone)::date BETWEEN $2 AND $3\n           GROUP BY 1 ORDER BY 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hour!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "visitors!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "afd78a8561f692a625018439ad661f261d7f9fed90cf086aec15be0ba327a675"
+}

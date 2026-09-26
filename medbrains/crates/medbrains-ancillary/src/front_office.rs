@@ -841,74 +841,121 @@ pub async fn get_queue_stats(
 //  GET /api/front-office/analytics
 // ══════════════════════════════════════════════════════════
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct VisitorAnalyticsRow {
-    pub department_id: Option<Uuid>,
-    pub total_visitors: Option<i64>,
-    pub avg_visit_duration_minutes: Option<f64>,
-    pub peak_hour: Option<i32>,
+#[derive(Debug, Deserialize)]
+pub struct VisitorAnalyticsQuery {
+    pub from: Option<chrono::NaiveDate>,
+    pub to: Option<chrono::NaiveDate>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct WardVisitors {
+    /// `None` for visitors registered without a ward.
+    pub ward: Option<String>,
+    pub visitors: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HourVisitors {
+    /// Hour of check-in in the hospital's own time zone, 0–23.
+    pub hour: i32,
+    pub visitors: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VisitorAnalytics {
+    pub from: chrono::NaiveDate,
+    pub to: chrono::NaiveDate,
+    pub total_visitors: i64,
+    /// `None` until someone has checked out in the window.
+    pub avg_visit_minutes: Option<f64>,
+    pub by_ward: Vec<WardVisitors>,
+    pub by_hour: Vec<HourVisitors>,
+}
+
+/// Visitors between `from` and `to` inclusive (default: the last 30 days), by
+/// ward and by hour of check-in in the hospital's time zone.
 pub async fn visitor_analytics(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Query(q): Query<VisitorAnalyticsQuery>,
+) -> Result<Json<VisitorAnalytics>, AppError> {
     require_permission(&claims, permissions::front_office::visitors::LIST)?;
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Visitor counts by department (ward = proxy for department)
-    let dept_counts = sqlx::query_as::<_, VisitorAnalyticsRow>(
-        "SELECT vr.ward_id AS department_id, \
-         COUNT(*)::bigint AS total_visitors, \
-         AVG(EXTRACT(EPOCH FROM (vl.check_out_at - vl.check_in_at)) / 60.0) \
-           FILTER (WHERE vl.check_out_at IS NOT NULL)::float8 AS avg_visit_duration_minutes, \
-         MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM vl.check_in_at)::int) AS peak_hour \
-         FROM visitor_registrations vr \
-         LEFT JOIN visitor_passes vp ON vp.registration_id = vr.id \
-         LEFT JOIN visitor_logs vl ON vl.pass_id = vp.id \
-         WHERE vr.tenant_id = $1 \
-           AND vr.created_at >= CURRENT_DATE - INTERVAL '30 days' \
-         GROUP BY vr.ward_id \
-         ORDER BY total_visitors DESC LIMIT 5000",
+    // Days are the hospital's days: a visitor at 00:30 IST is not yesterday's.
+    let today = sqlx::query_scalar!(
+        r#"SELECT (now() AT TIME ZONE timezone)::date AS "today!" FROM tenants WHERE id = $1"#,
+        claims.tenant_id,
     )
-    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let to = q.to.unwrap_or(today);
+    let from = q.from.unwrap_or(to - chrono::Days::new(29));
+    if from > to {
+        return Err(AppError::BadRequest("'from' must be on or before 'to'".into()));
+    }
+
+    let totals = sqlx::query!(
+        r#"SELECT count(DISTINCT vr.id) AS "visitors!",
+                  (avg(EXTRACT(EPOCH FROM (vl.check_out_at - vl.check_in_at)) / 60)
+                      FILTER (WHERE vl.check_out_at IS NOT NULL))::float8 AS avg_minutes
+           FROM visitor_registrations vr
+           LEFT JOIN visitor_passes vp ON vp.registration_id = vr.id
+           LEFT JOIN visitor_logs vl ON vl.pass_id = vp.id
+           JOIN tenants t ON t.id = vr.tenant_id
+           WHERE vr.tenant_id = $1
+             AND (vr.created_at AT TIME ZONE t.timezone)::date BETWEEN $2 AND $3"#,
+        claims.tenant_id,
+        from,
+        to,
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let by_ward = sqlx::query_as!(
+        WardVisitors,
+        r#"SELECT l.name AS "ward?", count(*) AS "visitors!"
+           FROM visitor_registrations vr
+           LEFT JOIN locations l ON l.id = vr.ward_id
+           JOIN tenants t ON t.id = vr.tenant_id
+           WHERE vr.tenant_id = $1
+             AND (vr.created_at AT TIME ZONE t.timezone)::date BETWEEN $2 AND $3
+           GROUP BY l.name ORDER BY 2 DESC LIMIT 50"#,
+        claims.tenant_id,
+        from,
+        to,
+    )
     .fetch_all(&mut *tx)
     .await?;
 
-    // Overall totals
-    let total = sqlx::query_as::<_, (Option<i64>,)>(
-        "SELECT COUNT(*)::bigint FROM visitor_registrations \
-         WHERE tenant_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '30 days'",
+    let by_hour = sqlx::query_as!(
+        HourVisitors,
+        r#"SELECT EXTRACT(HOUR FROM vl.check_in_at AT TIME ZONE t.timezone)::int AS "hour!",
+                  count(*) AS "visitors!"
+           FROM visitor_logs vl
+           JOIN visitor_passes vp ON vp.id = vl.pass_id
+           JOIN visitor_registrations vr ON vr.id = vp.registration_id
+           JOIN tenants t ON t.id = vr.tenant_id
+           WHERE vr.tenant_id = $1
+             AND (vl.check_in_at AT TIME ZONE t.timezone)::date BETWEEN $2 AND $3
+           GROUP BY 1 ORDER BY 1"#,
+        claims.tenant_id,
+        from,
+        to,
     )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Today's count
-    let today = sqlx::query_as::<_, (Option<i64>,)>(
-        "SELECT COUNT(*)::bigint FROM visitor_registrations \
-         WHERE tenant_id = $1 \
-           AND created_at >= CURRENT_DATE \
-           AND created_at < CURRENT_DATE + INTERVAL '1 day'",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
+    .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
-
-    Ok(Json(serde_json::json!({
-        "total_visitors_30d": total.0.unwrap_or(0),
-        "visitors_today": today.0.unwrap_or(0),
-        "by_department": dept_counts.iter().map(|r| serde_json::json!({
-            "department_id": r.department_id,
-            "total_visitors": r.total_visitors,
-            "avg_visit_duration_minutes": r.avg_visit_duration_minutes,
-            "peak_hour": r.peak_hour,
-        })).collect::<Vec<_>>(),
-    })))
+    Ok(Json(VisitorAnalytics {
+        from,
+        to,
+        total_visitors: totals.visitors,
+        avg_visit_minutes: totals.avg_minutes,
+        by_ward,
+        by_hour,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════

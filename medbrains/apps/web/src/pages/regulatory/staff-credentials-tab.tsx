@@ -7,7 +7,6 @@ import { DataTable, PageHeader } from "@/components";
 import type { BadgeTone } from "@/components/ui";
 import { Badge } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
-import { statusColorTone } from "./shared";
 
 export function StaffCredentialsTab() {
   const { data: credentials = [], isLoading } = useQuery({
@@ -32,7 +31,7 @@ export function StaffCredentialsTab() {
             label: "Staff Name",
             render: (r: StaffCredentialSummary) => (
               <Text size="sm" fw={500}>
-                {r.employee_name}
+                {r.employee_name ?? "Unnamed employee"}
               </Text>
             ),
           },
@@ -40,7 +39,7 @@ export function StaffCredentialsTab() {
             key: "credential_type",
             label: "Credential",
             render: (r: StaffCredentialSummary) => (
-              <Badge tone="neutral">{r.credential_type}</Badge>
+              <Badge tone="neutral">{r.credential_type.replaceAll("_", " ")}</Badge>
             ),
           },
           {
@@ -56,38 +55,31 @@ export function StaffCredentialsTab() {
               ),
           },
           {
-            key: "days_until_expiry",
-            label: "Days Until Expiry",
+            key: "days_to_expiry",
+            label: "Expiry",
             render: (r: StaffCredentialSummary) => {
-              if (r.days_until_expiry == null)
+              if (r.days_to_expiry == null)
                 return (
                   <Text size="sm" c="dimmed">
                     N/A
                   </Text>
                 );
               const color: BadgeTone =
-                r.days_until_expiry < 0
+                r.days_to_expiry < 0
                   ? "danger"
-                  : r.days_until_expiry < 30
+                  : r.days_to_expiry < 30
                     ? "danger"
-                    : r.days_until_expiry < 90
+                    : r.days_to_expiry < 90
                       ? "warning"
                       : "success";
               return (
                 <Badge tone={color}>
-                  {r.days_until_expiry < 0
-                    ? `${Math.abs(r.days_until_expiry)}d expired`
-                    : `${r.days_until_expiry}d`}
+                  {r.days_to_expiry < 0
+                    ? `${Math.abs(r.days_to_expiry)}d expired`
+                    : `${r.days_to_expiry}d`}
                 </Badge>
               );
             },
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (r: StaffCredentialSummary) => (
-              <Badge tone={statusColorTone(r.status)}>{r.status.replace(/_/g, " ")}</Badge>
-            ),
           },
         ]}
       />

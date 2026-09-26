@@ -14,7 +14,7 @@ async fn the_desk_can_open_the_calls_it_owes() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -70,6 +70,23 @@ async fn the_desk_can_open_the_calls_it_owes() {
         (7000..8000).contains(&overdue),
         "two hours owed should read as ~7200 seconds, got {overdue}"
     );
+
+    // The supervisor's summary decoded EXTRACT's NUMERIC as f64 and answered
+    // 500 on every call; it must count this callback as overdue.
+    let summary: serde_json::Value = app
+        .client
+        .get(app.url("/api/marketing/callbacks/summary"))
+        .header("x-csrf-token", &csrf)
+        .send()
+        .await
+        .expect("summary")
+        .error_for_status()
+        .expect("the summary must answer, not 500")
+        .json()
+        .await
+        .expect("summary json");
+    assert!(summary["overdue"].as_i64() >= Some(1), "{summary}");
+    assert!(summary["oldest_overdue_seconds"].as_i64() >= Some(7000), "{summary}");
 }
 
 /// Closing a callback records that the call happened.
@@ -82,7 +99,7 @@ async fn completing_a_callback_writes_the_call_onto_the_timeline() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -166,7 +183,7 @@ async fn rescheduling_keeps_the_call_owed() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

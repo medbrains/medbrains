@@ -19,6 +19,7 @@ pub fn enabled() -> bool {
 }
 
 /// One fully rendered message, as the provider would have received it.
+#[derive(Debug)]
 pub struct SimulatedMessage<'a> {
     pub channel: &'a str,
     pub recipient: &'a str,
