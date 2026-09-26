@@ -1469,6 +1469,7 @@ import type {
   PatientConsultationHistoryRow,
   PatientConsumableIssue,
   PatientContact,
+  PatientContactConsents,
   PatientContext,
   PatientDiagnosisRow,
   PatientDocument,
@@ -3583,6 +3584,18 @@ export const api = {
   getBranding: () => request<TenantSettingsRow[]>("/setup/branding"),
   updateBranding: (data: { key: string; value: unknown }) =>
     request<TenantSettingsRow>("/setup/branding", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Patient messaging consent (WhatsApp / email) — append-only history
+  getPatientContactConsents: (patientId: string) =>
+    request<PatientContactConsents>(`/patients/${patientId}/contact-consents`),
+  setPatientContactConsent: (
+    patientId: string,
+    data: { channel: "whatsapp" | "email"; granted: boolean },
+  ) =>
+    request<PatientContactConsents>(`/patients/${patientId}/contact-consents`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

@@ -87,6 +87,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     var isMedicoLegal by remember { mutableStateOf(false) }
     var mlcNumber by remember { mutableStateOf("") }
     var isVip by remember { mutableStateOf(false) }
+    var whatsappOptIn by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<RegistrationProblem?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -112,6 +113,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 abha_number = abha.filter { it.isDigit() }.ifEmpty { null },
                 is_medico_legal = isMedicoLegal, mlc_number = if (isMedicoLegal) mlcNumber else null, is_vip = isVip,
                 attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid)),
+                contact = ContactPreferences(whatsapp_opt_in = whatsappOptIn, email_opt_in = false),
             )
             registered = api.createPatient(body).also { session.patients[it.id] = it }
         } catch (e: ApiError) { failure = e.message } catch (e: Exception) { failure = "Could not reach the hospital server. Nothing was registered." } finally { busy = false }
@@ -136,11 +138,11 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     /** The person is cleared; the desk stays. Which is which is the core's call. */
     fun nextWalkIn() {
         registered = null; checkUnavailable = false; problem = null
-        listOf("first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip").filterNot { registrationCarriesOver(it) }.forEach {
+        listOf("first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip", "whatsapp_opt_in").filterNot { registrationCarriesOver(it) }.forEach {
             when (it) {
                 "first_name" -> firstName = ""; "last_name" -> lastName = ""; "phone" -> phone = ""
                 "date_of_birth" -> dateOfBirth = null; "age_years" -> age = ""; "abha_number" -> abha = ""
-                "is_medico_legal" -> isMedicoLegal = false; "mlc_number" -> mlcNumber = ""; "is_vip" -> isVip = false
+                "is_medico_legal" -> isMedicoLegal = false; "mlc_number" -> mlcNumber = ""; "is_vip" -> isVip = false; "whatsapp_opt_in" -> whatsappOptIn = false
             }
         }
         gender = "female"
@@ -185,6 +187,17 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                     Text("VIP", style = MaterialTheme.typography.bodyLarge)
                     Switch(checked = isVip, onCheckedChange = { isVip = it }, modifier = Modifier.testTag("switch-vip").semantics { contentDescription = "VIP" })
                 }
+
+                CarbonSectionTitle("Contact")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Hospital updates on WhatsApp", style = MaterialTheme.typography.bodyLarge)
+                    Switch(checked = whatsappOptIn, onCheckedChange = { whatsappOptIn = it }, modifier = Modifier.testTag("switch-whatsapp_opt_in").semantics { contentDescription = "Hospital updates on WhatsApp" })
+                }
+                Text(
+                    "Ask the patient — leave off unless they say yes. SMS about their registration and visits needs no agreement.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
                 CarbonSectionTitle("Desk — kept for the next walk-in")
                 CarbonPicker("Department", session.departments.map { PickerOption(it.id, it.name) }, session.departmentId, { session.departmentId = it }, placeholder = "No department yet", tag = "picker-department")

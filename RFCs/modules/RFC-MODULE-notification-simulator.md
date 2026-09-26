@@ -39,6 +39,17 @@ Operator decisions (2026-09-26):
   visit gets "You're registered for <dept> at <hospital>, token <n>" only if the
   hospital turns that on.
 
+- **S2a done:** registration (web, iOS, Android) asks for WhatsApp/email
+  consent; append-only `patient_contact_consents`; the patient page's
+  "Messaging consent" card shows who agreed when, and withdraws.
+- Seen in the S2a journey, not yet fixed: the floating "MedBrains" activity pill
+  sits over the registration stepper at the bottom of the screen, hiding
+  "Contact & identity" — the fixed-footer case the page-bottom padding cannot
+  reach.
+- Validation messages not in the registration form's translation map fall back
+  to "Check the highlighted field", which tells a receptionist nothing; new rules
+  must be added to `PATIENT_REGISTRATION_ERROR_KEYS`.
+
 ## 3. Norms
 
 | Norm | Rule here |

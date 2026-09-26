@@ -586,6 +586,31 @@ export interface CreatePatientRequest {
   is_vip?: boolean;
   is_unknown_patient?: boolean;
   attributes?: Record<string, unknown>;
+  contact?: PatientContactPreferences;
+}
+
+/**
+ * How the patient agreed to be contacted. An SMS with their UHID needs no
+ * opt-in; WhatsApp and email do (DPDP Act 2023, WhatsApp business policy).
+ */
+export interface PatientContactPreferences {
+  preferred_method?: "sms" | "whatsapp" | "email" | "call";
+  whatsapp_opt_in: boolean;
+  email_opt_in: boolean;
+}
+
+/** One channel's current answer, as the patient page shows it. */
+export interface ChannelConsent {
+  channel: "whatsapp" | "email";
+  granted: boolean;
+  source: "registration" | "patient_update" | "portal";
+  recorded_by_name: string | null;
+  recorded_at: string;
+}
+
+export interface PatientContactConsents {
+  preferred_method: string | null;
+  channels: ChannelConsent[];
 }
 
 export interface UpdatePatientRequest {

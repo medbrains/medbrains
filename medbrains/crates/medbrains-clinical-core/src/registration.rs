@@ -139,6 +139,10 @@ mod tests {
         assert!(!registration_carries_over("first_name"));
         assert!(!registration_carries_over("is_medico_legal"));
         assert!(!registration_carries_over("mlc_number"));
+        // Consent is the person's own answer. Carrying it to the next walk-in
+        // would record a yes that patient never gave.
+        assert!(!registration_carries_over("whatsapp_opt_in"));
+        assert!(!registration_carries_over("email_opt_in"));
     }
 
     #[test]

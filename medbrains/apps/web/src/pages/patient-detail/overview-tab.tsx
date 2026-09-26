@@ -5,6 +5,7 @@ import { useFieldAccess } from "@medbrains/stores";
 import type { Patient, PatientAllergy } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
+import { ContactConsentCard } from "@/components/Patient/ContactConsentCard";
 import { Badge } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { age, formatDate, InfoRow } from "./shared";
@@ -66,6 +67,8 @@ export function OverviewTab({ patient }: { patient: Patient }) {
             <InfoRow label="Registered" value={formatDate(patient.created_at)} />
           </Stack>
         </Card>
+
+        <ContactConsentCard patient={patient} />
 
         <Card withBorder>
           <Title order={5} mb="sm">

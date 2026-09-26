@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod contact_consent;
+
 use std::collections::HashMap;
 
 use axum::{
@@ -405,6 +407,10 @@ pub struct CreatePatientRequest {
 
     // ── Extensible ──
     pub attributes: Option<serde_json::Value>,
+
+    // ── How the patient agreed to be contacted ──
+    #[serde(default)]
+    pub contact: contact_consent::ContactPreferences,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1402,6 +1408,7 @@ pub async fn create_patient(
     if let Some(ref phone) = body.referred_by_phone {
         validation::validate_optional_phone(&mut errors, "referred_by_phone", phone);
     }
+    body.contact.validate(has_text(&body.email))?;
     let is_camp_registration = matches!(body.registration_type, Some(RegistrationType::Camp))
         || matches!(body.registration_source, Some(RegistrationSource::Camp));
     if is_camp_registration && body.camp_id.is_none() && !has_text(&body.camp_name) {
@@ -1556,6 +1563,12 @@ pub async fn create_patient(
         abha_number.as_deref(),
         body.abha_address.as_deref(),
         aadhaar_digits.as_deref(),
+    )
+    .await?;
+    contact_consent::record_at_registration(
+        &mut tx,
+        (claims.tenant_id, patient.id, claims.sub),
+        &body.contact,
     )
     .await?;
 
@@ -4973,6 +4986,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/patients/{id}",
             get(get_patient).put(update_patient),
+        )
+        .route(
+            "/api/patients/{id}/contact-consents",
+            get(contact_consent::get_contact_consents).put(contact_consent::set_contact_consent),
         )
         .route(
             "/api/patients/{id}/clinical-timeline",

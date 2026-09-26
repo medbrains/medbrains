@@ -254,6 +254,19 @@ longer carries the patient's name in `token_called` — it sends the
 "Token only" placeholder, matching the number-only board decision (§10). Tokens
 themselves now carry the name, for the desk console.
 
+## P1 slices (2026-09-26)
+
+- **P1a — queue definitions**: `queues` row per (module, scope) with prefix,
+  start number, pad width, reset rule (daily | never), daily limit, status
+  (active | paused | closed), optional valid_from/valid_until; `tokens.queue_id`.
+  **No backfill**: a scope with no row keeps today's behaviour exactly, so no
+  hospital changes until an admin configures a queue. Admin → Queues screen
+  (list, create, edit, pause, close) with a live "next token" preview.
+- **P1b — categories**: per-queue priority categories and weights replacing the
+  hard-coded `token_priority_weight`.
+- **P1c — hours & sessions**: opening hours, session reset rule, close
+  behaviour at the end of a session.
+
 ## 10. Decided (2026-09-26)
 
 - Plan agreed; **P0 first**, then P1.

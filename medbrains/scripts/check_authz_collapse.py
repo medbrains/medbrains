@@ -54,10 +54,14 @@ LOOKBACK = 8
 # Sites reviewed and deliberately left collapsing, with the reason. A decision
 # recorded here is a decision; one left in the code is an accident waiting to
 # be copied.
+#
+# Keyed by file and a piece of the call that is unique in that file, not by
+# line number: a line number moved whenever anyone edited above the site, and
+# the check then failed on code nobody had touched.
 ACCEPTED = {
     # Decorates list rows with per-row can-edit flags for UI buttons. An empty
     # map hides buttons: fails closed, and claims nothing about the patient.
-    "crates/medbrains-patients/src/lib.rs:1310",
+    ("crates/medbrains-patients/src/lib.rs", "bulk_check(&authz_ctx, &perm_items)"),
 }
 
 
@@ -88,7 +92,7 @@ def offenders() -> list[tuple[str, int, str]]:
                 context = "\n".join(lines[max(0, i - LOOKBACK) : i + 1])
                 if not AUTHZ_CALL.search(context):
                     continue
-                if f"{rel}:{i + 1}" in ACCEPTED:
+                if any(rel == file and anchor in context for file, anchor in ACCEPTED):
                     continue
                 found.append((rel, i + 1, line.strip()))
     return found

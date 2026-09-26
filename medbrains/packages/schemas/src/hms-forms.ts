@@ -1525,6 +1525,9 @@ export const patientRegistrationFormSchema = z
     is_medico_legal: z.boolean().optional(),
     mlc_number: z.string().optional(),
     is_vip: z.boolean().optional(),
+    preferred_contact_method: z.enum(["sms", "whatsapp", "email", "call"]).optional(),
+    whatsapp_opt_in: z.boolean().optional(),
+    email_opt_in: z.boolean().optional(),
     allergy_status: z.enum(["not_asked_yet", "no_known_allergies", "known_allergies"]).optional(),
     known_allergies: z.string().optional(),
     drug_allergies: z.string().optional(),
@@ -1556,6 +1559,26 @@ export const patientRegistrationFormSchema = z
     open_opd_after_registration: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
+    // Agreeing to email updates needs somewhere to send them; preferring a
+    // channel needs agreeing to it. The server refuses both too.
+    if (value.email_opt_in && !hasTrimmedValue(value.email)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["email_opt_in"],
+        message: "Add an email address to send email updates",
+      });
+    }
+    const preferred = value.preferred_contact_method;
+    if (
+      (preferred === "whatsapp" && !value.whatsapp_opt_in) ||
+      (preferred === "email" && !value.email_opt_in)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["preferred_contact_method"],
+        message: "The patient has to agree to this channel first",
+      });
+    }
     if (!value.is_unknown_patient) {
       if (!hasTrimmedValue(value.first_name)) {
         ctx.addIssue({

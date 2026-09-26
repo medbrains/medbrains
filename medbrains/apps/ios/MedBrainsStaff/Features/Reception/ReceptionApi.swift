@@ -73,6 +73,14 @@ struct CreatePatientBody: Encodable {
     let mlcNumber: String?
     let isVip: Bool
     let attributes: Attributes
+    /// What the patient agreed to be messaged on. No email is taken at this
+    /// desk, so email is never agreed here.
+    let contact: ContactPreferences
+}
+
+struct ContactPreferences: Encodable {
+    let whatsappOptIn: Bool
+    let emailOptIn: Bool
 }
 
 struct DepartmentRow: Decodable, Hashable, Identifiable, Sendable {

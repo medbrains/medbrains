@@ -8,6 +8,7 @@ import {
   Grid,
   NumberInput,
   Select,
+  Stack,
   Stepper,
   TagsInput,
   Text,
@@ -130,6 +131,8 @@ const PATIENT_REGISTRATION_ERROR_KEYS: Record<string, string> = {
   "Select a department to send the patient to OPD": "validation.departmentForOpdRequired",
   "Select an existing camp before sending camp patient to OPD": "validation.existingCampRequired",
   "Enter a valid whole number": "validation.validWholeNumber",
+  "Add an email address to send email updates": "validation.emailOptInNeedsEmail",
+  "The patient has to agree to this channel first": "validation.contactMethodNeedsConsent",
 };
 
 function optionKey(value: string): string {
@@ -699,6 +702,11 @@ export function PatientRegisterForm({
       mlc_number: values.mlc_number || undefined,
       is_vip: values.is_vip || undefined,
       is_unknown_patient: values.is_unknown_patient || undefined,
+      contact: {
+        preferred_method: values.preferred_contact_method,
+        whatsapp_opt_in: values.whatsapp_opt_in ?? false,
+        email_opt_in: values.email_opt_in ?? false,
+      },
       address: Object.keys(address).length > 0 ? address : null,
       attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
     };
@@ -755,7 +763,14 @@ export function PatientRegisterForm({
     setStepError(null);
     const fieldsByStep: Array<Array<keyof PatientRegistrationFormInput>> = [
       [],
-      ["email", "abha_number", "aadhaar_number", "referred_by_phone"],
+      [
+        "email",
+        "preferred_contact_method",
+        "email_opt_in",
+        "abha_number",
+        "aadhaar_number",
+        "referred_by_phone",
+      ],
       ["line1", "city", "next_of_kin_phone", "emergency_contact_phone", "mlc_number"],
       ["category", "financial_class", "attendant_passes_count"],
       [],
@@ -1089,6 +1104,61 @@ export function PatientRegisterForm({
                 error={fieldError(errors.email?.message)}
                 {...register("email")}
               />
+            </FormRow>
+          </FormSection>
+        )}
+
+        {activeStep === 1 && (
+          <FormSection num="02" name={t("registrationForm.section.contactConsent")}>
+            <FormRow label={t("registrationForm.row.preferredContact")}>
+              <Controller
+                control={control}
+                name="preferred_contact_method"
+                render={({ field }) => (
+                  <Select
+                    aria-label={t("registrationForm.row.preferredContact")}
+                    placeholder={t("registrationForm.placeholder.preferredContact")}
+                    clearable
+                    data={(["sms", "whatsapp", "email", "call"] as const).map((value) => ({
+                      value,
+                      label: t(`registrationForm.option.contact.${value}`),
+                    }))}
+                    value={field.value ?? null}
+                    onChange={(value) => field.onChange(value ?? undefined)}
+                    error={fieldError(errors.preferred_contact_method?.message)}
+                  />
+                )}
+              />
+            </FormRow>
+            <FormRow label={t("registrationForm.row.messagingConsent")}>
+              <Stack gap="xs">
+                <Text size="sm" c="dimmed">
+                  {t("registrationForm.hint.messagingConsent")}
+                </Text>
+                <Controller
+                  control={control}
+                  name="whatsapp_opt_in"
+                  render={({ field }) => (
+                    <Checkbox
+                      label={t("registrationForm.label.whatsappOptIn")}
+                      checked={field.value ?? false}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                    />
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name="email_opt_in"
+                  render={({ field }) => (
+                    <Checkbox
+                      label={t("registrationForm.label.emailOptIn")}
+                      checked={field.value ?? false}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                      error={fieldError(errors.email_opt_in?.message)}
+                    />
+                  )}
+                />
+              </Stack>
             </FormRow>
           </FormSection>
         )}

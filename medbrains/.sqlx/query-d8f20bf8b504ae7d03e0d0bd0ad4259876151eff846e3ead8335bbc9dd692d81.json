@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO patient_contact_consents (tenant_id, patient_id, channel, granted, source, recorded_by) VALUES ($1, $2, $3, true, 'registration', $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d8f20bf8b504ae7d03e0d0bd0ad4259876151eff846e3ead8335bbc9dd692d81"
+}

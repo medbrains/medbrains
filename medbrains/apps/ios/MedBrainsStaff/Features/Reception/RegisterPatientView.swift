@@ -22,6 +22,7 @@ struct RegisterPatientView: View {
     @State private var isMedicoLegal = false
     @State private var mlcNumber = ""
     @State private var isVip = false
+    @State private var whatsappOptIn = false
 
     @State private var problem: RegistrationProblem?
     @State private var failure: String?
@@ -96,6 +97,11 @@ struct RegisterPatientView: View {
                 }
             }
             Toggle("VIP", isOn: $isVip).font(CarbonType.body).accessibilityIdentifier("switch-vip")
+
+            CarbonSectionTitle("Contact")
+            Toggle("Hospital updates on WhatsApp", isOn: $whatsappOptIn).font(CarbonType.body).accessibilityIdentifier("switch-whatsapp_opt_in")
+            Text("Ask the patient — leave off unless they say yes. SMS about their registration and visits needs no agreement.")
+                .font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary)
 
             CarbonSectionTitle("Desk — kept for the next walk-in")
             CarbonPicker("Department", options: session.wrappedValue.departments.map { .init(id: $0.id, label: $0.name) }, selection: session.departmentId, placeholder: "No department yet")
@@ -175,7 +181,8 @@ struct RegisterPatientView: View {
             departmentId: session.departmentId, consultantId: session.consultantId,
             abhaNumber: abha.isEmpty ? nil : abha.filter(\.isNumber),
             isMedicoLegal: isMedicoLegal, mlcNumber: isMedicoLegal ? mlcNumber : nil, isVip: isVip,
-            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid))
+            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid)),
+            contact: .init(whatsappOptIn: whatsappOptIn, emailOptIn: false)
         )
         do {
             registered = try await ReceptionApi(client: client).createPatient(body)
@@ -192,7 +199,7 @@ struct RegisterPatientView: View {
         registered = nil
         checkUnavailable = false
         problem = nil
-        for field in ["first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip"] where !registrationCarriesOver(field: field) {
+        for field in ["first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip", "whatsapp_opt_in"] where !registrationCarriesOver(field: field) {
             switch field {
             case "first_name": firstName = ""
             case "last_name": lastName = ""
@@ -203,6 +210,7 @@ struct RegisterPatientView: View {
             case "is_medico_legal": isMedicoLegal = false
             case "mlc_number": mlcNumber = ""
             case "is_vip": isVip = false
+            case "whatsapp_opt_in": whatsappOptIn = false
             default: break
             }
         }

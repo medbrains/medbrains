@@ -57,7 +57,11 @@ data class CreatePatientBody(
     val mlc_number: String?,
     val is_vip: Boolean,
     val attributes: RegistrationAttributes,
+    /** What the patient agreed to be messaged on. No email is taken at this desk. */
+    val contact: ContactPreferences,
 )
+
+@Serializable data class ContactPreferences(val whatsapp_opt_in: Boolean, val email_opt_in: Boolean)
 
 @Serializable data class DepartmentRow(val id: String, val code: String, val name: String)
 @Serializable data class DoctorRow(val id: String, val full_name: String, val specialization: String? = null)

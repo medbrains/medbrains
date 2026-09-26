@@ -525,5 +525,18 @@
   "validation.phoneRequired": "Phone is required",
   "validation.referralSourceRequired": "Referral source is required",
   "validation.referredByRequired": "Enter who referred the patient",
-  "validation.validWholeNumber": "Enter a valid whole number"
+  "validation.validWholeNumber": "Enter a valid whole number",
+  "registrationForm.section.contactConsent": "How may we contact you?",
+  "registrationForm.row.preferredContact": "Preferred way to reach you",
+  "registrationForm.placeholder.preferredContact": "Not asked",
+  "registrationForm.option.contact.sms": "SMS",
+  "registrationForm.option.contact.whatsapp": "WhatsApp",
+  "registrationForm.option.contact.email": "Email",
+  "registrationForm.option.contact.call": "Phone call",
+  "registrationForm.row.messagingConsent": "Agreed to receive",
+  "registrationForm.label.whatsappOptIn": "Hospital updates on WhatsApp",
+  "registrationForm.label.emailOptIn": "Hospital updates by email",
+  "registrationForm.hint.messagingConsent": "Ask the patient and tick only what they agree to. SMS about their registration and visits needs no agreement.",
+  "validation.emailOptInNeedsEmail": "Add an email address to send email updates",
+  "validation.contactMethodNeedsConsent": "The patient has to agree to this channel first"
 }
