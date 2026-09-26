@@ -25,11 +25,11 @@
 //!      verification (against the existing user_deactivation +
 //!      revocation cache) terminates the device's access.
 
+use axum::routing::{delete, get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post,delete};
 
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
@@ -79,9 +79,9 @@ pub struct MintTokenRequest {
 /// 34-surface catalog; validated by shape here, not a fixed DB enum.
 fn is_valid_app_variant(v: &str) -> bool {
     matches!(v, "staff" | "tv" | "vendor" | "Web")
-        || v
-            .split_once('-')
-            .is_some_and(|(f, rest)| matches!(f, "TV" | "Mobile" | "Desktop" | "Kiosk") && !rest.is_empty())
+        || v.split_once('-').is_some_and(|(f, rest)| {
+            matches!(f, "TV" | "Mobile" | "Desktop" | "Kiosk") && !rest.is_empty()
+        })
 }
 
 #[derive(Debug, Serialize)]
@@ -112,7 +112,10 @@ pub async fn mint_pairing_token(
 
     let token = generate_token();
     let expires_at = Utc::now() + Duration::minutes(TOKEN_TTL_MINUTES);
-    let location_scope = body.location_scope.clone().unwrap_or_else(|| serde_json::json!({}));
+    let location_scope = body
+        .location_scope
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({}));
 
     let row = sqlx::query_as::<_, (Uuid, DateTime<Utc>)>(
         "INSERT INTO device_pairing_tokens (\
@@ -265,9 +268,10 @@ pub async fn pair_device(
     // The same resolver login uses, so a paired device carries exactly the
     // permissions its user would get by signing in — including the bypass-role
     // convention of an empty set.
-    let permissions =
-        medbrains_server_core::permissions::resolve_permissions(&state.db, tenant_id, user_id, &role)
-            .await?;
+    let permissions = medbrains_server_core::permissions::resolve_permissions(
+        &state.db, tenant_id, user_id, &role,
+    )
+    .await?;
 
     let cert_pem = body.public_key_pem.trim().to_owned();
 
@@ -360,6 +364,18 @@ pub struct PairedDeviceRow {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 
+/// One definition of a device row, read by the list and by revoke alike. A
+/// revoke that returned its own shorter column list failed to decode against
+/// this struct, answered 500 and rolled back — so no device, lost or stolen,
+/// could be revoked from the admin screen.
+const PAIRED_DEVICE_SELECT: &str = "SELECT pd.id, pd.label, pd.app_variant, pd.cert_fingerprint, \
+       pd.issued_to_user_id, pd.department_id, pd.location_label, pd.station_id, \
+       s.name AS station_name, pd.board_module, d.name AS department_name, \
+       pd.paired_at, pd.last_seen_at, pd.revoked_at \
+     FROM paired_devices pd \
+     LEFT JOIN stations s ON s.id = pd.station_id \
+     LEFT JOIN departments d ON d.id = pd.department_id";
+
 pub async fn list_paired_devices(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -369,17 +385,9 @@ pub async fn list_paired_devices(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, PairedDeviceRow>(
-        "SELECT pd.id, pd.label, pd.app_variant, pd.cert_fingerprint, pd.issued_to_user_id, \
-                pd.department_id, pd.location_label, pd.station_id, s.name AS station_name, \
-                pd.board_module, d.name AS department_name, \
-                pd.paired_at, pd.last_seen_at, pd.revoked_at \
-         FROM paired_devices pd \
-         LEFT JOIN stations s ON s.id = pd.station_id \
-         LEFT JOIN departments d ON d.id = pd.department_id \
-         WHERE pd.tenant_id = $1 \
-         ORDER BY pd.paired_at DESC LIMIT 5000",
-    )
+    let rows = sqlx::query_as::<_, PairedDeviceRow>(&format!(
+        "{PAIRED_DEVICE_SELECT} WHERE pd.tenant_id = $1 ORDER BY pd.paired_at DESC LIMIT 5000"
+    ))
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -408,20 +416,24 @@ pub async fn revoke_paired_device(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, PairedDeviceRow>(
+    sqlx::query_scalar!(
         "UPDATE paired_devices \
          SET revoked_at = now(), revoked_by_user_id = $1, revoked_reason = $2 \
          WHERE id = $3 AND tenant_id = $4 AND revoked_at IS NULL \
-         RETURNING id, label, app_variant, cert_fingerprint, issued_to_user_id, \
-                   paired_at, last_seen_at, revoked_at",
+         RETURNING id",
+        claims.sub,
+        body.reason.as_deref(),
+        id,
+        claims.tenant_id,
     )
-    .bind(claims.sub)
-    .bind(body.reason.as_deref())
-    .bind(id)
-    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    let row =
+        sqlx::query_as::<_, PairedDeviceRow>(&format!("{PAIRED_DEVICE_SELECT} WHERE pd.id = $1"))
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Revoking a device revokes the key it syncs by, in the same transaction.
     // Otherwise a device recorded as revoked keeps a live key sitting in the
@@ -483,14 +495,8 @@ pub fn admin_router() -> axum::Router<AppState> {
                 .delete(revoke_device_node_key),
         )
         .route("/api/device-pairing/peer-roster", get(get_peer_roster))
-        .route(
-            "/api/admin/device-pairing-tokens",
-            post(mint_pairing_token),
-        )
-        .route(
-            "/api/admin/paired-devices",
-            get(list_paired_devices),
-        )
+        .route("/api/admin/device-pairing-tokens", post(mint_pairing_token))
+        .route("/api/admin/paired-devices", get(list_paired_devices))
         .route(
             "/api/admin/paired-devices/{id}",
             delete(revoke_paired_device),

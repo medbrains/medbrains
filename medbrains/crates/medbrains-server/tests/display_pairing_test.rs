@@ -125,4 +125,23 @@ async fn an_approved_screen_shows_its_board_and_nothing_else() {
         StatusCode::FORBIDDEN,
         "a screen cannot list patients"
     );
+
+    // Taken off the wall: revoking it works, and the screen is refused at once.
+    // Revoke answered 500 and rolled back for every device before this.
+    let device = token["paired_device_id"].as_str().expect("device id");
+    let revoked = app
+        .client
+        .delete(app.url(&format!("/api/admin/paired-devices/{device}")))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "reason": "Screen moved" }))
+        .send()
+        .await
+        .expect("revoke");
+    assert_eq!(revoked.status(), StatusCode::OK);
+    let (status, _) = as_screen(&app, jwt, "/api/device/board").await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "a revoked screen is refused"
+    );
 }

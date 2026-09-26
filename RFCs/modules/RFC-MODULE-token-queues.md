@@ -308,6 +308,13 @@ edge tier design already written in `medbrains-edge`.
     administrator who approved it. Approving a screen without choosing its
     board is refused.
 
+39. **Given** a TV with nobody signed in, **when** it opens `/screen`, **then**
+    it shows a code big enough to read across the room; **when** an
+    administrator approves it, **then** it opens its own board within one poll,
+    number only; **when** the screen is revoked, **then** it goes back to
+    showing a code — never a dead board. A code that expires or is refused is
+    replaced by itself.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -442,8 +449,19 @@ themselves now carry the name, for the desk console.
   `display.board.read`). *Screens paired before this act as whoever approved
   them: revoke and re-pair them.* Also: no user could ever hold the built-in
   `display_device` role (`users.role` is an enum without it).
-- **P3b-2 — the TV side**: the web board, opened on a TV with no session,
-  shows its pairing code, waits for approval, and opens its own board. *Next.*
+- **P3b-2 — the TV side** *(built 2026-09-26)*: public route `/screen`. With
+  no stored credential it shows a pairing code and polls; approved, it keeps
+  the screen's credential and shows its bound board (re-read every minute, so
+  moving a screen needs no visit to it); refused (revoked, deleted) it drops
+  the credential and pairs again. Tests: the revoke assertions in
+  `display_pairing_test` (500 before, refused after), the
+  `screen-self-pairing` journey.
+  *Found:* **revoking any paired device answered 500 and rolled back** — its
+  `RETURNING` list no longer matched the device row type — so no device, lost
+  or stolen, could be revoked from the admin screen. List and revoke now read
+  one shared column list.
+
+**P3 done.** Next: **P4** — camp templates and station flow.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

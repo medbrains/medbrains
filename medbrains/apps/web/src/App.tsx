@@ -254,6 +254,7 @@ const HealthPulsePage = lazy(() =>
 const TokenDisplayPage = lazy(() =>
   import("./pages/token-display").then((m) => ({ default: m.TokenDisplayPage })),
 );
+const ScreenPage = lazy(() => import("./pages/screen").then((m) => ({ default: m.ScreenPage })));
 const HousekeepingPage = lazy(() =>
   import("./pages/housekeeping").then((m) => ({ default: m.HousekeepingPage })),
 );
@@ -480,6 +481,8 @@ export function App() {
             <Route path="/portal/:tenantCode" element={<PatientPortalPage />} />
             {/* Unattended self-service terminal in the lobby. */}
             <Route path="/kiosk/checkin" element={<KioskSelfCheckinPage />} />
+            {/* A waiting-room TV: pairs by code, then shows its own board. */}
+            <Route path="/screen" element={<ScreenPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />

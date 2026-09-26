@@ -19,7 +19,8 @@ const MODULES: { value: string; label: string }[] = [
   { value: "dispatch", label: "Dispatch" },
 ];
 
-function Clock() {
+/** The wall clock in a board's top bar. */
+export function Clock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);

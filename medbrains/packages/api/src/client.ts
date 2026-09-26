@@ -865,6 +865,7 @@ import type {
   DeviceInstance,
   DeviceMessage,
   DeviceNodeKey,
+  DeviceBoard,
   DevicePairingRequest,
   DeviceRoutingRule,
   DeviceTokenResponse,
@@ -16483,6 +16484,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getDeviceBoard: () => request<DeviceBoard>("/device/board"),
   listDevicePairingRequests: () =>
     request<DevicePairingRequest[]>("/admin/device-pairing/requests"),
   approveDevicePairingRequest: (data: {

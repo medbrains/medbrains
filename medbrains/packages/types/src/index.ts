@@ -7972,6 +7972,15 @@ export interface DeviceTokenResponse {
   user_id: string | null;
 }
 
+/** The board a paired screen shows (`GET /api/device/board`). */
+export interface DeviceBoard {
+  label: string;
+  /** Null for a screen paired before boards were bound: pair it again. */
+  module: string | null;
+  department_id: string | null;
+  department_name: string | null;
+}
+
 export interface DevicePairingRequest {
   id: string;
   user_code: string;
