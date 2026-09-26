@@ -1638,6 +1638,7 @@ import type {
   QueuePlace,
   QueuePriorityRule,
   QueueRow,
+  QueueSession,
   QueueStatsResponse,
   QueueToken,
   QuizAttemptResult,
@@ -3601,6 +3602,12 @@ export const api = {
     request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
   updateQueue: (id: string, data: QueueInput) =>
     request<QueueConfig>(`/queues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  listQueueSessions: (id: string) => request<QueueSession[]>(`/queues/${id}/sessions`),
+  replaceQueueSessions: (id: string, data: QueueSession[]) =>
+    request<QueueSession[]>(`/queues/${id}/sessions`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listQueueCategories: (id: string) => request<QueueCategory[]>(`/queues/${id}/categories`),
   replaceQueueCategories: (id: string, data: QueueCategory[]) =>
     request<QueueCategory[]>(`/queues/${id}/categories`, {

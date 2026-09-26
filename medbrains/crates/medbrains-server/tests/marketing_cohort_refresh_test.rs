@@ -14,7 +14,7 @@ async fn an_enquiry_cohort_counts_the_people_it_matched() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -74,7 +74,7 @@ async fn re_running_a_cohort_drops_members_who_no_longer_match() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -163,7 +163,7 @@ async fn a_clinical_cohort_cannot_be_refreshed_from_the_marketing_side() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -213,7 +213,7 @@ async fn a_cohort_can_ask_for_cold_unconverted_enquiries_from_one_ward() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

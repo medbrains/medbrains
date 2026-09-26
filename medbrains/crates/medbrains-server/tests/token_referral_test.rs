@@ -11,16 +11,26 @@ use uuid::Uuid;
 
 /// Two active departments from the seed, to act as the referring room and the
 /// room being referred to.
+/// Two departments of this test's own, in the admin's tenant. Shared seeded
+/// departments can carry a queue another test configured (paused, with hours,
+/// with its own prefix), which changes what a referral does.
 async fn two_departments(app: &common::TestApp) -> (Uuid, Uuid) {
-    let rows: Vec<(Uuid,)> = sqlx::query_as("SELECT id FROM departments WHERE is_active LIMIT 2")
-        .fetch_all(&app.db)
+    let mut ids = Vec::with_capacity(2);
+    for _ in 0..2 {
+        let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO departments (tenant_id, code, name, department_type) \
+             SELECT tenant_id, $1, $2, 'clinical' FROM users WHERE username = 'admin' \
+             RETURNING id",
+        )
+        .bind(format!("RF{suffix}"))
+        .bind(format!("Referral room {suffix}"))
+        .fetch_one(&app.db)
         .await
-        .expect("seeded departments");
-    assert!(
-        rows.len() >= 2,
-        "seed should provide at least two departments"
-    );
-    (rows[0].0, rows[1].0)
+        .expect("department");
+        ids.push(id);
+    }
+    (ids[0], ids[1])
 }
 
 async fn issue(app: &common::TestApp, csrf: &str, body: serde_json::Value) -> serde_json::Value {
@@ -53,6 +63,22 @@ async fn row(app: &common::TestApp, id: Uuid) -> (String, i32, Option<String>) {
         .fetch_one(&app.db)
         .await
         .expect("token row")
+}
+
+/// Call, then complete — as a desk does. A waiting token cannot be completed
+/// (P0 transition guard), and a refused step must fail the test, not pass
+/// silently.
+async fn complete(
+    app: &common::TestApp,
+    csrf: &str,
+    token: &serde_json::Value,
+) -> reqwest::Response {
+    let id = id_of(token);
+    let called = post(app, csrf, &format!("/api/tokens/{id}/call")).await;
+    assert_eq!(called.status(), StatusCode::OK, "call before completing");
+    let done = post(app, csrf, &format!("/api/tokens/{id}/complete")).await;
+    assert_eq!(done.status(), StatusCode::OK, "complete");
+    done
 }
 
 fn id_of(token: &serde_json::Value) -> Uuid {
@@ -101,12 +127,7 @@ async fn completing_a_referred_token_returns_the_patient_to_the_referring_room()
     )
     .await;
 
-    let done = post(
-        &app,
-        &csrf,
-        &format!("/api/tokens/{}/complete", id_of(&lab)),
-    )
-    .await;
+    let done = complete(&app, &csrf, &lab).await;
     assert_eq!(done.status(), StatusCode::OK);
 
     let (status, seq, label) = row(&app, id_of(&consult)).await;
@@ -162,12 +183,7 @@ async fn a_second_referral_reuses_the_same_token() {
             }),
         )
         .await;
-        post(
-            &app,
-            &csrf,
-            &format!("/api/tokens/{}/complete", id_of(&sent)),
-        )
-        .await;
+        complete(&app, &csrf, &sent).await;
     }
 
     let count: (i64,) = sqlx::query_as(
@@ -206,12 +222,7 @@ async fn a_referral_without_an_existing_token_creates_one() {
         }),
     )
     .await;
-    post(
-        &app,
-        &csrf,
-        &format!("/api/tokens/{}/complete", id_of(&sent)),
-    )
-    .await;
+    complete(&app, &csrf, &sent).await;
 
     let found: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM tokens WHERE patient_id = $1 AND module = 'opd' AND status = 'waiting'",
@@ -302,12 +313,7 @@ async fn completing_an_unreferred_token_changes_nothing_else() {
             }),
         )
         .await;
-        post(
-            &app,
-            &csrf,
-            &format!("/api/tokens/{}/complete", id_of(&token)),
-        )
-        .await;
+        complete(&app, &csrf, &token).await;
 
         let mine: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tokens WHERE patient_id = $1")
             .bind(patient)

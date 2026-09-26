@@ -16,7 +16,7 @@ use uuid::Uuid;
 /// test counting and calling other tests' tokens. Position and call order can
 /// only be asserted in a queue nobody else is writing to.
 async fn a_department(app: &common::TestApp) -> Uuid {
-    let tenant: (Uuid,) = sqlx::query_as("SELECT id FROM tenants LIMIT 1")
+    let tenant: (Uuid,) = sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

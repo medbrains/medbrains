@@ -9,6 +9,8 @@ use medbrains_server_core::error::AppError;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::sessions::{self, Admission};
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct QueueConfig {
     pub id: Uuid,
@@ -26,14 +28,16 @@ pub struct QueueConfig {
     pub valid_from: Option<NaiveDate>,
     pub valid_until: Option<NaiveDate>,
     pub status: String,
+    /// How long before a session opens its tokens are given out.
+    pub early_issue_minutes: i16,
 }
 
 impl QueueConfig {
     /// The number printed on the slip for the `seq`-th token of the period.
-    pub fn number(&self, seq: i32) -> String {
+    pub fn number(&self, prefix: &str, seq: i32) -> String {
         let n = seq + self.start_at - 1;
         let width = usize::try_from(self.pad_width).unwrap_or(3);
-        format!("{}-{n:0width$}", self.prefix)
+        format!("{prefix}-{n:0width$}")
     }
 
     /// Why this queue takes no tokens today, in the desk's words — before
@@ -62,7 +66,11 @@ impl QueueConfig {
     pub fn full_reason(&self, issued: i64) -> Option<String> {
         let max = self.max_tokens_per_period?;
         (issued >= i64::from(max)).then(|| {
-            let period = if self.reset_rule == "daily" { " for today" } else { "" };
+            let period = match self.reset_rule.as_str() {
+                "daily" => " for today",
+                "session" => " for this session",
+                _ => "",
+            };
             format!("{} is full{period} — {issued} of {max}", self.name)
         })
     }
@@ -77,7 +85,8 @@ pub async fn live_queue(
     Ok(sqlx::query_as!(
         QueueConfig,
         "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
-                reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status \
+                reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
+                early_issue_minutes \
            FROM queues \
           WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
             AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
@@ -90,43 +99,59 @@ pub async fn live_queue(
     .await?)
 }
 
-/// Why this queue cannot take another token right now, if it cannot.
-pub async fn refusal(
+/// Admit a token to this queue now — its numbering period and prefix — or
+/// say, in the desk's words, why the queue cannot take one: paused, outside
+/// its dates or hours, or full for the period.
+pub async fn admit(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
     queue: &QueueConfig,
-) -> Result<Option<String>, AppError> {
-    // The database's date, the same one `token_date` is stamped with; the app
-    // server's clock can sit on the other side of midnight.
-    let today = sqlx::query_scalar!(r#"SELECT CURRENT_DATE AS "today!""#)
-        .fetch_one(&mut **tx)
-        .await?;
-    if let Some(reason) = queue.closed_reason(today) {
-        return Ok(Some(reason));
+) -> Result<Result<Admission, String>, AppError> {
+    // The hospital's clock: the app server's, and the database's UTC date, can
+    // sit on the other side of the hospital's midnight.
+    let clock = sessions::local_clock(tx, tenant_id).await?;
+    if let Some(reason) = queue.closed_reason(clock.date) {
+        return Ok(Err(reason));
     }
-    if queue.max_tokens_per_period.is_none() {
-        return Ok(None);
+    let hours = sessions::read_sessions(tx, queue.id).await?;
+    let admission = match sessions::admit(queue, &hours, clock) {
+        Ok(admission) => admission,
+        Err(reason) => return Ok(Err(reason)),
+    };
+    if queue.max_tokens_per_period.is_some() {
+        let issued = issued_in(tx, queue.id, &admission.period_key).await?;
+        if let Some(reason) = queue.full_reason(issued) {
+            return Ok(Err(reason));
+        }
     }
-    let issued = sqlx::query_scalar!(
-        r#"SELECT COUNT(*) AS "n!" FROM tokens
-            WHERE queue_id = $1 AND ($2 = 'never' OR token_date = CURRENT_DATE)"#,
-        queue.id,
-        queue.reset_rule,
+    Ok(Ok(admission))
+}
+
+async fn issued_in(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    queue_id: Uuid,
+    period_key: &str,
+) -> Result<i64, AppError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "n!" FROM tokens WHERE queue_id = $1 AND period_key = $2"#,
+        queue_id,
+        period_key,
     )
     .fetch_one(&mut **tx)
-    .await?;
-    Ok(queue.full_reason(issued))
+    .await?)
 }
 
 /// The next position in this queue's numbering period.
 pub async fn next_seq(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    queue: &QueueConfig,
+    queue_id: Uuid,
+    period_key: &str,
 ) -> Result<i32, AppError> {
     Ok(sqlx::query_scalar!(
         r#"SELECT COALESCE(MAX(seq), 0) + 1 AS "seq!" FROM tokens
-            WHERE queue_id = $1 AND ($2 = 'never' OR token_date = CURRENT_DATE)"#,
-        queue.id,
-        queue.reset_rule,
+            WHERE queue_id = $1 AND period_key = $2"#,
+        queue_id,
+        period_key,
     )
     .fetch_one(&mut **tx)
     .await?)
@@ -152,13 +177,10 @@ pub async fn offers_category(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::QueueConfig;
-    use chrono::NaiveDate;
-    use uuid::Uuid;
-
-    fn queue() -> QueueConfig {
-        QueueConfig {
+impl QueueConfig {
+    /// A general OPD queue: GEN from 100, 60 a day, tokens an hour early.
+    pub(crate) fn for_tests() -> Self {
+        Self {
             id: Uuid::nil(),
             name: "General OPD".to_owned(),
             module: "opd".to_owned(),
@@ -174,8 +196,15 @@ mod tests {
             valid_from: None,
             valid_until: None,
             status: "active".to_owned(),
+            early_issue_minutes: 60,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::QueueConfig;
+    use chrono::NaiveDate;
 
     fn day(d: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 9, d).unwrap_or_default()
@@ -183,25 +212,25 @@ mod tests {
 
     #[test]
     fn numbering_starts_where_the_admin_said() {
-        assert_eq!(queue().number(1), "GEN-100");
-        let mut short = queue();
+        assert_eq!(QueueConfig::for_tests().number("GEN", 1), "GEN-100");
+        let mut short = QueueConfig::for_tests();
         short.start_at = 1;
         short.pad_width = 4;
-        assert_eq!(short.number(7), "GEN-0007");
+        assert_eq!(short.number("GEN", 7), "GEN-0007");
     }
 
     #[test]
     fn a_full_queue_says_how_full() {
-        assert_eq!(queue().full_reason(59), None);
+        assert_eq!(QueueConfig::for_tests().full_reason(59), None);
         assert_eq!(
-            queue().full_reason(60).as_deref(),
+            QueueConfig::for_tests().full_reason(60).as_deref(),
             Some("General OPD is full for today — 60 of 60")
         );
     }
 
     #[test]
     fn a_camp_queue_runs_only_on_its_days() {
-        let mut camp = queue();
+        let mut camp = QueueConfig::for_tests();
         camp.name = "Village camp".to_owned();
         camp.lifecycle = "temporary".to_owned();
         camp.valid_from = Some(day(27));
@@ -215,7 +244,7 @@ mod tests {
 
     #[test]
     fn a_paused_queue_takes_nobody() {
-        let mut paused = queue();
+        let mut paused = QueueConfig::for_tests();
         paused.status = "paused".to_owned();
         assert!(paused.closed_reason(day(26)).is_some());
     }

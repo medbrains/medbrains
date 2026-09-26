@@ -46,7 +46,7 @@ async fn a_department(app: &common::TestApp, tenant: Uuid) -> Uuid {
 /// QR can be minted at all, so the desk is the only path a patient can actually
 /// reach today, and the only one worth pinning.
 async fn a_token_and_its_link(app: &common::TestApp, csrf: &str) -> Booking {
-    let tenant: (Uuid,) = sqlx::query_as("SELECT id FROM tenants LIMIT 1")
+    let tenant: (Uuid,) = sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

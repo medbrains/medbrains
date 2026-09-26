@@ -24,7 +24,7 @@ async fn a_clinical_cohort_carries_identities_and_no_reason() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

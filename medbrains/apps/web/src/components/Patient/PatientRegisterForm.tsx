@@ -1981,7 +1981,14 @@ export function PatientRegisterForm({
           </FormSection>
         )}
 
-        {activeStep === 4 && <ReviewSummary values={watch()} dobEstimated={dobEstimated} />}
+        {activeStep === 4 && (
+          <ReviewSummary
+            values={watch()}
+            dobEstimated={dobEstimated}
+            departmentName={optionLabel(departmentOptions, watch("department_id"))}
+            consultantName={optionLabel(consultantOptions, watch("consultant_id"))}
+          />
+        )}
       </ClinicalForm>
 
       <Box
@@ -2023,9 +2030,17 @@ export function PatientRegisterForm({
 interface ReviewSummaryProps {
   values: PatientRegistrationFormInput;
   dobEstimated: boolean;
+  /** Names, not ids: the desk reads this aloud to the patient. */
+  departmentName?: string;
+  consultantName?: string;
 }
 
-function ReviewSummary({ values, dobEstimated }: ReviewSummaryProps) {
+function ReviewSummary({
+  values,
+  dobEstimated,
+  departmentName,
+  consultantName,
+}: ReviewSummaryProps) {
   const { t } = useTranslation("patients");
   const name = values.is_unknown_patient
     ? t("registrationForm.summary.unknownPatient")
@@ -2073,8 +2088,8 @@ function ReviewSummary({ values, dobEstimated }: ReviewSummaryProps) {
       <FormRow label={t("registrationForm.summary.clinical")}>
         <Text size="sm">
           {t("registrationForm.summary.clinicalLine", {
-            consultant: values.consultant_id ?? t("common.dash"),
-            department: values.department_id ?? t("common.dash"),
+            consultant: consultantName ?? t("common.dash"),
+            department: departmentName ?? t("common.dash"),
           })}
           {values.create_opd_visit ? t("registrationForm.summary.queuedToOpd") : ""}
         </Text>

@@ -83,7 +83,7 @@ async fn approved_run(
 async fn a_run_records_who_it_reached_and_why_it_skipped_the_rest() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -140,7 +140,7 @@ async fn a_run_records_who_it_reached_and_why_it_skipped_the_rest() {
 async fn a_dispatched_run_queues_through_the_existing_outbox() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -183,7 +183,7 @@ async fn a_dispatched_run_queues_through_the_existing_outbox() {
 async fn a_run_cannot_be_dispatched_twice() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -220,7 +220,7 @@ async fn a_run_cannot_be_dispatched_twice() {
 async fn an_empty_cohort_is_refused_rather_than_sent_to_nobody() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -268,7 +268,7 @@ async fn message_in_state(db: &sqlx::PgPool, tenant_id: Uuid, state: &str) -> Uu
 async fn a_delivery_receipt_records_what_the_provider_reported() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -323,7 +323,7 @@ async fn a_delivery_receipt_records_what_the_provider_reported() {
 async fn a_late_receipt_does_not_overwrite_a_terminal_state() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

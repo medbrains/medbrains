@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT label, days AS \"days!\", opens, closes, prefix\n             FROM queue_sessions WHERE queue_id = $1 ORDER BY opens",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "days!",
+        "type_info": "Int2Array"
+      },
+      {
+        "ordinal": 2,
+        "name": "opens",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 3,
+        "name": "closes",
+        "type_info": "Time"
+      },
+      {
+        "ordinal": 4,
+        "name": "prefix",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d6a2541f4ea426df3a9a35868e0d02de2cbdab2f0f57b9e01013fb3f1d8e6536"
+}

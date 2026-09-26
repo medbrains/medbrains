@@ -51,6 +51,11 @@ export class RegistrationDesk {
     if (patient.whatsappConsent) await page.getByTestId("switch-whatsapp_opt_in").check();
     for (let step = 0; step < 3; step += 1) await this.next();
 
+    // The review is read back to the patient: names, never record ids.
+    const review = page.getByText(/Dept .* · consultant/);
+    await expect(review).toContainText(patient.department);
+    await expect(review).not.toContainText(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+
     const register = page.getByTestId("btn-register");
     await expectUsable(register, "Register");
     await register.click();

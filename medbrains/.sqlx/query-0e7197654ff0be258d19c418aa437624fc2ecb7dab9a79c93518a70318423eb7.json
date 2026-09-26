@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
+  "query": "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, valid_until = $11, status = $12, early_issue_minutes = $13 WHERE id = $1 AND tenant_id = $2 RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes",
   "describe": {
     "columns": [
       {
@@ -77,14 +77,28 @@
         "ordinal": 14,
         "name": "status",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "early_issue_minutes",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
+        "Uuid",
         "Text",
         "Text",
-        "Uuid"
+        "Int4",
+        "Int2",
+        "Text",
+        "Int4",
+        "Text",
+        "Date",
+        "Date",
+        "Text",
+        "Int2"
       ]
     },
     "nullable": [
@@ -102,8 +116,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "fedc5137863730ddf4c0a0f8b85f2901c3fd41c19480b6f620332dcbdcbc802d"
+  "hash": "0e7197654ff0be258d19c418aa437624fc2ecb7dab9a79c93518a70318423eb7"
 }

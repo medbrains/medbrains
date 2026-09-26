@@ -45,6 +45,7 @@ interface RegisterPatientMutationResult {
   patient: Patient;
   encounterId?: string;
   tokenNumber?: string | null;
+  tokenRefused?: string | null;
   queueWarning?: string;
   linkedServices?: PatientRegistrationLinkedServicesOptions;
   campId?: string;
@@ -235,6 +236,7 @@ export function PatientRegisterPageInner() {
           encounterId: result.encounter.id,
           // The number the board calls, not the OPD queue's own counter.
           tokenNumber: result.token_number,
+          tokenRefused: result.token_refused,
           linkedServices,
         };
       } catch (error) {
@@ -251,6 +253,7 @@ export function PatientRegisterPageInner() {
         patient,
         queueWarning,
         tokenNumber,
+        tokenRefused,
         encounterId,
         linkedServices,
         campId,
@@ -271,23 +274,36 @@ export function PatientRegisterPageInner() {
           patient_id: patient.id,
         });
       }
-      notifications.show({
-        title: queueWarning
-          ? t("notify.patientRegisteredOpdQueuePending")
-          : t("notify.patientRegistered"),
-        message: queueWarning
-          ? t("notify.patientRegisteredQueueWarning", {
-              queueWarning,
-              uhid: patient.uhid,
-            })
-          : tokenNumber
-            ? t("notify.patientRegisteredWithToken", {
-                token: tokenNumber,
+      // The visit exists but the queue gave no number (outside its hours,
+      // paused, full): say why, so the desk can tell the patient when to return.
+      if (tokenRefused) {
+        notifications.show({
+          title: t("notify.patientRegisteredNoToken"),
+          message: t("notify.patientRegisteredTokenRefused", {
+            uhid: patient.uhid,
+            reason: tokenRefused,
+          }),
+          color: "warning",
+        });
+      } else {
+        notifications.show({
+          title: queueWarning
+            ? t("notify.patientRegisteredOpdQueuePending")
+            : t("notify.patientRegistered"),
+          message: queueWarning
+            ? t("notify.patientRegisteredQueueWarning", {
+                queueWarning,
                 uhid: patient.uhid,
               })
-            : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
-        color: queueWarning ? "warning" : "success",
-      });
+            : tokenNumber
+              ? t("notify.patientRegisteredWithToken", {
+                  token: tokenNumber,
+                  uhid: patient.uhid,
+                })
+              : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
+          color: queueWarning ? "warning" : "success",
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       if (encounterId) {
         void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });

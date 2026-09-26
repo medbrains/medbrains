@@ -31,7 +31,7 @@ async fn discharge_summary_report_counts_missing_summaries() {
         .expect("a seeded department")
         .to_owned();
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

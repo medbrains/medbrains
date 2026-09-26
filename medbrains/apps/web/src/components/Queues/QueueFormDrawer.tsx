@@ -51,6 +51,7 @@ function defaults(queue: QueueConfig | null): QueueFormInput {
     lifecycle: queue?.lifecycle ?? "permanent",
     valid_from: toDate(queue?.valid_from ?? null),
     valid_until: toDate(queue?.valid_until ?? null),
+    early_issue_minutes: queue?.early_issue_minutes ?? 60,
   };
 }
 
@@ -67,11 +68,12 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
     values: defaults(queue),
   });
   const { control, register, watch, handleSubmit, formState } = form;
-  const [prefix, startAt, padWidth, lifecycle] = watch([
+  const [prefix, startAt, padWidth, lifecycle, resetRule] = watch([
     "prefix",
     "start_at",
     "pad_width",
     "lifecycle",
+    "reset_rule",
   ]);
 
   const save = useMutation({
@@ -91,6 +93,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
         valid_from: values.lifecycle === "temporary" ? toIso(values.valid_from) : null,
         valid_until: values.lifecycle === "temporary" ? toIso(values.valid_until) : null,
         status: queue?.status ?? "active",
+        early_issue_minutes: values.early_issue_minutes,
       };
       return queue ? api.updateQueue(queue.id, input) : api.createQueue(input);
     },
@@ -201,9 +204,15 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
                   onChange={field.onChange}
                   data={[
                     { value: "daily", label: "Every day" },
+                    { value: "session", label: "Every session" },
                     { value: "never", label: "Never" },
                   ]}
                 />
+                {field.value === "session" && (
+                  <Text size="xs" c="dimmed">
+                    Each session needs its own prefix, like M and E — set them under Hours.
+                  </Text>
+                )}
               </Stack>
             )}
           />
@@ -212,7 +221,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
             name="max_tokens_per_period"
             render={({ field }) => (
               <NumberField
-                label="Most tokens a day"
+                label={resetRule === "session" ? "Most tokens a session" : "Most tokens a day"}
                 description="Leave empty for no limit"
                 min={1}
                 value={field.value ?? ""}
@@ -239,6 +248,23 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
                   ]}
                 />
               </Stack>
+            )}
+          />
+          <Controller
+            control={control}
+            name="early_issue_minutes"
+            render={({ field }) => (
+              <NumberField
+                label="Start giving tokens before a session opens"
+                description="Minutes. Patients who line up early are served in the order they came."
+                min={0}
+                max={240}
+                step={15}
+                value={field.value}
+                onChange={(v) => field.onChange(Number(v) || 0)}
+                error={errors.early_issue_minutes?.message}
+                data-testid="field-early_issue_minutes"
+              />
             )}
           />
           {lifecycle === "temporary" && (

@@ -3,7 +3,7 @@ mod common;
 use uuid::Uuid;
 
 async fn seeded_tenant(db: &sqlx::PgPool) -> Uuid {
-    sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(db)
         .await
         .expect("a seeded tenant")

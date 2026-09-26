@@ -8,6 +8,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { QUEUE_MODULES, QueueFormDrawer } from "@/components/Queues/QueueFormDrawer";
+import { QueueHoursDrawer } from "@/components/Queues/QueueHoursDrawer";
 import { QueueLanesDrawer } from "@/components/Queues/QueueLanesDrawer";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -15,6 +16,11 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 const STATUS_TONE = { active: "success", paused: "warning", closed: "neutral" } as const;
 const moduleLabel = (value: string) => QUEUE_MODULES.find((m) => m.value === value)?.label ?? value;
 const STATUS_LABEL = { active: "Active", paused: "Paused", closed: "Closed" } as const;
+const RESTARTS = {
+  daily: "restarts daily",
+  session: "restarts each session",
+  never: "never restarts",
+} as const;
 const day = (iso: string | null) =>
   iso
     ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-IN", {
@@ -23,6 +29,11 @@ const day = (iso: string | null) =>
         year: "numeric",
       })
     : "";
+/** "General OPD has closed for today" under General OPD reads "Closed for today". */
+const withoutName = (row: QueueRow) => {
+  const rest = (row.closed_reason ?? "").replace(`${row.name} `, "").replace(/^(is|has) /, "");
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+};
 const runs = (row: QueueRow) =>
   row.lifecycle === "permanent" ? "Every day" : `${day(row.valid_from)} – ${day(row.valid_until)}`;
 
@@ -34,6 +45,7 @@ export function QueuesPage() {
   const [editing, setEditing] = useState<QueueRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [lanesOf, setLanesOf] = useState<QueueRow | null>(null);
+  const [hoursOf, setHoursOf] = useState<QueueRow | null>(null);
   const queues = useQuery({ queryKey: ["queues"], queryFn: () => api.listQueues() });
 
   const setStatus = useMutation({
@@ -53,6 +65,12 @@ export function QueuesPage() {
         <Stack gap={4} align="flex-start">
           <strong>{row.name}</strong>
           <Badge tone={STATUS_TONE[row.status]}>{STATUS_LABEL[row.status]}</Badge>
+          {/* Paused and closed already say so; this is for hours and dates. */}
+          {row.status === "active" && row.closed_reason && (
+            <Text size="xs" c="dimmed" data-testid={`queue-closed-reason-${row.id}`}>
+              {withoutName(row)}
+            </Text>
+          )}
         </Stack>
       ),
     },
@@ -65,9 +83,7 @@ export function QueuesPage() {
       key: "numbering",
       label: "Numbering",
       render: (row) =>
-        `${previewQueueNumber(row.prefix, row.start_at, row.pad_width)} · ${
-          row.reset_rule === "daily" ? "restarts daily" : "never restarts"
-        }`,
+        `${previewQueueNumber(row.prefix, row.start_at, row.pad_width)} · ${RESTARTS[row.reset_rule]}`,
     },
     {
       key: "today",
@@ -86,6 +102,14 @@ export function QueuesPage() {
           <Group gap={6} wrap="nowrap">
             <Button size="xs" tone="secondary" onClick={() => setEditing(row)}>
               Edit
+            </Button>
+            <Button
+              size="xs"
+              tone="secondary"
+              onClick={() => setHoursOf(row)}
+              data-testid="btn-queue-hours"
+            >
+              Hours
             </Button>
             <Button size="xs" tone="secondary" onClick={() => setLanesOf(row)}>
               Lanes
@@ -136,6 +160,7 @@ export function QueuesPage() {
           data={queues.data ?? []}
           loading={queues.isLoading}
           rowKey={(row) => row.id}
+          rowTestId={(row) => `row-queue-${row.id}`}
           emptyTitle="No queues set up yet"
           emptyDescription="Every place uses the standard numbering (T-001, P-001…) until you set up a queue for it."
         />
@@ -146,6 +171,7 @@ export function QueuesPage() {
         </Text>
       )}
       <QueueLanesDrawer queue={lanesOf} onClose={() => setLanesOf(null)} />
+      <QueueHoursDrawer queue={hoursOf} onClose={() => setHoursOf(null)} />
       <QueueFormDrawer
         opened={creating || editing !== null}
         queue={editing}

@@ -15,11 +15,16 @@ export const queueFormSchema = z
       .regex(/^[A-Za-z0-9]{1,6}$/, "1 to 6 letters or digits, like GEN or C1"),
     start_at: z.number().int().min(0, "Starts at 0 or more"),
     pad_width: z.number().int().min(1).max(6),
-    reset_rule: z.enum(["daily", "never"]),
+    reset_rule: z.enum(["daily", "session", "never"]),
     max_tokens_per_period: z.number().int().min(1, "At least 1").nullable(),
     lifecycle: z.enum(["permanent", "temporary"]),
     valid_from: z.date().nullable(),
     valid_until: z.date().nullable(),
+    early_issue_minutes: z
+      .number()
+      .int()
+      .min(0, "0 or more")
+      .max(240, "At most 4 hours before a session opens"),
   })
   .superRefine((value, ctx) => {
     if (value.lifecycle === "temporary" && (!value.valid_from || !value.valid_until)) {

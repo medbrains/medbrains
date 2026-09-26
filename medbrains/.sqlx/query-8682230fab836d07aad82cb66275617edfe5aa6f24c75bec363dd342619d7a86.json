@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT q.id, q.name, q.module, q.scope, q.scope_id, q.scope_label, q.prefix,\n                  q.start_at, q.pad_width, q.reset_rule, q.max_tokens_per_period, q.lifecycle,\n                  q.valid_from, q.valid_until, q.status,\n                  (SELECT COUNT(*) FROM tokens t\n                    WHERE t.queue_id = q.id\n                      AND (q.reset_rule = 'never' OR t.token_date = CURRENT_DATE)) AS \"issued!\"\n             FROM queues q\n            WHERE q.tenant_id = $1\n            ORDER BY (q.status = 'closed'), q.name",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
   "describe": {
     "columns": [
       {
@@ -80,8 +80,8 @@
       },
       {
         "ordinal": 15,
-        "name": "issued!",
-        "type_info": "Int8"
+        "name": "early_issue_minutes",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
@@ -105,8 +105,8 @@
       true,
       true,
       false,
-      null
+      false
     ]
   },
-  "hash": "56227ff08c8d0659ad81a71ad6405d726d63f0b51092070c95e0536bfda00f19"
+  "hash": "8682230fab836d07aad82cb66275617edfe5aa6f24c75bec363dd342619d7a86"
 }

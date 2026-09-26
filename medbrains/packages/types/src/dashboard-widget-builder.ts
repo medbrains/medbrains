@@ -941,6 +941,8 @@ export interface CreateEncounterResponse {
   queue: OpdQueue;
   /** The number on the board and in the SMS; null when no token was issued. */
   token_number: string | null;
+  /** Why the queue gave no token, e.g. "General OPD is closed — tokens from 15:00". */
+  token_refused: string | null;
 }
 
 export interface UpdateEncounterRequest {

@@ -9,17 +9,36 @@ export interface QueueConfig {
   prefix: string;
   start_at: number;
   pad_width: number;
-  reset_rule: "daily" | "never";
+  reset_rule: "daily" | "session" | "never";
   max_tokens_per_period: number | null;
   lifecycle: "permanent" | "temporary";
   valid_from: string | null;
   valid_until: string | null;
   status: "active" | "paused" | "closed";
+  /** How long before a session opens its tokens are given out. */
+  early_issue_minutes: number;
 }
 
 /** A queue as Admin → Queues lists it, with tokens issued this period. */
 export interface QueueRow extends QueueConfig {
   issued: number;
+  /** Why the queue takes no token right now, e.g. "closed — tokens from 15:00". */
+  closed_reason: string | null;
+}
+
+/**
+ * When a queue gives out tokens. A queue with no sessions gives them out all
+ * day; sessions govern issuing only, never the patients already waiting.
+ */
+export interface QueueSession {
+  label: string;
+  /** ISO weekdays, 1 = Monday .. 7 = Sunday; empty means every day. */
+  days: number[];
+  /** "HH:MM:SS", the hospital's local time. */
+  opens: string;
+  closes: string;
+  /** Replaces the queue's prefix during this session. */
+  prefix: string | null;
 }
 
 /** A department, room, counter or station a queue can serve. */

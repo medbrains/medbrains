@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COUNT(*) AS \"n!\" FROM tokens\n            WHERE queue_id = $1 AND ($2 = 'never' OR token_date = CURRENT_DATE)",
+  "query": "SELECT COUNT(*) AS \"n!\" FROM tokens WHERE queue_id = $1 AND period_key = $2",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "fc4554ec54ed0349fae19ee8c873589a0fdf22711b34c480278f028fa50e92fa"
+  "hash": "31766cbbb141f9b0876eeda7650a86c762f286b3c0e3de6e83ae9cc1f8bc02fe"
 }

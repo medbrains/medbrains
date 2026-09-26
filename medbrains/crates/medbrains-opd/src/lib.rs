@@ -142,6 +142,9 @@ pub struct CreateEncounterResponse {
     /// called "R-012"; this is the number to tell them. `None` when no token
     /// was issued (tokens off, or the queue paused or full).
     pub token_number: Option<String>,
+    /// Why the queue gave no token — "General OPD is closed — tokens from
+    /// 15:00" — so the desk can tell the patient when to come back.
+    pub token_refused: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1074,7 +1077,7 @@ pub async fn create_encounter(
     let visit_id = medbrains_tokens::current_visit(&mut tx, encounter.patient_id)
         .await?
         .or_else(|| Some(Uuid::new_v4()));
-    let token_number = medbrains_tokens::issue_token_in_tx(
+    let issued = medbrains_tokens::issue_token_or_reason_in_tx(
         &mut tx,
         claims.tenant_id,
         medbrains_tokens::IssueToken {
@@ -1092,6 +1095,10 @@ pub async fn create_encounter(
         },
     )
     .await?;
+    let (token_number, token_refused) = match issued {
+        Ok(number) => (number, None),
+        Err(reason) => (None, Some(reason)),
+    };
 
     tx.commit().await?;
 
@@ -1181,7 +1188,12 @@ pub async fn create_encounter(
     )
     .await;
 
-    Ok(Json(CreateEncounterResponse { encounter, queue, token_number }))
+    Ok(Json(CreateEncounterResponse {
+        encounter,
+        queue,
+        token_number,
+        token_refused,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════

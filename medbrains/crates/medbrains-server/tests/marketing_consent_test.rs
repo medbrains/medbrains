@@ -13,7 +13,7 @@ async fn a_withdrawal_is_a_new_row_and_the_grant_survives_it() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -84,7 +84,7 @@ async fn a_suppression_survives_the_contact_being_deleted_and_recreated() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

@@ -15,7 +15,7 @@ async fn calling_in_opd_advances_the_token_the_boards_read() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

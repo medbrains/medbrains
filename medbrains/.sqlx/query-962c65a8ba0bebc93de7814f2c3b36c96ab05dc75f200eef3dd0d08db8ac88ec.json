@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT COALESCE(MAX(seq), 0) + 1 AS \"seq!\" FROM tokens\n            WHERE queue_id = $1 AND ($2 = 'never' OR token_date = CURRENT_DATE)",
+  "query": "SELECT COALESCE(MAX(seq), 0) + 1 AS \"seq!\" FROM tokens\n            WHERE queue_id = $1 AND period_key = $2",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "e8348d87680f5638d5b6332dbe8f9441128ae397584ead9aac013b11c622030d"
+  "hash": "962c65a8ba0bebc93de7814f2c3b36c96ab05dc75f200eef3dd0d08db8ac88ec"
 }

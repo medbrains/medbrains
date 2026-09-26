@@ -194,7 +194,7 @@ async fn a_missed_call_is_a_channel_and_calling_twice_is_still_one() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
@@ -271,7 +271,7 @@ async fn an_outbound_call_is_not_an_acquisition_channel() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");

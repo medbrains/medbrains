@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
   "describe": {
     "columns": [
       {
@@ -77,24 +77,17 @@
         "ordinal": 14,
         "name": "status",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "early_issue_minutes",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
         "Text",
-        "Text",
-        "Text",
-        "Uuid",
-        "Text",
-        "Text",
-        "Int4",
-        "Int2",
-        "Text",
-        "Int4",
-        "Text",
-        "Date",
-        "Date",
         "Text",
         "Uuid"
       ]
@@ -114,8 +107,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "6bd7c9a8120a09d9be6a2ddf87cb2c24ca4fd2d928b2582c23a5feeec90997ab"
+  "hash": "6b74ec15a890a8bbb828c11d38a666b939a2459f67d71f8e5eba4b7c0cb1cfed"
 }

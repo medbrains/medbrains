@@ -18,10 +18,11 @@ async fn radiology_tat_reports_the_backlog_beside_the_median() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
-        .fetch_one(&app.db)
-        .await
-        .expect("a seeded tenant");
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded tenant");
     let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1")
         .bind(tenant_id)
         .fetch_one(&app.db)
@@ -102,10 +103,18 @@ async fn radiology_tat_reports_the_backlog_beside_the_median() {
         "the report must be wired, not 'not_wired': {report}"
     );
 
+    // This fixture's own month: other tests leave open orders in other months,
+    // and the report sorts the biggest backlog first.
+    let month: String = sqlx::query_scalar(&format!(
+        "SELECT date_trunc('month', {order_day})::date::text"
+    ))
+    .fetch_one(&app.db)
+    .await
+    .expect("fixture month");
     let rows = report["rows"].as_array().expect("rows array");
     let row = rows
         .iter()
-        .find(|row| row["still_pending"].as_i64().unwrap_or(0) > 0)
+        .find(|row| row["month"].as_str() == Some(month.as_str()))
         .unwrap_or_else(|| panic!("this fixture's backlog row should appear: {report}"));
 
     let ordered = row["ordered"].as_i64().expect("ordered count");

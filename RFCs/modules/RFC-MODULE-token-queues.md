@@ -236,6 +236,27 @@ edge tier design already written in `medbrains-edge`.
     only the number — found in the simulator journey: every automatic path
     issued tokens with no name, so the console showed "—" on every row.
 
+22. **Given** OPD tokens are given out 09:00–13:00 and 16:00–19:00, **when**
+    the desk registers a walk-in at 13:30, **then** the patient is registered
+    and the desk is told "General OPD is closed — tokens from 15:00", instead of
+    a UHID with no number and no reason.
+23. **Given** patients line up at 07:30 for a 09:00 OPD, **then** tokens are
+    given out from `early_issue_minutes` (default 60) before opening, in the
+    order people came.
+24. **Given** a queue that restarts its numbers each session, **when** two
+    sessions share a prefix, **then** the hours are refused — leftover morning
+    patients and new evening ones would both hold `M-005`.
+25. **Sessions govern issuing, never serving**: a doctor finishing the morning
+    list after 13:00 is normal, so a session ending touches no waiting token
+    (the nightly rollover still expires yesterday's).
+26. *Not built:* a dated closure (public holiday) — today the admin pauses the
+    queue. *Not built:* an overnight session (night pharmacy 20:00–08:00) —
+    refused with "a session ends on the day it starts".
+27. *Known:* `token_date` is the database's UTC date, so a 24-hour queue's day
+    turns at 05:30 IST. Configured queues number by the hospital's local date
+    (`period_key`); moving every token query to local time is a system-wide
+    change (set the time zone per transaction) and needs its own PR.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -278,6 +299,21 @@ themselves now carry the name, for the desk console.
   now just beneath the modal layer.
 - **P1c — hours & sessions**: opening hours, session reset rule, close
   behaviour at the end of a session.
+  *Built 2026-09-26:* `queue_sessions` (migration 1022: days, opens, closes,
+  optional per-session prefix), `queues.early_issue_minutes`, reset rule
+  `session`, and `tokens.period_key` — the numbering period on the hospital's
+  clock, kept on the token so editing hours mid-day never restarts numbers.
+  No sessions = all day (unchanged). Admin → Queues → **Hours** drawer; the list
+  says "Closed — tokens from 15:00". Registration outside hours now tells the
+  desk why there is no token (`token_refused`). Close behaviour: waiting
+  patients stay (scenario 25); an "expire at session end" option was not
+  built — no hospital asked for it. Tests: 6 unit, 2 server scenarios, the
+  `queue-hours` journey 3/3.
+  *Found while proving it:* the registration review read the department's
+  UUID aloud ("Dept f5546e25-…") — now the name, checked in every journey;
+  `token_referral_test` had failed since P0 (it completed waiting tokens);
+  28 server tests picked `tenants LIMIT 1`, wrong once a second tenant exists;
+  `device_node_key_test` targets the route #4630 moved (not fixed here).
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

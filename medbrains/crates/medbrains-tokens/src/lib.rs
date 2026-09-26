@@ -20,7 +20,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod queue_admin;
+pub mod queue_categories;
 pub mod queues;
+pub mod sessions;
 
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
@@ -274,6 +276,8 @@ async fn carried_over_priority<'a>(
 /// the number on the slip.
 struct Placement {
     queue_id: Option<Uuid>,
+    /// The configured queue's numbering period, on the hospital's clock.
+    period_key: Option<String>,
     seq: i32,
     number: String,
 }
@@ -288,13 +292,19 @@ async fn place_in_queue(
     visit_id: Option<Uuid>,
 ) -> Result<Result<Placement, String>, AppError> {
     if let Some(queue) = queues::live_queue(tx, tenant_id, (module, scope, scope_id)).await? {
-        if let Some(reason) = queues::refusal(tx, &queue).await? {
-            return Ok(Err(reason));
-        }
+        let admission = match queues::admit(tx, tenant_id, &queue).await? {
+            Ok(admission) => admission,
+            Err(reason) => return Ok(Err(reason)),
+        };
         // A configured queue numbers by its own rule; it does not borrow the
         // visit's number, or the prefix the administrator chose would never show.
-        let seq = queues::next_seq(tx, &queue).await?;
-        return Ok(Ok(Placement { queue_id: Some(queue.id), seq, number: queue.number(seq) }));
+        let seq = queues::next_seq(tx, queue.id, &admission.period_key).await?;
+        return Ok(Ok(Placement {
+            queue_id: Some(queue.id),
+            number: queue.number(&admission.prefix, seq),
+            period_key: Some(admission.period_key),
+            seq,
+        }));
     }
     let seq: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
@@ -313,19 +323,44 @@ async fn place_in_queue(
     let number = number_for_visit(tx, visit_id)
         .await?
         .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(module)));
-    Ok(Ok(Placement { queue_id: None, seq, number }))
+    Ok(Ok(Placement {
+        queue_id: None,
+        period_key: None,
+        seq,
+        number,
+    }))
 }
 
-/// Issue a token inside an existing tenant-scoped transaction (auto-issuance
-/// from registration / check-in / order / payment). Silently skips when the
-/// module's tokens are disabled. Returns the token number (or None if skipped).
+/// Issue a token inside an existing tenant-scoped transaction.
+///
+/// Used by auto-issuance from registration, check-in, orders and payment.
+/// Silently skips when the module's tokens are disabled or its queue cannot
+/// take one. Returns the token number (or None if skipped).
 pub async fn issue_token_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     input: IssueToken<'_>,
 ) -> Result<Option<String>, AppError> {
+    Ok(issue_token_or_reason_in_tx(tx, tenant_id, input)
+        .await?
+        .unwrap_or_else(|reason| {
+            tracing::info!(reason, "token not issued");
+            None
+        }))
+}
+
+/// As [`issue_token_in_tx`], but says why a queue took no token.
+///
+/// A queue that is paused, full or outside its hours returns its reason, so a
+/// desk can tell the patient when to come back instead of sending them off
+/// with no number and no reason. `Ok(None)`: the module's tokens are off.
+pub async fn issue_token_or_reason_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    input: IssueToken<'_>,
+) -> Result<Result<Option<String>, String>, AppError> {
     if !module_tokens_enabled(tx, tenant_id, input.module).await? {
-        return Ok(None);
+        return Ok(Ok(None));
     }
     // Serialise concurrent check-ins for the same queue+day so two callers can't
     // read the same MAX(seq) and mint duplicate token numbers. Transaction-scoped
@@ -344,8 +379,8 @@ pub async fn issue_token_in_tx(
 
     // A configured queue that is paused, full, or outside its dates takes no
     // token. This path runs inside registration, check-in and orders, which
-    // must not fail because the queue is closed: the token is skipped exactly
-    // as for a disabled module, and the caller reports "queue pending".
+    // must not fail because the queue is closed: the visit is still recorded,
+    // and the caller is told why there is no token.
     let place = match place_in_queue(
         tx,
         tenant_id,
@@ -355,10 +390,7 @@ pub async fn issue_token_in_tx(
     .await?
     {
         Ok(place) => place,
-        Err(reason) => {
-            tracing::info!(reason, "token not issued");
-            return Ok(None);
-        }
+        Err(reason) => return Ok(Err(reason)),
     };
     let (seq, number) = (place.seq, place.number);
 
@@ -368,8 +400,7 @@ pub async fn issue_token_in_tx(
     // the system knew which department it belonged to and could not say the
     // name aloud, and the board announced a number to a room it could not
     // name. Resolve it here, where every path goes through.
-    let scope_label =
-        resolve_scope(tx, input.scope, input.scope_id, input.scope_label).await?;
+    let scope_label = resolve_scope(tx, input.scope, input.scope_id, input.scope_label).await?;
 
     // Name the patient, for the same reason: every automatic path passed
     // `patient_name: None`, so the desk console showed "—" on every row and a
@@ -378,14 +409,20 @@ pub async fn issue_token_in_tx(
     // number-only), and the public socket does not carry it.
     let patient_name = patient_name_of(tx, input.patient_name, input.patient_id).await?;
 
-    let priority =
-        carried_over_priority(tx, tenant_id, input.module, input.patient_id, input.priority)
-            .await?;
+    let priority = carried_over_priority(
+        tx,
+        tenant_id,
+        input.module,
+        input.patient_id,
+        input.priority,
+    )
+    .await?;
     sqlx::query(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
-          patient_id, patient_name, entity_type, entity_id, issued_by, visit_id, queue_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+          patient_id, patient_name, entity_type, entity_id, issued_by, visit_id, queue_id, \
+          period_key) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
     )
     .bind(tenant_id)
     .bind(input.module)
@@ -402,9 +439,10 @@ pub async fn issue_token_in_tx(
     .bind(input.issued_by)
     .bind(input.visit_id)
     .bind(place.queue_id)
+    .bind(place.period_key.as_deref())
     .execute(&mut **tx)
     .await?;
-    Ok(Some(number))
+    Ok(Ok(Some(number)))
 }
 
 /// The name to put on a token: the one the caller gave, else the patient's own.
@@ -574,9 +612,10 @@ async fn announce_called_in_tx(
     actor: Uuid,
     token: &Token,
 ) -> Result<(), AppError> {
-    let opd_encounter = (token.module == "opd" && token.entity_type.as_deref() == Some("encounter"))
-        .then_some(token.entity_id)
-        .flatten();
+    let opd_encounter = (token.module == "opd"
+        && token.entity_type.as_deref() == Some("encounter"))
+    .then_some(token.entity_id)
+    .flatten();
     let (Some(encounter_id), Some(patient_id)) = (opd_encounter, token.patient_id) else {
         return Ok(());
     };
@@ -702,7 +741,9 @@ pub async fn issue_token(
     if !VALID_TOKEN_PRIORITIES.contains(&priority.as_str())
         && !queues::offers_category(&mut tx, place.queue_id, &priority).await?
     {
-        return Err(AppError::BadRequest(format!("Invalid token priority '{priority}'")));
+        return Err(AppError::BadRequest(format!(
+            "Invalid token priority '{priority}'"
+        )));
     }
     let (seq, number) = (place.seq, place.number.clone());
 
@@ -713,9 +754,9 @@ pub async fn issue_token(
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
           patient_id, patient_name, entity_type, entity_id, issued_by, \
           referred_from_module, referred_from_scope, referred_from_scope_id, visit_id, \
-          queue_id) \
+          queue_id, period_key) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
-                 $18) \
+                 $18, $19) \
          RETURNING {SELECT}"
     ))
     .bind(claims.tenant_id)
@@ -736,6 +777,7 @@ pub async fn issue_token(
     .bind(body.referred_from_scope_id)
     .bind(body.visit_id)
     .bind(place.queue_id)
+    .bind(place.period_key.as_deref())
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1109,8 +1151,14 @@ pub struct CallTokenInput {
     pub counter_label: Option<String>,
 }
 
-const VALID_TOKEN_STATUSES: [&str; 6] =
-    ["waiting", "called", "serving", "completed", "no_show", "cancelled"];
+const VALID_TOKEN_STATUSES: [&str; 6] = [
+    "waiting",
+    "called",
+    "serving",
+    "completed",
+    "no_show",
+    "cancelled",
+];
 
 /// The states a token may move *from* to reach `to`.
 ///
@@ -1267,14 +1315,13 @@ pub async fn escalate_priority(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let module: String = sqlx::query_scalar(
-        "SELECT module FROM tokens WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let module: String =
+        sqlx::query_scalar("SELECT module FROM tokens WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
     require_queue_manage(&claims, &module)?;
 
     // The same weight comparison the board and call-next sort by, so an
@@ -1302,8 +1349,7 @@ pub async fn escalate_priority(
         // or it has been served. Say which — a silent no-op at a desk is how
         // somebody believes they escalated a patient who they did not.
         return Err(AppError::BadRequest(
-            "That token is already at this priority or higher, or is no longer waiting"
-                .to_owned(),
+            "That token is already at this priority or higher, or is no longer waiting".to_owned(),
         ));
     };
 
@@ -1327,7 +1373,14 @@ async fn transition(
     status: &str,
     counter_label: Option<String>,
 ) -> Result<Token, AppError> {
-    transition_from(state, claims, id, (status, allowed_from(status)), counter_label).await
+    transition_from(
+        state,
+        claims,
+        id,
+        (status, allowed_from(status)),
+        counter_label,
+    )
+    .await
 }
 
 /// `transition`, with the states the caller expects the token to be in.
@@ -1452,7 +1505,9 @@ pub async fn call_token(
     Path(id): Path<Uuid>,
     Json(body): Json<CallTokenInput>,
 ) -> Result<Json<Token>, AppError> {
-    Ok(Json(transition(&state, &claims, id, "called", body.counter_label).await?))
+    Ok(Json(
+        transition(&state, &claims, id, "called", body.counter_label).await?,
+    ))
 }
 
 /// POST /api/tokens/{id}/serve
@@ -1461,7 +1516,9 @@ pub async fn serve_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    Ok(Json(transition(&state, &claims, id, "serving", None).await?))
+    Ok(Json(
+        transition(&state, &claims, id, "serving", None).await?,
+    ))
 }
 
 /// POST /api/tokens/{id}/complete
@@ -1470,7 +1527,9 @@ pub async fn complete_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    Ok(Json(transition(&state, &claims, id, "completed", None).await?))
+    Ok(Json(
+        transition(&state, &claims, id, "completed", None).await?,
+    ))
 }
 
 /// POST /api/tokens/{id}/no-show
@@ -1479,7 +1538,9 @@ pub async fn no_show_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    Ok(Json(transition(&state, &claims, id, "no_show", None).await?))
+    Ok(Json(
+        transition(&state, &claims, id, "no_show", None).await?,
+    ))
 }
 
 // ── Generic advance + call-next (drives the per-module workflow console) ──
@@ -1497,7 +1558,9 @@ pub async fn advance_token(
     Path(id): Path<Uuid>,
     Json(body): Json<AdvanceTokenInput>,
 ) -> Result<Json<Token>, AppError> {
-    Ok(Json(transition(&state, &claims, id, &body.status, body.counter_label).await?))
+    Ok(Json(
+        transition(&state, &claims, id, &body.status, body.counter_label).await?,
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1720,7 +1783,6 @@ pub async fn requeue_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1994,8 +2056,12 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/queues/places", get(queue_admin::list_places))
         .route("/api/queues/{id}", put(queue_admin::update_queue))
         .route(
+            "/api/queues/{id}/sessions",
+            get(sessions::list_sessions).put(sessions::replace_sessions),
+        )
+        .route(
             "/api/queues/{id}/categories",
-            get(queue_admin::list_categories).put(queue_admin::replace_categories),
+            get(queue_categories::list_categories).put(queue_categories::replace_categories),
         )
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))

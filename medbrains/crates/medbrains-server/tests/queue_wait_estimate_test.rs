@@ -18,7 +18,7 @@ use uuid::Uuid;
 /// A department of this test's own — these suites share one database and run
 /// concurrently, so a queue anyone else writes to cannot be asserted on.
 async fn a_department(app: &common::TestApp) -> Uuid {
-    let tenant: (Uuid,) = sqlx::query_as("SELECT id FROM tenants LIMIT 1")
+    let tenant: (Uuid,) = sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
         .await
         .expect("a seeded tenant");
