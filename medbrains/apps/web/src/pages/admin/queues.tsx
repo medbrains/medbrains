@@ -106,7 +106,12 @@ export function QueuesPage() {
       render: (row) =>
         canManage && row.status !== "closed" ? (
           <Group gap={6} wrap="nowrap">
-            <Button size="xs" tone="secondary" onClick={() => setEditing(row)}>
+            <Button
+              size="xs"
+              tone="secondary"
+              onClick={() => setEditing(row)}
+              data-testid="btn-queue-edit"
+            >
               Edit
             </Button>
             <Button

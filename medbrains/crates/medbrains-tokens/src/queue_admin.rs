@@ -55,11 +55,32 @@ pub struct QueueInput {
     /// Absent from callers written before hours existed: an hour's lead.
     #[serde(default = "default_early_issue_minutes")]
     pub early_issue_minutes: i16,
+    #[serde(default = "default_board_shows")]
+    pub board_shows: String,
+    #[serde(default = "default_voice_languages")]
+    pub voice_languages: Vec<String>,
+    #[serde(default = "default_announce_repeat")]
+    pub announce_repeat: i16,
 }
 
 const fn default_early_issue_minutes() -> i16 {
     60
 }
+
+fn default_board_shows() -> String {
+    "number".to_owned()
+}
+
+fn default_voice_languages() -> Vec<String> {
+    vec!["en".to_owned()]
+}
+
+const fn default_announce_repeat() -> i16 {
+    1
+}
+
+/// Languages the board can speak today.
+const VOICE_LANGUAGES: [&str; 3] = ["en", "hi", "ta"];
 
 impl QueueInput {
     /// The admin's mistakes, in words they can act on. The table's checks
@@ -84,6 +105,19 @@ impl QueueInput {
         {
             return bad("The last day is before the first");
         }
+        if !matches!(self.board_shows.as_str(), "number" | "initials") {
+            return bad("A board shows the number, or the number and initials");
+        }
+        let known = self
+            .voice_languages
+            .iter()
+            .all(|l| VOICE_LANGUAGES.contains(&l.as_str()));
+        if self.voice_languages.is_empty() || self.voice_languages.len() > 3 || !known {
+            return bad("Choose one to three of English, Hindi and Tamil for the voice");
+        }
+        if !(1..=3).contains(&self.announce_repeat) {
+            return bad("Each call is spoken one to three times");
+        }
         if !(0..=240).contains(&self.early_issue_minutes) {
             return bad("Tokens can start at most 4 hours before a session opens");
         }
@@ -103,7 +137,7 @@ pub async fn list_queues(
         QueueConfig,
         "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
                 reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-                early_issue_minutes \
+                early_issue_minutes, board_shows, voice_languages, announce_repeat \
            FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
         claims.tenant_id,
     )
@@ -220,11 +254,13 @@ pub async fn create_queue(
         QueueConfig,
         "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, \
            start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, \
-           valid_until, status, created_by, early_issue_minutes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
+           valid_until, status, created_by, early_issue_minutes, board_shows, voice_languages, \
+           announce_repeat) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+           $18, $19, $20) \
          RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
            reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-           early_issue_minutes",
+           early_issue_minutes, board_shows, voice_languages, announce_repeat",
         claims.tenant_id,
         body.name.trim(),
         body.module,
@@ -242,6 +278,9 @@ pub async fn create_queue(
         body.status,
         claims.sub,
         body.early_issue_minutes,
+        body.board_shows,
+        &body.voice_languages,
+        body.announce_repeat,
     )
     .fetch_one(&mut *tx)
     .await
@@ -270,11 +309,12 @@ pub async fn update_queue(
         QueueConfig,
         "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, \
            reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, \
-           valid_until = $11, status = $12, early_issue_minutes = $13 \
+           valid_until = $11, status = $12, early_issue_minutes = $13, board_shows = $14, \
+           voice_languages = $15, announce_repeat = $16 \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
            reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-           early_issue_minutes",
+           early_issue_minutes, board_shows, voice_languages, announce_repeat",
         id,
         claims.tenant_id,
         body.name.trim(),
@@ -288,6 +328,9 @@ pub async fn update_queue(
         body.valid_until,
         body.status,
         body.early_issue_minutes,
+        body.board_shows,
+        &body.voice_languages,
+        body.announce_repeat,
     )
     .fetch_optional(&mut *tx)
     .await

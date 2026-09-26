@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, Stack, Text } from "@mantine/core";
+import { Chip, Group, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { api } from "@medbrains/api";
 import { previewQueueNumber, type QueueFormInput, queueFormSchema } from "@medbrains/schemas";
@@ -15,6 +15,7 @@ import {
   Select,
   toast,
 } from "@/components/ui";
+import { VOICE_LANGUAGES } from "@/lib/board-voice";
 
 interface QueueFormDrawerProps {
   opened: boolean;
@@ -52,6 +53,9 @@ function defaults(queue: QueueConfig | null): QueueFormInput {
     valid_from: toDate(queue?.valid_from ?? null),
     valid_until: toDate(queue?.valid_until ?? null),
     early_issue_minutes: queue?.early_issue_minutes ?? 60,
+    board_shows: queue?.board_shows ?? "number",
+    voice_languages: queue?.voice_languages ?? ["en"],
+    announce_repeat: queue?.announce_repeat ?? 1,
   };
 }
 
@@ -94,6 +98,9 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
         valid_until: values.lifecycle === "temporary" ? toIso(values.valid_until) : null,
         status: queue?.status ?? "active",
         early_issue_minutes: values.early_issue_minutes,
+        board_shows: values.board_shows,
+        voice_languages: values.voice_languages,
+        announce_repeat: values.announce_repeat,
       };
       return queue ? api.updateQueue(queue.id, input) : api.createQueue(input);
     },
@@ -265,6 +272,79 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
                 error={errors.early_issue_minutes?.message}
                 data-testid="field-early_issue_minutes"
               />
+            )}
+          />
+          <Controller
+            control={control}
+            name="board_shows"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  The waiting-room board shows
+                </Text>
+                <SegmentedControl
+                  aria-label="The waiting-room board shows"
+                  value={field.value}
+                  onChange={field.onChange}
+                  data={[
+                    { value: "number", label: "Number only" },
+                    { value: "initials", label: "Number and initials" },
+                  ]}
+                />
+                <Text size="xs" c="dimmed">
+                  A board is public: the full name is never shown.
+                </Text>
+              </Stack>
+            )}
+          />
+          <Controller
+            control={control}
+            name="voice_languages"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500} id="queue-voice-languages">
+                  Calls are spoken in
+                </Text>
+                <Chip.Group multiple value={field.value} onChange={field.onChange}>
+                  <Group gap="xs" role="group" aria-labelledby="queue-voice-languages">
+                    {VOICE_LANGUAGES.map((language) => (
+                      <Chip
+                        key={language.value}
+                        value={language.value}
+                        data-testid={`chip-voice-${language.value}`}
+                      >
+                        {language.label}
+                      </Chip>
+                    ))}
+                  </Group>
+                </Chip.Group>
+                {errors.voice_languages && (
+                  <Text size="xs" c="var(--mb-danger-text)">
+                    {errors.voice_languages.message}
+                  </Text>
+                )}
+              </Stack>
+            )}
+          />
+          <Controller
+            control={control}
+            name="announce_repeat"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Say each call
+                </Text>
+                <SegmentedControl
+                  aria-label="Say each call"
+                  value={String(field.value)}
+                  onChange={(value) => field.onChange(Number(value))}
+                  data={[
+                    { value: "1", label: "Once" },
+                    { value: "2", label: "Twice" },
+                    { value: "3", label: "Three times" },
+                  ]}
+                />
+              </Stack>
             )}
           />
           {lifecycle === "temporary" && (

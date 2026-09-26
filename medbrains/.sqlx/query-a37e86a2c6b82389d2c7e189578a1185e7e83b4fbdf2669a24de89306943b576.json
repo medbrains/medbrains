@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, valid_until = $11, status = $12, early_issue_minutes = $13 WHERE id = $1 AND tenant_id = $2 RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
   "describe": {
     "columns": [
       {
@@ -82,23 +82,29 @@
         "ordinal": 15,
         "name": "early_issue_minutes",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 16,
+        "name": "board_shows",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "voice_languages",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "announce_repeat",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
         "Text",
         "Text",
-        "Int4",
-        "Int2",
-        "Text",
-        "Int4",
-        "Text",
-        "Date",
-        "Date",
-        "Text",
-        "Int2"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -117,8 +123,11 @@
       true,
       true,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "0e7197654ff0be258d19c418aa437624fc2ecb7dab9a79c93518a70318423eb7"
+  "hash": "a37e86a2c6b82389d2c7e189578a1185e7e83b4fbdf2669a24de89306943b576"
 }

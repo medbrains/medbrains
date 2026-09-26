@@ -78,4 +78,30 @@ export class QueueAdmin {
     await save.click();
     await expect(this.page.getByText("Counters saved")).toBeVisible();
   }
+
+  /** Set how the queue's board shows and speaks, through the Edit drawer. */
+  async setBoardAndVoice(
+    queueId: string,
+    { initials, languages, repeat }: { initials: boolean; languages: string[]; repeat: string },
+  ): Promise<void> {
+    await this.row(queueId).getByTestId("btn-queue-edit").click();
+    const drawer = this.page.getByRole("dialog", { name: "Edit queue" });
+    await expect(drawer).toBeVisible();
+    await drawer
+      .getByRole("radiogroup", { name: "The waiting-room board shows" })
+      .getByText(initials ? "Number and initials" : "Number only")
+      .click();
+    // The chip's checkbox is visually hidden; a person clicks its label.
+    const labels: Record<string, string> = { en: "English", hi: "हिन्दी (Hindi)", ta: "தமிழ் (Tamil)" };
+    for (const [code, label] of Object.entries(labels)) {
+      const on = await drawer.getByTestId(`chip-voice-${code}`).isChecked();
+      if (on !== languages.includes(code)) await drawer.getByText(label, { exact: true }).click();
+    }
+    await drawer
+      .getByRole("radiogroup", { name: "Say each call" })
+      .getByText(repeat, { exact: true })
+      .click();
+    await drawer.getByRole("button", { name: "Save" }).click();
+    await expect(this.page.getByText("Queue saved")).toBeVisible();
+  }
 }

@@ -17,6 +17,7 @@ import { TransferVisitModal } from "@/components/Queues/TransferVisitModal";
 import { Alert, Badge, Button, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { formatWaited, hasAged } from "@/lib/token-ageing";
 import { TokenEscalateModal } from "./token-escalate-modal";
 
@@ -50,12 +51,8 @@ export function TokenConsolePage() {
   // console's own "no tokens" empty state — a queue outage shown as a
   // waiting room with nobody in it.
   const canViewBoard = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
-  // The same codes the server accepts for the department list: a desk that
-  // works the queue must be able to say which department it calls for.
-  const canListDepartments = useHasAnyPermission([
-    P.ADMIN.SETTINGS_DEPARTMENTS_LIST,
-    P.FRONT_OFFICE.QUEUE_MANAGE,
-  ]);
+  // The codes the department list's handler accepts, mirrored in one place.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { t } = useTranslation("frontOffice");
   const queryClient = useQueryClient();
   const [module, setModule] = useState<string>("opd");

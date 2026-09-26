@@ -163,6 +163,14 @@ export default defineConfig(async ({ command }) => {
           changeOrigin: true,
           cookieDomainRewrite: "",
         },
+        // The boards' live queue and alert sockets. Without this a board on
+        // the dev server connected to nothing: calls arrived only through
+        // polling and nothing was ever announced.
+        "/ws": {
+          target: "ws://localhost:3000",
+          ws: true,
+          changeOrigin: true,
+        },
       },
     },
   };

@@ -17,6 +17,18 @@ export interface QueueConfig {
   status: "active" | "paused" | "closed";
   /** How long before a session opens its tokens are given out. */
   early_issue_minutes: number;
+  /** What a public board shows besides the number. Never the full name. */
+  board_shows: "number" | "initials";
+  /** Languages a call is spoken in, in order. */
+  voice_languages: ("en" | "hi" | "ta")[];
+  /** How many times each call is spoken (1-3). */
+  announce_repeat: number;
+}
+
+/** How the board for one place speaks. */
+export interface BoardConfig {
+  voice_languages: ("en" | "hi" | "ta")[];
+  announce_repeat: number;
 }
 
 /** A queue as Admin → Queues lists it, with tokens issued this period. */

@@ -19,6 +19,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub mod board;
 pub mod counters;
 pub mod queue_admin;
 pub mod queue_categories;
@@ -848,6 +849,11 @@ pub async fn list_board(
     .bind(query.include_finished)
     .fetch_all(&mut *tx)
     .await?;
+    let mut tokens = tokens;
+    // A screen on a wall is sent no names; the desk reading its own queue is.
+    if !board::reads_as_desk(&claims) {
+        board::redact_for_display(&mut tx, &mut tokens).await?;
+    }
 
     tx.commit().await?;
     Ok(Json(tokens))
@@ -2091,6 +2097,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
+        .route("/api/tokens/board/config", get(board::board_config))
         .route("/api/tokens/board/metrics", get(board_metrics))
         .route("/api/tokens/service-times", get(service_times))
         .route("/api/tokens/worklist", get(list_worklist))

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat FROM queues WHERE tenant_id = $1 ORDER BY (status = 'closed'), name",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,21 @@
         "ordinal": 15,
         "name": "early_issue_minutes",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 16,
+        "name": "board_shows",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "voice_languages",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "announce_repeat",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
@@ -105,8 +120,11 @@
       true,
       true,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "8682230fab836d07aad82cb66275617edfe5aa6f24c75bec363dd342619d7a86"
+  "hash": "9a500399a384ae8066ddbb246600def1f1428a61160191b640eb891738fd4f18"
 }

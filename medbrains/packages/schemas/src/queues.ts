@@ -20,6 +20,12 @@ export const queueFormSchema = z
     lifecycle: z.enum(["permanent", "temporary"]),
     valid_from: z.date().nullable(),
     valid_until: z.date().nullable(),
+    board_shows: z.enum(["number", "initials"]),
+    voice_languages: z
+      .array(z.enum(["en", "hi", "ta"]))
+      .min(1, "Choose at least one language for the voice")
+      .max(3),
+    announce_repeat: z.number().int().min(1).max(3),
     early_issue_minutes: z
       .number()
       .int()

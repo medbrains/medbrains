@@ -30,6 +30,12 @@ pub struct QueueConfig {
     pub status: String,
     /// How long before a session opens its tokens are given out.
     pub early_issue_minutes: i16,
+    /// What a public board may show besides the number: `number` or `initials`.
+    pub board_shows: String,
+    /// Languages a call is spoken in, in order (`en`, `hi`, `ta`).
+    pub voice_languages: Vec<String>,
+    /// How many times each call is spoken.
+    pub announce_repeat: i16,
 }
 
 impl QueueConfig {
@@ -86,7 +92,7 @@ pub async fn live_queue(
         QueueConfig,
         "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, \
                 reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, \
-                early_issue_minutes \
+                early_issue_minutes, board_shows, voice_languages, announce_repeat \
            FROM queues \
           WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
             AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
@@ -197,6 +203,9 @@ impl QueueConfig {
             valid_until: None,
             status: "active".to_owned(),
             early_issue_minutes: 60,
+            board_shows: "number".to_owned(),
+            voice_languages: vec!["en".to_owned()],
+            announce_repeat: 1,
         }
     }
 }

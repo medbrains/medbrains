@@ -287,6 +287,20 @@ edge tier design already written in `medbrains-edge`.
     **Given** the doctor has already called them, **then** the move is refused:
     that is a referral.
 
+34. **Given** a named patient waiting, **when** a paired waiting-room screen
+    (a display, not a desk) reads the board, **then** it is sent the number and
+    no name — or initials, only if the queue opts in. Found in P3: the board
+    endpoint sent every waiting patient's full name to the TV and relied on
+    the screen not to show it.
+35. **Given** a TV on a wall that nobody has touched, **then** the browser will
+    not speak, so the board says "Voice is off until someone presses a key or
+    taps this screen once" — never a silent board with no explanation.
+36. **Given** a queue speaking English and Tamil on a screen with no Tamil voice
+    installed, **then** it speaks English only and says the Tamil voice is
+    missing — a Tamil sentence read by an English voice is noise.
+37. A call is read one character at a time ("T 0 1 4"), which is what a
+    patient matches against the slip in their hand in a noisy hall.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -391,6 +405,21 @@ themselves now carry the name, for the desk console.
   registered.
 
 **P2 done** (counters, hold, transfer). Next: **P3** — board and voice.
+
+## P3 slices (2026-09-26)
+
+- **P3a — board and voice config** *(built 2026-09-26)*: `queues.board_shows`
+  (number | initials), `voice_languages` (en, hi, ta; 1-3, in order),
+  `announce_repeat` (1-3), migration 1024; Admin → Queues → Edit → board and
+  voice. `GET /api/tokens/board/config`; the board speaks each language, that
+  many times, one character at a time (scenarios 34-37). Tests: 1 server
+  privacy scenario (fails without the redaction), 3 unit, the
+  `queue-board-voice` journey.
+  *Found:* the board endpoint sent full names to displays (scenario 34). The
+  dev server did not proxy `/ws`, so on it no board ever announced a call —
+  every earlier journey saw calls only through polling.
+- **P3b — board bound by pairing**: a paired TV opened with no module/place
+  shows its own place from its pairing record. *Next.*
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

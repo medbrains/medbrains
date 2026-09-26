@@ -1630,6 +1630,7 @@ import type {
   QueueAnalytics,
   QueueCategory,
   QueueConfig,
+  BoardConfig,
   QueueCounter,
   QueueCounterInput,
   QueueDisplayConfig,
@@ -3606,6 +3607,12 @@ export const api = {
     request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
   updateQueue: (id: string, data: QueueInput) =>
     request<QueueConfig>(`/queues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  getBoardConfig: (params: { module: string; scope?: string; scope_id?: string }) => {
+    const sp = new URLSearchParams({ module: params.module });
+    if (params.scope) sp.set("scope", params.scope);
+    if (params.scope_id) sp.set("scope_id", params.scope_id);
+    return request<BoardConfig>(`/tokens/board/config?${sp}`);
+  },
   listQueueCounters: (id: string) => request<QueueCounter[]>(`/queues/${id}/counters`),
   replaceQueueCounters: (id: string, data: QueueCounterInput[]) =>
     request<QueueCounter[]>(`/queues/${id}/counters`, {

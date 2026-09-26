@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, created_by, early_issue_minutes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes",
+  "query": "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, valid_until = $11, status = $12, early_issue_minutes = $13, board_shows = $14, voice_languages = $15, announce_repeat = $16 WHERE id = $1 AND tenant_id = $2 RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat",
   "describe": {
     "columns": [
       {
@@ -82,14 +82,26 @@
         "ordinal": 15,
         "name": "early_issue_minutes",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 16,
+        "name": "board_shows",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "voice_languages",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "announce_repeat",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Text",
-        "Text",
         "Uuid",
         "Text",
         "Text",
@@ -101,7 +113,9 @@
         "Date",
         "Date",
         "Text",
-        "Uuid",
+        "Int2",
+        "Text",
+        "TextArray",
         "Int2"
       ]
     },
@@ -121,8 +135,11 @@
       true,
       true,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "eb20bbcc6554b534b2ec7bf56ed1f2234f70ac81eb7e2e2b4f94980edab8d5d0"
+  "hash": "ecc7ba1c29be0431f2083fd1c254e9a4013156565efd106fd3c211c8c86fa569"
 }

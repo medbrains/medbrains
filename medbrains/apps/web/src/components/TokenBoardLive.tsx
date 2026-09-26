@@ -4,7 +4,15 @@ import type { ModuleToken } from "@medbrains/types";
 import { IconVolume, IconVolumeOff } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Badge, type BadgeTone, IconButton, TokenDashboard, type TokenItem } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  IconButton,
+  TokenDashboard,
+  type TokenItem,
+} from "@/components/ui";
+import { announceCall, unspeakable, VOICE_LANGUAGES, type VoiceLanguage } from "@/lib/board-voice";
 import classes from "./token-board-alert.module.scss";
 
 /** An emergency announcement, as the board received it. */
@@ -86,17 +94,6 @@ function toItem(token: ModuleToken, publicMode: boolean): TokenItem {
   };
 }
 
-/** Speak "Token T 014, please proceed to <where>" via the Web Speech API. */
-function announceCall(tokenNumber: string, where?: string | null) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  const spoken = tokenNumber.replace(/-/g, " ");
-  const text = where ? `Token ${spoken}, please proceed to ${where}.` : `Token ${spoken}.`;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 0.95;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utter);
-}
-
 /** Say an emergency announcement out loud, twice, over anything queued. */
 function speak(message: string) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -146,6 +143,32 @@ export function TokenBoardLive({
 
   const [alert, setAlert] = useState<BoardAlert | null>(null);
 
+  // How this place's queue speaks: its languages and repeat count.
+  const { data: voice } = useQuery({
+    queryKey: ["token-board-config", module, scope, scopeId],
+    queryFn: () => api.getBoardConfig({ module, scope, scope_id: scopeId }),
+    staleTime: 60_000,
+  });
+  const voiceRef = useRef(voice);
+  voiceRef.current = voice;
+
+  // A browser will not speak until someone has pressed a key or touched the
+  // page — and a waiting-room TV is the screen nobody touches. Say so, rather
+  // than let the board fall silent with nothing on screen to explain it.
+  const [canSpeak, setCanSpeak] = useState(
+    () => typeof navigator === "undefined" || (navigator.userActivation?.hasBeenActive ?? true),
+  );
+  useEffect(() => {
+    if (canSpeak) return;
+    const enable = () => setCanSpeak(true);
+    window.addEventListener("pointerdown", enable, { once: true });
+    window.addEventListener("keydown", enable, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", enable);
+      window.removeEventListener("keydown", enable);
+    };
+  }, [canSpeak]);
+
   // Instant refresh + voice announce on token events (external WS system).
   useEffect(() => {
     if (!scopeId) return;
@@ -157,7 +180,10 @@ export function TokenBoardLive({
       try {
         const frame = classifyBoardFrame(JSON.parse(event.data));
         if (frame.kind === "token") {
-          announceCall(frame.tokenNumber, frame.where);
+          announceCall(frame.tokenNumber, frame.where, {
+            languages: voiceRef.current?.voice_languages ?? ["en"],
+            repeat: voiceRef.current?.announce_repeat ?? 1,
+          });
         } else if (frame.kind === "alert") {
           setAlert(frame.alert);
           speak(frame.alert.message);
@@ -200,7 +226,30 @@ export function TokenBoardLive({
     />
   );
 
-  if (!alert) return board;
+  const languages: VoiceLanguage[] = voice?.voice_languages ?? ["en"];
+  const missing =
+    typeof window !== "undefined" && "speechSynthesis" in window
+      ? unspeakable(languages, window.speechSynthesis.getVoices())
+      : [];
+  const named = (codes: VoiceLanguage[]) =>
+    codes.map((code) => VOICE_LANGUAGES.find((l) => l.value === code)?.label ?? code).join(", ");
+  const withNotices = (
+    <Stack gap="xs">
+      {display && !muted && !canSpeak && (
+        <Alert tone="warning" data-testid="board-voice-blocked">
+          Voice is off until someone presses a key or taps this screen once.
+        </Alert>
+      )}
+      {display && !muted && missing.length > 0 && (
+        <Alert tone="info" data-testid="board-voice-missing">
+          This screen has no {named(missing)} voice installed — calls are spoken in the others.
+        </Alert>
+      )}
+      {board}
+    </Stack>
+  );
+
+  if (!alert) return withNotices;
   return (
     <Stack gap={0}>
       <Box
@@ -213,7 +262,7 @@ export function TokenBoardLive({
         <Text className={classes.message}>{alert.message}</Text>
         <Text className={classes.since}>Announced just now</Text>
       </Box>
-      {board}
+      {withNotices}
     </Stack>
   );
 }

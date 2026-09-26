@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
+  "query": "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, created_by, early_issue_minutes, board_shows, voice_languages, announce_repeat) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, early_issue_minutes, board_shows, voice_languages, announce_repeat",
   "describe": {
     "columns": [
       {
@@ -82,6 +82,21 @@
         "ordinal": 15,
         "name": "early_issue_minutes",
         "type_info": "Int2"
+      },
+      {
+        "ordinal": 16,
+        "name": "board_shows",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "voice_languages",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 18,
+        "name": "announce_repeat",
+        "type_info": "Int2"
       }
     ],
     "parameters": {
@@ -89,7 +104,23 @@
         "Uuid",
         "Text",
         "Text",
-        "Uuid"
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Int2",
+        "Text",
+        "Int4",
+        "Text",
+        "Date",
+        "Date",
+        "Text",
+        "Uuid",
+        "Int2",
+        "Text",
+        "TextArray",
+        "Int2"
       ]
     },
     "nullable": [
@@ -108,8 +139,11 @@
       true,
       true,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "6b74ec15a890a8bbb828c11d38a666b939a2459f67d71f8e5eba4b7c0cb1cfed"
+  "hash": "5e93ee3daa2c73a3299c833960be996de75a99042fb105f873edba90c1a981f7"
 }
