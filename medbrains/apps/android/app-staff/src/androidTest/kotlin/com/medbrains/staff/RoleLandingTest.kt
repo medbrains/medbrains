@@ -26,7 +26,7 @@ class RoleLandingTest {
     private val landing = listOf(
         "doctor" to "doctor", "nurse" to "nurse", "receptionist" to "reception", "front_office_staff" to "reception",
         "pharmacist" to "pharmacy", "lab_technician" to "lab", "blood_bank_tech" to "blood-bank", "billing_clerk" to "billing",
-        "biomed_engineer" to "bme", "security_guard" to "security", "hr_officer" to "hr", "hospital_admin" to "doctor",
+        "biomed_engineer" to "bme", "security_guard" to "security", "hr_officer" to "hr", "camp_coordinator" to "camp", "hospital_admin" to "doctor",
         "dietitian" to null, "canteen_staff" to null,
     )
 

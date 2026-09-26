@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.counter_id AS \"counter_id!\", s.camp_id AS \"camp_id!\",\n                  s.camp_name AS \"camp_name!\", s.name AS \"name!\",\n                  s.flow_position AS \"flow_position!\", s.rooms AS \"rooms!\"\n             FROM (SELECT DISTINCT ON (c.camp_id, c.flow_position)\n                          c.id AS counter_id, c.camp_id, k.name AS camp_name,\n                          c.counter_name AS name, c.flow_position, k.created_at AS camp_started,\n                          ARRAY(SELECT r.counter_name FROM camp_counters r\n                                 WHERE r.camp_id = c.camp_id AND r.flow_position = c.flow_position\n                                   AND r.deleted_at IS NULL\n                                 ORDER BY r.created_at, r.id) AS rooms\n                     FROM camp_counters c JOIN camps k ON k.id = c.camp_id\n                    WHERE c.flow_position IS NOT NULL AND c.deleted_at IS NULL\n                      AND k.status::text NOT IN ('completed', 'cancelled')\n                      -- A volunteer picks today's camp, not every camp nobody\n                      -- closed. ponytail: ±1 day absorbs the UTC date and a\n                      -- camp set up the evening before; a camp's own time\n                      -- zone would make it exact.\n                      AND k.scheduled_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 1\n                    ORDER BY c.camp_id, c.flow_position, c.created_at, c.id) s\n            ORDER BY s.camp_started DESC, s.camp_id, s.flow_position\n            LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "counter_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "camp_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "camp_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "flow_position!",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "rooms!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      null
+    ]
+  },
+  "hash": "146c052261db2b8c33c1641bfe8e25575d0fb22f85b2b1ebc96f86088ec8fd23"
+}

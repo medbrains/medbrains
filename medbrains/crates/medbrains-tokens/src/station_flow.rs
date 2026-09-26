@@ -127,14 +127,15 @@ pub async fn enter_camp_route_in_tx(
 #[derive(Debug, serde::Serialize)]
 pub struct CampStation {
     pub counter_id: Uuid,
+    pub camp_id: Uuid,
     pub camp_name: String,
     pub name: String,
     pub flow_position: i16,
     pub rooms: Vec<String>,
 }
 
-/// `GET /api/tokens/camp-stations` — the steps of camps still running, in
-/// route order, for whoever calls patients through them.
+/// `GET /api/tokens/camp-stations` — the steps of the camps running around
+/// today, in route order, for whoever calls patients through them.
 pub async fn list_camp_stations(
     axum::extract::State(state): axum::extract::State<medbrains_server_core::state::AppState>,
     axum::Extension(claims): axum::Extension<medbrains_server_core::middleware::auth::Claims>,
@@ -147,17 +148,27 @@ pub async fn list_camp_stations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let stations = sqlx::query_as!(
         CampStation,
-        r#"SELECT DISTINCT ON (c.camp_id, c.flow_position)
-                  c.id AS counter_id, k.name AS camp_name, c.counter_name AS name,
-                  c.flow_position AS "flow_position!",
-                  ARRAY(SELECT r.counter_name FROM camp_counters r
-                         WHERE r.camp_id = c.camp_id AND r.flow_position = c.flow_position
-                           AND r.deleted_at IS NULL
-                         ORDER BY r.created_at, r.id) AS "rooms!"
-             FROM camp_counters c JOIN camps k ON k.id = c.camp_id
-            WHERE c.flow_position IS NOT NULL AND c.deleted_at IS NULL
-              AND k.status::text NOT IN ('completed', 'cancelled')
-            ORDER BY c.camp_id, c.flow_position, c.created_at, c.id
+        // The camp set up most recently first: that is the one being worked.
+        r#"SELECT s.counter_id AS "counter_id!", s.camp_id AS "camp_id!",
+                  s.camp_name AS "camp_name!", s.name AS "name!",
+                  s.flow_position AS "flow_position!", s.rooms AS "rooms!"
+             FROM (SELECT DISTINCT ON (c.camp_id, c.flow_position)
+                          c.id AS counter_id, c.camp_id, k.name AS camp_name,
+                          c.counter_name AS name, c.flow_position, k.created_at AS camp_started,
+                          ARRAY(SELECT r.counter_name FROM camp_counters r
+                                 WHERE r.camp_id = c.camp_id AND r.flow_position = c.flow_position
+                                   AND r.deleted_at IS NULL
+                                 ORDER BY r.created_at, r.id) AS rooms
+                     FROM camp_counters c JOIN camps k ON k.id = c.camp_id
+                    WHERE c.flow_position IS NOT NULL AND c.deleted_at IS NULL
+                      AND k.status::text NOT IN ('completed', 'cancelled')
+                      -- A volunteer picks today's camp, not every camp nobody
+                      -- closed. ponytail: ±1 day absorbs the UTC date and a
+                      -- camp set up the evening before; a camp's own time
+                      -- zone would make it exact.
+                      AND k.scheduled_date BETWEEN CURRENT_DATE - 1 AND CURRENT_DATE + 1
+                    ORDER BY c.camp_id, c.flow_position, c.created_at, c.id) s
+            ORDER BY s.camp_started DESC, s.camp_id, s.flow_position
             LIMIT 200"#,
     )
     .fetch_all(&mut *tx)

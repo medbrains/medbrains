@@ -24,7 +24,9 @@ enum Session {
         let field = app.textFields["Username or email"]
         let deadline = Date().addingTimeInterval(10)
         while !field.exists, !onAHome(app), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.25)) }
-        if el(app, home).exists { return }
+        // Never reuse a home already showing: identities are provisioned per
+        // test, so the kept session belongs to an account the last test
+        // retired, and its next request signs the app out mid-journey.
         if !field.exists { ensureSignedOut(app) }
         field.tap()
         field.typeText(username)

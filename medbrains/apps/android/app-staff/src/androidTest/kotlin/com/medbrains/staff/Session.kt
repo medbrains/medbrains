@@ -27,9 +27,10 @@ object Session {
     }
 
     fun AndroidComposeTestRule<*, *>.signInAs(username: String, password: String, homeTag: String) {
-        waitUntil(10_000) { has("username") || onAHome() }
-        if (has(homeTag)) return
-        if (!has("username")) ensureSignedOut()
+        // Never reuse a home already showing: identities are provisioned per
+        // test, so the kept session belongs to an account the last test
+        // retired, and its next request signs the app out mid-journey.
+        ensureSignedOut()
         onNodeWithTag("username").performTextInput(username)
         onNodeWithTag("password").performTextInput(password)
         onNodeWithTag("signIn").performClick()

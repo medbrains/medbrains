@@ -254,3 +254,134 @@ async fn two_doctor_rooms_share_one_queue_and_a_patient_can_finish_early() {
             .any(|t| t["number"] == number.as_str())
     );
 }
+
+/// Given a camp today and one planned for next month, When a volunteer opens
+/// the station picker, Then only today's camp is offered, with the camp it
+/// belongs to so its first step can register people.
+#[tokio::test]
+async fn the_station_picker_offers_todays_camp_not_next_months() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let mut routes = Vec::new();
+    for (tag, days) in [("TD", 0), ("NM", 30)] {
+        let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+        let camp: Uuid = sqlx::query_scalar(
+            "INSERT INTO camps (tenant_id, camp_code, name, camp_type, scheduled_date) \
+             SELECT u.tenant_id, $1, 'Picker Camp', 'general_health'::camp_type, CURRENT_DATE + $2 \
+               FROM users u WHERE u.username = 'admin' RETURNING id",
+        )
+        .bind(format!("{tag}{suffix}"))
+        .bind(days)
+        .fetch_one(&app.db)
+        .await
+        .expect("camp");
+        let (status, route) = post(
+            &app,
+            &csrf,
+            &format!("/api/camp/camps/{camp}/route-template"),
+            json!({ "template": "general" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{route}");
+        routes.push((camp, route[0]["counter_id"].clone()));
+    }
+
+    let stations: Vec<Value> = app
+        .client
+        .get(app.url("/api/tokens/camp-stations"))
+        .send()
+        .await
+        .expect("stations")
+        .json()
+        .await
+        .expect("stations json");
+    let offered = |counter: &Value| stations.iter().find(|s| &s["counter_id"] == counter);
+    let today = offered(&routes[0].1).expect("today's camp is offered");
+    assert_eq!(today["camp_id"], json!(routes[0].0));
+    assert!(offered(&routes[1].1).is_none(), "next month's camp is not");
+}
+
+/// Given a camp coordinator (who works stations but no hospital desk), When
+/// they open a station, Then they read the camp's queue — the names they
+/// call — but still not the hospital's OPD queue.
+#[tokio::test]
+async fn the_camp_team_reads_its_stations_but_not_the_opd_queue() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let suffix = Uuid::new_v4().simple().to_string()[..8].to_lowercase();
+    let username = format!("camp_team_{suffix}");
+    let password = format!("CampTeam#{suffix}Aa9");
+    let (status, body) = post(
+        &app,
+        &csrf,
+        "/api/setup/users",
+        json!({
+            "username": username, "email": format!("{username}@e2e.medbrains.localhost"),
+            "password": password, "full_name": "Camp Team", "role": "camp_coordinator",
+        }),
+    )
+    .await;
+    assert!(status.is_success(), "{body}");
+
+    let team = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login = team
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .expect("login");
+    assert_eq!(login.status(), StatusCode::OK);
+    let read = |module: &str| {
+        team.get(app.url(&format!("/api/tokens/worklist?module={module}")))
+            .send()
+    };
+    assert_eq!(read("camp").await.expect("camp").status(), StatusCode::OK);
+    assert_eq!(
+        read("opd").await.expect("opd").status(),
+        StatusCode::FORBIDDEN
+    );
+
+    // A villager with no hospital record is called by the name they gave.
+    let camp: Uuid = sqlx::query_scalar(
+        "INSERT INTO camps (tenant_id, camp_code, name, camp_type, scheduled_date) \
+         SELECT u.tenant_id, $1, 'Team Camp', 'general_health'::camp_type, CURRENT_DATE \
+           FROM users u WHERE u.username = 'admin' RETURNING id",
+    )
+    .bind(format!("TM{}", suffix.to_uppercase()))
+    .fetch_one(&app.db)
+    .await
+    .expect("camp");
+    let (_, route) = post(
+        &app,
+        &csrf,
+        &format!("/api/camp/camps/{camp}/route-template"),
+        json!({ "template": "general" }),
+    )
+    .await;
+    let (_, reg) = post(
+        &app,
+        &csrf,
+        "/api/camp/registrations",
+        json!({ "camp_id": camp, "person_name": "Kamala Devi" }),
+    )
+    .await;
+    let vitals = route[1]["counter_id"].as_str().expect("vitals");
+    let queue: Vec<Value> = team
+        .get(app.url(&format!(
+            "/api/tokens/worklist?module=camp&scope=counter&scope_id={vitals}"
+        )))
+        .send()
+        .await
+        .expect("station")
+        .json()
+        .await
+        .expect("station json");
+    let row = queue
+        .iter()
+        .find(|t| t["number"] == reg["token_number"])
+        .expect("waiting at vitals");
+    assert_eq!(row["patient_name"], "Kamala Devi");
+}

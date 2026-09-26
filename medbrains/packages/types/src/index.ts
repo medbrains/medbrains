@@ -4782,6 +4782,7 @@ export interface AuditChainVerification {
 /** A camp station a desk can work (`GET /api/tokens/camp-stations`). */
 export interface CampStation {
   counter_id: string;
+  camp_id: string;
   camp_name: string;
   name: string;
   flow_position: number;

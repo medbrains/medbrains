@@ -899,6 +899,10 @@ fn require_queue_worklist(claims: &Claims, module: &str) -> Result<(), AppError>
     if module == "opd" && require_permission(claims, permissions::opd::queue::LIST).is_ok() {
         return Ok(());
     }
+    // The camp team calls people by name at its stations, and holds no desk code.
+    if module == "camp" && require_permission(claims, permissions::camp::queue::MANAGE).is_ok() {
+        return Ok(());
+    }
     require_permission(claims, permissions::front_office::queue::LIST)
 }
 
@@ -927,7 +931,8 @@ pub async fn list_worklist(
     let rows = sqlx::query_as::<_, WorklistToken>(
         "SELECT t.id, t.number, t.seq, t.status, t.priority, t.scope_id, t.scope_label, \
                 t.counter_label, t.called_at, t.created_at, t.patient_id, \
-                CONCAT_WS(' ', p.first_name, NULLIF(p.last_name, '')) AS patient_name, \
+                COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, NULLIF(p.last_name, '')), ''), \
+                         t.patient_name) AS patient_name, \
                 p.uhid, \
                 CASE WHEN t.entity_type = 'encounter' THEN t.entity_id END AS encounter_id \
            FROM tokens t \

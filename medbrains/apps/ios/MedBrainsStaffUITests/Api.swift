@@ -170,6 +170,15 @@ final class Api {
     func nurseRequests(_ admissionId: String) -> [[String: Any]] { list("/api/bedside/\(admissionId)/nurse-requests") }
     func mar(_ admissionId: String) -> [[String: Any]] { list("/api/ipd/admissions/\(admissionId)/mar") }
     func worklistToken(patientId: String) -> [String: Any]? { list("/api/tokens/worklist?module=opd").first { ($0["patient_id"] as? String) == patientId } }
+    /// A camp today started from "General camp": its four stations' counter ids, in route order.
+    func campRoute(_ name: String) -> (campId: String, stations: [String]) {
+        let today = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
+        let camp = obj("POST", "/api/camp/camps", ["name": "\(name) \(Self.runId)", "camp_type": "general_health", "scheduled_date": today, "organizing_department_id": firstDepartmentId().map { $0 as Any } ?? NSNull()])
+        let campId = camp["id"] as? String ?? ""
+        let (_, route) = call("POST", "/api/camp/camps/\(campId)/route-template", ["template": "general"])
+        return (campId, ((route as? [[String: Any]]) ?? []).compactMap { $0["counter_id"] as? String })
+    }
+    func campQueue(_ station: String) -> [[String: Any]] { list("/api/tokens/worklist?module=camp&scope=counter&scope_id=\(station)") }
     func consultation(_ encounterId: String) -> [String: Any]? { call("GET", "/api/opd/encounters/\(encounterId)/consultation").1 as? [String: Any] }
     func responders() -> [[String: Any]] { list("/api/nurse/code-blue/responders") }
 }

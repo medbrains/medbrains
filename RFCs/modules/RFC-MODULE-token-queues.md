@@ -325,6 +325,19 @@ edge tier design already written in `medbrains-edge`.
 42. **Given** two camps (or two runs of one camp), **then** both start at
     `C-001` — a number names a patient only within its camp; anything that
     finds a token looks it up by station, never by number alone.
+43. **Given** a camp team member with no hospital desk code, **when** they open
+    a camp station on their phone, **then** they see the names waiting there —
+    and still not the hospital's OPD queue. A queue that cannot be read shows
+    "Couldn't load this station", never "Nobody here yet".
+44. **Given** a villager registered with no hospital record, **then** every
+    station shows the name they gave, not a blank.
+45. **Given** a camp planned for next month and one today, **when** a volunteer
+    opens the station picker, **then** only today's is offered, newest camp
+    first; **when** the coordinator starts the route after the volunteer
+    opened the app, **then** it appears within 15 s without a restart.
+46. **Given** the registration table has just given a number, **then** the
+    screen says whose number it is — the form has already cleared for the next
+    person in the line.
 
 ## P0 progress (2026-09-26)
 
@@ -528,6 +541,29 @@ when a step has more than one. `POST /api/tokens/{id}/finish` completes a token
 without sending it on (camp workflow *Done — finished*, `camp.queue.manage`).
 Proved by `camp_route_test::two_doctor_rooms_share_one_queue_and_a_patient_can_finish_early`
 and `e2e/journeys/camp-rooms.spec.ts` (§9 #40–42). Next: **P4c**.
+
+*P4c built 2026-09-26:* a **Camp** module in both native staff apps
+(`apps/ios/MedBrainsStaff/Features/Camp/`, `apps/android/app-staff/.../camp/`),
+gated on `camp.queue.manage`, after Reception so no role's landing moves. Pick
+your station (first step registers, later steps call); a station shows its
+queue, *Call next*, and per patient *Done — send on* / *Done — finished* /
+*Not here*; *Your room* when a step has more than one. Found and fixed on the
+way: the camp team got **403 on its own stations' worklist** (read guard knew
+OPD but not camp), worklist names were **blank for villagers with no hospital
+record**, the picker listed **every camp nobody closed** (now ±1 day of today,
+newest first, polled), and both native harnesses **reused a retired test
+user's session** when the home already showed. Proved by
+`camp_route_test` (4) and `CampJourneyTests.swift` / `CampJourneyTest.kt`
+(2 each, §9 #40–46).
+
+**Found by the full native suites (2026-09-26), not caused by P4c:** 12 of 39
+iOS staff journeys fail on this dev database because today's web journeys left
+**1,167 live OPD tokens** and **905 active departments**. The native doctor and
+desk worklists read `module=opd` for the whole hospital, capped at 500, so the
+patient a doctor seeded falls off the list — and a real hospital passes 500 OPD
+patients a day. Next, before P5: **scope the native doctor/desk worklist to the
+doctor's own department/room**, and make journey fixtures retire what they create.
+Then **P5** — kiosk/QR/SMS on issue.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

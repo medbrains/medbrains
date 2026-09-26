@@ -21,6 +21,8 @@ enum StaffModules {
         module("housekeeping", "Housekeeping", "bed.double", ["housekeeping.cleaning.list"], apps: ["Mobile-Housekeeping", "TV-Ward"], phase: 5),
         module("security", "Security", "shield.lefthalf.filled", ["security.incidents.list"], apps: ["Mobile-Security", "TV-Emergency"], phase: 5),
         module("hr", "HR", "person.2", ["hr.attendance.list"], apps: ["Mobile-Admin"], phase: 5),
+        // Last of the working modules: doctors, nurses and pharmacists also hold camp.queue.manage and must still open on their own desk.
+        AppModule(id: "camp", displayName: "Camp", symbol: "tent", requiredPermissions: ["camp.queue.manage"], appCodes: ["Mobile-Camp"]) { AnyView(CampHomeView()) },
         // Phase 6 defines this module's own permission; until then the pairing roster gates the placeholder.
         module("device-sync", "Device sync", "arrow.triangle.2.circlepath", ["devices.pairing.paired_list"], apps: ["Mobile-Admin"], phase: 6),
     ]

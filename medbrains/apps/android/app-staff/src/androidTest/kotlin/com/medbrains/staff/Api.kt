@@ -117,6 +117,16 @@ class Api private constructor(private var token: String?) {
     fun nurseRequests(admissionId: String) = list("/api/bedside/$admissionId/nurse-requests")
     fun mar(admissionId: String) = list("/api/ipd/admissions/$admissionId/mar")
     fun worklistToken(patientId: String) = list("/api/tokens/worklist?module=opd").firstOrNull { it.optString("patient_id") == patientId }
+    /** A camp today started from "General camp": its id and its four stations' counter ids, in route order. */
+    fun campRoute(name: String): Pair<String, List<String>> {
+        val today = java.time.LocalDate.now().toString()
+        val camp = obj("POST", "/api/camp/camps", JSONObject().put("name", "$name $RUN").put("camp_type", "general_health")
+            .put("scheduled_date", today).put("organizing_department_id", firstDepartmentId() ?: JSONObject.NULL))
+        val id = camp.optString("id")
+        val route = org.json.JSONArray(call("POST", "/api/camp/camps/$id/route-template", JSONObject().put("template", "general")).second)
+        return id to (0 until route.length()).map { route.getJSONObject(it).getString("counter_id") }
+    }
+    fun campQueue(station: String) = list("/api/tokens/worklist?module=camp&scope=counter&scope_id=$station")
     fun consultation(encounterId: String): JSONObject? = runCatching { JSONObject(call("GET", "/api/opd/encounters/$encounterId/consultation").second) }.getOrNull()
     fun responders() = list("/api/nurse/code-blue/responders")
 

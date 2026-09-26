@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Bloodtype
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Festival
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalHospital
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.medbrains.kit.AppModule
+import com.medbrains.staff.camp.CampModule
 import com.medbrains.staff.doctor.DoctorModule
 import com.medbrains.staff.nurse.NurseModule
 import com.medbrains.staff.reception.ReceptionModule
@@ -40,6 +42,8 @@ object StaffModules {
         module("housekeeping", "Housekeeping", Icons.Filled.CleaningServices, listOf("housekeeping.cleaning.list"), listOf("Mobile-Housekeeping", "TV-Ward"), 5),
         module("security", "Security", Icons.Filled.Security, listOf("security.incidents.list"), listOf("Mobile-Security", "TV-Emergency"), 5),
         module("hr", "HR", Icons.Filled.Groups, listOf("hr.attendance.list"), listOf("Mobile-Admin"), 5),
+        // Last of the working modules: doctors, nurses and pharmacists also hold camp.queue.manage and must still open on their own desk.
+        AppModule(id = "camp", displayName = "Camp", requiredPermissions = listOf("camp.queue.manage"), appCodes = listOf("Mobile-Camp"), icon = Icons.Filled.Festival) { CampModule() },
         // Phase 6 defines this module's own permission; until then the pairing roster gates the placeholder.
         module("device-sync", "Device sync", Icons.Filled.Sync, listOf("devices.pairing.paired_list"), listOf("Mobile-Admin"), 6),
     )
