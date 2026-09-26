@@ -1630,6 +1630,8 @@ import type {
   QueueAnalytics,
   QueueCategory,
   QueueConfig,
+  QueueCounter,
+  QueueCounterInput,
   QueueDisplayConfig,
   QueueEntry,
   QueueInput,
@@ -3602,6 +3604,12 @@ export const api = {
     request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
   updateQueue: (id: string, data: QueueInput) =>
     request<QueueConfig>(`/queues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  listQueueCounters: (id: string) => request<QueueCounter[]>(`/queues/${id}/counters`),
+  replaceQueueCounters: (id: string, data: QueueCounterInput[]) =>
+    request<QueueCounter[]>(`/queues/${id}/counters`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listQueueSessions: (id: string) => request<QueueSession[]>(`/queues/${id}/sessions`),
   replaceQueueSessions: (id: string, data: QueueSession[]) =>
     request<QueueSession[]>(`/queues/${id}/sessions`, {

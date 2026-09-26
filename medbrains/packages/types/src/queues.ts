@@ -63,3 +63,17 @@ export interface QueueCategory {
   kiosk_selectable: boolean;
   is_active: boolean;
 }
+
+/** A counter (a station) serving a queue, and who may call there. */
+export interface QueueCounter {
+  station_id: string;
+  name: string;
+  /** Empty: anyone who may work the queue calls here. */
+  staff_user_ids: string[];
+  staff_names: string[];
+}
+
+export interface QueueCounterInput {
+  station_id: string;
+  staff_user_ids: string[];
+}

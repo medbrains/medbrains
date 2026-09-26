@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM queue_counters WHERE queue_id = $1 AND tenant_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a99e30b5e85f3dc0bd9819813a29182e72dee4d56a67a1f28f358418c339f4b"
+}

@@ -19,6 +19,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub mod counters;
 pub mod queue_admin;
 pub mod queue_categories;
 pub mod queues;
@@ -1410,13 +1411,22 @@ async fn transition_from(
     // The permission depends on which queue this token is in, so the module has
     // to be read before the write. A token's module never changes, so there is
     // nothing to lock against between the two statements.
-    let (module, current) =
-        sqlx::query_as::<_, (String, String)>("SELECT module, status FROM tokens WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::NotFound)?;
+    let (module, current, queue_id) = sqlx::query_as::<_, (String, String, Option<Uuid>)>(
+        "SELECT module, status, queue_id FROM tokens WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     require_queue_manage(claims, &module)?;
+    // A call goes to a counter that serves this queue, by someone allowed to
+    // call there — so the board can say which window, and Dr Rao's room is
+    // not called to by somebody else.
+    let counter_label = if status == "called" {
+        counters::counter_for_call(&mut tx, queue_id, counter_label, claims.sub).await?
+    } else {
+        counter_label
+    };
 
     let token = sqlx::query_as::<_, Token>(&format!(
         "UPDATE tokens SET status = $2, \
@@ -2055,6 +2065,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/queues/places", get(queue_admin::list_places))
         .route("/api/queues/{id}", put(queue_admin::update_queue))
+        .route(
+            "/api/queues/{id}/counters",
+            get(counters::list_counters).put(counters::replace_counters),
+        )
         .route(
             "/api/queues/{id}/sessions",
             get(sessions::list_sessions).put(sessions::replace_sessions),

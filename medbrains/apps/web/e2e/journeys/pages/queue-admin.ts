@@ -54,4 +54,23 @@ export class QueueAdmin {
   async expectTakingTokens(queueId: string): Promise<void> {
     await expect(this.page.getByTestId(`queue-closed-reason-${queueId}`)).toHaveCount(0);
   }
+
+  /** Create counters by name in the Counters drawer and save them. */
+  async createCounters(queueId: string, names: string[]): Promise<void> {
+    const open = this.row(queueId).getByTestId("btn-queue-counters");
+    await expectUsable(open, "Counters");
+    await open.click();
+    const drawer = this.page.getByRole("dialog", { name: /Counters — / });
+    await expect(drawer).toBeVisible();
+    await expectScreenAccessible(this.page, "queue-counters-drawer");
+    for (const [i, name] of names.entries()) {
+      await drawer.getByTestId("field-new-counter").fill(name);
+      await drawer.getByTestId("btn-create-counter").click();
+      await expect(drawer.getByTestId(`row-counter-${i}`)).toBeVisible();
+    }
+    const save = drawer.getByTestId("btn-save-counters");
+    await expectUsable(save, "Save counters");
+    await save.click();
+    await expect(this.page.getByText("Counters saved")).toBeVisible();
+  }
 }

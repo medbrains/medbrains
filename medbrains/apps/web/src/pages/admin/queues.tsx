@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { QueueCountersDrawer } from "@/components/Queues/QueueCountersDrawer";
 import { QUEUE_MODULES, QueueFormDrawer } from "@/components/Queues/QueueFormDrawer";
 import { QueueHoursDrawer } from "@/components/Queues/QueueHoursDrawer";
 import { QueueLanesDrawer } from "@/components/Queues/QueueLanesDrawer";
@@ -46,6 +47,7 @@ export function QueuesPage() {
   const [creating, setCreating] = useState(false);
   const [lanesOf, setLanesOf] = useState<QueueRow | null>(null);
   const [hoursOf, setHoursOf] = useState<QueueRow | null>(null);
+  const [countersOf, setCountersOf] = useState<QueueRow | null>(null);
   const queues = useQuery({ queryKey: ["queues"], queryFn: () => api.listQueues() });
 
   const setStatus = useMutation({
@@ -111,6 +113,14 @@ export function QueuesPage() {
             >
               Hours
             </Button>
+            <Button
+              size="xs"
+              tone="secondary"
+              onClick={() => setCountersOf(row)}
+              data-testid="btn-queue-counters"
+            >
+              Counters
+            </Button>
             <Button size="xs" tone="secondary" onClick={() => setLanesOf(row)}>
               Lanes
             </Button>
@@ -172,6 +182,7 @@ export function QueuesPage() {
       )}
       <QueueLanesDrawer queue={lanesOf} onClose={() => setLanesOf(null)} />
       <QueueHoursDrawer queue={hoursOf} onClose={() => setHoursOf(null)} />
+      <QueueCountersDrawer queue={countersOf} onClose={() => setCountersOf(null)} />
       <QueueFormDrawer
         opened={creating || editing !== null}
         queue={editing}

@@ -30,6 +30,11 @@ export class WaitingRoomDisplay {
     expect(lines, `token ${number} renders on one line`).toBe(1);
   }
 
+  /** Where the patient goes: the counter the token was called to. */
+  async expectCounter(number: string, counter: string): Promise<void> {
+    await expect(this.token(number)).toContainText(counter, { timeout: 15_000 });
+  }
+
   /** The board is public: a patient's name must never appear on it. */
   async expectNoName(name: string): Promise<void> {
     await expect(this.page.getByText(name)).toHaveCount(0);

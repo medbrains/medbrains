@@ -923,6 +923,8 @@ pub async fn list_departments(
             permissions::camp::LIST,
             permissions::camp::CREATE,
             permissions::camp::UPDATE,
+            // A desk working a queue picks the department it calls for.
+            permissions::front_office::queue::MANAGE,
             permissions::emergency::visits::CREATE,
             permissions::emergency::visits::UPDATE,
             permissions::ot::bookings::CREATE,

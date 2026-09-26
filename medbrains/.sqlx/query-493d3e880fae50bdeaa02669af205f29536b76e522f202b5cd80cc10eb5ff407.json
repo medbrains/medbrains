@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.station_id, s.name AS \"name!\", c.staff_user_ids AS \"staff_user_ids!\",\n                  COALESCE(ARRAY(SELECT u.full_name FROM users u\n                                  WHERE u.id = ANY(c.staff_user_ids) ORDER BY u.full_name),\n                           '{}') AS \"staff_names!\"\n             FROM queue_counters c JOIN stations s ON s.id = c.station_id\n            WHERE c.queue_id = $1\n            ORDER BY s.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "station_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "staff_user_ids!",
+        "type_info": "UuidArray"
+      },
+      {
+        "ordinal": 3,
+        "name": "staff_names!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "493d3e880fae50bdeaa02669af205f29536b76e522f202b5cd80cc10eb5ff407"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name AS \"name!\" FROM stations\n            WHERE id = ANY($1) AND tenant_id = $2 AND deleted_at IS NULL AND is_active",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1673441b9a96335b8279343192d0fa29d13ee426515f977ef63838a49da2870d"
+}

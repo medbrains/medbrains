@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import {
   type ModuleToken,
   P,
@@ -47,7 +47,12 @@ export function TokenConsolePage() {
   // console's own "no tokens" empty state — a queue outage shown as a
   // waiting room with nobody in it.
   const canViewBoard = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
-  const canListDepartments = useHasPermission(P.ADMIN.SETTINGS_DEPARTMENTS_LIST);
+  // The same codes the server accepts for the department list: a desk that
+  // works the queue must be able to say which department it calls for.
+  const canListDepartments = useHasAnyPermission([
+    P.ADMIN.SETTINGS_DEPARTMENTS_LIST,
+    P.FRONT_OFFICE.QUEUE_MANAGE,
+  ]);
   const { t } = useTranslation("frontOffice");
   const queryClient = useQueryClient();
   const [module, setModule] = useState<string>("opd");
@@ -122,6 +127,35 @@ export function TokenConsolePage() {
     queryKey: ["stations"],
     queryFn: () => api.listStations(),
   });
+
+  // A queue with counters takes calls only at those counters (the server
+  // refuses any other), so the picker offers exactly them.
+  const canViewQueues = useHasPermission(P.FRONT_OFFICE.QUEUE.CONFIG.VIEW);
+  const { data: queues = [] } = useQuery({
+    queryKey: ["queues"],
+    queryFn: () => api.listQueues(),
+    enabled: canViewQueues && Boolean(departmentId),
+  });
+  const liveQueue = queues.find(
+    (q) =>
+      q.module === module &&
+      q.scope === "department" &&
+      q.scope_id === departmentId &&
+      q.status !== "closed",
+  );
+  const { data: queueCounters = [] } = useQuery({
+    queryKey: ["queue-counters", liveQueue?.id],
+    queryFn: () => api.listQueueCounters(liveQueue?.id ?? ""),
+    enabled: Boolean(liveQueue),
+  });
+  // Station names repeat across a hospital; a picker option must not.
+  const counterNames = [
+    ...new Set(
+      liveQueue && queueCounters.length > 0
+        ? queueCounters.map((c) => c.name)
+        : stations.map((station) => station.name),
+    ),
+  ];
 
   const columns: Column<ModuleToken>[] = [
     { key: "number", label: "Token", render: (row) => <strong>{row.number}</strong> },
@@ -218,6 +252,7 @@ export function TokenConsolePage() {
         <Select
           label={t("tokenBoard.department")}
           placeholder={t("tokenBoard.allDepartments")}
+          data-testid="picker-department"
           data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
           value={departmentId}
           onChange={setDepartmentId}
@@ -234,15 +269,21 @@ export function TokenConsolePage() {
         <Select
           label={t("tokenConsole.counter")}
           placeholder={t("tokenConsole.counterPlaceholder")}
-          data={stations.map((station) => ({ value: station.name, label: station.name }))}
+          data={counterNames.map((name) => ({ value: name, label: name }))}
           value={counter || null}
           onChange={(value) => setCounter(value ?? "")}
           searchable
           clearable
-          disabled={stations.length === 0}
+          disabled={counterNames.length === 0}
+          data-testid="picker-counter"
           style={{ width: 220 }}
         />
-        <Button tone="primary" onClick={() => callNext.mutate()} loading={callNext.isPending}>
+        <Button
+          tone="primary"
+          data-testid="btn-call-next"
+          onClick={() => callNext.mutate()}
+          loading={callNext.isPending}
+        >
           {t("tokenConsole.callNext")}
         </Button>
       </Group>

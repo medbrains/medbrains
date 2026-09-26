@@ -257,6 +257,18 @@ edge tier design already written in `medbrains-edge`.
     (`period_key`); moving every token query to local time is a system-wide
     change (set the time zone per transaction) and needs its own PR.
 
+28. **Given** a pharmacy with Window 1 and Window 2 serving its queue, **when**
+    the desk presses *Call next* without choosing a window, **then** it is
+    refused with "Choose your counter — Pharmacy is served at Window 1, Window
+    2"; **when** it calls at Window 2, **then** the board shows the token with
+    "Window 2" under it.
+29. Station names repeat across a hospital (three "Closed Counter"s in the dev
+    tenant), so a queue's counters must have distinct names — the call names
+    the counter, and "which window" must never be ambiguous.
+30. **Given** a counter kept for Dr Rao, **when** Dr Rao leaves and the admin
+    re-saves with a stale staff id, **then** the save is refused — dropping the
+    unknown id would silently open the room to everyone.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -314,6 +326,29 @@ themselves now carry the name, for the desk console.
   `token_referral_test` had failed since P0 (it completed waiting tokens);
   28 server tests picked `tenants LIMIT 1`, wrong once a second tenant exists;
   `device_node_key_test` targets the route #4630 moved (not fixed here).
+
+## P2 slices (2026-09-26)
+
+- **P2a — counters and counter staff** *(built 2026-09-26)*: counters are the
+  existing `stations`; `queue_counters` (migration 1023) says which serve a
+  queue and, optionally, who may call at each. A queue with counters takes
+  calls (call, call next, advance to called) only at one of them, from the
+  listed staff (scenario 11 — a data rule, so bypass roles do not skip it).
+  Admin → Queues → **Counters** drawer, which can also create a new counter
+  (the first screen that makes a station). The console's counter picker offers
+  exactly the queue's counters. Tests: 3 unit, 2 server, the `queue-counters`
+  journey 3/3.
+  *Found:* the console's department picker was gated on
+  `admin.settings.departments.list`, which no receptionist holds — the desk
+  could not choose a department at all. The department list now also admits
+  `front_office.queue.manage`, and the console gates on the same codes. The
+  console's counter picker repeated station names (duplicate options).
+  *Follow-up:* the doctor's *Call patient* on `/opd` goes through the encounter
+  path and names no counter; an OPD queue with rooms needs the room there too.
+- **P2b — console actions**: *Call again* (recall), *No-show* and *Move up*
+  already exist. Still to build: **skip** (not here — put back a few places),
+  **hold** (stepped out — keep the place, not callable) and **transfer** (to
+  another queue, keeping the number).
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

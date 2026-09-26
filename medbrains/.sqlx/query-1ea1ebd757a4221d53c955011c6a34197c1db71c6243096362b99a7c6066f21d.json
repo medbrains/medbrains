@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO queue_counters (tenant_id, queue_id, station_id, staff_user_ids) VALUES ($1, $2, $3, $4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1ea1ebd757a4221d53c955011c6a34197c1db71c6243096362b99a7c6066f21d"
+}
