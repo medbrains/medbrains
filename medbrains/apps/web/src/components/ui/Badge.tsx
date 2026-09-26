@@ -34,7 +34,16 @@ export const Badge = forwardRef<HTMLDivElement, BadgeProps>(function Badge(
   ref,
 ) {
   return (
-    <MantineBadge ref={ref} color={TONE_COLOR[tone]} variant={variant} size={size} {...rest} />
+    <MantineBadge
+      ref={ref}
+      color={TONE_COLOR[tone]}
+      variant={variant}
+      size={size}
+      // A filled badge chooses its text colour from its background: white on
+      // Carbon yellow read at 1.68:1, where WCAG AA needs 4.5.
+      autoContrast
+      {...rest}
+    />
   );
 });
 Badge.displayName = "Badge";

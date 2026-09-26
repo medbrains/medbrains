@@ -731,6 +731,15 @@ pub mod communications {
 
 pub mod camp {
     pub const LIST: &str = "camp.list";
+
+    pub mod queue {
+        /// Call patients through a camp's stations.
+        ///
+        /// Call, recall and complete tokens at a camp's registration, vitals,
+        /// doctor and pharmacy stations; completing one sends the patient to
+        /// the next station with the same number.
+        pub const MANAGE: &str = "camp.queue.manage";
+    }
     pub const CREATE: &str = "camp.create";
     pub const UPDATE: &str = "camp.update";
 

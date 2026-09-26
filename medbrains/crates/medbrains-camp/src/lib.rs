@@ -66,6 +66,7 @@
 #![allow(dead_code)]
 
 mod registration_filter;
+pub mod route;
 
 use registration_filter::{Bind, build_registration_filter};
 
@@ -3561,6 +3562,24 @@ async fn find_or_create_camp_encounter(
     // Joins the visit the patient already has today, so one person carries
     // one number through the camp, the lab and the pharmacy rather than
     // collecting a fresh one at each counter.
+    // A camp run as a route of stations already has the patient in its Doctor
+    // station's queue, under their camp number. A hospital OPD token on top
+    // would put them in a second queue, under a second number, in a
+    // department's list the camp does not watch.
+    let has_route = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM camp_counters WHERE camp_id = $1
+                          AND flow_position IS NOT NULL AND deleted_at IS NULL) AS "route!""#,
+        camp_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if has_route {
+        return Ok(CampEncounterLink {
+            encounter_id,
+            queue_id: Some(queue_id),
+        });
+    }
+
     let visit_id = medbrains_tokens::current_visit(tx, patient_id)
         .await?
         .or_else(|| Some(Uuid::new_v4()));
@@ -6580,14 +6599,14 @@ pub async fn list_camp_counters(
     let rows = sqlx::query_as::<_, CampCounter>(
         "SELECT c.id, c.tenant_id, c.camp_id, c.counter_type, c.counter_name, \
                 c.capacity_per_hour, c.location_label, c.status, c.notes, \
-                m.department_id, d.name AS department_name, \
+                m.department_id, d.name AS department_name, c.flow_position, \
                 c.created_at, c.updated_at \
            FROM camp_counters c \
            LEFT JOIN camp_department_counters m \
                   ON m.counter_id = c.id AND m.deleted_at IS NULL \
            LEFT JOIN departments d ON d.id = m.department_id \
           WHERE c.camp_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL \
-          ORDER BY c.counter_name",
+          ORDER BY c.flow_position NULLS LAST, c.counter_name",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -6698,7 +6717,7 @@ pub async fn add_camp_counter(
     let created = sqlx::query_as::<_, CampCounter>(
         "SELECT c.id, c.tenant_id, c.camp_id, c.counter_type, c.counter_name, \
                 c.capacity_per_hour, c.location_label, c.status, c.notes, \
-                m.department_id, d.name AS department_name, \
+                m.department_id, d.name AS department_name, c.flow_position, \
                 c.created_at, c.updated_at \
            FROM camp_counters c \
            LEFT JOIN camp_department_counters m \
@@ -6936,7 +6955,7 @@ pub async fn create_registration(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateRegistrationRequest>,
-) -> Result<Json<CampRegistration>, AppError> {
+) -> Result<Json<CreatedRegistration>, AppError> {
     require_permission(&claims, permissions::camp::registrations::CREATE)?;
     if body.patient_id.is_some() && !has_patient_record_view(&claims) {
         return Err(AppError::Forbidden);
@@ -7030,13 +7049,41 @@ pub async fn create_registration(
         medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
+    // The camp's route: the patient now waits at the next station with a
+    // number they keep to the pharmacy.
+    let token_number = medbrains_tokens::station_flow::enter_camp_route_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        medbrains_tokens::station_flow::RouteEntry {
+            camp_id: row.camp_id,
+            registration_id: row.id,
+            patient_id: row.patient_id,
+            patient_name: &row.person_name,
+            issued_by: claims.sub,
+        },
+    )
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(filter_camp_registration_response(
-        row,
-        &restricted_fields,
-        can_view_patient_record,
-        can_view_full_queue,
-    )))
+    Ok(Json(CreatedRegistration {
+        registration: filter_camp_registration_response(
+            row,
+            &restricted_fields,
+            can_view_patient_record,
+            can_view_full_queue,
+        ),
+        token_number,
+    }))
+}
+
+/// A new camp registration and the number the patient is called by.
+#[derive(Debug, serde::Serialize)]
+pub struct CreatedRegistration {
+    #[serde(flatten)]
+    pub registration: CampRegistration,
+    /// The camp token for the station after registration; `None` when the
+    /// camp has no route of stations.
+    pub token_number: Option<String>,
 }
 
 pub async fn update_registration(
@@ -8526,6 +8573,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/camp/camps/{camp_id}/counters",
             get(list_camp_counters).post(add_camp_counter),
+        )
+        .route(
+            "/api/camp/camps/{id}/route-template",
+            post(route::apply_route_template),
         )
         .route(
             "/api/camp/camps/{camp_id}/counters/{id}",

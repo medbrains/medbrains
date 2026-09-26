@@ -55,6 +55,7 @@
   "registrations.routeDrawer.openOpd": "Open OPD visit",
   "notify.registered": "Registered",
   "notify.participantRegistered": "Participant registered",
+  "notify.participantRegisteredWithNumber": "Registered. Their number is {{number}} — every station calls them by it.",
   "notify.unableToOpenClinicalDrawer": "Unable to open clinical drawer",
   "notify.selectDepartmentAndPermission": "Select a department for the clinical visit and check OPD create permission.",
   "notify.screeningRecorded": "Screening Recorded",

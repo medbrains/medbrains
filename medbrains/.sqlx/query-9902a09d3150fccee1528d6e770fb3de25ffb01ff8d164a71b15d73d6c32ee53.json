@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT organizing_department_id,\n                  EXISTS(SELECT 1 FROM camp_counters c\n                          WHERE c.camp_id = camps.id AND c.deleted_at IS NULL) AS \"has_counters!\"\n             FROM camps WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "organizing_department_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "has_counters!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "9902a09d3150fccee1528d6e770fb3de25ffb01ff8d164a71b15d73d6c32ee53"
+}

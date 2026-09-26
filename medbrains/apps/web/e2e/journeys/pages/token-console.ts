@@ -64,4 +64,18 @@ export class TokenConsole {
     await expect(told).toBeVisible();
     return (await told.innerText()).match(/(?:new number|Same number) (\S+)/)?.[1] ?? "";
   }
+
+  /** A camp team member picks the station they are working. */
+  async openCampStation(station: string): Promise<void> {
+    await this.page.goto("/token-console");
+    await expect(this.page.getByTestId("btn-call-next")).toBeVisible();
+    await expectScreenAccessible(this.page, "token-console-camp");
+    const module = this.page.getByTestId("picker-module");
+    if ((await module.inputValue()) !== "Camp stations") {
+      await module.click();
+      await this.page.getByRole("option", { name: "Camp stations", exact: true }).click();
+    }
+    await this.page.getByTestId("picker-station").click();
+    await this.page.getByRole("option", { name: station, exact: true }).click();
+  }
 }

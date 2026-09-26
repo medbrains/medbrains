@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO camp_department_counters (tenant_id, camp_id, source_key, department_id, counter_id, status) VALUES ($1, $2, 'route:doctor', $3, $4, 'ready')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "85474eabfa387f99a6b15fe479a182db7f27353d698d72432028383529fdd309"
+}

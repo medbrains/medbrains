@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM camp_counters WHERE camp_id = $1\n                          AND flow_position IS NOT NULL AND deleted_at IS NULL) AS \"route!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "route!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ecb34ef726b722c62ab241fac40599957c29c9da5288efa8c8636bdbc7343de6"
+}

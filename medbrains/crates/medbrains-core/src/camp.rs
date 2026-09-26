@@ -124,6 +124,8 @@ pub struct CampCounter {
     /// The department this counter serves, from its mapping row.
     pub department_id: Option<Uuid>,
     pub department_name: Option<String>,
+    /// This counter's step in the patient's route; `None` when not on it.
+    pub flow_position: Option<i16>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

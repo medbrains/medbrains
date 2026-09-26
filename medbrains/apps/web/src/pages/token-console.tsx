@@ -44,19 +44,35 @@ const STATUS_TONE: Record<string, "neutral" | "warning" | "info" | "danger"> = {
 
 /** Staff console — call the next token and walk each one through its workflow. */
 export function TokenConsolePage() {
-  useRequirePermission(P.FRONT_OFFICE.QUEUE_MANAGE);
+  // The hospital desk, or a camp team working the camp's stations.
+  useRequirePermission([P.FRONT_OFFICE.QUEUE_MANAGE, P.CAMP.QUEUE.MANAGE]);
+  const canWorkDesk = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
+  const canWorkCamps = useHasPermission(P.CAMP.QUEUE.MANAGE);
   // Reaching the console takes queue.manage; reading the board takes
   // queue.list and the department filter takes its own code. Holding one
   // without the other polled a 403 every five seconds and rendered the
   // console's own "no tokens" empty state — a queue outage shown as a
   // waiting room with nobody in it.
-  const canViewBoard = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
+  const canListQueues = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
   // The codes the department list's handler accepts, mirrored in one place.
   const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { t } = useTranslation("frontOffice");
   const queryClient = useQueryClient();
-  const [module, setModule] = useState<string>("opd");
+  const [module, setModule] = useState<string>(canWorkDesk ? "opd" : "camp");
   const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [stationId, setStationId] = useState<string | null>(null);
+  const isCamp = module === "camp";
+  // Mirrors the server: the camp team reads its own stations' queues.
+  const canViewBoard = canListQueues || (isCamp && canWorkCamps);
+  const modules = [
+    ...(canWorkDesk ? MODULE_VALUES : []),
+    ...(canWorkCamps ? (["camp"] as const) : []),
+  ];
+  const { data: campStations = [] } = useQuery({
+    queryKey: ["camp-stations"],
+    queryFn: () => api.listCampStations(),
+    enabled: isCamp && canWorkCamps,
+  });
   const [counter, setCounter] = useState("");
 
   const { data: departments } = useQuery({
@@ -66,8 +82,15 @@ export function TokenConsolePage() {
     enabled: canListDepartments,
   });
 
-  const scope = departmentId ? "department" : undefined;
-  const scopeId = departmentId ?? undefined;
+  // A camp station is a counter of its own; a hospital queue is a department.
+  const scope = isCamp
+    ? stationId
+      ? "counter"
+      : undefined
+    : departmentId
+      ? "department"
+      : undefined;
+  const scopeId = (isCamp ? stationId : departmentId) ?? undefined;
   const queryKey = ["token-board", module, scope, scopeId];
   const {
     data: tokens,
@@ -282,40 +305,60 @@ export function TokenConsolePage() {
       <Group align="flex-end">
         <Select
           label={t("tokenBoard.module")}
-          data={MODULE_VALUES.map((value) => ({ value, label: t(`tokenBoard.modules.${value}`) }))}
+          data={modules.map((value) => ({ value, label: t(`tokenBoard.modules.${value}`) }))}
           value={module}
           onChange={(value) => setModule(value ?? "opd")}
+          data-testid="picker-module"
           style={{ width: 180 }}
         />
-        <Select
-          label={t("tokenBoard.department")}
-          placeholder={t("tokenBoard.allDepartments")}
-          data-testid="picker-department"
-          data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
-          value={departmentId}
-          onChange={setDepartmentId}
-          disabled={!canListDepartments}
-          searchable
-          clearable
-          style={{ width: 220 }}
-        />
+        {isCamp && (
+          <Select
+            label={t("tokenConsole.station")}
+            placeholder={t("tokenConsole.stationPlaceholder")}
+            data={campStations.map((station) => ({
+              value: station.counter_id,
+              label: `${station.camp_name} · ${station.flow_position}. ${station.name}`,
+            }))}
+            value={stationId}
+            onChange={setStationId}
+            searchable
+            data-testid="picker-station"
+            style={{ width: 320 }}
+          />
+        )}
+        {!isCamp && (
+          <Select
+            label={t("tokenBoard.department")}
+            placeholder={t("tokenBoard.allDepartments")}
+            data-testid="picker-department"
+            data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
+            value={departmentId}
+            onChange={setDepartmentId}
+            disabled={!canListDepartments}
+            searchable
+            clearable
+            style={{ width: 220 }}
+          />
+        )}
         {/* A picker, not free text. The consulting-room door display matches
             this label by exact string equality (sameRoom in
             token-board-surfaces), so "OPD 01" typed where "OPD Counter 01"
             was meant leaves that door showing "please wait" forever, with
             nothing anywhere saying why. Stations carry the canonical names. */}
-        <Select
-          label={t("tokenConsole.counter")}
-          placeholder={t("tokenConsole.counterPlaceholder")}
-          data={counterNames.map((name) => ({ value: name, label: name }))}
-          value={counter || null}
-          onChange={(value) => setCounter(value ?? "")}
-          searchable
-          clearable
-          disabled={counterNames.length === 0}
-          data-testid="picker-counter"
-          style={{ width: 220 }}
-        />
+        {!isCamp && (
+          <Select
+            label={t("tokenConsole.counter")}
+            placeholder={t("tokenConsole.counterPlaceholder")}
+            data={counterNames.map((name) => ({ value: name, label: name }))}
+            value={counter || null}
+            onChange={(value) => setCounter(value ?? "")}
+            searchable
+            clearable
+            disabled={counterNames.length === 0}
+            data-testid="picker-counter"
+            style={{ width: 220 }}
+          />
+        )}
         <Button
           tone="primary"
           data-testid="btn-call-next"

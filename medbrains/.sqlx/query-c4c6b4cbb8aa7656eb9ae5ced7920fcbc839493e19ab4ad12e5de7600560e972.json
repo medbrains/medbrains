@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO camp_counters (tenant_id, camp_id, source_key, counter_type, counter_name, status, flow_position) VALUES ($1, $2, $3, $4, $5, 'ready', $6) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c4c6b4cbb8aa7656eb9ae5ced7920fcbc839493e19ab4ad12e5de7600560e972"
+}

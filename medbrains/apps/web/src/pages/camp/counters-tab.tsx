@@ -59,7 +59,25 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
     onError: (error: Error) => toast.error(error.message, { title: "Could not remove counter" }),
   });
 
+  // A camp in a village hall is set up in an hour: the usual four stations,
+  // in the order every patient passes through them.
+  const template = useMutation({
+    mutationFn: () => campService.applyCampRouteTemplate(campId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["camp-counters", campId] });
+      toast.success("Registration, Vitals, Doctor and Pharmacy are ready", {
+        title: "Stations set up",
+      });
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Stations not set up" }),
+  });
+
   const columns: Column<CampCounter>[] = [
+    {
+      key: "flow_position",
+      label: "Step",
+      render: (row) => (row.flow_position ? String(row.flow_position) : "—"),
+    },
     {
       key: "counter_name",
       label: "Counter",
@@ -163,6 +181,22 @@ export function CountersTab({ campId, canUpdate }: { campId: string; canUpdate: 
           >
             Add counter
           </Button>
+        </Group>
+      )}
+
+      {canUpdate && !isLoading && counters.length === 0 && (
+        <Group gap="sm">
+          <Button
+            tone="secondary"
+            onClick={() => template.mutate()}
+            loading={template.isPending}
+            data-testid="btn-camp-route-template"
+          >
+            Set up the usual stations
+          </Button>
+          <Text size="sm" c="dimmed">
+            Registration, Vitals, Doctor and Pharmacy — a patient keeps one number through all four.
+          </Text>
         </Group>
       )}
 

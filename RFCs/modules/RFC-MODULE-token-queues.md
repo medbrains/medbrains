@@ -463,6 +463,52 @@ themselves now carry the name, for the desk console.
 
 **P3 done.** Next: **P4** — camp templates and station flow.
 
+## P4 plan (2026-09-26)
+
+**What exists.** Camps, counters (`camp_counters`, a token scope `counter`),
+counters linked to departments (`camp_department_counters`, which feed the camp
+TV board), registrations with a locked per-camp number, screenings (vitals),
+open-encounter (the doctor) and camp pharmacy supplies. **What is wrong for a
+real camp:** a participant sent to the doctor gets an OPD token in the
+*hospital* department's queue — camp and hospital numbers mix — and nothing
+moves a patient from one station to the next; the slip number means nothing
+after the registration desk.
+
+**P4a — one camp number through every station.**
+- Counters get a `flow_position` (their place in the patient's route; empty =
+  not part of the route).
+- **Start from a template** (camp detail → Counters, shown while a camp has no
+  counters): "General camp" creates Registration (1), Vitals (2), Doctor (3)
+  and Pharmacy (4); the Doctor counter is linked to the camp's organising
+  department so the camp board shows it.
+- Registering a participant issues their camp token at the first station after
+  registration, numbered from the camp's own registration number (`C-012`), in
+  a `camp` module queue scoped to the counter — separate from hospital OPD.
+- Completing a token at station *n* issues the same visit's token at station
+  *n+1* with the **same number**; completing the last station ends the route.
+- A camp with a route no longer issues a second, hospital-OPD token when the
+  doctor opens the encounter: the Doctor station token is the one called.
+- Permission first: `camp.queue.manage` — "Call patients through a camp's
+  stations" — for the camp coordinator and the camp's clinical roles; the
+  console offers the `camp` board.
+- Screens: the Counters tab (template button, route order shown), the token
+  console (Camp module, pick station), the camp board.
+
+*P4a built 2026-09-26:*
+- Built:
+  - `camp.queue.manage`: the camp coordinator, doctor, nurse and pharmacist.
+  - `camp_counters.flow_position` (migration 1026) and `POST /api/camp/camps/{id}/route-template`, with a **Set up the usual stations** button on the camp's Counters section, which also shows each step.
+  - Registration answers `token_number`, and its toast tells the coordinator the patient's number.
+  - Completing a camp-station token issues the next station's token on the same visit, so the number is the same.
+  - A camp with a route issues no second hospital-OPD token when the doctor opens the visit.
+  - The token console has a **Camp stations** module with a station picker; camp staff read their stations' queues with names, as a desk does.
+- Tests: the `camp_route_test` server scenario (Vitals → Doctor → Pharmacy under one `C-` number; the route ends; a second template is refused), and the `camp-route` journey (coordinator → nurse → doctor).
+- *Found:* the shared `Badge` put white text on Carbon yellow when filled (1.68:1) — every filled warning badge failed contrast; it now uses `autoContrast`.
+- *Follow-up:* the camp's registrations table shows the long registration number but not the calling number.
+
+**P4b** — skip a station (no pharmacy needed), and stations with more than one
+counter (two doctors). **P4c** — the camp native staff app module (per §10).
+
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —
 a doctor can call a patient whose record they cannot open. Align call and

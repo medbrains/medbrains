@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 990 permissions, one per constant in the Rust source. */
+/** 991 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1669,6 +1669,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "camp.list",
     label: "View Camps",
     description: "View outreach camp list",
+    module: "camp",
+  },
+  {
+    code: "camp.queue.manage",
+    label: "Call patients through a camp's stations",
+    description: "Call, recall and complete tokens at a camp's registration, vitals, doctor and pharmacy stations; completing one sends the patient to the next station with the same number.",
     module: "camp",
   },
   {
@@ -6587,6 +6593,10 @@ export const P = {
     LAB_LIST: "camp.lab.list",
     LAB_MANAGE: "camp.lab.manage",
     LIST: "camp.list",
+    QUEUE: {
+      MANAGE: "camp.queue.manage",
+    },
+    QUEUE_MANAGE: "camp.queue.manage",
     REFERRALS: {
       CREATE: "camp.referrals.create",
       STATUS: "camp.referrals.status",
@@ -9017,6 +9027,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BEDSIDE.FEEDBACK.LIST,
       P.BEDSIDE.SESSIONS.LIST,
       P.BEDSIDE.VIEW,
+      P.CAMP.QUEUE.MANAGE,
       P.CARE_VIEW.DISCHARGE_TRACKER,
       P.CARE_VIEW.SCORES.LIST,
       P.CARE_VIEW.SCORES.RECORD,
@@ -9301,6 +9312,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BEDSIDE.VIDEOS.LIST,
       P.BEDSIDE.VIDEOS.MANAGE,
       P.BEDSIDE.VIEW,
+      P.CAMP.QUEUE.MANAGE,
       P.CARE_VIEW.DISCHARGE_TRACKER,
       P.CARE_VIEW.HANDOVER,
       P.CARE_VIEW.MANAGE_TASKS,
@@ -9607,6 +9619,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Pharmacist",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CAMP.QUEUE.MANAGE,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -10406,6 +10419,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CAMP.LAB.LIST,
       P.CAMP.LAB.MANAGE,
       P.CAMP.LIST,
+      P.CAMP.QUEUE.MANAGE,
       P.CAMP.REFERRALS.CREATE,
       P.CAMP.REFERRALS.STATUS,
       P.CAMP.REFERRALS.UPDATE,

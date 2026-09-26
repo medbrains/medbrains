@@ -22,9 +22,12 @@ use uuid::Uuid;
 
 use crate::Token;
 
-/// Whether the caller reads the board as a desk (names) or as a display.
-pub fn reads_as_desk(claims: &Claims) -> bool {
+/// Whether the caller reads the board as a desk (names) or as a display. The
+/// camp team working a camp's stations is that queue's desk.
+pub fn reads_as_desk(claims: &Claims, module: &str) -> bool {
     require_permission(claims, permissions::front_office::queue::LIST).is_ok()
+        || (module == "camp"
+            && require_permission(claims, permissions::camp::queue::MANAGE).is_ok())
 }
 
 /// "Anita Kumari" → "A. K." — enough for a patient to recognise their number.

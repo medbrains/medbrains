@@ -25,6 +25,7 @@ pub mod queue_admin;
 pub mod queue_categories;
 pub mod queues;
 pub mod sessions;
+pub mod station_flow;
 pub mod transfer;
 
 use axum::routing::{get, post, put};
@@ -92,6 +93,7 @@ fn token_prefix(module: &str) -> &'static str {
         "lab" => "L",
         "radiology" => "X",
         "dispatch" => "D",
+        "camp" => "C",
         _ => "Q",
     }
 }
@@ -828,9 +830,7 @@ pub async fn list_board(
     // shows. Without the second route the TV modules cannot move off
     // `queue_tokens`, because a display holds no front-office code — which is
     // the whole of step 3.
-    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
-        require_permission(&claims, permissions::front_office::queue::LIST)?;
-    }
+    require_queue_read(&claims, &query.module)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -851,7 +851,7 @@ pub async fn list_board(
     .await?;
     let mut tokens = tokens;
     // A screen on a wall is sent no names; the desk reading its own queue is.
-    if !board::reads_as_desk(&claims) {
+    if !board::reads_as_desk(&claims, &query.module) {
         board::redact_for_display(&mut tx, &mut tokens).await?;
     }
 
@@ -973,9 +973,7 @@ pub async fn board_metrics(
     Extension(claims): Extension<Claims>,
     Query(query): Query<BoardQuery>,
 ) -> Result<Json<BoardMetrics>, AppError> {
-    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
-        require_permission(&claims, permissions::front_office::queue::LIST)?;
-    }
+    require_queue_read(&claims, &query.module)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1058,9 +1056,7 @@ pub async fn service_times(
     Extension(claims): Extension<Claims>,
     Query(query): Query<ServiceTimeQuery>,
 ) -> Result<Json<ServiceTimeStats>, AppError> {
-    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
-        require_permission(&claims, permissions::front_office::queue::LIST)?;
-    }
+    require_queue_read(&claims, &query.module)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1375,8 +1371,23 @@ pub async fn escalate_priority(
     Ok(Json(token))
 }
 
+/// Who may read a queue: a paired display, the desk, or — for a camp's
+/// stations — the camp team working them.
+fn require_queue_read(claims: &Claims, module: &str) -> Result<(), AppError> {
+    if medbrains_server_core::middleware::authorization::require_board_read(claims).is_ok()
+        || board::reads_as_desk(claims, module)
+    {
+        return Ok(());
+    }
+    require_permission(claims, permissions::front_office::queue::LIST)
+}
+
 fn require_queue_manage(claims: &Claims, module: &str) -> Result<(), AppError> {
     if module == "opd" && require_permission(claims, permissions::opd::TOKEN_MANAGE).is_ok() {
+        return Ok(());
+    }
+    // A camp's stations are worked by the camp team, not the hospital desk.
+    if module == "camp" && require_permission(claims, permissions::camp::queue::MANAGE).is_ok() {
         return Ok(());
     }
     // Falls through so a caller working a non-OPD queue is told about the code
@@ -1478,7 +1489,14 @@ async fn transition_from(
     // in front of the queue rather than at the end of it: they already waited
     // their turn once, and the room that sent them is expecting the result.
     let returned_to = if status == "completed" {
-        return_to_referrer(&mut tx, claims, &token).await?
+        match return_to_referrer(&mut tx, claims, &token).await? {
+            // A camp patient moves on to the next station, same number.
+            None => {
+                station_flow::send_to_next_station(&mut tx, claims.tenant_id, claims.sub, &token)
+                    .await?
+            }
+            returned => returned,
+        }
     } else {
         None
     };
@@ -1995,9 +2013,7 @@ pub async fn camp_board(
 ) -> Result<Json<Vec<CampBoardRow>>, AppError> {
     // A camp board is a TV like any other: a paired display reads it with
     // `display.board.read`, which the desk code alone refused.
-    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
-        require_permission(&claims, permissions::front_office::queue::LIST)?;
-    }
+    require_queue_read(&claims, "camp")?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2098,6 +2114,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
         .route("/api/tokens/board/config", get(board::board_config))
+        .route(
+            "/api/tokens/camp-stations",
+            get(station_flow::list_camp_stations),
+        )
         .route("/api/tokens/board/metrics", get(board_metrics))
         .route("/api/tokens/service-times", get(service_times))
         .route("/api/tokens/worklist", get(list_worklist))

@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // Camp stations are staffed by the same clinicians.
+            permissions::camp::queue::MANAGE,
             // Recall lists are built from diagnoses, so a clinician defines
             // them; marketing runs them without seeing why anyone qualified.
             permissions::marketing::cohorts::CLINICAL_DEFINE,
@@ -344,6 +346,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            // Camp stations are staffed by the same clinicians.
+            permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
@@ -725,6 +729,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            // Camp stations are staffed by the same clinicians.
+            permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::VIEW,
@@ -1654,6 +1660,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::camp::UPDATE,
             permissions::camp::registrations::LIST,
             permissions::camp::registrations::CREATE,
+            permissions::camp::queue::MANAGE,
             permissions::camp::registrations::UPDATE,
             permissions::camp::screenings::LIST,
             permissions::camp::screenings::MANAGE,

@@ -222,6 +222,7 @@ import type {
   // Specialty Queue Displays
   CampBoardRow,
   CampCounter,
+  CampStation,
   CampFollowup,
   CampIncident,
   CampLabSample,
@@ -8051,6 +8052,13 @@ export const api = {
       method: "DELETE",
     }),
   listCampCounters: (campId: string) => request<CampCounter[]>(`/camp/camps/${campId}/counters`),
+  /** Start a camp's route of stations from a template (only "general" today). */
+  applyCampRouteTemplate: (campId: string, template = "general") =>
+    request<{ counter_id: string; name: string; flow_position: number }[]>(
+      `/camp/camps/${campId}/route-template`,
+      { method: "POST", body: JSON.stringify({ template }) },
+    ),
+  listCampStations: () => request<CampStation[]>("/tokens/camp-stations"),
   addCampCounter: (campId: string, data: AddCampCounterRequest) =>
     request<CampCounter>(`/camp/camps/${campId}/counters`, {
       method: "POST",
@@ -8182,7 +8190,8 @@ export const api = {
     return request<CampRegistration[]>(`/camp/registrations?${sp.toString()}`);
   },
   createCampRegistration: (data: CreateCampRegistrationRequest) =>
-    request<CampRegistration>("/camp/registrations", {
+    /** `token_number`: the number the camp calls them by, when it runs a route. */
+    request<CampRegistration & { token_number: string | null }>("/camp/registrations", {
       method: "POST",
       body: JSON.stringify(data),
     }),

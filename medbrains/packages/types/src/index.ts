@@ -4779,6 +4779,14 @@ export interface AuditChainVerification {
   triggered_by: string;
 }
 
+/** A camp station a desk can work (`GET /api/tokens/camp-stations`). */
+export interface CampStation {
+  counter_id: string;
+  camp_name: string;
+  name: string;
+  flow_position: number;
+}
+
 export interface CampCounter {
   id: string;
   tenant_id: string;
@@ -4792,6 +4800,8 @@ export interface CampCounter {
   /** Null until the counter is mapped to a department; unmapped counters never reach the board. */
   department_id: string | null;
   department_name: string | null;
+  /** This counter's step in the patient's route; null when not on it. */
+  flow_position: number | null;
   created_at: string;
   updated_at: string;
 }

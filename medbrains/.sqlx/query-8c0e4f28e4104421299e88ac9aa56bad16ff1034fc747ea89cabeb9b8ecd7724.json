@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM camp_counters WHERE camp_id = $1 AND flow_position IS NOT NULL AND deleted_at IS NULL ORDER BY flow_position OFFSET 1 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8c0e4f28e4104421299e88ac9aa56bad16ff1034fc747ea89cabeb9b8ecd7724"
+}

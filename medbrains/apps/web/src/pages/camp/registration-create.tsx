@@ -134,7 +134,10 @@ function CampRegistrationCreatePageInner() {
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       notifications.show({
         title: t("notify.registered"),
-        message: t("notify.participantRegistered"),
+        // The number every later station calls them by — tell the patient.
+        message: registration.token_number
+          ? t("notify.participantRegisteredWithNumber", { number: registration.token_number })
+          : t("notify.participantRegistered"),
         color: "success",
       });
       backToList();
@@ -183,6 +186,7 @@ function CampRegistrationCreatePageInner() {
             required
             error={errors.person_name?.message}
             disabled={!canEditCampName}
+            data-testid="field-person_name"
             {...register("person_name")}
           />
           <Group grow>
@@ -342,7 +346,12 @@ function CampRegistrationCreatePageInner() {
             )}
           />
           <Group>
-            <Button tone="primary" type="submit" loading={createMut.isPending}>
+            <Button
+              tone="primary"
+              type="submit"
+              loading={createMut.isPending}
+              data-testid="btn-register"
+            >
               Register
             </Button>
             <Button tone="ghost" onClick={backToList}>

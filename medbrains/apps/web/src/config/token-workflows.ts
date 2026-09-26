@@ -19,6 +19,7 @@ export interface TokenWorkflow {
 }
 
 const MANAGE = "front_office.queue.manage";
+const CAMP_MANAGE = "camp.queue.manage";
 
 /**
  * Call an already-called token again.
@@ -146,6 +147,48 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         to: "completed",
         permission: MANAGE,
         tone: "secondary",
+      },
+      RECALL,
+      NO_SHOW,
+      HOLD,
+      BACK,
+    ],
+  },
+  // A camp station: finishing with a patient sends them to the next station
+  // on the camp's route with the same number, which the button says.
+  camp: {
+    statusLabels: {
+      waiting: "Waiting",
+      on_hold: "On hold",
+      called: "Called",
+      serving: "With staff",
+      completed: "Moved on",
+      no_show: "No-show",
+    },
+    actions: [
+      {
+        id: "call",
+        label: "Call",
+        from: ["waiting"],
+        to: "called",
+        permission: CAMP_MANAGE,
+        tone: "primary",
+      },
+      {
+        id: "start",
+        label: "Start",
+        from: ["called"],
+        to: "serving",
+        permission: CAMP_MANAGE,
+        tone: "secondary",
+      },
+      {
+        id: "complete",
+        label: "Done — next station",
+        from: ["called", "serving"],
+        to: "completed",
+        permission: CAMP_MANAGE,
+        tone: "primary",
       },
       RECALL,
       NO_SHOW,
