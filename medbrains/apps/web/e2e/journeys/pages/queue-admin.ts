@@ -19,6 +19,11 @@ export class QueueAdmin {
     await expectScreenAccessible(this.page, "admin-queues");
   }
 
+  /** Narrow the list to this queue, as an admin with dozens of queues does. */
+  async find(name: string): Promise<void> {
+    await this.page.getByTestId("field-table-search").fill(name);
+  }
+
   row(queueId: string): Locator {
     return this.page.getByTestId(`row-queue-${queueId}`);
   }

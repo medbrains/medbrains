@@ -61,6 +61,8 @@ export function QueuesPage() {
     {
       key: "name",
       label: "Queue",
+      searchable: true,
+      searchValue: (row) => row.name,
       // Status sits under the name: a column of its own squeezed the badge to
       // "PAU…", which an admin cannot read at a glance.
       render: (row) => (
@@ -79,6 +81,8 @@ export function QueuesPage() {
     {
       key: "serves",
       label: "Serves",
+      searchable: true,
+      searchValue: (row) => `${moduleLabel(row.module)} ${row.scope_label ?? ""}`,
       render: (row) => `${moduleLabel(row.module)} · ${row.scope_label ?? row.scope}`,
     },
     {
@@ -171,6 +175,9 @@ export function QueuesPage() {
           loading={queues.isLoading}
           rowKey={(row) => row.id}
           rowTestId={(row) => `row-queue-${row.id}`}
+          // A hospital runs dozens of queues; an admin finds one by name.
+          searchable
+          searchPlaceholder="Find a queue or place"
           emptyTitle="No queues set up yet"
           emptyDescription="Every place uses the standard numbering (T-001, P-001…) until you set up a queue for it."
         />

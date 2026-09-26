@@ -31,6 +31,8 @@ const MODULE_VALUES = [
 
 const STATUS_TONE: Record<string, "neutral" | "warning" | "info" | "danger"> = {
   waiting: "neutral",
+  // Away for a while; their place is kept. Not a warning — nothing is wrong.
+  on_hold: "info",
   called: "warning",
   serving: "info",
   // Closed by the day rollover, never served. Only visible with
@@ -123,19 +125,27 @@ export function TokenConsolePage() {
   // Stations are the canonical counter names. An empty list disables the
   // picker rather than falling back to free text: a typed label that no door
   // matches is worse than no label at all, because it looks like it worked.
+  // The same codes the server accepts: a screen must not issue a fetch it is
+  // refused (the crawler found this one 403ing on every visit).
+  const canListStations = useHasAnyPermission([
+    P.ADMIN.SETTINGS_LOCATIONS_LIST,
+    P.FRONT_OFFICE.QUEUE_MANAGE,
+  ]);
   const { data: stations = [] } = useQuery({
     queryKey: ["stations"],
     queryFn: () => api.listStations(),
+    enabled: canListStations,
   });
 
   // A queue with counters takes calls only at those counters (the server
   // refuses any other), so the picker offers exactly them.
   const canViewQueues = useHasPermission(P.FRONT_OFFICE.QUEUE.CONFIG.VIEW);
-  const { data: queues = [] } = useQuery({
+  const queuesQuery = useQuery({
     queryKey: ["queues"],
     queryFn: () => api.listQueues(),
     enabled: canViewQueues && Boolean(departmentId),
   });
+  const queues = queuesQuery.data ?? [];
   const liveQueue = queues.find(
     (q) =>
       q.module === module &&
@@ -143,19 +153,27 @@ export function TokenConsolePage() {
       q.scope_id === departmentId &&
       q.status !== "closed",
   );
-  const { data: queueCounters = [] } = useQuery({
+  const countersQuery = useQuery({
     queryKey: ["queue-counters", liveQueue?.id],
     queryFn: () => api.listQueueCounters(liveQueue?.id ?? ""),
     enabled: Boolean(liveQueue),
   });
+  const queueCounters = countersQuery.data ?? [];
+  // Until the queue and its counters are known, offer nothing: falling back to
+  // every counter for a moment let a fast desk pick one the server refuses.
+  const countersKnown =
+    !(canViewQueues && departmentId && queuesQuery.isPending) &&
+    !(liveQueue && countersQuery.isPending);
   // Station names repeat across a hospital; a picker option must not.
-  const counterNames = [
-    ...new Set(
-      liveQueue && queueCounters.length > 0
-        ? queueCounters.map((c) => c.name)
-        : stations.map((station) => station.name),
-    ),
-  ];
+  const counterNames = !countersKnown
+    ? []
+    : [
+        ...new Set(
+          liveQueue && queueCounters.length > 0
+            ? queueCounters.map((c) => c.name)
+            : stations.map((station) => station.name),
+        ),
+      ];
 
   const columns: Column<ModuleToken>[] = [
     { key: "number", label: "Token", render: (row) => <strong>{row.number}</strong> },
@@ -217,13 +235,14 @@ export function TokenConsolePage() {
               tone={action.tone ?? "secondary"}
               size="xs"
               onClick={() => advance.mutate({ id: row.id, status: action.to })}
+              data-testid={`btn-${action.id}`}
             >
               {action.label}
             </Button>
           ))}
           {/* Only while they are still waiting to be seen — escalating
               somebody already in the room changes nothing about their care. */}
-          {(row.status === "waiting" || row.status === "called") && (
+          {(row.status === "waiting" || row.status === "on_hold" || row.status === "called") && (
             <Button tone="tertiary" size="xs" onClick={() => setEscalating(row)}>
               Move up
             </Button>
@@ -322,6 +341,7 @@ export function TokenConsolePage() {
           data={tokens ?? []}
           loading={boardLoading}
           rowKey={(row) => row.id}
+          rowTestId={(row) => `row-token-${row.number}`}
           emptyTitle={t("tokenConsole.empty")}
         />
       )}

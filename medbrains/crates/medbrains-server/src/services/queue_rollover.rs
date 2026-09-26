@@ -101,7 +101,7 @@ async fn close_tenant_day(pool: &PgPool, tenant_id: Uuid) -> Result<(u64, u64), 
         "WITH stale AS ( \
              SELECT id FROM tokens \
               WHERE tenant_id = $1 AND token_date < $2 \
-                AND status IN ('waiting', 'called', 'serving') \
+                AND status IN ('waiting', 'on_hold', 'called', 'serving') \
               LIMIT $3 \
          ) \
          UPDATE tokens t SET status = 'expired', updated_at = now() \

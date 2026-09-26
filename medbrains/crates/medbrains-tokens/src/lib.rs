@@ -837,7 +837,7 @@ pub async fn list_board(
          WHERE module = $1 AND token_date = CURRENT_DATE \
            AND ($2::text IS NULL OR scope = $2) \
            AND ($3::uuid IS NULL OR scope_id = $3) \
-           AND (status IN ('waiting', 'called', 'serving') \
+           AND (status IN ('waiting', 'on_hold', 'called', 'serving') \
                 OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
          ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC"
     ))
@@ -928,7 +928,7 @@ pub async fn list_worklist(
           WHERE t.module = $1 AND t.token_date = CURRENT_DATE \
             AND ($2::text IS NULL OR t.scope = $2) \
             AND ($3::uuid IS NULL OR t.scope_id = $3) \
-            AND (t.status IN ('waiting', 'called', 'serving') \
+            AND (t.status IN ('waiting', 'on_hold', 'called', 'serving') \
                  OR ($4::bool AND t.status IN ('completed', 'no_show'))) \
           ORDER BY token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq ASC \
           LIMIT 500",
@@ -1131,7 +1131,7 @@ pub async fn my_tokens(
          ) AS ahead \
          FROM tokens t \
          WHERE t.patient_id = $1 AND t.token_date = CURRENT_DATE \
-           AND t.status IN ('waiting', 'called', 'serving') \
+           AND t.status IN ('waiting', 'on_hold', 'called', 'serving') \
          ORDER BY t.created_at"
     ))
     .bind(query.patient_id)
@@ -1152,8 +1152,9 @@ pub struct CallTokenInput {
     pub counter_label: Option<String>,
 }
 
-const VALID_TOKEN_STATUSES: [&str; 6] = [
+const VALID_TOKEN_STATUSES: [&str; 7] = [
     "waiting",
+    "on_hold",
     "called",
     "serving",
     "completed",
@@ -1165,14 +1166,23 @@ const VALID_TOKEN_STATUSES: [&str; 6] = [
 ///
 /// `transition` used to set any status from any status, so a stale console
 /// could put a completed patient back in the queue or call a no-show again.
-/// `waiting` is not reachable here at all: going back into the queue is
-/// `requeue`, which decides the position. Re-calling a called token is allowed
+/// `waiting` is reachable only from `on_hold`, whose place was kept; going
+/// back into the queue from anywhere else is `requeue`, which decides the
+/// position. Re-calling a called token is allowed
 /// — that is the desk repeating the announcement.
+///
+/// `on_hold` is a waiting patient who is away for a while — sent for an ECG,
+/// gone to pay — and keeps their place without being called. Coming back to
+/// the counter, they can be called straight from hold.
 fn allowed_from(to: &str) -> &'static [&'static str] {
     match to {
-        "called" | "serving" | "no_show" => &["waiting", "called"],
+        "called" | "serving" => &["waiting", "on_hold", "called"],
+        "no_show" => &["waiting", "called"],
+        "on_hold" => &["waiting"],
+        // Back from hold: the place was kept, so this is not a requeue.
+        "waiting" => &["on_hold"],
         "completed" => &["called", "serving"],
-        "cancelled" => &["waiting", "called", "serving"],
+        "cancelled" => &["waiting", "on_hold", "called", "serving"],
         _ => &[],
     }
 }
@@ -1333,7 +1343,7 @@ pub async fn escalate_priority(
                 priority_changed_by = $5, priority_changed_at = now(), \
                 updated_at = now() \
           WHERE id = $1 AND tenant_id = $2 \
-            AND status IN ('waiting', 'called') \
+            AND status IN ('waiting', 'on_hold', 'called') \
             AND token_priority_weight($3) < token_priority_weight(priority) \
           RETURNING {SELECT}"
     ))
@@ -1446,8 +1456,9 @@ async fn transition_from(
     .await?
     .ok_or_else(|| {
         AppError::Conflict(format!(
-            "Token is already {}; it cannot be set to {status}",
-            current.replace('_', " ")
+            "Token is already {}; it cannot be set to {}",
+            current.replace('_', " "),
+            status.replace('_', " ")
         ))
     })?;
 

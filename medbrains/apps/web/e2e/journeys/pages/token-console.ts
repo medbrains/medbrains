@@ -35,4 +35,17 @@ export class TokenConsole {
     await expectUsable(call, "Call next");
     await call.click();
   }
+
+  /** Press one of a token's own actions (hold, back, recall…) on its row. */
+  async act(number: string, action: string): Promise<void> {
+    const row = this.page.getByTestId(`row-token-${number}`);
+    await expect(row).toBeVisible();
+    const button = row.getByTestId(`btn-${action}`);
+    await expectUsable(button, action);
+    await button.click();
+  }
+
+  async expectStatus(number: string, label: string): Promise<void> {
+    await expect(this.page.getByTestId(`row-token-${number}`)).toContainText(label);
+  }
 }

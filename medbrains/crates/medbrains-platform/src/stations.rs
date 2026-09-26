@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -47,11 +49,20 @@ pub struct Station {
 }
 
 /// `GET /api/stations`
+///
+/// A desk working a queue reads the counter names to say which counter it is
+/// calling from; without them its counter picker was always empty.
 pub async fn list_stations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<Station>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::locations::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::settings::locations::LIST,
+            permissions::front_office::queue::MANAGE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, Station>(&format!(
@@ -91,7 +102,9 @@ pub async fn create_station(
 ) -> Result<Json<Station>, AppError> {
     require_permission(&claims, permissions::admin::settings::locations::CREATE)?;
     if body.code.trim().is_empty() || body.name.trim().is_empty() {
-        return Err(AppError::BadRequest("code and name are required".to_owned()));
+        return Err(AppError::BadRequest(
+            "code and name are required".to_owned(),
+        ));
     }
     let station_type = body.station_type.as_deref().unwrap_or("other");
     validate_type(station_type)?;

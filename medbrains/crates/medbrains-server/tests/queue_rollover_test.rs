@@ -73,6 +73,23 @@ async fn the_rollover_closes_yesterday_and_leaves_today_alone() {
     );
 }
 
+/// A hold nobody released closes with the day.
+///
+/// A patient put on hold and never brought back must not sit open forever: the
+/// day ends for them as it does for everyone still waiting.
+#[tokio::test]
+async fn the_rollover_closes_a_forgotten_hold() {
+    let app = common::spawn_app().await;
+    let tenant_id = seeded_tenant(&app.db).await;
+    let held = token(&app.db, tenant_id, Uuid::new_v4(), "opd", "on_hold", 1).await;
+
+    medbrains_server::services::queue_rollover::run_rollover_pass(&app.db)
+        .await
+        .expect("rollover pass");
+
+    assert_eq!(status_of(&app.db, held).await, "expired");
+}
+
 /// A completed token is left exactly as it was.
 ///
 /// The pass must not rewrite history: `expired` means nobody was seen, and

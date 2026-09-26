@@ -53,6 +53,8 @@ test("an administrator sets up a queue and it numbers, fills and pauses as set",
   await expect(drawer.getByTestId("queue-number-preview")).toHaveText("GEN-100");
   await drawer.getByRole("button", { name: "Create queue" }).click();
 
+  // Find it the way an admin with dozens of queues does.
+  await page.getByTestId("field-table-search").fill(name);
   const row = page.getByRole("row", { name: new RegExp(name) });
   await expect(row).toContainText("GEN-100 · restarts daily");
   await expect(row).toContainText("0 of 2");
@@ -61,6 +63,7 @@ test("an administrator sets up a queue and it numbers, fills and pauses as set",
   expect((await issue(ctx, dept.id)).number).toBe("GEN-100");
   expect((await issue(ctx, dept.id)).number).toBe("GEN-101");
   await page.reload();
+  await page.getByTestId("field-table-search").fill(name);
   await expect(page.getByRole("row", { name: new RegExp(name) })).toContainText("2 of 2");
 
   await page.getByRole("row", { name: new RegExp(name) }).getByRole("button", { name: "Pause" }).click();
@@ -91,6 +94,7 @@ test("an administrator gives a queue its own lanes, and the desk calls by them",
   });
   await routeApiDirect(page);
   await page.goto("/admin/queues");
+  await page.getByTestId("field-table-search").fill(name);
   await page.getByRole("row", { name: new RegExp(name) }).getByRole("button", { name: "Lanes" }).click();
   const drawer = page.getByRole("dialog", { name: new RegExp(`Lanes — ${name}`) });
   await expect(drawer.getByText("always called first")).toBeVisible();

@@ -54,6 +54,7 @@ export function DataTableToolbar<T>({
                 size="xs"
                 w={210}
                 aria-label="Search table"
+                data-testid="field-table-search"
               />
             )}
             {filters?.map((filter) =>

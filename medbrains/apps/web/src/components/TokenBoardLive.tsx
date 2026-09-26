@@ -56,12 +56,16 @@ export function classifyBoardFrame(raw: unknown): BoardFrame {
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   waiting: "neutral",
+  on_hold: "info",
   called: "warning",
   serving: "info",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   waiting: "Waiting",
+  // Their number stays on the board, so a patient back from an ECG sees they
+  // still have their place.
+  on_hold: "On hold",
   called: "Called",
   serving: "In progress",
 };

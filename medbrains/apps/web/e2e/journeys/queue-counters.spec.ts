@@ -37,6 +37,7 @@ test("the desk calls to the queue's own windows, and the board names the window"
   // The administrator creates the two windows for this queue.
   const admin = new QueueAdmin(await hospital.asAdmin());
   await admin.open();
+  await admin.find(`Counters ${dept.name}`);
   await admin.createCounters(queue.id, windows);
 
   // Starting data: a patient waiting (no screen issues a bare token).

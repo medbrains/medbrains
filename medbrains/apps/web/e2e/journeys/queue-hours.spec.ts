@@ -61,6 +61,7 @@ test("outside its hours the desk registers the patient and is told when tokens r
   // The administrator sets the hours.
   const admin = new QueueAdmin(await hospital.asAdmin());
   await admin.open();
+  await admin.find(`Hours ${dept.name}`);
   await admin.setHours(queue.id, [{ label: "Clinic", opens: hhmm(opens), closes: hhmm(closes) }]);
   await admin.expectNotTakingTokens(queue.id, listed);
 

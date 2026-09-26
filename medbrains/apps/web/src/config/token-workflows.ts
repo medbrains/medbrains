@@ -53,6 +53,30 @@ const NO_SHOW: TokenWorkflowAction = {
 };
 
 /**
+ * A waiting patient who is away for a while — sent for an ECG, gone to pay —
+ * keeps their place and is passed over by Call next until they are back.
+ */
+const HOLD: TokenWorkflowAction = {
+  id: "hold",
+  label: "Hold",
+  from: ["waiting"],
+  to: "on_hold",
+  permission: MANAGE,
+  // Outlined, like Move up: the plain secondary tone read as a label.
+  tone: "tertiary",
+};
+
+/** Back from hold, in the place they held. */
+const BACK: TokenWorkflowAction = {
+  id: "back",
+  label: "Back",
+  from: ["on_hold"],
+  to: "waiting",
+  permission: MANAGE,
+  tone: "primary",
+};
+
+/**
  * Per-module queue workflow. Phase 1 uses the generic token lifecycle
  * (waiting → called → serving → completed) with module-specific labels +
  * action verbs; finer states (e.g. pharmacy "ready to dispense") come later.
@@ -61,6 +85,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
   registration: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "At counter",
       completed: "Registered",
       no_show: "No-show",
@@ -84,11 +109,14 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   opd: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "Called",
       serving: "In consultation",
       completed: "Completed",
@@ -121,11 +149,14 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   pharmacy: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "Called",
       serving: "Preparing",
       completed: "Dispensed",
@@ -158,11 +189,14 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   billing: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "At counter",
       serving: "Collecting",
       completed: "Paid",
@@ -195,11 +229,14 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   lab: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "Called",
       serving: "Collecting sample",
       completed: "Collected",
@@ -232,11 +269,14 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   radiology: {
     statusLabels: {
       waiting: "Waiting",
+      on_hold: "On hold",
       called: "Called",
       serving: "Scanning",
       completed: "Completed",
@@ -269,6 +309,8 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       RECALL,
       NO_SHOW,
+      HOLD,
+      BACK,
     ],
   },
   dispatch: {

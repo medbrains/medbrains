@@ -269,6 +269,15 @@ edge tier design already written in `medbrains-edge`.
     re-saves with a stale staff id, **then** the save is refused — dropping the
     unknown id would silently open the room to everyone.
 
+31. **Given** A, B and C waiting, **when** A is sent for an ECG and the desk
+    puts A on hold, **then** Call next calls B, the board still shows A's
+    number as "On hold", and **when** A is back, A is called before C. A held
+    patient who walks up to the counter can be called at once; a hold nobody
+    releases closes with the day.
+32. *Skip* is not a separate action: a called patient who is not there is a
+    **No-show**, and **Requeue** puts them back by the hospital's recall policy.
+    A second button for the same thing would split one statistic in two.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -346,9 +355,21 @@ themselves now carry the name, for the desk console.
   *Follow-up:* the doctor's *Call patient* on `/opd` goes through the encounter
   path and names no counter; an OPD queue with rooms needs the room there too.
 - **P2b — console actions**: *Call again* (recall), *No-show* and *Move up*
-  already exist. Still to build: **skip** (not here — put back a few places),
-  **hold** (stepped out — keep the place, not callable) and **transfer** (to
-  another queue, keeping the number).
+  already exist; skip is No-show + Requeue (scenario 32).
+  *Hold built 2026-09-26:* status `on_hold` (waiting → on hold → back to
+  waiting in the same place, or called straight from hold), Hold / Back on the
+  console for the six patient queues, "On hold" on the board, expired by the
+  nightly rollover. Tests: 2 server + 1 rollover (each fails without the
+  change), the `queue-hold` journey 3/3.
+  *Found:* receptionists got 403 on `GET /api/stations`, so the console's
+  counter picker was empty unless the queue had counters — now also admitted
+  for `front_office.queue.manage`, and the fetch is gated on the same codes.
+  The picker offered every station while a queue's counters were still
+  loading (a desk could pick one the server refuses) — it now waits. Admin →
+  Queues gained a search box: with dozens of queues the one just created sat on
+  page 2.
+  *Still to build:* **transfer** (wrong department — move to another queue);
+  it touches the OPD visit's department, so it is its own slice.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —
