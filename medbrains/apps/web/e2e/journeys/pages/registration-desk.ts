@@ -24,7 +24,7 @@ export class RegistrationDesk {
   }
 
   private async next(): Promise<void> {
-    const next = this.page.getByRole("button", { name: "Next", exact: true });
+    const next = this.page.getByTestId("btn-next");
     await expectUsable(next, "Next");
     await next.click();
   }
@@ -32,28 +32,26 @@ export class RegistrationDesk {
   /** Fills every step a real desk fills and presses Register. */
   async register(patient: WalkIn): Promise<void> {
     const page = this.page;
-    await page.getByLabel("First Name").fill(patient.firstName);
-    await page.getByLabel("Last Name").fill(patient.lastName);
-    await page.getByLabel(/^Phone \(primary\)/).fill(patient.phone);
-    await page.getByLabel("Gender").first().click();
+    await page.getByTestId("field-first_name").fill(patient.firstName);
+    await page.getByTestId("field-last_name").fill(patient.lastName);
+    await page.getByTestId("field-phone").fill(patient.phone);
+    await page.getByTestId("picker-gender").click();
     await page.getByRole("option", { name: patient.sex, exact: true }).click();
-    await page.getByLabel("Age years").fill(String(patient.ageYears));
-    await page.getByPlaceholder("Select department").fill(patient.department);
-    // Options read "Name (CODE)".
+    await page.getByTestId("field-age_years").fill(String(patient.ageYears));
+    // Options are data ("Name (CODE)"), not interface copy.
+    await page.getByTestId("picker-department").fill(patient.department);
     await page.getByRole("option", { name: new RegExp(`^${patient.department} \\(`) }).click();
     if (patient.consultant) {
-      await page.getByPlaceholder("Select concerned consultant").fill(patient.consultant);
+      await page.getByTestId("picker-consultant").fill(patient.consultant);
       await page.getByRole("option", { name: new RegExp(`^${patient.consultant}`) }).click();
     }
     await this.next();
 
-    await expect(page.getByText("How may we contact you?")).toBeVisible();
-    if (patient.whatsappConsent) {
-      await page.getByLabel("Hospital updates on WhatsApp").check();
-    }
+    await expect(page.getByTestId("switch-whatsapp_opt_in")).toBeVisible();
+    if (patient.whatsappConsent) await page.getByTestId("switch-whatsapp_opt_in").check();
     for (let step = 0; step < 3; step += 1) await this.next();
 
-    const register = page.getByRole("button", { name: /^register/i });
+    const register = page.getByTestId("btn-register");
     await expectUsable(register, "Register");
     await register.click();
   }

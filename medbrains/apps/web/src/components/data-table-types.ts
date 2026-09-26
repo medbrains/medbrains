@@ -93,6 +93,8 @@ export interface DataTableProps<T> {
   perPage?: number;
   onPageChange?: (page: number) => void;
   rowKey: (row: T) => string;
+  /** A stable `data-testid` per row (e.g. `row-token-R-012`), for tests that must not select by copy. */
+  rowTestId?: (row: T) => string;
   toolbar?: ReactNode;
   tableActions?: ReactNode;
   rowStyle?: (row: T) => CSSProperties | undefined;

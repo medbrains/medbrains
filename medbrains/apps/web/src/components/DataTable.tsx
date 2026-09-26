@@ -168,6 +168,7 @@ export function DataTable<T>({
   perPage = 20,
   onPageChange,
   rowKey,
+  rowTestId,
   toolbar,
   tableActions,
   rowStyle,
@@ -455,6 +456,7 @@ export function DataTable<T>({
               return (
                 <Table.Tr
                   key={rowKey(row)}
+                  data-testid={rowTestId?.(row)}
                   aria-rowindex={globalRowIndex}
                   className={shouldVirtualize ? styles.virtualRow : undefined}
                   data-clickable={onRowClick ? "true" : undefined}

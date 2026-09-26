@@ -147,6 +147,8 @@ interface CountryPhoneInputProps {
   placeholder?: string;
   countryAriaLabel: string;
   numberAriaLabel: string;
+  /** Stable test id for the number field (tests select by it, not by copy). */
+  numberTestId?: string;
 }
 
 export function CountryPhoneInput({
@@ -159,6 +161,7 @@ export function CountryPhoneInput({
   placeholder,
   countryAriaLabel,
   numberAriaLabel,
+  numberTestId,
 }: CountryPhoneInputProps) {
   const selectedCountry = getPhoneCountryOption(countryCode, countryOptions);
   const normalizedValue = value ?? "";
@@ -203,6 +206,7 @@ export function CountryPhoneInput({
           />
           <TextInput
             aria-label={numberAriaLabel}
+            data-testid={numberTestId}
             inputMode="tel"
             placeholder={placeholder ?? selectedCountry.example}
             value={normalizedValue}

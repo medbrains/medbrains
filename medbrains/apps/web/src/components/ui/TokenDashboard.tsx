@@ -86,8 +86,12 @@ export function TokenDashboard({
                     key={token.id}
                     className={styles.hero}
                     aria-label={`Token ${token.tokenNumber}, ${token.status}`}
+                    data-testid={`token-${token.tokenNumber}`}
+                    data-status={token.status}
                   >
-                    <Text className={styles.heroToken}>{token.tokenNumber}</Text>
+                    <Text className={styles.heroToken} textWrap="nowrap">
+                      {token.tokenNumber}
+                    </Text>
                     {(token.primary || token.meta) && (
                       <Stack gap={2}>
                         {token.primary && (
@@ -124,11 +128,17 @@ export function TokenDashboard({
                     key={token.id}
                     className={styles.card}
                     aria-label={`Token ${token.tokenNumber}, ${token.status}`}
+                    data-testid={`token-${token.tokenNumber}`}
+                    data-status={token.status}
                   >
-                    <Group justify="space-between" align="center" wrap="nowrap">
-                      <Text className={styles.token}>{token.tokenNumber}</Text>
+                    {/* Stacked: side by side, the badge crushed to "W" on a TV column. */}
+                    <Stack gap={4} align="flex-start">
+                      {/* Mantine's own text-wrap outranks a nowrap in SCSS; the prop wins. */}
+                      <Text className={styles.token} textWrap="nowrap">
+                        {token.tokenNumber}
+                      </Text>
                       <Badge tone={token.tone}>{token.status}</Badge>
-                    </Group>
+                    </Stack>
                     {(token.primary || token.meta) && (
                       <Text className={styles.meta} c="dimmed" lineClamp={1} mt={4}>
                         {token.primary ?? token.meta}

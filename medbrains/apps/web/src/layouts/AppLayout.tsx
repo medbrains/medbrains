@@ -31,7 +31,7 @@ import {
 import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai";
 import { Brand } from "@/components/Brand";
@@ -184,6 +184,17 @@ export function AppLayout() {
     [navigate, closeMobile],
   );
 
+  // Menu items are real links (an href, so keyboard focus, "link" to a
+  // screen reader, open-in-new-tab); the router navigates, this only warms
+  // the route and closes the mobile drawer.
+  const handleLinkClick = useCallback(
+    (path: string) => {
+      preloadRoute(path);
+      closeMobile();
+    },
+    [closeMobile],
+  );
+
   const handleNavigationIntent = useCallback((path: string) => {
     preloadRoute(path);
   }, []);
@@ -303,11 +314,14 @@ export function AppLayout() {
   const renderRailItem = (item: ResolvedNavItem, active: boolean) => (
     <Tooltip key={item.path} label={item.label} position="right" withArrow>
       <UnstyledButton
+        component={Link}
+        to={item.path}
+        aria-label={item.label}
         className={`${classes.railItem} ${active ? classes.railItemActive : ""}`}
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
-        onClick={() => handleNavigate(item.path)}
+        onClick={() => handleLinkClick(item.path)}
         onPointerEnter={() => handleNavigationIntent(item.path)}
       >
         <span className={classes.navIcon}>{item.icon}</span>
@@ -336,13 +350,15 @@ export function AppLayout() {
             {visibleChildren.map((child) => (
               <NavLink
                 key={child.path}
+                component={Link}
+                to={child.path}
                 label={child.label}
                 style={{ "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties}
                 leftSection={<span className={classes.navIcon}>{child.icon}</span>}
                 active={isActive(child.path)}
                 aria-current={isActive(child.path) ? "page" : undefined}
                 onFocus={() => handleNavigationIntent(child.path)}
-                onClick={() => handleNavigate(child.path)}
+                onClick={() => handleLinkClick(child.path)}
                 onPointerEnter={() => handleNavigationIntent(child.path)}
                 className={
                   isActive(child.path) ? classes.expandedChildActive : classes.expandedChild
@@ -359,6 +375,8 @@ export function AppLayout() {
     return (
       <NavLink
         key={item.path}
+        component={Link}
+        to={item.path}
         label={item.label}
         style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
@@ -386,7 +404,7 @@ export function AppLayout() {
         active={active}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
-        onClick={() => handleNavigate(item.path)}
+        onClick={() => handleLinkClick(item.path)}
         onPointerEnter={() => handleNavigationIntent(item.path)}
         className={active ? classes.expandedItemActive : classes.expandedItem}
       />

@@ -9,9 +9,25 @@ export class WaitingRoomDisplay {
     await expect(this.page.getByText("MedBrains · Live queue")).toBeVisible();
   }
 
-  /** The board's entry for this token, named with its status, e.g. "Token R-012, Called". */
-  token(number: string, status: string): Locator {
-    return this.page.getByRole("listitem", { name: `Token ${number}, ${status}` });
+  /** The board's card for this token. */
+  token(number: string): Locator {
+    return this.page.getByTestId(`token-${number}`);
+  }
+
+  async expectStatus(number: string, status: string): Promise<void> {
+    await expect(this.token(number)).toHaveAttribute("data-status", status, { timeout: 15_000 });
+    await this.expectReadableAcrossTheRoom(number);
+  }
+
+  /** A number split over two lines ("R-" / "028") is misread from the benches. */
+  async expectReadableAcrossTheRoom(number: string): Promise<void> {
+    const text = this.token(number).getByText(number, { exact: true });
+    const lines = await text.evaluate((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size;
+    });
+    expect(lines, `token ${number} renders on one line`).toBe(1);
   }
 
   /** The board is public: a patient's name must never appear on it. */

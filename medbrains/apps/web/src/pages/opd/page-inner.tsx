@@ -312,6 +312,7 @@ export function OpdPageInner() {
                 if (action.enabled) navigate(`/opd/queue/${row.id}/vitals`);
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconHeartbeat size={16} />
             </IconButton>
@@ -326,6 +327,7 @@ export function OpdPageInner() {
                 }
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconEye size={16} />
             </IconButton>
@@ -338,6 +340,7 @@ export function OpdPageInner() {
                 if (action.enabled) callMutation.mutate(row);
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconPhone size={16} />
             </IconButton>
@@ -350,6 +353,7 @@ export function OpdPageInner() {
                 if (action.enabled) startMutation.mutate(row);
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconPlayerPlay size={16} />
             </IconButton>
@@ -363,6 +367,7 @@ export function OpdPageInner() {
                 if (action.enabled) completeMutation.mutate(row);
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconCheck size={16} />
             </IconButton>
@@ -376,6 +381,7 @@ export function OpdPageInner() {
                 if (action.enabled) noShowMutation.mutate(row.id);
               }}
               aria-label={actionLabel}
+              data-testid={`btn-${action.id}`}
             >
               <IconUserOff size={16} />
             </IconButton>
@@ -553,6 +559,7 @@ export function OpdPageInner() {
             <Group align="end">
               <TextInput
                 placeholder={t("queueFilters.search")}
+                data-testid="field-queue-search"
                 leftSection={<IconSearch size={16} />}
                 value={queueSearch}
                 onChange={(e) => setQueueSearch(e.currentTarget.value)}
@@ -575,6 +582,7 @@ export function OpdPageInner() {
               />
               <Select
                 placeholder={t("placeholder.department")}
+                data-testid="picker-department"
                 data={deptOptions}
                 value={filterDeptId}
                 onChange={setFilterDeptId}
@@ -643,6 +651,7 @@ export function OpdPageInner() {
             data={queue}
             loading={isLoading}
             rowKey={(row) => row.id}
+            rowTestId={(row) => `row-patient-${row.uhid ?? row.id}`}
             searchable
             searchPlaceholder={t("queue.searchPlaceholder", "Search patient or token")}
             filters={queueFilters}

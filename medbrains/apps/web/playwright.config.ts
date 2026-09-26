@@ -88,6 +88,8 @@ export default defineConfig({
       // e2e/journeys/ used to fall through to the default project, which the
       // deploy gate never runs; four journey specs sat outside it.
       testMatch: /(scenarios|journeys)\/.*\.spec\.ts/,
+      // Several roles on one dev server in parallel: screens take longer than 5s.
+      expect: { timeout: 10_000 },
       use: {
         ...devices["Desktop Chrome"],
         storageState: authStatePath,
@@ -96,6 +98,13 @@ export default defineConfig({
     },
 
     // Accessibility — UI journeys with WCAG 2 AAA machine-testable gates
+    // Nothing breaks when used: every page and tab each role can reach.
+    {
+      name: "robustness",
+      testMatch: /robustness\/.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup"],
+    },
     {
       name: "accessibility",
       testMatch: /accessibility\/.*\.spec\.ts/,
@@ -147,7 +156,7 @@ export default defineConfig({
       },
       dependencies: ["setup"],
       testIgnore:
-        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|passmark|scenarios|journeys|accessibility|linkages|screens)\/.*\.spec\.ts/,
+        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|passmark|scenarios|journeys|accessibility|robustness|linkages|screens)\/.*\.spec\.ts/,
     },
 
     {

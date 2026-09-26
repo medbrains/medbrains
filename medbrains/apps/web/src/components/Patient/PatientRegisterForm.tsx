@@ -824,12 +824,12 @@ export function PatientRegisterForm({
               </Button>
             )}
             {!isLastStep && (
-              <Button onClick={goNext} type="button">
+              <Button onClick={goNext} type="button" data-testid="btn-next">
                 {t("actions.next")}
               </Button>
             )}
             {isLastStep && (
-              <Button type="submit" loading={isSubmitting}>
+              <Button type="submit" loading={isSubmitting} data-testid="btn-register">
                 {isEdit ? resolvedSubmitLabel : t("actions.registerComplete")}
               </Button>
             )}
@@ -892,6 +892,7 @@ export function PatientRegisterForm({
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <TextInput
                     aria-label={t("registrationForm.aria.firstName")}
+                    data-testid="field-first_name"
                     placeholder={t("registrationForm.placeholder.firstName")}
                     error={fieldError(errors.first_name?.message)}
                     {...register("first_name")}
@@ -907,6 +908,7 @@ export function PatientRegisterForm({
                 <Grid.Col span={{ base: 12, sm: 3 }}>
                   <TextInput
                     aria-label={t("registrationForm.aria.lastName")}
+                    data-testid="field-last_name"
                     placeholder={t("registrationForm.placeholder.lastName")}
                     error={fieldError(errors.last_name?.message)}
                     {...register("last_name")}
@@ -937,6 +939,7 @@ export function PatientRegisterForm({
                       return (
                         <NumberInput
                           aria-label={t("registrationForm.aria.ageYears")}
+                          data-testid="field-age_years"
                           placeholder={t("registrationForm.placeholder.ageYears")}
                           min={0}
                           max={125}
@@ -1018,6 +1021,7 @@ export function PatientRegisterForm({
                     render={({ field }) => (
                       <Select
                         aria-label={t("registrationForm.aria.gender")}
+                        data-testid="picker-gender"
                         data={localizedGenderOptions}
                         value={field.value}
                         onChange={(v) => v && field.onChange(v)}
@@ -1064,6 +1068,7 @@ export function PatientRegisterForm({
                         countryOptions={phoneDialOptions}
                         countryAriaLabel={t("registrationForm.aria.primaryPhoneCountry")}
                         numberAriaLabel={t("registrationForm.aria.primaryPhone")}
+                        numberTestId="field-phone"
                         placeholder={t("registrationForm.placeholder.primaryPhone")}
                         error={fieldError(errors.phone?.message)}
                       />
@@ -1141,6 +1146,7 @@ export function PatientRegisterForm({
                   render={({ field }) => (
                     <Checkbox
                       label={t("registrationForm.label.whatsappOptIn")}
+                      data-testid="switch-whatsapp_opt_in"
                       checked={field.value ?? false}
                       onChange={(event) => field.onChange(event.currentTarget.checked)}
                     />
@@ -1152,6 +1158,7 @@ export function PatientRegisterForm({
                   render={({ field }) => (
                     <Checkbox
                       label={t("registrationForm.label.emailOptIn")}
+                      data-testid="switch-email_opt_in"
                       checked={field.value ?? false}
                       onChange={(event) => field.onChange(event.currentTarget.checked)}
                       error={fieldError(errors.email_opt_in?.message)}
@@ -1432,6 +1439,7 @@ export function PatientRegisterForm({
                       <Select
                         aria-label={t("registrationForm.aria.department")}
                         placeholder={t("registrationForm.placeholder.department")}
+                        data-testid="picker-department"
                         data={departmentOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
@@ -1449,6 +1457,7 @@ export function PatientRegisterForm({
                     render={({ field }) => (
                       <Select
                         aria-label={t("registrationForm.aria.concernedConsultant")}
+                        data-testid="picker-consultant"
                         placeholder={t("registrationForm.placeholder.concernedConsultant")}
                         data={consultantOptions}
                         value={field.value ?? null}

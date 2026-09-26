@@ -31,7 +31,6 @@ test("a walk-in is registered, called, told by SMS, and seen", async ({ hospital
     // patient's visit, as in a real hospital.
     consultant: doctorOnDuty.fullName,
   };
-  const fullName = `${patient.firstName} ${patient.lastName}`;
 
   // Front desk.
   const desk = await hospital.as("receptionist");
@@ -47,14 +46,14 @@ test("a walk-in is registered, called, told by SMS, and seen", async ({ hospital
   // The waiting room.
   const display = new WaitingRoomDisplay(await hospital.as("receptionist"));
   await display.open(dept.id);
-  await expect(display.token(token, "Waiting")).toBeVisible({ timeout: 15_000 });
+  await display.expectStatus(token, "Waiting");
   await display.expectNoName(patient.lastName);
 
   // The doctor.
   const doctor = new OpdWorklist(await hospital.as("doctor"));
   await doctor.open(dept.name);
-  await doctor.act(fullName, "Call patient");
-  await expect(display.token(token, "Called")).toBeVisible({ timeout: 15_000 });
+  await doctor.act(uhid, "call_patient");
+  await display.expectStatus(token, "Called");
   await display.expectNoName(patient.lastName);
 
   // The patient's phone.
@@ -67,8 +66,7 @@ test("a walk-in is registered, called, told by SMS, and seen", async ({ hospital
   );
 
   // The consultation.
-  await doctor.act(fullName, "Start consultation");
-  await doctor.act(fullName, "Complete visit");
-  await expect(display.token(token, "Called")).toHaveCount(0, { timeout: 15_000 });
-  await expect(display.token(token, "In progress")).toHaveCount(0);
+  await doctor.act(uhid, "start_consultation");
+  await doctor.act(uhid, "complete_visit");
+  await expect(display.token(token)).toHaveCount(0, { timeout: 15_000 });
 });

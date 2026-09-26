@@ -48,8 +48,12 @@ export async function expectScreenAccessible(page: Page, screen: string): Promis
 export async function expectUsable(control: Locator, name: string): Promise<void> {
   await expect(control, `${name} is visible`).toBeVisible();
   await expect(control, `${name} is enabled`).toBeEnabled();
-  await control.focus();
-  await expect(control, `${name} is keyboard focusable`).toBeFocused();
+  // A live list re-renders its rows on every poll, which can steal focus
+  // between focus() and the check; retry until focus holds.
+  await expect(async () => {
+    await control.focus();
+    await expect(control, `${name} is keyboard focusable`).toBeFocused({ timeout: 1_000 });
+  }).toPass({ timeout: 10_000 });
   await control.click({ trial: true, timeout: 5_000 });
 }
 
