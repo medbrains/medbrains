@@ -20,10 +20,7 @@
 //! holding `device_code`, which is never displayed — so a `user_code` read off
 //! a screen by a passer-by is not enough to take the session.
 
-use axum::{
-    Extension, Json,
-    extract::State,
-};
+use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -235,9 +232,10 @@ pub async fn poll_device_token(
     // The same resolver login uses, so a paired device carries exactly the
     // permissions its user would get by signing in — including the bypass-role
     // convention of an empty set.
-    let permissions =
-        medbrains_server_core::permissions::resolve_permissions(&state.db, tenant_id, user_id, &role)
-            .await?;
+    let permissions = medbrains_server_core::permissions::resolve_permissions(
+        &state.db, tenant_id, user_id, &role,
+    )
+    .await?;
 
     // A display that sent no key still pairs; the fingerprint then identifies
     // the pairing rather than the hardware.
@@ -247,8 +245,8 @@ pub async fn poll_device_token(
     let paired_id: Uuid = sqlx::query_scalar(
         "INSERT INTO paired_devices \
            (tenant_id, label, app_variant, cert_fingerprint, cert_pem, issued_to_user_id, \
-            paired_via_token_id) \
-         SELECT $1, r.requested_label, $2, $3, $4, $5, NULL \
+            paired_via_token_id, department_id, board_module) \
+         SELECT $1, r.requested_label, $2, $3, $4, $5, NULL, r.department_id, r.board_module \
          FROM device_pairing_requests r WHERE r.id = $6 \
          RETURNING id",
     )
@@ -351,6 +349,51 @@ pub struct ApproveRequest {
     pub approved_for_user_id: Option<Uuid>,
     #[serde(default)]
     pub deny: bool,
+    /// For a waiting-room screen: the department whose board it shows.
+    pub department_id: Option<Uuid>,
+    /// For a waiting-room screen: which board (`opd`, `pharmacy`, …).
+    pub board_module: Option<String>,
+}
+
+const BOARD_MODULES: [&str; 6] = [
+    "registration",
+    "opd",
+    "lab",
+    "radiology",
+    "pharmacy",
+    "billing",
+];
+
+/// The hospital's display account: a service account, so it cannot sign in
+/// and holds no grants. What a screen may do comes from its pairing (the auth
+/// middleware gives a display exactly `display.board.read`). Created on first
+/// use.
+async fn display_account(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<Uuid, AppError> {
+    if let Some(id) = sqlx::query_scalar!(
+        "SELECT id FROM users WHERE tenant_id = $1 AND username = 'display_boards' \
+           AND is_service_account",
+        tenant_id,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    {
+        return Ok(id);
+    }
+    Ok(sqlx::query_scalar!(
+        "INSERT INTO users (tenant_id, username, email, full_name, role, is_service_account, \
+           is_active, email_verified) \
+         VALUES ($1, 'display_boards', $2, 'Waiting-room screens', 'service_account', true, \
+           true, false) \
+         RETURNING id",
+        tenant_id,
+        // `.invalid` is reserved (RFC 2606): mail to it fails loudly.
+        format!("display_boards.{tenant_id}@service.invalid"),
+    )
+    .fetch_one(&mut **tx)
+    .await?)
 }
 
 pub async fn approve_pairing_request(
@@ -361,11 +404,53 @@ pub async fn approve_pairing_request(
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
 
     let normalized = normalize_user_code(&body.user_code);
-    let approved_for = body.approved_for_user_id.unwrap_or(claims.sub);
     let status = if body.deny { "denied" } else { "approved" };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let app_variant = sqlx::query_scalar!(
+        "SELECT app_variant FROM device_pairing_requests \
+          WHERE user_code = $1 AND status = 'pending' AND expires_at > now() FOR UPDATE",
+        normalized,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    // A screen, not a person: it acts as the hospital's display account.
+    let display = medbrains_server_core::middleware::auth::is_display_variant(&app_variant);
+    // A screen on a wall never acts as the person who approved it: that put
+    // an administrator's session — every record, every action — on a device
+    // anyone in the corridor can reach.
+    let approved_for = if display && !body.deny {
+        display_account(&mut tx, claims.tenant_id).await?
+    } else {
+        body.approved_for_user_id.unwrap_or(claims.sub)
+    };
+    if display && !body.deny {
+        let module_ok = body
+            .board_module
+            .as_deref()
+            .is_some_and(|m| BOARD_MODULES.contains(&m));
+        let Some(department_id) = body.department_id.filter(|_| module_ok) else {
+            return Err(AppError::BadRequest(
+                "Choose the board and the department this screen shows".to_owned(),
+            ));
+        };
+        let active = sqlx::query_scalar!(
+            r#"SELECT EXISTS(SELECT 1 FROM departments
+                              WHERE id = $1 AND tenant_id = $2 AND is_active) AS "ok!""#,
+            department_id,
+            claims.tenant_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if !active {
+            return Err(AppError::BadRequest(
+                "Choose an active department".to_owned(),
+            ));
+        }
+    }
 
     if !body.deny {
         // The display will act as this user, so it has to be one of ours.
@@ -386,7 +471,8 @@ pub async fn approve_pairing_request(
     let row = sqlx::query_as::<_, PendingRequest>(
         "UPDATE device_pairing_requests SET \
            status = $1, tenant_id = $2, approved_by_user_id = $3, \
-           approved_for_user_id = $4, approved_at = now() \
+           approved_for_user_id = $4, approved_at = now(), department_id = $6, \
+           board_module = $7 \
          WHERE user_code = $5 AND status = 'pending' AND expires_at > now() \
          RETURNING id, user_code, app_variant, requested_label, expires_at, created_at",
     )
@@ -395,6 +481,12 @@ pub async fn approve_pairing_request(
     .bind(claims.sub)
     .bind(if body.deny { None } else { Some(approved_for) })
     .bind(&normalized)
+    .bind(if display { body.department_id } else { None })
+    .bind(if display {
+        body.board_module.as_deref()
+    } else {
+        None
+    })
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -441,6 +533,42 @@ fn normalize_user_code(input: &str) -> String {
         .collect()
 }
 
+/// The board a paired screen shows.
+#[derive(Debug, Serialize)]
+pub struct DeviceBoard {
+    pub label: String,
+    /// `None` for a screen paired before boards were bound — it asks to be
+    /// re-paired rather than guessing a department.
+    pub module: Option<String>,
+    pub department_id: Option<Uuid>,
+    pub department_name: Option<String>,
+}
+
+/// `GET /api/device/board` — which board this paired screen shows, so a TV
+/// nobody touches opens on its own department without a keyboard.
+pub async fn device_board(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<DeviceBoard>, AppError> {
+    medbrains_server_core::middleware::authorization::require_board_read(&claims)?;
+    let device = claims.paired_device_id.ok_or(AppError::NotFound)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let board = sqlx::query_as!(
+        DeviceBoard,
+        r#"SELECT p.label AS "label!", p.board_module AS module, p.department_id,
+                  d.name AS "department_name?"
+             FROM paired_devices p LEFT JOIN departments d ON d.id = p.department_id
+            WHERE p.id = $1 AND p.revoked_at IS NULL AND p.deleted_at IS NULL"#,
+        device,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(board))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,7 +601,10 @@ mod tests {
     fn codes_do_not_repeat() {
         let mut seen = std::collections::HashSet::new();
         for _ in 0..500 {
-            assert!(seen.insert(generate_user_code()), "generated a duplicate code");
+            assert!(
+                seen.insert(generate_user_code()),
+                "generated a duplicate code"
+            );
         }
     }
 }

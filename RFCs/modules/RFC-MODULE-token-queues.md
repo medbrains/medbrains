@@ -301,6 +301,13 @@ edge tier design already written in `medbrains-edge`.
 37. A call is read one character at a time ("T 0 1 4"), which is what a
     patient matches against the slip in their hand in a noisy hall.
 
+38. **Given** a TV showing a pairing code, **when** the administrator approves
+    it for the OPD board of one department, **then** the screen knows its board
+    without anyone touching it, reads it without patient names, and is refused
+    everything else — it acts as the hospital's display account, never as the
+    administrator who approved it. Approving a screen without choosing its
+    board is refused.
+
 ## P0 progress (2026-09-26)
 
 Done on `feature/token-queues-p0`, each with a server test and a desk-view
@@ -418,8 +425,25 @@ themselves now carry the name, for the desk console.
   *Found:* the board endpoint sent full names to displays (scenario 34). The
   dev server did not proxy `/ws`, so on it no board ever announced a call —
   every earlier journey saw calls only through polling.
-- **P3b — board bound by pairing**: a paired TV opened with no module/place
-  shows its own place from its pairing record. *Next.*
+- **P3b-1 — pairing binds the board** *(built 2026-09-26)*: approving a
+  display records its board and department (migration 1025) and the paired
+  device carries them; `GET /api/device/board` tells a screen what it shows.
+  Admin → Paired devices → **Screens waiting to be paired** (the list and
+  approve endpoints existed with no screen — nobody could approve a TV on the
+  web); the device list shows each screen's board. Tests: 1 server scenario
+  (display account, board, no names, 403 on patients), 1 unit, the
+  `screen-pairing` journey 3/3.
+  *Found — security:* a TV approved by code acted as **the approving
+  administrator** by default: a public screen holding a full admin session
+  (every record, every action, and the board's name redaction skipped). A
+  display now acts as the hospital's `display_boards` service account, which
+  cannot sign in and holds no grants; the auth middleware gives a
+  service-account device exactly what it was paired as (a display:
+  `display.board.read`). *Screens paired before this act as whoever approved
+  them: revoke and re-pair them.* Also: no user could ever hold the built-in
+  `display_device` role (`users.role` is an enum without it).
+- **P3b-2 — the TV side**: the web board, opened on a TV with no session,
+  shows its pairing code, waits for approval, and opens its own board. *Next.*
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

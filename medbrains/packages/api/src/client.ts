@@ -16013,6 +16013,8 @@ export const api = {
         location_label: string | null;
         station_id: string | null;
         station_name: string | null;
+        board_module: string | null;
+        department_name: string | null;
         paired_at: string;
         last_seen_at: string | null;
         revoked_at: string | null;
@@ -16487,6 +16489,10 @@ export const api = {
     user_code: string;
     approved_for_user_id?: string;
     deny?: boolean;
+    /** A waiting-room screen: the department whose board it shows. */
+    department_id?: string;
+    /** A waiting-room screen: which board. */
+    board_module?: string;
   }) =>
     request<DevicePairingRequest>("/admin/device-pairing/approve", {
       method: "POST",

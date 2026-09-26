@@ -352,6 +352,9 @@ pub struct PairedDeviceRow {
     pub location_label: Option<String>,
     pub station_id: Option<Uuid>,
     pub station_name: Option<String>,
+    /// The board a paired screen shows, and its department's name.
+    pub board_module: Option<String>,
+    pub department_name: Option<String>,
     pub paired_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -369,9 +372,11 @@ pub async fn list_paired_devices(
     let rows = sqlx::query_as::<_, PairedDeviceRow>(
         "SELECT pd.id, pd.label, pd.app_variant, pd.cert_fingerprint, pd.issued_to_user_id, \
                 pd.department_id, pd.location_label, pd.station_id, s.name AS station_name, \
+                pd.board_module, d.name AS department_name, \
                 pd.paired_at, pd.last_seen_at, pd.revoked_at \
          FROM paired_devices pd \
          LEFT JOIN stations s ON s.id = pd.station_id \
+         LEFT JOIN departments d ON d.id = pd.department_id \
          WHERE pd.tenant_id = $1 \
          ORDER BY pd.paired_at DESC LIMIT 5000",
     )
@@ -517,6 +522,7 @@ pub fn device_code_admin_router() -> axum::Router<AppState> {
             "/api/admin/device-pairing/approve",
             post(device_code::approve_pairing_request),
         )
+        .route("/api/device/board", get(device_code::device_board))
 }
 
 // ══════════════════════════════════════════════════════════

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.label AS \"label!\", p.board_module AS module, p.department_id,\n                  d.name AS \"department_name?\"\n             FROM paired_devices p LEFT JOIN departments d ON d.id = p.department_id\n            WHERE p.id = $1 AND p.revoked_at IS NULL AND p.deleted_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "module",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "department_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "department_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "55ad0e33e0d71325c7039f5e3bb87433932e0a673ae21c85bf9ff9da520ebc7d"
+}

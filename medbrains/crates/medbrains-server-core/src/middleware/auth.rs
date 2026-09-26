@@ -91,8 +91,8 @@ pub async fn auth_middleware(
     if let Some(ref token) = cookie_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
-        verify_device_not_revoked(&state.db, &claims).await?;
-        hydrate_permissions(&state.db, &mut claims).await?;
+        let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
+        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
         request.extensions_mut().insert(claims);
         return Ok(next.run(request).await);
@@ -149,8 +149,8 @@ pub async fn auth_middleware(
     if let Some(token) = bearer_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
-        verify_device_not_revoked(&state.db, &claims).await?;
-        hydrate_permissions(&state.db, &mut claims).await?;
+        let device_variant = verify_device_not_revoked(&state.db, &claims).await?;
+        hydrate_permissions(&state.db, &mut claims, device_variant.as_deref()).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
         request.extensions_mut().insert(claims);
         return Ok(next.run(request).await);
@@ -207,8 +207,20 @@ pub fn decode_jwt(token: &str, key: &DecodingKey) -> Result<Claims, jsonwebtoken
 ///
 /// Bypass roles (super_admin / hospital_admin) keep an empty vector
 /// here; `require_permission` short-circuits them anyway.
-async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), AppError> {
+///
+/// A service account holds no grants of its own (the database refuses them).
+/// Presented by a paired device, its permissions are the device's: a
+/// waiting-room screen reads boards and nothing else.
+async fn hydrate_permissions(
+    db: &PgPool,
+    claims: &mut Claims,
+    device_variant: Option<&str>,
+) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
+        return Ok(());
+    }
+    if claims.role == "service_account" {
+        claims.permissions = device_permissions(device_variant);
         return Ok(());
     }
     let perms =
@@ -230,27 +242,50 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
 /// same request that already reads `users` for `perm_version`, and only for
 /// device-authenticated traffic. Cheaper than the alternative, which is a lost
 /// tablet keeping API access for the rest of its token's life.
-async fn verify_device_not_revoked(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
+///
+/// Returns the device's app variant, which decides what a service-account
+/// device may do.
+async fn verify_device_not_revoked(
+    db: &PgPool,
+    claims: &Claims,
+) -> Result<Option<String>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     let Some(device_id) = claims.paired_device_id else {
-        return Ok(());
+        return Ok(None);
     };
 
     // Runtime query rather than the checked macro: this crate's queries are
     // runtime by convention, and a macro here would need `.sqlx` metadata
     // regenerated against a migrated database to build at all.
-    let live: Option<bool> = sqlx::query_scalar::<_, bool>(
-        "SELECT revoked_at IS NULL FROM paired_devices WHERE id = $1 AND tenant_id = $2",
+    let row: Option<(bool, String)> = sqlx::query_as(
+        "SELECT revoked_at IS NULL, app_variant FROM paired_devices \
+          WHERE id = $1 AND tenant_id = $2",
     )
     .bind(device_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?;
 
-    if device_admitted(live) {
-        Ok(())
+    if device_admitted(row.as_ref().map(|(live, _)| *live)) {
+        Ok(row.map(|(_, variant)| variant))
     } else {
         Err(AppError::Unauthorized)
+    }
+}
+
+/// A screen, not a person: a waiting-room display or a TV.
+pub fn is_display_variant(app_variant: &str) -> bool {
+    app_variant == "display" || app_variant.starts_with("tv")
+}
+
+/// What a service-account device may do, from what it was paired as. Only a
+/// display has anything: it reads boards.
+fn device_permissions(device_variant: Option<&str>) -> Vec<String> {
+    match device_variant {
+        Some(variant) if is_display_variant(variant) => {
+            vec![medbrains_core::permissions::display::board::READ.to_owned()]
+        }
+        _ => Vec::new(),
     }
 }
 
@@ -296,7 +331,23 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppErro
 
 #[cfg(test)]
 mod tests {
-    use super::device_admitted;
+    use super::{device_admitted, device_permissions};
+
+    /// A paired screen reads boards; any other service-account device, and a
+    /// service account with no device at all, can do nothing.
+    #[test]
+    fn a_service_account_device_gets_only_what_it_was_paired_as() {
+        assert_eq!(
+            device_permissions(Some("tv")),
+            vec!["display.board.read".to_owned()]
+        );
+        assert_eq!(
+            device_permissions(Some("display")),
+            vec!["display.board.read".to_owned()]
+        );
+        assert!(device_permissions(Some("mobile-staff")).is_empty());
+        assert!(device_permissions(None).is_empty());
+    }
 
     #[test]
     fn a_live_device_is_admitted() {

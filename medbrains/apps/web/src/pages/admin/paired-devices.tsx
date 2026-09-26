@@ -35,6 +35,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { BOARDS, PendingScreensCard } from "@/components/Devices/PendingScreensCard";
 import { RoomSelect } from "@/components/RoomSelect";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -163,6 +164,9 @@ export function PairedDevicesPage() {
         }
       />
 
+      {/* The same code the approval endpoint requires. */}
+      {canMintToken && <PendingScreensCard />}
+
       {isLoading && <Loader />}
 
       {!isLoading && (
@@ -190,7 +194,11 @@ export function PairedDevicesPage() {
                     <Badge>{row.app_variant}</Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{row.location_label ?? row.station_name ?? "—"}</Text>
+                    <Text size="xs">
+                      {row.board_module
+                        ? `${BOARDS.find((b) => b.value === row.board_module)?.label ?? row.board_module} board · ${row.department_name ?? "—"}`
+                        : (row.location_label ?? row.station_name ?? "—")}
+                    </Text>
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label={row.cert_fingerprint}>
