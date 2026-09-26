@@ -309,3 +309,60 @@ async fn a_token_for_a_registered_patient_carries_their_name() {
     let token: serde_json::Value = resp.json().await.expect("token json");
     assert_eq!(token["patient_name"], "Meena Raman");
 }
+
+/// The walk-in journey, from the doctor's side: Given a patient registered into
+/// an OPD visit, Then the visit answers with the number the board calls (the
+/// desk used to tell them the OPD counter, "T007", while the board said
+/// "R-012"); And When the doctor presses Call on their own OPD screen, Then the
+/// call is announced — the event the token SMS goes out on, which only the
+/// desk console used to send.
+#[tokio::test]
+async fn a_doctor_calling_from_the_opd_screen_announces_the_call() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let (tenant, department) = own_department(&app).await;
+    let suffix = &Uuid::new_v4().simple().to_string()[..8];
+    let patient: Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         VALUES ($1, $2, 'Ravi', 'Walkin', 'male'::gender, '9876500022') RETURNING id",
+    )
+    .bind(tenant)
+    .bind(format!("UH-WI-{suffix}"))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert patient");
+
+    let resp = app
+        .client
+        .post(app.url("/api/opd/encounters"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({ "patient_id": patient, "department_id": department }))
+        .send()
+        .await
+        .expect("create encounter");
+    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    let visit: serde_json::Value = resp.json().await.expect("visit json");
+    let encounter = visit["encounter"]["id"].as_str().expect("encounter id").to_owned();
+    let queue_entry = visit["queue"]["id"].as_str().expect("queue id").to_owned();
+
+    let token_number: String = sqlx::query_scalar(
+        "SELECT number FROM tokens WHERE entity_type = 'encounter' AND entity_id = $1::uuid",
+    )
+    .bind(&encounter)
+    .fetch_one(&app.db)
+    .await
+    .expect("the visit's token");
+    assert_eq!(visit["token_number"], token_number.as_str(), "the desk tells the patient the board's number");
+
+    let resp = app
+        .client
+        .put(app.url(&format!("/api/opd/queue/{queue_entry}/call")))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .expect("doctor calls");
+    assert_eq!(resp.status(), StatusCode::OK, "{}", resp.text().await.unwrap_or_default());
+    let events = app.outbox_rows("opd.queue.called", &encounter).await;
+    assert_eq!(events.len(), 1, "the doctor's call is announced once");
+}

@@ -939,6 +939,8 @@ export interface CreateEncounterRequest {
 export interface CreateEncounterResponse {
   encounter: Encounter;
   queue: OpdQueue;
+  /** The number on the board and in the SMS; null when no token was issued. */
+  token_number: string | null;
 }
 
 export interface UpdateEncounterRequest {

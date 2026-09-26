@@ -279,6 +279,12 @@ themselves now carry the name, for the desk console.
 - **P1c — hours & sessions**: opening hours, session reset rule, close
   behaviour at the end of a session.
 
+**Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
+`/opd` needs no access to the encounter, while *Start consultation* checks it —
+a doctor can call a patient whose record they cannot open. Align call and
+no-show with `require_encounter_access` (follow-up, needs a second-doctor
+journey to prove the refusal).
+
 ## 10. Decided (2026-09-26)
 
 - Plan agreed; **P0 first**, then P1.

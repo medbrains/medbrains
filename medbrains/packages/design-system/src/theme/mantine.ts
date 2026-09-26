@@ -654,8 +654,14 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mantine-color-body": scheme.bg.canvas,
     "--mantine-color-text": scheme.fg.default,
     "--mantine-color-dimmed": scheme.fg.muted,
-    "--mantine-color-placeholder": scheme.fg.faint,
+    // The field's own placeholder token, not `fg.faint`: faint also colours
+    // disabled text (exempt from contrast), a placeholder is not.
+    "--mantine-color-placeholder": scheme.input.placeholder,
     "--mantine-color-error": scheme.status.danger.fg,
+    // Blue text (`c="blue"`, blue labels) at Carbon blue 70 in light: blue 60
+    // passes on white (4.5:1) but not on the blue-20 tint of an active nav
+    // item or light badge (3.8:1). Blue 70 passes on both.
+    ...(isLight ? { "--mantine-color-blue-text": "#0043ce" } : {}),
     "--mantine-color-anchor": scheme.fg.link,
     "--mantine-color-default": scheme.bg.default,
     "--mantine-color-default-hover": scheme.bg.subtle,

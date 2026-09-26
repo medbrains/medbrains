@@ -137,6 +137,11 @@ pub struct CreateEncounterRequest {
 pub struct CreateEncounterResponse {
     pub encounter: Encounter,
     pub queue: OpdQueue,
+    /// The number the board shows and the SMS names — the unified token, not
+    /// `queue.token_number`. The desk told the patient "T007" while the board
+    /// called "R-012"; this is the number to tell them. `None` when no token
+    /// was issued (tokens off, or the queue paused or full).
+    pub token_number: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1069,7 +1074,7 @@ pub async fn create_encounter(
     let visit_id = medbrains_tokens::current_visit(&mut tx, encounter.patient_id)
         .await?
         .or_else(|| Some(Uuid::new_v4()));
-    medbrains_tokens::issue_token_in_tx(
+    let token_number = medbrains_tokens::issue_token_in_tx(
         &mut tx,
         claims.tenant_id,
         medbrains_tokens::IssueToken {
@@ -1176,7 +1181,7 @@ pub async fn create_encounter(
     )
     .await;
 
-    Ok(Json(CreateEncounterResponse { encounter, queue }))
+    Ok(Json(CreateEncounterResponse { encounter, queue, token_number }))
 }
 
 // ══════════════════════════════════════════════════════════

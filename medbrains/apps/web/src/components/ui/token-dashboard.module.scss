@@ -137,3 +137,10 @@
     font-size: 20px;
   }
 }
+
+// The token sections are lists (for screen readers); layout only, no bullets.
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

@@ -30,7 +30,7 @@ Actionable extraction of IBM Carbon colour
 - **Contrast (WCAG 1.4.3/1.4.11):** body text ≥ 4.5:1, large text/UI/icons ≥ 3:1.
   Use `--mb-text-secondary` for body, not `--mb-text-muted` (which is for hints).
 - **Never colour alone for meaning** (WCAG 1.4.1) — pair with icon/text/shape.
-- **Light theme only** (`forceColorScheme="light"`); don't add dark-mode branches.
+- **Light and dark themes** (decided 2026-09-26): both ship, the app defaults to dark with a header switcher. Every token is defined for both schemes and both must meet WCAG 2.2 AA contrast — `e2e/accessibility/theme-contrast.spec.ts` sweeps the key screens in each.
 - **One accent discipline:** the brand/interactive blue carries actions + focus;
   don't sprinkle multiple accent hues. Status colours appear only on status.
 - **Per-component colour lives in the theme**, not SCSS and not inline hex — the

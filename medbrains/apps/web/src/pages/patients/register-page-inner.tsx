@@ -44,7 +44,7 @@ interface RegisterPatientMutationInput {
 interface RegisterPatientMutationResult {
   patient: Patient;
   encounterId?: string;
-  tokenNumber?: number;
+  tokenNumber?: string | null;
   queueWarning?: string;
   linkedServices?: PatientRegistrationLinkedServicesOptions;
   campId?: string;
@@ -233,7 +233,8 @@ export function PatientRegisterPageInner() {
         return {
           patient,
           encounterId: result.encounter.id,
-          tokenNumber: result.queue.token_number,
+          // The number the board calls, not the OPD queue's own counter.
+          tokenNumber: result.token_number,
           linkedServices,
         };
       } catch (error) {
@@ -281,7 +282,7 @@ export function PatientRegisterPageInner() {
             })
           : tokenNumber
             ? t("notify.patientRegisteredWithToken", {
-                token: String(tokenNumber).padStart(3, "0"),
+                token: tokenNumber,
                 uhid: patient.uhid,
               })
             : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),

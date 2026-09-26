@@ -78,7 +78,9 @@ const ECG_POINTS = [
 
 export function PageSkeleton() {
   return (
-    <Center h="100vh" className={styles.wrapper}>
+    // A status region, so a screen reader says "Loading page" instead of
+    // reading the decorative brand label.
+    <Center h="100vh" className={styles.wrapper} role="status" aria-label="Loading page">
       <div className={styles.container}>
         <svg className={styles.ecg} viewBox="0 0 200 40" fill="none" aria-hidden="true">
           <defs>
@@ -108,7 +110,9 @@ export function PageSkeleton() {
             points={ECG_POINTS}
           />
         </svg>
-        <span className={styles.text}>MedBrains</span>
+        <span className={styles.text} aria-hidden="true">
+          MedBrains
+        </span>
       </div>
     </Center>
   );

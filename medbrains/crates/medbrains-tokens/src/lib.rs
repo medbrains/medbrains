@@ -553,7 +553,53 @@ pub async fn advance_entity_token_in_tx(
     .bind(input.called_by)
     .fetch_optional(&mut **tx)
     .await?;
+    if let (Some(token), "called") = (&token, input.status) {
+        announce_called_in_tx(tx, tenant_id, input.called_by.unwrap_or_default(), token).await?;
+    }
     Ok(token)
+}
+
+/// Tell the rest of the hospital a patient was called — what a token-call SMS
+/// is for. Every path that calls a token goes through here: the desk console,
+/// call-next, and the doctor's own OPD screen, which moved the board but, going
+/// round `transition`, never sent the SMS.
+///
+/// `opd.queue.called` describes an OPD consultation queue, and its registry
+/// requires the queue entry, the encounter and the patient; only a token that
+/// is an OPD encounter can say what it means. Other queues get their own call
+/// event with per-queue notifications.
+async fn announce_called_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    actor: Uuid,
+    token: &Token,
+) -> Result<(), AppError> {
+    let opd_encounter = (token.module == "opd" && token.entity_type.as_deref() == Some("encounter"))
+        .then_some(token.entity_id)
+        .flatten();
+    let (Some(encounter_id), Some(patient_id)) = (opd_encounter, token.patient_id) else {
+        return Ok(());
+    };
+    let event = medbrains_core::clinical_events::ClinicalEventEnvelope::new(
+        tenant_id,
+        medbrains_core::clinical_events::ClinicalEventName::OpdQueueCalled,
+        token.id,
+        actor,
+        serde_json::json!({
+            "queue_entry_id": token.id,
+            "encounter_id": encounter_id,
+            "token_id": token.id,
+            "token_number": token.number,
+            "module": token.module,
+            "patient_id": patient_id,
+            "scope_id": token.scope_id,
+            "room": token.scope_label,
+            "counter": token.counter_label,
+        }),
+    )
+    .with_patient(patient_id);
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
+    Ok(())
 }
 
 /// Tell the boards a token moved. Call after the transaction commits.
@@ -1356,38 +1402,8 @@ async fn transition_from(
         None
     };
 
-    // Calling a patient to a room is an event the rest of the hospital can act
-    // on — it is what a token-call SMS is for. `opd.queue.called` describes an
-    // OPD consultation queue, and its registry requires the queue entry, the
-    // encounter and the patient. It was emitted for every module without them,
-    // and the validator refused it — so every Call on every queue answered 400.
-    // Only a token that is an OPD encounter can say what the event means;
-    // other queues get their own call event with per-queue notifications.
-    let opd_encounter = (token.module == "opd" && token.entity_type.as_deref() == Some("encounter"))
-        .then_some(token.entity_id)
-        .flatten();
-    if let (true, Some(encounter_id), Some(patient_id)) =
-        (status == "called", opd_encounter, token.patient_id)
-    {
-        let event = medbrains_core::clinical_events::ClinicalEventEnvelope::new(
-            claims.tenant_id,
-            medbrains_core::clinical_events::ClinicalEventName::OpdQueueCalled,
-            token.id,
-            claims.sub,
-            serde_json::json!({
-                "queue_entry_id": token.id,
-                "encounter_id": encounter_id,
-                "token_id": token.id,
-                "token_number": token.number,
-                "module": token.module,
-                "patient_id": patient_id,
-                "scope_id": token.scope_id,
-                "room": token.scope_label,
-                "counter": token.counter_label,
-            }),
-        )
-        .with_patient(patient_id);
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    if status == "called" {
+        announce_called_in_tx(&mut tx, claims.tenant_id, claims.sub, &token).await?;
     }
 
     tx.commit().await?;

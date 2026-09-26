@@ -159,7 +159,7 @@
   "notify.patientRegistered": "Patient registered",
   "notify.patientRegisteredOpdQueuePending": "Patient registered, OPD queue pending",
   "notify.patientRegisteredQueueWarning": "UHID: {{uhid}}. OPD queue was not created: {{queueWarning}}",
-  "notify.patientRegisteredWithToken": "UHID: {{uhid}} · OPD token T{{token}}",
+  "notify.patientRegisteredWithToken": "UHID: {{uhid}} · token {{token}}",
   "notify.patientRegisteredWithUhid": "UHID: {{uhid}}",
   "notify.registrationFailed": "Registration failed",
   "notify.duplicateCheckUnavailable": "Duplicate check unavailable",

@@ -300,5 +300,6 @@
   "vitalsCounter.emptyTitle": "Nobody is waiting",
   "vitalsCounter.emptyBody": "Every patient in this queue has had vitals taken.",
   "vitalsCounter.modalTitle": "Vitals — {{token}} · {{patient}}",
-  "common.error": "Error"
+  "common.error": "Error",
+  "queueFilters.visitType": "Visit type"
 }

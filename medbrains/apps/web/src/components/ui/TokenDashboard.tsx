@@ -1,5 +1,5 @@
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { Badge, type BadgeTone } from "./Badge";
 import styles from "./token-dashboard.module.scss";
 
@@ -51,6 +51,7 @@ export function TokenDashboard({
   const waiting = tokens.filter((token) => !token.active);
   const className = display ? `${styles.board} ${styles.displayScale}` : styles.board;
 
+  const sectionId = useId();
   return (
     <Box component="section" className={className} aria-label={title}>
       <Group justify="space-between" align="center" className={styles.header}>
@@ -66,10 +67,26 @@ export function TokenDashboard({
         <Stack gap="lg">
           {serving.length > 0 && (
             <Box>
-              <Text className={styles.sectionLabel}>Now serving</Text>
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: Math.min(serving.length, 3) }} spacing="md">
+              <Text className={styles.sectionLabel} id={`${sectionId}-serving`}>
+                Now serving
+              </Text>
+              {/* A list of named items, so a screen reader — and a test — can
+                  ask "is R-012 called?" rather than finding a number and a badge
+                  in unrelated boxes. */}
+              <SimpleGrid
+                component="ul"
+                aria-labelledby={`${sectionId}-serving`}
+                cols={{ base: 1, sm: 2, lg: Math.min(serving.length, 3) }}
+                spacing="md"
+                className={styles.list}
+              >
                 {serving.map((token) => (
-                  <Box key={token.id} className={styles.hero}>
+                  <Box
+                    component="li"
+                    key={token.id}
+                    className={styles.hero}
+                    aria-label={`Token ${token.tokenNumber}, ${token.status}`}
+                  >
                     <Text className={styles.heroToken}>{token.tokenNumber}</Text>
                     {(token.primary || token.meta) && (
                       <Stack gap={2}>
@@ -91,10 +108,23 @@ export function TokenDashboard({
 
           {waiting.length > 0 && (
             <Box>
-              <Text className={styles.sectionLabel}>Up next</Text>
-              <SimpleGrid cols={{ base: 2, xs: 3, sm: 4, lg: columns }} spacing="sm">
+              <Text className={styles.sectionLabel} id={`${sectionId}-waiting`}>
+                Up next
+              </Text>
+              <SimpleGrid
+                component="ul"
+                aria-labelledby={`${sectionId}-waiting`}
+                cols={{ base: 2, xs: 3, sm: 4, lg: columns }}
+                spacing="sm"
+                className={styles.list}
+              >
                 {waiting.map((token) => (
-                  <Box key={token.id} className={styles.card}>
+                  <Box
+                    component="li"
+                    key={token.id}
+                    className={styles.card}
+                    aria-label={`Token ${token.tokenNumber}, ${token.status}`}
+                  >
                     <Group justify="space-between" align="center" wrap="nowrap">
                       <Text className={styles.token}>{token.tokenNumber}</Text>
                       <Badge tone={token.tone}>{token.status}</Badge>

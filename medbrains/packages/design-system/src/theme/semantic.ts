@@ -276,7 +276,9 @@ export const lightScheme: SemanticScheme = {
     bg: ink[1], // Carbon field-01 #f4f4f4
     border: "#8d8d8d", // Carbon strong field border
     borderHover: ink[6],
-    placeholder: ink[4],
+    // Carbon's text-placeholder (#a8a8a8) reads 2.2:1 on the #f4f4f4 field —
+    // below WCAG 2.2 AA 1.4.3. Gray 60 is 4.8:1 and still reads as a hint.
+    placeholder: ink[6],
     focusRing: blue[5],
     focusBorder: blue[5],
   },

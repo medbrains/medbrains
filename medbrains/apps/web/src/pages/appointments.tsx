@@ -108,7 +108,11 @@ export function AppointmentsPage() {
     onSuccess: (result) => {
       notifications.show({
         title: "Checked in to OPD",
-        message: `OPD token T${String(result.queue.token_number).padStart(3, "0")} created.`,
+        // The number the board calls — not the OPD queue's own counter, which
+        // told the patient "T007" while the board said "R-012".
+        message: result.token_number
+          ? `Token ${result.token_number} — the number the board will call.`
+          : "No token issued — the OPD queue is paused or full.",
         color: "success",
         icon: <IconCheck size={16} />,
       });

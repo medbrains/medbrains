@@ -39,7 +39,7 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import type {
   OpdQueueRowActionId,
@@ -623,15 +623,16 @@ export function OpdPageInner() {
             patientNameAccess={patientNameAccess}
             onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
           />
-          <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab} mb="xs">
-            <Tabs.List>
-              {queueVisitTypeTabs.map((tab) => (
-                <Tabs.Tab key={tab.value} value={tab.value}>
-                  {tab.label}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
+          {/* A filter over one table, not tabs: tabs with no panels told a
+              screen reader each one controlled a panel that did not exist
+              (axe aria-valid-attr-value). */}
+          <SegmentedControl
+            aria-label={t("queueFilters.visitType")}
+            value={queueVisitTypeTab ?? "all"}
+            onChange={setQueueVisitTypeTab}
+            data={queueVisitTypeTabs}
+            mb="xs"
+          />
           {/* A failed read must not be drawn as an empty waiting room. The
               table renders its empty state for any zero-row list, and on an
               outage `queue` is [] — so without this the busiest screen on the

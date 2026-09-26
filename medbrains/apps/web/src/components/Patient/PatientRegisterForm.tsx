@@ -1002,7 +1002,7 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
                 <Grid.Col span={12}>
-                  <Text size="xs" c="yellow.7" fw={500}>
+                  <Text size="xs" c="var(--mb-warning-text)" fw={500}>
                     {dateOfBirthAgeHint} {t("registrationForm.hint.ageDobInstruction")}
                   </Text>
                 </Grid.Col>
