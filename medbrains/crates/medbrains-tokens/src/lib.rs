@@ -19,6 +19,9 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub mod queue_admin;
+pub mod queues;
+
 use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -112,7 +115,7 @@ async fn module_tokens_enabled(
 /// appears on no board while still taking tokens — the patients holding them
 /// simply become invisible. Scopes with no registry ('global', 'combined') keep
 /// the caller's label.
-async fn resolve_scope(
+pub(crate) async fn resolve_scope(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     scope: &str,
     scope_id: Option<Uuid>,
@@ -261,6 +264,52 @@ async fn carried_over_priority<'a>(
     Ok(if owed { "carried_over" } else { requested })
 }
 
+/// Where a new token goes: its queue (if one is configured), its position and
+/// the number on the slip.
+struct Placement {
+    queue_id: Option<Uuid>,
+    seq: i32,
+    number: String,
+}
+
+/// Place the next token for a module at a place — or say, in the desk's words,
+/// why the configured queue cannot take one (paused, full, outside its dates).
+/// Callers hold the queue's advisory lock.
+async fn place_in_queue(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    (module, scope, scope_id): (&str, &str, Option<Uuid>),
+    visit_id: Option<Uuid>,
+) -> Result<Result<Placement, String>, AppError> {
+    if let Some(queue) = queues::live_queue(tx, tenant_id, (module, scope, scope_id)).await? {
+        if let Some(reason) = queues::refusal(tx, &queue).await? {
+            return Ok(Err(reason));
+        }
+        // A configured queue numbers by its own rule; it does not borrow the
+        // visit's number, or the prefix the administrator chose would never show.
+        let seq = queues::next_seq(tx, &queue).await?;
+        return Ok(Ok(Placement { queue_id: Some(queue.id), seq, number: queue.number(seq) }));
+    }
+    let seq: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
+         WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
+           AND scope_id IS NOT DISTINCT FROM $4 AND token_date = CURRENT_DATE",
+    )
+    .bind(tenant_id)
+    .bind(module)
+    .bind(scope)
+    .bind(scope_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    // `seq` is this department's own position and is always freshly computed.
+    // Only the displayed number is shared, so a visit reads as one slip while
+    // every board still calls in its own order.
+    let number = number_for_visit(tx, visit_id)
+        .await?
+        .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(module)));
+    Ok(Ok(Placement { queue_id: None, seq, number }))
+}
+
 /// Issue a token inside an existing tenant-scoped transaction (auto-issuance
 /// from registration / check-in / order / payment). Silently skips when the
 /// module's tokens are disabled. Returns the token number (or None if skipped).
@@ -287,23 +336,25 @@ pub async fn issue_token_in_tx(
     .execute(&mut **tx)
     .await?;
 
-    let seq: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
-         WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
-           AND scope_id IS NOT DISTINCT FROM $4 AND token_date = CURRENT_DATE",
+    // A configured queue that is paused, full, or outside its dates takes no
+    // token. This path runs inside registration, check-in and orders, which
+    // must not fail because the queue is closed: the token is skipped exactly
+    // as for a disabled module, and the caller reports "queue pending".
+    let place = match place_in_queue(
+        tx,
+        tenant_id,
+        (input.module, input.scope, input.scope_id),
+        input.visit_id,
     )
-    .bind(tenant_id)
-    .bind(input.module)
-    .bind(input.scope)
-    .bind(input.scope_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    // `seq` is this department's own position and is always freshly computed.
-    // Only the displayed number is shared, so a visit reads as one slip while
-    // every board still calls in its own order.
-    let number = number_for_visit(tx, input.visit_id)
-        .await?
-        .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(input.module)));
+    .await?
+    {
+        Ok(place) => place,
+        Err(reason) => {
+            tracing::info!(reason, "token not issued");
+            return Ok(None);
+        }
+    };
+    let (seq, number) = (place.seq, place.number);
 
     // Name the queue. Only the manual POST /api/tokens/issue handler resolved
     // its scope, and every automatic path -- OPD check-in, camp registration,
@@ -327,8 +378,8 @@ pub async fn issue_token_in_tx(
     sqlx::query(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
-          patient_id, patient_name, entity_type, entity_id, issued_by, visit_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+          patient_id, patient_name, entity_type, entity_id, issued_by, visit_id, queue_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
     )
     .bind(tenant_id)
     .bind(input.module)
@@ -344,6 +395,7 @@ pub async fn issue_token_in_tx(
     .bind(input.entity_id)
     .bind(input.issued_by)
     .bind(input.visit_id)
+    .bind(place.queue_id)
     .execute(&mut **tx)
     .await?;
     Ok(Some(number))
@@ -589,21 +641,16 @@ pub async fn issue_token(
     .execute(&mut *tx)
     .await?;
 
-    let seq: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
-         WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
-           AND scope_id IS NOT DISTINCT FROM $4 AND token_date = CURRENT_DATE",
+    // The desk asked for this token, so a closed queue is an answer it needs.
+    let place = place_in_queue(
+        &mut tx,
+        claims.tenant_id,
+        (&body.module, &scope, body.scope_id),
+        body.visit_id,
     )
-    .bind(claims.tenant_id)
-    .bind(&body.module)
-    .bind(&scope)
-    .bind(body.scope_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let number = number_for_visit(&mut tx, body.visit_id)
-        .await?
-        .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(&body.module)));
+    .await?
+    .map_err(AppError::Conflict)?;
+    let (seq, number) = (place.seq, place.number.clone());
 
     let patient_name =
         patient_name_of(&mut tx, body.patient_name.as_deref(), body.patient_id).await?;
@@ -611,8 +658,10 @@ pub async fn issue_token(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
           patient_id, patient_name, entity_type, entity_id, issued_by, \
-          referred_from_module, referred_from_scope, referred_from_scope_id, visit_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
+          referred_from_module, referred_from_scope, referred_from_scope_id, visit_id, \
+          queue_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+                 $18) \
          RETURNING {SELECT}"
     ))
     .bind(claims.tenant_id)
@@ -632,6 +681,7 @@ pub async fn issue_token(
     .bind(&body.referred_from_scope)
     .bind(body.referred_from_scope_id)
     .bind(body.visit_id)
+    .bind(place.queue_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1913,6 +1963,12 @@ pub async fn camp_board(
 /// Queue token routes (issue, board, call-next, advance, serve, complete).
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route(
+            "/api/queues",
+            get(queue_admin::list_queues).post(queue_admin::create_queue),
+        )
+        .route("/api/queues/places", get(queue_admin::list_places))
+        .route("/api/queues/{id}", put(queue_admin::update_queue))
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
         .route("/api/tokens/board/metrics", get(board_metrics))

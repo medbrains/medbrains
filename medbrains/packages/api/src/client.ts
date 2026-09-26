@@ -1628,11 +1628,15 @@ import type {
   QualityIndicator,
   QualityIndicatorValue,
   QueueAnalytics,
+  QueueConfig,
   QueueDisplayConfig,
   QueueEntry,
+  QueueInput,
   QueueMetrics,
   QueueMetricsRealtime,
+  QueuePlace,
   QueuePriorityRule,
+  QueueRow,
   QueueStatsResponse,
   QueueToken,
   QuizAttemptResult,
@@ -3587,6 +3591,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+
+  // Configured queues (Admin → Queues)
+  listQueues: () => request<QueueRow[]>("/queues"),
+  listQueuePlaces: () => request<QueuePlace[]>("/queues/places"),
+  createQueue: (data: QueueInput) =>
+    request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
+  updateQueue: (id: string, data: QueueInput) =>
+    request<QueueConfig>(`/queues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   // Patient messaging consent (WhatsApp / email) — append-only history
   getPatientContactConsents: (patientId: string) =>

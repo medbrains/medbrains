@@ -1,0 +1,283 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Group, Stack, Text } from "@mantine/core";
+import { DatePickerInput } from "@mantine/dates";
+import { api } from "@medbrains/api";
+import { previewQueueNumber, type QueueFormInput, queueFormSchema } from "@medbrains/schemas";
+import type { QueueConfig, QueueInput } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Controller, useForm } from "react-hook-form";
+import {
+  Button,
+  Drawer,
+  Input,
+  NumberField,
+  SegmentedControl,
+  Select,
+  toast,
+} from "@/components/ui";
+
+interface QueueFormDrawerProps {
+  opened: boolean;
+  onClose: () => void;
+  /** Editing this queue; null to create one. */
+  queue: QueueConfig | null;
+}
+
+export const QUEUE_MODULES = [
+  { value: "registration", label: "Registration" },
+  { value: "opd", label: "OPD consultation" },
+  { value: "lab", label: "Laboratory" },
+  { value: "radiology", label: "Radiology" },
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "billing", label: "Billing" },
+];
+
+const toDate = (value: string | null) => (value ? new Date(`${value}T00:00:00`) : null);
+const toIso = (value: Date | null) =>
+  value
+    ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+    : null;
+
+function defaults(queue: QueueConfig | null): QueueFormInput {
+  return {
+    name: queue?.name ?? "",
+    module: queue?.module ?? "opd",
+    place: queue ? `${queue.scope}:${queue.scope_id ?? ""}` : "",
+    prefix: queue?.prefix ?? "",
+    start_at: queue?.start_at ?? 1,
+    pad_width: queue?.pad_width ?? 3,
+    reset_rule: queue?.reset_rule ?? "daily",
+    max_tokens_per_period: queue?.max_tokens_per_period ?? null,
+    lifecycle: queue?.lifecycle ?? "permanent",
+    valid_from: toDate(queue?.valid_from ?? null),
+    valid_until: toDate(queue?.valid_until ?? null),
+  };
+}
+
+/** Create or edit a queue: what it serves, how it numbers, how many, and when. */
+export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps) {
+  const queryClient = useQueryClient();
+  const places = useQuery({
+    queryKey: ["queue-places"],
+    queryFn: () => api.listQueuePlaces(),
+    enabled: opened,
+  });
+  const form = useForm<QueueFormInput>({
+    resolver: zodResolver(queueFormSchema),
+    values: defaults(queue),
+  });
+  const { control, register, watch, handleSubmit, formState } = form;
+  const [prefix, startAt, padWidth, lifecycle] = watch([
+    "prefix",
+    "start_at",
+    "pad_width",
+    "lifecycle",
+  ]);
+
+  const save = useMutation({
+    mutationFn: (values: QueueFormInput) => {
+      const [scope, scopeId] = values.place.split(":");
+      const input: QueueInput = {
+        name: values.name,
+        module: values.module,
+        scope: scope ?? "department",
+        scope_id: scopeId || null,
+        prefix: values.prefix.toUpperCase(),
+        start_at: values.start_at,
+        pad_width: values.pad_width,
+        reset_rule: values.reset_rule,
+        max_tokens_per_period: values.max_tokens_per_period,
+        lifecycle: values.lifecycle,
+        valid_from: values.lifecycle === "temporary" ? toIso(values.valid_from) : null,
+        valid_until: values.lifecycle === "temporary" ? toIso(values.valid_until) : null,
+        status: queue?.status ?? "active",
+      };
+      return queue ? api.updateQueue(queue.id, input) : api.createQueue(input);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["queues"] });
+      toast.success(queue ? "Queue saved" : "Queue created");
+      onClose();
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Queue not saved" }),
+  });
+
+  const errors = formState.errors;
+  return (
+    <Drawer opened={opened} onClose={onClose} title={queue ? "Edit queue" : "New queue"} size="md">
+      <form onSubmit={handleSubmit((values) => save.mutate(values))}>
+        <Stack gap="md">
+          <Input
+            label="Name"
+            placeholder="e.g. General OPD"
+            error={errors.name?.message}
+            {...register("name")}
+          />
+          <Controller
+            control={control}
+            name="module"
+            render={({ field }) => (
+              <Select
+                label="For"
+                data={QUEUE_MODULES}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "opd")}
+                disabled={Boolean(queue)}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="place"
+            render={({ field }) => (
+              <Select
+                label="Place it serves"
+                placeholder="Department, room, counter or station"
+                searchable
+                data={(places.data ?? []).map((p) => ({
+                  value: `${p.scope}:${p.scope_id}`,
+                  label: `${p.label} · ${p.scope}`,
+                }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={
+                  errors.place?.message ?? (places.isError ? "Could not load places" : undefined)
+                }
+                disabled={Boolean(queue)}
+              />
+            )}
+          />
+          <Group grow align="flex-start">
+            <Input
+              label="Prefix"
+              placeholder="GEN"
+              error={errors.prefix?.message}
+              {...register("prefix")}
+            />
+            <Controller
+              control={control}
+              name="start_at"
+              render={({ field }) => (
+                <NumberField
+                  label="First number"
+                  min={0}
+                  value={field.value}
+                  onChange={(v) => field.onChange(Number(v) || 0)}
+                  error={errors.start_at?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="pad_width"
+              render={({ field }) => (
+                <NumberField
+                  label="Digits"
+                  min={1}
+                  max={6}
+                  value={field.value}
+                  onChange={(v) => field.onChange(Number(v) || 1)}
+                />
+              )}
+            />
+          </Group>
+          <Text size="sm">
+            First token:{" "}
+            <strong data-testid="queue-number-preview">
+              {previewQueueNumber(prefix, startAt, padWidth)}
+            </strong>
+          </Text>
+          <Controller
+            control={control}
+            name="reset_rule"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Numbering restarts
+                </Text>
+                <SegmentedControl
+                  aria-label="Numbering restarts"
+                  value={field.value}
+                  onChange={field.onChange}
+                  data={[
+                    { value: "daily", label: "Every day" },
+                    { value: "never", label: "Never" },
+                  ]}
+                />
+              </Stack>
+            )}
+          />
+          <Controller
+            control={control}
+            name="max_tokens_per_period"
+            render={({ field }) => (
+              <NumberField
+                label="Most tokens a day"
+                description="Leave empty for no limit"
+                min={1}
+                value={field.value ?? ""}
+                onChange={(v) => field.onChange(v === "" ? null : Number(v))}
+                error={errors.max_tokens_per_period?.message}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="lifecycle"
+            render={({ field }) => (
+              <Stack gap={4}>
+                <Text size="sm" fw={500}>
+                  Runs
+                </Text>
+                <SegmentedControl
+                  aria-label="Runs"
+                  value={field.value}
+                  onChange={field.onChange}
+                  data={[
+                    { value: "permanent", label: "Every day" },
+                    { value: "temporary", label: "Only on certain days" },
+                  ]}
+                />
+              </Stack>
+            )}
+          />
+          {lifecycle === "temporary" && (
+            <Group grow align="flex-start">
+              <Controller
+                control={control}
+                name="valid_from"
+                render={({ field }) => (
+                  <DatePickerInput
+                    label="First day"
+                    value={field.value}
+                    onChange={(v) => field.onChange(v ? new Date(v) : null)}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name="valid_until"
+                render={({ field }) => (
+                  <DatePickerInput
+                    label="Last day"
+                    value={field.value}
+                    onChange={(v) => field.onChange(v ? new Date(v) : null)}
+                    error={errors.valid_until?.message}
+                  />
+                )}
+              />
+            </Group>
+          )}
+          <Group justify="flex-end">
+            <Button tone="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button tone="primary" type="submit" loading={save.isPending}>
+              {queue ? "Save" : "Create queue"}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
+    </Drawer>
+  );
+}

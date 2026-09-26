@@ -166,6 +166,7 @@ export * from "./marketing";
 export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./message-simulator";
+export * from "./queues";
 export * from "./mrd";
 export * from "./mrd-form-print";
 export * from "./nurse-calls";

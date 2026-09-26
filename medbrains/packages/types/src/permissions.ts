@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 987 permissions, one per constant in the Rust source. */
+/** 989 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3125,6 +3125,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "front_office.queue.manage",
     label: "Manage Queue Config",
     description: "Configure queue priority rules and display settings",
+    module: "front_office",
+  },
+  {
+    code: "front_office.queue.config.view",
+    label: "See how the hospital's queues are set up",
+    description: "Read-only: each queue's numbering, daily limit, status and dates, and the places a queue can serve. The desk sees why a queue is paused or full without being able to change it.",
+    module: "front_office",
+  },
+  {
+    code: "front_office.queue.config.manage",
+    label: "Create, change, pause and close queues",
+    description: "Numbering, daily limits, temporary camp queues and their dates. Changes what every desk and board in that place does, so it is held by hospital administrators unless granted.",
     module: "front_office",
   },
   {
@@ -7070,9 +7082,17 @@ export const P = {
     PASSES_LIST: "front_office.passes.list",
     PASSES_MANAGE: "front_office.passes.manage",
     QUEUE: {
+      CONFIG: {
+        MANAGE: "front_office.queue.config.manage",
+        VIEW: "front_office.queue.config.view",
+      },
+      CONFIG_MANAGE: "front_office.queue.config.manage",
+      CONFIG_VIEW: "front_office.queue.config.view",
       LIST: "front_office.queue.list",
       MANAGE: "front_office.queue.manage",
     },
+    QUEUE_CONFIG_MANAGE: "front_office.queue.config.manage",
+    QUEUE_CONFIG_VIEW: "front_office.queue.config.view",
     QUEUE_LIST: "front_office.queue.list",
     QUEUE_MANAGE: "front_office.queue.manage",
     VISITORS: {
@@ -9495,6 +9515,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.ENQUIRY.MANAGE,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
+      P.FRONT_OFFICE.QUEUE.CONFIG.VIEW,
       P.FRONT_OFFICE.QUEUE.LIST,
       P.FRONT_OFFICE.QUEUE.MANAGE,
       P.FRONT_OFFICE.VISITORS.CREATE,
@@ -10254,6 +10275,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.ENQUIRY.LIST,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
+      P.FRONT_OFFICE.QUEUE.CONFIG.VIEW,
       P.FRONT_OFFICE.QUEUE.LIST,
       P.FRONT_OFFICE.QUEUE.MANAGE,
       P.FRONT_OFFICE.VISITORS.CREATE,

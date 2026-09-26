@@ -1393,6 +1393,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "devices.pairing.paired.list",
           },
           {
+            i18nKey: "queues",
+            path: "/admin/queues",
+            icon: "IconListDetails",
+            requiredPermission: "front_office.queue.config.view",
+          },
+          {
             i18nKey: "messageSimulator",
             path: "/admin/message-simulator",
             icon: "IconDeviceMobileMessage",

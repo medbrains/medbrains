@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status FROM queues WHERE tenant_id = $1 AND module = $2 AND scope = $3 AND scope_id IS NOT DISTINCT FROM $4 AND status <> 'closed'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "module",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_at",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "pad_width",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "reset_rule",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "max_tokens_per_period",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "lifecycle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "fedc5137863730ddf4c0a0f8b85f2901c3fd41c19480b6f620332dcbdcbc802d"
+}

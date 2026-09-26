@@ -72,6 +72,9 @@ const DeploymentCostPage = lazy(() =>
 const InfrastructurePage = lazy(() =>
   import("./pages/setup/infrastructure").then((m) => ({ default: m.InfrastructurePage })),
 );
+const QueuesPage = lazy(() =>
+  import("./pages/admin/queues").then((m) => ({ default: m.QueuesPage })),
+);
 const MessageSimulatorPage = lazy(() =>
   import("./pages/admin/message-simulator").then((m) => ({ default: m.MessageSimulatorPage })),
 );
@@ -509,6 +512,7 @@ export function App() {
               <Route path="setup/infrastructure" element={<InfrastructurePage />} />
               <Route path="admin/simulator" element={<SimulatorPage />} />
               <Route path="admin/message-simulator" element={<MessageSimulatorPage />} />
+              <Route path="admin/queues" element={<QueuesPage />} />
               <Route path="setup/domains-email" element={<DomainsEmailPage />} />
               <Route path="clinical-kb" element={<ClinicalKbPage />} />
               <Route path="oauth/callback" element={<OAuthCallbackPage />} />

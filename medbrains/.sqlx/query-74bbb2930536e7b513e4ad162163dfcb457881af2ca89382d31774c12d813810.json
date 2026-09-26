@@ -1,0 +1,117 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE queues SET name = $3, prefix = $4, start_at = $5, pad_width = $6, reset_rule = $7, max_tokens_per_period = $8, lifecycle = $9, valid_from = $10, valid_until = $11, status = $12 WHERE id = $1 AND tenant_id = $2 RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "module",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_at",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "pad_width",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "reset_rule",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "max_tokens_per_period",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "lifecycle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Int2",
+        "Text",
+        "Int4",
+        "Text",
+        "Date",
+        "Date",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "74bbb2930536e7b513e4ad162163dfcb457881af2ca89382d31774c12d813810"
+}

@@ -1,0 +1,121 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO queues (tenant_id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id, name, module, scope, scope_id, scope_label, prefix, start_at, pad_width, reset_rule, max_tokens_per_period, lifecycle, valid_from, valid_until, status",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "module",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "scope_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "scope_label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_at",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "pad_width",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "reset_rule",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "max_tokens_per_period",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "lifecycle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 13,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 14,
+        "name": "status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Int2",
+        "Text",
+        "Int4",
+        "Text",
+        "Date",
+        "Date",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6bd7c9a8120a09d9be6a2ddf87cb2c24ca4fd2d928b2582c23a5feeec90997ab"
+}

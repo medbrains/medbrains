@@ -1437,6 +1437,21 @@ pub mod front_office {
     pub mod queue {
         pub const LIST: &str = "front_office.queue.list";
         pub const MANAGE: &str = "front_office.queue.manage";
+
+        pub mod config {
+            /// See how the hospital's queues are set up.
+            ///
+            /// Read-only: each queue's numbering, daily limit, status and dates,
+            /// and the places a queue can serve. The desk sees why a queue is
+            /// paused or full without being able to change it.
+            pub const VIEW: &str = "front_office.queue.config.view";
+            /// Create, change, pause and close queues.
+            ///
+            /// Numbering, daily limits, temporary camp queues and their dates.
+            /// Changes what every desk and board in that place does, so it is
+            /// held by hospital administrators unless granted.
+            pub const MANAGE: &str = "front_office.queue.config.manage";
+        }
     }
 
     pub mod enquiry {

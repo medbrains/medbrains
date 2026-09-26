@@ -262,6 +262,11 @@ themselves now carry the name, for the desk console.
   **No backfill**: a scope with no row keeps today's behaviour exactly, so no
   hospital changes until an admin configures a queue. Admin → Queues screen
   (list, create, edit, pause, close) with a live "next token" preview.
+  *Built 2026-09-26:* `queues` (migration 1020), `front_office.queue.config.{view,manage}`
+  (view granted to receptionist + front-office staff), engine placement shared
+  by auto and manual issue (auto-issue skips a closed/full queue, manual issue
+  answers 409 with the reason), Admin → Queues with a live first-slip preview.
+  Server tests `token_queue_config_test.rs` 5/5.
 - **P1b — categories**: per-queue priority categories and weights replacing the
   hard-coded `token_priority_weight`.
 - **P1c — hours & sessions**: opening hours, session reset rule, close
