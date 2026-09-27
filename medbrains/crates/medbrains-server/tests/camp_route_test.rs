@@ -385,3 +385,122 @@ async fn the_camp_team_reads_its_stations_but_not_the_opd_queue() {
         .expect("waiting at vitals");
     assert_eq!(row["patient_name"], "Kamala Devi");
 }
+
+/// Given a camp coordinator (no `patients.view`), When they register a
+/// patient with the full form and put that record on the camp's route, Then
+/// it is linked and numbered; And a record they cannot see — someone else's
+/// patient — is refused as not found, so a camp link is never a way to reach
+/// an arbitrary record.
+#[tokio::test]
+async fn the_camp_team_links_the_record_it_registered_and_no_other() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let suffix = Uuid::new_v4().simple().to_string()[..8].to_lowercase();
+    let username = format!("camp_link_{suffix}");
+    let password = format!("CampLink#{suffix}Aa9");
+    let (status, body) = post(
+        &app,
+        &csrf,
+        "/api/setup/users",
+        json!({
+            "username": username, "email": format!("{username}@e2e.medbrains.localhost"),
+            "password": password, "full_name": "Camp Link", "role": "camp_coordinator",
+        }),
+    )
+    .await;
+    assert!(status.is_success(), "{body}");
+    let team = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login: Value = team
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("login json");
+    let team_csrf = login["csrf_token"].as_str().unwrap_or("").to_owned();
+    let as_team = |path: &str, body: Value| {
+        team.post(app.url(path))
+            .header("x-csrf-token", &team_csrf)
+            .json(&body)
+            .send()
+    };
+
+    let camp: Uuid = sqlx::query_scalar(
+        "INSERT INTO camps (tenant_id, camp_code, name, camp_type, scheduled_date) \
+         SELECT u.tenant_id, $1, 'Link Camp', 'general_health'::camp_type, CURRENT_DATE \
+           FROM users u WHERE u.username = 'admin' RETURNING id",
+    )
+    .bind(format!("LK{}", suffix.to_uppercase()))
+    .fetch_one(&app.db)
+    .await
+    .expect("camp");
+    post(
+        &app,
+        &csrf,
+        &format!("/api/camp/camps/{camp}/route-template"),
+        json!({ "template": "general" }),
+    )
+    .await;
+
+    let phone = format!(
+        "93{:08}",
+        u32::from_str_radix(&suffix[..6], 16).unwrap_or(1) % 100_000_000
+    );
+    let own = as_team(
+        "/api/patients",
+        json!({
+            "first_name": format!("Kamala{suffix}"), "last_name": "", "gender": "female", "phone": phone,
+            "date_of_birth": "1968-01-01", "attributes": { "allergy_status": "no_known_allergies" },
+        }),
+    )
+    .await
+    .expect("register");
+    assert!(
+        own.status().is_success(),
+        "{}",
+        own.text().await.unwrap_or_default()
+    );
+    let own: Value = own.json().await.expect("patient json");
+    let linked = as_team(
+        "/api/camp/registrations",
+        json!({ "camp_id": camp, "person_name": "Kamala", "patient_id": own["id"], "is_walk_in": true }),
+    )
+    .await
+    .expect("link own");
+    assert_eq!(
+        linked.status(),
+        StatusCode::OK,
+        "the record they registered goes on the route"
+    );
+    let linked: Value = linked.json().await.expect("link json");
+    assert!(
+        linked["token_number"].is_string(),
+        "and gets a camp number: {linked}"
+    );
+
+    let stranger: Uuid = sqlx::query_scalar(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         SELECT u.tenant_id, $1, 'Someone', 'Else', 'other'::gender, '9876500001' \
+           FROM users u WHERE u.username = 'admin' RETURNING id",
+    )
+    .bind(format!("UH-LINK-{suffix}"))
+    .fetch_one(&app.db)
+    .await
+    .expect("stranger");
+    let refused = as_team(
+        "/api/camp/registrations",
+        json!({ "camp_id": camp, "person_name": "Someone", "patient_id": stranger, "is_walk_in": true }),
+    )
+    .await
+    .expect("link stranger");
+    assert_eq!(
+        refused.status(),
+        StatusCode::NOT_FOUND,
+        "a record they cannot see is not linked"
+    );
+}

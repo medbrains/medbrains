@@ -37,6 +37,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.medbrains.kit.ApiError
+import com.medbrains.staff.shared.forms.OptionSource
+import com.medbrains.staff.shared.forms.CatalogueLookups
+import com.medbrains.staff.shared.forms.CatalogueField
+import com.medbrains.kit.LocalIdentity
+import com.medbrains.kit.LocalApiClient
 import com.medbrains.staff.shared.forms.CatalogueFieldView
 import com.medbrains.staff.shared.forms.CatalogueOption
 import com.medbrains.staff.shared.forms.OptionLists
@@ -73,7 +78,14 @@ import java.time.LocalDate
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: ReceptionSession) {
+fun RegisterPatientScreen(
+    nav: NavHostController,
+    api: ReceptionApi,
+    session: ReceptionSession,
+    // Registering at a camp: the form starts as the camp's, and the patient
+    // is put on the camp's route (a camp number) once registered.
+    camp: CampSummary? = null,
+) {
     val scope = rememberCoroutineScope()
     val catalogue = RegistrationCatalogue.shared
     val draft = remember { RegistrationDraftValues() }
@@ -85,15 +97,33 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     var candidates by remember { mutableStateOf<List<MatchCandidate>?>(null) }
     var checkUnavailable by remember { mutableStateOf(false) }
     var registered by remember { mutableStateOf<PatientSummary?>(null) }
+    var campNumber by remember { mutableStateOf<String?>(null) }
+    val identity = LocalIdentity.current
+    val client = LocalApiClient.current
+    val lookupsApi = remember { CatalogueLookups(client) }
+
+    /** The search a field may run, gated on its own lookup code; null where the role may not (the field then takes typed text). */
+    fun lookups(field: CatalogueField): CatalogueLookups? = when (field.options.source) {
+        OptionSource.ICD11 -> lookupsApi.takeIf { identity?.can("terminology.search") == true }
+        OptionSource.DRUG_CATALOGUE -> lookupsApi.takeIf { identity?.canAny(listOf("pharmacy.catalog.lookup", "patients.create")) == true }
+        else -> null
+    }
     val stepCount = catalogue.steps.size + 1
     val onReview = stepIndex == catalogue.steps.size
     val lists = OptionLists(
         departments = session.departments.map { CatalogueOption(it.id, it.name) },
         doctors = session.doctors.map { CatalogueOption(it.id, it.full_name) },
+        camps = session.camps.map { CatalogueOption(it.id, it.name) },
     )
 
-    /** The desk's department and consultant, kept between walk-ins. */
+    /** The desk's department and consultant, kept between walk-ins — and at a camp, the camp itself, as the web's camp mode starts. */
     fun takeDeskContext() {
+        if (camp != null && draft["camp_id"].isEmpty()) {
+            draft["registration_type"] = "camp"; draft["registration_source"] = "camp"
+            draft["camp_id"] = camp.id; draft["camp_name"] = camp.name
+            camp.organizing_department_id?.let { draft["department_id"] = it }
+            draft["referred_by_facility"] = camp.venue_name ?: camp.name
+        }
         if (draft["department_id"].isEmpty()) session.departmentId?.let { draft["department_id"] = it }
         if (draft["consultant_id"].isEmpty()) session.consultantId?.let { draft["consultant_id"] = it }
     }
@@ -111,6 +141,23 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
         if (shown.isEmpty()) stepIndex += 1
     }
 
+    /**
+     * At a camp, the record — just registered, or one that already existed —
+     * goes on the camp's route: no second UHID, and a camp number. The record
+     * is shown either way; a failed link says it is not on the route yet and
+     * offers the link again.
+     */
+    suspend fun putOnCampRoute(patient: PatientSummary) {
+        val c = camp ?: return
+        registered = patient; failure = null; busy = true
+        try {
+            campNumber = api.linkToCamp(CampRegistrationLink(
+                c.id, patient.fullName, draft["gender"].ifEmpty { null }, patient.phone, patient.id,
+                draft["department_id"].ifEmpty { null }, draft["consultant_id"].ifEmpty { null }, draft["initial_diagnosis_text"].ifEmpty { null }, true,
+            )).token_number
+        } catch (e: ApiError) { failure = e.message } catch (e: Exception) { failure = "Could not reach the hospital server." } finally { busy = false }
+    }
+
     suspend fun create(duplicateCheck: String, matchedUhid: String?) {
         busy = true
         try {
@@ -126,7 +173,10 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
             registered = patient
             draft["department_id"].ifEmpty { null }?.let { session.departmentId = it }
             session.consultantId = draft["consultant_id"].ifEmpty { null }
-            if (draft.isOn("create_opd_visit") && draft["department_id"].isNotEmpty()) {
+            if (camp != null) {
+                // The camp's route queues them; no separate OPD visit.
+                putOnCampRoute(patient)
+            } else if (draft.isOn("create_opd_visit") && draft["department_id"].isNotEmpty()) {
                 val visit = api.startVisit(StartVisitBody(patient.id, draft["department_id"], draft["consultant_id"].ifEmpty { null }, draft["initial_diagnosis_text"].ifEmpty { null }, "walk_in"))
                 session.visits[patient.id] = visit
                 nav.navigate("token/${patient.id}")
@@ -158,7 +208,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
 
     /** The person is cleared; the desk stays. */
     fun nextWalkIn() {
-        registered = null; checkUnavailable = false; shown = emptyList(); failure = null
+        registered = null; campNumber = null; checkUnavailable = false; shown = emptyList(); failure = null
         draft.clearPerson()
         stepIndex = 0
         takeDeskContext()
@@ -174,11 +224,15 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
         LaunchedEffect(shown) { shown.firstOrNull()?.let { p -> fieldTops[p.field]?.let { scroll.animateScrollTo(it) } } }
         Column(Modifier.weight(1f).verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             val title = if (onReview) "Review" else catalogue.steps[stepIndex].title
-            Column(Modifier.testTag("register-step-title")) { CarbonPageHeader("Reception", "Register a patient", "Step ${stepIndex + 1} of $stepCount · $title") }
+            Column(Modifier.testTag("register-step-title")) { CarbonPageHeader(camp?.name ?: "Reception", "Register a patient", "Step ${stepIndex + 1} of $stepCount · $title") }
             LinearProgressIndicator(progress = { (stepIndex + 1).toFloat() / stepCount }, modifier = Modifier.fillMaxWidth())
             val done = registered
             if (done != null) {
-                RegisteredCard(nav, done, ::nextWalkIn)
+                RegisteredCard(nav, done, camp != null, campNumber, ::nextWalkIn)
+                if (camp != null && campNumber == null) failure?.let {
+                    CarbonNotification(NotificationKind.Error, "Not on the camp's route yet", "The record is saved. $it")
+                    CarbonTertiaryButton("Try again", onClick = { scope.launch { putOnCampRoute(done) } }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("camp-link-retry"))
+                }
             } else {
                 val visible = draft.visible()
                 if (onReview) {
@@ -186,7 +240,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 } else {
                     catalogue.fieldsIn(catalogue.steps[stepIndex].step).filter { it.id in visible }.forEach { field ->
                         Box(Modifier.onGloballyPositioned { fieldTops[field.id] = it.positionInParent().y.toInt() }) {
-                            CatalogueFieldView(field, draft, lists, shown.firstOrNull { it.field == field.id }?.message)
+                            CatalogueFieldView(field, draft, lists, shown.firstOrNull { it.field == field.id }?.message, lookups(field))
                         }
                     }
                 }
@@ -214,7 +268,9 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                     Column(Modifier.fillMaxWidth().testTag("duplicate-use-${c.uhid}")) {
                         CarbonRow("${c.first_name} ${c.last_name}", "${c.uhid} · ${c.date_of_birth ?: "DOB unknown"} · ${c.phone}")
                         CarbonTertiaryButton("Use this record", onClick = {
-                            val p = c.asSummary(); session.patients[p.id] = p; candidates = null; nav.navigate("patient/${p.id}")
+                            val p = c.asSummary(); session.patients[p.id] = p; candidates = null
+                            // At a camp the record goes on the camp's route here; at the desk, to its page.
+                            if (camp != null) scope.launch { putOnCampRoute(p) } else nav.navigate("patient/${p.id}")
                         }, modifier = Modifier.fillMaxWidth())
                     }
                 }
@@ -227,7 +283,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
 
 /** The UHID in display type, then the identifiers the desk reads back. */
 @Composable
-private fun RegisteredCard(nav: NavHostController, patient: PatientSummary, onNext: () -> Unit) {
+private fun RegisteredCard(nav: NavHostController, patient: PatientSummary, atCamp: Boolean, campNumber: String?, onNext: () -> Unit) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         CarbonTonedTile(CarbonTone.Success) {
             Eyebrow("Registered")
@@ -240,7 +296,16 @@ private fun RegisteredCard(nav: NavHostController, patient: PatientSummary, onNe
                 if (patient.is_vip == true) CarbonTag("VIP", CarbonTone.Info)
             }
         }
-        CarbonPrimaryButton("Start visit", modifier = Modifier.testTag("register-start-visit"), onClick = { nav.navigate("start-visit/${patient.id}") })
+        if (campNumber != null) {
+            // At a camp: the number they are called by at every station.
+            CarbonTonedTile(CarbonTone.Info) {
+                Eyebrow("Camp number")
+                Text(campNumber, style = MaterialTheme.typography.displaySmall, modifier = Modifier.testTag("registered-camp-number"))
+            }
+        } else if (!atCamp) {
+            // At a camp the route is the visit: no OPD start, nor its route in the camp's navigation.
+            CarbonPrimaryButton("Start visit", modifier = Modifier.testTag("register-start-visit"), onClick = { nav.navigate("start-visit/${patient.id}") })
+        }
         CarbonTertiaryButton("Next walk-in", onClick = onNext, modifier = Modifier.fillMaxWidth().testTag("register-next"))
     }
 }

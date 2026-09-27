@@ -39,8 +39,14 @@ An API caller that sends no allergy answer is recorded as *not asked yet* — ho
 
 1. **R0** — safety fixes on native (sex, allergies incl. the known-allergies list, referral). *Done.*
 2. **R1 + R2** — catalogue + evaluator; server, both native intakes and both web forms ask it; web rule changes (last name optional, *Has no phone*, sex no default, IST date fix). *Done.*
-3. **R3a** — native wizard rendered from the catalogue (iOS + Android): all four steps drawn generically by field kind, Review, Unknown patient, Send to OPD (issues the token in the same act). The core also owns **visibility** (`show_when` / `hide_when`, `registration_visible_fields`), **starting values** (`default`, the web form's own) and the **request** (`registration_request_json`: dotted ids → nested JSON, age → estimated DOB, unknown patient, no phone). The one-screen `registration_problem` API is removed. *In review.*
-4. **R3b** — camp mode (entry from the Camp module), camp and drug-catalogue option sources, ICD-11 picker.
+3. **R3a** — native wizard rendered from the catalogue (iOS + Android): all four steps drawn generically by field kind, Review, Unknown patient, Send to OPD (issues the token in the same act). The core also owns **visibility** (`show_when` / `hide_when`, `registration_visible_fields`), **starting values** (`default`, the web form's own) and the **request** (`registration_request_json`: dotted ids → nested JSON, age → estimated DOB, unknown patient, no phone). The one-screen `registration_problem` API is removed. *Shipped (#4669).*
+4. **R3b** — camp mode (entry from the Camp module), camp and drug-catalogue option sources, ICD-11 picker. *Shipped.*
+   - Catalogue kinds `Search` (ICD-11, `Options::Icd11`) and `Hidden` (the code's display, source URL, version and provider mode — written by the picker, never drawn). Choosing a code also fills the provisional diagnosis, as the web does.
+   - Drug allergies are tags: typed names always count; the formulary suggests names when it answers.
+   - Lookups have their own read codes, granted to receptionist, nurse, doctor and camp coordinator: `terminology.search` (ICD-11) and `pharmacy.catalog.lookup` (formulary). A role without one sees the field say so and takes typed text.
+   - Camp mode: Camp → Register → **Full registration** opens the wizard as the camp's (source, camp, organising department preset). On save the record goes on the camp's route and the desk reads the **camp number**, not "Start visit". A duplicate can be **used at the camp** — no second UHID.
+   - Linking a record to a camp requires `patients.view` **or** access to that record (`require_patient_access`): a coordinator links the patient they just registered, and a record they cannot see answers 404. Before this the link needed `patients.view` outright, so a coordinator's full registration saved the patient and then silently failed to number them.
+   - A link that fails after the record is saved says so ("Not on the camp's route yet — the record is saved") with **Try again**; it never reads as "Not registered".
 
 ## Verification
 

@@ -181,6 +181,31 @@ class ReceptionJourneyTest {
         check(attrs?.optString("allergy_status") == "no_known_allergies" && attrs.optBoolean("no_known_allergies")) { "the same allergy keys the web writes" }
     }
 
+    /**
+     * A diagnosis chosen from ICD-11 as the desk types, and the drug the
+     * patient reacts to — both on the record, in the web's own keys.
+     */
+    @Test
+    fun theDeskRecordsAnIcd11DiagnosisAndADrugAllergy() {
+        val phone = freshPhone()
+        openRegister()
+        fillPerson("Coded", "Fever${Api.RUN}", phone)
+        type("icd11_code-search", "fever")
+        compose.waitUntil(15_000) { has("icd11_code-hit-MG26") }
+        tap("icd11_code-hit-MG26")
+        compose.waitUntil(5_000) { seesText("MG26", sub = true) }
+        tap("field-attributes.allergy_status-known_allergies")
+        repeat(3) { press("register-step-next") }
+        type("field-attributes.known_allergies", "Penicillin — rash")
+        type("tags-entry", "Penicillin")
+        tap("tags-add")
+        submitRegistration()
+        compose.waitUntil(15_000) { has("registered-uhid") }
+        val full = api.obj("GET", "/api/patients/${checkNotNull(patientByPhone(phone)).getString("id")}").toString()
+        check("MG26" in full) { "the ICD-11 code is on the record" }
+        check("Penicillin" in full) { "and the drug allergy" }
+    }
+
     /** Brought in unconscious: registered now, named later. Nothing personal is asked, and the record is "Unknown". */
     @Test
     fun anUnknownPatientIsRegisteredWithoutAName() {

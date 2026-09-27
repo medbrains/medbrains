@@ -53,6 +53,32 @@ struct DepartmentRow: Decodable, Hashable, Identifiable, Sendable {
     let name: String
 }
 
+/// A camp a registration can name.
+struct CampSummary: Decodable, Hashable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let organizingDepartmentId: String?
+    let venueName: String?
+    let status: String
+
+    /// Open for registration: not finished, not called off.
+    var isOpen: Bool { !["completed", "cancelled"].contains(status) }
+}
+
+/// A camp registration made for a patient the wizard just registered: the
+/// link that puts them on the camp's route with a camp number.
+struct CampRegistrationLink: Encodable {
+    let campId: String
+    let personName: String
+    let gender: String?
+    let phone: String?
+    let patientId: String
+    let clinicalDepartmentId: String?
+    let attendingDoctorId: String?
+    let chiefComplaint: String?
+    let isWalkIn: Bool
+}
+
 struct DoctorRow: Decodable, Hashable, Identifiable, Sendable {
     let id: String
     let fullName: String
@@ -93,5 +119,7 @@ struct ReceptionApi: Sendable {
     }
     func departments() async throws -> [DepartmentRow] { try await client.request(.get, "/api/setup/departments") }
     func doctors() async throws -> [DoctorRow] { try await client.request(.get, "/api/setup/doctors") }
+    func camps() async throws -> [CampSummary] { try await client.request(.get, "/api/camp/camps") }
+    func linkToCamp(_ body: CampRegistrationLink) async throws -> CampRegistered { try await client.request(.post, CampEndpoint.registrations, body: body) }
     func startVisit(_ body: StartVisitBody) async throws -> VisitStarted { try await client.request(.post, "/api/opd/encounters", body: body) }
 }

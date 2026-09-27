@@ -86,6 +86,32 @@ class CampJourneyTest {
         assertEquals("the doctor's queue has them next", "waiting", number(api.campQueue(stations[2]), shown)?.optString("status"))
     }
 
+    /**
+     * Someone at a camp who needs a proper record: the full form, starting as
+     * this camp's, and they still get the camp number the route calls.
+     */
+    @Test
+    fun aFullRegistrationAtACampGivesTheCampNumber() {
+        val (_, stations) = api.campRoute("Full camp")
+        arrive()
+        open(stations[0])
+        compose.waitUntil(10_000) { has("camp-full-registration") }
+        tap("camp-full-registration")
+        compose.waitUntil(15_000) { has("screen-register-patient") }
+        type("field-first_name", "Kamala${Api.RUN}")
+        type("field-age_years", "58")
+        tap("field-gender-female")
+        type("field-phone", "94" + Api.RUN.padStart(6, '0') + "01")
+        tap("field-attributes.allergy_status-no_known_allergies")
+        repeat(5) { if (!has("register-submit")) { compose.waitForIdle(); click("register-step-next"); compose.waitForIdle() } }
+        click("register-submit")
+        compose.waitUntil(20_000) { has("registered-camp-number") }
+        val shown = compose.onNodeWithTag("registered-camp-number").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString("") { it.text }
+        val atVitals = number(api.campQueue(stations[1]), shown)
+        assertNotNull("they wait at Vitals under that number", atVitals)
+        assertFalse("and the camp token belongs to the full record", atVitals!!.isNull("patient_id"))
+    }
+
     @Test
     fun theSecondDoctorCallsToTheirRoomAndFinishesWithoutPharmacy() {
         val (campId, stations) = api.campRoute("Rooms camp")

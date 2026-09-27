@@ -8,7 +8,7 @@ import Observation
 
 /// Where a field's choices come from.
 enum OptionSource: String, Decodable, Sendable {
-    case none, fixed, departments, doctors, camps
+    case none, fixed, departments, doctors, camps, icd11
     case drugCatalogue = "drug_catalogue"
 }
 
@@ -24,7 +24,7 @@ struct CatalogueOptions: Decodable, Sendable {
 
 /// How a field is entered, as the core names it.
 enum FieldKind: String, Decodable, Sendable {
-    case text, email, date, age, digits, number, segmented, select, toggle, tags, phone
+    case text, email, date, age, digits, number, segmented, select, toggle, tags, phone, search, hidden
     case longText = "long_text"
 }
 

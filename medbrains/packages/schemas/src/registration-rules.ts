@@ -22,7 +22,9 @@ export type FieldKind =
   | "segmented"
   | "select"
   | "toggle"
-  | "tags";
+  | "tags"
+  | "search"
+  | "hidden";
 
 export interface Opt {
   value: string;
@@ -32,7 +34,7 @@ export interface Opt {
 export type FieldOptions =
   | { source: "none" }
   | { source: "fixed"; options: Opt[] }
-  | { source: "departments" | "doctors" | "camps" | "drug_catalogue" };
+  | { source: "departments" | "doctors" | "camps" | "drug_catalogue" | "icd11" };
 
 export interface Cond {
   field: string;

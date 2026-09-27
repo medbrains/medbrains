@@ -19,6 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /** The nurse's shift, proven against the record. Mirrors NurseJourneyTests.swift. */
+/** EmergencyFlash's poll interval, plus a second. */
+private const val FLASH_POLL_MS = 11_000L
+
 @RunWith(AndroidJUnit4::class)
 class NurseJourneyTest {
     val compose = createAndroidComposeRule<MainActivity>()
@@ -131,6 +134,9 @@ class NurseJourneyTest {
     fun codeBlueListsTheArrestAndRespondingIsAnArrivalOnTheServer() {
         val arrest = checkNotNull(api.codeBlue(admission, "Ward 3 bed 4 ${Api.RUN}"))
         try {
+            // The flash polls every 10 s, and the test clock drives that
+            // delay: move past one interval so the next poll sees the arrest.
+            compose.mainClock.advanceTimeBy(FLASH_POLL_MS)
             compose.waitUntil(15_000) { has("emergency-flash") }
             check(seesText("CODE BLUE")) { "the word, beside the colour" }
             compose.onNodeWithTag("emergency-flash-silence").performClick()
