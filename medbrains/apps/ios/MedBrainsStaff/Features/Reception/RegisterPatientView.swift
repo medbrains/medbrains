@@ -14,7 +14,10 @@ struct RegisterPatientView: View {
 
     @State private var firstName = ""
     @State private var lastName = ""
-    @State private var gender = "female"
+    /// Empty until the desk chooses: a default recorded every untouched patient as female.
+    @State private var gender = ""
+    @State private var allergyStatus = RegistrationChoices.allergyNotAsked
+    @State private var knownAllergies = ""
     @State private var phone = ""
     @State private var dateOfBirth: Date?
     @State private var age = ""
@@ -67,11 +70,12 @@ struct RegisterPatientView: View {
                 TextField("Last name", text: $lastName).textContentType(.familyName).focused($focus, equals: "last_name").accessibilityIdentifier("field-last_name")
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Gender").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                Picker("Gender", selection: $gender) {
-                    Text("Female").tag("female"); Text("Male").tag("male"); Text("Other").tag("other"); Text("Unknown").tag("unknown")
+                Text("Sex").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
+                Picker("Sex", selection: $gender) {
+                    ForEach(RegistrationChoices.genders, id: \.value) { Text($0.label).tag($0.value) }
                 }
                 .pickerStyle(.segmented).accessibilityIdentifier("field-gender")
+                if let e = err("gender") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
             }
             CarbonField("Phone", error: err("phone"), isFocused: focus == "phone") {
                 TextField("Phone", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber).focused($focus, equals: "phone").accessibilityIdentifier("field-phone")
@@ -90,6 +94,20 @@ struct RegisterPatientView: View {
             }
 
             CarbonSectionTitle("Safety")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Allergies").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
+                Picker("Allergies", selection: $allergyStatus) {
+                    ForEach(RegistrationChoices.allergyStatuses, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                .pickerStyle(.segmented).accessibilityIdentifier("field-allergy_status")
+                if let e = err("allergy_status") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
+            }
+            if allergyStatus == RegistrationChoices.knownAllergies {
+                CarbonField("Known allergies", error: err("known_allergies"), isFocused: focus == "allergies") {
+                    TextField("What, and what happens", text: $knownAllergies, axis: .vertical).lineLimit(1...4)
+                        .focused($focus, equals: "allergies").accessibilityIdentifier("field-known_allergies")
+                }
+            }
             Toggle("Medico-legal case", isOn: $isMedicoLegal).font(CarbonType.body).accessibilityIdentifier("switch-mlc")
             if isMedicoLegal {
                 CarbonField("MLC number", error: err("mlc_number"), isFocused: focus == "mlc") {
@@ -110,11 +128,11 @@ struct RegisterPatientView: View {
                 .accessibilityIdentifier("picker-consultant")
             VStack(alignment: .leading, spacing: 8) {
                 Text("Coming from").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                Picker("Coming from", selection: session.source) { Text("Walk-in").tag("walk_in"); Text("Referral").tag("referral") }
+                Picker("Coming from", selection: session.source) { Text("Walk-in").tag("walk_in"); Text("Referral").tag(RegistrationChoices.referralSource) }
                     .pickerStyle(.segmented).accessibilityIdentifier("field-source")
             }
-            if session.wrappedValue.source == "referral" {
-                CarbonField("Referred by", isFocused: focus == "referred") {
+            if session.wrappedValue.source == RegistrationChoices.referralSource {
+                CarbonField("Referred by", error: err("referred_by_name"), isFocused: focus == "referred") {
                     TextField("Doctor or facility", text: session.referredByName).focused($focus, equals: "referred").accessibilityIdentifier("field-referred_by_name")
                 }
             }
@@ -140,6 +158,8 @@ struct RegisterPatientView: View {
         RegistrationDraft(
             firstName: firstName, lastName: lastName, phone: phone,
             dateOfBirth: dateOfBirth.map(Self.iso) ?? "", ageYears: UInt32(age.trimmingCharacters(in: .whitespaces)),
+            gender: gender, allergyStatus: allergyStatus, knownAllergies: knownAllergies,
+            registrationSource: session.source, referredByName: session.referredByName,
             isMedicoLegal: isMedicoLegal, mlcNumber: mlcNumber, abhaNumber: abha
         )
     }
@@ -177,11 +197,11 @@ struct RegisterPatientView: View {
             firstName: firstName.trimmingCharacters(in: .whitespaces), lastName: lastName.trimmingCharacters(in: .whitespaces), gender: gender,
             phone: phone.trimmingCharacters(in: .whitespaces), dateOfBirth: dob, isDobEstimated: estimated,
             registrationType: "new", registrationSource: session.source,
-            referredByName: session.source == "referral" && !session.referredByName.isEmpty ? session.referredByName : nil,
+            referredByName: session.source == RegistrationChoices.referralSource && !session.referredByName.isEmpty ? session.referredByName : nil,
             departmentId: session.departmentId, consultantId: session.consultantId,
             abhaNumber: abha.isEmpty ? nil : abha.filter(\.isNumber),
             isMedicoLegal: isMedicoLegal, mlcNumber: isMedicoLegal ? mlcNumber : nil, isVip: isVip,
-            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid)),
+            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid), allergyStatus: allergyStatus, noKnownAllergies: allergyStatus == RegistrationChoices.noKnownAllergies, knownAllergies: allergyStatus == RegistrationChoices.knownAllergies ? knownAllergies : nil),
             contact: .init(whatsappOptIn: whatsappOptIn, emailOptIn: false)
         )
         do {
@@ -214,7 +234,9 @@ struct RegisterPatientView: View {
             default: break
             }
         }
-        gender = "female"
+        gender = ""
+        allergyStatus = RegistrationChoices.allergyNotAsked
+        knownAllergies = ""
         focus = "first_name"
     }
 }

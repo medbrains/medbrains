@@ -7,6 +7,8 @@ export * from "./guards.js";
 export * from "./hms-forms.js";
 export * from "./onboarding.js";
 export * from "./queues.js";
+export { registrationCatalogue } from "./registration.generated.js";
+export * from "./registration-rules.js";
 
 // Note: Zod schemas below are kept for form validation (buildFormSchema).
 // For runtime type guards, use the native guards from ./guards.js

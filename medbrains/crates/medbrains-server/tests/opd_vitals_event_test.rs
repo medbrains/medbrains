@@ -36,6 +36,7 @@ async fn recording_vitals_queues_a_clinical_event() {
             "first_name": "Vitals",
             "last_name": "Event",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990003001",
         }))
         .send()

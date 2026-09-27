@@ -45,6 +45,7 @@ async fn sample_rejections_count_orders_never_recollected() {
             "first_name": "Sample",
             "last_name": "Rejection",
             "gender": "male",
+            "date_of_birth": "1985-06-15",
             "phone": "9990011001",
         }))
         .send()

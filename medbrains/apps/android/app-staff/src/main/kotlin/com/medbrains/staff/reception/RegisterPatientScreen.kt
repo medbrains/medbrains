@@ -79,7 +79,10 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     val scope = rememberCoroutineScope()
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("female") }
+    // Empty until the desk chooses: a default recorded every untouched patient as female.
+    var gender by remember { mutableStateOf("") }
+    var allergyStatus by remember { mutableStateOf(RegistrationChoices.ALLERGY_NOT_ASKED) }
+    var knownAllergies by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var dateOfBirth by remember { mutableStateOf<LocalDate?>(null) }
     var age by remember { mutableStateOf("") }
@@ -97,7 +100,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     var pickingDate by remember { mutableStateOf(false) }
 
     fun err(field: String) = problem?.takeIf { it.field == field }?.message
-    fun draft() = RegistrationDraft(firstName, lastName, phone, dateOfBirth?.toString() ?: "", age.trim().toUIntOrNull(), isMedicoLegal, mlcNumber, abha)
+    fun draft() = RegistrationDraft(firstName, lastName, phone, dateOfBirth?.toString() ?: "", age.trim().toUIntOrNull(), gender, allergyStatus, knownAllergies, session.source, session.referredByName, isMedicoLegal, mlcNumber, abha)
 
     suspend fun create(duplicateCheck: String, matchedUhid: String?) {
         busy = true
@@ -108,11 +111,11 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 first_name = firstName.trim(), last_name = lastName.trim(), gender = gender, phone = phone.trim(),
                 date_of_birth = dob, is_dob_estimated = dateOfBirth == null,
                 registration_type = "new", registration_source = session.source,
-                referred_by_name = session.referredByName.takeIf { session.source == "referral" && it.isNotBlank() },
+                referred_by_name = session.referredByName.takeIf { session.source == RegistrationChoices.REFERRAL_SOURCE && it.isNotBlank() },
                 department_id = session.departmentId, consultant_id = session.consultantId,
                 abha_number = abha.filter { it.isDigit() }.ifEmpty { null },
                 is_medico_legal = isMedicoLegal, mlc_number = if (isMedicoLegal) mlcNumber else null, is_vip = isVip,
-                attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid)),
+                attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid), allergyStatus, allergyStatus == RegistrationChoices.NO_KNOWN_ALLERGIES, knownAllergies.takeIf { allergyStatus == RegistrationChoices.KNOWN_ALLERGIES }),
                 contact = ContactPreferences(whatsapp_opt_in = whatsappOptIn, email_opt_in = false),
             )
             registered = api.createPatient(body).also { session.patients[it.id] = it }
@@ -145,7 +148,9 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 "is_medico_legal" -> isMedicoLegal = false; "mlc_number" -> mlcNumber = ""; "is_vip" -> isVip = false; "whatsapp_opt_in" -> whatsappOptIn = false
             }
         }
-        gender = "female"
+        gender = ""
+        allergyStatus = RegistrationChoices.ALLERGY_NOT_ASKED
+        knownAllergies = ""
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().testTag("screen-register-patient")) {
@@ -159,13 +164,14 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 CarbonTextField(firstName, { firstName = it }, "First name", Modifier.testTag("field-first_name"), error = err("first_name"))
                 CarbonTextField(lastName, { lastName = it }, "Last name", Modifier.testTag("field-last_name"), error = err("last_name"))
                 Column {
-                    Text("Gender", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Sex", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-gender")) {
-                        listOf("female" to "Female", "male" to "Male", "other" to "Other", "unknown" to "Unknown").forEachIndexed { i, (v, label) ->
-                            SegmentedButton(selected = gender == v, onClick = { gender = v }, shape = SegmentedButtonDefaults.itemShape(i, 4), modifier = Modifier.testTag("gender-$v")) { Text(label) }
+                        RegistrationChoices.GENDERS.forEachIndexed { i, (v, label) ->
+                            SegmentedButton(selected = gender == v, onClick = { gender = v }, shape = SegmentedButtonDefaults.itemShape(i, RegistrationChoices.GENDERS.size), modifier = Modifier.testTag("gender-$v")) { Text(label) }
                         }
                     }
+                    err("gender")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 }
                 CarbonTextField(phone, { phone = it }, "Phone", Modifier.testTag("field-phone"), error = err("phone"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
                 Column {
@@ -178,6 +184,19 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 CarbonTextField(abha, { abha = it }, "ABHA number (optional)", Modifier.testTag("field-abha_number"), error = err("abha_number"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
                 CarbonSectionTitle("Safety")
+                Column {
+                    Text("Allergies", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-allergy_status")) {
+                        RegistrationChoices.ALLERGY_STATUSES.forEachIndexed { i, (v, label) ->
+                            SegmentedButton(selected = allergyStatus == v, onClick = { allergyStatus = v }, shape = SegmentedButtonDefaults.itemShape(i, RegistrationChoices.ALLERGY_STATUSES.size), modifier = Modifier.testTag("allergy-$v")) { Text(label) }
+                        }
+                    }
+                    err("allergy_status")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                }
+                if (allergyStatus == RegistrationChoices.KNOWN_ALLERGIES) {
+                    CarbonTextField(knownAllergies, { knownAllergies = it }, "Known allergies", Modifier.testTag("field-known_allergies"), error = err("known_allergies"), singleLine = false)
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Medico-legal case", style = MaterialTheme.typography.bodyLarge)
                     Switch(checked = isMedicoLegal, onCheckedChange = { isMedicoLegal = it }, modifier = Modifier.testTag("switch-mlc").semantics { contentDescription = "Medico-legal case" })
@@ -206,12 +225,12 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                     Text("Coming from", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-source")) {
-                        listOf("walk_in" to "Walk-in", "referral" to "Referral").forEachIndexed { i, (v, label) ->
+                        listOf("walk_in" to "Walk-in", RegistrationChoices.REFERRAL_SOURCE to "Referral").forEachIndexed { i, (v, label) ->
                             SegmentedButton(selected = session.source == v, onClick = { session.source = v }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
                         }
                     }
                 }
-                if (session.source == "referral") CarbonTextField(session.referredByName, { session.referredByName = it }, "Referred by", Modifier.testTag("field-referred_by_name"))
+                if (session.source == RegistrationChoices.REFERRAL_SOURCE) CarbonTextField(session.referredByName, { session.referredByName = it }, "Referred by", Modifier.testTag("field-referred_by_name"), error = err("referred_by_name"))
 
                 if (checkUnavailable) CarbonNotification(NotificationKind.Warning, "Duplicate check unavailable", "Nobody was compared. Registering now may give this person a second UHID; the record will say the check did not run.")
                 failure?.let { CarbonNotification(NotificationKind.Error, "Not registered", it) }

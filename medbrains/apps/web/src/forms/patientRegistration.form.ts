@@ -7,101 +7,39 @@ import type {
   RegistrationSourceFormValue,
   RegistrationTypeFormValue,
 } from "@medbrains/schemas";
+import { registrationCatalogue } from "@medbrains/schemas";
 import type { Camp } from "@medbrains/types";
 
-export const genderOptions: { value: GenderFormValue; label: string }[] = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
-  { value: "unknown", label: "Unknown" },
-];
+/**
+ * A field's fixed choices, from the shared registration catalogue — the list
+ * the server and both native apps accept. Typed to the form's value union,
+ * which the catalogue's values are by construction.
+ */
+function catalogueOptions<T extends string>(fieldId: string): { value: T; label: string }[] {
+  const field = registrationCatalogue.fields.find((f) => f.id === fieldId);
+  if (field?.options.source !== "fixed") return [];
+  return field.options.options.map((o) => ({ value: o.value as T, label: o.label }));
+}
 
-export const bloodGroupOptions: { value: BloodGroupFormValue; label: string }[] = [
-  { value: "a_positive", label: "A+" },
-  { value: "a_negative", label: "A-" },
-  { value: "b_positive", label: "B+" },
-  { value: "b_negative", label: "B-" },
-  { value: "ab_positive", label: "AB+" },
-  { value: "ab_negative", label: "AB-" },
-  { value: "o_positive", label: "O+" },
-  { value: "o_negative", label: "O-" },
-  { value: "unknown", label: "Unknown" },
-];
+export const genderOptions = catalogueOptions<GenderFormValue>("gender");
 
-export const maritalStatusOptions: { value: MaritalStatusFormValue; label: string }[] = [
-  { value: "single", label: "Single" },
-  { value: "married", label: "Married" },
-  { value: "divorced", label: "Divorced" },
-  { value: "widowed", label: "Widowed" },
-  { value: "separated", label: "Separated" },
-  { value: "domestic_partner", label: "Domestic partner" },
-  { value: "unknown", label: "Unknown" },
-];
+export const bloodGroupOptions = catalogueOptions<BloodGroupFormValue>("blood_group");
 
-export const categoryOptions: { value: PatientCategoryFormValue; label: string }[] = [
-  { value: "general", label: "General" },
-  { value: "private", label: "Private" },
-  { value: "insurance", label: "Insurance" },
-  { value: "pmjay", label: "PMJAY" },
-  { value: "cghs", label: "CGHS" },
-  { value: "esi", label: "ESI" },
-  { value: "corporate", label: "Corporate" },
-  { value: "staff", label: "Staff" },
-  { value: "vip", label: "VIP" },
-  { value: "mlc", label: "MLC" },
-  { value: "free", label: "Free" },
-  { value: "charity", label: "Charity" },
-];
+export const maritalStatusOptions = catalogueOptions<MaritalStatusFormValue>("marital_status");
 
-export const registrationTypeOptions: { value: RegistrationTypeFormValue; label: string }[] = [
-  { value: "new", label: "New" },
-  { value: "revisit", label: "Revisit" },
-  { value: "transfer_in", label: "Transfer in" },
-  { value: "referral", label: "Referral" },
-  { value: "emergency", label: "Emergency" },
-  { value: "camp", label: "Camp" },
-  { value: "telemedicine", label: "Telemedicine" },
-  { value: "pre_registration", label: "Pre-registration" },
-];
+export const categoryOptions = catalogueOptions<PatientCategoryFormValue>("category");
 
-export const registrationSourceOptions: { value: RegistrationSourceFormValue; label: string }[] = [
-  { value: "walk_in", label: "Walk-in" },
-  { value: "phone", label: "Phone" },
-  { value: "online_portal", label: "Online portal" },
-  { value: "mobile_app", label: "Mobile app" },
-  { value: "kiosk", label: "Kiosk" },
-  { value: "referral", label: "Referral" },
-  { value: "ambulance", label: "Ambulance" },
-  { value: "camp", label: "Camp" },
-  { value: "telemedicine", label: "Telemedicine" },
-];
+export const registrationTypeOptions =
+  catalogueOptions<RegistrationTypeFormValue>("registration_type");
 
-export const referredByKindOptions: { value: ReferredByKindFormValue; label: string }[] = [
-  { value: "doctor", label: "Doctor" },
-  { value: "asha", label: "ASHA" },
-  { value: "camp_worker", label: "Camp worker" },
-  { value: "facility", label: "Facility / hospital" },
-  { value: "ngo", label: "NGO" },
-  { value: "self", label: "Self / walk-in" },
-  { value: "other", label: "Other" },
-];
+export const registrationSourceOptions =
+  catalogueOptions<RegistrationSourceFormValue>("registration_source");
 
-export const prefixOptions = [
-  { value: "Mr.", label: "Mr." },
-  { value: "Mrs.", label: "Mrs." },
-  { value: "Ms.", label: "Ms." },
-  { value: "Miss", label: "Miss" },
-  { value: "Master", label: "Master" },
-  { value: "Baby", label: "Baby" },
-  { value: "Baby of", label: "Baby of" },
-  { value: "Dr.", label: "Dr." },
-  { value: "Prof.", label: "Prof." },
-  { value: "Shri", label: "Shri" },
-  { value: "Smt.", label: "Smt." },
-  { value: "Kumari", label: "Kumari" },
-  { value: "Rev.", label: "Rev." },
-  { value: "Mx.", label: "Mx." },
-];
+export const referredByKindOptions = catalogueOptions<ReferredByKindFormValue>(
+  "attributes.referred_by_kind",
+);
+
+export const prefixOptions = catalogueOptions<string>("prefix");
 
 export function estimateDobFromAge(ageYears: number): Date {
   const today = new Date();

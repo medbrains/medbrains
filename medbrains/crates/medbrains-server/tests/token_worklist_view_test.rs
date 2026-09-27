@@ -76,7 +76,7 @@ async fn patient(app: &common::TestApp, csrf: &str) -> String {
         app,
         csrf,
         "/api/patients",
-        json!({ "first_name": "Worklist", "last_name": "View", "gender": "female", "phone": phone }),
+        json!({ "first_name": "Worklist", "last_name": "View", "gender": "female", "date_of_birth": "1985-06-15", "phone": phone }),
     )
     .await;
     patient["id"].as_str().expect("patient").to_owned()

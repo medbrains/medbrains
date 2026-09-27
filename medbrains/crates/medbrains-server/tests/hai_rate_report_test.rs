@@ -42,6 +42,7 @@ async fn hai_rate_is_null_when_the_denominator_is_missing() {
             "first_name": "Infection",
             "last_name": "Surveillance",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990008001",
         }))
         .send()

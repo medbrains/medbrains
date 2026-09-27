@@ -4,8 +4,11 @@ import { expectScreenAccessible, expectUsable } from "../support/a11y";
 
 export interface WalkIn {
   firstName: string;
+  /** Empty for someone with a single name. */
   lastName: string;
   phone: string;
+  /** The desk ticks "Has no phone" instead of typing a number. */
+  hasNoPhone?: boolean;
   sex: "Male" | "Female";
   ageYears: number;
   department: string;
@@ -33,8 +36,9 @@ export class RegistrationDesk {
   async register(patient: WalkIn): Promise<void> {
     const page = this.page;
     await page.getByTestId("field-first_name").fill(patient.firstName);
-    await page.getByTestId("field-last_name").fill(patient.lastName);
-    await page.getByTestId("field-phone").fill(patient.phone);
+    if (patient.lastName) await page.getByTestId("field-last_name").fill(patient.lastName);
+    if (patient.hasNoPhone) await page.getByTestId("field-has_no_phone").check();
+    else await page.getByTestId("field-phone").fill(patient.phone);
     await page.getByTestId("picker-gender").click();
     await page.getByRole("option", { name: patient.sex, exact: true }).click();
     await page.getByTestId("field-age_years").fill(String(patient.ageYears));

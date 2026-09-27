@@ -40,6 +40,7 @@ async fn queue_wait_report_returns_live_rows_for_called_patients() {
             "first_name": "Queue",
             "last_name": "Wait",
             "gender": "male",
+            "date_of_birth": "1985-06-15",
             "phone": "9990004001",
         }))
         .send()

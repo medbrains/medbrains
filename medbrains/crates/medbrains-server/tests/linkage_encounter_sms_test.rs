@@ -19,7 +19,7 @@ async fn encounter_created_queues_one_confirmation_to_a_dialable_phone_or_none()
         .client
         .post(app.url("/api/patients"))
         .header("x-csrf-token", &csrf)
-        .json(&json!({ "first_name": "Linkage", "last_name": "Sms", "gender": "female", "phone": "9990000078" }))
+        .json(&json!({ "first_name": "Linkage", "last_name": "Sms", "gender": "female", "date_of_birth": "1985-06-15", "phone": "9990000078" }))
         .send()
         .await
         .expect("create patient")

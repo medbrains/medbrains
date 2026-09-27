@@ -46,6 +46,7 @@ async fn ot_cancellations_count_postponed_and_unrecorded() {
             "first_name": "Theatre",
             "last_name": "Cancellation",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990010001",
         }))
         .send()

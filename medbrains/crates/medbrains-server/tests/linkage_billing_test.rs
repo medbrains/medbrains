@@ -62,7 +62,7 @@ async fn an_order_is_charged_once_reversed_once_and_the_issued_bill_queues_one_p
         &app,
         &csrf,
         "/api/patients",
-        json!({ "first_name": "Linkage", "last_name": "Billing", "gender": "female", "phone": "9990000077" }),
+        json!({ "first_name": "Linkage", "last_name": "Billing", "gender": "female", "date_of_birth": "1985-06-15", "phone": "9990000077" }),
     )
     .await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
