@@ -55,8 +55,27 @@ struct MobileRegistrationAttributes: Encodable {
     let matchedUhid: String?
 }
 
+/// The choices the registration rules accept, with the words the desk reads.
+/// Values match `medbrains-clinical-core` (`GENDERS`, `ALLERGY_STATUSES`) and
+/// the web form; the shared catalogue replaces this list in the next phase.
+enum RegistrationChoices {
+    static let genders: [(value: String, label: String)] = [("female", "Female"), ("male", "Male"), ("other", "Other")]
+    static let allergyStatuses: [(value: String, label: String)] = [
+        ("not_asked_yet", "Not asked yet"), ("no_known_allergies", "No known allergies"), ("known_allergies", "Known allergies"),
+    ]
+    /// Honest when nobody asked: it says so, rather than reading as "none".
+    static let allergyNotAsked = "not_asked_yet"
+    static let noKnownAllergies = "no_known_allergies"
+    static let referralSource = "referral"
+}
+
 struct CreatePatientBody: Encodable {
-    struct Attributes: Encodable { let mobileRegistration: MobileRegistrationAttributes }
+    struct Attributes: Encodable {
+        let mobileRegistration: MobileRegistrationAttributes
+        /// Same keys the web form writes, so a clinician reads one answer everywhere.
+        let allergyStatus: String
+        let noKnownAllergies: Bool
+    }
     let firstName: String
     let lastName: String
     let gender: String

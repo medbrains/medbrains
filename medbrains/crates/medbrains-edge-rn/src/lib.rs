@@ -312,7 +312,7 @@ pub fn verify_jwt(
         Err(e) => {
             return JwtOutcome::Malformed {
                 reason: format!("verifying key: {e}"),
-            }
+            };
         }
     };
     let now = if now_unix < 0 {
@@ -344,17 +344,28 @@ pub struct WitnessCandidate {
 
 impl From<WitnessCandidate> for clinical::bcma::WitnessCandidate {
     fn from(w: WitnessCandidate) -> Self {
-        Self { nurse_user_id: w.nurse_user_id, nurse_name: w.nurse_name, is_charge: w.is_charge }
+        Self {
+            nurse_user_id: w.nurse_user_id,
+            nurse_name: w.nurse_name,
+            is_charge: w.is_charge,
+        }
     }
 }
 
 impl From<clinical::bcma::WitnessCandidate> for WitnessCandidate {
     fn from(w: clinical::bcma::WitnessCandidate) -> Self {
-        Self { nurse_user_id: w.nurse_user_id, nurse_name: w.nurse_name, is_charge: w.is_charge }
+        Self {
+            nurse_user_id: w.nurse_user_id,
+            nurse_name: w.nurse_name,
+            is_charge: w.is_charge,
+        }
     }
 }
 
-pub fn bcma_eligible_witnesses(on_duty: Vec<WitnessCandidate>, actor_id: String) -> Vec<WitnessCandidate> {
+pub fn bcma_eligible_witnesses(
+    on_duty: Vec<WitnessCandidate>,
+    actor_id: String,
+) -> Vec<WitnessCandidate> {
     clinical::bcma::eligible_witnesses(on_duty.into_iter().map(Into::into).collect(), &actor_id)
         .into_iter()
         .map(Into::into)
@@ -384,7 +395,11 @@ pub fn transfusion_phase_states(
 ) -> Vec<TransfusionPhaseState> {
     clinical::transfusion::phase_states(started_unix, ended, &recorded_phases, now_unix)
         .into_iter()
-        .map(|p| TransfusionPhaseState { phase: p.phase, recorded: p.recorded, overdue: p.overdue })
+        .map(|p| TransfusionPhaseState {
+            phase: p.phase,
+            recorded: p.recorded,
+            overdue: p.overdue,
+        })
         .collect()
 }
 
@@ -458,11 +473,18 @@ pub fn emergency_open_codes(
 ) -> Vec<OpenEmergencyCode> {
     let cbs: Vec<clinical::emergency::CodeBlueRef> = code_blues
         .into_iter()
-        .map(|c| clinical::emergency::CodeBlueRef { id: c.id, location: c.location })
+        .map(|c| clinical::emergency::CodeBlueRef {
+            id: c.id,
+            location: c.location,
+        })
         .collect();
     let ers: Vec<clinical::emergency::EmergencyCodeRef> = er_codes
         .into_iter()
-        .map(|e| clinical::emergency::EmergencyCodeRef { id: e.id, code_type: e.code_type, location: e.location })
+        .map(|e| clinical::emergency::EmergencyCodeRef {
+            id: e.id,
+            code_type: e.code_type,
+            location: e.location,
+        })
         .collect();
     clinical::emergency::open_codes(&cbs, &ers, &silenced_keys)
         .into_iter()
@@ -484,7 +506,10 @@ pub struct TapOutcome {
 
 pub fn emergency_register_tap(taps_ms: Vec<i64>, now_ms: i64) -> TapOutcome {
     let out = clinical::emergency::register_tap(&taps_ms, now_ms);
-    TapOutcome { taps_ms: out.taps, triple: out.triple }
+    TapOutcome {
+        taps_ms: out.taps,
+        triple: out.triple,
+    }
 }
 
 pub fn clinic_order(start_times: Vec<Option<String>>) -> Vec<u32> {
@@ -503,7 +528,12 @@ pub fn clinic_is_still_to_come(status: String) -> bool {
     clinical::clinic_day::is_still_to_come(&status)
 }
 
-pub fn consultation_problem(chief_complaint: String, examination: String, assessment: String, plan: String) -> Option<String> {
+pub fn consultation_problem(
+    chief_complaint: String,
+    examination: String,
+    assessment: String,
+    plan: String,
+) -> Option<String> {
     clinical::consultation::consultation_problem(&chief_complaint, &examination, &assessment, &plan)
 }
 
@@ -515,6 +545,10 @@ pub struct RegistrationDraft {
     pub phone: String,
     pub date_of_birth: String,
     pub age_years: Option<u32>,
+    pub gender: String,
+    pub allergy_status: String,
+    pub registration_source: String,
+    pub referred_by_name: String,
     pub is_medico_legal: bool,
     pub mlc_number: String,
     pub abha_number: String,
@@ -528,6 +562,10 @@ impl From<RegistrationDraft> for clinical::registration::RegistrationDraft {
             phone: d.phone,
             date_of_birth: d.date_of_birth,
             age_years: d.age_years,
+            gender: d.gender,
+            allergy_status: d.allergy_status,
+            registration_source: d.registration_source,
+            referred_by_name: d.referred_by_name,
             is_medico_legal: d.is_medico_legal,
             mlc_number: d.mlc_number,
             abha_number: d.abha_number,
@@ -544,7 +582,10 @@ pub struct RegistrationProblem {
 
 impl From<clinical::registration::RegistrationProblem> for RegistrationProblem {
     fn from(p: clinical::registration::RegistrationProblem) -> Self {
-        Self { field: p.field, message: p.message }
+        Self {
+            field: p.field,
+            message: p.message,
+        }
     }
 }
 
@@ -565,10 +606,19 @@ pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {
 }
 
 pub fn appointment_actions(status: String, is_today: bool) -> Vec<String> {
-    clinical::appointment::appointment_actions(&status, is_today).into_iter().map(str::to_owned).collect()
+    clinical::appointment::appointment_actions(&status, is_today)
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }
 
-pub fn slot_is_bookable(date: String, start_time: String, today: String, now_time: String, is_available: bool) -> bool {
+pub fn slot_is_bookable(
+    date: String,
+    start_time: String,
+    today: String,
+    now_time: String,
+    is_available: bool,
+) -> bool {
     clinical::appointment::slot_is_bookable(&date, &start_time, &today, &now_time, is_available)
 }
 
@@ -581,11 +631,19 @@ pub fn pass_is_inside(state: String, checked_out: bool) -> bool {
 }
 
 pub fn pass_actions(state: String, inside: bool) -> Vec<String> {
-    clinical::visitors::pass_actions(&state, inside).into_iter().map(str::to_owned).collect()
+    clinical::visitors::pass_actions(&state, inside)
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
 }
 
-pub fn companion_access(licensed_by_hospital: Option<bool>, band_paired: Option<bool>, purchased: Option<bool>) -> Option<String> {
-    clinical::companion::companion_access(licensed_by_hospital, band_paired, purchased).map(str::to_owned)
+pub fn companion_access(
+    licensed_by_hospital: Option<bool>,
+    band_paired: Option<bool>,
+    purchased: Option<bool>,
+) -> Option<String> {
+    clinical::companion::companion_access(licensed_by_hospital, band_paired, purchased)
+        .map(str::to_owned)
 }
 
 pub fn band_state(last_synced_unix: Option<i64>, now_unix: i64) -> String {
@@ -632,18 +690,45 @@ pub struct DailyBrief {
     pub verdict: String,
 }
 
-pub fn daily_brief(medications: Vec<MedicationPlan>, adherence: Vec<AdherenceEvent>, observation_days: Vec<String>, now_unix: i64) -> DailyBrief {
+pub fn daily_brief(
+    medications: Vec<MedicationPlan>,
+    adherence: Vec<AdherenceEvent>,
+    observation_days: Vec<String>,
+    now_unix: i64,
+) -> DailyBrief {
     let meds: Vec<clinical::companion::MedicationPlan> = medications
         .into_iter()
-        .map(|m| clinical::companion::MedicationPlan { id: m.id, name: m.name, instructions: m.instructions, times: m.times, started_on: m.started_on, ends_on: m.ends_on })
+        .map(|m| clinical::companion::MedicationPlan {
+            id: m.id,
+            name: m.name,
+            instructions: m.instructions,
+            times: m.times,
+            started_on: m.started_on,
+            ends_on: m.ends_on,
+        })
         .collect();
     let events: Vec<clinical::companion::AdherenceEvent> = adherence
         .into_iter()
-        .map(|a| clinical::companion::AdherenceEvent { plan_id: a.plan_id, scheduled_for: a.scheduled_for, status: a.status })
+        .map(|a| clinical::companion::AdherenceEvent {
+            plan_id: a.plan_id,
+            scheduled_for: a.scheduled_for,
+            status: a.status,
+        })
         .collect();
     let b = clinical::companion::daily_brief(&meds, &events, &observation_days, now_unix);
     DailyBrief {
-        slots: b.slots.into_iter().map(|s| DoseSlot { plan_id: s.plan_id, name: s.name, instructions: s.instructions, time: s.time, scheduled_for: s.scheduled_for, status: s.status }).collect(),
+        slots: b
+            .slots
+            .into_iter()
+            .map(|s| DoseSlot {
+                plan_id: s.plan_id,
+                name: s.name,
+                instructions: s.instructions,
+                time: s.time,
+                scheduled_for: s.scheduled_for,
+                status: s.status,
+            })
+            .collect(),
         adherence_percent: b.adherence_percent,
         streak_days: b.streak_days,
         confidence: b.confidence,
@@ -698,11 +783,12 @@ pub fn generate_node_identity() -> Result<NodeIdentity, BridgeError> {
 pub fn node_id_for_secret(secret_hex: String) -> Result<String, BridgeError> {
     let raw = hex::decode(secret_hex.trim())
         .map_err(|e| BridgeError::InvalidNodeKey(format!("not hex: {e}")))?;
-    let bytes: [u8; 32] = raw
-        .as_slice()
-        .try_into()
-        .map_err(|_| BridgeError::InvalidNodeKey(format!("expected 32 bytes, got {}", raw.len())))?;
-    Ok(iroh_base::SecretKey::from_bytes(&bytes).public().to_string())
+    let bytes: [u8; 32] = raw.as_slice().try_into().map_err(|_| {
+        BridgeError::InvalidNodeKey(format!("expected 32 bytes, got {}", raw.len()))
+    })?;
+    Ok(iroh_base::SecretKey::from_bytes(&bytes)
+        .public()
+        .to_string())
 }
 
 // ── Phase B: AuthzCache handle ─────────────────────────────────────
@@ -1173,6 +1259,9 @@ mod tests {
     fn a_secret_survives_stray_whitespace() {
         let identity = generate_node_identity().expect("generate");
         let padded = format!("  {}\n", identity.secret_hex);
-        assert_eq!(node_id_for_secret(padded).expect("recover"), identity.node_id);
+        assert_eq!(
+            node_id_for_secret(padded).expect("recover"),
+            identity.node_id
+        );
     }
 }

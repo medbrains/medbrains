@@ -18,8 +18,11 @@
 //!   patient-safety hazard, not a saved keystroke.
 //! * what stops a registration on the field: the two identifiers the NABH
 //!   asks for (name and a date of birth, estimated from age if that is all
-//!   the person knows), a phone that can receive the portal code, an MLC
-//!   number when the case is medico-legal, and a 14-digit ABHA when one is
+//!   the person knows), a sex the desk actually chose (a default recorded
+//!   every untouched patient as female), an answer to "any allergies?" —
+//!   even if it is "not asked yet" — so nobody reads a silence as none, a
+//!   phone that can receive the portal code, an MLC number when the case is
+//!   medico-legal, who referred a referral, and a 14-digit ABHA when one is
 //!   given. The server enforces the same; this stops the tap.
 
 /// Outcome of the duplicate-patient check, as the desk should act on it.
@@ -48,6 +51,17 @@ pub fn registration_carries_over(field: &str) -> bool {
     DESK_FIELDS.contains(&field)
 }
 
+/// The sexes the desk can record. "Unknown" is not offered: it is what an
+/// untouched field would mean, and an unknown patient is registered as one.
+pub const GENDERS: &[&str] = &["male", "female", "other"];
+
+/// The answers to "any allergies?". "Not asked yet" is honest; an empty
+/// answer is not, because a silence reads as "none" to the next clinician.
+pub const ALLERGY_STATUSES: &[&str] = &["not_asked_yet", "no_known_allergies", "known_allergies"];
+
+/// The registration source that needs a referrer.
+pub const REFERRAL_SOURCE: &str = "referral";
+
 /// A refusal on one field, in the desk's words.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistrationProblem {
@@ -65,13 +79,22 @@ pub struct RegistrationDraft {
     pub date_of_birth: String,
     /// Years, when the person does not know their date of birth.
     pub age_years: Option<u32>,
+    /// One of [`GENDERS`]; empty until the desk chooses.
+    pub gender: String,
+    /// One of [`ALLERGY_STATUSES`].
+    pub allergy_status: String,
+    pub registration_source: String,
+    pub referred_by_name: String,
     pub is_medico_legal: bool,
     pub mlc_number: String,
     pub abha_number: String,
 }
 
 fn problem(field: &str, message: &str) -> RegistrationProblem {
-    RegistrationProblem { field: field.to_owned(), message: message.to_owned() }
+    RegistrationProblem {
+        field: field.to_owned(),
+        message: message.to_owned(),
+    }
 }
 
 /// The first thing that stops this registration, or none.
@@ -84,19 +107,49 @@ pub fn registration_problem(draft: &RegistrationDraft) -> Option<RegistrationPro
         return Some(problem("last_name", "Last name is required"));
     }
     let digits = draft.phone.chars().filter(char::is_ascii_digit).count();
-    if !(10..=15).contains(&digits) || draft.phone.chars().any(|c| !(c.is_ascii_digit() || c == '+' || c == ' ')) {
+    if !(10..=15).contains(&digits)
+        || draft
+            .phone
+            .chars()
+            .any(|c| !(c.is_ascii_digit() || c == '+' || c == ' '))
+    {
         return Some(problem("phone", "Enter a phone number of 10 to 15 digits"));
     }
     if draft.date_of_birth.trim().is_empty() && draft.age_years.unwrap_or(0) == 0 {
-        return Some(problem("date_of_birth", "Date of birth or age is needed — it is the second identifier"));
+        return Some(problem(
+            "date_of_birth",
+            "Date of birth or age is needed — it is the second identifier",
+        ));
     }
     if draft.age_years.unwrap_or(0) > 130 {
         return Some(problem("age_years", "Age must be 130 or less"));
     }
-    if draft.is_medico_legal && draft.mlc_number.trim().is_empty() {
-        return Some(problem("mlc_number", "MLC number is required for a medico-legal registration"));
+    if !GENDERS.contains(&draft.gender.as_str()) {
+        return Some(problem("gender", "Choose the patient's sex"));
     }
-    let abha: String = draft.abha_number.chars().filter(char::is_ascii_digit).collect();
+    if !ALLERGY_STATUSES.contains(&draft.allergy_status.as_str()) {
+        return Some(problem(
+            "allergy_status",
+            "Record whether allergies were asked about",
+        ));
+    }
+    if draft.registration_source == REFERRAL_SOURCE && draft.referred_by_name.trim().is_empty() {
+        return Some(problem(
+            "referred_by_name",
+            "Name the doctor or facility that referred them",
+        ));
+    }
+    if draft.is_medico_legal && draft.mlc_number.trim().is_empty() {
+        return Some(problem(
+            "mlc_number",
+            "MLC number is required for a medico-legal registration",
+        ));
+    }
+    let abha: String = draft
+        .abha_number
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect();
     if !draft.abha_number.trim().is_empty() && abha.len() != 14 {
         return Some(problem("abha_number", "ABHA number is 14 digits"));
     }
@@ -107,12 +160,18 @@ pub fn registration_problem(draft: &RegistrationDraft) -> Option<RegistrationPro
 /// year they were born, marked estimated by the caller.
 #[must_use]
 pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {
-    format!("{:04}-01-01", today_year - i32::try_from(age_years).unwrap_or(0))
+    format!(
+        "{:04}-01-01",
+        today_year - i32::try_from(age_years).unwrap_or(0)
+    )
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RegistrationDraft, estimated_date_of_birth, registration_action, registration_carries_over, registration_problem};
+    use super::{
+        RegistrationDraft, estimated_date_of_birth, registration_action, registration_carries_over,
+        registration_problem,
+    };
 
     fn good() -> RegistrationDraft {
         RegistrationDraft {
@@ -120,6 +179,8 @@ mod tests {
             last_name: "Rao".into(),
             phone: "9876543210".into(),
             date_of_birth: "1988-05-05".into(),
+            gender: "female".into(),
+            allergy_status: "not_asked_yet".into(),
             ..RegistrationDraft::default()
         }
     }
@@ -149,7 +210,10 @@ mod tests {
     fn a_second_identifier_is_required() {
         let mut d = good();
         d.date_of_birth.clear();
-        assert_eq!(registration_problem(&d).map(|p| p.field), Some("date_of_birth".into()));
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("date_of_birth".into())
+        );
         d.age_years = Some(36);
         assert_eq!(registration_problem(&d), None);
     }
@@ -158,7 +222,10 @@ mod tests {
     fn a_medico_legal_case_needs_its_number() {
         let mut d = good();
         d.is_medico_legal = true;
-        assert_eq!(registration_problem(&d).map(|p| p.field), Some("mlc_number".into()));
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("mlc_number".into())
+        );
         d.mlc_number = "MLC/2026/17".into();
         assert_eq!(registration_problem(&d), None);
     }
@@ -167,12 +234,59 @@ mod tests {
     fn phone_and_abha_have_shapes() {
         let mut d = good();
         d.phone = "12345".into();
-        assert_eq!(registration_problem(&d).map(|p| p.field), Some("phone".into()));
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("phone".into())
+        );
         d.phone = "+91 98765 43210".into();
         assert_eq!(registration_problem(&d), None);
         d.abha_number = "12-3456-7890-12".into();
-        assert_eq!(registration_problem(&d).map(|p| p.field), Some("abha_number".into()));
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("abha_number".into())
+        );
         d.abha_number = "12-3456-7890-1234".into();
+        assert_eq!(registration_problem(&d), None);
+    }
+
+    #[test]
+    fn the_desk_must_choose_a_sex() {
+        let mut d = good();
+        d.gender.clear();
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("gender".into())
+        );
+        d.gender = "unknown".into();
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("gender".into())
+        );
+        d.gender = "male".into();
+        assert_eq!(registration_problem(&d), None);
+    }
+
+    #[test]
+    fn allergies_are_answered_even_if_not_asked_yet() {
+        let mut d = good();
+        d.allergy_status.clear();
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("allergy_status".into())
+        );
+        d.allergy_status = "known_allergies".into();
+        assert_eq!(registration_problem(&d), None);
+    }
+
+    #[test]
+    fn a_referral_names_who_referred() {
+        let mut d = good();
+        d.registration_source = "referral".into();
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("referred_by_name".into())
+        );
+        d.referred_by_name = "Dr Iyer, PHC Kottur".into();
         assert_eq!(registration_problem(&d), None);
     }
 

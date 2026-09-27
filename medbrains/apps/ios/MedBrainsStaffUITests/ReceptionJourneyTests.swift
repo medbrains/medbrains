@@ -33,8 +33,11 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertTrue(choose("picker-department", name), "the department is offered")
     }
 
-    private func fillPerson(_ first: String, _ last: String, phone: String, age: String = "36") {
+    /// The person, as the desk types them — including a sex actually chosen:
+    /// the form has no default. Pass `sex: nil` to leave it untouched.
+    private func fillPerson(_ first: String, _ last: String, phone: String, age: String = "36", sex: String? = "Female") {
         type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age", age)
+        if let sex { tapWhenReady(app.segmentedControls["field-gender"].buttons[sex]) }
     }
 
     private func patient(byPhone phone: String) -> [String: Any]? {
@@ -117,6 +120,27 @@ final class ReceptionJourneyTests: JourneyCase {
         let reg = registration(id)
         XCTAssertEqual(reg?["duplicate_check"] as? String, "overridden")
         XCTAssertEqual(reg?["matched_uhid"] as? String, uhid, "the override and what it overrode are on the record")
+    }
+
+    /// An untouched sex used to be recorded as female. Now it stops the tap,
+    /// and the allergy answer travels with the record.
+    func testSexMustBeChosenAndAllergiesAreRecorded() {
+        let phone = freshPhone()
+        openRegister()
+        fillPerson("Sex", "Choice\(Api.runId)", phone: phone, sex: nil)
+        tapWhenReady(el("register-submit"))
+        XCTAssertTrue(sees("Choose the patient's sex"), "refused on the field")
+        XCTAssertNil(patient(byPhone: phone), "no request left the phone")
+        tapWhenReady(app.segmentedControls["field-gender"].buttons["Male"])
+        tapWhenReady(app.segmentedControls["field-allergy_status"].buttons["No known allergies"])
+        tapWhenReady(el("register-submit"))
+        XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
+        guard let id = patient(byPhone: phone)?["id"] as? String else { return XCTFail("registered") }
+        let full = fullRecord(id)
+        XCTAssertEqual(full["gender"] as? String, "male", "the sex the desk chose")
+        let attrs = full["attributes"] as? [String: Any]
+        XCTAssertEqual(attrs?["allergy_status"] as? String, "no_known_allergies")
+        XCTAssertEqual(attrs?["no_known_allergies"] as? Bool, true, "the same keys the web writes")
     }
 
     func testMedicoLegalNeedsItsNumberBeforeAnyRequest() {

@@ -112,6 +112,10 @@ dictionary RegistrationDraft {
     string phone;
     string date_of_birth;
     u32? age_years;
+    string gender;
+    string allergy_status;
+    string registration_source;
+    string referred_by_name;
     boolean is_medico_legal;
     string mlc_number;
     string abha_number;

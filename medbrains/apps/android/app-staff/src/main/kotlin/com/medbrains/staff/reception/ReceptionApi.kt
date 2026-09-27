@@ -37,7 +37,25 @@ data class MatchCandidate(val id: String, val uhid: String, val first_name: Stri
 
 /** What the phone records about how this registration was checked, so a second UHID is never silent. */
 @Serializable data class MobileRegistration(val source: String, val duplicate_check: String, val matched_uhid: String?)
-@Serializable data class RegistrationAttributes(val mobile_registration: MobileRegistration)
+/**
+ * Same keys the web form writes, so a clinician reads one allergy answer
+ * everywhere.
+ */
+@Serializable data class RegistrationAttributes(val mobile_registration: MobileRegistration, val allergy_status: String, val no_known_allergies: Boolean)
+
+/**
+ * The choices the registration rules accept, with the words the desk reads.
+ * Values match `medbrains-clinical-core` (`GENDERS`, `ALLERGY_STATUSES`) and
+ * the web form; the shared catalogue replaces this list in the next phase.
+ */
+object RegistrationChoices {
+    val GENDERS = listOf("female" to "Female", "male" to "Male", "other" to "Other")
+    val ALLERGY_STATUSES = listOf("not_asked_yet" to "Not asked yet", "no_known_allergies" to "No known allergies", "known_allergies" to "Known allergies")
+    /** Honest when nobody asked: it says so, rather than reading as "none". */
+    const val ALLERGY_NOT_ASKED = "not_asked_yet"
+    const val NO_KNOWN_ALLERGIES = "no_known_allergies"
+    const val REFERRAL_SOURCE = "referral"
+}
 
 @Serializable
 data class CreatePatientBody(
