@@ -3780,11 +3780,14 @@ export const api = {
     scope?: string;
     scope_id?: string;
     include_finished?: boolean;
+    /** `mine`: own patients, then the departments' unassigned; `department`: the whole departments. */
+    view?: "mine" | "department";
   }) => {
     const qs = new URLSearchParams({ module: params.module });
     if (params.scope) qs.set("scope", params.scope);
     if (params.scope_id) qs.set("scope_id", params.scope_id);
     if (params.include_finished) qs.set("include_finished", "true");
+    if (params.view) qs.set("view", params.view);
     return request<WorklistToken[]>(`/tokens/worklist?${qs.toString()}`);
   },
 

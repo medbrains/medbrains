@@ -96,12 +96,8 @@ final class AppointmentJourneyTests: JourneyCase {
         XCTAssertTrue(el("patient-book").waitForExistence(timeout: 10))
         el("patient-book").tap()
         XCTAssertTrue(el("screen-book-appointment").waitForExistence(timeout: 10))
-        app.buttons["picker-doctor"].firstMatch.tap()
-        let doc = app.buttons["E2E doctor \(Api.runId)"].firstMatch
-        XCTAssertTrue(doc.waitForExistence(timeout: 5), "the provisioned doctor is offered"); doc.tap()
-        app.buttons["picker-department"].firstMatch.tap()
-        let dept = app.buttons[deptName].firstMatch
-        XCTAssertTrue(dept.waitForExistence(timeout: 5)); dept.tap()
+        XCTAssertTrue(choose("picker-doctor", "E2E doctor \(Api.runId)"), "the provisioned doctor is offered")
+        XCTAssertTrue(choose("picker-department", deptName), "the department is offered")
         let anySlot = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'slot-'")).firstMatch
         XCTAssertTrue(anySlot.waitForExistence(timeout: 20), "the day offers a slot")
         let slots = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'slot-'"))

@@ -18,6 +18,19 @@ object Session {
 
     private fun AndroidComposeTestRule<*, *>.onAHome() = has("module-home-nurse") || has("module-home-doctor") || onAllNodes(hasTestTag("module-more")).fetchSemanticsNodes().isNotEmpty() || onAllNodes(androidx.compose.ui.test.hasContentDescription("Account")).fetchSemanticsNodes().isNotEmpty()
 
+    /**
+     * Choose option [id] in a `CarbonPicker` tagged [picker]: a short one is a
+     * menu, a long one has a search field — type [label] to narrow it first,
+     * as a desk would.
+     */
+    fun AndroidComposeTestRule<*, *>.choose(picker: String, id: String, label: String) {
+        onNodeWithTag(picker).performClick()
+        waitUntil(5_000) { has("$picker-$id") || has("$picker-search") }
+        if (has("$picker-search")) onNodeWithTag("$picker-search").performTextInput(label)
+        waitUntil(5_000) { has("$picker-$id") }
+        onNodeWithTag("$picker-$id").performClick()
+    }
+
     fun AndroidComposeTestRule<*, *>.ensureSignedOut() {
         waitUntil(10_000) { has("username") || onAHome() }
         if (has("username")) return

@@ -1,8 +1,7 @@
 package com.medbrains.staff.camp
 
 import com.medbrains.kit.ApiClient
-import com.medbrains.staff.doctor.ModuleToken
-import com.medbrains.staff.doctor.WorklistToken
+import com.medbrains.staff.shared.tokens.TokenRoute
 import kotlinx.serialization.Serializable
 
 // Wire shapes mirror crates/medbrains-tokens/src/station_flow.rs and
@@ -35,25 +34,12 @@ data class CampRegistrationBody(
 /** The registration and the number kept to the last station; null only for a camp with no route. */
 @Serializable data class CampRegistered(val id: String, val token_number: String? = null)
 
-@Serializable private data class StationCallNext(val counter_label: String, val module: String, val scope: String, val scope_id: String)
+/** The camp routes this module calls; the station queues themselves go through `TokenApi` like every other queue. */
+object CampEndpoint {
+    const val REGISTRATIONS = "/api/camp/registrations"
+}
 
 class CampApi(private val client: ApiClient) {
-    suspend fun stations(): List<CampStation> = client.get("/api/tokens/camp-stations")
-    suspend fun queue(station: CampStation): List<WorklistToken> =
-        client.get("/api/tokens/worklist?module=camp&scope=counter&scope_id=${station.counter_id}")
-
-    /** The server picks who is next under its lock; `null` means nobody waits. */
-    suspend fun callNext(station: CampStation, room: String): ModuleToken? {
-        val body = StationCallNext(room, "camp", "counter", station.counter_id)
-        val text = client.call("POST", "/api/tokens/call-next", client.json.encodeToString(StationCallNext.serializer(), body))
-        return if (text.isBlank() || text == "null") null else client.json.decodeFromString(ModuleToken.serializer(), text)
-    }
-
-    /** Done here — the patient goes on to the next station. */
-    suspend fun complete(id: String): ModuleToken = client.post("/api/tokens/$id/complete")
-
-    /** Done, and needs no further station — no medicine, so no pharmacy queue. */
-    suspend fun finish(id: String): ModuleToken = client.post("/api/tokens/$id/finish")
-    suspend fun noShow(id: String): ModuleToken = client.post("/api/tokens/$id/no-show")
-    suspend fun register(body: CampRegistrationBody): CampRegistered = client.post("/api/camp/registrations", body)
+    suspend fun stations(): List<CampStation> = client.get(TokenRoute.CAMP_STATIONS)
+    suspend fun register(body: CampRegistrationBody): CampRegistered = client.post(CampEndpoint.REGISTRATIONS, body)
 }
