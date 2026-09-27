@@ -10,7 +10,12 @@ import SwiftUI
 /// creates silently — a match is confirmed, a check that could not run is
 /// said out loud, and what happened is written into the record.
 struct RegisterPatientView: View {
+    /// Registering at a camp: the form starts as the camp's, and the patient
+    /// is put on the camp's route (a camp number) once registered.
+    var camp: CampSummary? = nil
+
     @Environment(\.apiClient) private var client
+    @Environment(AuthStore.self) private var auth
     @Environment(ReceptionSession.self) private var session
     @Environment(\.calendar) private var calendar
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,6 +30,7 @@ struct RegisterPatientView: View {
     @State private var checkUnavailable = false
     @State private var registered: PatientSummary?
     @State private var visit: VisitStarted?
+    @State private var campNumber: String?
 
     private let catalogue = RegistrationCatalogue.shared
     private var stepCount: Int { catalogue.steps.count + 1 }
@@ -33,7 +39,8 @@ struct RegisterPatientView: View {
     private var lists: OptionLists {
         OptionLists(
             departments: session.departments.map { CatalogueOption(value: $0.id, label: $0.name) },
-            doctors: session.doctors.map { CatalogueOption(value: $0.id, label: $0.fullName) }
+            doctors: session.doctors.map { CatalogueOption(value: $0.id, label: $0.fullName) },
+            camps: session.camps.map { CatalogueOption(value: $0.id, label: $0.name) }
         )
     }
 
@@ -42,11 +49,16 @@ struct RegisterPatientView: View {
             ScrollViewReader { reader in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    CarbonPageHeader(eyebrow: "Reception", title: "Register a patient", subtitle: "Step \(stepIndex + 1) of \(stepCount) · \(stepTitle)")
+                    CarbonPageHeader(eyebrow: camp?.name ?? "Reception", title: "Register a patient", subtitle: "Step \(stepIndex + 1) of \(stepCount) · \(stepTitle)")
                         .accessibilityIdentifier("register-step-title")
                     ProgressView(value: Double(stepIndex + 1), total: Double(stepCount)).tint(MedBrainsTheme.interactive)
                     if let registered {
-                        RegisteredCard(patient: registered, onNext: nextWalkIn)
+                        RegisteredCard(patient: registered, atCamp: camp != nil, campNumber: campNumber, onNext: nextWalkIn)
+                        if camp != nil, campNumber == nil, let failure {
+                            CarbonNotification(kind: .error, title: "Not on the camp's route yet", message: "The record is saved. \(failure)")
+                            Button("Try again") { Task { await putOnCampRoute(registered) } }
+                                .buttonStyle(.carbonTertiary).disabled(busy).accessibilityIdentifier("camp-link-retry")
+                        }
                     } else {
                         stepContent
                     }
@@ -72,6 +84,9 @@ struct RegisterPatientView: View {
             DuplicateSheet(candidates: candidates ?? [], onRegisterAnyway: { matched in
                 candidates = nil
                 Task { await create(duplicateCheck: "overridden", matchedUhid: matched) }
+            }, onUseAtCamp: camp == nil ? nil : { existing in
+                candidates = nil
+                Task { await putOnCampRoute(existing.asSummary) }
             })
             .environment(session)
         }
@@ -90,7 +105,7 @@ struct RegisterPatientView: View {
             RegistrationReview(draft: draft, lists: lists, visible: visible, onEdit: { stepIndex = $0 })
         } else {
             ForEach(catalogue.fields(in: catalogue.steps[stepIndex].step).filter { visible.contains($0.id) }) { field in
-                CatalogueFieldView(field: field, draft: draft, lists: lists, error: shown.first { $0.field == field.id }?.message)
+                CatalogueFieldView(field: field, draft: draft, lists: lists, error: shown.first { $0.field == field.id }?.message, lookups: lookups(for: field))
                     .id(field.id)
             }
         }
@@ -119,6 +134,18 @@ struct RegisterPatientView: View {
         .background(MedBrainsTheme.canvas)
     }
 
+    /// The search a field may run, gated on its own lookup code; nil where
+    /// the role may not (the field then says so and takes typed text).
+    private func lookups(for field: CatalogueField) -> CatalogueLookups? {
+        guard let client else { return nil }
+        let allowed = switch field.options.source {
+        case .icd11: auth.identity?.can("terminology.search") ?? false
+        case .drugCatalogue: auth.identity?.canAny(["pharmacy.catalog.lookup", "patients.create"]) ?? false
+        default: false
+        }
+        return allowed ? CatalogueLookups(client: client) : nil
+    }
+
     /// The problems on screen in `step` (nil: every step).
     private func problems(in step: String?) -> [RegistrationProblem] {
         let visible = draft.visible
@@ -135,8 +162,17 @@ struct RegisterPatientView: View {
         stepIndex += 1
     }
 
-    /// The desk's department and consultant, kept between walk-ins.
+    /// The desk's department and consultant, kept between walk-ins — and at
+    /// a camp, the camp itself, as the web's camp mode starts.
     private func takeDeskContext() {
+        if let camp, draft["camp_id"].isEmpty {
+            draft["registration_type"] = "camp"
+            draft["registration_source"] = "camp"
+            draft["camp_id"] = camp.id
+            draft["camp_name"] = camp.name
+            if let dept = camp.organizingDepartmentId { draft["department_id"] = dept }
+            draft["referred_by_facility"] = camp.venueName ?? camp.name
+        }
         if draft["department_id"].isEmpty, let dept = session.departmentId { draft["department_id"] = dept }
         if draft["consultant_id"].isEmpty, let doc = session.consultantId { draft["consultant_id"] = doc }
     }
@@ -180,7 +216,10 @@ struct RegisterPatientView: View {
             session.departmentId = draft["department_id"].isEmpty ? session.departmentId : draft["department_id"]
             session.consultantId = draft["consultant_id"].isEmpty ? nil : draft["consultant_id"]
             UIAccessibility.post(notification: .announcement, argument: "Registered. UHID \(patient.uhid)")
-            if draft.isOn("create_opd_visit"), !draft["department_id"].isEmpty {
+            if camp != nil {
+                // The camp's route queues them; no separate OPD visit.
+                await putOnCampRoute(patient)
+            } else if draft.isOn("create_opd_visit"), !draft["department_id"].isEmpty {
                 visit = try await api.startVisit(StartVisitBody(
                     patientId: patient.id, departmentId: draft["department_id"],
                     doctorId: draft["consultant_id"].isEmpty ? nil : draft["consultant_id"],
@@ -195,9 +234,36 @@ struct RegisterPatientView: View {
         }
     }
 
+    /// At a camp, the record — just registered, or one that already existed —
+    /// goes on the camp's route: no second UHID, and a camp number. The
+    /// record is shown either way; a failed link says the record exists but
+    /// is not on the route yet, and offers the link again.
+    private func putOnCampRoute(_ patient: PatientSummary) async {
+        guard let client, let camp else { return }
+        registered = patient
+        failure = nil
+        busy = true
+        defer { busy = false }
+        do {
+            campNumber = try await ReceptionApi(client: client).linkToCamp(CampRegistrationLink(
+                campId: camp.id, personName: patient.fullName, gender: draft["gender"].isEmpty ? nil : draft["gender"],
+                phone: patient.phone, patientId: patient.id,
+                clinicalDepartmentId: draft["department_id"].isEmpty ? nil : draft["department_id"],
+                attendingDoctorId: draft["consultant_id"].isEmpty ? nil : draft["consultant_id"],
+                chiefComplaint: draft["initial_diagnosis_text"].isEmpty ? nil : draft["initial_diagnosis_text"],
+                isWalkIn: true
+            )).tokenNumber
+        } catch let e as ApiError {
+            failure = e.message
+        } catch {
+            failure = "Could not reach the hospital server."
+        }
+    }
+
     /// The person is cleared; the desk stays.
     private func nextWalkIn() {
         registered = nil
+        campNumber = nil
         checkUnavailable = false
         shown = []
         failure = nil
@@ -211,6 +277,11 @@ struct RegisterPatientView: View {
 private struct RegisteredCard: View {
     @Environment(ReceptionSession.self) private var session
     let patient: PatientSummary
+    /// At a camp the route is the visit: no OPD "Start visit" (nor its
+    /// route, which the camp's navigation does not have).
+    let atCamp: Bool
+    /// At a camp: the number they are called by at every station.
+    let campNumber: String?
     let onNext: () -> Void
 
     var body: some View {
@@ -225,10 +296,17 @@ private struct RegisteredCard: View {
                     if patient.isVip == true { CarbonTag("VIP", tone: .info) }
                 }
             }
-            NavigationLink(value: ReceptionRoute.startVisit(patient)) {
-                HStack { Text("Start visit"); Spacer(); Image(systemName: "arrow.right") }
+            if let campNumber {
+                CarbonTile(tone: .info) {
+                    Eyebrow("Camp number")
+                    Text(verbatim: campNumber).font(CarbonType.display).foregroundStyle(MedBrainsTheme.ink).accessibilityIdentifier("registered-camp-number")
+                }
+            } else if !atCamp {
+                NavigationLink(value: ReceptionRoute.startVisit(patient)) {
+                    HStack { Text("Start visit"); Spacer(); Image(systemName: "arrow.right") }
+                }
+                .buttonStyle(.carbonPrimary).accessibilityIdentifier("register-start-visit")
             }
-            .buttonStyle(.carbonPrimary).accessibilityIdentifier("register-start-visit")
             Button("Next walk-in", action: onNext).buttonStyle(.carbonTertiary).accessibilityIdentifier("register-next")
         }
         .padding(16)
@@ -240,6 +318,8 @@ private struct RegisteredCard: View {
 private struct DuplicateSheet: View {
     let candidates: [MatchCandidate]
     let onRegisterAnyway: (String?) -> Void
+    /// At a camp: use the record by putting it on the camp's route, here.
+    var onUseAtCamp: ((MatchCandidate) -> Void)? = nil
 
     var body: some View {
         NavigationStack {
@@ -247,9 +327,14 @@ private struct DuplicateSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     CarbonPageHeader(eyebrow: "Possible duplicate", title: "\(candidates.count) existing record\(candidates.count == 1 ? "" : "s") match", subtitle: "A second UHID splits allergies, history and results across two records. Use the existing record if it is the same person.")
                     ForEach(candidates) { c in
-                        NavigationLink(value: ReceptionRoute.patient(c.asSummary)) {
-                            CarbonRow("\(c.firstName) \(c.lastName)", detail: "\(c.uhid) · \(c.dateOfBirth ?? "DOB unknown") · \(c.phone)") {
-                                Text("Use this record").font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.interactive)
+                        let row = CarbonRow("\(c.firstName) \(c.lastName)", detail: "\(c.uhid) · \(c.dateOfBirth ?? "DOB unknown") · \(c.phone)") {
+                            Text("Use this record").font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.interactive)
+                        }
+                        Group {
+                            if let onUseAtCamp {
+                                Button { onUseAtCamp(c) } label: { row }
+                            } else {
+                                NavigationLink(value: ReceptionRoute.patient(c.asSummary)) { row }
                             }
                         }
                         .buttonStyle(.plain)

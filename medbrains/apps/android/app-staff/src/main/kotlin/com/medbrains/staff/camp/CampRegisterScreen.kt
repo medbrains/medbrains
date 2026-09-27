@@ -31,6 +31,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medbrains.kit.ApiError
+import com.medbrains.ui.CarbonTertiaryButton
+import com.medbrains.kit.LocalIdentity
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonPrimaryButton
@@ -44,7 +46,7 @@ import kotlinx.coroutines.launch
  * out with whose it is, and the form cleared for the next person in the line.
  */
 @Composable
-fun CampRegisterScreen(api: CampApi, station: CampStation) {
+fun CampRegisterScreen(nav: androidx.navigation.NavHostController, api: CampApi, station: CampStation) {
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
@@ -87,6 +89,11 @@ fun CampRegisterScreen(api: CampApi, station: CampStation) {
                     } catch (e: ApiError) { failure = e.message } catch (e: Exception) { failure = "Could not reach the hospital server. Nobody was registered." } finally { busy = false }
                 }
             })
+            // Someone who needs a proper record — an address, allergies, a
+            // referral — gets the full form, still on this camp's route.
+            if (LocalIdentity.current?.can("patients.create") == true) {
+                CarbonTertiaryButton("Full registration", onClick = { nav.navigate("full-registration/${station.counter_id}") }, modifier = Modifier.fillMaxWidth().testTag("camp-full-registration"))
+            }
         }
     }
 }

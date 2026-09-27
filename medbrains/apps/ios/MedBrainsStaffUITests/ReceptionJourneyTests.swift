@@ -178,6 +178,29 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertEqual(full["is_unknown_patient"] as? Bool, true)
     }
 
+    /// A diagnosis chosen from ICD-11 as the desk types, and the drug the
+    /// patient reacts to — both on the record, in the web's own keys.
+    func testTheDeskRecordsAnIcd11DiagnosisAndADrugAllergy() {
+        let phone = freshPhone()
+        openRegister()
+        fillPerson("Coded", "Fever\(Api.runId)", phone: phone)
+        type("icd11_code-search", "fever")
+        tapWhenReady(el("icd11_code-hit-MG26"))
+        XCTAssertTrue(sees("MG26"), "the chosen code is shown")
+        tapWhenReady(app.segmentedControls["field-attributes.allergy_status"].buttons["Known allergies"])
+        for _ in 0..<3 { tapWhenReady(el("register-step-next")) }
+        type("field-attributes.known_allergies", "Penicillin — rash")
+        type("tags-entry", "Penicillin")
+        tapWhenReady(el("tags-add"))
+        submitRegistration()
+        XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
+        guard let id = patient(byPhone: phone)?["id"] as? String,
+              let json = try? JSONSerialization.data(withJSONObject: fullRecord(id)),
+              let record = String(data: json, encoding: .utf8) else { return XCTFail("registered") }
+        XCTAssertTrue(record.contains("MG26"), "the ICD-11 code is on the record")
+        XCTAssertTrue(record.contains("Penicillin"), "and the drug allergy")
+    }
+
     func testMedicoLegalNeedsItsNumberBeforeAnyRequest() {
         let phone = freshPhone()
         openRegister()

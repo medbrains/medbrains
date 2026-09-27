@@ -54,6 +54,9 @@ object FieldKind {
     const val LONG_TEXT = "long_text"
     const val PHONE = "phone"
     const val EMAIL = "email"
+    const val SEARCH = "search"
+    const val TAGS = "tags"
+    const val HIDDEN = "hidden"
     val NUMERIC = setOf("digits", "number", "age")
 }
 
@@ -63,6 +66,8 @@ object OptionSource {
     const val DEPARTMENTS = "departments"
     const val DOCTORS = "doctors"
     const val CAMPS = "camps"
+    const val ICD11 = "icd11"
+    const val DRUG_CATALOGUE = "drug_catalogue"
 }
 
 /** The loaded lists a field's choices can come from; fixed choices come with the field. */

@@ -3974,6 +3974,7 @@ pub async fn list_catalog(
     require_any_permission(
         &claims,
         &[
+            permissions::pharmacy::catalog::LOOKUP,
             permissions::pharmacy::prescriptions::LIST,
             permissions::pharmacy::prescriptions::VIEW,
             permissions::pharmacy::dispensing::CREATE,

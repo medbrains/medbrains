@@ -67,10 +67,25 @@ class ReceptionSession {
     /** The department list could not be loaded — an outage, never an empty hospital. */
     var departmentsFailed by mutableStateOf(false)
     val doctors = mutableStateListOf<DoctorRow>()
+    /** Camps a registration can name, for a desk allowed to list them. */
+    val camps = mutableStateListOf<CampSummary>()
     val patients = mutableStateMapOf<String, PatientSummary>()
     val visits = mutableStateMapOf<String, VisitStarted>()
 
     fun departmentName(id: String?): String? = departments.firstOrNull { it.id == id }?.name
+}
+
+/**
+ * The pickers' rows for a registration desk: departments, doctors, and the
+ * open camps when the role may list them. An unloadable department list is
+ * an outage, never an empty hospital.
+ */
+suspend fun ReceptionSession.load(api: ReceptionApi, canListCamps: Boolean) {
+    runCatching { api.departments() }
+        .onSuccess { departments.clear(); departments.addAll(it); departmentsFailed = false }
+        .onFailure { departmentsFailed = true }
+    runCatching { api.doctors() }.getOrNull()?.let { doctors.clear(); doctors.addAll(it) }
+    if (canListCamps) runCatching { api.camps() }.getOrNull()?.let { camps.clear(); camps.addAll(it.filter { c -> c.isOpen }) }
 }
 
 @Composable
@@ -79,12 +94,8 @@ fun ReceptionModule() {
     val session = remember { ReceptionSession() }
     val client = LocalApiClient.current
     val api = remember { ReceptionApi(client) }
-    LaunchedEffect(Unit) {
-        runCatching { api.departments() }
-            .onSuccess { session.departments.clear(); session.departments.addAll(it); session.departmentsFailed = false }
-            .onFailure { session.departmentsFailed = true }
-        runCatching { api.doctors() }.getOrNull()?.let { session.doctors.clear(); session.doctors.addAll(it) }
-    }
+    val canListCamps = LocalIdentity.current?.can("camp.list") == true
+    LaunchedEffect(Unit) { session.load(api, canListCamps) }
     NavHost(nav, startDestination = "home") {
         composable("home") { ReceptionHome(nav, TokenApi(client, TokenModule.OPD), session) }
         composable("register") { RegisterPatientScreen(nav, api, session) }

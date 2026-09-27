@@ -43,7 +43,7 @@ import java.time.ZoneOffset
  * no rule: the value goes into the draft and the core judges it.
  */
 @Composable
-fun CatalogueFieldView(field: CatalogueField, draft: RegistrationDraftValues, lists: OptionLists, error: String?) {
+fun CatalogueFieldView(field: CatalogueField, draft: RegistrationDraftValues, lists: OptionLists, error: String?, lookups: CatalogueLookups? = null) {
     val tag = "field-${field.id}"
     Column {
         when (field.kind) {
@@ -61,6 +61,9 @@ fun CatalogueFieldView(field: CatalogueField, draft: RegistrationDraftValues, li
             }
             FieldKind.SELECT -> CarbonPicker(field.label, lists.options(field).map { PickerOption(it.value, it.label) }, draft[field.id].ifEmpty { null }, { draft[field.id] = it.orEmpty() }, error = error, tag = tag)
             FieldKind.DATE -> Labelled(field.label, error) { DateField(draft[field.id], { draft[field.id] = it }, tag) }
+            FieldKind.SEARCH -> Labelled(field.label, error) { TerminologyField(field, draft, lookups) }
+            FieldKind.TAGS -> Labelled(field.label, error) { TagsField(draft[field.id], { draft[field.id] = it }, field.label, lookups, tag) }
+            FieldKind.HIDDEN -> Unit
             else -> CarbonTextField(
                 draft[field.id], { draft[field.id] = it }, field.label, Modifier.testTag(tag), error = error,
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardFor(field.kind)), singleLine = field.kind != FieldKind.LONG_TEXT,

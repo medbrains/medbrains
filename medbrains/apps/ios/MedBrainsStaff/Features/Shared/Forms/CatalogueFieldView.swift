@@ -14,7 +14,7 @@ struct OptionLists: Sendable {
         case .departments: departments
         case .doctors: doctors
         case .camps: camps
-        case .none, .drugCatalogue: []
+        case .none, .drugCatalogue, .icd11: []
         }
     }
 }
@@ -26,6 +26,8 @@ struct CatalogueFieldView: View {
     @Bindable var draft: RegistrationDraftValues
     let lists: OptionLists
     let error: String?
+    /// The searches a field can run as the desk types; nil where none may.
+    var lookups: CatalogueLookups? = nil
 
     private var text: Binding<String> { Binding(get: { draft[field.id] }, set: { draft[field.id] = $0 }) }
     private var testId: String { "field-\(field.id)" }
@@ -57,9 +59,16 @@ struct CatalogueFieldView: View {
                 .accessibilityIdentifier(testId)
         case .date:
             labelled { DateField(value: text, label: field.label).accessibilityIdentifier(testId) }
+        case .search:
+            labelled { TerminologyField(field: field, draft: draft, lookups: lookups).accessibilityElement(children: .contain).accessibilityIdentifier(testId) }
+        case .tags:
+            labelled { TagsField(value: text, label: field.label, lookups: lookups).accessibilityElement(children: .contain).accessibilityIdentifier(testId) }
+        case .hidden:
+            EmptyView()
         default:
             CarbonField(field.label, error: error, isFocused: false) {
                 TextField(field.label, text: text, axis: field.kind == .longText ? .vertical : .horizontal)
+                    .lineLimit(field.kind == .longText ? 2...5 : 1...1)
                     .keyboardType(keyboard)
                     .textInputAutocapitalization(field.kind == .email ? .never : .sentences)
                     .accessibilityIdentifier(testId)

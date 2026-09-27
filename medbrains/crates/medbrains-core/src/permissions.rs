@@ -244,6 +244,15 @@ pub mod lab {
 }
 
 pub mod pharmacy {
+    pub mod catalog {
+        /// Look up drugs by name in the formulary.
+        ///
+        /// Read-only names, generics and schedules — enough to record what
+        /// a patient is allergic to at registration without the pharmacy's
+        /// prescription or dispensing access.
+        pub const LOOKUP: &str = "pharmacy.catalog.lookup";
+    }
+
     pub mod prescriptions {
         pub const LIST: &str = "pharmacy.prescriptions.list";
         pub const VIEW: &str = "pharmacy.prescriptions.view";
@@ -2056,6 +2065,15 @@ pub mod chronic {
 /// These existed only in the TypeScript catalogue, so `useRequirePermission`
 /// on `/clinical-kb` matched a code the server had never defined and redirected
 /// every non-bypass user away from the page.
+pub mod terminology {
+    /// Search clinical terminologies (ICD-11, SNOMED).
+    ///
+    /// Read-only lookup of codes and their display terms, for recording a
+    /// provisional diagnosis at registration or a camp desk — not access to
+    /// any patient's record.
+    pub const SEARCH: &str = "terminology.search";
+}
+
 pub mod ckb {
     /// Open the clinical knowledge base.
     pub const VIEW: &str = "ckb.view";

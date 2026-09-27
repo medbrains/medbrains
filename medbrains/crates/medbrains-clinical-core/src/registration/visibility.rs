@@ -3,7 +3,7 @@
 //! case, the camp only for a camp patient, nothing personal for an unknown
 //! patient. One table, so web, iOS and Android hide the same things.
 
-use super::catalogue::{Cond, Field, cond};
+use super::catalogue::{Cond, Field, Kind, cond};
 use super::options::REFERRED_BY_SOMEONE;
 use super::{Draft, fields};
 
@@ -88,7 +88,8 @@ pub fn visible_fields(draft: &Draft) -> Vec<String> {
     fields()
         .map(|f| with_visibility(*f))
         .filter(|f| {
-            (f.show_when.is_empty() || f.show_when.iter().any(|c| matches(draft, c)))
+            f.kind != Kind::Hidden
+                && (f.show_when.is_empty() || f.show_when.iter().any(|c| matches(draft, c)))
                 && !f.hide_when.iter().any(|c| matches(draft, c))
         })
         .map(|f| f.id.to_owned())

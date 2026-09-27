@@ -52,6 +52,11 @@ pub enum Kind {
     Toggle,
     /// Several free or catalogue-backed entries.
     Tags,
+    /// Chosen from a search against a terminology (ICD-11); choosing fills
+    /// the field's companions (`Kind::Hidden`) with what the source said.
+    Search,
+    /// Sent, never drawn: set by the field it accompanies.
+    Hidden,
 }
 
 /// One choice: the value sent and the words shown.
@@ -71,6 +76,8 @@ pub enum Options {
     Doctors,
     Camps,
     DrugCatalogue,
+    /// The ICD-11 terminology search (`/api/terminology/search?system=icd11`).
+    Icd11,
 }
 
 /// A condition on another field: its value is one of `is`. `"*"` means any
