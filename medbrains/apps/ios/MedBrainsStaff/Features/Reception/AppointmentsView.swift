@@ -125,7 +125,7 @@ struct AppointmentsTodayView: View {
             }
             .accessibilityIdentifier("appt-row-\(a.id)")
             if let n = a.tokenNumber, a.status == "checked_in" {
-                Text("Token \(n)").font(CarbonType.heading02).foregroundStyle(MedBrainsTheme.ink)
+                Text(verbatim: "Token \(n)").font(CarbonType.heading02).foregroundStyle(MedBrainsTheme.ink)
                     .accessibilityIdentifier("appt-token-\(a.id)")
             }
             if !actions.isEmpty {

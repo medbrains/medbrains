@@ -8,6 +8,7 @@ import SwiftUI
 struct CampRegisterView: View {
     let station: CampStation
     @Environment(\.apiClient) private var client
+    @Environment(AuthStore.self) private var auth
     @State private var name = ""
     @State private var age = ""
     @State private var gender = "female"
@@ -51,6 +52,14 @@ struct CampRegisterView: View {
                 Button { Task { await register() } } label: { HStack { Text("Register and give number"); Spacer(); Image(systemName: "arrow.right") } }
                     .buttonStyle(.carbonPrimary).disabled(busy || name.trimmingCharacters(in: .whitespaces).isEmpty)
                     .accessibilityIdentifier("camp-register-submit")
+                // Someone who needs a proper record — an address, allergies, a
+                // referral — gets the full form, still on this camp's route.
+                if auth.identity?.can("patients.create") ?? false {
+                    NavigationLink(value: CampRoute.fullRegistration(station)) {
+                        HStack { Text("Full registration"); Spacer(); Image(systemName: "list.bullet.rectangle") }
+                    }
+                    .buttonStyle(.carbonTertiary).accessibilityIdentifier("camp-full-registration")
+                }
             }
             .padding(16)
         }

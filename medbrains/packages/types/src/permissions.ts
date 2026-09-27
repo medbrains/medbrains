@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 991 permissions, one per constant in the Rust source. */
+/** 993 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -481,6 +481,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "lab",
   },
   // pharmacy
+  {
+    code: "pharmacy.catalog.lookup",
+    label: "Look up drugs by name in the formulary",
+    description: "Read-only names, generics and schedules — enough to record what a patient is allergic to at registration without the pharmacy's prescription or dispensing access.",
+    module: "pharmacy",
+  },
   {
     code: "pharmacy.prescriptions.list",
     label: "View Prescriptions",
@@ -4417,6 +4423,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Create Outcomes",
     module: "chronic",
   },
+  // terminology
+  {
+    code: "terminology.search",
+    label: "Search clinical terminologies (ICD-11, SNOMED)",
+    description: "Read-only lookup of codes and their display terms, for recording a provisional diagnosis at registration or a camp desk — not access to any patient's record.",
+    module: "terminology",
+  },
   // ckb
   {
     code: "ckb.view",
@@ -8119,6 +8132,10 @@ export const P = {
       VIEW: "pharmacy.analytics.view",
     },
     ANALYTICS_VIEW: "pharmacy.analytics.view",
+    CATALOG: {
+      LOOKUP: "pharmacy.catalog.lookup",
+    },
+    CATALOG_LOOKUP: "pharmacy.catalog.lookup",
     DISPENSING: {
       CANCEL: "pharmacy.dispensing.cancel",
       CREATE: "pharmacy.dispensing.create",
@@ -8972,6 +8989,9 @@ export const P = {
     },
     USAGE_VIEW: "storage.usage.view",
   },
+  TERMINOLOGY: {
+    SEARCH: "terminology.search",
+  },
   UR: {
     COMMUNICATIONS: {
       CREATE: "ur.communications.create",
@@ -9209,6 +9229,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.UPDATE,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
+      P.PHARMACY.CATALOG.LOOKUP,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.PRESCRIPTIONS.LIST,
       P.PHARMACY.PRESCRIPTIONS.VIEW,
@@ -9295,6 +9316,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PSYCHIATRY.PATIENTS.UPDATE,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.MANAGE,
+      P.TERMINOLOGY.SEARCH,
     ],
   },
   nurse: {
@@ -9444,6 +9466,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.NOTES.EDIT,
       P.PATIENTS.NOTES.VIEW,
       P.PATIENTS.VIEW,
+      P.PHARMACY.CATALOG.LOOKUP,
       P.PHARMACY.PRESCRIPTIONS.LIST,
       P.PHARMACY.PRESCRIPTIONS.VIEW,
       P.RADIOLOGY.ORDERS.LIST,
@@ -9508,6 +9531,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PSYCHIATRY.ASSESSMENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
+      P.TERMINOLOGY.SEARCH,
     ],
   },
   receptionist: {
@@ -9524,6 +9548,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.INVOICES.VIEW,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.RECEIPTS.PRINT,
+      P.CAMP.LIST,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -9575,7 +9600,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.LIST,
       P.PATIENTS.UPDATE,
       P.PATIENTS.VIEW,
+      P.PHARMACY.CATALOG.LOOKUP,
       P.SPECIALTY.HEALTH_PACKAGES.LIST,
+      P.TERMINOLOGY.SEARCH,
     ],
   },
   lab_technician: {
@@ -10430,6 +10457,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CAMP.SCREENINGS.MANAGE,
       P.CAMP.UPDATE,
       P.DASHBOARD.VIEW,
+      P.PATIENTS.CREATE,
+      P.PHARMACY.CATALOG.LOOKUP,
+      P.TERMINOLOGY.SEARCH,
     ],
   },
   insurance_officer: {

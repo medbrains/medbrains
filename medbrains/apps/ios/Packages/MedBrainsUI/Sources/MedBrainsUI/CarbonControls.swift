@@ -19,24 +19,12 @@ public struct CarbonField<Control: View>: View {
         self.control = control
     }
 
-    private var borderColor: Color {
-        if error != nil { return MedBrainsTheme.danger }
-        return isFocused ? MedBrainsTheme.interactive : MedBrainsTheme.borderStrong
-    }
-
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(CarbonType.label)
                 .foregroundStyle(MedBrainsTheme.inkSecondary)
-            control()
-                .font(CarbonType.body)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 48)
-                .background(MedBrainsTheme.field)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(borderColor).frame(height: isFocused || error != nil ? 2 : 1)
-                }
+            control().carbonFieldSurface(isFocused: isFocused, hasError: error != nil)
             if let error {
                 Label(error, systemImage: "exclamationmark.circle.fill")
                     .font(CarbonType.helper)
@@ -45,6 +33,21 @@ public struct CarbonField<Control: View>: View {
                 Text(helper).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary)
             }
         }
+    }
+}
+
+public extension View {
+    /// The Field-01 input surface alone — for an input whose label is drawn
+    /// elsewhere (a search box under its field's label, a tag entry).
+    func carbonFieldSurface(isFocused: Bool = false, hasError: Bool = false) -> some View {
+        font(CarbonType.body)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 48)
+            .background(MedBrainsTheme.field)
+            .overlay(alignment: .bottom) {
+                let color = hasError ? MedBrainsTheme.danger : isFocused ? MedBrainsTheme.interactive : MedBrainsTheme.borderStrong
+                Rectangle().fill(color).frame(height: isFocused || hasError ? 2 : 1)
+            }
     }
 }
 

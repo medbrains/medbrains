@@ -57,7 +57,12 @@ pub(crate) fn build_registration_filter(
     // a slip finds its row. The name and the complaint are matched anywhere:
     // people are found by their second name as often as their first, and a
     // complaint is a phrase somebody remembers a word from.
-    if let Some(term) = params.q.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    if let Some(term) = params
+        .q
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         conditions.push(format!(
             "(registration_number ILIKE ${idx} \
               OR phone ILIKE ${idx} \
@@ -112,7 +117,10 @@ mod tests {
             ],
             "the trimmed term is bound prefix-first, then wildcard"
         );
-        assert_eq!(next, 4, "the caller's LIMIT takes the next free placeholder");
+        assert_eq!(
+            next, 4,
+            "the caller's LIMIT takes the next free placeholder"
+        );
     }
 
     /// Every filter ahead of the search shifts its placeholders, which is the

@@ -355,8 +355,9 @@ check_child_started "$simulator_pid" "Vite simulator" "$log_dir/simulator.log"
 check_child_started "$proxy_pid" "Pingora" "$log_dir/proxy.log"
 # Under DEV_BACKEND_WATCH the backend runs via cargo-watch, whose first `cargo
 # run` compiles before binding — that can take minutes, so give it a long window
-# instead of the 15s used for the prebuilt-binary path.
-backend_port_timeout=15
+# instead of the shorter wait used for the prebuilt-binary path.
+# Startup upserts built-in roles for every tenant before binding; 15s was not enough on a busy dev DB.
+backend_port_timeout="${DEV_BACKEND_PORT_TIMEOUT:-60}"
 [[ "${DEV_BACKEND_WATCH:-false}" == "true" ]] && backend_port_timeout=900
 wait_for_port 3000 "Backend" "$backend_port_timeout" "$backend_pid" "$log_dir/backend.log"
 wait_for_port 5173 "Vite web" 15 "$web_pid" "$log_dir/web.log"

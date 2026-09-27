@@ -47,6 +47,30 @@ final class CampJourneyTests: JourneyCase {
         XCTAssertTrue(api.campQueue(camp.stations[2]).contains { ($0["number"] as? String) == number && ($0["status"] as? String) == "waiting" }, "the doctor's queue has them next")
     }
 
+    /// Someone at a camp who needs a proper record: the full form, starting
+    /// as this camp's, and they still get the camp number the route calls.
+    func testAFullRegistrationAtACampGivesTheCampNumber() {
+        let camp = api.campRoute("Full camp")
+        arrive()
+        open(camp.stations[0])
+        tapWhenReady(el("camp-full-registration"))
+        XCTAssertTrue(el("screen-register-patient").waitForExistence(timeout: 15))
+        let phone = "94" + String(repeating: "0", count: max(0, 6 - Api.runId.count)) + Api.runId + "01"
+        type("field-first_name", "Kamala\(Api.runId)")
+        type("field-age_years", "58")
+        tapWhenReady(app.segmentedControls["field-gender"].buttons["Female"])
+        type("field-phone", phone)
+        tapWhenReady(app.segmentedControls["field-attributes.allergy_status"].buttons["No known allergies"])
+        for _ in 0..<5 where !el("register-submit").exists { tapWhenReady(el("register-step-next")) }
+        tapWhenReady(el("register-submit"))
+        XCTAssertTrue(el("registered-camp-number").waitForExistence(timeout: 20), "the camp number, not a start-visit button")
+        let number = el("registered-camp-number").label
+        shoot("camp-full-registration")
+        let atVitals = api.campQueue(camp.stations[1]).first { ($0["number"] as? String) == number }
+        XCTAssertNotNil(atVitals, "they wait at Vitals under that number")
+        XCTAssertNotNil(atVitals?["patient_id"] as? String, "and the camp token belongs to the full record")
+    }
+
     func testTheSecondDoctorCallsToTheirRoomAndFinishesWithoutPharmacy() {
         let camp = api.campRoute("Rooms camp")
         api.call("POST", "/api/camp/camps/\(camp.campId)/counters", ["counter_name": "Doctor room 2", "department_id": api.firstDepartmentId() ?? "", "counter_type": "consultation", "flow_position": 3])

@@ -4,6 +4,7 @@ import SwiftUI
 
 enum CampRoute: Hashable {
     case register(CampStation)
+    case fullRegistration(CampStation)
     case station(CampStation, isLast: Bool)
 }
 
@@ -34,6 +35,7 @@ struct CampHomeView: View {
         .navigationDestination(for: CampRoute.self) { route in
             switch route {
             case .register(let s): CampRegisterView(station: s)
+            case .fullRegistration(let s): CampFullRegistrationView(station: s)
             case .station(let s, let isLast): CampStationView(station: s, isLast: isLast)
             }
         }

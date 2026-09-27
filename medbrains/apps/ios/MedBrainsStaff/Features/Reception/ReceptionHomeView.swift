@@ -31,6 +31,8 @@ final class ReceptionSession {
     /// The department list could not be loaded — an outage, never an empty hospital.
     var departmentsFailed = false
     var doctors: [DoctorRow] = []
+    /// Camps a registration can name, for a desk allowed to list them.
+    var camps: [CampSummary] = []
 
     func departmentName(_ id: String?) -> String? { departments.first { $0.id == id }?.name }
     func doctorName(_ id: String?) -> String? { doctors.first { $0.id == id }?.fullName }
@@ -111,6 +113,7 @@ struct ReceptionHomeView: View {
             async let r = try? api.doctors()
             let loaded = await d
             session.departments = loaded ?? []
+            if auth.identity?.can("camp.list") ?? false { session.camps = ((try? await api.camps()) ?? []).filter(\.isOpen) }
             session.departmentsFailed = loaded == nil
             session.doctors = await r ?? []
             if auth.identity?.can("opd.queue.list") ?? false, let dept = session.departmentId {

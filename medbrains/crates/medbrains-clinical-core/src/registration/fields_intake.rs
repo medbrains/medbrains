@@ -220,6 +220,42 @@ pub(super) const INTAKE: &[Field] = &[
         Step::Intake,
         Kind::LongText,
     ),
+    // Choosing a code fills its display, source and version below and the
+    // provisional diagnosis above, as the web's picker does.
+    with(
+        plain(
+            "icd11_code",
+            "Diagnosis (ICD-11)",
+            Step::Intake,
+            Kind::Search,
+        ),
+        Options::Icd11,
+        &[],
+    ),
+    plain(
+        "icd11_display",
+        "ICD-11 display",
+        Step::Intake,
+        Kind::Hidden,
+    ),
+    plain(
+        "icd11_source_url",
+        "ICD-11 source",
+        Step::Intake,
+        Kind::Hidden,
+    ),
+    plain(
+        "icd11_source_version",
+        "ICD-11 version",
+        Step::Intake,
+        Kind::Hidden,
+    ),
+    plain(
+        "icd11_provider_mode",
+        "ICD-11 provider",
+        Step::Intake,
+        Kind::Hidden,
+    ),
     desk_only(plain(
         "create_opd_visit",
         "Send to OPD queue",

@@ -76,9 +76,8 @@ use axum::{
 };
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use medbrains_core::camp::{
-    CampCounter,
-    Camp, CampBillingRecord, CampFollowup, CampLabSample, CampRegistration, CampScreening,
-    CampTeamMember,
+    Camp, CampBillingRecord, CampCounter, CampFollowup, CampLabSample, CampRegistration,
+    CampScreening, CampTeamMember,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::form::FieldAccessLevel;
@@ -3300,7 +3299,11 @@ async fn create_or_link_patient_for_camp_registration(
     //
     // `external_ref` is the form's own identity, so it survives every
     // correction to the content, and a re-sync updates in place.
-    if let Some(external_ref) = body.external_ref.as_deref().filter(|r| !r.trim().is_empty()) {
+    if let Some(external_ref) = body
+        .external_ref
+        .as_deref()
+        .filter(|r| !r.trim().is_empty())
+    {
         if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
             "SELECT id FROM patients \
              WHERE tenant_id = $1 \
@@ -3964,8 +3967,11 @@ async fn apply_camp_sync_event(
             // current_stock is decremented below, so the map is kept in step and
             // a drug repeated in one dispense still sees the reduced figure —
             // which is what re-reading the row used to give us.
-            let catalog_ids: Vec<Uuid> =
-                body.items.iter().filter_map(|item| item.catalog_item_id).collect();
+            let catalog_ids: Vec<Uuid> = body
+                .items
+                .iter()
+                .filter_map(|item| item.catalog_item_id)
+                .collect();
             let mut safety_by_id: HashMap<Uuid, PharmacySafetyRow> =
                 sqlx::query_as::<_, PharmacySafetyRow>(
                     "SELECT id, current_stock, drug_schedule, is_controlled, prescription_only, \
@@ -6980,8 +6986,13 @@ pub async fn create_registration(
     Json(body): Json<CreateRegistrationRequest>,
 ) -> Result<Json<CreatedRegistration>, AppError> {
     require_permission(&claims, permissions::camp::registrations::CREATE)?;
-    if body.patient_id.is_some() && !has_patient_record_view(&claims) {
-        return Err(AppError::Forbidden);
+    // Linking a record puts it on the camp's route: the caller must be able to
+    // see that patient — every record with `patients.view`, otherwise the one
+    // record they can reach (a patient they just registered at the camp).
+    if let Some(patient_id) = body.patient_id {
+        if !has_patient_record_view(&claims) {
+            medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+        }
     }
 
     let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;

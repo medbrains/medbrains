@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::pharmacy::catalog::LOOKUP,
+            permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             // Recall lists are built from diagnoses, so a clinician defines
@@ -346,6 +348,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::pharmacy::catalog::LOOKUP,
+            permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
@@ -594,6 +598,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Receptionist",
         description: "Front desk — registration, OPD visits, billing",
         permissions: &[
+            permissions::pharmacy::catalog::LOOKUP,
+            permissions::terminology::SEARCH,
+            permissions::camp::LIST,
             // Marketing / enquiry desk — the tele-calling and front-desk seat.
             // Enquiry only: these codes never reach the clinical record.
             permissions::marketing::contacts::LIST,
@@ -1653,6 +1660,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Camp Coordinator",
         description: "Outreach camp planning, registrations, screenings, lab linkage",
         permissions: &[
+            permissions::pharmacy::catalog::LOOKUP,
+            permissions::terminology::SEARCH,
+            permissions::patients::CREATE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::camp::LIST,

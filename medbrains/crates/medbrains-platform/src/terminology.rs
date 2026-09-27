@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_any_permission,
     state::AppState,
 };
 
@@ -88,7 +88,15 @@ pub async fn search_terminology(
     Extension(claims): Extension<Claims>,
     Query(q): Query<TerminologySearchQuery>,
 ) -> Result<Json<Vec<TerminologySearchResult>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // A code lookup, not a patient read: the desk records a provisional
+    // diagnosis with it; clinical queues keep the access they had.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::terminology::SEARCH,
+            permissions::opd::queue::VIEW,
+        ],
+    )?;
 
     let needle = normalize_terminology_query(&q.q);
     if needle.len() < 2 && !is_icd11_code_fragment(&needle) {
@@ -126,7 +134,15 @@ pub async fn search_terminology_with_suggestions(
     Extension(claims): Extension<Claims>,
     Query(q): Query<TerminologySearchQuery>,
 ) -> Result<Json<TerminologySearchResponse>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // A code lookup, not a patient read: the desk records a provisional
+    // diagnosis with it; clinical queues keep the access they had.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::terminology::SEARCH,
+            permissions::opd::queue::VIEW,
+        ],
+    )?;
 
     let needle = normalize_terminology_query(&q.q);
     if needle.len() < 2 && !is_icd11_code_fragment(&needle) {
@@ -174,7 +190,15 @@ pub async fn lookup_terminology(
     Extension(claims): Extension<Claims>,
     Query(q): Query<TerminologyLookupQuery>,
 ) -> Result<Json<TerminologySearchResult>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // A code lookup, not a patient read: the desk records a provisional
+    // diagnosis with it; clinical queues keep the access they had.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::terminology::SEARCH,
+            permissions::opd::queue::VIEW,
+        ],
+    )?;
 
     let code = q.code.trim();
     if code.is_empty() {

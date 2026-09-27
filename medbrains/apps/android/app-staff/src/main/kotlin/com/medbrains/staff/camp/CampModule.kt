@@ -56,7 +56,8 @@ fun CampModule() {
     val byId = { id: String -> placed(state.value.orEmpty()).first { it.station.counter_id == id } }
     NavHost(nav, startDestination = "home") {
         composable("home") { CampHome(nav, api, stations) }
-        composable("register/{id}") { CampRegisterScreen(api, byId(it.arguments!!.getString("id")!!).station) }
+        composable("register/{id}") { CampRegisterScreen(nav, api, byId(it.arguments!!.getString("id")!!).station) }
+        composable("full-registration/{id}") { CampFullRegistrationScreen(nav, byId(it.arguments!!.getString("id")!!).station) }
         composable("station/{id}") {
             val step = byId(it.arguments!!.getString("id")!!)
             CampStationScreen(tokens, step.station, step.last)
