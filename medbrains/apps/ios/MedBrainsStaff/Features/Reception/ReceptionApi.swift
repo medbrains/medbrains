@@ -66,6 +66,7 @@ enum RegistrationChoices {
     /// Honest when nobody asked: it says so, rather than reading as "none".
     static let allergyNotAsked = "not_asked_yet"
     static let noKnownAllergies = "no_known_allergies"
+    static let knownAllergies = "known_allergies"
     static let referralSource = "referral"
 }
 
@@ -75,6 +76,7 @@ struct CreatePatientBody: Encodable {
         /// Same keys the web form writes, so a clinician reads one answer everywhere.
         let allergyStatus: String
         let noKnownAllergies: Bool
+        let knownAllergies: String?
     }
     let firstName: String
     let lastName: String

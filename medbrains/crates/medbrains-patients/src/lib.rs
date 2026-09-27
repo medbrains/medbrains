@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod contact_consent;
+mod registration_rules;
 
 use std::collections::HashMap;
 
@@ -1395,57 +1396,17 @@ pub async fn create_patient(
         .map_err(|e| AppError::Internal(format!("serialize error: {e}")))?;
     field_access::validate_write_access(&body_json, &restricted, "patients")?;
 
+    // The registration rules the form and both apps ask: names, sex, the
+    // second identifier, phone, consent, camp, referral, MLC, shapes.
     let mut errors = ValidationErrors::new();
-    validation::validate_person_name(&mut errors, "first_name", &body.first_name);
-    validation::validate_person_name(&mut errors, "last_name", &body.last_name);
-    validation::validate_optional_phone(&mut errors, "phone", &body.phone);
-    if let Some(ref email) = body.email {
-        validation::validate_optional_email(&mut errors, "email", email);
-    }
-    if let Some(ref phone2) = body.phone_secondary {
-        validation::validate_optional_phone(&mut errors, "phone_secondary", phone2);
-    }
-    if let Some(ref phone) = body.referred_by_phone {
-        validation::validate_optional_phone(&mut errors, "referred_by_phone", phone);
-    }
+    registration_rules::check(&body_json, &mut errors);
     body.contact.validate(has_text(&body.email))?;
-    let is_camp_registration = matches!(body.registration_type, Some(RegistrationType::Camp))
-        || matches!(body.registration_source, Some(RegistrationSource::Camp));
-    if is_camp_registration && body.camp_id.is_none() && !has_text(&body.camp_name) {
-        errors.add(
-            "camp_id",
-            "Camp reference or village / school camp name is required",
-        );
-    }
-    let is_referral_registration =
-        matches!(body.registration_type, Some(RegistrationType::Referral))
-            || matches!(body.registration_source, Some(RegistrationSource::Referral));
-    if is_referral_registration
-        && !has_text(&body.referred_by_name)
-        && !has_text(&body.referred_by_facility)
-    {
-        errors.add("referred_by_name", "Referral source is required");
-    }
-    if body.is_medico_legal.unwrap_or(false) && !has_text(&body.mlc_number) {
-        errors.add(
-            "mlc_number",
-            "MLC number is required for medico-legal patients",
-        );
-    }
+    // Shapes were checked above; these only normalise for storage.
     let aadhaar_digits = body
         .aadhaar_number
         .as_deref()
         .and_then(normalize_aadhaar_number);
-    if body.aadhaar_number.is_some() && aadhaar_digits.is_none() {
-        errors.add(
-            "aadhaar_number",
-            "Aadhaar must be a 12 digit number; only masked/hash storage is retained",
-        );
-    }
     let abha_number = body.abha_number.as_deref().and_then(normalize_abha_number);
-    if body.abha_number.is_some() && abha_number.is_none() {
-        errors.add("abha_number", "ABHA number must be 14 digits");
-    }
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }

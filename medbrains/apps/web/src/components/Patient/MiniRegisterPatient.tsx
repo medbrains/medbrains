@@ -1,8 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { GenderFormValue, MiniRegisterPatientFormInput } from "@medbrains/schemas";
-import { miniRegisterPatientFormSchema, toGenderFormValue } from "@medbrains/schemas";
+import type { MiniRegisterPatientFormInput } from "@medbrains/schemas";
+import {
+  miniRegisterPatientFormSchema,
+  registrationCatalogue,
+  toGenderFormValue,
+} from "@medbrains/schemas";
 import type { Patient } from "@medbrains/types";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
@@ -19,12 +23,9 @@ interface MiniRegisterPatientProps {
   onCancel: () => void;
 }
 
-const genderOptions: { value: GenderFormValue; label: string }[] = [
-  { value: "unknown", label: "Unknown" },
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
-];
+/** The sexes the shared registration rules accept — no "unknown" default to record by accident. */
+const genderField = registrationCatalogue.fields.find((f) => f.id === "gender");
+const genderOptions = genderField?.options.source === "fixed" ? genderField.options.options : [];
 
 function splitSearchText(searchText: string): { firstName: string; lastName: string } {
   const tokens = searchText
@@ -73,8 +74,9 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
       first_name: initialName.firstName,
       last_name: initialName.lastName,
       phone: "",
+      has_no_phone: false,
       date_of_birth: "",
-      gender: "unknown",
+      gender: "",
       duplicate_checked: false,
     },
     mode: "onTouched",
@@ -93,9 +95,7 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
   const duplicateCandidates = duplicateData?.patients ?? [];
   const hasDuplicateCandidates = duplicateCandidates.length > 0;
   const canSubmit =
-    values.first_name.trim().length > 0 &&
-    values.last_name.trim().length > 0 &&
-    (!hasDuplicateCandidates || values.duplicate_checked);
+    values.first_name.trim().length > 0 && (!hasDuplicateCandidates || values.duplicate_checked);
   const formatPatientLabel = (patient: Patient): string => {
     const name =
       fieldAccessText(
@@ -145,7 +145,8 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
       last_name: formValues.last_name.trim(),
       phone: formValues.phone.trim(),
       date_of_birth: formValues.date_of_birth || null,
-      gender: formValues.gender,
+      // The rules above refused anything but a chosen sex.
+      gender: toGenderFormValue(formValues.gender),
       category: "general",
       registration_type: "new",
       registration_source: "walk_in",
@@ -153,6 +154,9 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
       attributes: {
         inline_registration_source: "patient_search_select",
         inline_registration_query: searchText,
+        has_no_phone: formValues.has_no_phone,
+        // This form does not ask about allergies, and says so.
+        allergy_status: "not_asked_yet",
       },
     });
   });
@@ -218,7 +222,7 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
           render={({ field }) => (
             <TextInput
               label="Last name / initial"
-              required
+              description="Leave empty for someone with a single name"
               value={field.value}
               onChange={(event) => {
                 field.onChange(event);
@@ -254,8 +258,10 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
             <TextInput
               label="Date of birth"
               type="date"
+              required
               value={field.value}
               onChange={field.onChange}
+              error={errors.date_of_birth?.message}
             />
           )}
         />
@@ -268,9 +274,24 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
           <Select
             allowDeselect={false}
             data={genderOptions}
-            label="Gender"
-            value={field.value}
-            onChange={(value) => field.onChange(toGenderFormValue(value))}
+            label="Sex"
+            placeholder="Choose"
+            required
+            value={field.value || null}
+            onChange={(value) => field.onChange(value ?? "")}
+            error={errors.gender?.message}
+          />
+        )}
+      />
+
+      <Controller
+        control={control}
+        name="has_no_phone"
+        render={({ field }) => (
+          <Checkbox
+            checked={field.value}
+            label="Has no phone"
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
           />
         )}
       />

@@ -547,6 +547,7 @@ pub struct RegistrationDraft {
     pub age_years: Option<u32>,
     pub gender: String,
     pub allergy_status: String,
+    pub known_allergies: String,
     pub registration_source: String,
     pub referred_by_name: String,
     pub is_medico_legal: bool,
@@ -564,6 +565,7 @@ impl From<RegistrationDraft> for clinical::registration::RegistrationDraft {
             age_years: d.age_years,
             gender: d.gender,
             allergy_status: d.allergy_status,
+            known_allergies: d.known_allergies,
             registration_source: d.registration_source,
             referred_by_name: d.referred_by_name,
             is_medico_legal: d.is_medico_legal,
@@ -599,6 +601,17 @@ pub fn registration_carries_over(field: String) -> bool {
 
 pub fn registration_problem(draft: RegistrationDraft) -> Option<RegistrationProblem> {
     clinical::registration::registration_problem(&draft.into()).map(Into::into)
+}
+
+pub fn registration_catalogue_json() -> String {
+    clinical::registration::catalogue_json()
+}
+
+pub fn registration_problems(draft: std::collections::HashMap<String, String>) -> Vec<RegistrationProblem> {
+    clinical::registration::registration_problems(&draft.into_iter().collect())
+        .into_iter()
+        .map(Into::into)
+        .collect()
 }
 
 pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {

@@ -47,6 +47,7 @@ async fn radiology_tat_reports_the_backlog_beside_the_median() {
             "first_name": "Radiology",
             "last_name": "Backlog",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990012001",
         }))
         .send()

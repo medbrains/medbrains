@@ -89,6 +89,7 @@ async fn requesting_a_code_never_reveals_whether_the_number_is_registered() {
             "first_name": "Portal",
             "last_name": "Enumeration",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": registered_phone,
         }))
         .send()

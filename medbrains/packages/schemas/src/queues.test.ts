@@ -13,6 +13,11 @@ const base = {
   lifecycle: "permanent" as const,
   valid_from: null,
   valid_until: null,
+  // The new-queue defaults (QueueFormDrawer).
+  board_shows: "number" as const,
+  voice_languages: ["en" as const],
+  announce_repeat: 1,
+  early_issue_minutes: 60,
 };
 
 describe("queue form", () => {

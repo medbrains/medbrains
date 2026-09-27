@@ -14,6 +14,8 @@ import {
   positiveNumber,
   requiredTrimmed,
 } from "./form-primitives.js";
+import { registrationCatalogue } from "./registration.generated.js";
+import { isoDay, registrationProblems } from "./registration-rules.js";
 
 const phonePattern = /^[\d+\-() ]+$/;
 const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -1405,14 +1407,44 @@ const requiredNullableIsoDate = (message: string) =>
     .nullable()
     .refine((value) => !!value && isoDatePattern.test(value), message);
 
-export const miniRegisterPatientFormSchema = z.object({
-  first_name: requiredTrimmed("First name is required", 100),
-  last_name: requiredTrimmed("Last name / initial is required", 100),
-  phone: optionalPhone,
-  date_of_birth: z.string(),
-  gender: genderFormSchema,
-  duplicate_checked: z.boolean(),
-});
+/** The quick form's inputs, by the shared registration rules' field ids. */
+const MINI_REGISTRATION_FIELDS: Record<string, string> = {
+  first_name: "first_name",
+  last_name: "last_name",
+  phone: "phone",
+  date_of_birth: "date_of_birth",
+  gender: "gender",
+};
+
+// The quick register inside patient search asks the same rules as the full
+// form, the server and both native apps (registration-rules.ts): a sex the
+// desk chose, a second identifier, a phone or "has no phone".
+export const miniRegisterPatientFormSchema = z
+  .object({
+    first_name: z.string(),
+    last_name: z.string(),
+    phone: z.string(),
+    has_no_phone: z.boolean(),
+    date_of_birth: z.string(),
+    gender: z.string(),
+    duplicate_checked: z.boolean(),
+  })
+  .superRefine((v, ctx) => {
+    const draft = {
+      first_name: v.first_name,
+      last_name: v.last_name,
+      phone: v.phone,
+      "attributes.has_no_phone": String(v.has_no_phone),
+      date_of_birth: v.date_of_birth,
+      gender: v.gender,
+      // The quick form does not ask; it records that honestly.
+      "attributes.allergy_status": "not_asked_yet",
+    };
+    for (const problem of registrationProblems(registrationCatalogue, draft)) {
+      const path = MINI_REGISTRATION_FIELDS[problem.field];
+      if (path) ctx.addIssue({ code: "custom", path: [path], message: problem.message });
+    }
+  });
 
 export const patientAllergyTypeFormSchema = z.enum([
   "drug",
@@ -1477,6 +1509,59 @@ export const patientMergeFormSchema = z.object({
   merge_reason: requiredTrimmed("Merge reason is required", 1000),
 });
 
+/** The registration form's own names for the catalogue's field ids. */
+const CATALOGUE_ID_OF: Record<string, string> = {
+  has_no_phone: "attributes.has_no_phone",
+  allergy_status: "attributes.allergy_status",
+  known_allergies: "attributes.known_allergies",
+  referred_by_kind: "attributes.referred_by_kind",
+  referred_by_user_id: "attributes.referred_by_user_id",
+  preferred_contact_method: "contact.preferred_method",
+  whatsapp_opt_in: "contact.whatsapp_opt_in",
+  email_opt_in: "contact.email_opt_in",
+  line1: "address.line1",
+  line2: "address.line2",
+  landmark: "address.landmark",
+  city: "address.city",
+  district: "address.district",
+  state: "address.state",
+  postal_code: "address.postal_code",
+  country: "address.country",
+  next_of_kin_name: "attributes.next_of_kin.name",
+  next_of_kin_relation: "attributes.next_of_kin.relation",
+  next_of_kin_phone: "attributes.next_of_kin.phone",
+  emergency_contact_name: "attributes.emergency_contact.name",
+  emergency_contact_relation: "attributes.emergency_contact.relation",
+  emergency_contact_phone: "attributes.emergency_contact.phone",
+  preferred_room_class: "attributes.preferred_room_class",
+  dietary_preference: "attributes.dietary_preference",
+  dietary_restrictions: "attributes.dietary_restrictions",
+  religious_observances: "attributes.religious_observances",
+  language_preference: "attributes.language_preference",
+  primary_physician_id: "attributes.primary_physician_id",
+  primary_physician_name: "attributes.primary_physician_name",
+  secondary_insurance_provider: "attributes.secondary_insurance.provider",
+  secondary_insurance_policy_no: "attributes.secondary_insurance.policy_no",
+  attendant_passes_count: "attributes.attendant_passes_count",
+};
+
+const FORM_FIELD_OF: Record<string, string> = Object.fromEntries(
+  Object.entries(CATALOGUE_ID_OF).map(([form, id]) => [id, form]),
+);
+
+/** A form value as the rules read it: dates as ISO days, toggles as "true"/"false". */
+function draftValue(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (v instanceof Date) return isoDay(v);
+  return String(v);
+}
+
+function registrationDraftOf(value: Record<string, unknown>): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, v]) => [CATALOGUE_ID_OF[key] ?? key, draftValue(v)]),
+  );
+}
+
 export const patientRegistrationFormSchema = z
   .object({
     prefix: z.string().optional(),
@@ -1487,12 +1572,13 @@ export const patientRegistrationFormSchema = z
     suffix: z.string().optional(),
     date_of_birth: z.date().nullable().optional(),
     age_years: z.number().int().min(0).max(125).optional(),
-    gender: genderFormSchema,
+    gender: z.string(),
     blood_group: bloodGroupFormSchema.optional(),
     marital_status: maritalStatusFormSchema.optional(),
     religion: z.string().optional(),
     occupation: z.string().optional(),
     phone: optionalPhone,
+    has_no_phone: z.boolean().optional(),
     phone_secondary: optionalPhone.optional(),
     email: optionalEmail,
     father_name: z.string().optional(),
@@ -1559,135 +1645,11 @@ export const patientRegistrationFormSchema = z
     open_opd_after_registration: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
-    // Agreeing to email updates needs somewhere to send them; preferring a
-    // channel needs agreeing to it. The server refuses both too.
-    if (value.email_opt_in && !hasTrimmedValue(value.email)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["email_opt_in"],
-        message: "Add an email address to send email updates",
-      });
-    }
-    const preferred = value.preferred_contact_method;
-    if (
-      (preferred === "whatsapp" && !value.whatsapp_opt_in) ||
-      (preferred === "email" && !value.email_opt_in)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["preferred_contact_method"],
-        message: "The patient has to agree to this channel first",
-      });
-    }
-    if (!value.is_unknown_patient) {
-      if (!hasTrimmedValue(value.first_name)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["first_name"],
-          message: "First name is required",
-        });
-      }
-      if (!hasTrimmedValue(value.last_name)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["last_name"],
-          message: "Last name is required",
-        });
-      }
-      if (!hasTrimmedValue(value.phone)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["phone"],
-          message: "Phone is required",
-        });
-      }
-      if (!value.date_of_birth && typeof value.age_years !== "number") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["age_years"],
-          message: "Enter age or pick date of birth",
-        });
-      }
-      if (!value.gender || value.gender === "unknown") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["gender"],
-          message: "Gender is required",
-        });
-      }
-    }
-
-    if (
-      !value.allergy_status ||
-      !["not_asked_yet", "no_known_allergies", "known_allergies"].includes(value.allergy_status)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["allergy_status"],
-        message: "Confirm allergy state (Not asked / No known / Known)",
-      });
-    }
-
-    const isCamp = value.registration_type === "camp" || value.registration_source === "camp";
-    if (isCamp && !value.camp_id && !hasTrimmedValue(value.camp_name)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["camp_id"],
-        message: "Select a camp reference or enter the village / school camp name",
-      });
-    }
-
-    const isReferral =
-      value.registration_type === "referral" || value.registration_source === "referral";
-    if (
-      isReferral &&
-      !value.referred_by_user_id &&
-      !hasTrimmedValue(value.referred_by_name) &&
-      !hasTrimmedValue(value.referred_by_facility)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["referred_by_name"],
-        message: "Referral source is required",
-      });
-    }
-
-    if (
-      value.referred_by_kind &&
-      value.referred_by_kind !== "self" &&
-      !value.referred_by_user_id &&
-      !hasTrimmedValue(value.referred_by_name) &&
-      !hasTrimmedValue(value.referred_by_facility)
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["referred_by_name"],
-        message: "Enter who referred the patient",
-      });
-    }
-
-    if (value.is_medico_legal && !hasTrimmedValue(value.mlc_number)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["mlc_number"],
-        message: "MLC number is required for medico-legal patients",
-      });
-    }
-
-    if (value.create_opd_visit && !hasTrimmedValue(value.department_id)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["department_id"],
-        message: "Select a department to send the patient to OPD",
-      });
-    }
-
-    if (value.create_opd_visit && isCamp && !hasTrimmedValue(value.camp_id)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["camp_id"],
-        message: "Select an existing camp before sending camp patient to OPD",
-      });
+    // The shared registration rules (registration-rules.ts), which the
+    // server and both native apps ask too — no rule is written twice.
+    for (const problem of registrationProblems(registrationCatalogue, registrationDraftOf(value))) {
+      const path = FORM_FIELD_OF[problem.field] ?? problem.field;
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: problem.message });
     }
   });
 

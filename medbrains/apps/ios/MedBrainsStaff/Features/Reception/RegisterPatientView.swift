@@ -17,6 +17,7 @@ struct RegisterPatientView: View {
     /// Empty until the desk chooses: a default recorded every untouched patient as female.
     @State private var gender = ""
     @State private var allergyStatus = RegistrationChoices.allergyNotAsked
+    @State private var knownAllergies = ""
     @State private var phone = ""
     @State private var dateOfBirth: Date?
     @State private var age = ""
@@ -101,6 +102,12 @@ struct RegisterPatientView: View {
                 .pickerStyle(.segmented).accessibilityIdentifier("field-allergy_status")
                 if let e = err("allergy_status") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
             }
+            if allergyStatus == RegistrationChoices.knownAllergies {
+                CarbonField("Known allergies", error: err("known_allergies"), isFocused: focus == "allergies") {
+                    TextField("What, and what happens", text: $knownAllergies, axis: .vertical).lineLimit(1...4)
+                        .focused($focus, equals: "allergies").accessibilityIdentifier("field-known_allergies")
+                }
+            }
             Toggle("Medico-legal case", isOn: $isMedicoLegal).font(CarbonType.body).accessibilityIdentifier("switch-mlc")
             if isMedicoLegal {
                 CarbonField("MLC number", error: err("mlc_number"), isFocused: focus == "mlc") {
@@ -151,7 +158,7 @@ struct RegisterPatientView: View {
         RegistrationDraft(
             firstName: firstName, lastName: lastName, phone: phone,
             dateOfBirth: dateOfBirth.map(Self.iso) ?? "", ageYears: UInt32(age.trimmingCharacters(in: .whitespaces)),
-            gender: gender, allergyStatus: allergyStatus,
+            gender: gender, allergyStatus: allergyStatus, knownAllergies: knownAllergies,
             registrationSource: session.source, referredByName: session.referredByName,
             isMedicoLegal: isMedicoLegal, mlcNumber: mlcNumber, abhaNumber: abha
         )
@@ -194,7 +201,7 @@ struct RegisterPatientView: View {
             departmentId: session.departmentId, consultantId: session.consultantId,
             abhaNumber: abha.isEmpty ? nil : abha.filter(\.isNumber),
             isMedicoLegal: isMedicoLegal, mlcNumber: isMedicoLegal ? mlcNumber : nil, isVip: isVip,
-            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid), allergyStatus: allergyStatus, noKnownAllergies: allergyStatus == RegistrationChoices.noKnownAllergies),
+            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid), allergyStatus: allergyStatus, noKnownAllergies: allergyStatus == RegistrationChoices.noKnownAllergies, knownAllergies: allergyStatus == RegistrationChoices.knownAllergies ? knownAllergies : nil),
             contact: .init(whatsappOptIn: whatsappOptIn, emailOptIn: false)
         )
         do {
@@ -229,6 +236,7 @@ struct RegisterPatientView: View {
         }
         gender = ""
         allergyStatus = RegistrationChoices.allergyNotAsked
+        knownAllergies = ""
         focus = "first_name"
     }
 }

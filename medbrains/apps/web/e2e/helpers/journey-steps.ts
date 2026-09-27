@@ -213,6 +213,8 @@ export async function createPatientApi(
     last_name: lastName,
     phone,
     gender,
+    // The second identifier: the server refuses a registration without it.
+    date_of_birth: "1985-06-15",
     email: base.email,
   });
   return created;
@@ -1661,6 +1663,7 @@ export async function createPatientWithBloodGroup(
     last_name: "Transfusion",
     gender: "female",
     phone: `98${digits}`,
+    date_of_birth: "1985-06-15",
     blood_group: bloodGroup,
   });
 }

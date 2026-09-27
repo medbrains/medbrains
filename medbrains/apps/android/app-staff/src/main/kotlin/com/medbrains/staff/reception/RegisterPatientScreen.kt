@@ -82,6 +82,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     // Empty until the desk chooses: a default recorded every untouched patient as female.
     var gender by remember { mutableStateOf("") }
     var allergyStatus by remember { mutableStateOf(RegistrationChoices.ALLERGY_NOT_ASKED) }
+    var knownAllergies by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var dateOfBirth by remember { mutableStateOf<LocalDate?>(null) }
     var age by remember { mutableStateOf("") }
@@ -99,7 +100,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
     var pickingDate by remember { mutableStateOf(false) }
 
     fun err(field: String) = problem?.takeIf { it.field == field }?.message
-    fun draft() = RegistrationDraft(firstName, lastName, phone, dateOfBirth?.toString() ?: "", age.trim().toUIntOrNull(), gender, allergyStatus, session.source, session.referredByName, isMedicoLegal, mlcNumber, abha)
+    fun draft() = RegistrationDraft(firstName, lastName, phone, dateOfBirth?.toString() ?: "", age.trim().toUIntOrNull(), gender, allergyStatus, knownAllergies, session.source, session.referredByName, isMedicoLegal, mlcNumber, abha)
 
     suspend fun create(duplicateCheck: String, matchedUhid: String?) {
         busy = true
@@ -114,7 +115,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                 department_id = session.departmentId, consultant_id = session.consultantId,
                 abha_number = abha.filter { it.isDigit() }.ifEmpty { null },
                 is_medico_legal = isMedicoLegal, mlc_number = if (isMedicoLegal) mlcNumber else null, is_vip = isVip,
-                attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid), allergyStatus, allergyStatus == RegistrationChoices.NO_KNOWN_ALLERGIES),
+                attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid), allergyStatus, allergyStatus == RegistrationChoices.NO_KNOWN_ALLERGIES, knownAllergies.takeIf { allergyStatus == RegistrationChoices.KNOWN_ALLERGIES }),
                 contact = ContactPreferences(whatsapp_opt_in = whatsappOptIn, email_opt_in = false),
             )
             registered = api.createPatient(body).also { session.patients[it.id] = it }
@@ -149,6 +150,7 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
         }
         gender = ""
         allergyStatus = RegistrationChoices.ALLERGY_NOT_ASKED
+        knownAllergies = ""
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().testTag("screen-register-patient")) {
@@ -191,6 +193,9 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
                         }
                     }
                     err("allergy_status")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                }
+                if (allergyStatus == RegistrationChoices.KNOWN_ALLERGIES) {
+                    CarbonTextField(knownAllergies, { knownAllergies = it }, "Known allergies", Modifier.testTag("field-known_allergies"), error = err("known_allergies"), singleLine = false)
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Medico-legal case", style = MaterialTheme.typography.bodyLarge)

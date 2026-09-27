@@ -25,6 +25,19 @@
 //!   medico-legal, who referred a referral, and a 14-digit ABHA when one is
 //!   given. The server enforces the same; this stops the tap.
 
+pub mod catalogue;
+mod fields_intake;
+mod fields_more;
+pub mod fixtures;
+pub mod options;
+pub mod rules;
+
+pub use catalogue::{Catalogue, Field, STEPS, StepTitle};
+pub use rules::Draft;
+
+#[cfg(test)]
+mod tests_rules;
+
 /// Outcome of the duplicate-patient check, as the desk should act on it.
 #[must_use]
 pub const fn registration_action(check_unavailable: bool, matches: u32) -> &'static str {
@@ -51,17 +64,6 @@ pub fn registration_carries_over(field: &str) -> bool {
     DESK_FIELDS.contains(&field)
 }
 
-/// The sexes the desk can record. "Unknown" is not offered: it is what an
-/// untouched field would mean, and an unknown patient is registered as one.
-pub const GENDERS: &[&str] = &["male", "female", "other"];
-
-/// The answers to "any allergies?". "Not asked yet" is honest; an empty
-/// answer is not, because a silence reads as "none" to the next clinician.
-pub const ALLERGY_STATUSES: &[&str] = &["not_asked_yet", "no_known_allergies", "known_allergies"];
-
-/// The registration source that needs a referrer.
-pub const REFERRAL_SOURCE: &str = "referral";
-
 /// A refusal on one field, in the desk's words.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistrationProblem {
@@ -79,10 +81,12 @@ pub struct RegistrationDraft {
     pub date_of_birth: String,
     /// Years, when the person does not know their date of birth.
     pub age_years: Option<u32>,
-    /// One of [`GENDERS`]; empty until the desk chooses.
+    /// One of the catalogue's sexes; empty until the desk chooses.
     pub gender: String,
-    /// One of [`ALLERGY_STATUSES`].
+    /// One of the catalogue's allergy answers.
     pub allergy_status: String,
+    /// What they are allergic to, when the answer is "known allergies".
+    pub known_allergies: String,
     pub registration_source: String,
     pub referred_by_name: String,
     pub is_medico_legal: bool,
@@ -90,70 +94,85 @@ pub struct RegistrationDraft {
     pub abha_number: String,
 }
 
-fn problem(field: &str, message: &str) -> RegistrationProblem {
-    RegistrationProblem {
-        field: field.to_owned(),
-        message: message.to_owned(),
+/// The whole form: every step and field, in order.
+#[must_use]
+pub fn catalogue() -> Catalogue {
+    Catalogue {
+        steps: STEPS
+            .iter()
+            .map(|&(step, title)| StepTitle { step, title })
+            .collect(),
+        fields: fields().copied().collect(),
     }
 }
 
-/// The first thing that stops this registration, or none.
+/// Every field, step by step.
+pub fn fields() -> impl Iterator<Item = &'static Field> {
+    fields_intake::INTAKE
+        .iter()
+        .chain(fields_intake::CONTACT_IDENTITY)
+        .chain(fields_more::FAMILY_ADDRESS_SAFETY)
+        .chain(fields_more::PREFERENCES_BILLING)
+}
+
+/// The catalogue as JSON, for the native apps and the web generator.
+#[must_use]
+pub fn catalogue_json() -> String {
+    serde_json::to_string(&catalogue()).unwrap_or_default()
+}
+
+/// Every problem with a draft (field id → value), in the form's order.
+#[must_use]
+pub fn registration_problems(draft: &Draft) -> Vec<RegistrationProblem> {
+    let all: Vec<Field> = fields().copied().collect();
+    rules::problems(&all, draft)
+}
+
+impl RegistrationDraft {
+    /// The same answers as field id → value, for the catalogue's rules.
+    #[must_use]
+    pub fn to_draft(&self) -> Draft {
+        let flag = |b: bool| if b { "true" } else { "false" }.to_owned();
+        [
+            ("first_name", self.first_name.clone()),
+            ("last_name", self.last_name.clone()),
+            ("phone", self.phone.clone()),
+            ("date_of_birth", self.date_of_birth.clone()),
+            (
+                "age_years",
+                self.age_years.map(|a| a.to_string()).unwrap_or_default(),
+            ),
+            ("gender", self.gender.clone()),
+            ("attributes.allergy_status", self.allergy_status.clone()),
+            ("attributes.known_allergies", self.known_allergies.clone()),
+            ("registration_source", self.registration_source.clone()),
+            ("referred_by_name", self.referred_by_name.clone()),
+            ("is_medico_legal", flag(self.is_medico_legal)),
+            ("mlc_number", self.mlc_number.clone()),
+            ("abha_number", self.abha_number.clone()),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect()
+    }
+}
+
+/// The first thing that stops this registration, or none — the one-screen
+/// intake's question, answered by the same rules as the full form.
 #[must_use]
 pub fn registration_problem(draft: &RegistrationDraft) -> Option<RegistrationProblem> {
-    if draft.first_name.trim().is_empty() {
-        return Some(problem("first_name", "First name is required"));
-    }
-    if draft.last_name.trim().is_empty() {
-        return Some(problem("last_name", "Last name is required"));
-    }
-    let digits = draft.phone.chars().filter(char::is_ascii_digit).count();
-    if !(10..=15).contains(&digits)
-        || draft
-            .phone
-            .chars()
-            .any(|c| !(c.is_ascii_digit() || c == '+' || c == ' '))
-    {
-        return Some(problem("phone", "Enter a phone number of 10 to 15 digits"));
-    }
-    if draft.date_of_birth.trim().is_empty() && draft.age_years.unwrap_or(0) == 0 {
-        return Some(problem(
-            "date_of_birth",
-            "Date of birth or age is needed — it is the second identifier",
-        ));
-    }
-    if draft.age_years.unwrap_or(0) > 130 {
-        return Some(problem("age_years", "Age must be 130 or less"));
-    }
-    if !GENDERS.contains(&draft.gender.as_str()) {
-        return Some(problem("gender", "Choose the patient's sex"));
-    }
-    if !ALLERGY_STATUSES.contains(&draft.allergy_status.as_str()) {
-        return Some(problem(
-            "allergy_status",
-            "Record whether allergies were asked about",
-        ));
-    }
-    if draft.registration_source == REFERRAL_SOURCE && draft.referred_by_name.trim().is_empty() {
-        return Some(problem(
-            "referred_by_name",
-            "Name the doctor or facility that referred them",
-        ));
-    }
-    if draft.is_medico_legal && draft.mlc_number.trim().is_empty() {
-        return Some(problem(
-            "mlc_number",
-            "MLC number is required for a medico-legal registration",
-        ));
-    }
-    let abha: String = draft
-        .abha_number
-        .chars()
-        .filter(char::is_ascii_digit)
-        .collect();
-    if !draft.abha_number.trim().is_empty() && abha.len() != 14 {
-        return Some(problem("abha_number", "ABHA number is 14 digits"));
-    }
-    None
+    registration_problems(&draft.to_draft())
+        .into_iter()
+        .next()
+        .map(|p| RegistrationProblem {
+            // The one-screen intake names this field without its `attributes.` path.
+            field: p
+                .field
+                .strip_prefix("attributes.")
+                .unwrap_or(&p.field)
+                .to_owned(),
+            message: p.message,
+        })
 }
 
 /// A date of birth for someone who only knows their age: 1 January of the
@@ -274,7 +293,13 @@ mod tests {
             registration_problem(&d).map(|p| p.field),
             Some("allergy_status".into())
         );
+        // "Known allergies" and none named tells the next clinician nothing.
         d.allergy_status = "known_allergies".into();
+        assert_eq!(
+            registration_problem(&d).map(|p| p.field),
+            Some("known_allergies".into())
+        );
+        d.known_allergies = "Penicillin — rash".into();
         assert_eq!(registration_problem(&d), None);
     }
 

@@ -41,7 +41,7 @@ data class MatchCandidate(val id: String, val uhid: String, val first_name: Stri
  * Same keys the web form writes, so a clinician reads one allergy answer
  * everywhere.
  */
-@Serializable data class RegistrationAttributes(val mobile_registration: MobileRegistration, val allergy_status: String, val no_known_allergies: Boolean)
+@Serializable data class RegistrationAttributes(val mobile_registration: MobileRegistration, val allergy_status: String, val no_known_allergies: Boolean, val known_allergies: String?)
 
 /**
  * The choices the registration rules accept, with the words the desk reads.
@@ -54,6 +54,7 @@ object RegistrationChoices {
     /** Honest when nobody asked: it says so, rather than reading as "none". */
     const val ALLERGY_NOT_ASKED = "not_asked_yet"
     const val NO_KNOWN_ALLERGIES = "no_known_allergies"
+    const val KNOWN_ALLERGIES = "known_allergies"
     const val REFERRAL_SOURCE = "referral"
 }
 

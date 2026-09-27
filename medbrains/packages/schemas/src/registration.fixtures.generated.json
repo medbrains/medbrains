@@ -1,0 +1,402 @@
+[
+  {
+    "name": "finished walk-in",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": []
+  },
+  {
+    "name": "empty form",
+    "draft": {},
+    "problems": [
+      {
+        "field": "first_name",
+        "message": "First name is required"
+      },
+      {
+        "field": "date_of_birth",
+        "message": "Date of birth or age is needed — it is the second identifier"
+      },
+      {
+        "field": "gender",
+        "message": "Choose the patient's sex"
+      },
+      {
+        "field": "phone",
+        "message": "Enter a phone number, or tick Has no phone"
+      },
+      {
+        "field": "attributes.allergy_status",
+        "message": "Record whether allergies were asked about"
+      }
+    ]
+  },
+  {
+    "name": "single name",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "last_name": "",
+      "phone": "98765 43210"
+    },
+    "problems": []
+  },
+  {
+    "name": "no phone, not said",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": ""
+    },
+    "problems": [
+      {
+        "field": "phone",
+        "message": "Enter a phone number, or tick Has no phone"
+      }
+    ]
+  },
+  {
+    "name": "no phone, said",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "attributes.has_no_phone": "true",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": ""
+    },
+    "problems": []
+  },
+  {
+    "name": "unknown patient",
+    "draft": {
+      "attributes.allergy_status": "not_asked_yet",
+      "is_unknown_patient": "true"
+    },
+    "problems": []
+  },
+  {
+    "name": "sex unknown",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "unknown",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "gender",
+        "message": "Choose the patient's sex"
+      }
+    ]
+  },
+  {
+    "name": "age too high",
+    "draft": {
+      "age_years": "126",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "age_years",
+        "message": "Age must be between 0 and 125"
+      }
+    ]
+  },
+  {
+    "name": "date of birth instead of age",
+    "draft": {
+      "age_years": "",
+      "attributes.allergy_status": "not_asked_yet",
+      "date_of_birth": "1990-01-01",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": []
+  },
+  {
+    "name": "phone with punctuation",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "+91 (98765) 43210"
+    },
+    "problems": []
+  },
+  {
+    "name": "phone too short",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "12345"
+    },
+    "problems": [
+      {
+        "field": "phone",
+        "message": "Enter a phone number of 10 to 15 digits"
+      }
+    ]
+  },
+  {
+    "name": "camp without camp",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210",
+      "registration_source": "camp"
+    },
+    "problems": [
+      {
+        "field": "camp_id",
+        "message": "Choose the camp, or type its name"
+      }
+    ]
+  },
+  {
+    "name": "camp named",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "camp_name": "Kottur school",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210",
+      "registration_type": "camp"
+    },
+    "problems": []
+  },
+  {
+    "name": "email updates, no email",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "contact.email_opt_in": "true",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "email",
+        "message": "Add an email address to send email updates"
+      }
+    ]
+  },
+  {
+    "name": "email malformed",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "email": "asha@",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "email",
+        "message": "Enter a valid email address"
+      }
+    ]
+  },
+  {
+    "name": "prefers WhatsApp without consent",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "contact.preferred_method": "whatsapp",
+      "contact.whatsapp_opt_in": "false",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "contact.whatsapp_opt_in",
+        "message": "Ask for WhatsApp consent before preferring WhatsApp"
+      }
+    ]
+  },
+  {
+    "name": "referral, nobody named",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210",
+      "registration_source": "referral"
+    },
+    "problems": [
+      {
+        "field": "referred_by_name",
+        "message": "Name the doctor or facility that referred them"
+      }
+    ]
+  },
+  {
+    "name": "ASHA referral, facility named",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "attributes.referred_by_kind": "asha",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210",
+      "referred_by_facility": "PHC Kottur"
+    },
+    "problems": []
+  },
+  {
+    "name": "medico-legal without number",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "is_medico_legal": "true",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "mlc_number",
+        "message": "MLC number is required for a medico-legal registration"
+      }
+    ]
+  },
+  {
+    "name": "known allergies unnamed",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "known_allergies",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "attributes.known_allergies",
+        "message": "List the known allergies"
+      }
+    ]
+  },
+  {
+    "name": "aadhaar 11 digits",
+    "draft": {
+      "aadhaar_number": "1234 5678 901",
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "aadhaar_number",
+        "message": "Aadhaar is 12 digits"
+      }
+    ]
+  },
+  {
+    "name": "abha 14 digits",
+    "draft": {
+      "abha_number": "12-3456-7890-1234",
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": []
+  },
+  {
+    "name": "OPD without department",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "create_opd_visit": "true",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "department_id",
+        "message": "Choose the department for the OPD visit"
+      }
+    ]
+  },
+  {
+    "name": "camp OPD with only a camp name",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "camp_name": "Kottur",
+      "create_opd_visit": "true",
+      "department_id": "d1",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210",
+      "registration_source": "camp"
+    },
+    "problems": [
+      {
+        "field": "camp_id",
+        "message": "Choose the camp itself before sending a camp patient to OPD"
+      }
+    ]
+  },
+  {
+    "name": "long name",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "first_name",
+        "message": "Keep the name under 100 characters"
+      }
+    ]
+  },
+  {
+    "name": "passes not a number",
+    "draft": {
+      "age_years": "36",
+      "attributes.allergy_status": "not_asked_yet",
+      "attributes.attendant_passes_count": "two",
+      "first_name": "Asha",
+      "gender": "female",
+      "phone": "98765 43210"
+    },
+    "problems": [
+      {
+        "field": "attributes.attendant_passes_count",
+        "message": "Attendant passes is a whole number"
+      }
+    ]
+  }
+]

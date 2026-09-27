@@ -55,7 +55,7 @@ async fn discharge_releases_the_bed_and_queues_one_summary_and_one_mrd_request()
         .client
         .post(app.url("/api/patients"))
         .header("x-csrf-token", &csrf)
-        .json(&json!({ "first_name": "Linkage", "last_name": "Discharge", "gender": "female", "phone": "9990000074" }))
+        .json(&json!({ "first_name": "Linkage", "last_name": "Discharge", "gender": "female", "date_of_birth": "1985-06-15", "phone": "9990000074" }))
         .send()
         .await
         .expect("create patient")

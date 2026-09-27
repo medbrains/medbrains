@@ -20,7 +20,7 @@ import type {
   PatientRegistrationFormInput,
   PatientRegistrationInitialValues,
 } from "@medbrains/schemas";
-import { patientRegistrationFormSchema } from "@medbrains/schemas";
+import { isoDay, patientRegistrationFormSchema, toGenderFormValue } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   Camp,
@@ -117,22 +117,7 @@ const PATIENT_REGISTRATION_ERROR_KEYS: Record<string, string> = {
   "Invalid email address": "validation.invalidEmail",
   "ABHA number must be 14 digits": "validation.abhaNumberDigits",
   "Aadhaar must be a 12 digit number": "validation.aadhaarDigits",
-  "First name is required": "validation.firstNameRequired",
-  "Last name is required": "validation.lastNameRequired",
-  "Phone is required": "validation.phoneRequired",
-  "Enter age or pick date of birth": "validation.ageOrDobRequired",
-  "Gender is required": "validation.genderRequired",
-  "Confirm allergy state (Not asked / No known / Known)": "validation.allergyStateRequired",
-  "Select a camp reference or enter the village / school camp name":
-    "validation.campReferenceRequired",
-  "Referral source is required": "validation.referralSourceRequired",
-  "Enter who referred the patient": "validation.referredByRequired",
-  "MLC number is required for medico-legal patients": "validation.mlcNumberRequired",
-  "Select a department to send the patient to OPD": "validation.departmentForOpdRequired",
-  "Select an existing camp before sending camp patient to OPD": "validation.existingCampRequired",
   "Enter a valid whole number": "validation.validWholeNumber",
-  "Add an email address to send email updates": "validation.emailOptInNeedsEmail",
-  "The patient has to agree to this channel first": "validation.contactMethodNeedsConsent",
 };
 
 function optionKey(value: string): string {
@@ -168,8 +153,10 @@ function translatedError(t: TFunction, message: string | undefined): string | un
   if (!message) {
     return undefined;
   }
+  // The shared registration rules speak the desk's words already; they are
+  // shown as written. Only the form's own field-shape messages have keys.
   const key = PATIENT_REGISTRATION_ERROR_KEYS[message];
-  return key ? t(key) : t("validation.generic");
+  return key ? t(key) : message;
 }
 
 function calculateAgeYears(dateOfBirth: Date): number {
@@ -327,7 +314,8 @@ export function PatientRegisterForm({
   } = useForm<PatientRegistrationFormInput>({
     resolver: zodResolver(patientRegistrationFormSchema),
     defaultValues: {
-      gender: initialValues?.gender ?? "unknown",
+      // No default: an untouched field recorded every patient as "unknown".
+      gender: initialValues?.gender ?? "",
       prefix: initialValues?.prefix,
       first_name: initialValues?.first_name ?? "",
       middle_name: initialValues?.middle_name,
@@ -611,6 +599,7 @@ export function PatientRegisterForm({
     const attributes: Record<string, unknown> = {};
     const allergies = values.known_allergies?.trim();
     attributes.allergy_status = values.allergy_status ?? "not_asked_yet";
+    if (values.has_no_phone) attributes.has_no_phone = true;
     attributes.no_known_allergies = values.allergy_status === "no_known_allergies";
     if (allergies) attributes.known_allergies = allergies;
     const drugAllergies = values.drug_allergies?.trim();
@@ -656,9 +645,12 @@ export function PatientRegisterForm({
     const req: CreatePatientRequest = {
       first_name: values.is_unknown_patient ? "Unknown" : values.first_name,
       last_name: values.is_unknown_patient ? "Patient" : values.last_name,
-      gender: values.gender,
-      phone: formatPhoneWithCountryCode(values.phone, phoneCountryCode) ?? "",
-      date_of_birth: dateOfBirth ? dateOfBirth.toISOString().slice(0, 10) : null,
+      // The rules refused anything but a chosen sex, unless the patient is unknown.
+      gender: values.is_unknown_patient ? "unknown" : toGenderFormValue(values.gender),
+      phone: values.has_no_phone
+        ? ""
+        : (formatPhoneWithCountryCode(values.phone, phoneCountryCode) ?? ""),
+      date_of_birth: dateOfBirth ? isoDay(dateOfBirth) : null,
       is_dob_estimated: isDobEstimated,
       email: values.email || null,
       prefix: values.prefix || undefined,
@@ -1071,6 +1063,20 @@ export function PatientRegisterForm({
                         numberTestId="field-phone"
                         placeholder={t("registrationForm.placeholder.primaryPhone")}
                         error={fieldError(errors.phone?.message)}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control}
+                    name="has_no_phone"
+                    render={({ field }) => (
+                      <Checkbox
+                        mt="xs"
+                        checked={field.value ?? false}
+                        onChange={(event) => field.onChange(event.currentTarget.checked)}
+                        label={t("registrationForm.row.hasNoPhone")}
+                        description={t("registrationForm.hint.hasNoPhone")}
+                        data-testid="field-has_no_phone"
                       />
                     )}
                   />
@@ -2047,9 +2053,7 @@ function ReviewSummary({
     : [values.prefix, values.first_name, values.middle_name, values.last_name, values.suffix]
         .filter(Boolean)
         .join(" ") || t("common.dash");
-  const dob = values.date_of_birth
-    ? new Date(values.date_of_birth).toISOString().slice(0, 10)
-    : t("common.dash");
+  const dob = values.date_of_birth ? isoDay(new Date(values.date_of_birth)) : t("common.dash");
   const allergyStatus = values.allergy_status ?? "not_asked_yet";
   return (
     <FormSection num="15" name={t("registrationForm.section.review")}>

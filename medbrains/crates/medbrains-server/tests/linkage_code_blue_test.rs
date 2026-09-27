@@ -40,6 +40,7 @@ async fn code_blue_emits_pages_once_records_arrival_and_stands_down() {
             "first_name": "Linkage",
             "last_name": "CodeBlue",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990000071",
         }))
         .send()

@@ -13,6 +13,7 @@ async fn tenant_id(app: &common::TestApp, csrf: &str) -> Uuid {
             "first_name": "Pos",
             "last_name": "Guard",
             "gender": "male",
+            "date_of_birth": "1985-06-15",
             "phone": "9990002001",
         }))
         .send()
