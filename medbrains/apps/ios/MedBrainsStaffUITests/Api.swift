@@ -130,8 +130,28 @@ final class Api {
     }
     func endCodeBlue(_ id: String) { call("PUT", "/api/nurse/code-blue/\(id)/end", ["outcome": "rosc", "notes": "e2e"]) }
 
+    /// The group every seeded transfusion uses: O-positive donor and patient, compatible by rule.
+    static let seedBloodGroup = "o_positive"
+
+    /// A unit on the blood bank's record, released for issue — the server
+    /// refuses to hang a bag it has no record of.
+    func bloodUnit(bag: String) -> String? {
+        guard let donor = obj("POST", "/api/blood-bank/donors", ["donor_number": "E2E-D-\(bag)", "first_name": "E2E", "last_name": "Donor", "blood_group": Self.seedBloodGroup])["id"] as? String,
+              let donation = obj("POST", "/api/blood-bank/donors/\(donor)/donations", ["bag_number": "E2E-DON-\(bag)", "volume_ml": 450])["id"] as? String,
+              let unit = obj("POST", "/api/blood-bank/components", ["donation_id": donation, "component_type": "prbc", "bag_number": bag, "blood_group": Self.seedBloodGroup, "volume_ml": 350, "expiry_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 86_400))])["id"] as? String
+        else { return nil }
+        call("PUT", "/api/blood-bank/components/\(unit)/status", ["status": "available"])
+        return unit
+    }
+
+    /// Group and hold: no transfusion without the patient's group on record.
+    func recordBloodGroup(patientId: String) { call("PUT", "/api/patients/\(patientId)", ["blood_group": Self.seedBloodGroup]) }
+
     func transfusion(_ a: Admission, secondNurseId: String) -> String? {
-        obj("POST", "/api/ipd/admissions/\(a.id)/transfusions", ["product_type": "PRBC", "bag_number": "BAG-\(Self.runId)", "blood_group": "O", "rh_factor": "positive", "volume_ml": 350, "expiry_date": "2027-01-01", "crossmatch_compatible": true, "consent_on_file": true, "product_verified_by_id": secondNurseId])["id"] as? String
+        let bag = "BAG-\(Self.runId)"
+        guard bloodUnit(bag: bag) != nil else { return nil }
+        recordBloodGroup(patientId: a.patientId)
+        return obj("POST", "/api/ipd/admissions/\(a.id)/transfusions", ["product_type": "PRBC", "bag_number": bag, "blood_group": "O", "rh_factor": "positive", "volume_ml": 350, "expiry_date": "2027-01-01", "crossmatch_compatible": true, "consent_on_file": true, "product_verified_by_id": secondNurseId])["id"] as? String
     }
 
     /// A waiting OPD token registered against `doctorId` as attending.
@@ -169,7 +189,7 @@ final class Api {
 
     func nurseRequests(_ admissionId: String) -> [[String: Any]] { list("/api/bedside/\(admissionId)/nurse-requests") }
     func mar(_ admissionId: String) -> [[String: Any]] { list("/api/ipd/admissions/\(admissionId)/mar") }
-    func worklistToken(patientId: String) -> [String: Any]? { list("/api/tokens/worklist?module=opd").first { ($0["patient_id"] as? String) == patientId } }
+    func worklistToken(patientId: String) -> [String: Any]? { list("/api/tokens/worklist?module=opd&scope=department&scope_id=\(firstDepartmentId() ?? "")").first { ($0["patient_id"] as? String) == patientId } }
     /// A camp today started from "General camp": its four stations' counter ids, in route order.
     func campRoute(_ name: String) -> (campId: String, stations: [String]) {
         let today = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])

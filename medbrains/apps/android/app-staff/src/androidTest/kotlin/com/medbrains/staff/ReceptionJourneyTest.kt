@@ -57,9 +57,9 @@ class ReceptionJourneyTest {
     }
 
     private fun chooseDepartment(id: String) {
-        tap("picker-department")
-        compose.waitUntil(5_000) { has("picker-department-$id") }
-        compose.onNodeWithTag("picker-department-$id").performClick()
+        compose.onNodeWithTag("picker-department").performScrollTo()
+        val name = api.list("/api/setup/departments").first { it.optString("id") == id }.getString("name")
+        with(Session) { compose.choose("picker-department", id, name) }
     }
 
     private fun fillPerson(first: String, last: String, phone: String, age: String = "36") {
@@ -188,13 +188,17 @@ class ReceptionJourneyTest {
         val p = api.patient("Next")
         val id = p.getString("id")
         check(api.call("POST", "/api/opd/encounters", org.json.JSONObject().put("patient_id", id).put("department_id", dept).put("visit_type", "walk_in")).first in 200..299)
-        val calledBefore = api.list("/api/tokens/worklist?module=opd").count { it.optString("status") == "called" }
+        val deptQueue = "/api/tokens/worklist?module=opd&scope=department&scope_id=$dept"
+        val calledBefore = api.list(deptQueue).count { it.optString("status") == "called" }
         tap("module-action-queue")
         compose.waitUntil(10_000) { has("screen-reception-queue") }
+        // The board is the desk's department, never the whole hospital.
+        compose.waitUntil(10_000) { has("reception-queue-choose-department") }
+        with(Session) { compose.choose("picker-board-department", dept, "General Medicine") }
         compose.waitUntil(10_000) { has("queue-call-next") }
         compose.onNodeWithTag("queue-call-next").performClick()
         compose.waitUntil(10_000) { has("queue-call-next-toast") }
-        val calledAfter = api.list("/api/tokens/worklist?module=opd").count { it.optString("status") == "called" }
+        val calledAfter = api.list(deptQueue).count { it.optString("status") == "called" }
         check(calledAfter == calledBefore + 1) { "exactly one token called, chosen by the server" }
     }
 

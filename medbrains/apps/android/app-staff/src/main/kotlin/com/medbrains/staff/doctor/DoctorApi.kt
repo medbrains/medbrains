@@ -4,29 +4,9 @@ import com.medbrains.kit.ApiClient
 import com.medbrains.kit.ApiError
 import kotlinx.serialization.Serializable
 
-// Wire shapes mirror crates/medbrains-tokens, medbrains-opd and
-// medbrains-core/consultation.rs, hand-written from packages/types.
-
-@Serializable
-data class WorklistToken(
-    val id: String,
-    val number: String,
-    val seq: Int = 0,
-    val status: String,
-    val priority: String = "normal",
-    val scope_label: String? = null,
-    val counter_label: String? = null,
-    val called_at: String? = null,
-    val created_at: String,
-    val patient_id: String? = null,
-    val patient_name: String? = null,
-    val uhid: String? = null,
-    val encounter_id: String? = null,
-) {
-    val displayName: String get() = patient_name ?: "Unnamed patient"
-}
-
-@Serializable data class ModuleToken(val id: String, val status: String, val called_at: String? = null, val counter_label: String? = null)
+// Wire shapes mirror medbrains-opd and medbrains-core/consultation.rs,
+// hand-written from packages/types. The token queue lives in
+// shared/tokens/TokenApi.kt.
 
 @Serializable
 data class Consultation(
@@ -52,22 +32,7 @@ data class AppointmentRow(
     val reason: String? = null,
 )
 
-@Serializable private data class CallBody(val counter_label: String? = null)
-@Serializable private data class CallNextBody(val counter_label: String? = null, val module: String, val scope: String? = null, val scope_id: String? = null)
-
 class DoctorApi(private val client: ApiClient) {
-    suspend fun listWorklist(): List<WorklistToken> = client.get("/api/tokens/worklist?module=opd")
-
-    /** Call whoever is next and let the server decide. `null` is a real answer: nobody is waiting. */
-    suspend fun callNext(): ModuleToken? {
-        val text = client.call("POST", "/api/tokens/call-next", client.json.encodeToString(CallNextBody.serializer(), CallNextBody(module = "opd")))
-        return if (text.isBlank() || text == "null") null else client.json.decodeFromString(ModuleToken.serializer(), text)
-    }
-    suspend fun call(id: String): ModuleToken = client.post("/api/tokens/$id/call", CallBody())
-    suspend fun serve(id: String): ModuleToken = client.post("/api/tokens/$id/serve")
-    suspend fun complete(id: String): ModuleToken = client.post("/api/tokens/$id/complete")
-    suspend fun noShow(id: String): ModuleToken = client.post("/api/tokens/$id/no-show")
-
     /**
      * The consultation, or null when none is written — the server answers a
      * bare `null` for that, so the decode is nullable. Narrowly 404 as well:

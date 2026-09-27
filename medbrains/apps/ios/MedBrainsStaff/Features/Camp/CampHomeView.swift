@@ -41,7 +41,7 @@ struct CampHomeView: View {
         // opened the app; the camp has to appear without a restart.
         .task {
             guard let client else { return }
-            await stations.poll(every: 15) { try await CampApi(client: client).stations() }
+            await stations.poll(every: QueuePolling.campStationsSeconds) { try await CampApi(client: client).stations() }
         }
     }
 

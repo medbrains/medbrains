@@ -1,5 +1,11 @@
 package com.medbrains.staff.reception
 
+import com.medbrains.staff.shared.tokens.WorklistToken
+import com.medbrains.staff.shared.tokens.countIn
+import com.medbrains.staff.shared.tokens.TokenStatus
+import com.medbrains.staff.shared.tokens.QueueSlice
+import com.medbrains.staff.shared.tokens.TokenModule
+import com.medbrains.staff.shared.tokens.TokenApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,8 +46,6 @@ import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
-import com.medbrains.staff.doctor.DoctorApi
-import com.medbrains.staff.doctor.WorklistToken
 import com.medbrains.ui.CarbonActionRow
 import com.medbrains.ui.CarbonSectionTitle
 import com.medbrains.ui.CarbonStatTile
@@ -60,6 +64,8 @@ class ReceptionSession {
     var source by mutableStateOf("walk_in")
     var referredByName by mutableStateOf("")
     val departments = mutableStateListOf<DepartmentRow>()
+    /** The department list could not be loaded — an outage, never an empty hospital. */
+    var departmentsFailed by mutableStateOf(false)
     val doctors = mutableStateListOf<DoctorRow>()
     val patients = mutableStateMapOf<String, PatientSummary>()
     val visits = mutableStateMapOf<String, VisitStarted>()
@@ -74,11 +80,13 @@ fun ReceptionModule() {
     val client = LocalApiClient.current
     val api = remember { ReceptionApi(client) }
     LaunchedEffect(Unit) {
-        runCatching { api.departments() }.getOrNull()?.let { session.departments.clear(); session.departments.addAll(it) }
+        runCatching { api.departments() }
+            .onSuccess { session.departments.clear(); session.departments.addAll(it); session.departmentsFailed = false }
+            .onFailure { session.departmentsFailed = true }
         runCatching { api.doctors() }.getOrNull()?.let { session.doctors.clear(); session.doctors.addAll(it) }
     }
     NavHost(nav, startDestination = "home") {
-        composable("home") { ReceptionHome(nav, DoctorApi(client)) }
+        composable("home") { ReceptionHome(nav, TokenApi(client, TokenModule.OPD), session) }
         composable("register") { RegisterPatientScreen(nav, api, session) }
         composable("find") { FindPatientScreen(nav, api, session) }
         composable("patient/{id}") { ReceptionPatientScreen(nav, session.patients.getValue(it.arguments!!.getString("id")!!)) }
@@ -87,7 +95,7 @@ fun ReceptionModule() {
             val id = it.arguments!!.getString("id")!!
             TokenIssuedScreen(nav, session.patients.getValue(id), session.visits.getValue(id), session)
         }
-        composable("board") { ReceptionQueueBoardScreen(DoctorApi(client)) }
+        composable("board") { ReceptionQueueBoardScreen(TokenApi(client, TokenModule.OPD), session) }
         composable("appointments") { AppointmentsTodayScreen(AppointmentsApi(client)) }
         composable("book/{id}") { BookAppointmentScreen(nav, AppointmentsApi(client), session, session.patients.getValue(it.arguments!!.getString("id")!!)) }
         composable("visitors") { VisitorDeskScreen(nav, FrontOfficeApi(client)) }
@@ -106,10 +114,11 @@ private data class Action(val id: String, val label: String, val detail: String,
  * register with, which is that role's grant, not a blank.
  */
 @Composable
-fun ReceptionHome(nav: NavHostController, queueApi: DoctorApi) {
+fun ReceptionHome(nav: NavHostController, queueApi: TokenApi, session: ReceptionSession) {
     val identity = LocalIdentity.current
     val queue = remember { Remote<List<WorklistToken>>() }
-    LaunchedEffect(Unit) { if (identity?.can("opd.queue.list") == true) queue.load { queueApi.listWorklist() } }
+    val dept = session.departmentId
+    LaunchedEffect(dept) { if (identity?.can("opd.queue.list") == true && dept != null) queue.load { queueApi.worklist(QueueSlice.Department(dept)) } }
     val q by queue.state.collectAsState()
     val actions = listOf(
         Action("register", "Register a patient", "New walk-in: identity, safety flags, the desk's clinic.", Icons.Filled.PersonAdd, "register", "patients.create"),
@@ -125,9 +134,9 @@ fun ReceptionHome(nav: NavHostController, queueApi: DoctorApi) {
             Text("Register, find, send to a clinic, call the floor.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(Modifier.padding(horizontal = 16.dp)) {
-            CarbonStatTile("Waiting", q.value?.count { it.status == "waiting" }, "OPD tokens waiting now", Modifier.weight(1f))
+            CarbonStatTile("Waiting", q.value?.countIn(TokenStatus.WAITING), "Waiting for the desk's department", Modifier.weight(1f))
             Spacer(Modifier.width(1.dp))
-            CarbonStatTile("Called", q.value?.count { it.status == "called" }, "Called, not yet in", Modifier.weight(1f))
+            CarbonStatTile("Called", q.value?.countIn(TokenStatus.CALLED), "Called, not yet in", Modifier.weight(1f))
         }
         CarbonSectionTitle("Actions")
         val allowed = actions.filter { identity?.can(it.permission) == true }
