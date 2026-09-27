@@ -818,6 +818,11 @@ pub struct BoardQuery {
     /// Off by default, so every existing caller sees exactly what it saw.
     #[serde(default)]
     pub include_finished: bool,
+    /// Worklist only: `mine` — the caller's own patients, then their
+    /// departments' patients with no consultant yet; `department` — everyone
+    /// in the caller's departments. A doctor at a hospital seeing a thousand
+    /// OPD patients a day must find their own, not the first 500.
+    pub view: Option<String>,
 }
 
 /// GET /api/tokens/board — live tokens (waiting/called/serving) for a board.
@@ -906,6 +911,38 @@ fn require_queue_worklist(claims: &Claims, module: &str) -> Result<(), AppError>
     require_permission(claims, permissions::front_office::queue::LIST)
 }
 
+/// An unknown view would match nothing and read as an empty clinic.
+fn check_view(view: Option<&str>) -> Result<(), AppError> {
+    if matches!(view, None | Some("mine" | "department")) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "view is `mine` or `department`".to_owned(),
+    ))
+}
+
+/// The worklist `view` as SQL over `tokens t` joined to `encounters e`, with
+/// the view, the caller and the caller's departments bound at `$n`, `$n+1`,
+/// `$n+2`. One definition, so the list a doctor reads and the patient their
+/// Call next picks can never disagree.
+fn view_filter(n: usize) -> String {
+    let (view, me, depts) = (n, n + 1, n + 2);
+    format!(
+        "(${view}::text IS NULL \
+          OR (${view} = 'mine' AND (e.doctor_id = ${me} OR (e.doctor_id IS NULL \
+               AND t.scope = 'department' AND t.scope_id = ANY(${depts})))) \
+          OR (${view} = 'department' AND t.scope = 'department' AND t.scope_id = ANY(${depts})))"
+    )
+}
+
+/// Sorts the caller's own patients ahead of the unassigned in the `mine` view.
+fn view_mine_first(n: usize) -> String {
+    format!(
+        "(${n} = 'mine' AND e.doctor_id IS NOT DISTINCT FROM ${})",
+        n + 1
+    )
+}
+
 /// GET /api/tokens/worklist — the queue with the patients on it.
 ///
 /// # Why no per-record check
@@ -922,13 +959,14 @@ pub async fn list_worklist(
     Query(query): Query<BoardQuery>,
 ) -> Result<Json<Vec<WorklistToken>>, AppError> {
     require_queue_worklist(&claims, &query.module)?;
+    check_view(query.view.as_deref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // One statement. A worklist that fetched each patient separately would be
     // N+1 on the screen a clinic refreshes most.
-    let rows = sqlx::query_as::<_, WorklistToken>(
+    let rows = sqlx::query_as::<_, WorklistToken>(&format!(
         "SELECT t.id, t.number, t.seq, t.status, t.priority, t.scope_id, t.scope_label, \
                 t.counter_label, t.called_at, t.created_at, t.patient_id, \
                 COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, NULLIF(p.last_name, '')), ''), \
@@ -937,18 +975,26 @@ pub async fn list_worklist(
                 CASE WHEN t.entity_type = 'encounter' THEN t.entity_id END AS encounter_id \
            FROM tokens t \
            LEFT JOIN patients p ON p.id = t.patient_id \
+           LEFT JOIN encounters e ON t.entity_type = 'encounter' AND e.id = t.entity_id \
           WHERE t.module = $1 AND t.token_date = CURRENT_DATE \
             AND ($2::text IS NULL OR t.scope = $2) \
             AND ($3::uuid IS NULL OR t.scope_id = $3) \
             AND (t.status IN ('waiting', 'on_hold', 'called', 'serving') \
                  OR ($4::bool AND t.status IN ('completed', 'no_show'))) \
-          ORDER BY token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq ASC \
+            AND {filter} \
+          ORDER BY {mine_first} DESC, \
+                   token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq ASC \
           LIMIT 500",
-    )
+        filter = view_filter(5),
+        mine_first = view_mine_first(5),
+    ))
     .bind(&query.module)
     .bind(&query.scope)
     .bind(query.scope_id)
     .bind(query.include_finished)
+    .bind(&query.view)
+    .bind(claims.sub)
+    .bind(&claims.department_ids)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1652,6 +1698,8 @@ pub struct CallNextInput {
     pub scope: Option<String>,
     pub scope_id: Option<Uuid>,
     pub counter_label: Option<String>,
+    /// The worklist view the caller is looking at — Call next picks from it.
+    pub view: Option<String>,
 }
 
 /// POST /api/tokens/call-next — call the next waiting token in a scope (the
@@ -1662,6 +1710,7 @@ pub async fn call_next(
     Json(body): Json<CallNextInput>,
 ) -> Result<Json<Option<Token>>, AppError> {
     require_queue_manage(&claims, &body.module)?;
+    check_view(body.view.as_deref())?;
 
     // Picking the head of the queue and calling it are two steps, so two desks
     // pressing Call next together can pick the same patient. The call only
@@ -1699,16 +1748,24 @@ async fn next_waiting(
 ) -> Result<Option<Uuid>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let next_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM tokens \
-         WHERE module = $1 AND token_date = CURRENT_DATE AND status = 'waiting' \
-           AND ($2::text IS NULL OR scope = $2) AND ($3::uuid IS NULL OR scope_id = $3) \
-         ORDER BY token_queue_weight(queue_id, priority, created_at), seq ASC \
+    let next_id: Option<Uuid> = sqlx::query_scalar(&format!(
+        "SELECT t.id FROM tokens t \
+           LEFT JOIN encounters e ON t.entity_type = 'encounter' AND e.id = t.entity_id \
+         WHERE t.module = $1 AND t.token_date = CURRENT_DATE AND t.status = 'waiting' \
+           AND ($2::text IS NULL OR t.scope = $2) AND ($3::uuid IS NULL OR t.scope_id = $3) \
+           AND {filter} \
+         ORDER BY {mine_first} DESC, \
+                  token_queue_weight(t.queue_id, t.priority, t.created_at), t.seq ASC \
          LIMIT 1",
-    )
+        filter = view_filter(4),
+        mine_first = view_mine_first(4),
+    ))
     .bind(&body.module)
     .bind(&body.scope)
     .bind(body.scope_id)
+    .bind(&body.view)
+    .bind(claims.sub)
+    .bind(&claims.department_ids)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;

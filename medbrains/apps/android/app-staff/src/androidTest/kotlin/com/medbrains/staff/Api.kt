@@ -101,9 +101,29 @@ class Api private constructor(private var token: String?) {
         obj("POST", "/api/nurse/code-blue", JSONObject().put("patient_id", a.patientId).put("encounter_id", a.encounterId).put("location", location)).optString("id").ifEmpty { null }
     fun endCodeBlue(id: String) { call("PUT", "/api/nurse/code-blue/$id/end", JSONObject().put("outcome", "rosc").put("notes", "e2e")) }
 
-    fun transfusion(a: Admission, secondNurseId: String): String? =
-        obj("POST", "/api/ipd/admissions/${a.id}/transfusions", JSONObject().put("product_type", "PRBC").put("bag_number", "BAG-$RUN").put("blood_group", "O").put("rh_factor", "positive")
+    /**
+     * A unit on the blood bank's record, released for issue — the server
+     * refuses to hang a bag it has no record of.
+     */
+    fun bloodUnit(bag: String): String? {
+        val donor = obj("POST", "/api/blood-bank/donors", JSONObject().put("donor_number", "E2E-D-$bag").put("first_name", "E2E").put("last_name", "Donor").put("blood_group", SEED_BLOOD_GROUP)).optString("id").ifEmpty { return null }
+        val donation = obj("POST", "/api/blood-bank/donors/$donor/donations", JSONObject().put("bag_number", "E2E-DON-$bag").put("volume_ml", 450)).optString("id").ifEmpty { return null }
+        val unit = obj("POST", "/api/blood-bank/components", JSONObject().put("donation_id", donation).put("component_type", "prbc").put("bag_number", bag)
+            .put("blood_group", SEED_BLOOD_GROUP).put("volume_ml", 350).put("expiry_at", java.time.Instant.now().plus(java.time.Duration.ofDays(30)).toString())).optString("id").ifEmpty { return null }
+        call("PUT", "/api/blood-bank/components/$unit/status", JSONObject().put("status", "available"))
+        return unit
+    }
+
+    /** Group and hold: no transfusion without the patient's group on record. */
+    fun recordBloodGroup(patientId: String) { call("PUT", "/api/patients/$patientId", JSONObject().put("blood_group", SEED_BLOOD_GROUP)) }
+
+    fun transfusion(a: Admission, secondNurseId: String): String? {
+        val bag = "BAG-$RUN"
+        bloodUnit(bag) ?: return null
+        recordBloodGroup(a.patientId)
+        return obj("POST", "/api/ipd/admissions/${a.id}/transfusions", JSONObject().put("product_type", "PRBC").put("bag_number", bag).put("blood_group", "O").put("rh_factor", "positive")
             .put("volume_ml", 350).put("expiry_date", "2027-01-01").put("crossmatch_compatible", true).put("consent_on_file", true).put("product_verified_by_id", secondNurseId)).optString("id").ifEmpty { null }
+    }
 
     fun waitingVisit(doctorId: String, last: String): Pair<String, String>? {
         val p = patient(last)
@@ -116,7 +136,7 @@ class Api private constructor(private var token: String?) {
 
     fun nurseRequests(admissionId: String) = list("/api/bedside/$admissionId/nurse-requests")
     fun mar(admissionId: String) = list("/api/ipd/admissions/$admissionId/mar")
-    fun worklistToken(patientId: String) = list("/api/tokens/worklist?module=opd").firstOrNull { it.optString("patient_id") == patientId }
+    fun worklistToken(patientId: String) = list("/api/tokens/worklist?module=opd&scope=department&scope_id=${firstDepartmentId()}").firstOrNull { it.optString("patient_id") == patientId }
     /** A camp today started from "General camp": its id and its four stations' counter ids, in route order. */
     fun campRoute(name: String): Pair<String, List<String>> {
         val today = java.time.LocalDate.now().toString()
@@ -131,6 +151,8 @@ class Api private constructor(private var token: String?) {
     fun responders() = list("/api/nurse/code-blue/responders")
 
     companion object {
+        /** The group every seeded transfusion uses: O-positive donor and patient, compatible by rule. */
+        const val SEED_BLOOD_GROUP = "o_positive"
         const val BACKEND = "http://10.0.2.2:3000"
         val RUN: String = (System.currentTimeMillis() / 1000 % 1_000_000).toString()
         private var serial = 0

@@ -338,6 +338,19 @@ edge tier design already written in `medbrains-edge`.
 46. **Given** the registration table has just given a number, **then** the
     screen says whose number it is — the form has already cleared for the next
     person in the line.
+47. **Given** a hospital with a thousand OPD patients today, **when** a doctor
+    opens their queue, **then** they see their own patients first, then their
+    department's patients with no consultant yet — never a colleague's, never
+    another department's; *Whole department* shows everyone in it. **When**
+    they press *Call next*, **then** the patient called comes from that same
+    list. An unknown view is refused, never answered with an empty clinic.
+    *(User decision 2026-09-26.)*
+48. **Given** a reception desk, **when** it opens the queue board, **then** it
+    shows the desk's department (the one it registers for), and asks which
+    one before showing anything — never the whole hospital.
+49. **Given** a picker with more than a dozen choices (departments, doctors),
+    **then** it can be searched; a menu of eighty departments is not usable
+    at a desk.
 
 ## P0 progress (2026-09-26)
 
@@ -563,7 +576,11 @@ desk worklists read `module=opd` for the whole hospital, capped at 500, so the
 patient a doctor seeded falls off the list — and a real hospital passes 500 OPD
 patients a day. Next, before P5: **scope the native doctor/desk worklist to the
 doctor's own department/room**, and make journey fixtures retire what they create.
-Then **P5** — kiosk/QR/SMS on issue.
+*Built 2026-09-26 (§9 #47–49):* worklist and Call next take `view=mine|department`
+(one SQL definition shared by both); native doctor queue defaults to `mine` with a
+*Whole department* switch; native desk board reads the desk's department; native
+pickers search past 12 options (Android shows at most 50 matches). Then **P5** —
+kiosk/QR/SMS on issue.
 
 **Found by the walk-in journey (2026-09-26):** the doctor's *Call patient* on
 `/opd` needs no access to the encounter, while *Start consultation* checks it —

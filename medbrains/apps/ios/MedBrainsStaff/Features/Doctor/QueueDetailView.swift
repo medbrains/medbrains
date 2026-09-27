@@ -34,11 +34,11 @@ struct QueueDetailView: View {
                 .padding(.horizontal, 16)
                 if let error { CarbonNotification(kind: .error, title: "Action failed", message: error).padding(.horizontal, 16) }
                 VStack(spacing: 8) {
-                    if token.status == "waiting", canWorkQueue {
+                    if token.status == TokenStatus.waiting, canWorkQueue {
                         Button("Call patient") { Task { await run { try await $0.call(token.id) } } }.buttonStyle(.carbonPrimary).disabled(busy)
                             .accessibilityIdentifier("queue-call-patient")
                     }
-                    if token.status == "called", canWorkQueue {
+                    if token.status == TokenStatus.called, canWorkQueue {
                         Button("Patient is in") { Task { await run { try await $0.serve(token.id) } } }.buttonStyle(.carbonPrimary).disabled(busy)
                             .accessibilityIdentifier("queue-patient-is-in")
                         Button("Recall") { Task { await run { try await $0.call(token.id) } } }.buttonStyle(.carbonTertiary).disabled(busy)
@@ -46,7 +46,7 @@ struct QueueDetailView: View {
                         Button("No-show") { Task { await run { try await $0.noShow(token.id) } } }.buttonStyle(.carbonTertiary).disabled(busy)
                             .accessibilityLabel("Mark this patient as not present").accessibilityIdentifier("queue-no-show")
                     }
-                    if token.status == "serving", canWorkQueue {
+                    if token.status == TokenStatus.serving, canWorkQueue {
                         Button("Mark complete") { Task { await run { try await $0.complete(token.id) } } }.buttonStyle(.carbonPrimary).disabled(busy)
                             .accessibilityIdentifier("queue-mark-complete")
                     }
@@ -68,13 +68,13 @@ struct QueueDetailView: View {
         .accessibilityIdentifier("screen-queue-detail")
     }
 
-    private func run(_ op: (DoctorApi) async throws -> ModuleToken) async {
+    private func run(_ op: (TokenApi) async throws -> ModuleToken) async {
         guard let client else { return }
         busy = true
         error = nil
         defer { busy = false }
         do {
-            let next = try await op(DoctorApi(client: client))
+            let next = try await op(TokenApi(client: client, module: .opd))
             token.status = next.status
             token.calledAt = next.calledAt ?? token.calledAt
             token.counterLabel = next.counterLabel ?? token.counterLabel

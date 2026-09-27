@@ -40,6 +40,7 @@ struct StartVisitView: View {
         .onAppear { if departmentId == nil { departmentId = session.departmentId; doctorId = session.consultantId } }
         .navigationDestination(item: $started) { v in
             TokenIssuedView(patient: patient, visit: v, departmentName: session.departmentName(departmentId) ?? "the clinic")
+                .environment(session)
         }
     }
 
@@ -66,6 +67,9 @@ struct StartVisitView: View {
 /// programmatic too — a value link from inside an item destination does not
 /// push.
 struct TokenIssuedView: View {
+    // Handed on explicitly: a destination presented from here takes its
+    // environment from the navigation stack, which is above the module's session.
+    @Environment(ReceptionSession.self) private var session
     let patient: PatientSummary
     let visit: VisitStarted
     let departmentName: String
@@ -92,7 +96,7 @@ struct TokenIssuedView: View {
         .navigationTitle("Token issued").navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showFind = true }.accessibilityIdentifier("token-done") } }
-        .navigationDestination(isPresented: $showBoard) { ReceptionQueueBoardView() }
+        .navigationDestination(isPresented: $showBoard) { ReceptionQueueBoardView().environment(session) }
         .navigationDestination(isPresented: $showFind) { FindPatientView() }
         .accessibilityIdentifier("screen-token-issued")
         .onAppear { UIAccessibility.post(notification: .announcement, argument: "Token \(visit.queue.tokenNumber) issued for \(patient.fullName). They are now waiting.") }

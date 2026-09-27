@@ -10,15 +10,21 @@ struct QueueListView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(\.apiClient) private var client
     @State private var remote = Remote<[WorklistToken]>()
-    @State private var calling = false
-    @State private var callError: String?
-    @State private var toast: String?
+    @State private var action = QueueActionState()
+    /// Off: own patients, then the department's unassigned. On: the whole department.
+    @State private var wholeDepartment = false
+
+    private var slice: QueueSlice { wholeDepartment ? .myDepartments : .mine }
 
     var body: some View {
-        let waiting = remote.value?.filter { $0.status == "waiting" }.count ?? 0
+        let waiting = remote.value?.count(in: TokenStatus.waiting) ?? 0
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                CarbonPageHeader(eyebrow: "Doctor", title: "OPD queue", subtitle: "Today's tokens — tap a row to begin a consult.")
+                CarbonPageHeader(eyebrow: "Doctor", title: "OPD queue", subtitle: wholeDepartment ? "Everyone waiting in your department." : "Your patients first, then your department's unassigned.")
+                Toggle("Whole department", isOn: $wholeDepartment)
+                    .font(CarbonType.bodyCompact)
+                    .padding(.horizontal, 16).padding(.bottom, 12)
+                    .accessibilityIdentifier("queue-whole-department")
                 if auth.identity?.can("opd.token.manage") ?? false {
                     VStack(alignment: .leading, spacing: 8) {
                         Button {
@@ -27,12 +33,12 @@ struct QueueListView: View {
                             HStack { Text(waiting > 0 ? "Call next (\(waiting) waiting)" : "Call next"); Spacer(); Image(systemName: "arrow.right") }
                         }
                         .buttonStyle(.carbonPrimary)
-                        .disabled(calling)
+                        .disabled(action.busy)
                         .accessibilityLabel(waiting > 0 ? "Call the next patient, \(waiting) waiting" : "Call the next patient, nobody waiting")
                         .accessibilityIdentifier("queue-call-next")
-                        if let callError { CarbonNotification(kind: .error, title: "Could not call the next patient", message: callError) }
+                        if let callError = action.failure { CarbonNotification(kind: .error, title: "Could not call the next patient", message: callError) }
                         // The confirmation is the point: a call that says nothing is a call the doctor presses twice.
-                        if let toast {
+                        if let toast = action.toast {
                             CarbonNotification(kind: .info, title: toast, message: "").accessibilityIdentifier("queue-call-next-toast")
                         }
                     }
@@ -69,26 +75,21 @@ struct QueueListView: View {
         .navigationTitle("OPD queue")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("screen-doctor-queue")
-        .task { await load() }
+        .task(id: wholeDepartment) { await load() }
     }
 
     private func load() async {
         guard let client else { return }
-        await remote.load { try await DoctorApi(client: client).listWorklist() }
+        await remote.load { try await TokenApi(client: client, module: .opd).worklist(slice) }
     }
 
     private func callNext() async {
         guard let client else { return }
-        calling = true
-        callError = nil
-        defer { calling = false }
-        do {
-            let called = try await DoctorApi(client: client).callNext()
-            // Null is a real answer, not a failure: the queue is empty.
-            toast = called.map { _ in "Called the next patient" } ?? "Nobody is waiting"
+        await action.run(unreachable: "Could not reach the hospital server.") {
+            let called = try await TokenApi(client: client, module: .opd).callNext(slice)
             await load()
-        } catch {
-            callError = (error as? ApiError)?.message ?? "Could not reach the hospital server."
+            // Null is a real answer, not a failure: the queue is empty.
+            return called == nil ? "Nobody is waiting" : "Called the next patient"
         }
     }
 }

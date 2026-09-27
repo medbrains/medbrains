@@ -11,15 +11,15 @@ struct CampStationView: View {
     @Environment(\.apiClient) private var client
     @State private var queue = Remote<[WorklistToken]>()
     @State private var room: String?
-    @State private var toast: String?
-    @State private var failure: String?
-    @State private var busy = false
+    @State private var action = QueueActionState()
 
+    private static let unreachable = "Could not reach the hospital server. Nothing was changed."
+
+    private var slice: QueueSlice { .counter(station.counterId) }
     private var callingRoom: String? { station.rooms.count > 1 ? room : station.rooms.first ?? station.name }
 
     var body: some View {
-        let rows = queue.value ?? []
-        let waiting = rows.filter { $0.status == "waiting" }.count
+        let waiting = (queue.value ?? []).filter { $0.status == TokenStatus.waiting }.count
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 CarbonPageHeader(eyebrow: station.campName, title: station.label, subtitle: "Patients are called by the number they got at registration.")
@@ -28,12 +28,12 @@ struct CampStationView: View {
                         CarbonPicker("Your room", options: station.rooms.map { .init(id: $0, label: $0) }, selection: $room, placeholder: "Which room you call to")
                             .accessibilityIdentifier("camp-room-picker")
                     }
-                    if let toast { Text(toast).font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.success).accessibilityIdentifier("camp-toast") }
-                    if let failure { CarbonNotification(kind: .error, title: "Not done", message: failure) }
-                    Button { Task { await act { try await $0.callNext(station, room: callingRoom ?? station.name) == nil ? "Nobody waiting" : "Called the next patient" } } } label: {
+                    if let toast = action.toast { Text(toast).font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.success).accessibilityIdentifier("camp-toast") }
+                    if let failure = action.failure { CarbonNotification(kind: .error, title: "Not done", message: failure) }
+                    Button { Task { await callNext() } } label: {
                         HStack { Text("Call next (\(waiting) waiting)"); Spacer(); Image(systemName: "megaphone") }
                     }
-                    .buttonStyle(.carbonPrimary).disabled(busy || waiting == 0 || callingRoom == nil)
+                    .buttonStyle(.carbonPrimary).disabled(action.busy || waiting == 0 || callingRoom == nil)
                     .accessibilityIdentifier("camp-call-next")
                 }
                 .padding(16)
@@ -47,7 +47,7 @@ struct CampStationView: View {
         .accessibilityIdentifier("screen-camp-station")
         .task {
             guard let client else { return }
-            await queue.poll(every: 5) { try await CampApi(client: client).queue(station) }
+            await queue.poll(every: QueuePolling.queueSeconds) { try await TokenApi(client: client, module: .camp).worklist(slice) }
         }
     }
 
@@ -55,20 +55,20 @@ struct CampStationView: View {
     private func tokenRow(_ t: WorklistToken) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             CarbonRow("\(t.number) · \(t.displayName)", detail: t.counterLabel) {
-                CarbonTag(t.status.replacingOccurrences(of: "_", with: " "), tone: tokenTone(t.status))
+                CarbonTag(TokenStatus.label(t.status), tone: tokenTone(t.status))
             }
-            if t.status == "called" || t.status == "serving" {
+            if TokenStatus.isWithStaff(t.status) {
                 HStack(spacing: 8) {
-                    Button(isLast ? "Done" : "Done — send on") { Task { await act { _ = try await $0.complete(t.id); return isLast ? "Done" : "Sent to the next station" } } }
+                    Button(isLast ? "Done" : "Done — send on") { act(isLast ? "Done" : "Sent to the next station") { try await $0.complete(t.id) } }
                         .buttonStyle(.carbonPrimary).accessibilityIdentifier("camp-complete-\(t.number)")
                     if !isLast {
-                        Button("Done — finished") { Task { await act { _ = try await $0.finish(t.id); return "Finished — not sent on" } } }
+                        Button("Done — finished") { act("Finished — not sent on") { try await $0.finish(t.id) } }
                             .buttonStyle(.carbonTertiary).accessibilityIdentifier("camp-finish-\(t.number)")
                     }
-                    Button("Not here") { Task { await act { _ = try await $0.noShow(t.id); return "Marked not here" } } }
+                    Button("Not here") { act("Marked not here") { try await $0.noShow(t.id) } }
                         .buttonStyle(.carbonGhost).accessibilityIdentifier("camp-no-show-\(t.number)")
                 }
-                .disabled(busy)
+                .disabled(action.busy)
             }
         }
         .accessibilityElement(children: .contain)
@@ -77,24 +77,27 @@ struct CampStationView: View {
 
     private func reload() async {
         guard let client else { return }
-        await queue.load { try await CampApi(client: client).queue(station) }
+        await queue.load { try await TokenApi(client: client, module: .camp).worklist(slice) }
     }
 
-    /// Runs one action; its answer is what the volunteer is told happened.
-    private func act(_ call: (CampApi) async throws -> String) async {
+    private func callNext() async {
         guard let client else { return }
-        busy = true
-        defer { busy = false }
-        failure = nil
-        do {
-            let done = try await call(CampApi(client: client))
-            toast = done
-            UIAccessibility.post(notification: .announcement, argument: done)
+        await action.run(unreachable: Self.unreachable) {
+            let called = try await TokenApi(client: client, module: .camp).callNext(slice, counterLabel: callingRoom ?? station.name)
             await reload()
-        } catch let e as ApiError {
-            failure = e.message
-        } catch {
-            failure = "Could not reach the hospital server. Nothing was changed."
+            return called == nil ? "Nobody waiting" : "Called the next patient"
+        }
+    }
+
+    /// One action on the patient in front of the volunteer, then the queue again.
+    private func act(_ done: String, _ op: @escaping (TokenApi) async throws -> ModuleToken) {
+        guard let client else { return }
+        Task {
+            await action.run(unreachable: Self.unreachable) {
+                _ = try await op(TokenApi(client: client, module: .camp))
+                await reload()
+                return done
+            }
         }
     }
 }

@@ -30,10 +30,7 @@ final class ReceptionJourneyTests: JourneyCase {
     }
 
     private func chooseDepartment(named name: String) {
-        app.buttons["picker-department"].firstMatch.tap()
-        let item = app.buttons[name].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "the department is offered")
-        item.tap()
+        XCTAssertTrue(choose("picker-department", name), "the department is offered")
     }
 
     private func fillPerson(_ first: String, _ last: String, phone: String, age: String = "36") {
@@ -172,7 +169,9 @@ final class ReceptionJourneyTests: JourneyCase {
         }
         el("token-board").tap()
         XCTAssertTrue(el("screen-reception-queue").waitForExistence(timeout: 10))
-        XCTAssertTrue(reveal("queue-row-\(id)"), "on the board")
+        // The department holds every earlier run's waiting tokens today; this
+        // patient took the last number, so the row is at the end of a long list.
+        XCTAssertTrue(reveal("queue-row-\(id)", swipes: 60), "on the board")
     }
 
     func testCallNextIsTheServersChoice() {
@@ -181,12 +180,16 @@ final class ReceptionJourneyTests: JourneyCase {
         guard let id = p["id"] as? String, let dept else { return XCTFail("seeded") }
         let (status, _) = api.call("POST", "/api/opd/encounters", ["patient_id": id, "department_id": dept, "visit_type": "walk_in"])
         XCTAssertTrue((200..<300).contains(status), "a waiting token")
-        let calledBefore = api.list("/api/tokens/worklist?module=opd").filter { ($0["status"] as? String) == "called" }.count
+        let deptQueue = "/api/tokens/worklist?module=opd&scope=department&scope_id=\(dept)"
+        let calledBefore = api.list(deptQueue).filter { ($0["status"] as? String) == "called" }.count
         el("module-action-queue").tap()
+        // The board is the desk's department, never the whole hospital.
+        XCTAssertTrue(el("reception-queue-choose-department").waitForExistence(timeout: 10), "asks which department first")
+        XCTAssertTrue(choose("picker-board-department", "General Medicine"), "the department is offered")
         XCTAssertTrue(el("queue-call-next").waitForExistence(timeout: 10))
         el("queue-call-next").tap()
         XCTAssertTrue(el("queue-call-next-toast").waitForExistence(timeout: 10))
-        let calledAfter = api.list("/api/tokens/worklist?module=opd").filter { ($0["status"] as? String) == "called" }.count
+        let calledAfter = api.list(deptQueue).filter { ($0["status"] as? String) == "called" }.count
         XCTAssertEqual(calledAfter, calledBefore + 1, "exactly one token called, chosen by the server")
         shoot("reception-board")
     }

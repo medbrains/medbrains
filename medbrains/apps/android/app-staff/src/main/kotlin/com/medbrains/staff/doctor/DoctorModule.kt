@@ -1,5 +1,9 @@
 package com.medbrains.staff.doctor
 
+import com.medbrains.staff.shared.tokens.WorklistToken
+import com.medbrains.staff.shared.tokens.QueueSlice
+import com.medbrains.staff.shared.tokens.TokenModule
+import com.medbrains.staff.shared.tokens.TokenApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,12 +53,6 @@ class DoctorSession {
     val admissions = mutableStateMapOf<String, AdmissionRow>()
 }
 
-fun tokenTone(status: String): CarbonTone = when (status) {
-    "waiting" -> CarbonTone.Warning
-    "called", "serving" -> CarbonTone.Info
-    "completed" -> CarbonTone.Success
-    else -> CarbonTone.Neutral
-}
 
 /** The doctor module: a stack of its own screens, mirroring the RN module router. */
 @Composable
@@ -63,10 +61,11 @@ fun DoctorModule() {
     val session = remember { DoctorSession() }
     val client = LocalApiClient.current
     val api = DoctorApi(client)
+    val tokens = remember { TokenApi(client, TokenModule.OPD) }
     NavHost(nav, startDestination = "home") {
-        composable("home") { DoctorHome(nav, api) }
-        composable("queue") { QueueListScreen(nav, api, session) }
-        composable("queue/{id}") { QueueDetailScreen(nav, api, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
+        composable("home") { DoctorHome(nav, tokens) }
+        composable("queue") { QueueListScreen(nav, tokens, session) }
+        composable("queue/{id}") { QueueDetailScreen(nav, tokens, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
         composable("consultation/{id}") { ConsultationScreen(api, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
         composable("ipd-rounds") { IpdRoundsScreen(nav, NurseApi(client), session) }
         composable("round/{id}") { IpdRoundDetailScreen(session.admissions.getValue(it.arguments!!.getString("id")!!)) }
@@ -82,10 +81,10 @@ private data class Action(val id: String, val label: String, val detail: String,
  * where the doctor picks one.
  */
 @Composable
-fun DoctorHome(nav: NavHostController, api: DoctorApi) {
+fun DoctorHome(nav: NavHostController, tokens: TokenApi) {
     val identity = LocalIdentity.current
     val queue = remember { Remote<List<WorklistToken>>() }
-    LaunchedEffect(Unit) { queue.load { api.listWorklist() } }
+    LaunchedEffect(Unit) { queue.load { tokens.worklist(QueueSlice.Mine) } }
     val q by queue.state.collectAsState()
     val actions = listOf(
         Action("queue", "OPD queue", "Call next, view tokens, mark consult complete.", Icons.Filled.Groups, "queue", "opd.queue.list"),

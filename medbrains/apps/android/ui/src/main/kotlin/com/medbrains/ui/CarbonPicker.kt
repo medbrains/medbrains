@@ -53,6 +53,12 @@ fun CarbonPicker(
     tag: String? = null,
 ) {
     var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    // A hospital's eighty departments or two hundred doctors cannot be
+    // scrolled through in a menu: past a handful, type to narrow. The menu is
+    // not lazy, so it renders a bounded page of matches.
+    val searchable = options.size > SEARCHABLE_ABOVE
+    val shown = if (searchable) options.filter { it.label.contains(query, ignoreCase = true) }.take(MAX_SHOWN) else options
     val current = options.firstOrNull { it.id == selection }?.label ?: placeholder
     val tagged: (String) -> Modifier = { suffix -> if (tag != null) Modifier.testTag("$tag$suffix") else Modifier }
     Column(modifier.fillMaxWidth()) {
@@ -72,10 +78,13 @@ fun CarbonPicker(
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Box(Modifier.fillMaxWidth().height(if (error == null) 1.dp else 2.dp).background(if (error == null) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error).align(Alignment.BottomCenter))
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false; query = "" }) {
+                if (searchable) {
+                    CarbonTextField(query, { query = it }, "Search", Modifier.padding(horizontal = 12.dp).then(tagged("-search")))
+                }
                 if (allowNone) DropdownMenuItem(text = { Text(placeholder) }, onClick = { onSelect(null); open = false }, modifier = tagged("-none"))
-                options.forEach { option ->
-                    DropdownMenuItem(text = { Text(option.label) }, onClick = { onSelect(option.id); open = false }, modifier = tagged("-${option.id}"))
+                shown.forEach { option ->
+                    DropdownMenuItem(text = { Text(option.label) }, onClick = { onSelect(option.id); open = false; query = "" }, modifier = tagged("-${option.id}"))
                 }
             }
         }
@@ -85,3 +94,6 @@ fun CarbonPicker(
         }
     }
 }
+
+private const val SEARCHABLE_ABOVE = 12
+private const val MAX_SHOWN = 50

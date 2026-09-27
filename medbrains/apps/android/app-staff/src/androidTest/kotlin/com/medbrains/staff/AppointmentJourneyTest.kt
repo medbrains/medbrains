@@ -127,13 +127,11 @@ class AppointmentJourneyTest {
         compose.waitUntil(10_000) { has("patient-book") }
         tap("patient-book")
         compose.waitUntil(10_000) { has("screen-book-appointment") }
-        tap("picker-doctor")
-        compose.waitUntil(5_000) { has("picker-doctor-${doctor.id}") }
-        compose.onNodeWithTag("picker-doctor-${doctor.id}").performClick()
+        compose.onNodeWithTag("picker-doctor").performScrollTo()
+        with(Session) { compose.choose("picker-doctor", doctor.id, "E2E doctor ${Api.RUN}") }
         val dept = checkNotNull(api.firstDepartmentId())
-        tap("picker-department")
-        compose.waitUntil(5_000) { has("picker-department-$dept") }
-        compose.onNodeWithTag("picker-department-$dept").performClick()
+        compose.onNodeWithTag("picker-department").performScrollTo()
+        with(Session) { compose.choose("picker-department", dept, "General Medicine") }
         // The first slot the day offers, whatever time it is: the screen hides
         // the ones that have passed, so a fixed time is an assumption about the clock.
         compose.waitUntil(20_000) { firstSlot() != null }

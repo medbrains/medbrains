@@ -26,11 +26,17 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import com.medbrains.kit.ApiError
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
-import com.medbrains.staff.doctor.WorklistToken
-import com.medbrains.staff.doctor.tokenTone
+import com.medbrains.staff.shared.tokens.ModuleToken
+import com.medbrains.staff.shared.tokens.QueueActionState
+import com.medbrains.staff.shared.tokens.QueuePolling
+import com.medbrains.staff.shared.tokens.QueueSlice
+import com.medbrains.staff.shared.tokens.TokenApi
+import com.medbrains.staff.shared.tokens.TokenStatus
+import com.medbrains.staff.shared.tokens.WorklistToken
+import com.medbrains.staff.shared.tokens.countIn
+import com.medbrains.staff.shared.tokens.tokenTone
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonPicker
@@ -43,32 +49,33 @@ import com.medbrains.ui.PickerOption
 import com.medbrains.ui.RemoteContent
 import kotlinx.coroutines.launch
 
+private const val UNREACHABLE = "Could not reach the hospital server. Nothing was changed."
+
 /**
  * One camp station: its queue, one Call next, and what happened to the
  * patient in front of you. A step shared by two doctors asks which room you
  * are in, so the call tells the patient where to walk.
  */
 @Composable
-fun CampStationScreen(api: CampApi, station: CampStation, isLast: Boolean) {
+fun CampStationScreen(api: TokenApi, station: CampStation, isLast: Boolean) {
     val scope = rememberCoroutineScope()
     val queue = remember { Remote<List<WorklistToken>>() }
+    val action = remember { QueueActionState() }
     var room by remember { mutableStateOf<String?>(null) }
-    var toast by remember { mutableStateOf<String?>(null) }
-    var failure by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    LaunchedEffect(station.counter_id) { queue.poll(5_000) { api.queue(station) } }
+    val slice = QueueSlice.Counter(station.counter_id)
+    LaunchedEffect(station.counter_id) { queue.poll(QueuePolling.QUEUE_MS) { api.worklist(slice) } }
     val state by queue.state.collectAsState()
-    val waiting = state.value.orEmpty().count { it.status == "waiting" }
+    val waiting = state.value.orEmpty().countIn(TokenStatus.WAITING)
     val callingRoom = if (station.rooms.size > 1) room else station.rooms.firstOrNull() ?: station.name
 
-    /** Runs one action; its answer is what the volunteer is told happened. */
-    val act: (suspend () -> String) -> Unit = { call ->
+    /** One action on the queue; its answer is what the volunteer is told happened, then the queue again. */
+    val act: (suspend () -> String) -> Unit = { op ->
         scope.launch {
-            busy = true; failure = null
-            try {
-                toast = call()
-                queue.load { api.queue(station) }
-            } catch (e: ApiError) { failure = e.message } catch (e: Exception) { failure = "Could not reach the hospital server. Nothing was changed." } finally { busy = false }
+            action.run(UNREACHABLE) {
+                val done = op()
+                queue.load { api.worklist(slice) }
+                done
+            }
         }
     }
 
@@ -78,38 +85,39 @@ fun CampStationScreen(api: CampApi, station: CampStation, isLast: Boolean) {
             if (station.rooms.size > 1) {
                 CarbonPicker("Your room", station.rooms.map { PickerOption(it, it) }, room, { room = it }, placeholder = "Which room you call to", allowNone = false, tag = "camp-room-picker")
             }
-            toast?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("camp-toast").semantics { liveRegion = LiveRegionMode.Polite }) }
-            failure?.let { CarbonNotification(NotificationKind.Error, "Not done", it) }
-            CarbonPrimaryButton("Call next ($waiting waiting)", enabled = !busy && waiting > 0 && callingRoom != null, modifier = Modifier.testTag("camp-call-next"), onClick = {
-                act { if (api.callNext(station, callingRoom ?: station.name) == null) "Nobody waiting" else "Called the next patient" }
+            action.toast?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("camp-toast").semantics { liveRegion = LiveRegionMode.Polite }) }
+            action.failure?.let { CarbonNotification(NotificationKind.Error, "Not done", it) }
+            CarbonPrimaryButton("Call next ($waiting waiting)", enabled = !action.busy && waiting > 0 && callingRoom != null, modifier = Modifier.testTag("camp-call-next"), onClick = {
+                act { if (api.callNext(slice, callingRoom ?: station.name) == null) "Nobody waiting" else "Called the next patient" }
             })
         }
-        RemoteContent("camp-queue", state, "Couldn't load this station", "The hospital server did not answer. Do not read this as an empty queue.", { it.isEmpty() }, "Nobody here yet", "Patients appear once the station before this one is done with them.", { scope.launch { queue.load { api.queue(station) } } }) { rows ->
+        RemoteContent("camp-queue", state, "Couldn't load this station", "The hospital server did not answer. Do not read this as an empty queue.", { it.isEmpty() }, "Nobody here yet", "Patients appear once the station before this one is done with them.", { scope.launch { queue.load { api.worklist(slice) } } }) { rows ->
             LazyColumn(Modifier.fillMaxSize().testTag("camp-queue-tokens")) {
-                items(rows, key = { it.id }) { t -> TokenRow(t, isLast, busy, act, api) }
+                items(rows, key = { it.id }) { t -> TokenRow(t, isLast, action.busy, act, api) }
             }
         }
     }
 }
 
 @Composable
-private fun TokenRow(t: WorklistToken, isLast: Boolean, busy: Boolean, act: (suspend () -> String) -> Unit, api: CampApi) {
+private fun TokenRow(t: WorklistToken, isLast: Boolean, busy: Boolean, act: (suspend () -> String) -> Unit, api: TokenApi) {
+    fun then(done: String, op: suspend () -> ModuleToken) = act { op(); done }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("camp-row-${t.number}")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { CarbonRow("${t.number} · ${t.displayName}", t.counter_label) }
-            CarbonTag(t.status.replace('_', ' '), tokenTone(t.status))
+            CarbonTag(TokenStatus.label(t.status), tokenTone(t.status))
         }
-        if (t.status == "called" || t.status == "serving") {
+        if (TokenStatus.isWithStaff(t.status)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CarbonPrimaryButton(if (isLast) "Done" else "Done — send on", enabled = !busy, modifier = Modifier.testTag("camp-complete-${t.number}"), onClick = {
-                    act { api.complete(t.id); if (isLast) "Done" else "Sent to the next station" }
+                    then(if (isLast) "Done" else "Sent to the next station") { api.complete(t.id) }
                 })
                 if (!isLast) {
                     CarbonTertiaryButton("Done — finished", enabled = !busy, modifier = Modifier.testTag("camp-finish-${t.number}"), onClick = {
-                        act { api.finish(t.id); "Finished — not sent on" }
+                        then("Finished — not sent on") { api.finish(t.id) }
                     })
                 }
-                TextButton(onClick = { act { api.noShow(t.id); "Marked not here" } }, enabled = !busy, modifier = Modifier.testTag("camp-no-show-${t.number}")) { Text("Not here") }
+                TextButton(onClick = { then("Marked not here") { api.noShow(t.id) } }, enabled = !busy, modifier = Modifier.testTag("camp-no-show-${t.number}")) { Text("Not here") }
             }
         }
     }

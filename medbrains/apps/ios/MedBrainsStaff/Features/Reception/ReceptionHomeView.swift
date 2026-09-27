@@ -28,6 +28,8 @@ final class ReceptionSession {
     var source = "walk_in"
     var referredByName = ""
     var departments: [DepartmentRow] = []
+    /// The department list could not be loaded — an outage, never an empty hospital.
+    var departmentsFailed = false
     var doctors: [DoctorRow] = []
 
     func departmentName(_ id: String?) -> String? { departments.first { $0.id == id }?.name }
@@ -77,8 +79,8 @@ struct ReceptionHomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 HStack(spacing: 1) {
-                    StatTile(eyebrow: "Waiting", count: queue.value.map { $0.filter { $0.status == "waiting" }.count }, title: "OPD tokens waiting now")
-                    StatTile(eyebrow: "Called", count: queue.value.map { $0.filter { $0.status == "called" }.count }, title: "Called, not yet in")
+                    StatTile(eyebrow: "Waiting", count: queue.value.map { $0.count(in: TokenStatus.waiting) }, title: "Waiting for the desk's department")
+                    StatTile(eyebrow: "Called", count: queue.value.map { $0.count(in: TokenStatus.called) }, title: "Called, not yet in")
                 }
                 .padding(.horizontal, 16)
                 CarbonSectionTitle("Actions")
@@ -107,10 +109,12 @@ struct ReceptionHomeView: View {
             let api = ReceptionApi(client: client)
             async let d = try? api.departments()
             async let r = try? api.doctors()
-            session.departments = await d ?? []
+            let loaded = await d
+            session.departments = loaded ?? []
+            session.departmentsFailed = loaded == nil
             session.doctors = await r ?? []
-            if auth.identity?.can("opd.queue.list") ?? false {
-                await queue.load { try await DoctorApi(client: client).listWorklist() }
+            if auth.identity?.can("opd.queue.list") ?? false, let dept = session.departmentId {
+                await queue.load { try await TokenApi(client: client, module: .opd).worklist(.department(dept)) }
             }
         }
     }

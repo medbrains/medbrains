@@ -1,5 +1,13 @@
 package com.medbrains.staff.doctor
 
+import com.medbrains.staff.shared.tokens.ModuleToken
+import com.medbrains.staff.shared.tokens.QueueActionState
+import com.medbrains.staff.shared.tokens.countIn
+import com.medbrains.staff.shared.tokens.tokenTone
+import com.medbrains.staff.shared.tokens.TokenStatus
+import com.medbrains.staff.shared.tokens.WorklistToken
+import com.medbrains.staff.shared.tokens.QueueSlice
+import com.medbrains.staff.shared.tokens.TokenApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,8 +18,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,8 +32,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -52,41 +64,45 @@ import kotlinx.coroutines.launch
  * would race another desk and call one patient twice.
  */
 @Composable
-fun QueueListScreen(nav: NavHostController, api: DoctorApi, session: DoctorSession) {
+fun QueueListScreen(nav: NavHostController, api: TokenApi, session: DoctorSession) {
     val identity = LocalIdentity.current
     val remote = remember { Remote<List<WorklistToken>>() }
-    var calling by remember { mutableStateOf(false) }
-    var callError by remember { mutableStateOf<String?>(null) }
-    var toast by remember { mutableStateOf<String?>(null) }
+    val action = remember { QueueActionState() }
+    // Off: own patients, then the department's unassigned. On: the whole department.
+    var wholeDepartment by remember { mutableStateOf(false) }
+    val slice = if (wholeDepartment) QueueSlice.MyDepartments else QueueSlice.Mine
     val scope = rememberCoroutineScope()
-    suspend fun load() = remote.load { api.listWorklist().also { rows -> rows.forEach { session.tokens[it.id] = it } } }
-    LaunchedEffect(Unit) { load() }
+    suspend fun load() = remote.load { api.worklist(slice).also { rows -> rows.forEach { session.tokens[it.id] = it } } }
+    LaunchedEffect(wholeDepartment) { load() }
     val state by remote.state.collectAsState()
-    val waiting = state.value.orEmpty().count { it.status == "waiting" }
+    val waiting = state.value.orEmpty().countIn(TokenStatus.WAITING)
 
     Column(Modifier.fillMaxSize().testTag("screen-doctor-queue")) {
-        CarbonPageHeader("Doctor", "OPD queue", "Today's tokens — tap a row to begin a consult.")
+        CarbonPageHeader("Doctor", "OPD queue", if (wholeDepartment) "Everyone waiting in your department." else "Your patients first, then your department's unassigned.")
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp).toggleable(value = wholeDepartment, role = Role.Switch, onValueChange = { wholeDepartment = it }).testTag("queue-whole-department"), verticalAlignment = Alignment.CenterVertically) {
+            Text("Whole department", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Switch(checked = wholeDepartment, onCheckedChange = null)
+        }
         if (identity?.can("opd.token.manage") == true) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CarbonPrimaryButton(
                     if (waiting > 0) "Call next ($waiting waiting)" else "Call next",
-                    enabled = !calling,
+                    enabled = !action.busy,
                     modifier = Modifier.testTag("queue-call-next").semantics { contentDescription = if (waiting > 0) "Call the next patient, $waiting waiting" else "Call the next patient, nobody waiting" },
                     onClick = {
                         scope.launch {
-                            calling = true; callError = null
-                            try {
-                                val called = api.callNext()
-                                // Null is a real answer, not a failure: the queue is empty.
-                                toast = if (called != null) "Called the next patient" else "Nobody is waiting"
+                            action.run("Could not reach the hospital server.") {
+                                val called = api.callNext(slice)
                                 load()
-                            } catch (e: Exception) { callError = (e as? ApiError)?.message ?: "Could not reach the hospital server." } finally { calling = false }
+                                // Null is a real answer, not a failure: the queue is empty.
+                                if (called != null) "Called the next patient" else "Nobody is waiting"
+                            }
                         }
                     },
                 )
-                callError?.let { CarbonNotification(NotificationKind.Error, "Could not call the next patient", it) }
+                action.failure?.let { CarbonNotification(NotificationKind.Error, "Could not call the next patient", it) }
                 // The confirmation is the point: a call that says nothing is a call the doctor presses twice.
-                toast?.let { CarbonNotification(NotificationKind.Info, it, "", Modifier.testTag("queue-call-next-toast")) }
+                action.toast?.let { CarbonNotification(NotificationKind.Info, it, "", Modifier.testTag("queue-call-next-toast")) }
             }
         }
         RemoteContent(
@@ -114,7 +130,7 @@ fun QueueListScreen(nav: NavHostController, api: DoctorApi, session: DoctorSessi
  * takes `opd.visit.update`. A recall IS a call.
  */
 @Composable
-fun QueueDetailScreen(nav: NavHostController, api: DoctorApi, initial: WorklistToken) {
+fun QueueDetailScreen(nav: NavHostController, api: TokenApi, initial: WorklistToken) {
     val identity = LocalIdentity.current
     var token by remember { mutableStateOf(initial) }
     var busy by remember { mutableStateOf(false) }
@@ -143,13 +159,13 @@ fun QueueDetailScreen(nav: NavHostController, api: DoctorApi, initial: WorklistT
         }
         error?.let { CarbonNotification(NotificationKind.Error, "Action failed", it, Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (token.status == "waiting" && canWork) CarbonPrimaryButton("Call patient", enabled = !busy, modifier = Modifier.testTag("queue-call-patient"), onClick = { run { api.call(token.id) } })
-            if (token.status == "called" && canWork) {
+            if (token.status == TokenStatus.WAITING && canWork) CarbonPrimaryButton("Call patient", enabled = !busy, modifier = Modifier.testTag("queue-call-patient"), onClick = { run { api.call(token.id) } })
+            if (token.status == TokenStatus.CALLED && canWork) {
                 CarbonPrimaryButton("Patient is in", enabled = !busy, modifier = Modifier.testTag("queue-patient-is-in"), onClick = { run { api.serve(token.id) } })
                 CarbonTertiaryButton("Recall", enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("queue-recall-patient").semantics { contentDescription = "Call this token again" }, onClick = { run { api.call(token.id) } })
                 CarbonTertiaryButton("No-show", enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("queue-no-show").semantics { contentDescription = "Mark this patient as not present" }, onClick = { run { api.noShow(token.id) } })
             }
-            if (token.status == "serving" && canWork) CarbonPrimaryButton("Mark complete", enabled = !busy, modifier = Modifier.testTag("queue-mark-complete"), onClick = { run { api.complete(token.id) } })
+            if (token.status == TokenStatus.SERVING && canWork) CarbonPrimaryButton("Mark complete", enabled = !busy, modifier = Modifier.testTag("queue-mark-complete"), onClick = { run { api.complete(token.id) } })
             if (identity?.can("opd.visit.update") == true) {
                 CarbonTertiaryButton("Consultation", enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("queue-open-consultation").semantics { contentDescription = "Open the consultation for this patient" }, onClick = { nav.navigate("consultation/${token.id}") })
             }

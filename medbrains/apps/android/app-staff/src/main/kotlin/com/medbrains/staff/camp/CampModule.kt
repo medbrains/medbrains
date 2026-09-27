@@ -26,6 +26,9 @@ import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
+import com.medbrains.staff.shared.tokens.QueuePolling
+import com.medbrains.staff.shared.tokens.TokenApi
+import com.medbrains.staff.shared.tokens.TokenModule
 import com.medbrains.ui.CarbonActionRow
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonSectionTitle
@@ -44,10 +47,11 @@ fun CampModule() {
     val nav = rememberNavController()
     val client = LocalApiClient.current
     val api = remember { CampApi(client) }
+    val tokens = remember { TokenApi(client, TokenModule.CAMP) }
     val stations = remember { Remote<List<CampStation>>() }
     // A coordinator often starts the route after the volunteers have opened
     // the app; the camp has to appear without a restart.
-    LaunchedEffect(Unit) { stations.poll(15_000) { api.stations() } }
+    LaunchedEffect(Unit) { stations.poll(QueuePolling.CAMP_STATIONS_MS) { api.stations() } }
     val state by stations.state.collectAsState()
     val byId = { id: String -> placed(state.value.orEmpty()).first { it.station.counter_id == id } }
     NavHost(nav, startDestination = "home") {
@@ -55,7 +59,7 @@ fun CampModule() {
         composable("register/{id}") { CampRegisterScreen(api, byId(it.arguments!!.getString("id")!!).station) }
         composable("station/{id}") {
             val step = byId(it.arguments!!.getString("id")!!)
-            CampStationScreen(api, step.station, step.last)
+            CampStationScreen(tokens, step.station, step.last)
         }
     }
 }

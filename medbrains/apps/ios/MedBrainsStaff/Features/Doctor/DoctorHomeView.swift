@@ -31,7 +31,7 @@ struct DoctorHomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
                 HStack(spacing: 1) {
-                    StatTile(eyebrow: "Queue", count: queue.value.map { $0.filter { $0.status == "waiting" }.count }, title: "OPD queue (today)")
+                    StatTile(eyebrow: "Queue", count: queue.value.map { $0.count(in: TokenStatus.waiting) }, title: "OPD queue (today)")
                     StatTile(eyebrow: "Vitals", count: nil, title: "Pending review")
                 }
                 .padding(.horizontal, 16)
@@ -57,7 +57,7 @@ struct DoctorHomeView: View {
         }
         .task {
             guard let client else { return }
-            await queue.load { try await DoctorApi(client: client).listWorklist() }
+            await queue.load { try await TokenApi(client: client, module: .opd).worklist(.mine) }
         }
     }
 
@@ -70,14 +70,5 @@ struct DoctorHomeView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("module-action-\(id)")
         }
-    }
-}
-
-func tokenTone(_ status: String) -> CarbonTone {
-    switch status {
-    case "waiting": .warning
-    case "called", "serving": .info
-    case "completed": .success
-    default: .neutral
     }
 }

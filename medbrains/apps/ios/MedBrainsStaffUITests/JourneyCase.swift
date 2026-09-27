@@ -42,6 +42,16 @@ class JourneyCase: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))
     }
 
+    /// The opposite drag of `scrollDown`.
+    func scrollUp() {
+        // Below the navigation bar (a drag that starts on it scrolls nothing)
+        // and above the keyboard.
+        let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.18))
+        let to = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.48))
+        from.press(forDuration: 0.05, thenDragTo: to)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+    }
+
     /// Bring something into view and tap it. Existing in the tree is not the
     /// same as being tappable: a scroll view can hold it off-screen and the
     /// keyboard can cover it, and a tap on either lands nowhere.
@@ -49,7 +59,9 @@ class JourneyCase: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "element is on screen", file: file, line: line)
         for _ in 0..<swipes {
             if element.isHittable { element.tap(); return }
-            scrollDown()
+            // A field above the fold (an error sent the form back up to it)
+            // is reached by scrolling the other way.
+            if element.exists, element.frame.maxY < app.frame.height * 0.15 { scrollUp() } else { scrollDown() }
         }
         XCTAssertTrue(element.isHittable, "element never came into view", file: file, line: line)
         element.tap()
@@ -76,6 +88,22 @@ class JourneyCase: XCTestCase {
             if el(id).exists { return true }
         }
         return el(id).waitForExistence(timeout: 2)
+    }
+
+    /// Choose `option` in a `CarbonPicker`: a short one is a menu, a long one a
+    /// searchable sheet — type to narrow it first, as a desk would.
+    @discardableResult
+    func choose(_ picker: String, _ option: String) -> Bool {
+        app.buttons[picker].firstMatch.tap()
+        let search = app.searchFields.firstMatch
+        if search.waitForExistence(timeout: 2) {
+            search.tap()
+            search.typeText(option)
+        }
+        let item = app.buttons[option].firstMatch
+        guard item.waitForExistence(timeout: 5) else { return false }
+        item.tap()
+        return true
     }
 
     /// Any static text whose label contains `text`, waited for.
