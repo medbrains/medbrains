@@ -39,6 +39,16 @@ const CASES: &[Case] = &[
         ],
     ),
     ("sex unknown", true, &[("gender", "unknown")]),
+    (
+        "unknown patient as sent",
+        false,
+        &[
+            ("is_unknown_patient", "true"),
+            ("gender", "unknown"),
+            ("first_name", "Unknown"),
+            ("attributes.allergy_status", "not_asked_yet"),
+        ],
+    ),
     ("age too high", true, &[("age_years", "126")]),
     (
         "date of birth instead of age",

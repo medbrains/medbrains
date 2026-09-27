@@ -129,6 +129,19 @@ fn a_referral_by_any_route_names_who_referred() {
 }
 
 #[test]
+fn a_medico_legal_case_needs_its_number() {
+    let d = walk_in_with(&[("is_medico_legal", "true")]);
+    assert_eq!(fields_wrong(&d), ["mlc_number"]);
+    assert!(
+        fields_wrong(&walk_in_with(&[
+            ("is_medico_legal", "true"),
+            ("mlc_number", "MLC/2026/17")
+        ]))
+        .is_empty()
+    );
+}
+
+#[test]
 fn known_allergies_are_named() {
     let d = walk_in_with(&[("attributes.allergy_status", "known_allergies")]);
     assert_eq!(fields_wrong(&d), ["attributes.known_allergies"]);
@@ -169,4 +182,16 @@ fn every_id_is_unique_and_every_rule_names_real_fields() {
             }
         }
     }
+}
+
+#[test]
+fn the_request_an_unknown_patient_becomes_is_accepted() {
+    // The form sends sex "unknown" for an unknown patient; the same rules on
+    // the server must accept what the form sends.
+    let sent = draft(&[
+        ("is_unknown_patient", "true"),
+        ("gender", "unknown"),
+        ("attributes.allergy_status", "not_asked_yet"),
+    ]);
+    assert!(fields_wrong(&sent).is_empty());
 }

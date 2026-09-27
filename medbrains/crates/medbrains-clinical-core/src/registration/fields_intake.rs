@@ -103,7 +103,12 @@ pub(super) const INTAKE: &[Field] = &[
                 unless: &[UNKNOWN],
                 ..rule(Check::Required, "Choose the patient's sex")
             },
-            rule(Check::OneOfOptions, "Choose the patient's sex"),
+            // An unknown patient is sent as "unknown" — the one value the
+            // desk cannot choose, and the one the record must then carry.
+            Rule {
+                unless: &[UNKNOWN],
+                ..rule(Check::OneOfOptions, "Choose the patient's sex")
+            },
         ],
     ),
     with(

@@ -47,63 +47,6 @@ struct MatchQuery: Encodable {
     let phone: String
 }
 
-/// What the phone records about how this registration was checked, so a
-/// second UHID for the same person is never silent.
-struct MobileRegistrationAttributes: Encodable {
-    let source: String
-    let duplicateCheck: String
-    let matchedUhid: String?
-}
-
-/// The choices the registration rules accept, with the words the desk reads.
-/// Values match `medbrains-clinical-core` (`GENDERS`, `ALLERGY_STATUSES`) and
-/// the web form; the shared catalogue replaces this list in the next phase.
-enum RegistrationChoices {
-    static let genders: [(value: String, label: String)] = [("female", "Female"), ("male", "Male"), ("other", "Other")]
-    static let allergyStatuses: [(value: String, label: String)] = [
-        ("not_asked_yet", "Not asked yet"), ("no_known_allergies", "No known allergies"), ("known_allergies", "Known allergies"),
-    ]
-    /// Honest when nobody asked: it says so, rather than reading as "none".
-    static let allergyNotAsked = "not_asked_yet"
-    static let noKnownAllergies = "no_known_allergies"
-    static let knownAllergies = "known_allergies"
-    static let referralSource = "referral"
-}
-
-struct CreatePatientBody: Encodable {
-    struct Attributes: Encodable {
-        let mobileRegistration: MobileRegistrationAttributes
-        /// Same keys the web form writes, so a clinician reads one answer everywhere.
-        let allergyStatus: String
-        let noKnownAllergies: Bool
-        let knownAllergies: String?
-    }
-    let firstName: String
-    let lastName: String
-    let gender: String
-    let phone: String
-    let dateOfBirth: String
-    let isDobEstimated: Bool
-    let registrationType: String
-    let registrationSource: String
-    let referredByName: String?
-    let departmentId: String?
-    let consultantId: String?
-    let abhaNumber: String?
-    let isMedicoLegal: Bool
-    let mlcNumber: String?
-    let isVip: Bool
-    let attributes: Attributes
-    /// What the patient agreed to be messaged on. No email is taken at this
-    /// desk, so email is never agreed here.
-    let contact: ContactPreferences
-}
-
-struct ContactPreferences: Encodable {
-    let whatsappOptIn: Bool
-    let emailOptIn: Bool
-}
-
 struct DepartmentRow: Decodable, Hashable, Identifiable, Sendable {
     let id: String
     let code: String
@@ -138,7 +81,8 @@ struct ReceptionApi: Sendable {
     let client: ApiClient
 
     func matchPatients(_ q: MatchQuery) async throws -> [MatchCandidate] { try await client.request(.post, "/api/patients/match", body: q) }
-    func createPatient(_ body: CreatePatientBody) async throws -> PatientSummary { try await client.request(.post, "/api/patients", body: body) }
+    /// The request is the shared core's (`registrationRequestJson`), sent as built.
+    func createPatient(_ body: JSONValue) async throws -> PatientSummary { try await client.request(.post, "/api/patients", body: body) }
     /// The desk's lookup, not the caller's own list. `/api/patients` is scoped
     /// to patients this user has a relationship with, so a receptionist could
     /// not find one a colleague registered; `/find` reaches the whole hospital

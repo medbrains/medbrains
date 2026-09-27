@@ -35,6 +35,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: "Unconscious or unidentified: register now, name them when you can.",
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "prefix",
@@ -105,6 +108,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "first_name",
@@ -142,6 +153,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "middle_name",
@@ -165,6 +184,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "last_name",
@@ -188,6 +215,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: "Leave empty for someone with a single name.",
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "age_years",
@@ -212,6 +247,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: false,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "date_of_birth",
@@ -243,6 +286,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "gender",
@@ -287,12 +338,25 @@ export const registrationCatalogue: RegistrationCatalogue = {
           },
           when: [],
           when_all: [],
-          unless: [],
+          unless: [
+            {
+              field: "is_unknown_patient",
+              is: ["true"],
+            },
+          ],
           message: "Choose the patient's sex",
         },
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "blood_group",
@@ -343,6 +407,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "phone",
@@ -383,6 +450,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "attributes.has_no_phone",
@@ -395,6 +470,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: "Many elderly patients have none; the record says so rather than a made-up number.",
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "phone_secondary",
@@ -417,6 +500,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [
+        {
+          field: "is_unknown_patient",
+          is: ["true"],
+        },
+      ],
+      default: null,
     },
     {
       id: "registration_type",
@@ -463,6 +554,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: "new",
     },
     {
       id: "registration_source",
@@ -513,6 +607,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: "walk_in",
     },
     {
       id: "camp_id",
@@ -568,6 +665,18 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_type",
+          is: ["camp"],
+        },
+        {
+          field: "registration_source",
+          is: ["camp"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "camp_name",
@@ -580,6 +689,18 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_type",
+          is: ["camp"],
+        },
+        {
+          field: "registration_source",
+          is: ["camp"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "department_id",
@@ -607,6 +728,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "consultant_id",
@@ -619,6 +743,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "clinical_unit",
@@ -631,6 +758,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "initial_diagnosis_text",
@@ -643,6 +773,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "create_opd_visit",
@@ -655,6 +788,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: false,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.allergy_status",
@@ -700,6 +836,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: "not_asked_yet",
     },
     {
       id: "email",
@@ -736,6 +875,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "contact.preferred_method",
@@ -766,6 +908,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "contact.whatsapp_opt_in",
@@ -793,6 +938,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "contact.email_opt_in",
@@ -820,6 +968,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "abha_number",
@@ -844,6 +995,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "abha_address",
@@ -856,6 +1010,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "aadhaar_number",
@@ -880,6 +1037,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.referred_by_kind",
@@ -922,6 +1082,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: "self",
     },
     {
       id: "attributes.referred_by_user_id",
@@ -934,6 +1097,22 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_source",
+          is: ["referral"],
+        },
+        {
+          field: "registration_type",
+          is: ["referral"],
+        },
+        {
+          field: "attributes.referred_by_kind",
+          is: ["doctor", "asha", "camp_worker", "facility", "ngo", "other"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "referred_by_name",
@@ -970,6 +1149,22 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_source",
+          is: ["referral"],
+        },
+        {
+          field: "registration_type",
+          is: ["referral"],
+        },
+        {
+          field: "attributes.referred_by_kind",
+          is: ["doctor", "asha", "camp_worker", "facility", "ngo", "other"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "referred_by_phone",
@@ -992,6 +1187,22 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_source",
+          is: ["referral"],
+        },
+        {
+          field: "registration_type",
+          is: ["referral"],
+        },
+        {
+          field: "attributes.referred_by_kind",
+          is: ["doctor", "asha", "camp_worker", "facility", "ngo", "other"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "referred_by_facility",
@@ -1004,6 +1215,22 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "registration_source",
+          is: ["referral"],
+        },
+        {
+          field: "registration_type",
+          is: ["referral"],
+        },
+        {
+          field: "attributes.referred_by_kind",
+          is: ["doctor", "asha", "camp_worker", "facility", "ngo", "other"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "is_medico_legal",
@@ -1016,6 +1243,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "mlc_number",
@@ -1043,6 +1273,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "is_medico_legal",
+          is: ["true"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "is_vip",
@@ -1055,6 +1293,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "father_name",
@@ -1067,6 +1308,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "guardian_name",
@@ -1079,6 +1323,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "guardian_relation",
@@ -1091,6 +1338,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "marital_status",
@@ -1133,6 +1383,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "religion",
@@ -1145,6 +1398,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "occupation",
@@ -1157,6 +1413,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.line1",
@@ -1169,6 +1428,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.line2",
@@ -1181,6 +1443,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.landmark",
@@ -1193,6 +1458,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.city",
@@ -1205,6 +1473,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.district",
@@ -1217,6 +1488,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.state",
@@ -1229,6 +1503,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.postal_code",
@@ -1241,6 +1518,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "address.country",
@@ -1253,6 +1533,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.next_of_kin.name",
@@ -1265,6 +1548,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.next_of_kin.relation",
@@ -1277,6 +1563,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.next_of_kin.phone",
@@ -1299,6 +1588,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.emergency_contact.name",
@@ -1311,6 +1603,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.emergency_contact.relation",
@@ -1323,6 +1618,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.emergency_contact.phone",
@@ -1345,6 +1643,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.known_allergies",
@@ -1372,6 +1673,14 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [
+        {
+          field: "attributes.allergy_status",
+          is: ["known_allergies"],
+        },
+      ],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.drug_allergies",
@@ -1384,6 +1693,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.preferred_room_class",
@@ -1422,6 +1734,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.dietary_preference",
@@ -1464,6 +1779,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.dietary_restrictions",
@@ -1476,6 +1794,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.religious_observances",
@@ -1488,6 +1809,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.language_preference",
@@ -1500,6 +1824,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.primary_physician_id",
@@ -1512,6 +1839,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.primary_physician_name",
@@ -1524,6 +1854,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.secondary_insurance.provider",
@@ -1536,6 +1869,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.secondary_insurance.policy_no",
@@ -1548,6 +1884,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "attributes.attendant_passes_count",
@@ -1572,6 +1911,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       ],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "category",
@@ -1634,6 +1976,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
     {
       id: "financial_class",
@@ -1672,6 +2017,9 @@ export const registrationCatalogue: RegistrationCatalogue = {
       rules: [],
       sent: true,
       hint: null,
+      show_when: [],
+      hide_when: [],
+      default: null,
     },
   ],
 };

@@ -537,44 +537,6 @@ pub fn consultation_problem(
     clinical::consultation::consultation_problem(&chief_complaint, &examination, &assessment, &plan)
 }
 
-/// What the desk typed, as the registration rules see it (UDL record).
-#[derive(Debug, Clone)]
-pub struct RegistrationDraft {
-    pub first_name: String,
-    pub last_name: String,
-    pub phone: String,
-    pub date_of_birth: String,
-    pub age_years: Option<u32>,
-    pub gender: String,
-    pub allergy_status: String,
-    pub known_allergies: String,
-    pub registration_source: String,
-    pub referred_by_name: String,
-    pub is_medico_legal: bool,
-    pub mlc_number: String,
-    pub abha_number: String,
-}
-
-impl From<RegistrationDraft> for clinical::registration::RegistrationDraft {
-    fn from(d: RegistrationDraft) -> Self {
-        Self {
-            first_name: d.first_name,
-            last_name: d.last_name,
-            phone: d.phone,
-            date_of_birth: d.date_of_birth,
-            age_years: d.age_years,
-            gender: d.gender,
-            allergy_status: d.allergy_status,
-            known_allergies: d.known_allergies,
-            registration_source: d.registration_source,
-            referred_by_name: d.referred_by_name,
-            is_medico_legal: d.is_medico_legal,
-            mlc_number: d.mlc_number,
-            abha_number: d.abha_number,
-        }
-    }
-}
-
 /// A refusal on one registration field, in the desk's words (UDL record).
 #[derive(Debug, Clone)]
 pub struct RegistrationProblem {
@@ -599,19 +561,37 @@ pub fn registration_carries_over(field: String) -> bool {
     clinical::registration::registration_carries_over(&field)
 }
 
-pub fn registration_problem(draft: RegistrationDraft) -> Option<RegistrationProblem> {
-    clinical::registration::registration_problem(&draft.into()).map(Into::into)
-}
-
 pub fn registration_catalogue_json() -> String {
     clinical::registration::catalogue_json()
 }
 
-pub fn registration_problems(draft: std::collections::HashMap<String, String>) -> Vec<RegistrationProblem> {
+// UniFFI maps `record<string, string>` to exactly this type.
+#[allow(clippy::implicit_hasher)]
+pub fn registration_problems(
+    draft: std::collections::HashMap<String, String>,
+) -> Vec<RegistrationProblem> {
     clinical::registration::registration_problems(&draft.into_iter().collect())
         .into_iter()
         .map(Into::into)
         .collect()
+}
+
+// UniFFI maps `record<string, string>` to exactly this type.
+#[allow(clippy::implicit_hasher)]
+pub fn registration_request_json(
+    draft: std::collections::HashMap<String, String>,
+    today_year: i32,
+) -> String {
+    clinical::registration::registration_request(&draft.into_iter().collect(), today_year)
+        .to_string()
+}
+
+// UniFFI maps `record<string, string>` to exactly this type.
+#[allow(clippy::implicit_hasher)]
+pub fn registration_visible_fields(
+    draft: std::collections::HashMap<String, String>,
+) -> Vec<String> {
+    clinical::registration::visible_fields(&draft.into_iter().collect())
 }
 
 pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {

@@ -349,19 +349,26 @@ export function PatientRegisterPageInner() {
         }
       : undefined;
     let check = nextCheckState<MpiMatchResult[]>({ type: "failed" }, NO_MATCHES);
-    try {
-      const matches = await patientsService.matchPatients({
-        first_name: req.first_name,
-        last_name: req.last_name,
-        date_of_birth: req.date_of_birth ?? undefined,
-        phone: req.phone ?? undefined,
-      });
-      check = nextCheckState({ type: "checked", findings: matches }, NO_MATCHES);
-    } catch {
-      // Registration still has to work when MPI is down — a camp intake cannot
-      // stop for it — so this proceeds. But nobody has been compared, and a
-      // missed match means a second UHID for someone who already has one, so
-      // the registrar is told rather than left to assume it was checked.
+    // An unknown patient has only the placeholder name "Unknown Patient":
+    // matching it offers the day's earlier unconscious patients as "the same
+    // person", and choosing one would merge two people. Nobody is compared.
+    if (req.is_unknown_patient) {
+      check = nextCheckState({ type: "checked", findings: [] }, NO_MATCHES);
+    } else {
+      try {
+        const matches = await patientsService.matchPatients({
+          first_name: req.first_name,
+          last_name: req.last_name,
+          date_of_birth: req.date_of_birth ?? undefined,
+          phone: req.phone ?? undefined,
+        });
+        check = nextCheckState({ type: "checked", findings: matches }, NO_MATCHES);
+      } catch {
+        // Registration still has to work when MPI is down — a camp intake cannot
+        // stop for it — so this proceeds. But nobody has been compared, and a
+        // missed match means a second UHID for someone who already has one, so
+        // the registrar is told rather than left to assume it was checked.
+      }
     }
 
     const action = registrationAction(check);

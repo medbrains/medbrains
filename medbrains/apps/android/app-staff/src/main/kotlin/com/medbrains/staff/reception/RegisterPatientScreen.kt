@@ -2,6 +2,7 @@ package com.medbrains.staff.reception
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,126 +11,143 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.medbrains.kit.ApiError
+import com.medbrains.staff.shared.forms.CatalogueFieldView
+import com.medbrains.staff.shared.forms.CatalogueOption
+import com.medbrains.staff.shared.forms.OptionLists
+import com.medbrains.staff.shared.forms.RegistrationCatalogue
+import com.medbrains.staff.shared.forms.RegistrationDraftValues
+import com.medbrains.ui.CarbonDangerButton
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
-import com.medbrains.ui.CarbonPicker
 import com.medbrains.ui.CarbonPrimaryButton
 import com.medbrains.ui.CarbonRow
-import com.medbrains.ui.CarbonSectionTitle
 import com.medbrains.ui.CarbonTag
 import com.medbrains.ui.CarbonTertiaryButton
-import com.medbrains.ui.CarbonDangerButton
-import com.medbrains.ui.CarbonTextField
 import com.medbrains.ui.CarbonTonedTile
 import com.medbrains.ui.CarbonTone
 import com.medbrains.ui.Eyebrow
 import com.medbrains.ui.NotificationKind
-import com.medbrains.ui.PickerOption
 import kotlinx.coroutines.launch
-import uniffi.edge_rn.RegistrationDraft
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import uniffi.edge_rn.RegistrationProblem
-import uniffi.edge_rn.estimatedDateOfBirth
 import uniffi.edge_rn.registrationAction
-import uniffi.edge_rn.registrationCarriesOver
-import uniffi.edge_rn.registrationProblem
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 
 /**
- * One screen, no sections to scroll through: the person, the safety flags,
- * and the desk. "Check and register" runs the duplicate check first and never
- * creates silently — a match is confirmed, a check that could not run is said
- * out loud, and what happened is written into the record.
+ * Registration, step by step, as the shared core defines it: the catalogue
+ * says which fields each step has and which are on screen, the core's rules
+ * say what is wrong, and the core builds the request. This screen only draws
+ * and sends. "Check and register" runs the duplicate check first and never
+ * creates silently — a match is confirmed, a check that could not run is
+ * said out loud, and what happened is written into the record.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: ReceptionSession) {
     val scope = rememberCoroutineScope()
-    var firstName by remember { mutableStateOf("") }
-    var lastName by remember { mutableStateOf("") }
-    // Empty until the desk chooses: a default recorded every untouched patient as female.
-    var gender by remember { mutableStateOf("") }
-    var allergyStatus by remember { mutableStateOf(RegistrationChoices.ALLERGY_NOT_ASKED) }
-    var knownAllergies by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var dateOfBirth by remember { mutableStateOf<LocalDate?>(null) }
-    var age by remember { mutableStateOf("") }
-    var abha by remember { mutableStateOf("") }
-    var isMedicoLegal by remember { mutableStateOf(false) }
-    var mlcNumber by remember { mutableStateOf("") }
-    var isVip by remember { mutableStateOf(false) }
-    var whatsappOptIn by remember { mutableStateOf(false) }
-    var problem by remember { mutableStateOf<RegistrationProblem?>(null) }
+    val catalogue = RegistrationCatalogue.shared
+    val draft = remember { RegistrationDraftValues() }
+    // 0…3 are the catalogue's steps; the last is Review.
+    var stepIndex by remember { mutableIntStateOf(0) }
+    var shown by remember { mutableStateOf<List<RegistrationProblem>>(emptyList()) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var candidates by remember { mutableStateOf<List<MatchCandidate>?>(null) }
     var checkUnavailable by remember { mutableStateOf(false) }
     var registered by remember { mutableStateOf<PatientSummary?>(null) }
-    var pickingDate by remember { mutableStateOf(false) }
+    val stepCount = catalogue.steps.size + 1
+    val onReview = stepIndex == catalogue.steps.size
+    val lists = OptionLists(
+        departments = session.departments.map { CatalogueOption(it.id, it.name) },
+        doctors = session.doctors.map { CatalogueOption(it.id, it.full_name) },
+    )
 
-    fun err(field: String) = problem?.takeIf { it.field == field }?.message
-    fun draft() = RegistrationDraft(firstName, lastName, phone, dateOfBirth?.toString() ?: "", age.trim().toUIntOrNull(), gender, allergyStatus, knownAllergies, session.source, session.referredByName, isMedicoLegal, mlcNumber, abha)
+    /** The desk's department and consultant, kept between walk-ins. */
+    fun takeDeskContext() {
+        if (draft["department_id"].isEmpty()) session.departmentId?.let { draft["department_id"] = it }
+        if (draft["consultant_id"].isEmpty()) session.consultantId?.let { draft["consultant_id"] = it }
+    }
+    LaunchedEffect(Unit) { takeDeskContext() }
+
+    /** The problems on screen in [step] (null: every step). */
+    fun problems(step: String?): List<RegistrationProblem> {
+        val visible = draft.visible()
+        val ids = catalogue.fields.filter { step == null || it.step == step }.map { it.id }.toSet()
+        return draft.problems().filter { it.field in ids && it.field in visible }
+    }
+
+    fun next() {
+        shown = problems(catalogue.steps[stepIndex].step)
+        if (shown.isEmpty()) stepIndex += 1
+    }
 
     suspend fun create(duplicateCheck: String, matchedUhid: String?) {
         busy = true
         try {
-            val years = age.trim().toUIntOrNull() ?: 0u
-            val dob = dateOfBirth?.toString() ?: estimatedDateOfBirth(years, LocalDate.now().year)
-            val body = CreatePatientBody(
-                first_name = firstName.trim(), last_name = lastName.trim(), gender = gender, phone = phone.trim(),
-                date_of_birth = dob, is_dob_estimated = dateOfBirth == null,
-                registration_type = "new", registration_source = session.source,
-                referred_by_name = session.referredByName.takeIf { session.source == RegistrationChoices.REFERRAL_SOURCE && it.isNotBlank() },
-                department_id = session.departmentId, consultant_id = session.consultantId,
-                abha_number = abha.filter { it.isDigit() }.ifEmpty { null },
-                is_medico_legal = isMedicoLegal, mlc_number = if (isMedicoLegal) mlcNumber else null, is_vip = isVip,
-                attributes = RegistrationAttributes(MobileRegistration(session.source, duplicateCheck, matchedUhid), allergyStatus, allergyStatus == RegistrationChoices.NO_KNOWN_ALLERGIES, knownAllergies.takeIf { allergyStatus == RegistrationChoices.KNOWN_ALLERGIES }),
-                contact = ContactPreferences(whatsapp_opt_in = whatsappOptIn, email_opt_in = false),
-            )
-            registered = api.createPatient(body).also { session.patients[it.id] = it }
+            val request = Json.parseToJsonElement(draft.request(LocalDate.now().year)).jsonObject
+            // How this registration was checked, so a second UHID is never silent.
+            val audit = JsonObject(mapOf(
+                "source" to JsonPrimitive("mobile_staff"), "duplicate_check" to JsonPrimitive(duplicateCheck),
+                "matched_uhid" to (matchedUhid?.let { JsonPrimitive(it) } ?: JsonNull),
+            ))
+            val attributes = JsonObject((request["attributes"]?.jsonObject ?: JsonObject(emptyMap())) + ("mobile_registration" to audit))
+            val patient = api.createPatient(JsonObject(request + ("attributes" to attributes)).toString())
+            session.patients[patient.id] = patient
+            registered = patient
+            draft["department_id"].ifEmpty { null }?.let { session.departmentId = it }
+            session.consultantId = draft["consultant_id"].ifEmpty { null }
+            if (draft.isOn("create_opd_visit") && draft["department_id"].isNotEmpty()) {
+                val visit = api.startVisit(StartVisitBody(patient.id, draft["department_id"], draft["consultant_id"].ifEmpty { null }, draft["initial_diagnosis_text"].ifEmpty { null }, "walk_in"))
+                session.visits[patient.id] = visit
+                nav.navigate("token/${patient.id}")
+            }
         } catch (e: ApiError) { failure = e.message } catch (e: Exception) { failure = "Could not reach the hospital server. Nothing was registered." } finally { busy = false }
     }
 
-    /** The core rule stops the tap; then the match; then the sheet, the warning, or the create. */
+    /** Every step's rules first; then the match; then the sheet, the warning, or the create. */
     suspend fun checkAndRegister() {
-        problem = registrationProblem(draft())
-        if (problem != null) return
+        val all = problems(null)
+        all.firstOrNull()?.let { first ->
+            shown = all
+            catalogue.steps.indexOfFirst { it.step == catalogue.field(first.field)?.step }.takeIf { it >= 0 }?.let { stepIndex = it }
+            return
+        }
         failure = null
         if (checkUnavailable) { create("unverified", null); return }
         busy = true
-        val found = runCatching { api.matchPatients(MatchQuery(firstName.trim(), lastName.trim(), dateOfBirth?.toString(), phone.trim())) }.getOrNull()
+        val found = if (draft.isOn("is_unknown_patient")) emptyList() else runCatching {
+            api.matchPatients(MatchQuery(draft["first_name"], draft["last_name"], draft["date_of_birth"].ifEmpty { null }, draft["phone"]))
+        }.getOrNull()
         busy = false
         when (registrationAction(found == null, (found?.size ?: 0).toUInt())) {
             "confirm" -> candidates = found
@@ -138,114 +156,54 @@ fun RegisterPatientScreen(nav: NavHostController, api: ReceptionApi, session: Re
         }
     }
 
-    /** The person is cleared; the desk stays. Which is which is the core's call. */
+    /** The person is cleared; the desk stays. */
     fun nextWalkIn() {
-        registered = null; checkUnavailable = false; problem = null
-        listOf("first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip", "whatsapp_opt_in").filterNot { registrationCarriesOver(it) }.forEach {
-            when (it) {
-                "first_name" -> firstName = ""; "last_name" -> lastName = ""; "phone" -> phone = ""
-                "date_of_birth" -> dateOfBirth = null; "age_years" -> age = ""; "abha_number" -> abha = ""
-                "is_medico_legal" -> isMedicoLegal = false; "mlc_number" -> mlcNumber = ""; "is_vip" -> isVip = false; "whatsapp_opt_in" -> whatsappOptIn = false
-            }
-        }
-        gender = ""
-        allergyStatus = RegistrationChoices.ALLERGY_NOT_ASKED
-        knownAllergies = ""
+        registered = null; checkUnavailable = false; shown = emptyList(); failure = null
+        draft.clearPerson()
+        stepIndex = 0
+        takeDeskContext()
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().testTag("screen-register-patient")) {
-        CarbonPageHeader("Reception", "Register a patient", "Two identifiers, a phone, and where they are going.")
-        val done = registered
-        if (done != null) {
-            RegisteredCard(nav, done, ::nextWalkIn)
-        } else {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                CarbonSectionTitle("Person")
-                CarbonTextField(firstName, { firstName = it }, "First name", Modifier.testTag("field-first_name"), error = err("first_name"))
-                CarbonTextField(lastName, { lastName = it }, "Last name", Modifier.testTag("field-last_name"), error = err("last_name"))
-                Column {
-                    Text("Sex", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-gender")) {
-                        RegistrationChoices.GENDERS.forEachIndexed { i, (v, label) ->
-                            SegmentedButton(selected = gender == v, onClick = { gender = v }, shape = SegmentedButtonDefaults.itemShape(i, RegistrationChoices.GENDERS.size), modifier = Modifier.testTag("gender-$v")) { Text(label) }
-                        }
-                    }
-                    err("gender")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                }
-                CarbonTextField(phone, { phone = it }, "Phone", Modifier.testTag("field-phone"), error = err("phone"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
-                Column {
-                    Text("Date of birth", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    CarbonTertiaryButton(dateOfBirth?.toString() ?: "Pick a date", onClick = { pickingDate = true }, modifier = Modifier.fillMaxWidth().testTag("field-date_of_birth"))
-                    err("date_of_birth")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                }
-                CarbonTextField(age, { age = it }, "Or age in years, if they do not know the date", Modifier.testTag("field-age"), error = err("age_years"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                CarbonTextField(abha, { abha = it }, "ABHA number (optional)", Modifier.testTag("field-abha_number"), error = err("abha_number"), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-
-                CarbonSectionTitle("Safety")
-                Column {
-                    Text("Allergies", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-allergy_status")) {
-                        RegistrationChoices.ALLERGY_STATUSES.forEachIndexed { i, (v, label) ->
-                            SegmentedButton(selected = allergyStatus == v, onClick = { allergyStatus = v }, shape = SegmentedButtonDefaults.itemShape(i, RegistrationChoices.ALLERGY_STATUSES.size), modifier = Modifier.testTag("allergy-$v")) { Text(label) }
-                        }
-                    }
-                    err("allergy_status")?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-                }
-                if (allergyStatus == RegistrationChoices.KNOWN_ALLERGIES) {
-                    CarbonTextField(knownAllergies, { knownAllergies = it }, "Known allergies", Modifier.testTag("field-known_allergies"), error = err("known_allergies"), singleLine = false)
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Medico-legal case", style = MaterialTheme.typography.bodyLarge)
-                    Switch(checked = isMedicoLegal, onCheckedChange = { isMedicoLegal = it }, modifier = Modifier.testTag("switch-mlc").semantics { contentDescription = "Medico-legal case" })
-                }
-                if (isMedicoLegal) CarbonTextField(mlcNumber, { mlcNumber = it }, "MLC number", Modifier.testTag("field-mlc_number"), error = err("mlc_number"))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("VIP", style = MaterialTheme.typography.bodyLarge)
-                    Switch(checked = isVip, onCheckedChange = { isVip = it }, modifier = Modifier.testTag("switch-vip").semantics { contentDescription = "VIP" })
-                }
-
-                CarbonSectionTitle("Contact")
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Hospital updates on WhatsApp", style = MaterialTheme.typography.bodyLarge)
-                    Switch(checked = whatsappOptIn, onCheckedChange = { whatsappOptIn = it }, modifier = Modifier.testTag("switch-whatsapp_opt_in").semantics { contentDescription = "Hospital updates on WhatsApp" })
-                }
-                Text(
-                    "Ask the patient — leave off unless they say yes. SMS about their registration and visits needs no agreement.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                CarbonSectionTitle("Desk — kept for the next walk-in")
-                CarbonPicker("Department", session.departments.map { PickerOption(it.id, it.name) }, session.departmentId, { session.departmentId = it }, placeholder = "No department yet", tag = "picker-department")
-                CarbonPicker("Consultant", session.doctors.map { PickerOption(it.id, it.full_name) }, session.consultantId, { session.consultantId = it }, placeholder = "Any consultant", tag = "picker-consultant")
-                Column {
-                    Text("Coming from", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("field-source")) {
-                        listOf("walk_in" to "Walk-in", RegistrationChoices.REFERRAL_SOURCE to "Referral").forEachIndexed { i, (v, label) ->
-                            SegmentedButton(selected = session.source == v, onClick = { session.source = v }, shape = SegmentedButtonDefaults.itemShape(i, 2)) { Text(label) }
+    Column(Modifier.fillMaxSize().imePadding().testTag("screen-register-patient")) {
+        val scroll = rememberScrollState()
+        // Where each field sits in the scrolling column, to bring a refused one into view.
+        val fieldTops = remember { mutableStateMapOf<String, Int>() }
+        // A new step opens at its top, never where the last one was scrolled to.
+        LaunchedEffect(stepIndex) { scroll.scrollTo(0) }
+        // A refused step shows the first field to fix, not wherever the desk was.
+        LaunchedEffect(shown) { shown.firstOrNull()?.let { p -> fieldTops[p.field]?.let { scroll.animateScrollTo(it) } } }
+        Column(Modifier.weight(1f).verticalScroll(scroll).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            val title = if (onReview) "Review" else catalogue.steps[stepIndex].title
+            Column(Modifier.testTag("register-step-title")) { CarbonPageHeader("Reception", "Register a patient", "Step ${stepIndex + 1} of $stepCount · $title") }
+            LinearProgressIndicator(progress = { (stepIndex + 1).toFloat() / stepCount }, modifier = Modifier.fillMaxWidth())
+            val done = registered
+            if (done != null) {
+                RegisteredCard(nav, done, ::nextWalkIn)
+            } else {
+                val visible = draft.visible()
+                if (onReview) {
+                    RegistrationReview(draft, lists, visible, onEdit = { stepIndex = it })
+                } else {
+                    catalogue.fieldsIn(catalogue.steps[stepIndex].step).filter { it.id in visible }.forEach { field ->
+                        Box(Modifier.onGloballyPositioned { fieldTops[field.id] = it.positionInParent().y.toInt() }) {
+                            CatalogueFieldView(field, draft, lists, shown.firstOrNull { it.field == field.id }?.message)
                         }
                     }
                 }
-                if (session.source == RegistrationChoices.REFERRAL_SOURCE) CarbonTextField(session.referredByName, { session.referredByName = it }, "Referred by", Modifier.testTag("field-referred_by_name"), error = err("referred_by_name"))
-
                 if (checkUnavailable) CarbonNotification(NotificationKind.Warning, "Duplicate check unavailable", "Nobody was compared. Registering now may give this person a second UHID; the record will say the check did not run.")
                 failure?.let { CarbonNotification(NotificationKind.Error, "Not registered", it) }
-                CarbonPrimaryButton(if (checkUnavailable) "Register unverified" else "Check and register", enabled = !busy, modifier = Modifier.testTag("register-submit"), onClick = { scope.launch { checkAndRegister() } })
             }
         }
-    }
-
-    if (pickingDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = dateOfBirth?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { pickingDate = false },
-            confirmButton = { TextButton(onClick = { dateOfBirth = state.selectedDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }; pickingDate = false }, modifier = Modifier.testTag("date-ok")) { Text("Use this date") } },
-            dismissButton = { TextButton(onClick = { pickingDate = false }) { Text("Cancel") } },
-        ) { DatePicker(state = state) }
+        if (registered == null) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (stepIndex > 0) CarbonTertiaryButton("Back", onClick = { shown = emptyList(); stepIndex -= 1 }, modifier = Modifier.weight(1f).testTag("register-step-back"))
+                if (onReview) {
+                    CarbonPrimaryButton(if (checkUnavailable) "Register unverified" else "Check and register", enabled = !busy, modifier = Modifier.weight(2f).testTag("register-submit"), onClick = { scope.launch { checkAndRegister() } })
+                } else {
+                    CarbonPrimaryButton("Next", modifier = Modifier.weight(2f).testTag("register-step-next"), onClick = { next() })
+                }
+            }
+        }
     }
 
     candidates?.let { found ->

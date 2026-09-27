@@ -90,6 +90,17 @@ class JourneyCase: XCTestCase {
         return el(id).waitForExistence(timeout: 2)
     }
 
+    /// Turn a full-width Toggle on or off. Its centre is the label, which does
+    /// not flip it; the switch is at the trailing edge.
+    func flip(_ id: String) {
+        let toggle = app.switches[id].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "\(id) is on screen")
+        let before = toggle.value as? String
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        let flipped = NSPredicate(format: "value != %@", before ?? "")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: flipped, object: toggle)], timeout: 5), .completed, "\(id) flipped")
+    }
+
     /// Choose `option` in a `CarbonPicker`: a short one is a menu, a long one a
     /// searchable sheet — type to narrow it first, as a desk would.
     @discardableResult
