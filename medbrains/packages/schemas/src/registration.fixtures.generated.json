@@ -101,6 +101,16 @@
     ]
   },
   {
+    "name": "unknown patient as sent",
+    "draft": {
+      "attributes.allergy_status": "not_asked_yet",
+      "first_name": "Unknown",
+      "gender": "unknown",
+      "is_unknown_patient": "true"
+    },
+    "problems": []
+  },
+  {
     "name": "age too high",
     "draft": {
       "age_years": "126",

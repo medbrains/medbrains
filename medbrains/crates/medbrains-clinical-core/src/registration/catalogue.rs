@@ -139,6 +139,13 @@ pub struct Field {
     pub sent: bool,
     /// Help the desk reads under the field, if any.
     pub hint: Option<&'static str>,
+    /// Shown only when any of these match (always, when empty) — the MLC
+    /// number with a medico-legal case, the camp with a camp patient.
+    pub show_when: &'static [Cond],
+    /// Hidden when any of these match — a name for an unknown patient.
+    pub hide_when: &'static [Cond],
+    /// What a new draft starts with, if anything — the same the web form starts with.
+    pub default: Option<&'static str>,
 }
 
 /// The whole catalogue, for the generators and the native apps.
@@ -180,5 +187,8 @@ pub(crate) const fn plain(id: &'static str, label: &'static str, step: Step, kin
         rules: &[],
         sent: true,
         hint: None,
+        show_when: &[],
+        hide_when: &[],
+        default: None,
     }
 }

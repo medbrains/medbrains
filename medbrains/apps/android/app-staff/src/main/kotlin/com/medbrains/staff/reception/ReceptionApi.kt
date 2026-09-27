@@ -35,52 +35,7 @@ data class MatchCandidate(val id: String, val uhid: String, val first_name: Stri
 
 @Serializable data class MatchQuery(val first_name: String, val last_name: String, val date_of_birth: String?, val phone: String)
 
-/** What the phone records about how this registration was checked, so a second UHID is never silent. */
-@Serializable data class MobileRegistration(val source: String, val duplicate_check: String, val matched_uhid: String?)
-/**
- * Same keys the web form writes, so a clinician reads one allergy answer
- * everywhere.
- */
-@Serializable data class RegistrationAttributes(val mobile_registration: MobileRegistration, val allergy_status: String, val no_known_allergies: Boolean, val known_allergies: String?)
 
-/**
- * The choices the registration rules accept, with the words the desk reads.
- * Values match `medbrains-clinical-core` (`GENDERS`, `ALLERGY_STATUSES`) and
- * the web form; the shared catalogue replaces this list in the next phase.
- */
-object RegistrationChoices {
-    val GENDERS = listOf("female" to "Female", "male" to "Male", "other" to "Other")
-    val ALLERGY_STATUSES = listOf("not_asked_yet" to "Not asked yet", "no_known_allergies" to "No known allergies", "known_allergies" to "Known allergies")
-    /** Honest when nobody asked: it says so, rather than reading as "none". */
-    const val ALLERGY_NOT_ASKED = "not_asked_yet"
-    const val NO_KNOWN_ALLERGIES = "no_known_allergies"
-    const val KNOWN_ALLERGIES = "known_allergies"
-    const val REFERRAL_SOURCE = "referral"
-}
-
-@Serializable
-data class CreatePatientBody(
-    val first_name: String,
-    val last_name: String,
-    val gender: String,
-    val phone: String,
-    val date_of_birth: String,
-    val is_dob_estimated: Boolean,
-    val registration_type: String,
-    val registration_source: String,
-    val referred_by_name: String?,
-    val department_id: String?,
-    val consultant_id: String?,
-    val abha_number: String?,
-    val is_medico_legal: Boolean,
-    val mlc_number: String?,
-    val is_vip: Boolean,
-    val attributes: RegistrationAttributes,
-    /** What the patient agreed to be messaged on. No email is taken at this desk. */
-    val contact: ContactPreferences,
-)
-
-@Serializable data class ContactPreferences(val whatsapp_opt_in: Boolean, val email_opt_in: Boolean)
 
 @Serializable data class DepartmentRow(val id: String, val code: String, val name: String)
 @Serializable data class DoctorRow(val id: String, val full_name: String, val specialization: String? = null)
@@ -97,7 +52,9 @@ data class VisitStarted(val encounter: Encounter, val queue: Queue) {
 
 class ReceptionApi(private val client: ApiClient) {
     suspend fun matchPatients(q: MatchQuery): List<MatchCandidate> = client.post("/api/patients/match", q)
-    suspend fun createPatient(body: CreatePatientBody): PatientSummary = client.post("/api/patients", body)
+    /** The request is the shared core's (`registrationRequestJson`), sent as built. */
+    suspend fun createPatient(body: String): PatientSummary =
+        client.json.decodeFromString(PatientSummary.serializer(), client.call("POST", "/api/patients", body))
     /// The desk's lookup, not the caller's own list. `/api/patients` is scoped
     /// to patients this user has a relationship with, so a receptionist could
     /// not find one a colleague registered; `/find` reaches the whole hospital

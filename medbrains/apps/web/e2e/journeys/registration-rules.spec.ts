@@ -55,3 +55,26 @@ test("the desk is told to choose a sex and to give a phone or say there is none"
   await expect(page.getByText("Choose the patient's sex")).toBeVisible();
   await expect(page.getByText("Enter a phone number, or tick Has no phone")).toBeVisible();
 });
+
+test("an unknown patient is registered and the record says so", async ({ hospital }) => {
+  test.setTimeout(120_000);
+  const dept = await hospital.department("Unknown OPD");
+  const page = await hospital.as("receptionist");
+  await page.goto("/patients/register");
+  await page.getByRole("checkbox", { name: /unknown patient/i }).check();
+  await page.getByTestId("picker-department").fill(dept.name);
+  await page.getByRole("option", { name: new RegExp(`^${dept.name} \\(`) }).click();
+  for (let step = 0; step < 4; step += 1) await page.getByTestId("btn-next").click();
+  const registered = page.waitForResponse(
+    (r) => r.url().endsWith("/api/patients") && r.request().method() === "POST",
+  );
+  await page.getByTestId("btn-register").click();
+  const response = await registered;
+  // The form sends sex "unknown" for an unknown patient; the server's rules
+  // must accept exactly that (they refused it once).
+  expect(response.status(), await response.text()).toBe(200);
+  const created = (await response.json()) as { first_name: string; gender: string; is_unknown_patient: boolean };
+  expect(created.first_name).toBe("Unknown");
+  expect(created.gender).toBe("unknown");
+  expect(created.is_unknown_patient).toBe(true);
+});
