@@ -47,7 +47,7 @@ async fn a_lab_report_prints_only_once_the_order_has_been_released() {
         &app,
         &csrf,
         "/api/patients",
-        json!({ "first_name": "Release", "last_name": "Gate", "gender": "female", "phone": "9990000411" }),
+        json!({ "first_name": "Release", "last_name": "Gate", "gender": "female", "date_of_birth": "1985-06-15", "phone": "9990000411" }),
     )
     .await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();

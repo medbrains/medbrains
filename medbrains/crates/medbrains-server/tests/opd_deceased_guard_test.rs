@@ -13,6 +13,7 @@ async fn register(app: &common::TestApp, csrf: &str, phone: &str) -> (Uuid, Uuid
             "first_name": "Deceased",
             "last_name": "Guard",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": phone,
         }))
         .send()

@@ -58,6 +58,7 @@ async fn discharge_summary_report_counts_missing_summaries() {
                     "first_name": "Discharge",
                     "last_name": "Summary",
                     "gender": "male",
+                    "date_of_birth": "1985-06-15",
                     "phone": format!("99900070{idx:02}"),
                 }))
                 .send()

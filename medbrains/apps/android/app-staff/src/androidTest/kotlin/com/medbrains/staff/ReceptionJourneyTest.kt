@@ -62,8 +62,13 @@ class ReceptionJourneyTest {
         with(Session) { compose.choose("picker-department", id, name) }
     }
 
-    private fun fillPerson(first: String, last: String, phone: String, age: String = "36") {
+    /**
+     * The person, as the desk types them — including a sex actually chosen:
+     * the form has no default. Pass `sex = null` to leave it untouched.
+     */
+    private fun fillPerson(first: String, last: String, phone: String, age: String = "36", sex: String? = "female") {
         type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age", age)
+        sex?.let { tap("gender-$it") }
     }
 
     private fun patientByPhone(phone: String) = api.list("/api/patients?search=$phone&per_page=5").firstOrNull { it.optString("phone") == phone }
@@ -130,6 +135,25 @@ class ReceptionJourneyTest {
         val created = rows.first { it.optString("uhid") != existing.getString("uhid") }
         val reg = api.obj("GET", "/api/patients/${created.getString("id")}").let { it.optJSONObject("patient") ?: it }.optJSONObject("attributes")?.optJSONObject("mobile_registration")
         check(reg?.optString("duplicate_check") == "overridden" && reg.optString("matched_uhid") == existing.getString("uhid")) { "the override and what it overrode are on the record" }
+    }
+
+    /** An untouched sex used to be recorded as female. Now it stops the tap, and the allergy answer travels with the record. */
+    @Test
+    fun sexMustBeChosenAndAllergiesAreRecorded() {
+        val phone = freshPhone()
+        openRegister()
+        fillPerson("Sex", "Choice${Api.RUN}", phone, sex = null)
+        tap("register-submit")
+        compose.waitUntil(5_000) { seesText("Choose the patient's sex") }
+        check(patientByPhone(phone) == null) { "refused on the field: no request left the phone" }
+        tap("gender-male")
+        tap("allergy-no_known_allergies")
+        tap("register-submit")
+        compose.waitUntil(15_000) { has("registered-uhid") }
+        val full = api.obj("GET", "/api/patients/${checkNotNull(patientByPhone(phone)).getString("id")}").let { it.optJSONObject("patient") ?: it }
+        check(full.optString("gender") == "male") { "the sex the desk chose" }
+        val attrs = full.optJSONObject("attributes")
+        check(attrs?.optString("allergy_status") == "no_known_allergies" && attrs.optBoolean("no_known_allergies")) { "the same allergy keys the web writes" }
     }
 
     @Test

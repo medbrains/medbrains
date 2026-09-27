@@ -81,9 +81,10 @@ struct TokenIssuedView: View {
             VStack(alignment: .leading, spacing: 16) {
                 CarbonTile(tone: .info) {
                     Eyebrow("Token")
-                    Text("\(visit.queue.tokenNumber)").font(CarbonType.display).foregroundStyle(MedBrainsTheme.ink)
+                    // Verbatim: a token is a number read out, not a quantity — never "1,003".
+                    Text(verbatim: String(visit.queue.tokenNumber)).font(CarbonType.display).foregroundStyle(MedBrainsTheme.ink)
                         .accessibilityIdentifier("token-number")
-                    Text("Tell them token \(visit.queue.tokenNumber) for \(departmentName).").font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
+                    Text(verbatim: "Tell them token \(visit.queue.tokenNumber) for \(departmentName).").font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
                 }
                 CarbonRow(patient.fullName, detail: patient.identifiers)
                 CarbonRow("Status", detail: visit.queue.status)

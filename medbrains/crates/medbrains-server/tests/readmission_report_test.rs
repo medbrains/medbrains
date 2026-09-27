@@ -51,6 +51,7 @@ async fn readmission_rate_excludes_patients_who_died() {
                     "first_name": "Readmission",
                     "last_name": "Watch",
                     "gender": "male",
+                    "date_of_birth": "1985-06-15",
                     "phone": format!("99900090{idx:02}"),
                 }))
                 .send()

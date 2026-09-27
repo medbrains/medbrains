@@ -47,7 +47,7 @@ async fn critical_result_pages_the_ordering_doctor_once_and_only_with_a_dialable
         &app,
         &csrf,
         "/api/patients",
-        json!({ "first_name": "Linkage", "last_name": "Critical", "gender": "male", "phone": "9990000076" }),
+        json!({ "first_name": "Linkage", "last_name": "Critical", "gender": "male", "date_of_birth": "1985-06-15", "phone": "9990000076" }),
     )
     .await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();

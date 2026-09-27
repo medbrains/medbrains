@@ -26,6 +26,7 @@ async fn critical_value_report_counts_notification_stages() {
             "first_name": "Critical",
             "last_name": "Value",
             "gender": "female",
+            "date_of_birth": "1985-06-15",
             "phone": "9990006001",
         }))
         .send()

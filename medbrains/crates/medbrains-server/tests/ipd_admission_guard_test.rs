@@ -35,6 +35,7 @@ async fn double_admission_is_rejected() {
             "first_name": "Guard",
             "last_name": "DoubleAdmit",
             "gender": "male",
+            "date_of_birth": "1985-06-15",
             "phone": "9990000042",
         }))
         .send()

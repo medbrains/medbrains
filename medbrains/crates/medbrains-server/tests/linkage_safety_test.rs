@@ -16,6 +16,7 @@ async fn create_patient(app: &common::TestApp, csrf: &str, last: &str, blood_gro
         "first_name": "Linkage",
         "last_name": last,
         "gender": "female",
+        "date_of_birth": "1985-06-15",
         "phone": format!("99900{:05}", (Uuid::new_v4().as_u128() % 100_000) as u32),
     });
     if let Some(bg) = blood_group {
