@@ -82,12 +82,14 @@ namespace edge_rn {
     string registration_action(boolean check_unavailable, u32 matches);
     /// Whether a registration field is desk context kept for the next walk-in.
     boolean registration_carries_over(string field);
-    /// The first field that stops a registration, or none.
-    RegistrationProblem? registration_problem(RegistrationDraft draft);
     /// The full registration form — steps, fields, options, rules — as JSON.
     string registration_catalogue_json();
     /// Every problem with a draft (field id → value), in the form's order.
     sequence<RegistrationProblem> registration_problems(record<string, string> draft);
+    /// The create-patient request a finished draft becomes, as JSON.
+    string registration_request_json(record<string, string> draft, i32 today_year);
+    /// The ids of the registration fields on screen for this draft, in order.
+    sequence<string> registration_visible_fields(record<string, string> draft);
     /// 1 January of the birth year, for someone who only knows their age.
     string estimated_date_of_birth(u32 age_years, i32 today_year);
     /// What a booking offers the desk: "check_in" and "no_show" on its day while still open, else nothing.
@@ -108,22 +110,6 @@ namespace edge_rn {
     string describe_band_state(string state);
     /// The day's brief from the phone's own record.
     DailyBrief daily_brief(sequence<MedicationPlan> medications, sequence<AdherenceEvent> adherence, sequence<string> observation_days, i64 now_unix);
-};
-
-dictionary RegistrationDraft {
-    string first_name;
-    string last_name;
-    string phone;
-    string date_of_birth;
-    u32? age_years;
-    string gender;
-    string allergy_status;
-    string known_allergies;
-    string registration_source;
-    string referred_by_name;
-    boolean is_medico_legal;
-    string mlc_number;
-    string abha_number;
 };
 
 dictionary RegistrationProblem {

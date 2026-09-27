@@ -30,9 +30,13 @@ mod fields_intake;
 mod fields_more;
 pub mod fixtures;
 pub mod options;
+pub mod request;
 pub mod rules;
+mod visibility;
+pub use visibility::visible_fields;
 
 pub use catalogue::{Catalogue, Field, STEPS, StepTitle};
+pub use request::registration_request;
 pub use rules::Draft;
 
 #[cfg(test)]
@@ -71,29 +75,6 @@ pub struct RegistrationProblem {
     pub message: String,
 }
 
-/// What the desk typed, as the rules see it.
-#[derive(Debug, Clone, Default)]
-pub struct RegistrationDraft {
-    pub first_name: String,
-    pub last_name: String,
-    pub phone: String,
-    /// ISO date, or empty when the desk gave an age instead.
-    pub date_of_birth: String,
-    /// Years, when the person does not know their date of birth.
-    pub age_years: Option<u32>,
-    /// One of the catalogue's sexes; empty until the desk chooses.
-    pub gender: String,
-    /// One of the catalogue's allergy answers.
-    pub allergy_status: String,
-    /// What they are allergic to, when the answer is "known allergies".
-    pub known_allergies: String,
-    pub registration_source: String,
-    pub referred_by_name: String,
-    pub is_medico_legal: bool,
-    pub mlc_number: String,
-    pub abha_number: String,
-}
-
 /// The whole form: every step and field, in order.
 #[must_use]
 pub fn catalogue() -> Catalogue {
@@ -102,7 +83,7 @@ pub fn catalogue() -> Catalogue {
             .iter()
             .map(|&(step, title)| StepTitle { step, title })
             .collect(),
-        fields: fields().copied().collect(),
+        fields: fields().copied().map(visibility::with_visibility).collect(),
     }
 }
 
@@ -128,53 +109,6 @@ pub fn registration_problems(draft: &Draft) -> Vec<RegistrationProblem> {
     rules::problems(&all, draft)
 }
 
-impl RegistrationDraft {
-    /// The same answers as field id → value, for the catalogue's rules.
-    #[must_use]
-    pub fn to_draft(&self) -> Draft {
-        let flag = |b: bool| if b { "true" } else { "false" }.to_owned();
-        [
-            ("first_name", self.first_name.clone()),
-            ("last_name", self.last_name.clone()),
-            ("phone", self.phone.clone()),
-            ("date_of_birth", self.date_of_birth.clone()),
-            (
-                "age_years",
-                self.age_years.map(|a| a.to_string()).unwrap_or_default(),
-            ),
-            ("gender", self.gender.clone()),
-            ("attributes.allergy_status", self.allergy_status.clone()),
-            ("attributes.known_allergies", self.known_allergies.clone()),
-            ("registration_source", self.registration_source.clone()),
-            ("referred_by_name", self.referred_by_name.clone()),
-            ("is_medico_legal", flag(self.is_medico_legal)),
-            ("mlc_number", self.mlc_number.clone()),
-            ("abha_number", self.abha_number.clone()),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect()
-    }
-}
-
-/// The first thing that stops this registration, or none — the one-screen
-/// intake's question, answered by the same rules as the full form.
-#[must_use]
-pub fn registration_problem(draft: &RegistrationDraft) -> Option<RegistrationProblem> {
-    registration_problems(&draft.to_draft())
-        .into_iter()
-        .next()
-        .map(|p| RegistrationProblem {
-            // The one-screen intake names this field without its `attributes.` path.
-            field: p
-                .field
-                .strip_prefix("attributes.")
-                .unwrap_or(&p.field)
-                .to_owned(),
-            message: p.message,
-        })
-}
-
 /// A date of birth for someone who only knows their age: 1 January of the
 /// year they were born, marked estimated by the caller.
 #[must_use]
@@ -187,22 +121,7 @@ pub fn estimated_date_of_birth(age_years: u32, today_year: i32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        RegistrationDraft, estimated_date_of_birth, registration_action, registration_carries_over,
-        registration_problem,
-    };
-
-    fn good() -> RegistrationDraft {
-        RegistrationDraft {
-            first_name: "Asha".into(),
-            last_name: "Rao".into(),
-            phone: "9876543210".into(),
-            date_of_birth: "1988-05-05".into(),
-            gender: "female".into(),
-            allergy_status: "not_asked_yet".into(),
-            ..RegistrationDraft::default()
-        }
-    }
+    use super::{estimated_date_of_birth, registration_action, registration_carries_over};
 
     #[test]
     fn an_unavailable_check_is_not_a_clean_check() {
@@ -223,96 +142,6 @@ mod tests {
         // would record a yes that patient never gave.
         assert!(!registration_carries_over("whatsapp_opt_in"));
         assert!(!registration_carries_over("email_opt_in"));
-    }
-
-    #[test]
-    fn a_second_identifier_is_required() {
-        let mut d = good();
-        d.date_of_birth.clear();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("date_of_birth".into())
-        );
-        d.age_years = Some(36);
-        assert_eq!(registration_problem(&d), None);
-    }
-
-    #[test]
-    fn a_medico_legal_case_needs_its_number() {
-        let mut d = good();
-        d.is_medico_legal = true;
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("mlc_number".into())
-        );
-        d.mlc_number = "MLC/2026/17".into();
-        assert_eq!(registration_problem(&d), None);
-    }
-
-    #[test]
-    fn phone_and_abha_have_shapes() {
-        let mut d = good();
-        d.phone = "12345".into();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("phone".into())
-        );
-        d.phone = "+91 98765 43210".into();
-        assert_eq!(registration_problem(&d), None);
-        d.abha_number = "12-3456-7890-12".into();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("abha_number".into())
-        );
-        d.abha_number = "12-3456-7890-1234".into();
-        assert_eq!(registration_problem(&d), None);
-    }
-
-    #[test]
-    fn the_desk_must_choose_a_sex() {
-        let mut d = good();
-        d.gender.clear();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("gender".into())
-        );
-        d.gender = "unknown".into();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("gender".into())
-        );
-        d.gender = "male".into();
-        assert_eq!(registration_problem(&d), None);
-    }
-
-    #[test]
-    fn allergies_are_answered_even_if_not_asked_yet() {
-        let mut d = good();
-        d.allergy_status.clear();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("allergy_status".into())
-        );
-        // "Known allergies" and none named tells the next clinician nothing.
-        d.allergy_status = "known_allergies".into();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("known_allergies".into())
-        );
-        d.known_allergies = "Penicillin — rash".into();
-        assert_eq!(registration_problem(&d), None);
-    }
-
-    #[test]
-    fn a_referral_names_who_referred() {
-        let mut d = good();
-        d.registration_source = "referral".into();
-        assert_eq!(
-            registration_problem(&d).map(|p| p.field),
-            Some("referred_by_name".into())
-        );
-        d.referred_by_name = "Dr Iyer, PHC Kottur".into();
-        assert_eq!(registration_problem(&d), None);
     }
 
     #[test]

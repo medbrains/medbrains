@@ -3,53 +3,71 @@ import MedBrainsKit
 import MedBrainsUI
 import SwiftUI
 
-/// One screen, no sections to scroll through: the person, the safety flags,
-/// and the desk. "Check and register" runs the duplicate check first and
-/// never creates silently — a match is confirmed, a check that could not run
-/// is said out loud, and what happened is written into the record.
+/// Registration, step by step, as the shared core defines it: the catalogue
+/// says which fields each step has and which are on screen, the core's rules
+/// say what is wrong, and the core builds the request. This screen only draws
+/// and sends. "Check and register" runs the duplicate check first and never
+/// creates silently — a match is confirmed, a check that could not run is
+/// said out loud, and what happened is written into the record.
 struct RegisterPatientView: View {
     @Environment(\.apiClient) private var client
     @Environment(ReceptionSession.self) private var session
     @Environment(\.calendar) private var calendar
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var firstName = ""
-    @State private var lastName = ""
-    /// Empty until the desk chooses: a default recorded every untouched patient as female.
-    @State private var gender = ""
-    @State private var allergyStatus = RegistrationChoices.allergyNotAsked
-    @State private var knownAllergies = ""
-    @State private var phone = ""
-    @State private var dateOfBirth: Date?
-    @State private var age = ""
-    @State private var abha = ""
-    @State private var isMedicoLegal = false
-    @State private var mlcNumber = ""
-    @State private var isVip = false
-    @State private var whatsappOptIn = false
-
-    @State private var problem: RegistrationProblem?
+    @State private var draft = RegistrationDraftValues()
+    /// 0…3 are the catalogue's steps; the last is Review.
+    @State private var stepIndex = 0
+    @State private var shown: [RegistrationProblem] = []
     @State private var failure: String?
     @State private var busy = false
     @State private var candidates: [MatchCandidate]?
     @State private var checkUnavailable = false
     @State private var registered: PatientSummary?
-    @FocusState private var focus: String?
+    @State private var visit: VisitStarted?
+
+    private let catalogue = RegistrationCatalogue.shared
+    private var stepCount: Int { catalogue.steps.count + 1 }
+    private var onReview: Bool { stepIndex == catalogue.steps.count }
+    private var stepTitle: String { onReview ? "Review" : catalogue.steps[stepIndex].title }
+    private var lists: OptionLists {
+        OptionLists(
+            departments: session.departments.map { CatalogueOption(value: $0.id, label: $0.name) },
+            doctors: session.doctors.map { CatalogueOption(value: $0.id, label: $0.fullName) }
+        )
+    }
 
     var body: some View {
-        @Bindable var session = session
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                CarbonPageHeader(eyebrow: "Reception", title: "Register a patient", subtitle: "Two identifiers, a phone, and where they are going.")
-                if let registered {
-                    RegisteredCard(patient: registered, onNext: nextWalkIn)
-                } else {
-                    form(session: $session)
+        VStack(spacing: 0) {
+            ScrollViewReader { reader in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    CarbonPageHeader(eyebrow: "Reception", title: "Register a patient", subtitle: "Step \(stepIndex + 1) of \(stepCount) · \(stepTitle)")
+                        .accessibilityIdentifier("register-step-title")
+                    ProgressView(value: Double(stepIndex + 1), total: Double(stepCount)).tint(MedBrainsTheme.interactive)
+                    if let registered {
+                        RegisteredCard(patient: registered, onNext: nextWalkIn)
+                    } else {
+                        stepContent
+                    }
                 }
+                .padding(16)
             }
+            // A new step opens at its top, never where the last one was scrolled to.
+            .id(stepIndex)
+            // A refused step shows the first field to fix, not wherever the desk was.
+            .onChange(of: shown.first?.field) { _, field in
+                if let field { withAnimation(reduceMotion ? nil : .default) { reader.scrollTo(field, anchor: .top) } }
+            }
+            }
+            if registered == nil { bottomBar }
         }
         .background(MedBrainsTheme.canvas)
         .navigationTitle("Register").navigationBarTitleDisplayMode(.inline)
+        // A container: without it the screen's id overwrites the step buttons' own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen-register-patient")
+        .onAppear(perform: takeDeskContext)
         .sheet(isPresented: Binding(get: { candidates != nil }, set: { if !$0 { candidates = nil } })) {
             DuplicateSheet(candidates: candidates ?? [], onRegisterAnyway: { matched in
                 candidates = nil
@@ -57,128 +75,87 @@ struct RegisterPatientView: View {
             })
             .environment(session)
         }
+        .navigationDestination(item: $visit) { v in
+            if let registered {
+                TokenIssuedView(patient: registered, visit: v, departmentName: session.departmentName(draft["department_id"]) ?? "the clinic")
+                    .environment(session)
+            }
+        }
     }
 
     @ViewBuilder
-    private func form(session: Bindable<ReceptionSession>) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            CarbonSectionTitle("Person")
-            CarbonField("First name", error: err("first_name"), isFocused: focus == "first_name") {
-                TextField("First name", text: $firstName).textContentType(.givenName).focused($focus, equals: "first_name").accessibilityIdentifier("field-first_name")
+    private var stepContent: some View {
+        let visible = draft.visible
+        if onReview {
+            RegistrationReview(draft: draft, lists: lists, visible: visible, onEdit: { stepIndex = $0 })
+        } else {
+            ForEach(catalogue.fields(in: catalogue.steps[stepIndex].step).filter { visible.contains($0.id) }) { field in
+                CatalogueFieldView(field: field, draft: draft, lists: lists, error: shown.first { $0.field == field.id }?.message)
+                    .id(field.id)
             }
-            CarbonField("Last name", error: err("last_name"), isFocused: focus == "last_name") {
-                TextField("Last name", text: $lastName).textContentType(.familyName).focused($focus, equals: "last_name").accessibilityIdentifier("field-last_name")
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Sex").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                Picker("Sex", selection: $gender) {
-                    ForEach(RegistrationChoices.genders, id: \.value) { Text($0.label).tag($0.value) }
-                }
-                .pickerStyle(.segmented).accessibilityIdentifier("field-gender")
-                if let e = err("gender") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
-            }
-            CarbonField("Phone", error: err("phone"), isFocused: focus == "phone") {
-                TextField("Phone", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber).focused($focus, equals: "phone").accessibilityIdentifier("field-phone")
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Date of birth").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                DatePicker("Date of birth", selection: Binding(get: { dateOfBirth ?? Date() }, set: { dateOfBirth = $0 }), in: ...Date(), displayedComponents: .date)
-                    .labelsHidden().accessibilityIdentifier("field-date_of_birth")
-                if let e = err("date_of_birth") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
-            }
-            CarbonField("Or age in years, if they do not know the date", error: err("age_years"), isFocused: focus == "age") {
-                TextField("Age", text: $age).keyboardType(.numberPad).focused($focus, equals: "age").accessibilityIdentifier("field-age")
-            }
-            CarbonField("ABHA number (optional)", error: err("abha_number"), isFocused: focus == "abha") {
-                TextField("14 digits", text: $abha).keyboardType(.numberPad).focused($focus, equals: "abha").accessibilityIdentifier("field-abha_number")
-            }
+        }
+        if checkUnavailable {
+            CarbonNotification(kind: .warning, title: "Duplicate check unavailable", message: "Nobody was compared. Registering now may give this person a second UHID; the record will say the check did not run.")
+        }
+        if let failure { CarbonNotification(kind: .error, title: "Not registered", message: failure) }
+    }
 
-            CarbonSectionTitle("Safety")
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Allergies").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                Picker("Allergies", selection: $allergyStatus) {
-                    ForEach(RegistrationChoices.allergyStatuses, id: \.value) { Text($0.label).tag($0.value) }
+    private var bottomBar: some View {
+        HStack(spacing: 8) {
+            if stepIndex > 0 {
+                Button("Back") { shown = []; stepIndex -= 1 }.buttonStyle(.carbonTertiary).accessibilityIdentifier("register-step-back")
+            }
+            if onReview {
+                Button { Task { await checkAndRegister() } } label: {
+                    HStack { Text(checkUnavailable ? "Register unverified" : "Check and register"); Spacer(); Image(systemName: "arrow.right") }
                 }
-                .pickerStyle(.segmented).accessibilityIdentifier("field-allergy_status")
-                if let e = err("allergy_status") { Text(e).font(CarbonType.helper).foregroundStyle(MedBrainsTheme.danger) }
+                .buttonStyle(.carbonPrimary).disabled(busy).accessibilityIdentifier("register-submit")
+            } else {
+                Button { next() } label: { HStack { Text("Next"); Spacer(); Image(systemName: "arrow.right") } }
+                    .buttonStyle(.carbonPrimary).accessibilityIdentifier("register-step-next")
             }
-            if allergyStatus == RegistrationChoices.knownAllergies {
-                CarbonField("Known allergies", error: err("known_allergies"), isFocused: focus == "allergies") {
-                    TextField("What, and what happens", text: $knownAllergies, axis: .vertical).lineLimit(1...4)
-                        .focused($focus, equals: "allergies").accessibilityIdentifier("field-known_allergies")
-                }
-            }
-            Toggle("Medico-legal case", isOn: $isMedicoLegal).font(CarbonType.body).accessibilityIdentifier("switch-mlc")
-            if isMedicoLegal {
-                CarbonField("MLC number", error: err("mlc_number"), isFocused: focus == "mlc") {
-                    TextField("MLC number", text: $mlcNumber).focused($focus, equals: "mlc").accessibilityIdentifier("field-mlc_number")
-                }
-            }
-            Toggle("VIP", isOn: $isVip).font(CarbonType.body).accessibilityIdentifier("switch-vip")
-
-            CarbonSectionTitle("Contact")
-            Toggle("Hospital updates on WhatsApp", isOn: $whatsappOptIn).font(CarbonType.body).accessibilityIdentifier("switch-whatsapp_opt_in")
-            Text("Ask the patient — leave off unless they say yes. SMS about their registration and visits needs no agreement.")
-                .font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary)
-
-            CarbonSectionTitle("Desk — kept for the next walk-in")
-            CarbonPicker("Department", options: session.wrappedValue.departments.map { .init(id: $0.id, label: $0.name) }, selection: session.departmentId, placeholder: "No department yet")
-                .accessibilityIdentifier("picker-department")
-            CarbonPicker("Consultant", options: session.wrappedValue.doctors.map { .init(id: $0.id, label: $0.fullName) }, selection: session.consultantId, placeholder: "Any consultant")
-                .accessibilityIdentifier("picker-consultant")
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Coming from").font(CarbonType.label).foregroundStyle(MedBrainsTheme.inkSecondary)
-                Picker("Coming from", selection: session.source) { Text("Walk-in").tag("walk_in"); Text("Referral").tag(RegistrationChoices.referralSource) }
-                    .pickerStyle(.segmented).accessibilityIdentifier("field-source")
-            }
-            if session.wrappedValue.source == RegistrationChoices.referralSource {
-                CarbonField("Referred by", error: err("referred_by_name"), isFocused: focus == "referred") {
-                    TextField("Doctor or facility", text: session.referredByName).focused($focus, equals: "referred").accessibilityIdentifier("field-referred_by_name")
-                }
-            }
-
-            if checkUnavailable {
-                CarbonNotification(kind: .warning, title: "Duplicate check unavailable", message: "Nobody was compared. Registering now may give this person a second UHID; the record will say the check did not run.")
-            }
-            if let failure { CarbonNotification(kind: .error, title: "Not registered", message: failure) }
-            Button {
-                Task { await checkAndRegister() }
-            } label: {
-                HStack { Text(checkUnavailable ? "Register unverified" : "Check and register"); Spacer(); Image(systemName: "arrow.right") }
-            }
-            .buttonStyle(.carbonPrimary).disabled(busy)
-            .accessibilityIdentifier("register-submit")
         }
         .padding(16)
+        .background(MedBrainsTheme.canvas)
     }
 
-    private func err(_ field: String) -> String? { problem?.field == field ? problem?.message : nil }
-
-    private var draft: RegistrationDraft {
-        RegistrationDraft(
-            firstName: firstName, lastName: lastName, phone: phone,
-            dateOfBirth: dateOfBirth.map(Self.iso) ?? "", ageYears: UInt32(age.trimmingCharacters(in: .whitespaces)),
-            gender: gender, allergyStatus: allergyStatus, knownAllergies: knownAllergies,
-            registrationSource: session.source, referredByName: session.referredByName,
-            isMedicoLegal: isMedicoLegal, mlcNumber: mlcNumber, abhaNumber: abha
-        )
+    /// The problems on screen in `step` (nil: every step).
+    private func problems(in step: String?) -> [RegistrationProblem] {
+        let visible = draft.visible
+        let ids = Set(catalogue.fields.filter { step == nil || $0.step == step }.map(\.id))
+        return draft.problems.filter { ids.contains($0.field) && visible.contains($0.field) }
     }
 
-    private static func iso(_ date: Date) -> String {
-        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+    private func next() {
+        shown = problems(in: catalogue.steps[stepIndex].step)
+        if let first = shown.first {
+            UIAccessibility.post(notification: .announcement, argument: first.message)
+            return
+        }
+        stepIndex += 1
     }
 
-    /// The core rule stops the tap; then the match; then, depending on what
-    /// it said, the sheet, the warning, or the create.
+    /// The desk's department and consultant, kept between walk-ins.
+    private func takeDeskContext() {
+        if draft["department_id"].isEmpty, let dept = session.departmentId { draft["department_id"] = dept }
+        if draft["consultant_id"].isEmpty, let doc = session.consultantId { draft["consultant_id"] = doc }
+    }
+
+    /// Every step's rules first; then the match; then the sheet, the warning, or the create.
     private func checkAndRegister() async {
-        problem = registrationProblem(draft: draft)
-        guard problem == nil, let client else { return }
+        let all = problems(in: nil)
+        if let first = all.first, let step = catalogue.field(first.field)?.step, let index = catalogue.steps.firstIndex(where: { $0.step == step }) {
+            shown = all
+            stepIndex = index
+            return
+        }
+        guard let client else { return }
         failure = nil
         if checkUnavailable { await create(duplicateCheck: "unverified", matchedUhid: nil); return }
         busy = true
         defer { busy = false }
-        let api = ReceptionApi(client: client)
-        let found = try? await api.matchPatients(MatchQuery(firstName: firstName.trimmingCharacters(in: .whitespaces), lastName: lastName.trimmingCharacters(in: .whitespaces), dateOfBirth: dateOfBirth.map(Self.iso), phone: phone.trimmingCharacters(in: .whitespaces)))
+        let query = MatchQuery(firstName: draft["first_name"], lastName: draft["last_name"], dateOfBirth: draft["date_of_birth"].isEmpty ? nil : draft["date_of_birth"], phone: draft["phone"])
+        let found = draft.isOn("is_unknown_patient") ? [] : try? await ReceptionApi(client: client).matchPatients(query)
         switch registrationAction(checkUnavailable: found == nil, matches: UInt32(found?.count ?? 0)) {
         case "confirm": candidates = found
         case "proceed_unverified": checkUnavailable = true
@@ -187,26 +164,30 @@ struct RegisterPatientView: View {
     }
 
     private func create(duplicateCheck: String, matchedUhid: String?) async {
-        guard let client else { return }
+        guard let client, let request = JSONValue(parsing: draft.request(year: calendar.component(.year, from: Date()))) else { return }
         busy = true
         defer { busy = false }
-        let years = UInt32(age.trimmingCharacters(in: .whitespaces))
-        let estimated = dateOfBirth == nil
-        let dob = dateOfBirth.map(Self.iso) ?? estimatedDateOfBirth(ageYears: years ?? 0, todayYear: Int32(calendar.component(.year, from: Date())))
-        let body = CreatePatientBody(
-            firstName: firstName.trimmingCharacters(in: .whitespaces), lastName: lastName.trimmingCharacters(in: .whitespaces), gender: gender,
-            phone: phone.trimmingCharacters(in: .whitespaces), dateOfBirth: dob, isDobEstimated: estimated,
-            registrationType: "new", registrationSource: session.source,
-            referredByName: session.source == RegistrationChoices.referralSource && !session.referredByName.isEmpty ? session.referredByName : nil,
-            departmentId: session.departmentId, consultantId: session.consultantId,
-            abhaNumber: abha.isEmpty ? nil : abha.filter(\.isNumber),
-            isMedicoLegal: isMedicoLegal, mlcNumber: isMedicoLegal ? mlcNumber : nil, isVip: isVip,
-            attributes: .init(mobileRegistration: .init(source: session.source, duplicateCheck: duplicateCheck, matchedUhid: matchedUhid), allergyStatus: allergyStatus, noKnownAllergies: allergyStatus == RegistrationChoices.noKnownAllergies, knownAllergies: allergyStatus == RegistrationChoices.knownAllergies ? knownAllergies : nil),
-            contact: .init(whatsappOptIn: whatsappOptIn, emailOptIn: false)
-        )
+        // How this registration was checked, so a second UHID is never silent.
+        let audit: JSONValue = .object([
+            "source": .string("mobile_staff"), "duplicate_check": .string(duplicateCheck),
+            "matched_uhid": matchedUhid.map(JSONValue.string) ?? .null,
+        ])
+        let attributes = (request["attributes"] ?? .object([:])).setting("mobile_registration", to: audit)
         do {
-            registered = try await ReceptionApi(client: client).createPatient(body)
-            UIAccessibility.post(notification: .announcement, argument: "Registered. UHID \(registered?.uhid ?? "")")
+            let api = ReceptionApi(client: client)
+            let patient = try await api.createPatient(request.setting("attributes", to: attributes))
+            registered = patient
+            session.departmentId = draft["department_id"].isEmpty ? session.departmentId : draft["department_id"]
+            session.consultantId = draft["consultant_id"].isEmpty ? nil : draft["consultant_id"]
+            UIAccessibility.post(notification: .announcement, argument: "Registered. UHID \(patient.uhid)")
+            if draft.isOn("create_opd_visit"), !draft["department_id"].isEmpty {
+                visit = try await api.startVisit(StartVisitBody(
+                    patientId: patient.id, departmentId: draft["department_id"],
+                    doctorId: draft["consultant_id"].isEmpty ? nil : draft["consultant_id"],
+                    chiefComplaint: draft["initial_diagnosis_text"].isEmpty ? nil : draft["initial_diagnosis_text"],
+                    visitType: "walk_in"
+                ))
+            }
         } catch let e as ApiError {
             failure = e.message
         } catch {
@@ -214,30 +195,15 @@ struct RegisterPatientView: View {
         }
     }
 
-    /// The person is cleared; the desk stays. Which is which is the core's call.
+    /// The person is cleared; the desk stays.
     private func nextWalkIn() {
         registered = nil
         checkUnavailable = false
-        problem = nil
-        for field in ["first_name", "last_name", "phone", "date_of_birth", "age_years", "abha_number", "is_medico_legal", "mlc_number", "is_vip", "whatsapp_opt_in"] where !registrationCarriesOver(field: field) {
-            switch field {
-            case "first_name": firstName = ""
-            case "last_name": lastName = ""
-            case "phone": phone = ""
-            case "date_of_birth": dateOfBirth = nil
-            case "age_years": age = ""
-            case "abha_number": abha = ""
-            case "is_medico_legal": isMedicoLegal = false
-            case "mlc_number": mlcNumber = ""
-            case "is_vip": isVip = false
-            case "whatsapp_opt_in": whatsappOptIn = false
-            default: break
-            }
-        }
-        gender = ""
-        allergyStatus = RegistrationChoices.allergyNotAsked
-        knownAllergies = ""
-        focus = "first_name"
+        shown = []
+        failure = nil
+        draft.clearPerson()
+        stepIndex = 0
+        takeDeskContext()
     }
 }
 

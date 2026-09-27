@@ -56,6 +56,31 @@ class ReceptionJourneyTest {
         compose.waitUntil(10_000) { has("screen-register-patient") }
     }
 
+    /** The registration wizard's department (a catalogue field). */
+    private fun chooseRegistrationDepartment(id: String) {
+        compose.onNodeWithTag("field-department_id").performScrollTo()
+        val name = api.list("/api/setup/departments").first { it.optString("id") == id }.getString("name")
+        with(Session) { compose.choose("field-department_id", id, name) }
+    }
+
+    /**
+     * A bottom-bar button: outside the scrolling form, so no scroll first.
+     * Settled before and after — the next step lays itself out under the
+     * finger, and a click aimed at a moving button lands on a field.
+     */
+    private fun press(tag: String) {
+        compose.waitForIdle()
+        compose.onNodeWithTag(tag).performClick()
+        compose.waitForIdle()
+    }
+
+    /** Next through the remaining steps to Review, then register. */
+    private fun submitRegistration() {
+        repeat(5) { if (!has("register-submit")) press("register-step-next") }
+        press("register-submit")
+    }
+
+    /** The start-visit screen's department. */
     private fun chooseDepartment(id: String) {
         compose.onNodeWithTag("picker-department").performScrollTo()
         val name = api.list("/api/setup/departments").first { it.optString("id") == id }.getString("name")
@@ -67,8 +92,8 @@ class ReceptionJourneyTest {
      * the form has no default. Pass `sex = null` to leave it untouched.
      */
     private fun fillPerson(first: String, last: String, phone: String, age: String = "36", sex: String? = "female") {
-        type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age", age)
-        sex?.let { tap("gender-$it") }
+        type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age_years", age)
+        sex?.let { tap("field-gender-$it") }
     }
 
     private fun patientByPhone(phone: String) = api.list("/api/patients?search=$phone&per_page=5").firstOrNull { it.optString("phone") == phone }
@@ -79,8 +104,8 @@ class ReceptionJourneyTest {
         val phone = freshPhone()
         openRegister()
         fillPerson("Desk", "Walkin${Api.RUN}", phone)
-        chooseDepartment(dept)
-        tap("register-submit")
+        chooseRegistrationDepartment(dept)
+        submitRegistration()
         compose.waitUntil(15_000) { has("registered-uhid") }
         val row = checkNotNull(patientByPhone(phone)) { "the record exists on the server" }
         check(seesText(row.getString("uhid"))) { "the UHID on screen is the server's" }
@@ -103,7 +128,7 @@ class ReceptionJourneyTest {
         val id = existing.getString("id"); val uhid = existing.getString("uhid")
         openRegister()
         fillPerson("Seeded", "Twin${Api.RUN}", phone)
-        tap("register-submit")
+        submitRegistration()
         compose.waitUntil(15_000) { has("duplicate-sheet") }
         check(has("duplicate-use-$uhid")) { "the record another desk made is the candidate, by UHID" }
         check(api.list("/api/patients?search=$phone&per_page=5").size == 1) { "nothing was created behind the sheet" }
@@ -126,7 +151,7 @@ class ReceptionJourneyTest {
         val existing = api.patient("Same", phone)
         openRegister()
         fillPerson("Seeded", "Same${Api.RUN}", phone)
-        tap("register-submit")
+        submitRegistration()
         compose.waitUntil(15_000) { has("duplicate-sheet") }
         tap("duplicate-register-anyway")
         compose.waitUntil(15_000) { has("registered-uhid") }
@@ -143,12 +168,12 @@ class ReceptionJourneyTest {
         val phone = freshPhone()
         openRegister()
         fillPerson("Sex", "Choice${Api.RUN}", phone, sex = null)
-        tap("register-submit")
+        press("register-step-next")
         compose.waitUntil(5_000) { seesText("Choose the patient's sex") }
-        check(patientByPhone(phone) == null) { "refused on the field: no request left the phone" }
-        tap("gender-male")
-        tap("allergy-no_known_allergies")
-        tap("register-submit")
+        check(patientByPhone(phone) == null) { "refused on the step: no request left the phone" }
+        tap("field-gender-male")
+        tap("field-attributes.allergy_status-no_known_allergies")
+        submitRegistration()
         compose.waitUntil(15_000) { has("registered-uhid") }
         val full = api.obj("GET", "/api/patients/${checkNotNull(patientByPhone(phone)).getString("id")}").let { it.optJSONObject("patient") ?: it }
         check(full.optString("gender") == "male") { "the sex the desk chose" }
@@ -156,17 +181,37 @@ class ReceptionJourneyTest {
         check(attrs?.optString("allergy_status") == "no_known_allergies" && attrs.optBoolean("no_known_allergies")) { "the same allergy keys the web writes" }
     }
 
+    /** Brought in unconscious: registered now, named later. Nothing personal is asked, and the record is "Unknown". */
+    @Test
+    fun anUnknownPatientIsRegisteredWithoutAName() {
+        openRegister()
+        tap("field-is_unknown_patient")
+        compose.waitForIdle()
+        check(!has("field-first_name") && !has("field-phone")) { "no name or phone is asked of an unknown patient" }
+        repeat(4) { if (!has("register-submit")) press("register-step-next") }
+        check(seesText("Unknown patient")) { "the review says who this is not" }
+        press("register-submit")
+        compose.waitUntil(15_000) { has("registered-uhid") }
+        val uhid = compose.onNodeWithTag("registered-uhid").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString("") { it.text }
+        val row = api.list("/api/patients?search=$uhid&per_page=5").first { it.optString("uhid") == uhid }
+        val full = api.obj("GET", "/api/patients/${row.getString("id")}").let { it.optJSONObject("patient") ?: it }
+        check(full.optString("first_name") == "Unknown" && full.optString("gender") == "unknown") { "the record says unknown" }
+        check(full.optBoolean("is_unknown_patient")) { "and is flagged so the name can be added later" }
+    }
+
     @Test
     fun medicoLegalNeedsItsNumberBeforeAnyRequest() {
         val phone = freshPhone()
         openRegister()
         fillPerson("Legal", "Case${Api.RUN}", phone)
-        tap("switch-mlc")
-        tap("register-submit")
+        // Safety flags are on step 3: family, address & safety.
+        press("register-step-next"); press("register-step-next")
+        tap("field-is_medico_legal")
+        press("register-step-next")
         compose.waitUntil(5_000) { seesText("MLC number is required for a medico-legal registration") }
-        check(patientByPhone(phone) == null) { "refused on the field: no request left the phone" }
+        check(patientByPhone(phone) == null) { "refused on the step: no request left the phone" }
         type("field-mlc_number", "MLC/${Api.RUN}")
-        tap("register-submit")
+        submitRegistration()
         compose.waitUntil(15_000) { has("registered-uhid") }
         val full = api.obj("GET", "/api/patients/${checkNotNull(patientByPhone(phone)).getString("id")}").let { it.optJSONObject("patient") ?: it }
         check(full.optBoolean("is_medico_legal") && full.optString("mlc_number") == "MLC/${Api.RUN}") { "flag and number on the record" }

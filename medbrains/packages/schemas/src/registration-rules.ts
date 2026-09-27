@@ -68,6 +68,12 @@ export interface CatalogueField {
   /** False for desk-only inputs (age, send-to-OPD) that never reach the server as themselves. */
   sent: boolean;
   hint: string | null;
+  /** Shown only when any of these match (always, when empty). */
+  show_when: Cond[];
+  /** Hidden when any of these match. */
+  hide_when: Cond[];
+  /** What a new draft starts with, if anything. */
+  default: string | null;
 }
 
 export interface RegistrationCatalogue {
@@ -152,6 +158,12 @@ function passes(draft: RegistrationDraft, field: CatalogueField, check: Check, v
     case "email":
       return emailShaped(v);
   }
+}
+
+/** Whether `field` is on the screen for this draft — the catalogue's visibility, as the native wizards read it. */
+export function isFieldShown(field: CatalogueField, draft: RegistrationDraft): boolean {
+  const shown = field.show_when.length === 0 || field.show_when.some((c) => matches(draft, c));
+  return shown && !field.hide_when.some((c) => matches(draft, c));
 }
 
 /** Every problem with `draft`, in the form's order, at most one per field. */

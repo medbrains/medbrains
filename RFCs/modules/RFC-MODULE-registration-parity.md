@@ -32,15 +32,15 @@ An API caller that sends no allergy answer is recorded as *not asked yet* — ho
 
 - **Definition:** `crates/medbrains-clinical-core/src/registration/` — `catalogue.rs` (types), `options.rs`, `fields_intake.rs` / `fields_more.rs` (the four steps; Review draws from the answers), `rules.rs` (the one evaluator), `fixtures.rs` (cases with expected problems).
 - **Server:** `crates/medbrains-patients/src/registration_rules.rs` flattens the create request to dotted ids and asks the evaluator.
-- **Native (iOS/Android):** UniFFI `registration_catalogue_json()` and `registration_problems(record<string,string>)`; the one-screen intake's `registration_problem` is a thin wrapper over the same evaluator.
+- **Native (iOS/Android):** UniFFI `registration_catalogue_json()`, `registration_problems`, `registration_visible_fields` and `registration_request_json` (all over `record<string,string>` drafts); the wizard (`RegisterPatientView` / `RegisterPatientScreen`) draws fields from the catalogue via shared `CatalogueFieldView`s and sends the core's request.
 - **Web:** `scripts/generate_registration_catalogue.py` → `packages/schemas/src/registration.generated.ts` + `registration.fixtures.generated.json`; `registration-rules.ts` is the TypeScript port, held to the fixtures case for case (`registration-rules.test.ts`). The full form's and the quick form's Zod schemas both call it. `make check-registration-catalogue` (in `check-all`) fails when the generated files are stale.
 
 ## Phases
 
 1. **R0** — safety fixes on native (sex, allergies incl. the known-allergies list, referral). *Done.*
 2. **R1 + R2** — catalogue + evaluator; server, both native intakes and both web forms ask it; web rule changes (last name optional, *Has no phone*, sex no default, IST date fix). *Done.*
-3. **R3a** — native wizard rendered from the catalogue: steps 1–2 + Review + Unknown patient (iOS + Android).
-4. **R3b** — steps 3–4, camp mode, Send to OPD.
+3. **R3a** — native wizard rendered from the catalogue (iOS + Android): all four steps drawn generically by field kind, Review, Unknown patient, Send to OPD (issues the token in the same act). The core also owns **visibility** (`show_when` / `hide_when`, `registration_visible_fields`), **starting values** (`default`, the web form's own) and the **request** (`registration_request_json`: dotted ids → nested JSON, age → estimated DOB, unknown patient, no phone). The one-screen `registration_problem` API is removed. *In review.*
+4. **R3b** — camp mode (entry from the Camp module), camp and drug-catalogue option sources, ICD-11 picker.
 
 ## Verification
 

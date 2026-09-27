@@ -29,14 +29,28 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertTrue(el("screen-register-patient").waitForExistence(timeout: 10))
     }
 
+    /// The start-visit screen's department.
     private func chooseDepartment(named name: String) {
         XCTAssertTrue(choose("picker-department", name), "the department is offered")
+    }
+
+    /// The registration wizard's department (a catalogue field).
+    private func chooseRegistrationDepartment(named name: String) {
+        XCTAssertTrue(choose("field-department_id", name), "the department is offered")
+    }
+
+    /// Next through the remaining steps to Review, then register.
+    private func submitRegistration() {
+        for _ in 0..<5 where !el("register-submit").exists {
+            tapWhenReady(el("register-step-next"))
+        }
+        tapWhenReady(el("register-submit"))
     }
 
     /// The person, as the desk types them — including a sex actually chosen:
     /// the form has no default. Pass `sex: nil` to leave it untouched.
     private func fillPerson(_ first: String, _ last: String, phone: String, age: String = "36", sex: String? = "Female") {
-        type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age", age)
+        type("field-first_name", first); type("field-last_name", last); type("field-phone", phone); type("field-age_years", age)
         if let sex { tapWhenReady(app.segmentedControls["field-gender"].buttons[sex]) }
     }
 
@@ -59,8 +73,8 @@ final class ReceptionJourneyTests: JourneyCase {
         let phone = freshPhone()
         openRegister()
         fillPerson("Desk", "Walkin\(Api.runId)", phone: phone)
-        chooseDepartment(named: deptName)
-        el("register-submit").tap()
+        chooseRegistrationDepartment(named: deptName)
+        submitRegistration()
         XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
         shoot("reception-registered")
         guard let row = patient(byPhone: phone), let id = row["id"] as? String else { return XCTFail("the record exists on the server") }
@@ -87,7 +101,7 @@ final class ReceptionJourneyTests: JourneyCase {
         guard let id = existing["id"] as? String, let uhid = existing["uhid"] as? String else { return XCTFail("seeded a patient") }
         openRegister()
         fillPerson("Seeded", "Twin\(Api.runId)", phone: phone)
-        el("register-submit").tap()
+        submitRegistration()
         XCTAssertTrue(el("duplicate-sheet").waitForExistence(timeout: 15), "a match is confirmed, never silently created")
         XCTAssertTrue(el("duplicate-use-\(uhid)").exists, "the record another desk made is the candidate, by UHID")
         shoot("reception-duplicate")
@@ -110,7 +124,7 @@ final class ReceptionJourneyTests: JourneyCase {
         guard let uhid = existing["uhid"] as? String else { return XCTFail("seeded a patient") }
         openRegister()
         fillPerson("Seeded", "Same\(Api.runId)", phone: phone)
-        el("register-submit").tap()
+        submitRegistration()
         XCTAssertTrue(el("duplicate-sheet").waitForExistence(timeout: 15))
         el("duplicate-register-anyway").tap()
         XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
@@ -128,12 +142,12 @@ final class ReceptionJourneyTests: JourneyCase {
         let phone = freshPhone()
         openRegister()
         fillPerson("Sex", "Choice\(Api.runId)", phone: phone, sex: nil)
-        tapWhenReady(el("register-submit"))
-        XCTAssertTrue(sees("Choose the patient's sex"), "refused on the field")
+        tapWhenReady(el("register-step-next"))
+        XCTAssertTrue(sees("Choose the patient's sex"), "refused on the step")
         XCTAssertNil(patient(byPhone: phone), "no request left the phone")
         tapWhenReady(app.segmentedControls["field-gender"].buttons["Male"])
-        tapWhenReady(app.segmentedControls["field-allergy_status"].buttons["No known allergies"])
-        tapWhenReady(el("register-submit"))
+        tapWhenReady(app.segmentedControls["field-attributes.allergy_status"].buttons["No known allergies"])
+        submitRegistration()
         XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
         guard let id = patient(byPhone: phone)?["id"] as? String else { return XCTFail("registered") }
         let full = fullRecord(id)
@@ -143,17 +157,41 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertEqual(attrs?["no_known_allergies"] as? Bool, true, "the same keys the web writes")
     }
 
+    /// Brought in unconscious: registered now, named later. The wizard asks
+    /// nothing personal, the review says so, and the record is "Unknown".
+    func testAnUnknownPatientIsRegisteredWithoutAName() {
+        openRegister()
+        flip("field-is_unknown_patient")
+        XCTAssertFalse(el("field-first_name").exists, "no name is asked of an unknown patient")
+        XCTAssertFalse(el("field-phone").exists, "nor a phone")
+        for _ in 0..<4 where !el("register-submit").exists { tapWhenReady(el("register-step-next")) }
+        XCTAssertTrue(sees("Unknown patient"), "the review says who this is not")
+        shoot("reception-unknown-review")
+        tapWhenReady(el("register-submit"))
+        XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
+        let uhid = el("registered-uhid").label
+        guard let row = api.list("/api/patients?search=\(uhid)&per_page=5").first(where: { ($0["uhid"] as? String) == uhid }),
+              let id = row["id"] as? String else { return XCTFail("registered") }
+        let full = fullRecord(id)
+        XCTAssertEqual(full["first_name"] as? String, "Unknown")
+        XCTAssertEqual(full["gender"] as? String, "unknown")
+        XCTAssertEqual(full["is_unknown_patient"] as? Bool, true)
+    }
+
     func testMedicoLegalNeedsItsNumberBeforeAnyRequest() {
         let phone = freshPhone()
         openRegister()
         fillPerson("Legal", "Case\(Api.runId)", phone: phone)
-        el("switch-mlc").firstMatch.tap()
-        el("register-submit").tap()
-        XCTAssertTrue(sees("MLC number is required for a medico-legal registration"), "refused on the field")
+        // Safety flags are on step 3: family, address & safety.
+        tapWhenReady(el("register-step-next"))
+        tapWhenReady(el("register-step-next"))
+        flip("field-is_medico_legal")
+        tapWhenReady(el("register-step-next"))
+        XCTAssertTrue(sees("MLC number is required for a medico-legal registration"), "refused on the step")
         XCTAssertNil(patient(byPhone: phone), "no request left the phone")
         shoot("reception-mlc-refused")
         type("field-mlc_number", "MLC/\(Api.runId)")
-        el("register-submit").tap()
+        submitRegistration()
         XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
         guard let id = patient(byPhone: phone)?["id"] as? String else { return XCTFail("registered") }
         let full = fullRecord(id)
