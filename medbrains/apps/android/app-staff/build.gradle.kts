@@ -19,9 +19,22 @@ android {
     buildTypes {
         // Cleartext and the launch-intent server override are for the emulator
         // and UI tests only; see AppConfig.
-        debug { manifestPlaceholders["usesCleartext"] = "true" }
+        debug {
+            manifestPlaceholders["usesCleartext"] = "true"
+            // `-Pminified` runs the journeys against R8-processed code: the only
+            // way a keep rule missing from release shows up before a user does.
+            if (providers.gradleProperty("minified").isPresent) {
+                isMinifyEnabled = true
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "minified-test-rules.pro")
+                testProguardFiles("test-rules.pro")
+            }
+        }
         release {
-            isMinifyEnabled = false
+            // R8 shrinks and renames the code so the shipped app does not read as
+            // source; the core's keep rules protect the JNA bridge.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             manifestPlaceholders["usesCleartext"] = "false"
         }
     }
