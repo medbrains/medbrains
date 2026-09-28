@@ -4,7 +4,7 @@ description = "Framework-free bedside decisions shared by every device app throu
 version.workspace = true
 edition = "2024"
 rust-version.workspace = true
-license = "Apache-2.0"
+license-file.workspace = true
 
 [dependencies]
 serde = { workspace = true }

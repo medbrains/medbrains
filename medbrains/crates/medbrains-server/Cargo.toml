@@ -4,7 +4,7 @@ description = "Axum HTTP server for MedBrains HMS"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
