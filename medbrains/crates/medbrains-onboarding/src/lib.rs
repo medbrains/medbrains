@@ -62,8 +62,8 @@ fn is_public_domain(domain: &str) -> bool {
 
 #[derive(Debug, Serialize)]
 pub struct OnboardingStatusResponse {
-    /// Always true — new tenants can always register.
-    /// Frontend uses this to decide initial landing behavior.
+    /// True only on an empty server: the one moment `init` accepts a
+    /// registration. The wizard reads it to say registration is closed.
     pub needs_setup: bool,
     /// How many hospitals have been registered (no PII leaked).
     pub tenant_count: i64,
@@ -83,10 +83,22 @@ pub async fn status(
         .await?;
 
     Ok(Json(OnboardingStatusResponse {
-        // Always allow new orgs to register through the wizard.
-        needs_setup: true,
+        needs_setup: !server_has_tenant(&state).await?,
         tenant_count,
     }))
+}
+
+/// Whether this server already holds an organisation.
+///
+/// `init` is public — it has no credential to ask for — so it may only ever
+/// create the *first* organisation on an empty server. Once one exists, an
+/// open registration would let anyone on the internet mint a tenant and a
+/// super admin on a server holding another hospital's patients. New
+/// hospitals are provisioned by the vendor, not self-registered.
+async fn server_has_tenant(state: &AppState) -> Result<bool, AppError> {
+    Ok(sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants)")
+        .fetch_one(&state.db)
+        .await?)
 }
 
 // ── POST /api/onboarding/init ───────────────────────────────
@@ -115,6 +127,10 @@ pub async fn init(
     headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    if server_has_tenant(&state).await? {
+        return Err(AppError::Forbidden);
+    }
+
     // ── Field validation ────────────────────────────────
     let mut errors = ValidationErrors::new();
     validation::validate_name(&mut errors, "hospital_name", &body.hospital_name);
@@ -1513,8 +1529,8 @@ pub async fn apply_edition(
 /// Routes that must be reachable before anyone has a session.
 ///
 /// `status` says whether a new organisation may register; `init` creates the
-/// first tenant and its admin. Neither can require a credential because
-/// neither has one to require yet.
+/// first tenant and its admin on an empty server, and nothing after that.
+/// Neither can require a credential because neither has one to require yet.
 pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/onboarding/status", get(status))

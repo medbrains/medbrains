@@ -5,7 +5,7 @@ import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 
 import { AdminStep } from "./AdminStep";
@@ -66,7 +66,7 @@ export function OnboardingPage() {
   // Persist AdminStep form values across step navigation
   const adminDraftRef = useRef<Partial<OnboardingInitInput>>({});
 
-  const { isLoading: statusLoading } = useQuery({
+  const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ["onboarding-status"],
     queryFn: () => onboardingService.onboardingStatus(),
   });
@@ -125,6 +125,26 @@ export function OnboardingPage() {
           <Text c="dimmed" mt="md">
             Checking system status...
           </Text>
+        </Container>
+      </div>
+    );
+  }
+
+  // A server that already runs its hospital takes no new registrations; a
+  // signed-in admin may still finish their own setup.
+  if (status && !status.needs_setup && !user) {
+    return (
+      <div className={classes.wizardContainer}>
+        <Container size="sm" py={120} data-testid="onboarding-closed">
+          <Alert tone="info" title="Registration is closed">
+            This server already runs its hospital. New hospitals are set up by MedBrains — contact
+            your MedBrains representative to bring a hospital on board.
+          </Alert>
+          <Group mt="md">
+            <Button tone="primary" onClick={() => navigate("/login")}>
+              Log in
+            </Button>
+          </Group>
         </Container>
       </div>
     );
