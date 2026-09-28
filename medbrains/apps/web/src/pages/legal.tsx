@@ -40,7 +40,7 @@ function termsSections(org: string): Section[] {
     {
       heading: "5. Intellectual property & licensing",
       body: [
-        "The MedBrains platform is provided under its applicable open-source (AGPL) or commercial licence; hospital content and patient data remain the property of the hospital and the respective data principals.",
+        "The MedBrains platform is provided under the licence agreement between MedBrains and the hospital; hospital content and patient data remain the property of the hospital and the respective data principals.",
       ],
     },
     {

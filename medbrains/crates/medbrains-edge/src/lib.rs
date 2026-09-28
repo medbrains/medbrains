@@ -49,11 +49,10 @@
 //! See [`Tier`] and the per-table [`TierClassification`] in
 //! `medbrains-core::crdt`.
 //!
-//! ## Open source
+//! ## Running on the hospital's hardware
 //!
-//! Apache-2.0. Hospitals can run this on their own hardware without
-//! contacting `MedBrains` — the protocol is documented, the binary is
-//! reproducible, the CRDT format is upstream Loro.
+//! Licensed hospitals run this on their own hardware; the protocol is
+//! documented, the binary is reproducible, the CRDT format is upstream Loro.
 
 pub mod doc_store;
 #[cfg(feature = "iroh")]
