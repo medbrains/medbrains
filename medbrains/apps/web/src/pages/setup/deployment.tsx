@@ -201,8 +201,8 @@ export function DeploymentCostPage() {
         On-demand mid-2026 reference ranges — committed/reserved pricing cuts 30–60% for steady
         hospital load. The lean Rust backend runs on a small app instance; PostgreSQL and object
         storage (scans/DICOM) are the real cost drivers. Verify against the provider's live
-        calculator before committing. No licence fee to MedBrains — the commercial license is the
-        alternative only if you can't meet AGPL.
+        calculator before committing. The MedBrains licence is priced separately, by edition and
+        modules.
       </Alert>
     </Stack>
   );

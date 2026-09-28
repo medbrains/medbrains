@@ -7,7 +7,7 @@ version.workspace = true
 # under Rust 2024's unsafe attribute rules.
 edition = "2021"
 rust-version.workspace = true
-license = "Apache-2.0"
+license-file.workspace = true
 
 [lib]
 # Both crate types — `staticlib` for iOS, `cdylib` for Android. UniFFI

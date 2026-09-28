@@ -2,11 +2,11 @@
 
 # MedBrains
 
-### Open-source Hospital Management System — built as health infrastructure, not a product demo.
+### Hospital Management System — built as health infrastructure, not a product demo.
 
 A multi-tenant HMS covering **67+ clinical, diagnostic, financial and administrative modules**, engineered for the safety, compliance and scale a real hospital demands. Rust on the backend, React on the front, regulatory rules baked in from the schema up.
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-1F4332.svg)](./LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-1F4332.svg)](./LICENSE)
 [![Commercial license available](https://img.shields.io/badge/Commercial_license-available-B8924A.svg)](./COMMERCIAL-LICENSE.md)
 [![Rust](https://img.shields.io/badge/Rust-2024_·_MSRV_1.85-CE412B?logo=rust&logoColor=white)](#tech-stack)
 [![React](https://img.shields.io/badge/React-18_·_TypeScript-149ECA?logo=react&logoColor=white)](#tech-stack)
@@ -142,12 +142,9 @@ Good first issues are labelled [`good first issue`](https://github.com/DomnicAma
 
 ## License
 
-MedBrains is **dual-licensed**:
+MedBrains is **proprietary software**. Copyright © 2026 MedBrains. All rights reserved — see [LICENSE](./LICENSE).
 
-- **[GNU AGPL-3.0](./LICENSE)** — free to use, study, modify and self-host. If you run a modified version as a network service, you must share your modifications under the same licence.
-- **[Commercial license](./COMMERCIAL-LICENSE.md)** — for hospitals, vendors or SaaS providers who cannot meet the AGPL's source-sharing obligation. This funds continued open development.
-
-If you're a public hospital, NGO or government health programme, the AGPL costs you nothing. If you're embedding MedBrains in a closed commercial product, [talk to us](./COMMERCIAL-LICENSE.md).
+The source is visible here for review only; using, hosting, copying or modifying it needs a written licence from MedBrains. Versions published before 28 September 2026 under the GNU AGPL-3.0 stay under that licence for those who received them.
 
 ## Funding & public-good status
 
