@@ -2,17 +2,42 @@ import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import { compression } from "vite-plugin-compression2";
 import wasm from "vite-plugin-wasm";
-import topLevelAwait from "vite-plugin-top-level-await";
+import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import pkg from "./package.json" with { type: "json" };
+
+/** Where built source maps go: beside dist, never inside it. */
+const SOURCE_MAP_DIR = path.resolve(__dirname, "sourcemaps");
+
+/**
+ * Source maps carry the original source, so they must never ship with the
+ * app — production served every one of them from /assets until 2026-09-28.
+ * They are still built (hidden) to decode client error reports, and moved
+ * out of dist the moment the bundle is written, so nothing that packages
+ * dist can publish them.
+ */
+function keepSourceMapsPrivate(): PluginOption {
+  return {
+    name: "keep-source-maps-private",
+    apply: "build",
+    writeBundle(options, bundle) {
+      const outDir = options.dir ?? path.resolve(__dirname, "dist");
+      for (const file of Object.keys(bundle).filter((f) => f.endsWith(".map"))) {
+        const target = path.join(SOURCE_MAP_DIR, file);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.renameSync(path.join(outDir, file), target);
+      }
+    },
+  };
+}
 
 export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
   const plugins: PluginOption[] = [
     react(),
     wasm(),
-    topLevelAwait(),
+    keepSourceMapsPrivate(),
     // Precompress hashed, immutable build assets once (brotli-max + gzip).
     // The server serves these directly (ServeDir precompressed_*), so the
     // bundle ships at max ratio with zero per-request CPU. Originals are kept

@@ -5,6 +5,17 @@ options:
     iOS: "17.0"
   xcodeVersion: "26.0"
   generateEmptyDirectories: true
+settings:
+  configs:
+    Release:
+      # Shipped binaries carry no symbol names to read the app back from; the
+      # dSYM stays with us to symbolicate crash reports.
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      DEPLOYMENT_POSTPROCESSING: YES
+      STRIP_INSTALLED_PRODUCT: YES
+      STRIP_STYLE: all
+      STRIP_SWIFT_SYMBOLS: YES
+      COPY_PHASE_STRIP: YES
 packages:
   MedBrainsCore:
     path: Packages/MedBrainsCore

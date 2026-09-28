@@ -15,3 +15,5 @@ public/_theme-preview.html
 
 # Deploy artefact: the SPA packed for upload (see scripts/build-deploy-artifacts.sh)
 dist.tgz
+# Built source maps: kept for decoding error reports, never shipped or committed
+sourcemaps/
