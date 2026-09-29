@@ -25,6 +25,7 @@
  */
 
 import { expect, test, type Page } from "@playwright/test";
+import { type AuthContext, api, getAuthContextFromCookies } from "../helpers/api";
 import {
   browserCookiesFromLogin,
   getE2EIdentity,
@@ -70,21 +71,57 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+interface CampRegistration {
+  person_name: string;
+  age: number | null;
+  phone: string | null;
+  patient_id: string | null;
+}
+
+/** A camp of this run, whose registration form the clerk works from. */
+async function openCamp(page: Page): Promise<{ id: string; ctx: AuthContext }> {
+  const ctx = await getAuthContextFromCookies(page.request);
+  const camp = await api<{ id: string }>(ctx, "POST", "/api/camp/camps", {
+    name: `Real-data camp ${runTag()}`,
+    camp_type: "general_health",
+    scheduled_date: new Date().toISOString().slice(0, 10),
+  });
+  return { id: camp.id, ctx };
+}
+
+/** What the camp's register holds for this name. */
+async function registered(ctx: AuthContext, campId: string, name: string) {
+  const rows = await api<CampRegistration[]>(
+    ctx,
+    "GET",
+    `/api/camp/registrations?camp_id=${campId}&q=${encodeURIComponent(name)}`,
+  );
+  return rows.filter((r) => r.person_name === name);
+}
+
+/** The camp's own registration form: a clerk working from a paper form. */
+async function registerAtCamp(
+  page: Page,
+  campId: string,
+  person: { name: string; age?: string; phone?: string },
+) {
+  await page.goto(`/camp/${campId}/work/registrations/new`);
+  await page.getByLabel(/^Person Name/).fill(person.name);
+  if (person.age) await page.getByLabel(/^Age$/).fill(person.age);
+  if (person.phone) await page.getByLabel(/^Phone$/).fill(person.phone);
+  await page.getByTestId("btn-register").click();
+}
+
 test.describe("camp registration, with real-world imperfect records", () => {
   /**
    * Baseline. If this fails nothing below is meaningful, so it runs first and
    * asserts the least.
    */
-  test("a complete registration reaches the patient record", async ({ page }) => {
+  test("a complete registration reaches the camp register", async ({ page }) => {
+    const { id, ctx } = await openCamp(page);
     const name = `Complete ${runTag()}`;
-    await page.goto("/patients/register");
-    await expect(page.getByRole("heading", { level: 1 }).or(page.locator("h2"))).toBeVisible();
-
-    await page.getByLabel(/first name|full name|patient name/i).first().fill(name);
-    await page.getByLabel(/age/i).first().fill("47");
-    await page.getByRole("button", { name: /register|save|create/i }).first().click();
-
-    await expect(page.getByText(name).first()).toBeVisible({ timeout: 15_000 });
+    await registerAtCamp(page, id, { name, age: "47" });
+    await expect.poll(async () => (await registered(ctx, id, name)).length).toBe(1);
   });
 
   /**
@@ -97,19 +134,16 @@ test.describe("camp registration, with real-world imperfect records", () => {
    * plainly what to do.
    */
   test("a patient with no recorded gender can still be registered", async ({ page }) => {
+    const { id, ctx } = await openCamp(page);
     const name = `NoGender ${runTag()}`;
-    await page.goto("/patients/register");
-
-    await page.getByLabel(/first name|full name|patient name/i).first().fill(name);
-    await page.getByLabel(/age/i).first().fill("34");
     // gender deliberately untouched
-    await page.getByRole("button", { name: /register|save|create/i }).first().click();
-
-    const registered = page.getByText(name).first();
+    await registerAtCamp(page, id, { name, age: "34" });
     const explained = page.getByText(/gender is required/i).first();
     // One or the other must happen. Silence — neither a record nor a reason —
     // is the failure: the clerk is left staring at a form that did nothing.
-    await expect(registered.or(explained)).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => (await registered(ctx, id, name)).length > 0 || (await explained.isVisible()))
+      .toBe(true);
   });
 
   /**
@@ -118,22 +152,12 @@ test.describe("camp registration, with real-world imperfect records", () => {
    * that leaves it blank — a 0 reads as a neonate.
    */
   test("a missing age is left empty, never defaulted to zero", async ({ page }) => {
+    const { id, ctx } = await openCamp(page);
     const name = `NoAge ${runTag()}`;
-    await page.goto("/patients/register");
-
-    await page.getByLabel(/first name|full name|patient name/i).first().fill(name);
-    await page.getByRole("button", { name: /register|save|create/i }).first().click();
-    await page.waitForTimeout(2_000);
-
-    await page.goto("/patients");
-    await page.getByPlaceholder(/search/i).first().fill(name);
-    await page.waitForTimeout(1_500);
-
-    const row = page.getByRole("row").filter({ hasText: name }).first();
-    if (await row.isVisible().catch(() => false)) {
-      // A newborn and an unknown age must not look the same on a ward list.
-      await expect(row).not.toContainText(/\b0\s*(y|yr|years?)\b/i);
-    }
+    await registerAtCamp(page, id, { name });
+    await expect.poll(async () => (await registered(ctx, id, name)).length).toBe(1);
+    const [row] = await registered(ctx, id, name);
+    expect(row?.age, "an unknown age is stored as unknown, not 0").toBeNull();
   });
 
   /**
@@ -147,30 +171,20 @@ test.describe("camp registration, with real-world imperfect records", () => {
    * different names must never collapse into one record, whatever they share.
    */
   test("two different people sharing a phone stay two records", async ({ page }) => {
+    const { id, ctx } = await openCamp(page);
     const tag = runTag();
     const phone = `98${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
-    const first = `Collide A ${tag}`;
-    const second = `Collide B ${tag}`;
-
-    for (const name of [first, second]) {
-      await page.goto("/patients/register");
-      await page.getByLabel(/first name|full name|patient name/i).first().fill(name);
-      await page.getByLabel(/age/i).first().fill("52");
-      const phoneField = page.getByLabel(/phone|mobile|contact/i).first();
-      if (await phoneField.isVisible().catch(() => false)) {
-        await phoneField.fill(phone);
-      }
-      await page.getByRole("button", { name: /register|save|create/i }).first().click();
-      await page.waitForTimeout(2_500);
+    const people = [`Collide A ${tag}`, `Collide B ${tag}`];
+    for (const name of people) {
+      await registerAtCamp(page, id, { name, age: "52", phone });
+      await expect.poll(async () => (await registered(ctx, id, name)).length).toBe(1);
     }
-
-    await page.goto("/patients");
-    await page.getByPlaceholder(/search/i).first().fill(`Collide`);
-    await page.waitForTimeout(2_000);
-
     // Both must survive. Merging them hands one patient another's history.
-    await expect(page.getByText(first).first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText(second).first()).toBeVisible({ timeout: 10_000 });
+    const [a] = await registered(ctx, id, people[0] ?? "");
+    const [b] = await registered(ctx, id, people[1] ?? "");
+    if (a?.patient_id && b?.patient_id) {
+      expect(a.patient_id, "two people, two patient records").not.toBe(b.patient_id);
+    }
   });
 });
 

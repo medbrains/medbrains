@@ -1,4 +1,6 @@
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
@@ -13,12 +15,16 @@ import { useLiveActivityStore } from "./live-activity-store";
 export function EmergencyCodeActivity() {
   const navigate = useNavigate();
   const setActivity = useLiveActivityStore((s) => s.setActivity);
+  // A role that may not list codes is refused; it does not poll (it did,
+  // every 20 s, with a 403 each time).
+  const canList = useHasPermission(P.EMERGENCY.CODES.LIST);
 
   const { data: codes = [] } = useQuery({
     queryKey: ["emergency-codes-active"],
     queryFn: () => api.listCodeActivations(),
     refetchInterval: 20_000,
     retry: false,
+    enabled: canList,
   });
   const top = codes.find((c) => !c.deactivated_at);
   const topCode = top?.code_type ?? null;

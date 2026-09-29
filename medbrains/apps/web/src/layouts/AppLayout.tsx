@@ -608,7 +608,11 @@ export function AppLayout() {
           {/* Collapse / Expand toggle */}
           <Box visibleFrom="sm" className={classes.footerAction}>
             {isExpanded ? (
-              <UnstyledButton className={classes.sidebarToggleExpanded} onClick={toggleSidebar}>
+              <UnstyledButton
+                className={classes.sidebarToggleExpanded}
+                onClick={toggleSidebar}
+                aria-label={t("collapse")}
+              >
                 <AnimatedIcon icon={PanelLeftClose} size={18} motion="float" />
                 <Text size="xs" c="var(--mb-text-muted)">
                   {t("collapse")}
@@ -616,7 +620,11 @@ export function AppLayout() {
               </UnstyledButton>
             ) : (
               <Tooltip label={t("expand")} position="right" withArrow>
-                <UnstyledButton className={classes.railItem} onClick={toggleSidebar}>
+                <UnstyledButton
+                  className={classes.railItem}
+                  onClick={toggleSidebar}
+                  aria-label={t("expand")}
+                >
                   <AnimatedIcon icon={PanelLeftOpen} size={20} motion="float" />
                 </UnstyledButton>
               </Tooltip>

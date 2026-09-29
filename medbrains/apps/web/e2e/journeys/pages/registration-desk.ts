@@ -63,5 +63,13 @@ export class RegistrationDesk {
     const register = page.getByTestId("btn-register");
     await expectUsable(register, "Register");
     await register.click();
+
+    // Among thousands of dev patients a new name can still score as a
+    // possible duplicate; the desk has checked it is someone else.
+    const duplicates = page.getByRole("dialog", { name: "Potential Duplicates Found" });
+    if (await duplicates.waitFor({ state: "visible", timeout: 3_000 }).then(() => true, () => false)) {
+      await duplicates.getByRole("button", { name: "Create Anyway" }).click();
+      await expect(duplicates).toBeHidden();
+    }
   }
 }

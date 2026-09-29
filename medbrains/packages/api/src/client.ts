@@ -2737,6 +2737,8 @@ export interface MeResponse {
   field_access: Record<string, FieldAccessLevel>;
   /** Module codes the tenant's edition switched off; absent = enabled. */
   disabled_modules: string[];
+  /** The tenant restricts copying data out of the app (enforced by the DLP guard). */
+  restrict_copy: boolean;
 }
 
 export interface RefreshResponse {
