@@ -3,6 +3,8 @@
  */
 
 import { type Page, expect } from "@playwright/test";
+import { RegistrationDesk } from "../journeys/pages/registration-desk";
+import { freshPerson } from "../journeys/support/world";
 import { api, qs, withStepUp } from "./api";
 import {
   getOpdDept,
@@ -153,41 +155,43 @@ export async function ensureDoctorScheduleForDate(
   });
 }
 
-/** Register a patient via the UI (drives PatientRegisterForm). */
+/**
+ * Register a patient through the screen, as the desk does: the step-by-step
+ * registration page (the old drawer is gone), via the same page object the
+ * registration journeys use.
+ */
 export async function registerPatientUI(
   ctx: AuthContext,
   page: Page,
   base: { firstName?: string; lastName?: string; phone?: string } = {},
 ): Promise<PatientLite> {
-  const ts = Date.now();
-  const firstName = base.firstName ?? `E2E${ts}`;
-  const lastName = base.lastName ?? `Patient${ts}`;
-  const phone = base.phone ?? `98${String(ts).slice(-8)}`;
+  // Names the fuzzy duplicate check cannot match to an earlier run's patient.
+  const person = freshPerson();
+  const firstName = base.firstName ?? person.firstName;
+  const lastName = base.lastName ?? person.lastName;
+  const phone = base.phone ?? person.phone;
 
-  await page.getByRole("button", { name: /Register Patient/i }).first().click();
-  const drawer = page.getByRole("dialog");
-  await expect(drawer).toBeVisible();
-
-  await drawer.getByLabel("First name").fill(firstName);
-  await drawer.getByLabel("Last name").fill(lastName);
-  await drawer.getByLabel("Phone (primary)").fill(phone);
-  await drawer.getByLabel("Gender").click();
-  await page.getByRole("option", { name: "Male", exact: true }).click();
-
-  await drawer.getByRole("button", { name: "Register" }).click();
-  await expect(drawer).not.toBeVisible({ timeout: 15_000 });
-
-  const list = await api<{ patients: PatientLite[] }>(
-    ctx,
-    "GET",
-    "/api/patients?per_page=20",
-  );
-  const found = list.patients.find((p) => p.first_name === firstName);
-  if (!found) {
-    throw new Error(
-      `registered patient ${firstName} not found in /api/patients (got ${list.patients.length} rows)`,
-    );
-  }
+  const desk = new RegistrationDesk(page);
+  await desk.open();
+  await desk.register({
+    firstName,
+    lastName,
+    phone,
+    sex: "Male",
+    ageYears: 35,
+    department: (await getOpdDept(ctx)).name,
+  });
+  const byPhone = async () =>
+    (
+      await api<{ patients: PatientLite[] }>(
+        ctx,
+        "GET",
+        `/api/patients?search=${encodeURIComponent(phone)}&per_page=5`,
+      )
+    ).patients.find((p) => p.first_name === firstName);
+  await expect.poll(async () => (await byPhone())?.id ?? "", { timeout: 15_000 }).not.toBe("");
+  const found = await byPhone();
+  if (!found) throw new Error(`registered patient ${firstName} not found by phone ${phone}`);
   return found;
 }
 
@@ -1323,13 +1327,15 @@ export async function createNdpsEntry(
   });
 }
 
+/** The register, optionally for one drug (the list is paginated). */
 export async function listNdpsEntries(
   ctx: AuthContext,
+  catalogItemId?: string,
 ): Promise<NdpsEntryLite[]> {
   const resp = await api<{ entries: NdpsEntryLite[] } | NdpsEntryLite[]>(
     ctx,
     "GET",
-    "/api/pharmacy/ndps-register",
+    `/api/pharmacy/ndps-register${catalogItemId ? `?catalog_item_id=${catalogItemId}&per_page=100` : ""}`,
   );
   return Array.isArray(resp) ? resp : resp.entries;
 }

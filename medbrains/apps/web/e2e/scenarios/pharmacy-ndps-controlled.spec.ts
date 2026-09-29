@@ -5,7 +5,7 @@
  */
 
 import { test, expect } from "@playwright/test";
-import { loginAsRoleApi, api } from "../helpers/api";
+import { api, loginAsRoleApi, withStepUp } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
@@ -75,14 +75,27 @@ test.describe("Pharmacy dispensing — FEFO and NDPS register", () => {
   }) => {
     const doctorCtx = await loginAsRoleApi(request, "doctor");
     const pharmacistCtx = await loginAsRoleApi(request, "pharmacist");
-    const witnessCtx = await loginAsRoleApi(request, "pharmacist");
+    // Dual control: the witness is a second person, never the one recording.
+    const witnessCtx = await loginAsRoleApi(request, "doctor");
 
     const patient = await createPatientApi(doctorCtx);
     const ndpsDrug = await getOrCreateNdpsDrug(pharmacistCtx);
 
-    const countBefore = (await listNdpsEntries(pharmacistCtx)).length;
+    const countBefore = (await listNdpsEntries(pharmacistCtx, ndpsDrug.id)).length;
 
-    const ndpsEntry = await createNdpsEntry(pharmacistCtx, {
+    // A controlled-drug entry is a high-risk act: the pharmacist re-proves
+    // who they are first (step-up), as the register requires.
+    const stepped = await withStepUp(pharmacistCtx);
+    // Stock comes into the register before any leaves it: a dispense against
+    // a zero balance is refused.
+    await createNdpsEntry(stepped, {
+      catalogItemId: ndpsDrug.id,
+      action: "receipt",
+      quantity: 10,
+      witnessUserId: witnessCtx.userId,
+      notes: "E2E NDPS receipt",
+    });
+    const ndpsEntry = await createNdpsEntry(stepped, {
       catalogItemId: ndpsDrug.id,
       patientId: patient.id,
       quantity: 3,
@@ -95,7 +108,7 @@ test.describe("Pharmacy dispensing — FEFO and NDPS register", () => {
     expect(ndpsEntry.quantity).toBe(3);
 
     // Entry appears in register
-    const entriesAfter = await listNdpsEntries(pharmacistCtx);
+    const entriesAfter = await listNdpsEntries(pharmacistCtx, ndpsDrug.id);
     expect(entriesAfter.length).toBeGreaterThan(countBefore);
 
     const registered = entriesAfter.find((e) => e.id === ndpsEntry.id);
@@ -108,6 +121,24 @@ test.describe("Pharmacy dispensing — FEFO and NDPS register", () => {
     const pharmacistCtx = await loginAsRoleApi(request, "pharmacist");
     const patient = await createPatientApi(doctorCtx);
     const drug = await getFirstDrug(pharmacistCtx);
+    // The pharmacist reaches the patient through the order they dispense;
+    // with no order, the patient is not theirs to look at (the server answers
+    // 404, not a disclosure).
+    const opdDept = await getOpdDept(doctorCtx);
+    const encounterId = await createEncounter(doctorCtx, patient.id, { departmentId: opdDept.id });
+    const prescriptionId = await createPrescription(doctorCtx, encounterId, {
+      drugId: drug.id,
+      dose: "500mg",
+      frequency: "twice_daily",
+      duration_days: 5,
+      route: "oral",
+    });
+    await createPharmacyOrder(pharmacistCtx, {
+      patientId: patient.id,
+      prescriptionId,
+      drugId: drug.id,
+      quantity: 10,
+    });
 
     // Call the interaction check endpoint: returns array of interactions
     const interactions = await api<{ interacting_drug: string; severity: string }[]>(

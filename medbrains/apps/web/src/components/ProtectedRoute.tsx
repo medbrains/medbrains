@@ -29,6 +29,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const setPermissions = usePermissionStore((s) => s.setPermissions);
   const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
+  const setRestrictCopy = useModuleStore((s) => s.setRestrictCopy);
   const clearModules = useModuleStore((s) => s.clearModules);
   const [verified, setVerified] = useState<boolean | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -68,6 +69,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         setMfaEnrollmentRequired(resp.mfa_enrollment_required);
         setPermissions(resp.role, resp.permissions, resp.field_access);
         setDisabledModules(resp.disabled_modules ?? []);
+        setRestrictCopy(resp.restrict_copy === true);
 
         // Load locale/units settings for the tenant
         try {
@@ -116,7 +118,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, clearAuth, clearPermissions, setPermissions, clearModules, setDisabledModules]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    hasHydrated,
+    clearAuth,
+    clearPermissions,
+    setPermissions,
+    clearModules,
+    setDisabledModules,
+    setRestrictCopy,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
