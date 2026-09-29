@@ -3620,7 +3620,8 @@ export const api = {
 
   // Configured queues (Admin → Queues)
   listQueues: () => request<QueueRow[]>("/queues"),
-  listQueuePlaces: () => request<QueuePlace[]>("/queues/places"),
+  listQueuePlaces: (q?: string) =>
+    request<QueuePlace[]>(`/queues/places${q ? `?${new URLSearchParams({ q })}` : ""}`),
   createQueue: (data: QueueInput) =>
     request<QueueConfig>("/queues", { method: "POST", body: JSON.stringify(data) }),
   updateQueue: (id: string, data: QueueInput) =>
@@ -6087,6 +6088,7 @@ export const api = {
       witnessed_by?: string;
       allergy_override_reason?: string;
       ndps_override_reason?: string;
+      unpaid_override_reason?: string;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {

@@ -579,7 +579,8 @@ export interface Appointment {
   recurrence_group_id: string | null;
   recurrence_index: number | null;
   appointment_group_id: string | null;
-  created_by: string;
+  /** Null for an online booking — the patient is not a staff user. */
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }

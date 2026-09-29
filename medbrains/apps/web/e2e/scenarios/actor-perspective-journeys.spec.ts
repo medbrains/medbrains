@@ -21,6 +21,7 @@ import {
 } from "../helpers/api";
 import { getAvailableBed, getFirstDrug, getIpdDept, getOpdDept } from "../helpers/seed-resolvers";
 import {
+  addBillingItem,
   acknowledgeIpdHandover,
   admitToIpd,
   approvePurchaseOrder,
@@ -221,6 +222,7 @@ test.describe("Actor-perspective user journeys", () => {
         patientId: patient.id,
         encounterId,
       });
+      await addBillingItem(billingCtx, invoiceId, { unitPrice: 500 });
       const issued = await issueInvoice(billingCtx, invoiceId);
       expect(issued.status).toBe("issued");
     },

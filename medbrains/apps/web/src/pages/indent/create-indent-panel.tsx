@@ -61,7 +61,7 @@ export function CreateIndentPanel({ onDone }: { onDone: () => void }) {
   });
 
   const { data: catalog } = useQuery({
-    queryKey: ["store-catalog"],
+    queryKey: ["store-catalog", "active"],
     queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
@@ -99,9 +99,13 @@ export function CreateIndentPanel({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const updateItem = (idx: number, field: keyof CreateIndentItemInput, value: unknown) => {
-    setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
+  // Functional, and one patch per change: picking from the catalog sets three
+  // fields at once, and three updates from the same snapshot kept only the last.
+  const patchItem = (idx: number, patch: Partial<CreateIndentItemInput>) => {
+    setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, ...patch } : item)));
   };
+  const updateItem = (idx: number, field: keyof CreateIndentItemInput, value: unknown) =>
+    patchItem(idx, { [field]: value });
 
   const departmentOptions = (departments ?? []).map((d) => ({
     value: d.id,
@@ -179,9 +183,11 @@ export function CreateIndentPanel({ onDone }: { onDone: () => void }) {
                   onChange={(v) => {
                     const cat = catalog?.find((c) => c.id === v);
                     if (cat) {
-                      updateItem(idx, "catalog_item_id", v);
-                      updateItem(idx, "item_name", cat.name);
-                      updateItem(idx, "unit_price", Number(cat.base_price));
+                      patchItem(idx, {
+                        catalog_item_id: cat.id,
+                        item_name: cat.name,
+                        unit_price: Number(cat.base_price),
+                      });
                     }
                   }}
                   searchable

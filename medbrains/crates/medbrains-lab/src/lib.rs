@@ -131,8 +131,6 @@ fn has_operational_lab_order_scope(claims: &Claims) -> bool {
 /// encounter — the lab is on the case once a test is ordered, and without
 /// that link no technician could collect the sample the doctor just asked
 /// for, since every lab route resolves access through the patient.
-// ponytail: PATHOLOGY assumed as the laboratory department; a per-tenant
-// setting when a hospital names its lab otherwise.
 pub async fn grant_lab_order_access(
     state: &AppState,
     claims: &Claims,
@@ -166,46 +164,16 @@ pub async fn grant_lab_order_access(
     let Some(encounter_id) = encounter_id else {
         return Ok(());
     };
-    let lab_department: Option<Uuid> = sqlx::query_scalar!(
-        "SELECT id FROM departments \
-          WHERE tenant_id = $1 AND code = 'PATHOLOGY' AND is_active AND deleted_at IS NULL \
-          LIMIT 1",
-        claims.tenant_id,
+    medbrains_authz_gate::hand_off(
+        state,
+        claims,
+        medbrains_authz_gate::HandOff {
+            object_type: "encounter",
+            object_id: encounter_id,
+            department_code: medbrains_authz_gate::PATHOLOGY,
+        },
     )
-    .fetch_optional(&state.db)
-    .await?;
-    let Some(lab_department) = lab_department else {
-        return Ok(());
-    };
-    // One link per encounter, however many tests the lab is asked for.
-    let linked: bool = sqlx::query_scalar!(
-        "SELECT EXISTS(SELECT 1 FROM relation_tuples \
-          WHERE tenant_id = $1 AND object_type = 'encounter' AND object_id = $2 \
-            AND relation = 'dept_member' AND subject_type = 'department' AND subject_id = $3 \
-            AND status = 'active') AS \"exists!\"",
-        claims.tenant_id,
-        encounter_id,
-        lab_department.to_string(),
-    )
-    .fetch_one(&state.db)
-    .await?;
-    if linked {
-        return Ok(());
-    }
-    state
-        .authz
-        .grant_raw(
-            &authz_ctx,
-            "encounter",
-            encounter_id,
-            "dept_member",
-            medbrains_authz::Subject::Department(lab_department),
-            None,
-            Some("lab_order_department".to_owned()),
-        )
-        .await
-        .map(|_| ())
-        .map_err(|e| AppError::Internal(format!("lab department authz grant failed: {e}")))
+    .await
 }
 
 #[derive(Debug, Deserialize)]

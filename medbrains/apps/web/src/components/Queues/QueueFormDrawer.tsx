@@ -1,10 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, Group, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
+import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { previewQueueNumber, type QueueFormInput, queueFormSchema } from "@medbrains/schemas";
 import type { QueueConfig, QueueInput } from "@medbrains/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   Button,
@@ -62,10 +64,15 @@ function defaults(queue: QueueConfig | null): QueueFormInput {
 /** Create or edit a queue: what it serves, how it numbers, how many, and when. */
 export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps) {
   const queryClient = useQueryClient();
+  // Searched on the server: a campus can have more places than one list holds.
+  const [placeSearch, setPlaceSearch] = useState("");
+  // Picking an option fills the box with "Name · scope"; search by the name.
+  const [placeQuery] = useDebouncedValue(placeSearch.split(" · ")[0]?.trim() ?? "", 300);
   const places = useQuery({
-    queryKey: ["queue-places"],
-    queryFn: () => api.listQueuePlaces(),
+    queryKey: ["queue-places", placeQuery],
+    queryFn: () => api.listQueuePlaces(placeQuery || undefined),
     enabled: opened,
+    placeholderData: keepPreviousData,
   });
   const form = useForm<QueueFormInput>({
     resolver: zodResolver(queueFormSchema),
@@ -144,6 +151,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
                 label="Place it serves"
                 placeholder="Department, room, counter or station"
                 searchable
+                onSearchChange={setPlaceSearch}
                 data={(places.data ?? []).map((p) => ({
                   value: `${p.scope}:${p.scope_id}`,
                   label: `${p.label} · ${p.scope}`,

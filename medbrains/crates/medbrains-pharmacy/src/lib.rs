@@ -1767,6 +1767,10 @@ pub async fn list_orders(
 
     let count_sql = format!("SELECT COUNT(*) FROM pharmacy_orders WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
+    // Same order as the placeholders: the visible set is $2, before the filters.
+    if let Some(ref ids) = visible_ids {
+        cq = cq.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             cq = cq.bind(u);
@@ -1774,9 +1778,6 @@ pub async fn list_orders(
         if let Some(ref s) = b.string_val {
             cq = cq.bind(s.clone());
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        cq = cq.bind(ids.clone());
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
@@ -1797,6 +1798,10 @@ pub async fn list_orders(
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, PharmacyOrder>(&data_sql).bind(claims.tenant_id);
+    // Same order as the placeholders: the visible set is $2, before the filters.
+    if let Some(ref ids) = visible_ids {
+        dq = dq.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             dq = dq.bind(u);
@@ -1804,9 +1809,6 @@ pub async fn list_orders(
         if let Some(ref s) = b.string_val {
             dq = dq.bind(s.clone());
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        dq = dq.bind(ids.clone());
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
@@ -1823,6 +1825,26 @@ pub async fn list_orders(
 //  POST /api/pharmacy/orders (ENHANCED — Phase 2)
 // ══════════════════════════════════════════════════════════
 
+/// A pharmacy order is the pharmacy's work: its department reaches it
+/// (`pharmacy_order.dispense = dept_member` in the schema), so it shows on the
+/// pharmacy's Orders list whoever created it.
+async fn hand_order_to_pharmacy(
+    state: &AppState,
+    claims: &Claims,
+    order_id: Uuid,
+) -> Result<(), AppError> {
+    medbrains_authz_gate::hand_off(
+        state,
+        claims,
+        medbrains_authz_gate::HandOff {
+            object_type: "pharmacy_order",
+            object_id: order_id,
+            department_code: medbrains_authz_gate::PHARMACY,
+        },
+    )
+    .await
+}
+
 pub async fn create_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1836,6 +1858,7 @@ pub async fn create_order(
         .await?;
     let result = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
+    hand_order_to_pharmacy(&state, &claims, result.order.id).await?;
     Ok(Json(filter_pharmacy_order_detail_response(
         result,
         &restricted_fields,
@@ -3832,6 +3855,7 @@ pub async fn create_otc_sale(
 
     let detail = order_detail_response_in_tx(&mut tx, &claims.tenant_id, order, items).await?;
     tx.commit().await?;
+    hand_order_to_pharmacy(&state, &claims, detail.order.id).await?;
     Ok(Json(filter_pharmacy_order_detail_response(
         detail,
         &restricted_fields,
@@ -3947,6 +3971,7 @@ pub async fn create_discharge_dispensing(
 
     let detail = order_detail_response_in_tx(&mut tx, &claims.tenant_id, order, items).await?;
     tx.commit().await?;
+    hand_order_to_pharmacy(&state, &claims, detail.order.id).await?;
     Ok(Json(filter_pharmacy_order_detail_response(
         detail,
         &restricted_fields,
@@ -6702,6 +6727,9 @@ pub async fn review_prescription(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &review_event).await?;
 
     tx.commit().await?;
+    if let Some(order_id) = created_order_id {
+        hand_order_to_pharmacy(&state, &claims, order_id).await?;
+    }
 
     if let Some(billing_payload) = billing_invoice_lifecycle_payload {
         let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
@@ -7201,6 +7229,9 @@ pub async fn create_pos_sale(
     };
 
     tx.commit().await?;
+    if let Some(order_id) = sale.pharmacy_order_id {
+        hand_order_to_pharmacy(&state, &claims, order_id).await?;
+    }
     Ok(Json(filter_pharmacy_pos_sale_response(
         sale,
         &restricted_fields,

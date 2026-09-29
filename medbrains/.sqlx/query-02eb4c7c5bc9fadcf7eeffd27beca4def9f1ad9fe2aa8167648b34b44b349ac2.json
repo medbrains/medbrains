@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM relation_tuples WHERE tenant_id = $1 AND object_type = $2 AND object_id = $3 AND relation = 'dept_member' AND subject_type = 'department' AND subject_id = $4 AND status = 'active') AS \"exists!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "exists!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "02eb4c7c5bc9fadcf7eeffd27beca4def9f1ad9fe2aa8167648b34b44b349ac2"
+}

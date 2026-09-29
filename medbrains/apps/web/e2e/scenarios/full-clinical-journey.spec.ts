@@ -109,10 +109,11 @@ test.describe("Full clinical journey", () => {
       // Already in terminal state — non-fatal.
     }
 
-    // Final UI assertion: search the new patient on /patients.
+    // Final UI assertion: find the new patient on /patients by UHID — real
+    // names repeat, the UHID does not.
     await navigateTo(page, "/patients");
-    await page.getByPlaceholder(/Search/i).fill(patient.first_name);
-    const row = page.locator("tr", { hasText: patient.first_name });
+    await page.getByPlaceholder(/Search/i).fill(patient.uhid);
+    const row = page.getByRole("row", { name: new RegExp(patient.uhid) });
     await expect(row).toBeVisible({ timeout: 10_000 });
   });
 });

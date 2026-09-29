@@ -742,6 +742,7 @@ function RoleMatrixEditor({
                           <Table.Td>
                             <SegmentedControl
                               size="xs"
+                              aria-label={permission.label}
                               value={selectedPermissions.has(permission.code) ? "grant" : "deny"}
                               onChange={(value) =>
                                 togglePermission(permission.code, value === "grant")

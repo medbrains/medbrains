@@ -77,7 +77,7 @@ test.describe("Pharmacy Dispensing — UI", () => {
     ).toBeVisible({ timeout: 12_000 });
   });
 
-  test("Dispense button present on a pending pharmacy order row", async ({
+  test("pharmacist dispenses a pending order from the Orders tab", async ({
     page,
     request,
   }) => {
@@ -103,15 +103,21 @@ test.describe("Pharmacy Dispensing — UI", () => {
     // The queue shows the 50 oldest; a pharmacist reaches one patient's
     // prescriptions from that patient (search is the queued "search by" work).
     await navigateTo(page, `/pharmacy?patient_id=${patient.id}`);
-    await page.getByRole("tab", { name: /Rx Queue/i }).click();
+    // An order made from the reviewed prescription waits on Orders.
+    await page.getByRole("tab", { name: "Orders" }).click();
+    const row = page.getByRole("row", { name: new RegExp(patient.first_name, "i") });
+    await expect(row).toBeVisible({ timeout: 12_000 });
 
-    await expect(
-      page.getByText(new RegExp(patient.first_name, "i")),
-    ).toBeVisible({ timeout: 12_000 });
-
-    // Dispense action button/label should be visible somewhere in the row
-    await expect(page.getByRole("button", { name: /Dispense/i }).first()).toBeVisible({
-      timeout: 8_000,
+    await row.getByRole("button", { name: "Dispense pharmacy order" }).click();
+    // The order's bill is unpaid: the pharmacist says why, rather than being
+    // turned away or dispensing silently.
+    const unpaid = page.getByRole("dialog", { name: "Dispense unpaid?" });
+    await expect(unpaid).toContainText("outstanding balance");
+    await unpaid.getByLabel("Why dispense before payment").fill("Credit patient — billed on account");
+    await unpaid.getByRole("button", { name: "Dispense unpaid" }).click();
+    await expect(unpaid).toBeHidden();
+    await expect(row.getByRole("button", { name: "Dispense pharmacy order" })).toHaveCount(0, {
+      timeout: 10_000,
     });
   });
 });

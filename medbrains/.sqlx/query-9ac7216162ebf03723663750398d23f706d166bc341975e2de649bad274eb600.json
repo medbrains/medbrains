@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT scope AS \"scope!\", scope_id AS \"scope_id!\", label AS \"label!\", kind\n             FROM token_scopes\n            WHERE tenant_id = $1 AND is_active\n            ORDER BY scope, label\n            LIMIT 1000",
+  "query": "SELECT scope AS \"scope!\", scope_id AS \"scope_id!\", label AS \"label!\", kind\n             FROM token_scopes\n            WHERE tenant_id = $1 AND is_active\n              AND ($2::text IS NULL OR label ILIKE '%' || $2 || '%')\n            ORDER BY scope, label\n            LIMIT 1000",
   "describe": {
     "columns": [
       {
@@ -26,7 +26,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
@@ -36,5 +37,5 @@
       true
     ]
   },
-  "hash": "c978f87ee2ba867238e628c14c09003ea0e110ea72c8ed787555c3733ee51f10"
+  "hash": "9ac7216162ebf03723663750398d23f706d166bc341975e2de649bad274eb600"
 }
