@@ -1,19 +1,11 @@
 import { notifications } from "@mantine/notifications";
-import type { TenantSettingsRow } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
+import { useModuleStore } from "@medbrains/stores";
 import { useEffect } from "react";
-import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 function isEditable(target: EventTarget | null): boolean {
   const node = target as HTMLElement | null;
   if (!node || typeof node.tagName !== "string") return false;
   return node.tagName === "INPUT" || node.tagName === "TEXTAREA" || node.isContentEditable;
-}
-
-function flagOn(rows: TenantSettingsRow[] | undefined): boolean {
-  return Boolean(
-    rows?.some((r) => r.key === "restrict_copy" && (r.value === true || r.value === "true")),
-  );
 }
 
 /**
@@ -25,13 +17,10 @@ function flagOn(rows: TenantSettingsRow[] | undefined): boolean {
  * endpoint/network DLP. Renders nothing.
  */
 export function DlpGuard() {
-  const { data: rows } = useQuery({
-    queryKey: ["settings", "security"],
-    queryFn: () => tenantSettingsService.getTenantSettings("security"),
-    staleTime: 300_000,
-    retry: false,
-  });
-  const restrict = flagOn(rows);
+  // From /auth/me, which every user loads: the security settings themselves
+  // are admin-only, so reading them here refused everyone else and the guard
+  // never switched on for the staff it exists for.
+  const restrict = useModuleStore((s) => s.restrictCopy);
 
   // External DOM listeners (allowed useEffect): toggle the DLP guard.
   useEffect(() => {

@@ -67,7 +67,8 @@ const JOURNEYS: RoleJourney[] = [
   },
   {
     role: "procurement_officer",
-    allowed: ["/dashboard", "/procurement"],
+    // Procurement lives in the Materials workspace; /procurement redirects there.
+    allowed: ["/dashboard", "/materials"],
     forbidden: ["/patients", "/lab", "/pharmacy", "/hr"],
   },
   {

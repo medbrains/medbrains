@@ -1,5 +1,7 @@
 import { api } from "@medbrains/api";
-import { useEffectOnce } from "react-use";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
+import { useEffect } from "react";
 import { useAiAssistantStore } from "@/components/ai/assistant-store";
 import {
   CODE_KINDS,
@@ -52,14 +54,25 @@ function showWhisper(whisper: WhisperPayload) {
  * Subscribes to the proactive-whisper SSE (GET /api/ai/whispers) and surfaces
  * critical alerts as toasts with an "Ask AI" action. Mounted once, app-wide.
  */
+/** A refusal is not a blip: the stream is not reopened for 401/403. */
+class StreamRefused extends Error {}
+
 export function useWhispers() {
-  useEffectOnce(() => {
+  // The stream carries critical lab results; a role without the lab-report
+  // permission is refused, so it does not open one — and did, every 30 s.
+  const canReceive = useHasPermission(P.LAB.REPORTS.VIEW);
+  // External system integration (a long-lived stream): an allowed useEffect.
+  useEffect(() => {
+    if (!canReceive) return;
     const controller = new AbortController();
     let stopped = false;
     let backoff = 3000;
 
     const readStream = async () => {
       const response = await api.whisperStream(controller.signal);
+      if (response.status === 401 || response.status === 403) {
+        throw new StreamRefused(`whisper stream ${response.status}`);
+      }
       if (!response.ok || !response.body) {
         throw new Error(`whisper stream ${response.status}`);
       }
@@ -90,8 +103,8 @@ export function useWhispers() {
       while (!stopped) {
         try {
           await readStream();
-        } catch {
-          if (stopped || controller.signal.aborted) return;
+        } catch (error) {
+          if (stopped || controller.signal.aborted || error instanceof StreamRefused) return;
         }
         if (stopped) return;
         await new Promise((resolve) => setTimeout(resolve, backoff));
@@ -103,5 +116,5 @@ export function useWhispers() {
       stopped = true;
       controller.abort();
     };
-  });
+  }, [canReceive]);
 }

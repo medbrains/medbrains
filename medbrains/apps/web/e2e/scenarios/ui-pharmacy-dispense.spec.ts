@@ -8,14 +8,14 @@
 import { test, expect } from "@playwright/test";
 import { loginAsRole, navigateTo, routeApiDirect } from "../helpers";
 import { getE2EIdentity } from "../helpers/e2e-identities";
-import { loginAsRoleApi } from "../helpers/api";
+import { getAuthContextFromCookies, loginAsRoleApi } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
   createPrescription,
   createPharmacyOrder,
 } from "../helpers/journey-steps";
-import { getOpdDept } from "../helpers/seed-resolvers";
+import { getFirstDrug, getOpdDept } from "../helpers/seed-resolvers";
 
 test.describe("Pharmacy Dispensing — UI", () => {
   test.beforeEach(async ({ page }) => {
@@ -57,10 +57,14 @@ test.describe("Pharmacy Dispensing — UI", () => {
     const encounterId = await createEncounter(doctorCtx, patient.id, {
       departmentId: opdDept.id,
     });
-    await createPrescription(doctorCtx, encounterId);
+    // The drug is picked by someone who manages stock; a doctor cannot see it.
+    const drug = await getFirstDrug(await getAuthContextFromCookies(request));
+    await createPrescription(doctorCtx, encounterId, { drugId: drug.id });
 
     await loginAsRole(page, pharmacistIdentity.username, pharmacistIdentity.password);
-    await navigateTo(page, "/pharmacy");
+    // The queue shows the 50 oldest; a pharmacist reaches one patient's
+    // prescriptions from that patient (search is the queued "search by" work).
+    await navigateTo(page, `/pharmacy?patient_id=${patient.id}`);
 
     // Click Rx Queue tab
     await page.getByRole("tab", { name: /Rx Queue/i }).click();
@@ -86,7 +90,8 @@ test.describe("Pharmacy Dispensing — UI", () => {
     const encounterId = await createEncounter(doctorCtx, patient.id, {
       departmentId: opdDept.id,
     });
-    const prescriptionId = await createPrescription(doctorCtx, encounterId);
+    const drug = await getFirstDrug(await getAuthContextFromCookies(request));
+    const prescriptionId = await createPrescription(doctorCtx, encounterId, { drugId: drug.id });
 
     // Create a pharmacy order so it shows in the UI queue
     await createPharmacyOrder(pharmacistCtx, {
@@ -95,7 +100,9 @@ test.describe("Pharmacy Dispensing — UI", () => {
     });
 
     await loginAsRole(page, pharmacistIdentity.username, pharmacistIdentity.password);
-    await navigateTo(page, "/pharmacy");
+    // The queue shows the 50 oldest; a pharmacist reaches one patient's
+    // prescriptions from that patient (search is the queued "search by" work).
+    await navigateTo(page, `/pharmacy?patient_id=${patient.id}`);
     await page.getByRole("tab", { name: /Rx Queue/i }).click();
 
     await expect(

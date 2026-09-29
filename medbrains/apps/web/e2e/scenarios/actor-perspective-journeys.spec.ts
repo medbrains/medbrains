@@ -73,6 +73,14 @@ interface KioskCheckinResponse {
 }
 
 test.describe("Actor-perspective user journeys", () => {
+  // Public booking is opt-in per hospital; off, the endpoints answer as for
+  // an unknown hospital. A test that switches it on puts it back.
+  let restoreSettings: (() => Promise<void>) | null = null;
+  test.afterEach(async () => {
+    await restoreSettings?.();
+    restoreSettings = null;
+  });
+
   test("patient/public user books OPD and checks in at kiosk", async ({ request }) => {
     test.info().annotations.push({
       type: "tcms",
@@ -83,6 +91,25 @@ test.describe("Actor-perspective user journeys", () => {
     const doctor = getE2EIdentity("doctor");
     const department = await getOpdDept(adminCtx);
     const appointmentDate = dateDaysFromNow(0);
+
+    const settings = await api<Array<{ key: string; value: unknown }>>(
+      adminCtx,
+      "GET",
+      "/api/setup/settings?category=appointments",
+    );
+    const wasEnabled = settings.find((r) => r.key === "public_booking_enabled")?.value ?? false;
+    await api(adminCtx, "PUT", "/api/setup/settings", {
+      category: "appointments",
+      key: "public_booking_enabled",
+      value: true,
+    });
+    restoreSettings = async () => {
+      await api(adminCtx, "PUT", "/api/setup/settings", {
+        category: "appointments",
+        key: "public_booking_enabled",
+        value: wasEnabled,
+      });
+    };
 
     await ensureDoctorScheduleForDate(adminCtx, {
       doctorId: doctor.id,
@@ -228,7 +255,9 @@ test.describe("Actor-perspective user journeys", () => {
     const poItem = poDetail.items[0];
     if (!poItem) throw new Error("Purchase order should include one vendor line item");
 
-    const approved = await approvePurchaseOrder(procurementCtx, purchaseOrder.id);
+    // Separation of duties: whoever raised the order may not approve it.
+    const approverCtx = await getAuthContextFromCookies(request);
+    const approved = await approvePurchaseOrder(approverCtx, purchaseOrder.id);
     expect(approved.status).toBe("approved");
 
     const sent = await sendPurchaseOrderToVendor(procurementCtx, purchaseOrder.id);
@@ -429,12 +458,13 @@ test.describe("Actor-perspective user journeys", () => {
     );
     expect(fhirEncounter.resourceType).toBe("Encounter");
 
+    const agentKey = `e2e-bridge-${Date.now()}`;
     const bridge = await externalApi<{ agent_id: string; status: string }>(
       request,
       "POST",
       "/api/bridge/register",
       {
-        agent_key: `e2e-bridge-${Date.now()}`,
+        agent_key: agentKey,
         name: "E2E Device Bridge",
         version: "0.0.0-e2e",
         hostname: "e2e-bridge.local",
@@ -450,7 +480,9 @@ test.describe("Actor-perspective user journeys", () => {
       "POST",
       "/api/bridge/heartbeat",
       {
+        // A heartbeat proves it comes from the registered bridge.
         agent_id: bridge.agent_id,
+        agent_key: agentKey,
         devices_connected: 2,
         devices_errored: 0,
         messages_processed: 4,

@@ -14,8 +14,16 @@ interface RuntimeMonitorOptions {
   ignoredApiFailures?: RegExp[];
 }
 
+/**
+ * Answers that are outcomes, not failures. `tenant-by-host` says 404 when no
+ * hospital owns the host — every dev run on localhost; a deployment is bound
+ * by MEDBRAINS_TENANT_ID and never sees it.
+ */
+const EXPECTED_API_ANSWERS = [/^\/api\/public\/tenant-by-host\?/];
+
 function monitorRuntimeFailures(page: Page, options: RuntimeMonitorOptions = {}): string[] {
   const failures: string[] = [];
+  const ignored = [...EXPECTED_API_ANSWERS, ...(options.ignoredApiFailures ?? [])];
 
   page.on("pageerror", (error) => {
     if (!/WebSocket closed without opened|vite-hmr/i.test(error.message)) {
@@ -38,7 +46,7 @@ function monitorRuntimeFailures(page: Page, options: RuntimeMonitorOptions = {})
     if (
       url.pathname.startsWith("/api/") &&
       response.status() >= 400 &&
-      !options.ignoredApiFailures?.some((pattern) => pattern.test(apiPath))
+      !ignored.some((pattern) => pattern.test(apiPath))
     ) {
       failures.push(`${response.status()} ${url.pathname}${url.search}`);
     }
@@ -71,13 +79,20 @@ async function expectNoSidebarEntry(page: Page, label: string) {
 async function expectDirectRouteDenied(page: Page, path: string) {
   await page.goto(path);
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  await expect(page).toHaveURL(/\/apps(?:[?#].*)?$/, { timeout: 10_000 });
+  // A page the role may not open sends them home (useRequirePermission).
+  await expect(page).toHaveURL(/\/dashboard(?:[?#].*)?$/, { timeout: 10_000 });
 }
 
-async function selectWorkspace(page: Page, label: string) {
-  await page.getByRole("button", { name: "Select app" }).click();
-  await page.getByRole("menuitem", { name: new RegExp(`^${escapeRegExp(label)}\\b`) }).click();
-  await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+/**
+ * The sidebar lists every module the role may open (the workspace switcher
+ * went in #311); collapsed to the icon rail it shows no labels, so open it.
+ */
+async function openSidebar(page: Page) {
+  const sidebar = page.locator('[data-testid="app-sidebar"]');
+  if ((await sidebar.getAttribute("data-mode")) === "rail") {
+    await sidebar.getByRole("button", { name: "Expand" }).click();
+  }
+  await expect(sidebar).toHaveAttribute("data-mode", "expanded");
 }
 
 test.describe("UI journeys and action surfaces", () => {
@@ -112,6 +127,8 @@ test.describe("UI journeys and action surfaces", () => {
 
     await expect(page).toHaveURL(/\/patients\/register(?:[?#].*)?$/);
     await expect(page.getByRole("heading", { name: "Register Patient" })).toBeVisible();
+    // The intake checklist folds away behind a toggle.
+    await page.getByRole("button", { name: "Show checklist" }).click();
     await expect(page.getByText("Intake checklist")).toBeVisible();
 
     await page.getByLabel("First Name").fill(patient.firstName);
@@ -196,11 +213,11 @@ test.describe("UI journeys and action surfaces", () => {
     const runtimeFailures = monitorRuntimeFailures(page);
 
     await loginAndNavigate(page, "store_keeper", "/dashboard");
-    await selectWorkspace(page, "Operations");
-    await expectSidebarEntry(page, "Procurement");
-    await navigateTo(page, "/procurement");
-
-    await expect(page.getByRole("heading", { name: "Procurement" })).toBeVisible();
+    await openSidebar(page);
+    // Procurement is a section of the Materials workspace.
+    await expectSidebarEntry(page, "Materials");
+    await navigateTo(page, "/materials");
+    await page.getByRole("tab", { name: "Procurement" }).click();
     await expect(page.getByRole("tab", { name: "Purchase Orders" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "GRN" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Batch Stock" })).toBeVisible();
@@ -269,7 +286,7 @@ test.describe("UI journeys and action surfaces", () => {
     const runtimeFailures = monitorRuntimeFailures(page);
 
     await loginAndNavigate(page, "security_guard", "/dashboard");
-    await selectWorkspace(page, "Operations");
+    await openSidebar(page);
     await expectSidebarEntry(page, "Front Office");
     await navigateTo(page, "/front-office");
 
@@ -305,73 +322,64 @@ test.describe("UI journeys and action surfaces", () => {
   });
 
   const roleWorkspaceCases = [
-    { role: "lab_technician", workspace: "LIMS", navLabel: "Lab", path: "/lab" },
-    { role: "pharmacist", workspace: "Pharmacy", navLabel: "Pharmacy", path: "/pharmacy" },
-    { role: "billing_clerk", workspace: "Finance", navLabel: "Billing", path: "/billing" },
+    { role: "lab_technician", navLabel: "Lab", path: "/lab" },
+    { role: "pharmacist", navLabel: "Pharmacy", path: "/pharmacy" },
+    { role: "billing_clerk", navLabel: "Billing", path: "/billing" },
     {
       role: "procurement_officer",
-      workspace: "Operations",
       navLabel: "Procurement",
       path: "/procurement",
     },
-    { role: "store_keeper", workspace: "Operations", navLabel: "Indent & Store", path: "/indent" },
-    { role: "nurse", workspace: "HIMS", navLabel: "Nurse Activities", path: "/nurse" },
+    { role: "store_keeper", navLabel: "Indent & Store", path: "/indent" },
+    { role: "nurse", navLabel: "Nurse Activities", path: "/nurse" },
     {
       role: "front_office_staff",
-      workspace: "Operations",
       navLabel: "Front Office",
       path: "/front-office",
     },
-    { role: "security_guard", workspace: "Operations", navLabel: "Security", path: "/security" },
+    { role: "security_guard", navLabel: "Security", path: "/security" },
     {
       role: "canteen_staff",
-      workspace: "HIMS",
       navLabel: "Diet & Kitchen",
       path: "/diet-kitchen",
     },
-    { role: "dietitian", workspace: "HIMS", navLabel: "Diet & Kitchen", path: "/diet-kitchen" },
+    { role: "dietitian", navLabel: "Diet & Kitchen", path: "/diet-kitchen" },
     {
       role: "ambulance_driver",
-      workspace: "Operations",
       navLabel: "Ambulance",
       path: "/ambulance",
     },
-    { role: "radiology_tech", workspace: "PACS", navLabel: "Radiology", path: "/radiology" },
-    { role: "cssd_technician", workspace: "Operations", navLabel: "CSSD", path: "/cssd" },
-    { role: "blood_bank_tech", workspace: "LIMS", navLabel: "Blood Bank", path: "/blood-bank" },
+    { role: "radiology_tech", navLabel: "Radiology", path: "/radiology" },
+    { role: "cssd_technician", navLabel: "CSSD", path: "/cssd" },
+    { role: "blood_bank_tech", navLabel: "Blood Bank", path: "/blood-bank" },
     {
       role: "mrd_officer",
-      workspace: "Operations",
       navLabel: "Medical Records",
       path: "/mrd",
     },
-    { role: "audit_officer", workspace: "Compliance", navLabel: "Audit Trail", path: "/audit" },
+    { role: "audit_officer", navLabel: "Audit Trail", path: "/audit" },
     {
       role: "infection_control_officer",
-      workspace: "Compliance",
       navLabel: "Infection Control",
       path: "/infection-control",
     },
     {
       role: "biomed_engineer",
-      workspace: "Operations",
       navLabel: "Biomedical Engineering",
       path: "/bme",
     },
-    { role: "hr_officer", workspace: "Operations", navLabel: "HR & Staffing", path: "/hr" },
+    { role: "hr_officer", navLabel: "HR & Staffing", path: "/hr" },
     {
       role: "camp_coordinator",
-      workspace: "Operations",
       navLabel: "Camp Management",
       path: "/camp",
     },
     {
       role: "insurance_officer",
-      workspace: "Finance",
       navLabel: "Insurance & TPA",
       path: "/insurance",
     },
-    { role: "ot_staff", workspace: "HIMS", navLabel: "Operation Theatre", path: "/ot" },
+    { role: "ot_staff", navLabel: "Operation Theatre", path: "/ot" },
   ];
 
   for (const c of roleWorkspaceCases) {
@@ -380,7 +388,7 @@ test.describe("UI journeys and action surfaces", () => {
         ignoredApiFailures: [/^\/api\/patients\/[0-9a-f-]{36}$/],
       });
       await loginAndNavigate(page, c.role, "/dashboard");
-      await selectWorkspace(page, c.workspace);
+      await openSidebar(page);
 
       const sidebar = page.locator('[data-testid="app-sidebar"]');
       const link = sidebar.getByText(c.navLabel, { exact: true }).first();

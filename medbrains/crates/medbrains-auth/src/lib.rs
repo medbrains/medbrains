@@ -955,6 +955,10 @@ pub struct MeResponse {
     /// Module codes the tenant's edition has switched OFF (status disabled/coming_soon).
     /// The frontend hides these modules' nav + routes. Absent code = enabled (default on).
     pub disabled_modules: Vec<String>,
+    /// The tenant restricts copying data out of the app (`security.restrict_copy`).
+    /// A rule every user is subject to, so every user reads it here; the
+    /// security settings themselves stay admin-only.
+    pub restrict_copy: bool,
 }
 
 pub async fn me(
@@ -980,6 +984,14 @@ pub async fn me(
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
+    .await?;
+    let restrict_copy: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM tenant_settings WHERE tenant_id = $1 \
+         AND category = 'security' AND key = 'restrict_copy' \
+         AND value IN ('true'::jsonb, '\"true\"'::jsonb))",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -1023,6 +1035,7 @@ pub async fn me(
         mfa_enabled,
         mfa_enrollment_required,
         disabled_modules,
+        restrict_copy,
     }))
 }
 

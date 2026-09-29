@@ -217,11 +217,19 @@ test.describe("the OPD queue moves with the token", () => {
   // Calling a patient from a board used to update `tokens` and leave
   // `opd_queues` on `waiting`, so the OPD screen went on offering a Call
   // button for somebody already called. Each status is asserted end to end.
+  // `via`: the steps a real desk takes first. A token is never completed
+  // straight from waiting — nobody finishes a consultation that never began,
+  // and the server refuses it.
   const TRANSITIONS = [
-    { token: "called", queue: "called", why: "the room has called them forward" },
-    { token: "serving", queue: "in_consultation", why: "the two vocabularies differ" },
-    { token: "completed", queue: "completed", why: "the consultation is finished" },
-    { token: "no_show", queue: "no_show", why: "called, and did not come" },
+    { token: "called", queue: "called", why: "the room has called them forward", via: [] },
+    { token: "serving", queue: "in_consultation", why: "the two vocabularies differ", via: [] },
+    {
+      token: "completed",
+      queue: "completed",
+      why: "the consultation is finished",
+      via: ["serving"],
+    },
+    { token: "no_show", queue: "no_show", why: "called, and did not come", via: [] },
   ] as const;
 
   for (const transition of TRANSITIONS) {
@@ -256,9 +264,9 @@ test.describe("the OPD queue moves with the token", () => {
       expect(token, "check-in must issue a token tied to the encounter").toBeTruthy();
       if (!token) return;
 
-      await api(ctx, "POST", `/api/tokens/${token.id}/advance`, {
-        status: transition.token,
-      });
+      for (const status of [...transition.via, transition.token]) {
+        await api(ctx, "POST", `/api/tokens/${token.id}/advance`, { status });
+      }
 
       // And this encounter's own queue row, by encounter id.
       const queueAfter = await api<Array<{ encounter_id: string; status: string }>>(

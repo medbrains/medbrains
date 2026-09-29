@@ -9,10 +9,15 @@ import { createSessionStorageAdapter } from "./platform-storage.js";
  * *explicitly* disabled, so tenants with no `module_config` rows see everything.
  *
  * Mirrors `permission-store` (sessionStorage, Set serialized as array).
+ *
+ * Also the tenant policy every user is subject to, from the same response:
+ * `restrictCopy` (`security.restrict_copy`), which the DLP guard enforces.
  */
 interface ModuleState {
   disabledModules: Set<string>;
   setDisabledModules: (codes: string[]) => void;
+  restrictCopy: boolean;
+  setRestrictCopy: (restrict: boolean) => void;
   clearModules: () => void;
   isModuleEnabled: (code?: string) => boolean;
 }
@@ -24,7 +29,10 @@ export const useModuleStore = create<ModuleState>()(
 
       setDisabledModules: (codes) => set({ disabledModules: new Set(codes) }),
 
-      clearModules: () => set({ disabledModules: new Set() }),
+      restrictCopy: false,
+      setRestrictCopy: (restrict) => set({ restrictCopy: restrict }),
+
+      clearModules: () => set({ disabledModules: new Set(), restrictCopy: false }),
 
       isModuleEnabled: (code) => {
         if (!code) return true;
@@ -38,7 +46,10 @@ export const useModuleStore = create<ModuleState>()(
         reviver: (key, value) =>
           key === "disabledModules" && Array.isArray(value) ? new Set(value as string[]) : value,
       }),
-      partialize: (state) => ({ disabledModules: state.disabledModules }),
+      partialize: (state) => ({
+        disabledModules: state.disabledModules,
+        restrictCopy: state.restrictCopy,
+      }),
     },
   ),
 );
