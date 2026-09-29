@@ -155,6 +155,20 @@ pub struct NearExpiryRow {
     pub days_until_expiry: i32,
 }
 
+/// A batch past its expiry with stock still on the shelf: it may not be
+/// dispensed, only quarantined and destroyed. Controlled drugs are destroyed
+/// through the NDPS register, never the bulk write-off.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ExpiredBatchRow {
+    pub batch_id: Uuid,
+    pub drug_name: String,
+    pub batch_number: String,
+    pub expiry_date: NaiveDate,
+    pub quantity_on_hand: i32,
+    pub days_expired: i32,
+    pub is_controlled: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DeadStockRow {
     pub drug_name: String,

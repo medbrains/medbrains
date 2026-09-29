@@ -66,6 +66,8 @@ export const pharmacyService = {
     api.createPharmacyBatch(...args),
   getNearExpiryReport: (...args: Parameters<typeof api.getNearExpiryReport>) =>
     api.getNearExpiryReport(...args),
+  listExpiredBatches: (...args: Parameters<typeof api.listExpiredBatches>) =>
+    api.listExpiredBatches(...args),
   writeOffExpired: (...args: Parameters<typeof api.writeOffExpired>) =>
     api.writeOffExpired(...args),
   getLocationStockDashboard: () => api.getLocationStockDashboard(),
