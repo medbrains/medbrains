@@ -8,9 +8,11 @@ import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
 import { Alert, Button } from "@/components/ui";
+import { getRememberedHospitalCode } from "@/lib/hospital-code";
 
 const requestSchema = z.object({
   username: z.string().min(3, "Enter your username"),
+  hospital_code: z.string().trim().max(40),
 });
 
 const confirmSchema = z
@@ -34,11 +36,12 @@ type ConfirmInput = z.infer<typeof confirmSchema>;
  */
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState<string | null>(null);
+  const [account, setAccount] = useState<RequestInput | null>(null);
+  const [askHospital, setAskHospital] = useState(() => getRememberedHospitalCode() !== "");
 
   const requestForm = useForm<RequestInput>({
     resolver: zodResolver(requestSchema),
-    defaultValues: { username: "" },
+    defaultValues: { username: "", hospital_code: getRememberedHospitalCode() },
   });
   const confirmForm = useForm<ConfirmInput>({
     resolver: zodResolver(confirmSchema),
@@ -46,16 +49,23 @@ export function ForgotPasswordPage() {
   });
 
   const requestMutation = useMutation({
-    mutationFn: (values: RequestInput) => api.requestPasswordReset(values),
-    onSuccess: (_data, values) => setUsername(values.username),
+    mutationFn: (values: RequestInput) =>
+      api.requestPasswordReset({
+        username: values.username,
+        ...(values.hospital_code ? { hospital_code: values.hospital_code } : {}),
+      }),
+    // A username several hospitals share needs the hospital before any code is sent.
+    onSuccess: (data, values) =>
+      data.hospital_required ? setAskHospital(true) : setAccount(values),
   });
 
   const confirmMutation = useMutation({
     mutationFn: (values: ConfirmInput) =>
       api.confirmPasswordReset({
-        username: username ?? "",
+        username: account?.username ?? "",
         otp: values.otp,
         new_password: values.new_password,
+        ...(account?.hospital_code ? { hospital_code: account.hospital_code } : {}),
       }),
     onSuccess: () => navigate("/login", { replace: true }),
   });
@@ -63,7 +73,7 @@ export function ForgotPasswordPage() {
   return (
     <Stack align="center" justify="center" mih="100vh" p="md">
       <Paper withBorder shadow="sm" p="xl" radius="md" maw={420} w="100%">
-        {username === null ? (
+        {account === null ? (
           <form onSubmit={requestForm.handleSubmit((values) => requestMutation.mutate(values))}>
             <Stack>
               <Title order={3}>Reset password</Title>
@@ -89,6 +99,22 @@ export function ForgotPasswordPage() {
                   />
                 )}
               />
+              {askHospital && (
+                <Controller
+                  control={requestForm.control}
+                  name="hospital_code"
+                  render={({ field, fieldState }) => (
+                    <TextInput
+                      {...field}
+                      label="Hospital code"
+                      description="Your username is used in more than one hospital. Enter the code your hospital gave you."
+                      error={fieldState.error?.message}
+                      autoCapitalize="characters"
+                      data-testid="reset-hospital-code"
+                    />
+                  )}
+                />
+              )}
               <Button tone="primary" type="submit" loading={requestMutation.isPending}>
                 Send reset code
               </Button>
@@ -155,7 +181,7 @@ export function ForgotPasswordPage() {
               <Button tone="primary" type="submit" loading={confirmMutation.isPending}>
                 Set new password
               </Button>
-              <Anchor size="sm" ta="center" onClick={() => setUsername(null)}>
+              <Anchor size="sm" ta="center" onClick={() => setAccount(null)}>
                 Use a different username
               </Anchor>
             </Stack>
