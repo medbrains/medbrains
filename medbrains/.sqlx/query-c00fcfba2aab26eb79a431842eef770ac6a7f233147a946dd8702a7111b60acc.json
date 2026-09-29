@@ -1,16 +1,17 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM departments WHERE tenant_id = $1 AND code = 'PATHOLOGY' AND is_active AND deleted_at IS NULL LIMIT 1",
+  "query": "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "patient_id",
         "type_info": "Uuid"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Uuid"
       ]
     },
@@ -18,5 +19,5 @@
       false
     ]
   },
-  "hash": "3a0d2e69e0d21904c149dce529bb9efe94ea21c113b0d6e2ee7c9540e472e5ae"
+  "hash": "c00fcfba2aab26eb79a431842eef770ac6a7f233147a946dd8702a7111b60acc"
 }

@@ -937,7 +937,8 @@ pub async fn list_departments(
 
     let rows = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, working_hours, is_active \
-         FROM departments WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+         FROM departments WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1091,7 +1092,8 @@ pub async fn list_roles(
         .await?;
 
     let rows = sqlx::query_as::<_, CustomRole>(
-        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name LIMIT 5000",
+        "SELECT * FROM roles WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY is_system DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1181,8 +1183,11 @@ pub async fn list_users(
         "SELECT id, tenant_id, username, email, full_name, role::text, \
          specialization, medical_registration_number, qualification, \
          consultation_fee, department_ids, is_active, access_matrix \
-         FROM users WHERE tenant_id = $1 AND is_service_account = false \
-         ORDER BY created_at LIMIT 5000",
+         FROM users WHERE tenant_id = $1 AND is_service_account = false AND deleted_at IS NULL \
+         ORDER BY is_active DESC, created_at DESC LIMIT 5000",
+        // ponytail: capped at 5000, active and newest first — oldest-first hid
+        // every new hire once a tenant passed the cap. Server-side search when
+        // a tenant keeps more than 5000 people on file.
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1455,14 +1460,20 @@ pub async fn update_user(
     let fee = body
         .consultation_fee
         .and_then(|f| rust_decimal::Decimal::try_from(f).ok());
-    let dept_ids = body.department_ids.as_deref().unwrap_or(&[]);
 
+    // A field left out of the request is left alone — deactivating a doctor
+    // must not erase their registration number or their departments. An
+    // emptied text field is sent as "" and clears.
     let row = sqlx::query_as::<_, SetupUserRow>(
         "UPDATE users SET \
          full_name = COALESCE($1, full_name), email = COALESCE($2, email), \
-         role = COALESCE($3::user_role, role), specialization = $4, \
-         medical_registration_number = $5, qualification = $6, \
-         consultation_fee = $7, department_ids = $8, \
+         role = COALESCE($3::user_role, role), \
+         specialization = NULLIF(COALESCE($4, specialization), ''), \
+         medical_registration_number = \
+           NULLIF(COALESCE($5, medical_registration_number), ''), \
+         qualification = NULLIF(COALESCE($6, qualification), ''), \
+         consultation_fee = COALESCE($7, consultation_fee), \
+         department_ids = COALESCE($8, department_ids), \
          is_active = COALESCE($11, is_active), \
          perm_version = perm_version + 1 \
          WHERE id = $9 AND tenant_id = $10 \
@@ -1477,7 +1488,7 @@ pub async fn update_user(
     .bind(&body.medical_registration_number)
     .bind(&body.qualification)
     .bind(fee)
-    .bind(dept_ids)
+    .bind(body.department_ids.as_deref())
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.is_active)
@@ -5223,14 +5234,16 @@ pub async fn export_config(
     let departments = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, \
          working_hours, is_active \
-         FROM departments WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+         FROM departments WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
     let roles = sqlx::query_as::<_, CustomRole>(
-        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name LIMIT 5000",
+        "SELECT * FROM roles WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY is_system DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

@@ -11,6 +11,9 @@
 //! object fan-out is **bounded** (`MAX_FANOUT`) and **batched** into a single
 //! `bulk_check` (N→1) rather than a per-object loop.
 
+mod handoff;
+pub use handoff::{BILLING, HandOff, PATHOLOGY, PHARMACY, hand_off, hand_visit_to_billing};
+
 use uuid::Uuid;
 
 use medbrains_authz::decision::{Outcome, any};
@@ -70,6 +73,31 @@ pub async fn require_admission_access(
     admission_id: Uuid,
 ) -> Result<(), AppError> {
     require_object_view(state, claims, "admission", admission_id).await
+}
+
+/// Gate a **financial** read on an admission (its running bill, its estimate).
+///
+/// The care team reaches it through the admission; billing reaches it through
+/// the patient, handed over when the visit started. Either admits. Only a
+/// refusal falls through to the second check — an outage stays an outage.
+pub async fn require_admission_billing_access(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+) -> Result<(), AppError> {
+    match require_admission_access(state, claims, admission_id).await {
+        Err(AppError::NotFound) => {}
+        other => return other,
+    }
+    let patient_id: Uuid = sqlx::query_scalar!(
+        "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
+        admission_id,
+        claims.tenant_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_patient_billing_access(state, claims, patient_id).await
 }
 
 /// Which parent a child row hangs from, and how to find it.
@@ -796,7 +824,8 @@ pub struct AdmissionCareTeam {
 /// attending = the admitting doctor; ward_member covers ward staff, who may
 /// sit in a different department than the admitting one. Every admit path
 /// (direct IPD, from the ER) must call this after its commit — an admission
-/// without these tuples is one its own doctor cannot open.
+/// without these tuples is one its own doctor cannot open. The visit is also
+/// handed to billing (`hand_visit_to_billing`).
 pub async fn grant_admission_care_team(
     state: &AppState,
     claims: &Claims,
@@ -846,7 +875,7 @@ pub async fn grant_admission_care_team(
     // Best-effort lookup of the ward's department; the grant itself is fatal
     // like the others.
     let Some(ward_id) = team.ward_id else {
-        return Ok(());
+        return hand_visit_to_billing(state, claims, team.encounter_id).await;
     };
     let ward_dept: Option<Uuid> = sqlx::query_scalar!(
         "SELECT department_id FROM wards WHERE id = $1 AND tenant_id = $2",
@@ -873,7 +902,7 @@ pub async fn grant_admission_care_team(
             .await
             .map_err(|e| AppError::Internal(format!("admission ward authz grant failed: {e}")))?;
     }
-    Ok(())
+    hand_visit_to_billing(state, claims, team.encounter_id).await
 }
 
 /// The user who started a visit owns that encounter.
@@ -891,6 +920,8 @@ pub async fn grant_admission_care_team(
 /// visit this user actually handled, and it falls out of reach as newer
 /// encounters push it out of the window, rather than becoming standing access
 /// to a person forever.
+///
+/// Starting a visit also hands its patient to billing (`hand_visit_to_billing`).
 pub async fn grant_encounter_owner(
     state: &AppState,
     claims: &Claims,
@@ -910,5 +941,5 @@ pub async fn grant_encounter_owner(
         )
         .await
         .map_err(|e| AppError::Internal(format!("encounter owner authz grant failed: {e}")))?;
-    Ok(())
+    hand_visit_to_billing(state, claims, encounter_id).await
 }

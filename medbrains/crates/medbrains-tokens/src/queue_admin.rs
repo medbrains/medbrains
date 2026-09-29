@@ -2,7 +2,7 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use medbrains_core::permissions;
@@ -215,12 +215,23 @@ pub async fn list_queues(
     ))
 }
 
+/// Narrows the places list by name.
+///
+/// The list is capped, so a campus with more places than the cap is searched
+/// here, not after the cut.
+#[derive(Debug, Deserialize)]
+pub struct PlacesQuery {
+    pub q: Option<String>,
+}
+
 /// `GET /api/queues/places` — departments, rooms, counters and stations a
 /// queue can serve.
 pub async fn list_places(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<PlacesQuery>,
 ) -> Result<Json<Vec<QueuePlace>>, AppError> {
+    let search = params.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
     require_permission(&claims, permissions::front_office::queue::config::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -229,9 +240,11 @@ pub async fn list_places(
         r#"SELECT scope AS "scope!", scope_id AS "scope_id!", label AS "label!", kind
              FROM token_scopes
             WHERE tenant_id = $1 AND is_active
+              AND ($2::text IS NULL OR label ILIKE '%' || $2 || '%')
             ORDER BY scope, label
             LIMIT 1000"#,
         claims.tenant_id,
+        search,
     )
     .fetch_all(&mut *tx)
     .await?;

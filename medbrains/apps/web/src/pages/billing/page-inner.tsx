@@ -42,6 +42,7 @@ import type { Column, SortState } from "@/components";
 import { DataTable, OperationalSignal, PageHeader } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import {
@@ -199,6 +200,11 @@ export function BillingPageInner() {
       label: "Invoice #",
       sortable: true,
       render: (row: Invoice) => <Text fw={600}>{row.invoice_number}</Text>,
+    },
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (row: Invoice) => <PatientNameCell patientId={row.patient_id} />,
     },
     {
       key: "status",

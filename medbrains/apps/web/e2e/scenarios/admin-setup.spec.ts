@@ -37,6 +37,9 @@ async function deleteDepartment(page: Page, code: string) {
 }
 
 test.describe("Admin Setup Flow", () => {
+  // Each walks several admin screens end to end (create → edit → delete).
+  test.describe.configure({ timeout: 90_000 });
+
   test.beforeEach(async ({ page }) => {
     await routeApiDirect(page);
   });
@@ -89,25 +92,29 @@ test.describe("Admin Setup Flow", () => {
     await createDialog.getByLabel("Username").fill(username);
     await createDialog.getByLabel("Full name").fill(fullName);
     await createDialog.getByLabel("Email").fill(email);
-    await createDialog.getByLabel("Password").fill(password);
+    await createDialog.getByRole("textbox", { name: "Password" }).fill(password);
     await createDialog.getByRole("button", { name: "Next" }).click();
 
     await createDialog.getByLabel("Role").click();
     await page.getByRole("option", { name: "Doctor" }).click();
     await expect(createDialog.getByLabel("Departments")).toBeVisible();
-    await createDialog.getByLabel("Departments").click();
+    await createDialog.getByLabel("Departments").fill(departmentName);
     await page.getByRole("option", { name: new RegExp(departmentName) }).click();
+    // A multi-select may stay open for the next pick; click away to close it
+    // (Escape would close the whole dialog if it already had).
+    await createDialog.getByRole("heading", { name: "Create user" }).first().click();
     await createDialog.getByRole("button", { name: "Next" }).click();
     await createDialog.getByRole("button", { name: "Next" }).click();
     await createDialog.getByRole("button", { name: "Review" }).click();
     await createDialog.getByRole("button", { name: "Create user" }).click();
 
+    await page.getByPlaceholder("Search name, username, email or role").fill(username);
     const row = page.locator("tr", { hasText: username });
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText(fullName);
     await expect(row).toContainText("doctor");
 
-    await row.locator("button").nth(0).click();
+    await row.getByRole("button", { name: "Edit" }).click();
 
     const editDialog = page.getByRole("dialog").filter({ hasText: "Edit User" });
     await expect(editDialog).toBeVisible();
@@ -118,7 +125,7 @@ test.describe("Admin Setup Flow", () => {
 
     await expect(row).toContainText(updatedName, { timeout: 10_000 });
 
-    await row.locator("button").nth(2).click();
+    await row.getByRole("button", { name: "Delete" }).click();
 
     const deleteDialog = page.getByRole("dialog").filter({ hasText: "Delete User" });
     await expect(deleteDialog).toBeVisible();
@@ -154,24 +161,24 @@ test.describe("Admin Setup Flow", () => {
     await row.locator("button").first().click();
     await page.getByRole("menuitem", { name: "Permissions" }).click();
 
-    const permissionCheckbox = page.getByRole("checkbox", { name: /List Users/i });
-    await expect(permissionCheckbox).toBeVisible({ timeout: 10_000 });
-    await permissionCheckbox.check();
+    // Permissions are edited on the role's Access Matrix: Grant or Deny per
+    // permission, saved as a whole.
+    const listUsers = page.getByRole("radiogroup", { name: "List Users" });
+    await expect(listUsers).toBeVisible({ timeout: 10_000 });
+    await listUsers.getByText("Grant", { exact: true }).click();
+    await page.getByRole("button", { name: "Save Matrix" }).click();
+    await expect(listUsers.getByRole("radio", { name: "Grant" })).toBeChecked();
 
-    const saveButton = page.getByRole("button", { name: "Save Permissions" });
-    await expect(saveButton).toBeVisible({
+    // It held: a fresh load of the role shows the grant.
+    await page.reload();
+    await expect(page.getByRole("radiogroup", { name: "List Users" }).getByRole("radio", { name: "Grant" })).toBeChecked({
       timeout: 10_000,
     });
-    await saveButton.click();
-    await expect(page.getByText(name)).toBeVisible();
 
-    await row.locator("button").first().click();
-    await page.getByRole("menuitem", { name: "Permissions" }).click();
-    await expect(permissionCheckbox).toBeChecked({ timeout: 10_000 });
-    await page.keyboard.press("Escape");
-
+    await navigateTo(page, "/admin/roles");
     await row.locator("button").first().click();
     await page.getByRole("menuitem", { name: "Delete" }).click();
+    await page.getByRole("button", { name: "Delete role" }).click();
 
     await expect(page.locator("tr", { hasText: code })).toHaveCount(0, {
       timeout: 10_000,

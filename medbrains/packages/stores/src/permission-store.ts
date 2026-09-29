@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { createSessionStorageAdapter } from "./platform-storage.js";
 
 /** Bypass roles — these skip all permission checks */
-const BYPASS_ROLES = new Set(["super_admin", "hospital_admin"]);
+export const BYPASS_ROLES: ReadonlySet<string> = new Set(["super_admin", "hospital_admin"]);
 
 interface PermissionState {
   userPermissions: Set<string>;
