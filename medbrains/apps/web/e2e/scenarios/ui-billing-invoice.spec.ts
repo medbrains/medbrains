@@ -9,10 +9,11 @@
 import { test, expect } from "@playwright/test";
 import { loginAsRole, navigateTo, routeApiDirect } from "../helpers";
 import { getE2EIdentity } from "../helpers/e2e-identities";
-import { loginAsRoleApi, api } from "../helpers/api";
+import { loginAsRoleApi } from "../helpers/api";
 import {
   createPatientApi,
   createEncounter,
+  addBillingItem,
   createInvoice,
   issueInvoice,
 } from "../helpers/journey-steps";
@@ -39,21 +40,33 @@ test.describe("Billing Invoice — UI", () => {
     await expect(page.getByRole("tab", { name: /Invoices/i })).toBeVisible();
   });
 
-  test("New Invoice button opens invoice creation modal with patient field", async ({
+  test("billing clerk raises a draft invoice for a visit handed to billing", async ({
     page,
+    request,
   }) => {
     const identity = getE2EIdentity("billing_clerk");
+    const doctorCtx = await loginAsRoleApi(request, "doctor");
+    const patient = await createPatientApi(doctorCtx);
+    const opdDept = await getOpdDept(doctorCtx);
+    await createEncounter(doctorCtx, patient.id, { departmentId: opdDept.id });
+
     await loginAsRole(page, identity.username, identity.password);
     await navigateTo(page, "/billing");
-
     await page.getByRole("button", { name: /New Invoice/i }).first().click();
+    const modal = page.getByRole("dialog", { name: "Create Invoice" });
 
-    // Modal / drawer should appear
-    const modal = page.getByRole("dialog");
-    await expect(modal).toBeVisible({ timeout: 8_000 });
+    // The clerk finds the patient because the visit reached billing.
+    await modal.getByRole("textbox", { name: "Patient" }).fill(patient.uhid);
+    await page.getByRole("option", { name: new RegExp(patient.first_name, "i") }).click();
+    // The visit is picked from the patient's visits, never typed as an id.
+    await modal.getByRole("textbox", { name: "Visit" }).click();
+    await page.getByRole("option", { name: /OPD/ }).first().click();
+    await modal.getByRole("button", { name: "Create Draft Invoice" }).click();
 
-    // Patient selection or search field must be present
-    await expect(modal.getByRole("combobox").first()).toBeVisible();
+    await expect(modal).toBeHidden({ timeout: 10_000 });
+    await expect(
+      page.getByRole("row", { name: new RegExp(patient.first_name, "i") }),
+    ).toBeVisible({ timeout: 12_000 });
   });
 
   test("issued invoice appears in billing invoice list", async ({
@@ -84,7 +97,7 @@ test.describe("Billing Invoice — UI", () => {
     ).toBeVisible({ timeout: 12_000 });
   });
 
-  test("clicking invoice row opens invoice detail page", async ({
+  test("opening an invoice from the list shows its detail page", async ({
     page,
     request,
   }) => {
@@ -105,12 +118,12 @@ test.describe("Billing Invoice — UI", () => {
     await loginAsRole(page, billingIdentity.username, billingIdentity.password);
     await navigateTo(page, "/billing");
 
-    // Click the row matching the patient
+    // Open the invoice from its row
     const row = page.getByRole("row", {
       name: new RegExp(patient.first_name, "i"),
     });
     await expect(row).toBeVisible({ timeout: 12_000 });
-    await row.click();
+    await row.getByRole("button", { name: /^Open invoice/ }).click();
 
     // Route: /billing/invoices/:invoiceId
     await expect(page).toHaveURL(
@@ -136,6 +149,8 @@ test.describe("Billing Invoice — UI", () => {
       patientId: patient.id,
       encounterId,
     });
+    // A ₹0 invoice settles on issue; a charge leaves a balance to collect.
+    await addBillingItem(billingCtx, invoiceId, { unitPrice: 500 });
     await issueInvoice(billingCtx, invoiceId);
 
     await loginAsRole(page, billingIdentity.username, billingIdentity.password);
@@ -143,7 +158,7 @@ test.describe("Billing Invoice — UI", () => {
     await navigateTo(page, `/billing/invoices/${invoiceId}`);
 
     await expect(
-      page.getByRole("button", { name: /Record Payment/i }),
+      page.locator("#billing-payments").getByRole("button", { name: "Record Payment" }),
     ).toBeVisible({ timeout: 12_000 });
   });
 });

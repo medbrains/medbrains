@@ -2603,6 +2603,18 @@ pub async fn create_patient_insurance(
     .await?;
 
     tx.commit().await?;
+    // A policy on file reaches the TPA desk, which works claims and
+    // pre-authorisations for this patient.
+    medbrains_authz_gate::hand_off(
+        &state,
+        &claims,
+        medbrains_authz_gate::HandOff {
+            object_type: "patient",
+            object_id: patient_id,
+            department_code: medbrains_authz_gate::BILLING,
+        },
+    )
+    .await?;
     Ok(Json(row))
 }
 

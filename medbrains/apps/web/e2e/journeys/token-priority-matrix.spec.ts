@@ -43,6 +43,8 @@ interface BoardToken {
   id: string;
   number: string;
   priority: string;
+  /** The queue's own name for a lane it configured ("staff" → "Staff"). */
+  priority_label?: string | null;
   seq: number;
   status: string;
 }
@@ -244,12 +246,12 @@ test.describe("token priority — what the board hands the client", () => {
       "/api/tokens/board?module=opd&include_finished=true",
     );
     const known = new Set<string>(PRIORITY_ORDER.map((p) => p.name));
-    // No exclusions. Nothing can inject an unlabelled priority any more —
-    // the issue endpoint refuses one — so anything here is a real drift
-    // between the server's vocabulary and the client's label map.
+    // A built-in priority is labelled by the client; a lane a queue
+    // configured carries its own label. Anything else is drift between the
+    // server's vocabulary and what the badge can show.
     const unlabelled = board
-      .map((row) => row.priority)
-      .filter((priority) => !known.has(priority));
+      .filter((row) => !known.has(row.priority) && !row.priority_label)
+      .map((row) => row.priority);
 
     expect(
       unlabelled,

@@ -13,6 +13,7 @@ import { DataTable, StatusDot, TableValueBadge, useClinicalEmit } from "@/compon
 import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { ReasonModal } from "./reason-modal";
 import {
   dispensingTypeLabels,
   PHARMACY_ORDER_STATUS_OPTIONS,
@@ -21,6 +22,14 @@ import {
   pharmacyOrderEventItems,
   statusColors,
 } from "./shared";
+
+interface DispenseInput {
+  id: string;
+  unpaidReason?: string;
+}
+
+/** The server's refusal when a bill is short and no reason was given. */
+const UNPAID_REASON_REQUIRED = "Provide a reason to dispense unpaid";
 
 export function PharmacyOrdersTab({
   canViewOrders,
@@ -74,13 +83,18 @@ export function PharmacyOrdersTab({
 
   const emit = useClinicalEmit();
 
+  const [unpaidOrder, setUnpaidOrder] = useState<{ id: string; complaint: string } | null>(null);
   const dispenseMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, unpaidReason }: DispenseInput) => {
       const detail = await pharmacyService.getPharmacyOrder(id);
-      const order = await pharmacyService.dispenseOrder(id);
+      const order = await pharmacyService.dispenseOrder(
+        id,
+        unpaidReason ? { unpaid_override_reason: unpaidReason } : undefined,
+      );
       return { admissionId: detail.admission_id, items: detail.items, order };
     },
-    onSuccess: ({ admissionId, items, order }, id) => {
+    onSuccess: ({ admissionId, items, order }, { id }) => {
+      setUnpaidOrder(null);
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
@@ -98,7 +112,15 @@ export function PharmacyOrdersTab({
         patient_id: order.patient_id,
       });
     },
-    onError: (e: Error) => toast.error(e.message, { title: "Could not dispense order" }),
+    onError: (e: Error, { id, unpaidReason }) => {
+      // An unpaid bill is not a wall: credit patients, schemes and staff are
+      // dispensed on a recorded reason. Ask for it rather than dead-end.
+      if (!unpaidReason && e.message.includes(UNPAID_REASON_REQUIRED)) {
+        setUnpaidOrder({ id, complaint: e.message });
+        return;
+      }
+      toast.error(e.message, { title: "Could not dispense order" });
+    },
   });
   const orders = data?.orders ?? [];
   const firstDispensableOrder = orders.find((order) => order.status === "ordered");
@@ -208,7 +230,7 @@ export function PharmacyOrdersTab({
                   <IconButton
                     tone="success"
                     aria-label="Dispense pharmacy order"
-                    onClick={() => dispenseMutation.mutate(row.id)}
+                    onClick={() => dispenseMutation.mutate({ id: row.id })}
                   >
                     <IconCheck size={16} />
                   </IconButton>
@@ -309,7 +331,7 @@ export function PharmacyOrdersTab({
                       tone="primary"
                       leftSection={<IconCheck size={14} />}
                       loading={dispenseMutation.isPending}
-                      onClick={() => dispenseMutation.mutate(firstDispensableOrder.id)}
+                      onClick={() => dispenseMutation.mutate({ id: firstDispensableOrder.id })}
                     >
                       Dispense First Order
                     </Button>
@@ -356,6 +378,19 @@ export function PharmacyOrdersTab({
           hidden until `pharmacy.prescriptions.list` is granted.
         </Alert>
       )}
+      <ReasonModal
+        opened={unpaidOrder !== null}
+        title="Dispense unpaid?"
+        description={unpaidOrder?.complaint ?? ""}
+        label="Why dispense before payment"
+        placeholder="Credit patient, scheme beneficiary, staff…"
+        confirmLabel="Dispense unpaid"
+        pending={dispenseMutation.isPending}
+        onClose={() => setUnpaidOrder(null)}
+        onConfirm={(reason) =>
+          unpaidOrder && dispenseMutation.mutate({ id: unpaidOrder.id, unpaidReason: reason })
+        }
+      />
     </Stack>
   );
 }

@@ -18,7 +18,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import type { AdminUserFormInput, BulkImportUsersFormInput } from "@medbrains/schemas";
 import { bulkImportUsersFormSchema, createAdminUserFormSchema } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { BYPASS_ROLES, useHasPermission } from "@medbrains/stores";
 import type {
   BulkCreateUsersRequest,
   CustomRole,
@@ -136,6 +136,9 @@ function UserModal({
 
   const role = watch("role");
   const departmentIds = watch("department_ids");
+  // Work handed to a department reaches its staff — pharmacists and billing
+  // clerks need a department as much as doctors do. Bypass roles see all.
+  const hasDepartments = role !== null && !BYPASS_ROLES.has(role);
 
   const roleInline = useCreateInline<CustomRole>({ queryKey: ["setup-roles"] });
   const deptInline = useCreateInline<DepartmentRow>({ queryKey: ["setup-departments"] });
@@ -171,7 +174,7 @@ function UserModal({
     queryKey: ["setup-departments"],
     queryFn: () => adminAccessService.listDepartments(),
     staleTime: 60_000,
-    enabled: opened && role === "doctor" && canListDepartments,
+    enabled: opened && hasDepartments && canListDepartments,
   });
 
   const roleOptions = [
@@ -235,14 +238,15 @@ function UserModal({
     const doctorFields =
       values.role === "doctor"
         ? {
-            specialization: values.specialization || undefined,
-            medical_registration_number: values.medical_registration_number || undefined,
-            qualification: values.qualification || undefined,
+            // Sent as typed: an emptied field clears it on the server.
+            specialization: values.specialization,
+            medical_registration_number: values.medical_registration_number,
+            qualification: values.qualification,
             consultation_fee:
               values.consultation_fee !== "" ? Number(values.consultation_fee) : undefined,
-            department_ids: values.department_ids.length > 0 ? values.department_ids : undefined,
           }
         : {};
+    const departmentFields = hasDepartments ? { department_ids: values.department_ids } : {};
 
     if (isEdit) {
       updateMutation.mutate({
@@ -251,6 +255,7 @@ function UserModal({
         role: values.role,
         is_active: values.is_active,
         ...doctorFields,
+        ...departmentFields,
       });
     } else {
       createMutation.mutate({
@@ -260,6 +265,7 @@ function UserModal({
         password: values.password,
         role: values.role ?? "",
         ...doctorFields,
+        ...departmentFields,
       });
     }
   });
@@ -418,29 +424,32 @@ function UserModal({
                 />
               )}
             />
-            <Controller
-              control={control}
-              name="department_ids"
-              render={({ field }) => (
-                <MultiSelect
-                  label={
-                    <SelectLabel
-                      label="Departments"
-                      onCreate={canCreateDept ? deptInline.openCreateModal : undefined}
-                    />
-                  }
-                  placeholder="Select departments"
-                  data={departmentOptions}
-                  value={field.value}
-                  onChange={field.onChange}
-                  searchable
-                  clearable
-                  rightSection={depsLoading ? <Loader size={16} /> : undefined}
-                  nothingFoundMessage="No departments found"
-                />
-              )}
-            />
           </>
+        )}
+
+        {hasDepartments && (
+          <Controller
+            control={control}
+            name="department_ids"
+            render={({ field }) => (
+              <MultiSelect
+                label={
+                  <SelectLabel
+                    label="Departments"
+                    onCreate={canCreateDept ? deptInline.openCreateModal : undefined}
+                  />
+                }
+                placeholder="Select departments"
+                data={departmentOptions}
+                value={field.value}
+                onChange={field.onChange}
+                searchable
+                clearable
+                rightSection={depsLoading ? <Loader size={16} /> : undefined}
+                nothingFoundMessage="No departments found"
+              />
+            )}
+          />
         )}
 
         <Group justify="flex-end" mt="md">
@@ -824,6 +833,7 @@ export function UsersPage() {
     {
       key: "full_name",
       label: "Full Name",
+      accessor: (row: SetupUser) => row.full_name,
       render: (row: SetupUser) => (
         <Text size="sm" fw={500}>
           {row.full_name}
@@ -833,6 +843,7 @@ export function UsersPage() {
     {
       key: "username",
       label: "Username",
+      accessor: (row: SetupUser) => row.username,
       render: (row: SetupUser) => (
         <Text size="sm" ff="monospace">
           {row.username}
@@ -842,11 +853,13 @@ export function UsersPage() {
     {
       key: "email",
       label: "Email",
+      accessor: (row: SetupUser) => row.email,
       render: (row: SetupUser) => <Text size="sm">{row.email}</Text>,
     },
     {
       key: "role",
       label: "Role",
+      accessor: (row: SetupUser) => row.role,
       render: (row: SetupUser) => (
         <Badge size="sm" tone={ROLE_TONE[row.role] ?? "neutral"}>
           {row.role.replace(/_/g, " ")}
@@ -946,6 +959,8 @@ export function UsersPage() {
         data={users ?? []}
         loading={isLoading}
         rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search name, username, email or role"
         emptyIcon={<IconUsers size={32} />}
         emptyTitle="No users found"
         emptyDescription="No users have been created yet"

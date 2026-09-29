@@ -706,6 +706,10 @@ pub async fn list_encounters(
 
     let count_sql = format!("SELECT COUNT(*) FROM encounters WHERE {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
+    // Same order as the placeholders: the visible set is $2, before the filters.
+    if let Some(ref ids) = visible_ids {
+        count_q = count_q.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             count_q = count_q.bind(u);
@@ -717,9 +721,6 @@ pub async fn list_encounters(
             count_q = count_q.bind(d);
         }
     }
-    if let Some(ref ids) = visible_ids {
-        count_q = count_q.bind(ids.clone());
-    }
     let total = count_q.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
@@ -728,6 +729,10 @@ pub async fn list_encounters(
         bind_idx + 1
     );
     let mut data_q = sqlx::query_as::<_, Encounter>(&data_sql).bind(claims.tenant_id);
+    // Same order as the placeholders: the visible set is $2, before the filters.
+    if let Some(ref ids) = visible_ids {
+        data_q = data_q.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(u) = b.uuid_val {
             data_q = data_q.bind(u);
@@ -738,9 +743,6 @@ pub async fn list_encounters(
         if let Some(d) = b.date_val {
             data_q = data_q.bind(d);
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        data_q = data_q.bind(ids.clone());
     }
     let encounters = data_q
         .bind(per_page)
@@ -3239,6 +3241,21 @@ pub async fn create_prescription(
     }
 
     tx.commit().await?;
+
+    // The prescription reached the pharmacy's queue: pharmacy staff reach the
+    // patient through this visit to dispense it.
+    if pharmacy_rx_queue_id.is_some() {
+        medbrains_authz_gate::hand_off(
+            &state,
+            &claims,
+            medbrains_authz_gate::HandOff {
+                object_type: "encounter",
+                object_id: encounter_id,
+                department_code: medbrains_authz_gate::PHARMACY,
+            },
+        )
+        .await?;
+    }
 
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")

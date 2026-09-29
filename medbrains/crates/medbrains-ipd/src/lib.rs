@@ -7698,11 +7698,8 @@ pub async fn get_estimated_cost(
         ],
     )?;
 
-    // The route names an admission; holding the module permission is not the
-    // same as being on this patient's care team. Without this, any holder of
-    // the code could read or write any admission in the tenant — RLS scopes
-    // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
+    // A bill for an admission: its care team or billing may read it.
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7954,11 +7951,8 @@ pub async fn get_billing_summary(
         ],
     )?;
 
-    // The route names an admission; holding the module permission is not the
-    // same as being on this patient's care team. Without this, any holder of
-    // the code could read or write any admission in the tenant — RLS scopes
-    // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
+    // A bill for an admission: its care team or billing may read it.
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

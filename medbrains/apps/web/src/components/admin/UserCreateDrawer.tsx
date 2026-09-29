@@ -33,6 +33,7 @@ import { buildPermissionTree, PERMISSIONS } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
+import { type FlatSelectOption, groupedSelectData } from "@/lib/select-groups";
 import { adminAccessService } from "@/services/adminAccess.service";
 
 interface Props {
@@ -462,25 +463,19 @@ interface PermissionPickerProps {
 }
 
 function PermissionPicker({ label, color, tree, selected, onChange }: PermissionPickerProps) {
-  // Flatten the tree into top-level module groups for a MultiSelect.
+  // Filed under their top-level module (grouped through the helper — Mantine
+  // v7 crashes on a flat option carrying `group`, which took this screen down).
   const data = useMemo(() => {
-    const out: { value: string; label: string; group: string }[] = [];
+    const out: FlatSelectOption[] = [];
     const walk = (nodes: ReturnType<typeof buildPermissionTree>, moduleLabel: string) => {
       for (const node of nodes) {
-        for (const p of node.permissions) {
-          out.push({
-            value: p.code,
-            label: p.code,
-            group: moduleLabel || node.label,
-          });
-        }
-        if (node.children.length > 0) {
-          walk(node.children, moduleLabel || node.label);
-        }
+        const group = moduleLabel || node.label;
+        for (const p of node.permissions) out.push({ value: p.code, label: p.code, group });
+        if (node.children.length > 0) walk(node.children, group);
       }
     };
     walk(tree, "");
-    return out;
+    return groupedSelectData(out);
   }, [tree]);
 
   return (
@@ -492,7 +487,11 @@ function PermissionPicker({ label, color, tree, selected, onChange }: Permission
       searchable
       clearable
       maxDropdownHeight={300}
-      styles={{ pill: { backgroundColor: color === "green" ? "#d3f9d8" : "#ffe3e3" } }}
+      styles={{
+        pill: {
+          backgroundColor: color === "green" ? "var(--mb-success-bg)" : "var(--mb-danger-bg)",
+        },
+      }}
     />
   );
 }

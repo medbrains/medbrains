@@ -139,7 +139,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
   const [notes, setNotes] = useState("");
 
   const { data: catalog } = useQuery({
-    queryKey: ["store-catalog"],
+    queryKey: ["store-catalog", "active"],
     queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
@@ -368,7 +368,7 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
   const [notes, setNotes] = useState("");
 
   const { data: catalog } = useQuery({
-    queryKey: ["store-catalog"],
+    queryKey: ["store-catalog", "active"],
     queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 

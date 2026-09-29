@@ -410,6 +410,18 @@ pub async fn sign_basket(
         )
         .await?;
     }
+    if created.iter().any(|item| item.order_type == "prescription") {
+        medbrains_authz_gate::hand_off(
+            &state,
+            &claims,
+            medbrains_authz_gate::HandOff {
+                object_type: "encounter",
+                object_id: body.encounter_id,
+                department_code: medbrains_authz_gate::PHARMACY,
+            },
+        )
+        .await?;
+    }
 
     // Post-commit side-effects via outbox (durable, non-blocking).
     // SMS to patient + pharmacy notification queued; failures here do not

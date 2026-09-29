@@ -9,8 +9,6 @@
   "title.invoiceDetail": "Invoice Detail",
   "title.createInvoice": "Create Invoice",
   "label.patientId": "Patient ID",
-  "label.encounterId": "Encounter ID",
-  "label.admissionId": "Admission ID",
   "label.notes": "Notes",
   "label.actions": "Actions",
   "label.outstandingAmount": "Outstanding: {{amount}}",
@@ -315,5 +313,6 @@
   "aria.confirm": "Confirm",
   "aria.close": "Close",
   "aria.edit": "Edit",
-  "aria.verified": "Verified"
+  "aria.verified": "Verified",
+  "label.visit": "Visit"
 }

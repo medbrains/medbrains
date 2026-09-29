@@ -111,7 +111,7 @@ export async function ensureE2EIdentities(
   // nurse who could not open a single visit — and the UI, reading a refusal,
   // told her the visit did not exist. Give them the department real staff have.
   const clinicalDepartmentIds = await firstClinicalDepartmentId(request, admin);
-  const labDepartmentIds = await labDepartmentId(request, admin);
+  const handoffDepartments = await departmentIdsByCode(request, admin);
 
   try {
     for (const roleDef of E2E_ROLE_DEFINITIONS) {
@@ -127,8 +127,9 @@ export async function ensureE2EIdentities(
       if (CLINICAL_ROLES.has(roleDef.role) && clinicalDepartmentIds.length > 0) {
         payload.department_ids = clinicalDepartmentIds;
       }
-      if (LAB_ROLES.has(roleDef.role) && labDepartmentIds.length > 0) {
-        payload.department_ids = labDepartmentIds;
+      const handoffDepartment = handoffDepartments.get(HANDOFF_DEPARTMENT[roleDef.role] ?? "");
+      if (handoffDepartment) {
+        payload.department_ids = [handoffDepartment];
       }
       if (roleDef.role === "doctor") {
         payload.specialization = "General Medicine";
@@ -302,20 +303,34 @@ function compactRunId(runId: string): string {
 
 /** Roles that work inside a department and are gated per encounter by it. */
 const CLINICAL_ROLES = new Set(["doctor", "nurse"]);
-/** Roles that work in the laboratory: an order for the lab links its encounter to that department. */
-const LAB_ROLES = new Set(["lab_technician", "phlebotomist"]);
+/**
+ * The department each role receives work in. Work handed to a department (a
+ * lab order, a prescription, a visit to bill, a policy to claim) reaches its
+ * staff through that department — the server's handoff grants.
+ */
+const HANDOFF_DEPARTMENT: Record<string, string> = {
+  lab_technician: "PATHOLOGY",
+  phlebotomist: "PATHOLOGY",
+  pharmacist: "PHARMACY",
+  billing_clerk: "BILLING-DEPT",
+  insurance_officer: "BILLING-DEPT",
+};
 
-async function labDepartmentId(request: APIRequestContext, admin: AuthSession): Promise<string[]> {
+async function departmentIdsByCode(
+  request: APIRequestContext,
+  admin: AuthSession,
+): Promise<Map<string, string>> {
   try {
     const resp = await request.get(`${E2E_BACKEND_URL}/api/setup/departments`, {
       headers: authHeaders(admin),
     });
-    if (resp.status() !== 200) return [];
+    if (resp.status() !== 200) return new Map();
     const rows = (await resp.json()) as Array<{ id: string; code?: string; is_active?: boolean }>;
-    const lab = rows.find((d) => d.is_active !== false && d.code === "PATHOLOGY");
-    return lab ? [lab.id] : [];
+    return new Map(
+      rows.filter((d) => d.is_active !== false && d.code).map((d) => [d.code as string, d.id]),
+    );
   } catch {
-    return [];
+    return new Map();
   }
 }
 

@@ -11,7 +11,6 @@ import { expect, test } from "@playwright/test";
 import { routeApiDirect } from "../helpers";
 import { api, getAuthContextFromCookies } from "../helpers/api";
 import { createEncounter, createPatientApi } from "../helpers/journey-steps";
-import { getOpdDept } from "../helpers/seed-resolvers";
 
 test.describe("message simulator — the patient's phone", () => {
   test("a patient called from the console receives the token SMS", async ({ page, request }) => {
@@ -30,8 +29,16 @@ test.describe("message simulator — the patient's phone", () => {
 
     try {
       const patient = await createPatientApi(ctx, { firstName: "Asha" });
-      const opd = await getOpdDept(ctx);
-      await createEncounter(ctx, patient.id, { departmentId: opd.id });
+      // Its own department, so the desk's queue holds just this patient —
+      // a shared one fills up with other runs' tokens.
+      const suffix = crypto.randomUUID().slice(0, 8).toUpperCase();
+      const opd = { name: `Simulator OPD ${suffix}` };
+      const { id: opdId } = await api<{ id: string }>(ctx, "POST", "/api/setup/departments", {
+        code: `SIM${suffix}`,
+        name: opd.name,
+        department_type: "clinical",
+      });
+      await createEncounter(ctx, patient.id, { departmentId: opdId });
 
       // The desk calls them.
       await routeApiDirect(page);

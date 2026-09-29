@@ -1,7 +1,7 @@
 // Billing CreateInvoiceDrawer — split from billing.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Text, Textarea, TextInput } from "@mantine/core";
+import { Text, Textarea } from "@mantine/core";
 import type { BillingCreateInvoiceFormInput } from "@medbrains/schemas";
 import { billingCreateInvoiceFormSchema } from "@medbrains/schemas";
 import type { CreateInvoiceRequest } from "@medbrains/types";
@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { FormModal, useClinicalEmit } from "@/components";
+import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { toast } from "@/components/ui";
@@ -42,6 +43,7 @@ export function CreateInvoiceDrawer({
     register,
     reset,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<BillingCreateInvoiceFormInput>({
@@ -132,15 +134,22 @@ export function CreateInvoiceDrawer({
       {contextPatientId && (
         <PatientContextBanner patientId={contextPatientId} hideLoadingState variant="financial" />
       )}
-      <TextInput
-        label={t("label.encounterId")}
-        error={invoiceFieldError("encounter_id")}
-        {...register("encounter_id")}
-      />
-      <TextInput
-        label={t("label.admissionId")}
-        error={invoiceFieldError("admission_id")}
-        {...register("admission_id")}
+      {/* The admission follows from the visit — the server derives it. */}
+      <Controller
+        control={control}
+        name="encounter_id"
+        render={({ field }) => (
+          <EncounterSelect
+            label={t("label.visit")}
+            value={field.value ?? ""}
+            onChange={(encounterId) => {
+              field.onChange(encounterId);
+              setValue("admission_id", "");
+            }}
+            patientId={contextPatientId ?? undefined}
+            error={invoiceFieldError("encounter_id")}
+          />
+        )}
       />
       <Textarea
         label={t("label.notes")}

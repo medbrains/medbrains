@@ -76,7 +76,11 @@ export async function getOpdDept(ctx: AuthContext): Promise<Department> {
   if (c.opdDept) return c.opdDept;
   const depts = await getDepartments(ctx);
   if (depts.length === 0) throw new Error("no departments seeded");
+  // The department clinical fixtures belong to (see e2e-identities): a visit
+  // elsewhere is, correctly, out of the nurse's reach. Matched by code first —
+  // test runs leave departments behind named "General <suffix>".
   c.opdDept =
+    depts.find((d) => d.code === "GEN-MEDICINE") ??
     depts.find((d) => /opd|general|consultation/i.test(d.name)) ??
     depts.find((d) => /opd|gen|cons/i.test(d.code)) ??
     depts[0];

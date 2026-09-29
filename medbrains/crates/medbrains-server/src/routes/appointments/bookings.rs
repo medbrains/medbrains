@@ -76,7 +76,7 @@ pub async fn list_appointments(
         recurrence_index: Option<i32>,
         appointment_group_id: Option<Uuid>,
         booking_source: Option<String>,
-        created_by: Uuid,
+        created_by: Option<Uuid>,
         created_at: chrono::DateTime<Utc>,
         updated_at: chrono::DateTime<Utc>,
         patient_name: Option<String>,

@@ -39,8 +39,14 @@ async function createDepartment(page: Page, code: string, name: string) {
   });
 }
 
+/** Indents and procurement are sections of the Materials workspace. */
+async function openMaterials(page: Page, section: "Stores & Indents" | "Procurement") {
+  await navigateTo(page, "/materials");
+  await page.getByRole("tab", { name: section }).click();
+}
+
 async function createCatalogItem(page: Page, code: string, name: string) {
-  await navigateTo(page, "/indent");
+  await openMaterials(page, "Stores & Indents");
   await page.getByRole("tab", { name: "Store Catalog" }).click();
   await page.getByRole("button", { name: "Add Item" }).click();
 
@@ -54,13 +60,15 @@ async function createCatalogItem(page: Page, code: string, name: string) {
   await drawer.getByLabel("Reorder Level").fill("5");
   await drawer.getByRole("button", { name: "Create" }).click();
 
+  // A real catalog is long; the storekeeper finds the new item by its code.
+  await page.getByPlaceholder("Search code or name").fill(code);
   await expect(page.locator("tr", { hasText: code })).toContainText(name, {
     timeout: 10_000,
   });
 }
 
 async function createVendor(page: Page, code: string, name: string) {
-  await navigateTo(page, "/procurement");
+  await openMaterials(page, "Procurement");
   await page.getByRole("button", { name: "Add Vendor" }).click();
 
   const drawer = page.getByRole("dialog").filter({ hasText: "Register New Vendor" });
@@ -89,6 +97,8 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     const departmentName = `Indent E2E Department ${suffix}`;
     const catalogCode = `CAT${suffix.slice(-6)}`;
     const catalogName = `Indent Linked Item ${suffix}`;
+    // Department → catalog → vendor → indent → approval → PO → flow: seven screens.
+    test.setTimeout(90_000);
     const vendorCode = `VEN${suffix.slice(-6)}`;
     const vendorName = `Indent Linked Vendor ${suffix}`;
 
@@ -96,13 +106,15 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     await createCatalogItem(page, catalogCode, catalogName);
     await createVendor(page, vendorCode, vendorName);
 
-    await navigateTo(page, "/indent");
+    await openMaterials(page, "Stores & Indents");
     await page.getByRole("button", { name: "New Indent" }).click();
     await expect(page.getByText("Create New Indent")).toBeVisible();
 
-    await page.getByLabel("Department").click();
+    // The list's own "Department" filter sits above the form; take the form's.
+    const department = page.getByRole("combobox", { name: "Department", exact: true });
+    await department.fill(departmentName);
     await page.getByRole("option", { name: departmentName }).click();
-    await page.getByLabel("Priority").click();
+    await page.getByRole("combobox", { name: "Priority", exact: true }).click();
     await page.getByRole("option", { name: "Urgent" }).click();
     await page.getByPlaceholder("From catalog").click();
     await page.getByRole("option", { name: new RegExp(catalogCode) }).click();
@@ -125,15 +137,15 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     await expect(indentDrawer).toContainText(catalogName);
 
     await waitForApiResponse(page, `/api/indent/requisitions/${indentId}/submit`, "PUT", async () => {
-      await indentDrawer.getByRole("button", { name: "Submit" }).click();
+      await indentDrawer.getByRole("button", { name: "Submit", exact: true }).click();
     });
 
     await expect(indentDrawer.getByText(/submitted/i)).toBeVisible({ timeout: 10_000 });
-    await expect(indentDrawer.getByRole("button", { name: "Approve" })).toBeVisible({
+    await expect(indentDrawer.getByRole("button", { name: "Approve", exact: true })).toBeVisible({
       timeout: 10_000,
     });
 
-    await indentDrawer.getByRole("button", { name: "Approve" }).click();
+    await indentDrawer.getByRole("button", { name: "Approve", exact: true }).click();
     const approveDrawer = page
       .getByRole("dialog")
       .filter({ hasText: "Approve Indent Items" });
@@ -143,10 +155,13 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
       await approveDrawer.getByRole("button", { name: "Confirm Approval" }).click();
     });
 
-    await expect(indentDrawer.getByText(/approved/i)).toBeVisible({ timeout: 10_000 });
+    // The stepper always names "Approved"; the action going away is the change.
+    await expect(indentDrawer.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0, {
+      timeout: 10_000,
+    });
     await page.keyboard.press("Escape");
 
-    await navigateTo(page, "/procurement");
+    await openMaterials(page, "Procurement");
     await page.getByRole("tab", { name: "Purchase Orders" }).click();
     await page.getByRole("button", { name: "New PO" }).click();
 
@@ -163,7 +178,8 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     await expect(poDrawer.getByText(/linked back to the indent requisition/i)).toBeVisible({
       timeout: 10_000,
     });
-    await expect(poDrawer.locator("table")).toContainText(catalogName);
+    // The indent's line comes across as an editable PO line.
+    await expect(poDrawer.locator("table").getByRole("textbox").first()).toHaveValue(catalogName);
 
     const createdPo = await waitForApiResponse<{
       purchase_order: { id: string; po_number: string };
@@ -185,12 +201,13 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
 
     await page.keyboard.press("Escape");
 
-    await navigateTo(page, "/indent");
+    await openMaterials(page, "Stores & Indents");
     await page.getByRole("tab", { name: "Flow Tracker" }).click();
     await page
       .getByPlaceholder("Search by indent number...")
       .fill(indentNumber);
-    await page.locator("tr", { hasText: indentNumber }).click();
+    // Other tabs keep their (hidden) tables mounted; take the visible row.
+    await page.getByRole("row", { name: new RegExp(indentNumber) }).click();
 
     await expect(page.getByText("Workflow Sidecar")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Downstream Procurement")).toBeVisible({ timeout: 10_000 });

@@ -39,12 +39,9 @@ async fn a_department(app: &common::TestApp, tenant: Uuid) -> Uuid {
 
 /// Put a token in a queue and take the link the desk would hand the patient.
 ///
-/// Not through kiosk check-in, which is the other way this link is minted:
-/// the only source of check-in QR codes is `POST /api/public/appointments/book`,
-/// and that endpoint is broken independently of this work — it omits
-/// `created_by`, which the appointments table requires. Until that is fixed no
-/// QR can be minted at all, so the desk is the only path a patient can actually
-/// reach today, and the only one worth pinning.
+/// Not through kiosk check-in, the other way this link is minted: check-in QR
+/// codes come from `POST /api/public/appointments/book`, which needs the
+/// tenant's public-booking opt-in. The desk path needs no setup.
 async fn a_token_and_its_link(app: &common::TestApp, csrf: &str) -> Booking {
     let tenant: (Uuid,) = sqlx::query_as("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)

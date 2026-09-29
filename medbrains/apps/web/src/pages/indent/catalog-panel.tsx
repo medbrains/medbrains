@@ -113,14 +113,29 @@ export function CatalogPanel() {
   const [editOpened, { open: openEdit, close: closeEdit }] = useDisclosure(false);
 
   const { data: catalog, isLoading } = useQuery({
-    queryKey: ["store-catalog"],
+    queryKey: ["store-catalog", "all"],
     queryFn: () => indentService.listStoreCatalog(),
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: StoreCatalog) => <Text fw={600}>{row.code}</Text> },
-    { key: "name", label: "Name", render: (row: StoreCatalog) => row.name },
-    { key: "category", label: "Category", render: (row: StoreCatalog) => row.category ?? "-" },
+    {
+      key: "code",
+      label: "Code",
+      accessor: (row: StoreCatalog) => row.code,
+      render: (row: StoreCatalog) => <Text fw={600}>{row.code}</Text>,
+    },
+    {
+      key: "name",
+      label: "Name",
+      accessor: (row: StoreCatalog) => row.name,
+      render: (row: StoreCatalog) => row.name,
+    },
+    {
+      key: "category",
+      label: "Category",
+      accessor: (row: StoreCatalog) => row.category ?? "",
+      render: (row: StoreCatalog) => row.category ?? "-",
+    },
     { key: "unit", label: "Unit", render: (row: StoreCatalog) => row.unit },
     { key: "base_price", label: "Price", render: (row: StoreCatalog) => `₹${row.base_price}` },
     {
@@ -167,6 +182,8 @@ export function CatalogPanel() {
         data={catalog ?? []}
         loading={isLoading}
         rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search code or name"
         emptyTitle="No catalog items"
       />
 

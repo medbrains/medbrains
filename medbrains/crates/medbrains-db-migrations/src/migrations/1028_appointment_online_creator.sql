@@ -1,0 +1,12 @@
+-- ====================================================================
+-- Migration: 1028_appointment_online_creator.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- A patient booking online is not a staff user, so an online appointment has
+-- no creator. The column was NOT NULL since 0290, which made every public
+-- booking fail on insert. `booking_source = 'online'` records where it came
+-- from; staff bookings still set `created_by`.
+ALTER TABLE appointments ALTER COLUMN created_by DROP NOT NULL;
