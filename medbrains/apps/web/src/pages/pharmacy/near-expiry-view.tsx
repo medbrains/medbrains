@@ -1,12 +1,13 @@
 // IPD NearExpiryView — split from pharmacy.tsx (pure move).
 
-import { Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { NearExpiryRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
 import { Badge } from "@/components/ui";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { ExpiredStockPanel } from "./expired-stock-panel";
 import { renderPharmacySensitiveValue } from "./shared";
 
 export function NearExpiryView() {
@@ -85,15 +86,18 @@ export function NearExpiryView() {
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      loading={isLoading}
-      rowKey={(row) => `${row.batch_number}-${row.expiry_date}`}
-      searchable
-      searchPlaceholder="Search near-expiry"
-      exportable
-      exportFileName="pharmacy-near-expiry"
-    />
+    <Stack>
+      <ExpiredStockPanel />
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={isLoading}
+        rowKey={(row) => `${row.batch_number}-${row.expiry_date}`}
+        searchable
+        searchPlaceholder="Search near-expiry"
+        exportable
+        exportFileName="pharmacy-near-expiry"
+      />
+    </Stack>
   );
 }

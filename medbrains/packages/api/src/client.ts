@@ -984,6 +984,7 @@ import type {
   ExecuteDisposalRequest,
   ExecutionListResponse,
   ExpectedDischargeRow,
+  ExpiredBatchRow,
   Facility,
   FallRiskAssessmentPrintData,
   FamilyLinkRow,
@@ -6158,11 +6159,14 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<NearExpiryRow[]>(`/pharmacy/batches/near-expiry${qs}`);
   },
+  listExpiredBatches: () => request<ExpiredBatchRow[]>("/pharmacy/batches/expired"),
   writeOffExpired: (data: { method?: string; witness_name: string; notes?: string }) =>
-    request<{ certificate_number: string; batches_written_off: number; total_quantity: number }>(
-      "/pharmacy/batches/write-off-expired",
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<{
+      certificate_number: string;
+      batches_written_off: number;
+      total_quantity: number;
+      controlled_held: number;
+    }>("/pharmacy/batches/write-off-expired", { method: "POST", body: JSON.stringify(data) }),
 
   // Ward PAR / imprest stock
   listWardStock: (departmentId: string) =>
