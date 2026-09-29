@@ -40,6 +40,8 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod expired;
+
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -4795,8 +4797,10 @@ pub struct WriteOffExpiredRequest {
     pub notes: Option<String>,
 }
 
-/// `POST /api/pharmacy/stock/write-off-expired` — zero all expired pharmacy batches, decrement
-/// the catalogue aggregate, and file ONE destruction-log certificate (reason=expired).
+/// `POST /api/pharmacy/batches/write-off-expired` — zero every expired batch that is not a
+/// controlled drug, decrement the catalogue aggregate, and file ONE destruction-log
+/// certificate (reason=expired). Controlled drugs are held back: their destruction is an NDPS
+/// register entry with a second witness, which a bulk certificate cannot stand in for.
 pub async fn write_off_expired(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4814,18 +4818,33 @@ pub async fn write_off_expired(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let batches: Vec<(Uuid, Uuid, String, NaiveDate, i32)> = sqlx::query_as(
-        "SELECT id, catalog_item_id, batch_number, expiry_date, quantity_on_hand \
-         FROM pharmacy_batches \
-         WHERE tenant_id = $1 AND quantity_on_hand > 0 AND expiry_date < CURRENT_DATE FOR UPDATE",
+        "SELECT b.id, b.catalog_item_id, b.batch_number, b.expiry_date, b.quantity_on_hand \
+         FROM pharmacy_batches b \
+         JOIN pharmacy_catalog c ON c.id = b.catalog_item_id AND c.tenant_id = b.tenant_id \
+         WHERE b.tenant_id = $1 AND b.quantity_on_hand > 0 AND b.expiry_date < CURRENT_DATE \
+         AND NOT c.is_controlled FOR UPDATE OF b",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    let controlled_held: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pharmacy_batches b \
+         JOIN pharmacy_catalog c ON c.id = b.catalog_item_id AND c.tenant_id = b.tenant_id \
+         WHERE b.tenant_id = $1 AND b.quantity_on_hand > 0 AND b.expiry_date < CURRENT_DATE \
+         AND c.is_controlled",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     if batches.is_empty() {
-        return Err(AppError::BadRequest(
-            "No expired stock to write off".to_owned(),
-        ));
+        return Err(AppError::BadRequest(if controlled_held > 0 {
+            "Only controlled drugs have expired; destroy them through the NDPS register, \
+             with a witness."
+                .to_owned()
+        } else {
+            "No expired stock to write off".to_owned()
+        }));
     }
 
     // Two statements, not two per batch.
@@ -4899,6 +4918,7 @@ pub async fn write_off_expired(
         "certificate_number": certificate_number,
         "batches_written_off": batches.len(),
         "total_quantity": total_qty,
+        "controlled_held": controlled_held,
     })))
 }
 
@@ -4922,6 +4942,7 @@ pub async fn near_expiry_report(
          FROM pharmacy_batches b \
          JOIN pharmacy_catalog c ON c.id = b.catalog_item_id AND c.tenant_id = b.tenant_id \
          WHERE b.tenant_id = $1 AND b.quantity_on_hand > 0 \
+         AND b.expiry_date >= CURRENT_DATE \
          AND b.expiry_date <= CURRENT_DATE + $2 * interval '1 day' \
          ORDER BY b.expiry_date ASC LIMIT 500",
     )
@@ -8218,6 +8239,7 @@ pub fn router() -> axum::Router<AppState> {
             get(list_batches).post(create_batch),
         )
         .route("/api/pharmacy/batches/near-expiry", get(near_expiry_report))
+        .route("/api/pharmacy/batches/expired", get(expired::list_expired))
         .route(
             "/api/pharmacy/batches/write-off-expired",
             post(write_off_expired),

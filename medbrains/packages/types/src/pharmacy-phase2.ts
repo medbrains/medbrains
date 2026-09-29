@@ -137,6 +137,18 @@ export interface NearExpiryRow {
   days_until_expiry: number;
 }
 
+/** A batch past its expiry with stock left: quarantine and destroy, never dispense.
+ *  Controlled drugs are destroyed through the NDPS register, not the bulk write-off. */
+export interface ExpiredBatchRow {
+  batch_id: string;
+  drug_name: string;
+  batch_number: string;
+  expiry_date: string;
+  quantity_on_hand: number;
+  days_expired: number;
+  is_controlled: boolean;
+}
+
 /** Ward PAR/imprest stock — par vs on-hand per ward × drug. */
 export interface WardStockRow {
   catalog_item_id: string;
