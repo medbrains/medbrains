@@ -11,10 +11,18 @@ struct LoginView: View {
     @Environment(AuthStore.self) private var auth
     @State private var username = ""
     @State private var password = ""
+    @State private var hospitalCode = ""
+    @State private var wantsHospitalCode = false
     @State private var isSigningIn = false
     @FocusState private var focus: Field?
 
-    private enum Field { case username, password }
+    private enum Field { case username, password, hospitalCode }
+
+    /// Asked when the server needs it, kept when a code signed in before, and
+    /// offered to staff who work in more than one hospital.
+    private var showsHospitalCode: Bool {
+        wantsHospitalCode || auth.needsHospital || !auth.rememberedHospitalCode.isEmpty
+    }
 
     var body: some View {
         ScrollView {
@@ -51,6 +59,21 @@ struct LoginView: View {
                             .onSubmit { Task { await submit() } }
                             .accessibilityIdentifier("Password")
                     }
+                    if showsHospitalCode {
+                        CarbonField("Hospital code", helper: "The code your hospital gave you.", isFocused: focus == .hospitalCode) {
+                            TextField("Hospital code", text: $hospitalCode)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                                .submitLabel(.go)
+                                .focused($focus, equals: .hospitalCode)
+                                .onSubmit { Task { await submit() } }
+                                .accessibilityIdentifier("Hospital code")
+                        }
+                    } else {
+                        Button("Enter hospital code") { wantsHospitalCode = true; focus = .hospitalCode }
+                            .buttonStyle(.carbonGhost)
+                            .accessibilityIdentifier("enterHospitalCode")
+                    }
                 }
 
                 Button {
@@ -77,13 +100,17 @@ struct LoginView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(MedBrainsTheme.canvas)
-        .onAppear { focus = .username }
+        .onAppear {
+            focus = .username
+            if hospitalCode.isEmpty { hospitalCode = auth.rememberedHospitalCode }
+        }
+        .onChange(of: auth.needsHospital) { _, needed in if needed { focus = .hospitalCode } }
     }
 
     private func submit() async {
         guard !username.isEmpty, !password.isEmpty else { return }
         isSigningIn = true
         defer { isSigningIn = false }
-        _ = await auth.signIn(username: username, password: password)
+        _ = await auth.signIn(username: username, password: password, hospitalCode: hospitalCode)
     }
 }

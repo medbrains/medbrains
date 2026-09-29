@@ -6,6 +6,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Who is signed in. Mirrors mobile-shell's TenantIdentity.
@@ -53,8 +57,22 @@ data class LoginResponse(
     )
 }
 
+/** `hospital_code`: the hospital this device signs in to; omitted when none is named. */
 @Serializable
-internal data class LoginRequest(val username: String, val password: String)
+internal data class LoginRequest(val username: String, val password: String, val hospital_code: String? = null)
+
+/**
+ * What sign-in answered: a session, or a request to name the hospital — the
+ * username is used in more than one and the server will not guess.
+ */
+internal sealed interface LoginAnswer {
+    data object HospitalRequired : LoginAnswer
+    data class SignedIn(val session: LoginResponse) : LoginAnswer
+}
+
+internal fun readLoginAnswer(json: Json, raw: JsonObject): LoginAnswer =
+    if (raw["hospital_required"]?.jsonPrimitive?.booleanOrNull == true) LoginAnswer.HospitalRequired
+    else LoginAnswer.SignedIn(json.decodeFromJsonElement<LoginResponse>(raw))
 
 sealed interface AuthState {
     data object Hydrating : AuthState
@@ -72,6 +90,11 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
     val state: StateFlow<AuthState> = _state.asStateFlow()
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
+    private val _needsHospital = MutableStateFlow(false)
+    /** The server asked which hospital: the username is shared. */
+    val needsHospital: StateFlow<Boolean> = _needsHospital.asStateFlow()
+    /** The hospital code the last sign-in on this device used; not a secret. */
+    val rememberedHospitalCode: String get() = prefs.getString(HOSPITAL_CODE, null).orEmpty()
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
@@ -87,10 +110,22 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
         }
     }
 
-    suspend fun signIn(username: String, password: String): Boolean {
+    suspend fun signIn(username: String, password: String, hospitalCode: String = ""): Boolean {
         _lastError.value = null
+        val code = hospitalCode.trim()
         return try {
-            val answer: LoginResponse = client.post("/api/auth/login", LoginRequest(username, password))
+            val raw: JsonObject = client.post("/api/auth/login", LoginRequest(username, password, code.ifEmpty { null }))
+            val answer = when (val read = readLoginAnswer(json, raw)) {
+                LoginAnswer.HospitalRequired -> {
+                    _needsHospital.value = true
+                    _lastError.value = "Your username is used in more than one hospital. Enter your hospital code."
+                    return false
+                }
+                is LoginAnswer.SignedIn -> read.session
+            }
+            // The code the last sign-in used: cleared, it is forgotten.
+            prefs.edit().apply { if (code.isEmpty()) remove(HOSPITAL_CODE) else putString(HOSPITAL_CODE, code) }.apply()
+            _needsHospital.value = false
             secrets.write(SecretKey.JWT, answer.token)
             answer.refresh_token?.let { secrets.write(SecretKey.REFRESH_TOKEN, it) }
             val who = TenantIdentity(
@@ -106,7 +141,11 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
             _state.value = AuthState.SignedIn(who)
             true
         } catch (e: ApiError) {
-            _lastError.value = if (e.status == 401) "Wrong username or password." else e.message
+            _lastError.value = when {
+                e.status != 401 -> e.message
+                code.isEmpty() -> "Wrong username or password."
+                else -> "Wrong username, password or hospital code."
+            }
             false
         } catch (e: Exception) {
             _lastError.value = "Could not reach the hospital server."
@@ -136,5 +175,6 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
 
     private companion object {
         const val IDENTITY = "identity"
+        const val HOSPITAL_CODE = "hospital_code"
     }
 }

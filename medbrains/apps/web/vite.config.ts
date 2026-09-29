@@ -169,7 +169,11 @@ export default defineConfig(async ({ command }) => {
       host: "127.0.0.1",
       port: devPort,
       strictPort: !reactScanDev,
-      hmr: reactScanDev
+      // Live reload through the HTTPS proxy only when `make dev` runs one (it
+      // sets DEV_HTTPS_DOMAIN). Without it — `make dev-frontend`, Playwright —
+      // a socket aimed at the proxy fails and Vite reloads the page mid-test.
+      hmr:
+        reactScanDev || !process.env.DEV_HTTPS_DOMAIN
         ? {
             protocol: "ws",
             host: "127.0.0.1",

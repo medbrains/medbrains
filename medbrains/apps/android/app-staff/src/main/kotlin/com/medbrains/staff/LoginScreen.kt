@@ -29,12 +29,14 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.medbrains.kit.AuthStore
 import com.medbrains.ui.CarbonPrimaryButton
+import com.medbrains.ui.CarbonTertiaryButton
 import com.medbrains.ui.CarbonTextField
 import com.medbrains.ui.BrandWordmark
 import kotlinx.coroutines.launch
@@ -49,6 +51,12 @@ import kotlinx.coroutines.launch
 fun LoginScreen(auth: AuthStore) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var hospitalCode by remember { mutableStateOf(auth.rememberedHospitalCode) }
+    var wantsHospitalCode by remember { mutableStateOf(false) }
+    val needsHospital by auth.needsHospital.collectAsStateWithLifecycle()
+    // Asked when the server needs it, kept when a code signed in before, and
+    // offered to staff who work in more than one hospital.
+    val showsHospitalCode = wantsHospitalCode || needsHospital || auth.rememberedHospitalCode.isNotEmpty()
     var signingIn by remember { mutableStateOf(false) }
     val error by auth.lastError.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -58,7 +66,7 @@ fun LoginScreen(auth: AuthStore) {
         if (username.isBlank() || password.isBlank() || signingIn) return
         signingIn = true
         scope.launch {
-            auth.signIn(username.trim(), password)
+            auth.signIn(username.trim(), password, hospitalCode)
             signingIn = false
         }
     }
@@ -97,6 +105,19 @@ fun LoginScreen(auth: AuthStore) {
                 keyboardActions = KeyboardActions(onGo = { submit() }),
                 modifier = Modifier.focusRequester(passwordFocus).testTag("password"),
             )
+            Spacer(Modifier.height(24.dp))
+            if (showsHospitalCode) {
+                CarbonTextField(
+                    value = hospitalCode,
+                    onValueChange = { hospitalCode = it },
+                    label = "Hospital code",
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { submit() }),
+                    modifier = Modifier.testTag("hospitalCode"),
+                )
+            } else {
+                CarbonTertiaryButton("Enter hospital code", onClick = { wantsHospitalCode = true }, modifier = Modifier.fillMaxWidth().testTag("enterHospitalCode"))
+            }
             Spacer(Modifier.height(32.dp))
             CarbonPrimaryButton(
                 text = if (signingIn) "Signing in…" else "Sign in",

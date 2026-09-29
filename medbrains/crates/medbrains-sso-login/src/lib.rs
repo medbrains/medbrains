@@ -630,11 +630,17 @@ async fn federate_user(
                 // anyone able to assert that address at the IdP would turn a
                 // machine identity into their own login — and every row the
                 // key had written would now belong to them.
+                //
+                // And only in this provider's hospital. The tenant context set
+                // above is enforced by row level security, which a superuser
+                // connection does not apply: an email match across hospitals
+                // let one hospital's IdP adopt another hospital's account.
                 Some(email) => sqlx::query_scalar::<_, Uuid>(
                     "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
-                     AND is_service_account = false",
+                     AND is_service_account = false AND tenant_id = $2",
                 )
                 .bind(email)
+                .bind(provider.tenant_id)
                 .fetch_optional(&mut **tx)
                 .await?,
                 None => None,

@@ -2693,12 +2693,17 @@ export interface LoginRequest {
   username: string;
   password: string;
   mfa_code?: string;
+  /** The hospital the page or app is bound to. */
+  hospital_code?: string;
 }
 
 export interface LoginResponse {
   /** Present (true) when credentials are valid but a TOTP code is needed —
    *  resubmit login with mfa_code. All other fields absent in that case. */
   mfa_required?: boolean;
+  /** Present (true) when the username is used in more than one hospital —
+   *  resubmit with hospital_code. All other fields absent in that case. */
+  hospital_required?: boolean;
   token?: string;
   refresh_token?: string;
   user: {
@@ -2933,13 +2938,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  requestPasswordReset: (data: { username: string }) =>
-    request<{ status: string; message: string }>("/auth/password-reset/request", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  confirmPasswordReset: (data: { username: string; otp: string; new_password: string }) =>
-    request<{ status: string }>("/auth/password-reset/confirm", {
+  requestPasswordReset: (data: { username: string; hospital_code?: string }) =>
+    request<{ status?: string; message?: string; hospital_required?: boolean }>(
+      "/auth/password-reset/request",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    ),
+  confirmPasswordReset: (data: {
+    username: string;
+    otp: string;
+    new_password: string;
+    hospital_code?: string;
+  }) =>
+    request<{ status?: string; hospital_required?: boolean }>("/auth/password-reset/confirm", {
       method: "POST",
       body: JSON.stringify(data),
     }),

@@ -22,6 +22,46 @@ final class SignInJourneyTests: JourneyCase {
         app.buttons["signIn"].tap()
     }
 
+    private func setHospitalCode(_ code: String) {
+        let field = app.textFields["Hospital code"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: ((field.value as? String) ?? "").count))
+        if !code.isEmpty { field.typeText(code) }
+    }
+
+    private func signOut() {
+        app.navigationBars.buttons["Account"].firstMatch.tap()
+        app.buttons["Sign out"].tap()
+        XCTAssertTrue(app.textFields["Username or email"].waitForExistence(timeout: 10))
+    }
+
+    /// Staff of more than one hospital name theirs; the code that signed in
+    /// is kept for next time, a wrong one is refused in words, and clearing
+    /// it forgets it.
+    func testTheHospitalCodeSignsInIsRememberedAndCanBeForgotten() {
+        let nurse = api.provision("nurse"); defer { api.retire(nurse) }
+        app.launch(); Session.ensureSignedOut(app)
+        tapWhenReady(el("enterHospitalCode"))
+        setHospitalCode("NO-SUCH-HOSPITAL")
+        typeCredentials(nurse.username, nurse.password)
+        XCTAssertTrue(app.staticTexts["Wrong username, password or hospital code."].waitForExistence(timeout: 10))
+
+        app.secureTextFields["Password"].tap()
+        setHospitalCode("default")
+        app.buttons["signIn"].tap()
+        XCTAssertTrue(app.tabBars.buttons["Nurse"].waitForExistence(timeout: 15), "the right hospital signs in")
+        signOut()
+        XCTAssertEqual(app.textFields["Hospital code"].value as? String, "default", "kept for next time")
+        shoot("signin-hospital-code")
+
+        setHospitalCode("")
+        typeCredentials(nurse.username, nurse.password)
+        XCTAssertTrue(app.tabBars.buttons["Nurse"].waitForExistence(timeout: 15))
+        signOut()
+        XCTAssertTrue(el("enterHospitalCode").exists, "a cleared code is forgotten")
+    }
+
     func testWrongPasswordIsRefusedInWordsAndTheUsernameStays() {
         app.launch(); Session.ensureSignedOut(app)
         let nurse = api.provision("nurse"); defer { api.retire(nurse) }
