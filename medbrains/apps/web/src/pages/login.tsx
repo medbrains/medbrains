@@ -4,6 +4,7 @@ import {
   Box,
   Center,
   Checkbox,
+  Loader,
   PasswordInput,
   Stack,
   Text,
@@ -28,7 +29,6 @@ import {
   type LoginFormInput,
   loginFormSchema,
 } from "@/forms/login.form";
-import { useTenantBrand } from "@/hooks/useTenantBrand";
 import {
   defaultDesktopApiBase,
   getStoredDesktopApiBase,
@@ -36,6 +36,7 @@ import {
   normalizeDesktopApiBase,
   setStoredDesktopApiBase,
 } from "@/lib/desktop-runtime";
+import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import { sessionService } from "@/services/session.service";
 import classes from "./login.module.scss";
 
@@ -55,14 +56,20 @@ export function LoginPage() {
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
-  // A configured hospital means the install is already set up — hide the
-  // "new installation" onboarding prompt.
-  const isConfigured = Boolean(useTenantBrand());
+  // Only an empty server takes a registration (see onboarding/init), so the
+  // "new installation" prompt shows only when the server says it needs setup.
+  const { data: onboarding } = useQuery({
+    queryKey: ["onboarding-status"],
+    queryFn: () => api.onboardingStatus(),
+    staleTime: 300_000,
+    retry: false,
+  });
+  const needsSetup = onboarding?.needs_setup === true;
 
   // SSO-first: when the tenant has an active identity provider, lead with the
   // SSO button and hide the password form — but keep a break-glass escape hatch
   // so an IdP outage can't lock out the local admin.
-  const { data: ssoProviders = [] } = useQuery({
+  const { data: ssoProviders = [], isPending: ssoPending } = useQuery({
     queryKey: ["sso-active-providers"],
     queryFn: () => api.listActiveSsoProviders(window.location.hostname),
     staleTime: 300_000,
@@ -70,12 +77,17 @@ export function LoginPage() {
   });
   const hasSso = ssoProviders.length > 0;
   const [usePasswordLogin, setUsePasswordLogin] = useState(false);
-  const showPasswordForm = !hasSso || usePasswordLogin;
+  // Nothing until the providers answer: a form shown first and then swapped
+  // for the SSO button vanished under a user already typing. If the lookup
+  // fails the form shows, so an outage never locks anyone out.
+  const showPasswordForm = !ssoPending && (!hasSso || usePasswordLogin);
 
   const loginForm = useForm<LoginFormInput>({
     resolver: zodResolver(loginFormSchema),
-    defaultValues: DEFAULT_LOGIN_FORM_VALUES,
+    defaultValues: { ...DEFAULT_LOGIN_FORM_VALUES, hospital_code: getRememberedHospitalCode() },
   });
+  const [hospitalStep, setHospitalStep] = useState(() => getRememberedHospitalCode() !== "");
+  const [hospitalAsked, setHospitalAsked] = useState(false);
 
   const [mfaStep, setMfaStep] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
@@ -86,12 +98,21 @@ export function LoginPage() {
         username: values.username,
         password: values.password,
         ...(values.mfa_code ? { mfa_code: values.mfa_code } : {}),
+        ...(values.hospital_code ? { hospital_code: values.hospital_code } : {}),
       }),
-    onSuccess: (data) => {
+    // The refusal is shown on the form (below); no global "Action failed" toast.
+    onError: () => undefined,
+    onSuccess: (data, values) => {
+      if (data.hospital_required) {
+        setHospitalStep(true);
+        setHospitalAsked(true);
+        return;
+      }
       if (data.mfa_required) {
         setMfaStep(true);
         return;
       }
+      rememberHospitalCode(values.hospital_code);
       const authUser = userSchema.parse({
         ...data.user,
         access_matrix: {},
@@ -202,6 +223,12 @@ export function LoginPage() {
             </Text>
           </Stack>
 
+          {ssoPending && (
+            <Center py="md">
+              <Loader size="sm" aria-label="Checking how your hospital signs in" />
+            </Center>
+          )}
+
           {showPasswordForm && (
             <form
               onSubmit={loginForm.handleSubmit((values) =>
@@ -250,9 +277,41 @@ export function LoginPage() {
                 </Box>
 
                 {loginMutation.isError && (
-                  <Alert tone="danger" radius="md">
+                  <Alert tone="danger" radius="md" data-testid="login-error">
                     {loginMutation.error.message}
                   </Alert>
+                )}
+
+                {!hospitalStep && (
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="xs"
+                    onClick={() => setHospitalStep(true)}
+                    data-testid="login-enter-hospital-code"
+                  >
+                    Enter hospital code
+                  </Anchor>
+                )}
+
+                {hospitalAsked && (
+                  <Alert tone="info" radius="md" data-testid="login-hospital-required">
+                    Your username is used in more than one hospital. Enter your hospital code.
+                  </Alert>
+                )}
+
+                {hospitalStep && (
+                  <TextInput
+                    label="Hospital code"
+                    description="The code your hospital gave you."
+                    placeholder="e.g. AMH"
+                    error={loginForm.formState.errors.hospital_code?.message}
+                    {...loginForm.register("hospital_code")}
+                    autoCapitalize="characters"
+                    autoFocus
+                    size="md"
+                    data-testid="login-hospital-code"
+                  />
                 )}
 
                 {mfaStep && (
@@ -358,7 +417,7 @@ export function LoginPage() {
           )}
 
           <Box className={classes.footer}>
-            {!isConfigured && (
+            {needsSetup && (
               <Box className={classes.onboardingLink}>
                 New installation? <Link to="/onboarding">Set up now &rarr;</Link>
               </Box>

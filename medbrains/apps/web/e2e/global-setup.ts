@@ -26,7 +26,11 @@ setup("authenticate as admin", async ({ page, request }) => {
 
   // Navigate to the app and inject auth state
   await page.goto("/login");
-  await expect(page.getByLabel("Username")).toBeVisible({ timeout: 10_000 });
+  // The page is ready when it names itself; the password form may sit behind
+  // "Use a username & password instead" for a hospital with single sign-on.
+  await expect(page.getByRole("heading", { name: "Sign in", level: 1 })).toBeVisible({
+    timeout: 10_000,
+  });
 
   // Set localStorage auth state (Zustand persist format)
   await page.evaluate(

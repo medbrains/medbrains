@@ -59,6 +59,26 @@ public struct LoginResponse: Decodable, Sendable {
 struct LoginRequest: Encodable {
     let username: String
     let password: String
+    /// The hospital this device signs in to; nil when none was named.
+    let hospitalCode: String?
+}
+
+/// What sign-in answered: a session, or a request to name the hospital —
+/// the username is used in more than one and the server will not guess.
+enum LoginAnswer: Decodable {
+    case hospitalRequired
+    case signedIn(LoginResponse)
+
+    private enum Keys: String, CodingKey { case hospitalRequired }
+
+    init(from decoder: Decoder) throws {
+        let keys = try decoder.container(keyedBy: Keys.self)
+        if try keys.decodeIfPresent(Bool.self, forKey: .hospitalRequired) == true {
+            self = .hospitalRequired
+        } else {
+            self = .signedIn(try LoginResponse(from: decoder))
+        }
+    }
 }
 
 /// Session state for a device app: hydrate from the Keychain on launch, sign
@@ -69,10 +89,15 @@ public final class AuthStore {
     public private(set) var identity: TenantIdentity?
     public private(set) var isHydrating = true
     public private(set) var lastError: String?
+    /// The server asked which hospital: the username is shared.
+    public private(set) var needsHospital = false
+    /// The hospital code the last sign-in on this device used; not a secret.
+    public private(set) var rememberedHospitalCode = UserDefaults.standard.string(forKey: AuthStore.hospitalCodeKey) ?? ""
 
     private let secrets: SecretStore
     private let client: ApiClient
     private static let identityKey = "medbrains.identity"
+    private static let hospitalCodeKey = "medbrains.hospital_code"
 
     public init(client: ApiClient, secrets: SecretStore) {
         self.client = client
@@ -93,10 +118,28 @@ public final class AuthStore {
         await client.setUnauthorizedHandler { [weak self] in await self?.signOut() }
     }
 
-    public func signIn(username: String, password: String) async -> Bool {
+    public func signIn(username: String, password: String, hospitalCode: String = "") async -> Bool {
         lastError = nil
+        let code = hospitalCode.trimmingCharacters(in: .whitespaces)
         do {
-            let answer: LoginResponse = try await client.request(.post, "/api/auth/login", body: LoginRequest(username: username, password: password))
+            let request = LoginRequest(username: username, password: password, hospitalCode: code.isEmpty ? nil : code)
+            let answer: LoginResponse
+            switch try await client.request(.post, "/api/auth/login", body: request) as LoginAnswer {
+            case .hospitalRequired:
+                needsHospital = true
+                lastError = "Your username is used in more than one hospital. Enter your hospital code."
+                return false
+            case .signedIn(let session):
+                answer = session
+            }
+            // The code the last sign-in used: cleared, it is forgotten.
+            if code.isEmpty {
+                UserDefaults.standard.removeObject(forKey: Self.hospitalCodeKey)
+            } else {
+                UserDefaults.standard.set(code, forKey: Self.hospitalCodeKey)
+            }
+            rememberedHospitalCode = code
+            needsHospital = false
             try secrets.write(.jwt, answer.token)
             if let refresh = answer.refreshToken { try secrets.write(.refreshToken, refresh) }
             let who = TenantIdentity(
@@ -113,7 +156,7 @@ public final class AuthStore {
             await client.setUnauthorizedHandler { [weak self] in await self?.signOut() }
             return true
         } catch let error as ApiError {
-            lastError = error.status == 401 ? "Wrong username or password." : error.message
+            lastError = error.status == 401 ? (code.isEmpty ? "Wrong username or password." : "Wrong username, password or hospital code.") : error.message
         } catch let error as SecretStoreError {
             lastError = "Could not keep you signed in on this device (Keychain \(error.status))."
         } catch is DecodingError {

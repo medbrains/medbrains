@@ -24,12 +24,17 @@ use medbrains_server_core::{
     state::AppState,
 };
 
+mod hospital;
+
 // ── Login ───────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    /// The hospital the app or page is bound to; see `hospital`.
+    #[serde(default)]
+    pub hospital_code: Option<String>,
     /// TOTP or recovery code — required on resubmit when the first
     /// attempt answers `mfa_required`.
     pub mfa_code: Option<String>,
@@ -264,24 +269,30 @@ pub async fn login(
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Result<axum::response::Response, AppError> {
-    // Find user by username (across all tenants — login does not require tenant context)
+    // Find the user within the hospital the sign-in names (see `hospital`);
+    // across every hospital only when none is named, and never by picking one
+    // of two accounts that share the name.
     //
     // Service accounts are excluded in the query rather than checked after, so
     // the caller gets the same `Unauthorized` as for a username that does not
     // exist. Rejecting them later would answer "this name is a real account"
     // to anyone probing, and the reply for a NULL password_hash below —
     // "please use SSO" — would be both a disclosure and a lie.
-    let row = sqlx::query!(
+    let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
+    let rows = sqlx::query!(
         "SELECT id, tenant_id, username, email, password_hash, full_name, \
          role::text AS \"role!\", is_active, perm_version \
-         FROM users WHERE username = $1 AND is_service_account = false",
-        body.username
+         FROM users WHERE username = $1 AND is_service_account = false \
+         AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
+        body.username,
+        tenant
     )
-    .fetch_optional(&state.db)
+    .fetch_all(&state.db)
     .await?;
-
-    let Some(row) = row else {
-        return Err(AppError::Unauthorized);
+    let row = match hospital::account(rows) {
+        hospital::Account::One(row) => row,
+        hospital::Account::None => return Err(AppError::Unauthorized),
+        hospital::Account::Ambiguous => return Ok(hospital::hospital_required().into_response()),
     };
 
     if !row.is_active {
@@ -742,7 +753,8 @@ pub async fn refresh_token(
         .add(build_refresh_cookie(&new_refresh_raw, cfg))
         .add(build_csrf_cookie(&csrf_token, cfg));
 
-    let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.user_id).await?;
+    let must_change_password =
+        fetch_must_change_password(&state.db, row.tenant_id, row.user_id).await?;
     let email_verified = fetch_email_verified(&state.db, row.tenant_id, row.user_id).await?;
 
     let resp_body = RefreshResponse {
@@ -1130,6 +1142,8 @@ fn hash_otp(otp: &str) -> String {
 #[derive(Debug, Deserialize)]
 pub struct PasswordResetRequestBody {
     pub username: String,
+    #[serde(default)]
+    pub hospital_code: Option<String>,
 }
 
 /// Public, rate-limited. Always returns the same 200 body so account
@@ -1138,6 +1152,7 @@ pub struct PasswordResetRequestBody {
 /// the request is a silent no-op.
 pub async fn request_password_reset(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<PasswordResetRequestBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let ack = Json(serde_json::json!({
@@ -1145,18 +1160,22 @@ pub async fn request_password_reset(
         "message": "If the account exists and has a phone on file, an OTP has been sent."
     }));
 
-    let Some((user_id, tenant_id, phone)) = sqlx::query_as::<_, (Uuid, Uuid, Option<String>)>(
+    let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, Option<String>)>(
         // Service accounts cannot receive a one-time code: they have no person
         // behind them to receive it, and offering the route would make a machine
         // identity reachable by anyone who can read its phone column.
         "SELECT id, tenant_id, phone FROM users WHERE username = $1 AND is_active = true \
-         AND is_service_account = false",
+         AND is_service_account = false AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
     )
     .bind(&body.username)
-    .fetch_optional(&state.db)
-    .await?
-    else {
-        return Ok(ack);
+    .bind(tenant)
+    .fetch_all(&state.db)
+    .await?;
+    let (user_id, tenant_id, phone) = match hospital::account(rows) {
+        hospital::Account::One(row) => row,
+        hospital::Account::None => return Ok(ack),
+        hospital::Account::Ambiguous => return Ok(hospital::hospital_required()),
     };
 
     let Some(phone) = phone.filter(|p| !p.trim().is_empty()) else {
@@ -1219,10 +1238,13 @@ pub struct PasswordResetConfirmBody {
     pub username: String,
     pub otp: String,
     pub new_password: String,
+    #[serde(default)]
+    pub hospital_code: Option<String>,
 }
 
 pub async fn confirm_password_reset(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<PasswordResetConfirmBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if body.new_password.len() < 8 {
@@ -1231,16 +1253,20 @@ pub async fn confirm_password_reset(
         ));
     }
 
-    let Some((user_id, tenant_id)) = sqlx::query_as::<_, (Uuid, Uuid)>(
+    let tenant = hospital::login_tenant(&state.db, body.hospital_code.as_deref(), &headers).await?;
+    let rows = sqlx::query_as::<_, (Uuid, Uuid)>(
         // Same reasoning as the code-request path above.
         "SELECT id, tenant_id FROM users WHERE username = $1 AND is_active = true \
-         AND is_service_account = false",
+         AND is_service_account = false AND ($2::uuid IS NULL OR tenant_id = $2) LIMIT 2",
     )
     .bind(&body.username)
-    .fetch_optional(&state.db)
-    .await?
-    else {
-        return Err(AppError::Unauthorized);
+    .bind(tenant)
+    .fetch_all(&state.db)
+    .await?;
+    let (user_id, tenant_id) = match hospital::account(rows) {
+        hospital::Account::One(row) => row,
+        hospital::Account::None => return Err(AppError::Unauthorized),
+        hospital::Account::Ambiguous => return Ok(hospital::hospital_required()),
     };
 
     let mut tx = state.db.begin().await?;
