@@ -404,7 +404,7 @@ pub async fn list_facilities(
         .await?;
 
     let rows = sqlx::query_as::<_, Facility>(
-        "SELECT * FROM facilities WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM facilities WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -597,7 +597,7 @@ pub async fn list_locations(
 
     let rows = sqlx::query_as::<_, LocationRow>(
         "SELECT id, tenant_id, parent_id, level::text, code, name, is_active \
-         FROM locations WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+         FROM locations WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -769,7 +769,7 @@ pub async fn list_location_staff(
                 sla.role_label, sla.is_primary, sla.effective_from, sla.effective_to \
          FROM staff_location_assignments sla \
          JOIN users u ON u.id = sla.user_id \
-         WHERE sla.tenant_id = $1 AND sla.location_id = $2 \
+         WHERE sla.tenant_id = $1 AND sla.location_id = $2 AND sla.deleted_at IS NULL \
            AND (sla.effective_to IS NULL OR sla.effective_to >= CURRENT_DATE) \
          ORDER BY sla.is_primary DESC, u.full_name LIMIT 1000",
     )
@@ -870,12 +870,12 @@ pub async fn list_location_directory(
         "WITH RECURSIVE path AS ( \
             SELECT id, parent_id, name, level::text AS level, code, \
                    name::text AS full_path, 0 AS depth \
-            FROM locations WHERE tenant_id = $1 AND parent_id IS NULL \
+            FROM locations WHERE tenant_id = $1 AND deleted_at IS NULL AND parent_id IS NULL \
             UNION ALL \
             SELECT l.id, l.parent_id, l.name, l.level::text, l.code, \
                    p.full_path || ' › ' || l.name, p.depth + 1 \
             FROM locations l JOIN path p ON l.parent_id = p.id \
-            WHERE l.tenant_id = $1 \
+            WHERE l.tenant_id = $1 AND l.deleted_at IS NULL \
          ) \
          SELECT id, name, level, code, full_path, depth FROM path \
          ORDER BY full_path LIMIT 5000",
@@ -2018,7 +2018,7 @@ pub async fn list_sequences(
 
     let rows = sqlx::query_as::<_, SequenceRow>(
         "SELECT id, tenant_id, seq_type, prefix, current_val, pad_width \
-         FROM sequences WHERE tenant_id = $1 ORDER BY seq_type LIMIT 5000",
+         FROM sequences WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY seq_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2243,7 +2243,7 @@ pub async fn list_services(
 
     let rows = sqlx::query_as::<_, ServiceRow>(
         "SELECT id, tenant_id, code, name, service_type::text, base_price, department_id, description, is_active \
-         FROM services WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+         FROM services WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2381,7 +2381,7 @@ pub async fn list_bed_types(
         .await?;
 
     let rows = sqlx::query_as::<_, BedType>(
-        "SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM bed_types WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2500,7 +2500,7 @@ pub async fn list_tax_categories(
         .await?;
 
     let rows = sqlx::query_as::<_, TaxCategory>(
-        "SELECT * FROM tax_categories WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM tax_categories WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2623,7 +2623,7 @@ pub async fn list_payment_methods(
         .await?;
 
     let rows = sqlx::query_as::<_, PaymentMethod>(
-        "SELECT * FROM payment_methods WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM payment_methods WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3466,7 +3466,7 @@ pub async fn list_master_religions(
     )?;
     let rows = sqlx::query_as::<_, MasterReligion>(
         "SELECT * FROM master_religions \
-         WHERE (tenant_id = $1 OR tenant_id IS NULL) \
+         WHERE (tenant_id = $1 OR tenant_id IS NULL) AND deleted_at IS NULL \
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -3555,7 +3555,7 @@ pub async fn delete_master_religion(
         &claims,
         permissions::admin::settings::clinical_masters::DELETE,
     )?;
-    let result = sqlx::query("DELETE FROM master_religions WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE master_religions SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&state.db)
@@ -3584,7 +3584,7 @@ pub async fn list_master_occupations(
     )?;
     let rows = sqlx::query_as::<_, MasterOccupation>(
         "SELECT * FROM master_occupations \
-         WHERE (tenant_id = $1 OR tenant_id IS NULL) \
+         WHERE (tenant_id = $1 OR tenant_id IS NULL) AND deleted_at IS NULL \
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -3673,7 +3673,7 @@ pub async fn delete_master_occupation(
         &claims,
         permissions::admin::settings::clinical_masters::DELETE,
     )?;
-    let result = sqlx::query("DELETE FROM master_occupations WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE master_occupations SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&state.db)
@@ -3702,7 +3702,7 @@ pub async fn list_master_relations(
     )?;
     let rows = sqlx::query_as::<_, MasterRelation>(
         "SELECT * FROM master_relations \
-         WHERE (tenant_id = $1 OR tenant_id IS NULL) \
+         WHERE (tenant_id = $1 OR tenant_id IS NULL) AND deleted_at IS NULL \
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -3791,7 +3791,7 @@ pub async fn delete_master_relation(
         &claims,
         permissions::admin::settings::clinical_masters::DELETE,
     )?;
-    let result = sqlx::query("DELETE FROM master_relations WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE master_relations SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&state.db)
@@ -3839,7 +3839,7 @@ pub async fn list_insurance_providers(
         .await?;
 
     let rows = sqlx::query_as::<_, MasterInsuranceProvider>(
-        "SELECT * FROM master_insurance_providers ORDER BY name LIMIT 5000",
+        "SELECT * FROM master_insurance_providers WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -3944,7 +3944,7 @@ pub async fn delete_insurance_provider(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let result = sqlx::query("DELETE FROM master_insurance_providers WHERE id = $1")
+    let result = sqlx::query("UPDATE master_insurance_providers SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .execute(&mut *tx)
         .await?;
@@ -4738,7 +4738,7 @@ pub async fn list_user_facilities(
     let rows = sqlx::query_as::<_, UserFacilityAssignment>(
         "SELECT id, tenant_id, user_id, facility_id, is_primary, assigned_at \
          FROM user_facility_assignments \
-         WHERE tenant_id = $1 AND user_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND user_id = $2 \
          ORDER BY is_primary DESC, assigned_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5662,7 +5662,7 @@ pub async fn list_access_group_members(
         "SELECT u.id AS user_id, u.username, u.full_name, u.role::text AS role, m.expires_at \
          FROM access_group_members m \
          JOIN users u ON u.id = m.user_id \
-         WHERE m.group_id = $1 AND u.tenant_id = $2 \
+         WHERE m.group_id = $1 AND u.tenant_id = $2 AND m.deleted_at IS NULL \
          ORDER BY u.full_name LIMIT 5000",
     )
     .bind(group_id)
@@ -5839,7 +5839,7 @@ pub async fn remove_access_group_member(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
     let deleted = sqlx::query(
-        "DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2 AND tenant_id = $3",
+        "UPDATE access_group_members SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE group_id = $1 AND user_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
     .bind(group_id)
     .bind(user_id)

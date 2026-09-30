@@ -260,7 +260,7 @@ pub async fn list_jobs(
                         retry_count, next_retry_at, locked_by, locked_at, \
                         started_at, completed_at, error, correlation_id, created_at \
                  FROM job_queue \
-                 WHERE tenant_id = $1 AND status = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2 \
                  ORDER BY created_at DESC \
                  LIMIT $3 OFFSET $4",
             )
@@ -273,7 +273,7 @@ pub async fn list_jobs(
 
             let total = sqlx::query_scalar::<_, i64>(
                 "SELECT COUNT(*) FROM job_queue \
-                 WHERE tenant_id = $1 AND status = $2",
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -289,7 +289,7 @@ pub async fn list_jobs(
                         retry_count, next_retry_at, locked_by, locked_at, \
                         started_at, completed_at, error, correlation_id, created_at \
                  FROM job_queue \
-                 WHERE tenant_id = $1 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL \
                  ORDER BY created_at DESC \
                  LIMIT $2 OFFSET $3",
             )
@@ -300,7 +300,7 @@ pub async fn list_jobs(
             .await?;
 
             let total =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM job_queue WHERE tenant_id = $1")
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM job_queue WHERE tenant_id = $1 AND deleted_at IS NULL")
                     .bind(claims.tenant_id)
                     .fetch_one(&mut *tx)
                     .await?;

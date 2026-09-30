@@ -629,7 +629,7 @@ pub async fn list_display_config(
            AS show_patient_name, \
          show_wait_time, language, announcement_enabled, scroll_speed, \
          created_at, updated_at \
-         FROM queue_display_config ORDER BY location_name LIMIT 5000",
+         FROM queue_display_config WHERE deleted_at IS NULL ORDER BY location_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

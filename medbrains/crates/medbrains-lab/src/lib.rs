@@ -1986,7 +1986,7 @@ pub async fn list_panels(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabTestPanel>(
-        "SELECT * FROM lab_test_panels WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM lab_test_panels WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2150,7 +2150,7 @@ pub async fn delete_panel(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM lab_test_panels WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE lab_test_panels SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&mut *tx)

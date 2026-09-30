@@ -57,7 +57,7 @@ pub async fn list_coverage(
     let active_now = q.active_now.unwrap_or(false);
     let rows = sqlx::query_as::<_, CoverageAssignment>(
         "SELECT * FROM doctor_coverage_assignments \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::uuid IS NULL OR absent_doctor_id = $2) \
            AND ($3::uuid IS NULL OR covering_doctor_id = $3) \
            AND (NOT $4 OR (start_at <= now() AND end_at > now())) \
@@ -123,7 +123,7 @@ pub async fn delete_coverage(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let n = sqlx::query("DELETE FROM doctor_coverage_assignments WHERE id = $1 AND tenant_id = $2")
+    let n = sqlx::query("UPDATE doctor_coverage_assignments SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&mut *tx)

@@ -437,7 +437,7 @@ pub async fn list_programs(
 
     let rows = sqlx::query_as::<_, ChronicProgramRow>(
         "SELECT * FROM chronic_programs \
-         WHERE ($1::text IS NULL OR program_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR program_type::text = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%' OR code ILIKE '%' || $3 || '%') \
          ORDER BY name ASC LIMIT 200",

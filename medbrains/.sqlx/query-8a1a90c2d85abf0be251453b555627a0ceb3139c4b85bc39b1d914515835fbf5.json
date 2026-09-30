@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, tenant_id, patient_id, consent_type, consent_status, consent_date,\n                  consent_version, consented_by, consented_by_relation, witness_name, capture_mode,\n                  document_url, valid_until, notes, revoked_at, revoked_reason, created_at, updated_at\n           FROM patient_consents\n           WHERE patient_id = $1 AND tenant_id = $2\n           ORDER BY consent_date DESC",
+  "query": "SELECT id, tenant_id, patient_id, consent_type, consent_status, consent_date,\n                  consent_version, consented_by, consented_by_relation, witness_name, capture_mode,\n                  document_url, valid_until, notes, revoked_at, revoked_reason, created_at, updated_at\n           FROM patient_consents\n           WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL\n           ORDER BY consent_date DESC",
   "describe": {
     "columns": [
       {
@@ -164,5 +164,5 @@
       false
     ]
   },
-  "hash": "8930b52270b86c7bad2a70ddf57bfe331ddf2305108910e67e6eb35e7d9d0a19"
+  "hash": "8a1a90c2d85abf0be251453b555627a0ceb3139c4b85bc39b1d914515835fbf5"
 }
