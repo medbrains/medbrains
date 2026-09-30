@@ -2902,7 +2902,8 @@ pub async fn update_patient_allergy(
          reported_by = COALESCE($7, reported_by), \
          is_active = COALESCE($8, is_active), \
          updated_at = now() \
-         WHERE id = $9 AND patient_id = $10 AND tenant_id = $11 \
+         WHERE id = $9 AND patient_id = $10 AND tenant_id = $11 AND deleted_at IS NULL \
+           AND verification_status NOT IN ('refuted', 'entered_in_error') \
          RETURNING *",
         &allergy_type_str,
         &body.allergen_name,
@@ -2923,34 +2924,87 @@ pub async fn update_patient_allergy(
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
 }
 
-pub async fn delete_patient_allergy(
+/// How a doctor re-marks an allergy (HL7 FHIR `verificationStatus`).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AllergyVerdict {
+    /// The allergy is real — checked with the patient or by a test.
+    Confirmed,
+    /// Tested or re-assessed: the patient is not allergic.
+    Refuted,
+    /// Recorded by mistake (wrong patient, wrong drug).
+    EnteredInError,
+}
+
+impl AllergyVerdict {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Confirmed => "confirmed",
+            Self::Refuted => "refuted",
+            Self::EnteredInError => "entered_in_error",
+        }
+    }
+
+    /// A refuted or mistaken allergy stops alerting; a confirmed one keeps on.
+    const fn retires(self) -> bool {
+        !matches!(self, Self::Confirmed)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyAllergyRequest {
+    pub verdict: AllergyVerdict,
+    pub reason: String,
+}
+
+/// `PUT /api/patients/{patient_id}/allergies/{id}/verification`
+///
+/// A wrong allergy is corrected, never erased: it stays on the chart struck
+/// through, with who, when and why, and stops alerting. Retiring needs a
+/// reason — the next doctor must see why a penicillin label came off. A
+/// retired allergy cannot be re-marked; if it turns out real after all, it
+/// is recorded again.
+pub async fn verify_patient_allergy(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::DELETE)?;
+    Json(body): Json<VerifyAllergyRequest>,
+) -> Result<Json<PatientAllergy>, AppError> {
+    require_permission(&claims, permissions::patients::allergies::VERIFY)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    let reason = body.reason.trim();
+    if body.verdict.retires() && reason.is_empty() {
+        let mut errors = ValidationErrors::new();
+        errors.add("reason", "Say why this allergy is wrong");
+        return Err(AppError::ValidationFailed(errors));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let result = sqlx::query!(
-        "UPDATE patient_allergies SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
+    let row = sqlx::query_as_unchecked!(
+        PatientAllergy,
+        "UPDATE patient_allergies SET \
+         verification_status = $1, verification_reason = NULLIF($2, ''), \
+         verified_by = $3, verified_at = now(), \
+         is_active = CASE WHEN $4 THEN false ELSE is_active END, updated_at = now() \
+         WHERE id = $5 AND patient_id = $6 AND tenant_id = $7 AND deleted_at IS NULL \
+           AND verification_status NOT IN ('refuted', 'entered_in_error') \
+         RETURNING *",
+        body.verdict.as_str(),
+        reason,
+        claims.sub,
+        body.verdict.retires(),
         id,
         patient_id,
         claims.tenant_id,
     )
-    .execute(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
     tx.commit().await?;
-
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
-    Ok(Json(serde_json::json!({ "deleted": true })))
+    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -5023,8 +5077,11 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/patients/{patient_id}/allergies/{id}",
-            put(update_patient_allergy)
-                .delete(delete_patient_allergy),
+            put(update_patient_allergy),
+        )
+        .route(
+            "/api/patients/{patient_id}/allergies/{id}/verification",
+            put(verify_patient_allergy),
         )
         .route(
             "/api/patients/{patient_id}/consents",

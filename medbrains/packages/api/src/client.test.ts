@@ -8643,13 +8643,16 @@ describe("/patients endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("deletePatientAllergy → DELETE /patients/{param_1}/allergies/{param_2}", async () => {
+  it("verifyPatientAllergy → PUT /patients/{param_1}/allergies/{param_2}/verification", async () => {
     mockOk({});
-    await api.deletePatientAllergy(UUID, UUID);
+    await api.verifyPatientAllergy(UUID, UUID, {
+      verdict: "entered_in_error",
+      reason: "wrong patient",
+    });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/patients");
-    expect(opts.method).toBe("DELETE");
+    expect(url).toContain("/verification");
+    expect(opts.method).toBe("PUT");
   });
 
   it("updatePatientAllergy → PUT /patients/{param_1}/allergies/{param_2}", async () => {
