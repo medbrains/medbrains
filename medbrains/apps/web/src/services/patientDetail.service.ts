@@ -24,8 +24,8 @@ export const patientDetailService = {
     api.listAllergenCatalog(...args),
   createPatientAllergy: (patientId: string, data: CreatePatientAllergyInput) =>
     api.createPatientAllergy(patientId, data),
-  deletePatientAllergy: (...args: Parameters<typeof api.deletePatientAllergy>) =>
-    api.deletePatientAllergy(...args),
+  verifyPatientAllergy: (...args: Parameters<typeof api.verifyPatientAllergy>) =>
+    api.verifyPatientAllergy(...args),
   listPatientVisits: (...args: Parameters<typeof api.listPatientVisits>) =>
     api.listPatientVisits(...args),
   listPatientPrescriptions: (...args: Parameters<typeof api.listPatientPrescriptions>) =>

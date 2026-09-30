@@ -61,6 +61,18 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod allergies {
+        /// Mark a recorded allergy as wrong.
+        ///
+        /// Retires an allergy as "entered in error" or "refuted" (not
+        /// allergic, e.g. after testing) with a recorded reason. The allergy
+        /// stops alerting and stays on the chart struck through, with who,
+        /// when and why — a clinical record is corrected, never erased. A
+        /// wrong penicillin label pushes patients onto broader antibiotics, so
+        /// this is a doctor's call.
+        pub const VERIFY: &str = "patients.allergies.verify";
+    }
+
     pub mod notes {
         pub const VIEW: &str = "patients.notes.view";
         pub const EDIT: &str = "patients.notes.edit";

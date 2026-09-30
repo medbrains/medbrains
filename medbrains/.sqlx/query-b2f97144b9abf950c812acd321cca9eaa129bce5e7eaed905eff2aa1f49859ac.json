@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE patient_allergies SET allergy_type = COALESCE($1::allergy_type, allergy_type), allergen_name = COALESCE($2, allergen_name), allergen_code = COALESCE($3, allergen_code), reaction = COALESCE($4, reaction), severity = COALESCE($5::allergy_severity, severity), onset_date = COALESCE($6, onset_date), reported_by = COALESCE($7, reported_by), is_active = COALESCE($8, is_active), updated_at = now() WHERE id = $9 AND patient_id = $10 AND tenant_id = $11 RETURNING *",
+  "query": "UPDATE patient_allergies SET verification_status = $1, verification_reason = NULLIF($2, ''), verified_by = $3, verified_at = now(), is_active = CASE WHEN $4 THEN false ELSE is_active END, updated_at = now() WHERE id = $5 AND patient_id = $6 AND tenant_id = $7 AND deleted_at IS NULL AND verification_status NOT IN ('refuted', 'entered_in_error') RETURNING *",
   "describe": {
     "columns": [
       {
@@ -109,44 +109,33 @@
         "ordinal": 15,
         "name": "delete_reason",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "verification_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "verification_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "verified_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 19,
+        "name": "verified_at",
+        "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        {
-          "Custom": {
-            "name": "allergy_type",
-            "kind": {
-              "Enum": [
-                "drug",
-                "food",
-                "environmental",
-                "latex",
-                "contrast_dye",
-                "biological",
-                "other"
-              ]
-            }
-          }
-        },
         "Text",
         "Text",
-        "Text",
-        {
-          "Custom": {
-            "name": "allergy_severity",
-            "kind": {
-              "Enum": [
-                "mild",
-                "moderate",
-                "severe",
-                "life_threatening"
-              ]
-            }
-          }
-        },
-        "Date",
-        "Text",
+        "Uuid",
         "Bool",
         "Uuid",
         "Uuid",
@@ -169,8 +158,12 @@
       false,
       true,
       true,
+      true,
+      false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "4055251e4c771563e98a9e7649be1797c3572bd500e4efc54cb53bc176b99217"
+  "hash": "b2f97144b9abf950c812acd321cca9eaa129bce5e7eaed905eff2aa1f49859ac"
 }

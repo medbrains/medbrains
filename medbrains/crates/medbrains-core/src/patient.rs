@@ -496,6 +496,13 @@ pub struct PatientAllergy {
     pub onset_date: Option<NaiveDate>,
     pub reported_by: Option<String>,
     pub is_active: bool,
+    /// `unconfirmed`, `confirmed`, `refuted` or `entered_in_error` (HL7 FHIR
+    /// `verificationStatus`). Refuted and mistaken allergies stay on the chart,
+    /// inactive, with the reason and who retired them.
+    pub verification_status: String,
+    pub verification_reason: Option<String>,
+    pub verified_by: Option<Uuid>,
+    pub verified_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

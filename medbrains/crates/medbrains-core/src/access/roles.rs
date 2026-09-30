@@ -309,6 +309,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ot::preferences::MANAGE,
             permissions::ot::reports::VIEW,
             permissions::ot::safety_checklist::CREATE,
+            permissions::patients::allergies::VERIFY,
             permissions::patients::notes::EDIT,
             permissions::patients::notes::VIEW,
             permissions::radiology::orders::CANCEL,
