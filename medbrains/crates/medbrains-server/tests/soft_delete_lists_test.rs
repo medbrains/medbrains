@@ -42,25 +42,26 @@ async fn patient(app: &common::TestApp) -> Uuid {
     .expect("patient")
 }
 
-/// Given an allergy recorded in error, When the clinician removes it, Then it
-/// is gone from the patient's allergy list — a wrong allergy that stays on
-/// the chart withholds a drug the patient can take.
+/// Given an emergency contact who is no longer reachable, When the desk
+/// removes them, Then the delete answers success (not "not found") and they
+/// are gone from the patient's contacts — a stale number is who gets rung.
 #[tokio::test]
-async fn a_removed_allergy_leaves_the_chart() {
+async fn a_removed_contact_leaves_the_patient() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
-    let base = format!("/api/patients/{}/allergies", patient(&app).await);
+    let base = format!("/api/patients/{}/contacts", patient(&app).await);
 
-    let (status, allergy) = send(
+    let (status, contact) = send(
         &csrf,
         app.client.post(app.url(&base)).json(&json!({
-            "allergy_type": "drug",
-            "allergen_name": "Penicillin (entered in error)",
+            "contact_name": "Old Neighbour",
+            "relation": "neighbour",
+            "phone": "9000000001",
         })),
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{allergy}");
-    let id = allergy["allergy"]["id"].as_str().expect("id").to_owned();
+    assert_eq!(status, StatusCode::OK, "{contact}");
+    let id = contact["id"].as_str().expect("id").to_owned();
 
     let (status, _) = send(&csrf, app.client.delete(app.url(&format!("{base}/{id}")))).await;
     assert!(status.is_success(), "delete: {status}");
@@ -68,7 +69,7 @@ async fn a_removed_allergy_leaves_the_chart() {
     let (_, list) = send(&csrf, app.client.get(app.url(&base))).await;
     assert!(
         !ids(&list).contains(&id),
-        "the removed allergy is still listed"
+        "the removed contact is still listed"
     );
 }
 

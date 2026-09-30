@@ -356,8 +356,26 @@ export interface PatientAllergy {
   onset_date: string | null;
   reported_by: string | null;
   is_active: boolean;
+  /** HL7 FHIR verificationStatus. Refuted / entered-in-error stay listed, inactive. */
+  verification_status: AllergyVerificationStatus;
+  verification_reason: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type AllergyVerificationStatus =
+  | "unconfirmed"
+  | "confirmed"
+  | "refuted"
+  | "entered_in_error";
+/** How a doctor re-marks an allergy. */
+export type AllergyVerdict = "confirmed" | "refuted" | "entered_in_error";
+
+export interface VerifyAllergyRequest {
+  verdict: AllergyVerdict;
+  reason: string;
 }
 
 export interface CreateAllergyResponse {

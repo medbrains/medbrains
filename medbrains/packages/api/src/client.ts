@@ -2117,6 +2117,7 @@ import type {
   VendorPerformanceRow,
   VerbalOrderEntry,
   VerifiedPrescription,
+  VerifyAllergyRequest,
   VerifyConsentRequest,
   VerifyConsentResponse,
   VerifyLineRequest,
@@ -3967,9 +3968,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  deletePatientAllergy: (patientId: string, id: string) =>
-    request<{ status: string }>(`/patients/${patientId}/allergies/${id}`, {
-      method: "DELETE",
+  verifyPatientAllergy: (patientId: string, id: string, data: VerifyAllergyRequest) =>
+    request<PatientAllergy>(`/patients/${patientId}/allergies/${id}/verification`, {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
   updatePatientAllergy: (patientId: string, id: string, data: Record<string, unknown>) =>
     request<PatientAllergy>(`/patients/${patientId}/allergies/${id}`, {

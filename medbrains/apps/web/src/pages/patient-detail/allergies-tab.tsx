@@ -9,13 +9,13 @@ import { patientDetailAllergyFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { Patient, PatientAllergy } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components/DataTable";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { allergenPresetsFor } from "@/data/allergen-presets";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
@@ -23,9 +23,9 @@ import {
   PATIENT_ALLERGY_TYPE_OPTIONS,
   toCreatePatientAllergyRequest,
 } from "@/forms/patient-detail.form";
-import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { patientDetailService } from "@/services/patientDetail.service";
+import { MarkAllergyWrongModal } from "./mark-allergy-wrong-modal";
 
 function statusBadgeTone(color: string): BadgeTone {
   switch (color) {
@@ -57,13 +57,22 @@ function statusBadgeTone(color: string): BadgeTone {
   }
 }
 
+const RETIRED_LABEL: Record<string, string> = {
+  entered_in_error: "Entered in error",
+  refuted: "Not allergic",
+};
+
+/** Marked wrong: kept on the chart, no longer alerting. */
+function isRetired(a: PatientAllergy): boolean {
+  return a.verification_status === "refuted" || a.verification_status === "entered_in_error";
+}
+
 export function AllergiesTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
-  // Removing an allergy is deletion, not an update: the endpoint requires
-  // patients.delete, which no built-in role holds. The column was rendered
-  // under canUpdate, so every nurse who could add an allergy was offered a
-  // delete the server would refuse — on safety-critical history.
-  const canDelete = useHasPermission(P.PATIENTS.DELETE);
+  // A wrong allergy is corrected, never deleted: a doctor marks it wrong
+  // (entered in error / not allergic) and it stays on the chart struck through.
+  const canVerify = useHasPermission(P.PATIENTS.ALLERGIES.VERIFY);
+  const [wrongAllergy, setWrongAllergy] = useState<PatientAllergy | null>(null);
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const {
@@ -126,18 +135,6 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (allergyId: string) =>
-      patientDetailService.deletePatientAllergy(patient.id, allergyId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
-      notifications.show({ title: "Removed", message: "Allergy removed", color: "success" });
-    },
-    onError: (err: Error) => {
-      notifications.show({ title: "Failed", message: err.message, color: "danger" });
-    },
-  });
-
   const handleClose = () => {
     close();
     reset(DEFAULT_PATIENT_ALLERGY_FORM_VALUES);
@@ -167,11 +164,21 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
             {
               key: "allergen",
               label: "Allergen",
-              render: (a: PatientAllergy) => (
-                <Text size="sm" fw={500}>
-                  {a.allergen_name}
-                </Text>
-              ),
+              render: (a: PatientAllergy) =>
+                isRetired(a) ? (
+                  <Stack gap={0}>
+                    <Text size="sm" td="line-through" c="dimmed">
+                      {a.allergen_name}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      {RETIRED_LABEL[a.verification_status]}: {a.verification_reason}
+                    </Text>
+                  </Stack>
+                ) : (
+                  <Text size="sm" fw={500}>
+                    {a.allergen_name}
+                  </Text>
+                ),
             },
             {
               key: "type",
@@ -199,29 +206,22 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
               label: "Reaction",
               render: (a: PatientAllergy) => <Text size="sm">{a.reaction ?? "-"}</Text>,
             },
-            ...(canDelete
+            ...(canVerify
               ? [
                   {
                     key: "actions",
                     label: "",
-                    render: (a: PatientAllergy) => (
-                      <IconButton
-                        tone="danger"
-                        size="sm"
-                        onClick={() =>
-                          confirmDestructive({
-                            title: "Delete allergy",
-                            message:
-                              "Remove this allergy from the patient's record? Allergy history is safety-critical — this cannot be undone.",
-                            onConfirm: () => deleteMutation.mutate(a.id),
-                          })
-                        }
-                        loading={deleteMutation.isPending}
-                        aria-label={`Delete allergy: ${a.allergen_name}`}
-                      >
-                        <IconTrash size={14} />
-                      </IconButton>
-                    ),
+                    render: (a: PatientAllergy) =>
+                      isRetired(a) ? null : (
+                        <Button
+                          tone="ghost"
+                          size="xs"
+                          onClick={() => setWrongAllergy(a)}
+                          aria-label={`Mark allergy as wrong: ${a.allergen_name}`}
+                        >
+                          Mark as wrong
+                        </Button>
+                      ),
                   },
                 ]
               : []),
@@ -231,6 +231,11 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
         />
       )}
 
+      <MarkAllergyWrongModal
+        patientId={patient.id}
+        allergy={wrongAllergy}
+        onClose={() => setWrongAllergy(null)}
+      />
       <Modal opened={opened} onClose={handleClose} title="Add Allergy" size="md">
         <Stack
           component="form"

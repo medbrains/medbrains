@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 993 permissions, one per constant in the Rust source. */
+/** 994 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -86,6 +86,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.allergies.verify",
+    label: "Mark a recorded allergy as wrong",
+    description: "Retires an allergy as \"entered in error\" or \"refuted\" (not allergic, e.g. after testing) with a recorded reason. The allergy stops alerting and stays on the chart struck through, with who, when and why — a clinical record is corrected, never erased. A wrong penicillin label pushes patients onto broader antibiotics, so this is a doctor's call.",
     module: "patients",
   },
   {
@@ -8108,6 +8114,10 @@ export const P = {
     SAFETY_CHECKLIST_LIST: "ot.safety_checklist.list",
   },
   PATIENTS: {
+    ALLERGIES: {
+      VERIFY: "patients.allergies.verify",
+    },
+    ALLERGIES_VERIFY: "patients.allergies.verify",
     CREATE: "patients.create",
     DELETE: "patients.delete",
     FIND: "patients.find",
@@ -9222,6 +9232,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OT.SAFETY_CHECKLIST.CREATE,
       P.PATIENT_PACKAGES.CONSUME,
       P.PATIENT_PACKAGES.VIEW,
+      P.PATIENTS.ALLERGIES.VERIFY,
       P.PATIENTS.CREATE,
       P.PATIENTS.LIST,
       P.PATIENTS.NOTES.EDIT,
