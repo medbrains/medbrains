@@ -611,7 +611,7 @@ pub async fn list_overbooking_rules(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM scheduling_overbooking_rules WHERE tenant_id = $1 AND deleted_at IS NULL");
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {

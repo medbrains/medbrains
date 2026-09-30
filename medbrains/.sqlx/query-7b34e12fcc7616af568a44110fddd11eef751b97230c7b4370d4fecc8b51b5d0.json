@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM patient_allergies WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
+  "query": "SELECT * FROM patient_identifiers WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at",
   "describe": {
     "columns": [
       {
@@ -20,19 +20,30 @@
       },
       {
         "ordinal": 3,
-        "name": "allergy_type",
+        "name": "id_type",
         "type_info": {
           "Custom": {
-            "name": "allergy_type",
+            "name": "identifier_type",
             "kind": {
               "Enum": [
-                "drug",
-                "food",
-                "environmental",
-                "latex",
-                "contrast_dye",
-                "biological",
-                "other"
+                "aadhaar",
+                "pan",
+                "voter_id",
+                "driving_license",
+                "passport",
+                "ration_card",
+                "ssn",
+                "nhs_number",
+                "medicare_number",
+                "national_id",
+                "birth_certificate",
+                "employee_id",
+                "disability_certificate",
+                "abha",
+                "abha_address",
+                "emirates_id",
+                "iqama",
+                "uhid_external"
               ]
             }
           }
@@ -40,73 +51,81 @@
       },
       {
         "ordinal": 4,
-        "name": "allergen_name",
+        "name": "id_number",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "allergen_code",
+        "name": "id_number_hash",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "reaction",
+        "name": "issuing_authority",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "severity",
-        "type_info": {
-          "Custom": {
-            "name": "allergy_severity",
-            "kind": {
-              "Enum": [
-                "mild",
-                "moderate",
-                "severe",
-                "life_threatening"
-              ]
-            }
-          }
-        }
+        "name": "issuing_country_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 8,
-        "name": "onset_date",
+        "name": "valid_from",
         "type_info": "Date"
       },
       {
         "ordinal": 9,
-        "name": "reported_by",
-        "type_info": "Text"
+        "name": "valid_until",
+        "type_info": "Date"
       },
       {
         "ordinal": 10,
-        "name": "is_active",
+        "name": "is_verified",
         "type_info": "Bool"
       },
       {
         "ordinal": 11,
-        "name": "created_at",
+        "name": "verified_at",
         "type_info": "Timestamptz"
       },
       {
         "ordinal": 12,
+        "name": "verification_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "document_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "is_primary",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
         "name": "updated_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
         "name": "deleted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 14,
+        "ordinal": 18,
         "name": "deleted_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 15,
+        "ordinal": 19,
         "name": "delete_reason",
         "type_info": "Text"
       }
@@ -129,6 +148,10 @@
       true,
       true,
       false,
+      true,
+      true,
+      true,
+      false,
       false,
       false,
       true,
@@ -136,5 +159,5 @@
       true
     ]
   },
-  "hash": "c84b8fc75316087c2cea2710c7d51a21827960e40cf5196522715722bedba710"
+  "hash": "7b34e12fcc7616af568a44110fddd11eef751b97230c7b4370d4fecc8b51b5d0"
 }

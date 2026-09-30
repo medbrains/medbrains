@@ -1037,7 +1037,7 @@ pub async fn list_output_signatures(
 
     let rows = sqlx::query_as::<_, DocumentOutputSignature>(
         "SELECT * FROM document_output_signatures \
-         WHERE document_output_id = $1 \
+         WHERE document_output_id = $1 AND deleted_at IS NULL \
          ORDER BY signed_at DESC LIMIT 5000",
     )
     .bind(document_output_id)
@@ -1108,7 +1108,7 @@ pub async fn delete_output_signature(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let result = sqlx::query(
-        "DELETE FROM document_output_signatures WHERE id = $1 AND document_output_id = $2",
+        "UPDATE document_output_signatures SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND document_output_id = $2 AND deleted_at IS NULL",
     )
     .bind(sig_id)
     .bind(output_id)

@@ -565,6 +565,7 @@ pub async fn list_sensitive_patients(
          s.sensitivity_type, s.reason, s.alert_on_access, s.created_at
          FROM sensitive_patients s
          JOIN patients p ON p.id = s.patient_id
+         WHERE s.deleted_at IS NULL
          ORDER BY s.created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
@@ -622,7 +623,7 @@ pub async fn delete_sensitive_patient(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM sensitive_patients WHERE id = $1")
+    let result = sqlx::query("UPDATE sensitive_patients SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .execute(&mut *tx)
         .await?;

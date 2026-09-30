@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM patient_identifiers WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
+  "query": "SELECT * FROM patient_addresses WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY is_primary DESC, created_at",
   "describe": {
     "columns": [
       {
@@ -20,30 +20,17 @@
       },
       {
         "ordinal": 3,
-        "name": "id_type",
+        "name": "address_type",
         "type_info": {
           "Custom": {
-            "name": "identifier_type",
+            "name": "address_type",
             "kind": {
               "Enum": [
-                "aadhaar",
-                "pan",
-                "voter_id",
-                "driving_license",
-                "passport",
-                "ration_card",
-                "ssn",
-                "nhs_number",
-                "medicare_number",
-                "national_id",
-                "birth_certificate",
-                "employee_id",
-                "disability_certificate",
-                "abha",
-                "abha_address",
-                "emirates_id",
-                "iqama",
-                "uhid_external"
+                "current",
+                "permanent",
+                "correspondence",
+                "workplace",
+                "temporary"
               ]
             }
           }
@@ -51,53 +38,53 @@
       },
       {
         "ordinal": 4,
-        "name": "id_number",
+        "name": "address_line1",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "id_number_hash",
+        "name": "address_line2",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "issuing_authority",
+        "name": "village_town",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "issuing_country_id",
-        "type_info": "Uuid"
+        "name": "city",
+        "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "valid_from",
-        "type_info": "Date"
+        "name": "district_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 9,
-        "name": "valid_until",
-        "type_info": "Date"
+        "name": "state_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 10,
-        "name": "is_verified",
-        "type_info": "Bool"
+        "name": "country_id",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 11,
-        "name": "verified_at",
-        "type_info": "Timestamptz"
+        "name": "postal_code",
+        "type_info": "Text"
       },
       {
         "ordinal": 12,
-        "name": "verification_mode",
-        "type_info": "Text"
+        "name": "latitude",
+        "type_info": "Numeric"
       },
       {
         "ordinal": 13,
-        "name": "document_url",
-        "type_info": "Text"
+        "name": "longitude",
+        "type_info": "Numeric"
       },
       {
         "ordinal": 14,
@@ -106,26 +93,36 @@
       },
       {
         "ordinal": 15,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 16,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 17,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 16,
+        "ordinal": 18,
         "name": "updated_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 17,
+        "ordinal": 19,
         "name": "deleted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 18,
+        "ordinal": 20,
         "name": "deleted_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "delete_reason",
         "type_info": "Text"
       }
@@ -144,14 +141,16 @@
       false,
       true,
       true,
+      false,
       true,
+      true,
+      false,
+      false,
       true,
       true,
       false,
       true,
       true,
-      true,
-      false,
       false,
       false,
       true,
@@ -159,5 +158,5 @@
       true
     ]
   },
-  "hash": "5649bdf154b2220727c6ed4be6f4d50e5812ef52719a4c5c3ad16b852f18eba8"
+  "hash": "bfd68d263890d0036662e06e60483bec99c216815e18fc30e637f3ff993e5d8c"
 }

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE patient_addresses SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "24a5e7b11e518ce9c04eac167a6461e3168a88506fb410647be21afa59c3e531"
+}

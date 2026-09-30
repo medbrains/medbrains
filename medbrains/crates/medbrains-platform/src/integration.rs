@@ -121,7 +121,7 @@ pub async fn list_pipelines(
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM integration_pipelines p \
-         WHERE p.tenant_id = $1 {filter_clause}"
+         WHERE p.tenant_id = $1 AND p.deleted_at IS NULL {filter_clause}"
     );
     let list_sql = format!(
         "SELECT p.id, p.name, p.code, p.description, p.status, \
@@ -130,7 +130,7 @@ pub async fn list_pipelines(
                 (SELECT MAX(e.created_at) FROM integration_executions e WHERE e.pipeline_id = p.id) AS last_run_at, \
                 p.created_at, p.updated_at \
          FROM integration_pipelines p \
-         WHERE p.tenant_id = $1 {filter_clause} \
+         WHERE p.tenant_id = $1 AND p.deleted_at IS NULL {filter_clause} \
          ORDER BY p.updated_at DESC \
          LIMIT $2 OFFSET $3"
     );
@@ -297,7 +297,7 @@ pub async fn delete_pipeline(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM integration_pipelines WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE integration_pipelines SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&mut *tx)
@@ -630,6 +630,7 @@ pub async fn list_uncovered_events(
             .map(|(event_type, _)| event_type)
             .collect();
 
+    // allow-soft-deleted: counts what fired; a purged event still fired.
     let seen = sqlx::query!(
         "SELECT event_type, count(*) AS \"fired!\", max(created_at) AS last_fired \
            FROM outbox_events \

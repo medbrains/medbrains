@@ -300,7 +300,7 @@ pub async fn remove_inclusion(
     // The URL names a parent; scope the statement by it so it cannot address a
     // child under the wrong one. Without this the parent segment is decorative
     // and the audit row names a record the write never touched.
-    let n = sqlx::query("DELETE FROM doctor_package_inclusions WHERE id = $1 AND tenant_id = $2 AND package_id = $3")
+    let n = sqlx::query("UPDATE doctor_package_inclusions SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND tenant_id = $2 AND package_id = $3 AND deleted_at IS NULL")
         .bind(iid)
         .bind(claims.tenant_id)
         .bind(pid)

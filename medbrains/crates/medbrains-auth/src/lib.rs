@@ -1503,6 +1503,7 @@ pub async fn list_revocations(
         .since
         .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_default());
 
+    // allow-soft-deleted: a deleted user is exactly who must stay revoked.
     let rows: Vec<RevocationRow> = sqlx::query_as(
         "SELECT id AS user_id, deactivated_at \
          FROM users \

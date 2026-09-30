@@ -561,7 +561,7 @@ pub async fn list_invoices(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     #[allow(clippy::items_after_statements)]

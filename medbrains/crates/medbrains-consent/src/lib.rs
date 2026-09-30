@@ -200,7 +200,7 @@ pub async fn list_templates(
         "SELECT id, tenant_id, code, name, category, version, required_fields, requires_witness, \
          requires_doctor, validity_days, applicable_departments, is_read_aloud_required, \
          is_active, sort_order, created_by, created_at, updated_at FROM consent_templates \
-         WHERE ($1::text IS NULL OR category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR category::text = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          ORDER BY sort_order, name LIMIT 500",
     )
@@ -681,7 +681,7 @@ pub async fn list_signatures(
 
     let rows = sqlx::query_as::<_, ConsentSignatureMetadata>(
         "SELECT * FROM consent_signature_metadata \
-         WHERE ($1::text IS NULL OR consent_source = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR consent_source = $1) \
          AND ($2::uuid IS NULL OR consent_id = $2) \
          ORDER BY created_at DESC LIMIT 200",
     )

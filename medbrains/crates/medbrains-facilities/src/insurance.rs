@@ -840,7 +840,7 @@ pub async fn list_documents(
 
     let rows: Vec<PriorAuthDocument> = sqlx::query_as(
         "SELECT * FROM prior_auth_documents \
-         WHERE prior_auth_id = $1 AND tenant_id = $2 \
+         WHERE prior_auth_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(pa_id)
@@ -901,8 +901,8 @@ pub async fn remove_document(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let result = sqlx::query(
-        "DELETE FROM prior_auth_documents \
-         WHERE id = $1 AND prior_auth_id = $2 AND tenant_id = $3",
+        "UPDATE prior_auth_documents SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND prior_auth_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
     .bind(doc_id)
     .bind(pa_id)

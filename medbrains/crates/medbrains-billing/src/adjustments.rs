@@ -59,7 +59,7 @@ pub async fn list_discounts(
 
     let rows = sqlx::query_as::<_, InvoiceDiscount>(
         "SELECT * FROM invoice_discounts \
-         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -148,8 +148,8 @@ pub async fn remove_discount(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let result = sqlx::query(
-        "DELETE FROM invoice_discounts \
-         WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3",
+        "UPDATE invoice_discounts SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
     .bind(discount_id)
     .bind(invoice_id)
