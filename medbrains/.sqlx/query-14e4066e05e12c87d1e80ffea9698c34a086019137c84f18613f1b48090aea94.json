@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM patient_insurance WHERE patient_id = $1 AND tenant_id = $2 ORDER BY priority ASC, created_at",
+  "query": "SELECT * FROM patient_allergies WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at",
   "describe": {
     "columns": [
       {
@@ -20,106 +20,93 @@
       },
       {
         "ordinal": 3,
-        "name": "insurance_provider",
-        "type_info": "Text"
+        "name": "allergy_type",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_type",
+            "kind": {
+              "Enum": [
+                "drug",
+                "food",
+                "environmental",
+                "latex",
+                "contrast_dye",
+                "biological",
+                "other"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 4,
-        "name": "policy_number",
+        "name": "allergen_name",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "group_number",
+        "name": "allergen_code",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "member_id",
+        "name": "reaction",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "plan_name",
-        "type_info": "Text"
+        "name": "severity",
+        "type_info": {
+          "Custom": {
+            "name": "allergy_severity",
+            "kind": {
+              "Enum": [
+                "mild",
+                "moderate",
+                "severe",
+                "life_threatening"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 8,
-        "name": "policy_holder_name",
-        "type_info": "Text"
+        "name": "onset_date",
+        "type_info": "Date"
       },
       {
         "ordinal": 9,
-        "name": "policy_holder_relation",
+        "name": "reported_by",
         "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "valid_from",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 11,
-        "name": "valid_until",
-        "type_info": "Date"
-      },
-      {
-        "ordinal": 12,
-        "name": "sum_insured",
-        "type_info": "Numeric"
-      },
-      {
-        "ordinal": 13,
-        "name": "tpa_name",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 14,
-        "name": "tpa_id",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 15,
-        "name": "coverage_type",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 16,
-        "name": "priority",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 17,
         "name": "is_active",
         "type_info": "Bool"
       },
       {
-        "ordinal": 18,
+        "ordinal": 11,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 12,
         "name": "updated_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 20,
-        "name": "company_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 21,
+        "ordinal": 13,
         "name": "deleted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 22,
+        "ordinal": 14,
         "name": "deleted_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 23,
+        "ordinal": 15,
         "name": "delete_reason",
         "type_info": "Text"
       }
@@ -143,19 +130,11 @@
       true,
       false,
       false,
-      true,
-      true,
-      true,
-      true,
       false,
-      false,
-      false,
-      false,
-      true,
       true,
       true,
       true
     ]
   },
-  "hash": "2d3f169b43772fce1550d7109ae11703700b79a37ae021ba2a39ec4371f4d99c"
+  "hash": "14e4066e05e12c87d1e80ffea9698c34a086019137c84f18613f1b48090aea94"
 }

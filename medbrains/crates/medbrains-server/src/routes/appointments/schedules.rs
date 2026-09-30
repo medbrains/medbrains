@@ -46,7 +46,7 @@ pub async fn list_schedules(
 
     let rows = sqlx::query_as::<_, DoctorSchedule>(
         "SELECT * FROM doctor_schedules \
-         WHERE ($1::uuid IS NULL OR doctor_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR doctor_id = $1) \
          AND ($2::uuid IS NULL OR department_id = $2) \
          ORDER BY doctor_id, day_of_week, start_time LIMIT 5000",
     )
@@ -162,7 +162,7 @@ pub async fn delete_schedule(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM doctor_schedules WHERE id = $1")
+    let result = sqlx::query("UPDATE doctor_schedules SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .execute(&mut *tx)
         .await?;
@@ -187,7 +187,7 @@ pub async fn list_exceptions(
 
     let rows = sqlx::query_as::<_, DoctorScheduleException>(
         "SELECT * FROM doctor_schedule_exceptions \
-         WHERE doctor_id = $1 \
+         WHERE doctor_id = $1 AND deleted_at IS NULL \
          AND ($2::date IS NULL OR exception_date >= $2) \
          AND ($3::date IS NULL OR exception_date <= $3) \
          ORDER BY exception_date LIMIT 5000",
@@ -247,7 +247,7 @@ pub async fn delete_exception(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM doctor_schedule_exceptions WHERE id = $1")
+    let result = sqlx::query("UPDATE doctor_schedule_exceptions SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .execute(&mut *tx)
         .await?;

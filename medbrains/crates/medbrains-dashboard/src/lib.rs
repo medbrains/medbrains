@@ -629,7 +629,7 @@ pub async fn admin_delete_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM dashboards WHERE id = $1")
+    let result = sqlx::query("UPDATE dashboards SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .execute(&mut *tx)
         .await?;
@@ -867,7 +867,7 @@ pub async fn admin_delete_widget(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2")
+    let result = sqlx::query("UPDATE dashboard_widgets SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND dashboard_id = $2 AND deleted_at IS NULL")
         .bind(wid)
         .bind(dashboard_id)
         .execute(&mut *tx)
@@ -971,7 +971,7 @@ pub async fn list_widget_templates(
     // Fetch role's widget_access_defaults
     let role_widget_access = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(widget_access_defaults, '{}'::jsonb) \
-         FROM roles WHERE tenant_id = $1 AND code = $2",
+         FROM roles WHERE tenant_id = $1 AND deleted_at IS NULL AND code = $2",
     )
     .bind(claims.tenant_id)
     .bind(&claims.role)

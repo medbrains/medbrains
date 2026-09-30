@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM patient_contacts WHERE patient_id = $1 AND tenant_id = $2 ORDER BY priority ASC, created_at",
+  "query": "SELECT * FROM patient_insurance WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY priority ASC, created_at",
   "describe": {
     "columns": [
       {
@@ -20,76 +20,106 @@
       },
       {
         "ordinal": 3,
-        "name": "contact_name",
+        "name": "insurance_provider",
         "type_info": "Text"
       },
       {
         "ordinal": 4,
-        "name": "relation",
+        "name": "policy_number",
         "type_info": "Text"
       },
       {
         "ordinal": 5,
-        "name": "phone",
+        "name": "group_number",
         "type_info": "Text"
       },
       {
         "ordinal": 6,
-        "name": "phone_alt",
+        "name": "member_id",
         "type_info": "Text"
       },
       {
         "ordinal": 7,
-        "name": "email",
+        "name": "plan_name",
         "type_info": "Text"
       },
       {
         "ordinal": 8,
-        "name": "address",
-        "type_info": "Jsonb"
+        "name": "policy_holder_name",
+        "type_info": "Text"
       },
       {
         "ordinal": 9,
-        "name": "is_emergency_contact",
-        "type_info": "Bool"
+        "name": "policy_holder_relation",
+        "type_info": "Text"
       },
       {
         "ordinal": 10,
-        "name": "is_next_of_kin",
-        "type_info": "Bool"
+        "name": "valid_from",
+        "type_info": "Date"
       },
       {
         "ordinal": 11,
-        "name": "is_legal_guardian",
-        "type_info": "Bool"
+        "name": "valid_until",
+        "type_info": "Date"
       },
       {
         "ordinal": 12,
+        "name": "sum_insured",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 13,
+        "name": "tpa_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "tpa_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "coverage_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
         "name": "priority",
         "type_info": "Int4"
       },
       {
-        "ordinal": 13,
+        "ordinal": 17,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 14,
+        "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 15,
+        "ordinal": 20,
+        "name": "company_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 21,
         "name": "deleted_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 16,
+        "ordinal": 22,
         "name": "deleted_by",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 17,
+        "ordinal": 23,
         "name": "delete_reason",
         "type_info": "Text"
       }
@@ -106,20 +136,26 @@
       false,
       false,
       false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
       false,
       true,
       true,
       true,
+      true,
       false,
       false,
       false,
       false,
-      false,
-      false,
+      true,
       true,
       true,
       true
     ]
   },
-  "hash": "f38759a622655c09e11e4eac0da9598cd5eae3eb2722216de330c858841bbf95"
+  "hash": "c507cd49431ed100dba1cf4912531dd0a1ded169fbbb32b02abafda9fb9ffa5c"
 }

@@ -217,7 +217,7 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
                           })
                         }
                         loading={deleteMutation.isPending}
-                        aria-label="Delete allergy"
+                        aria-label={`Delete allergy: ${a.allergen_name}`}
                       >
                         <IconTrash size={14} />
                       </IconButton>

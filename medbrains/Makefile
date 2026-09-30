@@ -9,7 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
+       check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -317,7 +317,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-permissions check-permission-codes check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-parent-id-scoping check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-permissions check-permission-codes check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
@@ -388,6 +388,12 @@ coverage-ledger-update-baseline: ## Record the current coverage counts as the fl
 
 check-parent-id-scoping: ## Ban nested routes that discard their parent id
 	python3 scripts/check_parent_id_scoping.py
+
+check-soft-delete-filter: ## Ban new lists that show soft-deleted rows (ratchet)
+	python3 scripts/check_soft_delete_filter.py --check
+
+check-soft-delete-filter-update-baseline: ## Shrink the soft-delete baseline after fixing leaks
+	python3 scripts/check_soft_delete_filter.py --update-baseline
 
 check-marketing-wall: ## Keep clinical data out of the mkt_* schema
 	python3 scripts/check_marketing_wall.py

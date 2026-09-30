@@ -208,7 +208,7 @@ pub async fn list_enrollments(
 
     let rows = sqlx::query_as::<_, CorporateEnrollment>(
         "SELECT * FROM corporate_enrollments \
-         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY enrolled_at DESC LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND corporate_id = $2 ORDER BY enrolled_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(corporate_id)
@@ -263,8 +263,8 @@ pub async fn delete_enrollment(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let result = sqlx::query(
-        "DELETE FROM corporate_enrollments \
-         WHERE id = $1 AND corporate_id = $2 AND tenant_id = $3",
+        "UPDATE corporate_enrollments SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false \
+         WHERE id = $1 AND corporate_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
     .bind(enrollment_id)
     .bind(corporate_id)
@@ -291,7 +291,7 @@ pub async fn list_corporate_invoices(
 
     let rows = sqlx::query_as::<_, Invoice>(
         "SELECT * FROM invoices \
-         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY created_at DESC LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND corporate_id = $2 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(corporate_id)

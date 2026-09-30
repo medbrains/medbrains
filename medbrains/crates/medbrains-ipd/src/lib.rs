@@ -5048,7 +5048,7 @@ pub async fn list_attenders(
 
     let rows = sqlx::query_as::<_, AdmissionAttender>(
         "SELECT * FROM admission_attenders \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -5128,8 +5128,8 @@ pub async fn delete_attender(
         .await?;
 
     let result = sqlx::query(
-        "DELETE FROM admission_attenders \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3",
+        "UPDATE admission_attenders SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
     )
     .bind(attender_id)
     .bind(admission_id)

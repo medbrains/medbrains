@@ -2382,7 +2382,7 @@ pub async fn list_diagnoses(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Diagnosis>(
-        "SELECT * FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(encounter_id)
@@ -2603,7 +2603,7 @@ pub async fn delete_diagnosis(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM diagnoses WHERE id = $1 AND tenant_id = $2 AND encounter_id = $3")
+    let result = sqlx::query("UPDATE diagnoses SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND tenant_id = $2 AND encounter_id = $3 AND deleted_at IS NULL")
         .bind(did)
         .bind(claims.tenant_id)
         .bind(encounter_id)
@@ -3484,7 +3484,7 @@ pub async fn list_prescription_templates(
 
     let rows = sqlx::query_as::<_, PrescriptionTemplate>(
         "SELECT * FROM prescription_templates \
-         WHERE tenant_id = $1 AND (created_by = $2 OR is_shared = true) \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND (created_by = $2 OR is_shared = true) \
          ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -3538,8 +3538,8 @@ pub async fn delete_prescription_template(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let deleted = sqlx::query(
-        "DELETE FROM prescription_templates \
-         WHERE id = $1 AND tenant_id = $2 AND created_by = $3",
+        "UPDATE prescription_templates SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND tenant_id = $2 AND created_by = $3 AND deleted_at IS NULL",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3737,7 +3737,7 @@ pub async fn list_patient_diagnoses(
          FROM diagnoses d \
          JOIN encounters e ON d.encounter_id = e.id \
          LEFT JOIN users u ON e.doctor_id = u.id \
-         WHERE e.patient_id = $1 AND d.tenant_id = $2 \
+         WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL \
          ORDER BY d.created_at DESC \
          LIMIT 100",
     )

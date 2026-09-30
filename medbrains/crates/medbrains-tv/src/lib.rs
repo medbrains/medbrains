@@ -293,7 +293,7 @@ pub async fn list_displays(
                language, announcement_enabled, scroll_speed,
                created_at, updated_at
         FROM queue_display_config
-        WHERE tenant_id = $1
+        WHERE tenant_id = $1 AND deleted_at IS NULL
         ORDER BY location_name
         ",
     )
@@ -463,8 +463,8 @@ pub async fn delete_display(
     require(&claims, tv_displays::DELETE)?;
     let result = sqlx::query(
         r"
-        DELETE FROM queue_display_config
-        WHERE id = $1 AND tenant_id = $2
+        UPDATE queue_display_config SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application'
+        WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
         ",
     )
     .bind(id)

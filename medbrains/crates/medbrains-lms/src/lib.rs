@@ -1304,7 +1304,7 @@ pub async fn remove_path_course(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let result =
-        sqlx::query("DELETE FROM lms_learning_path_courses WHERE path_id = $1 AND course_id = $2")
+        sqlx::query("UPDATE lms_learning_path_courses SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE path_id = $1 AND course_id = $2 AND deleted_at IS NULL")
             .bind(path_id)
             .bind(course_id)
             .execute(&mut *tx)

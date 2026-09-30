@@ -413,7 +413,7 @@ pub async fn list_tpa_rate_cards(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TpaRateCard>(
-        "SELECT * FROM tpa_rate_cards WHERE tenant_id = $1 ORDER BY tpa_name LIMIT 5000",
+        "SELECT * FROM tpa_rate_cards WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY tpa_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -573,7 +573,7 @@ pub async fn delete_tpa_rate_card(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM tpa_rate_cards WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("UPDATE tpa_rate_cards SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL")
         .bind(id)
         .bind(claims.tenant_id)
         .execute(&mut *tx)

@@ -1948,7 +1948,7 @@ pub async fn list_patient_identifiers(
     let rows = sqlx::query_as_unchecked!(
         PatientIdentifier,
         "SELECT * FROM patient_identifiers \
-         WHERE patient_id = $1 AND tenant_id = $2 \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at",
         patient_id,
         claims.tenant_id,
@@ -2101,8 +2101,8 @@ pub async fn delete_patient_identifier(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_identifiers \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_identifiers SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -2142,7 +2142,7 @@ pub async fn list_patient_addresses(
     let rows = sqlx::query_as_unchecked!(
         PatientAddress,
         "SELECT * FROM patient_addresses \
-         WHERE patient_id = $1 AND tenant_id = $2 \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY is_primary DESC, created_at",
         patient_id,
         claims.tenant_id,
@@ -2290,8 +2290,8 @@ pub async fn delete_patient_address(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_addresses \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_addresses SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -2331,7 +2331,7 @@ pub async fn list_patient_contacts(
     let rows = sqlx::query_as!(
         PatientContact,
         "SELECT * FROM patient_contacts \
-         WHERE patient_id = $1 AND tenant_id = $2 \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY priority ASC, created_at",
         patient_id,
         claims.tenant_id,
@@ -2476,8 +2476,8 @@ pub async fn delete_patient_contact(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_contacts \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_contacts SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -2532,7 +2532,7 @@ pub async fn list_patient_insurance(
     let rows = sqlx::query_as!(
         PatientInsurance,
         "SELECT * FROM patient_insurance \
-         WHERE patient_id = $1 AND tenant_id = $2 \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY priority ASC, created_at",
         patient_id,
         claims.tenant_id,
@@ -2691,8 +2691,8 @@ pub async fn delete_patient_insurance(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_insurance \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_insurance SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -2726,7 +2726,7 @@ pub async fn list_patient_allergies(
     let rows = sqlx::query_as_unchecked!(
         PatientAllergy,
         "SELECT * FROM patient_allergies \
-         WHERE patient_id = $1 AND tenant_id = $2 \
+         WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at",
         patient_id,
         claims.tenant_id,
@@ -2936,8 +2936,8 @@ pub async fn delete_patient_allergy(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_allergies \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_allergies SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application', is_active = false \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -2974,7 +2974,7 @@ pub async fn list_patient_consents(
                   consent_version, consented_by, consented_by_relation, witness_name, capture_mode,
                   document_url, valid_until, notes, revoked_at, revoked_reason, created_at, updated_at
            FROM patient_consents
-           WHERE patient_id = $1 AND tenant_id = $2
+           WHERE patient_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
            ORDER BY consent_date DESC"#,
         patient_id,
         claims.tenant_id,
@@ -3114,8 +3114,8 @@ pub async fn delete_patient_consent(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_consents \
-         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3",
+        "UPDATE patient_consents SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' \
+         WHERE id = $1 AND patient_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
         id,
         patient_id,
         claims.tenant_id,
@@ -3782,7 +3782,7 @@ pub async fn list_patient_invoices(
             i.issued_at,
             i.created_at
          FROM invoices i
-         WHERE i.patient_id = $1
+         WHERE i.patient_id = $1 AND i.deleted_at IS NULL
          ORDER BY i.created_at DESC",
         patient_id,
     )
@@ -4078,7 +4078,7 @@ pub async fn list_family_links(
                 p.gender::text AS related_gender
          FROM patient_family_links fl
          JOIN patients p ON p.id = fl.related_patient_id
-         WHERE fl.patient_id = $1
+         WHERE fl.patient_id = $1 AND fl.deleted_at IS NULL
          ORDER BY fl.created_at DESC",
         patient_id,
     )
@@ -4158,7 +4158,7 @@ pub async fn delete_family_link(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_family_links WHERE id = $1 AND patient_id = $2",
+        "UPDATE patient_family_links SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND patient_id = $2 AND deleted_at IS NULL",
         id,
         patient_id,
     )
@@ -4205,7 +4205,7 @@ pub async fn list_patient_documents(
         "SELECT id, tenant_id, patient_id, document_type, document_name, file_url, file_size,
                 mime_type, uploaded_by, notes, created_at
          FROM patient_documents
-         WHERE patient_id = $1
+         WHERE patient_id = $1 AND deleted_at IS NULL
          ORDER BY created_at DESC",
         patient_id,
     )
@@ -4279,7 +4279,7 @@ pub async fn delete_patient_document(
         .await?;
 
     let result = sqlx::query!(
-        "DELETE FROM patient_documents WHERE id = $1 AND patient_id = $2",
+        "UPDATE patient_documents SET deleted_at = now(), deleted_by = NULLIF(current_setting('app.user_id', true), '')::uuid, delete_reason = 'Deleted from the application' WHERE id = $1 AND patient_id = $2 AND deleted_at IS NULL",
         id,
         patient_id,
     )
