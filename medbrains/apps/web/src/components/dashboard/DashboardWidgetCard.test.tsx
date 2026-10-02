@@ -104,4 +104,31 @@ describe("DashboardWidgetCard — a failure is not an emptiness", () => {
     expect(screen.getByText("Smoke Patient")).toBeInTheDocument();
     expect(screen.queryByText("Couldn't load")).not.toBeInTheDocument();
   });
+
+  it("draws a trend the server wraps, rather than calling it empty", () => {
+    render(
+      <DashboardWidgetCard
+        widget={widget("chart" as WidgetType, { x_axis: "date", y_axis: "revenue" })}
+        data={{ trend: [{ date: "2026-10-01", revenue: 900 }] }}
+        loading={false}
+      />,
+    );
+
+    expect(screen.queryByText("Nothing to show")).not.toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load")).not.toBeInTheDocument();
+  });
+
+  it("shows a timestamp cell in local time, not as ISO text", () => {
+    const admitted = "2026-10-01T09:30:00+00:00";
+    render(
+      <DashboardWidgetCard
+        widget={widget("data_table" as WidgetType, { columns: ["admitted_at"] })}
+        data={{ items: [{ id: "a1", admitted_at: admitted }] }}
+        loading={false}
+      />,
+    );
+
+    expect(screen.queryByText(admitted)).not.toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toBeInTheDocument();
+  });
 });
