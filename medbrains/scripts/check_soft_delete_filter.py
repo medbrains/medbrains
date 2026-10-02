@@ -48,6 +48,12 @@ GUARDED = re.compile(
     r"(?:public\.)?soft_delete_guardrail\(\)",
     re.I,
 )
+# A later migration may take a table off the guardrail (housekeeping tables
+# whose DELETE must really delete); it is then not guarded.
+UNGUARDED = re.compile(
+    r"DROP TRIGGER (?:IF EXISTS )?trg_\w+_soft_delete_\w+ ON (?:public\.)?(\w+)",
+    re.I,
+)
 HANDLER = re.compile(r"^\s*pub(?:\([^)]*\))? async fn ((?:list|search)_\w+)\s*[<(]", re.M)
 FROM = re.compile(r"\b(?:FROM|JOIN)\s+(?:public\.)?([a-z_][a-z0-9_]*)", re.I)
 DELETE = re.compile(r"\bDELETE\s+FROM\s+(?:public\.)?([a-z_][a-z0-9_]*)", re.I)
@@ -61,10 +67,12 @@ ZERO_CHECK = re.compile(r"rows_affected\(\)\s*==\s*0")
 
 def guarded_tables() -> set[str]:
     tables: set[str] = set()
-    for name in os.listdir(MIGRATIONS):
+    for name in sorted(os.listdir(MIGRATIONS)):
         if name.endswith(".sql"):
             with open(os.path.join(MIGRATIONS, name), encoding="utf-8") as fh:
-                tables.update(t.lower() for t in GUARDED.findall(fh.read()))
+                sql = fh.read()
+            tables.update(t.lower() for t in GUARDED.findall(sql))
+            tables.difference_update(t.lower() for t in UNGUARDED.findall(sql))
     return tables
 
 
