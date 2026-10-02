@@ -2071,6 +2071,29 @@ pub async fn get_consultation(
     })))
 }
 
+/// `physical_examination.findings`, if present, must be well-formed site
+/// findings — a malformed entry or an unknown side is refused, not stored.
+fn check_exam_findings(exam: Option<&serde_json::Value>) -> Result<(), AppError> {
+    let Some(findings) = exam.and_then(|e| e.get("findings")) else {
+        return Ok(());
+    };
+    let parsed: Result<Vec<medbrains_core::consultation::ExamFinding>, _> =
+        serde_json::from_value(findings.clone());
+    let well_formed = parsed.is_ok_and(|list| {
+        list.iter()
+            .all(|f| !f.site.trim().is_empty() && !f.finding.trim().is_empty())
+    });
+    if well_formed {
+        return Ok(());
+    }
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    errors.add(
+        "physical_examination.findings",
+        "Each finding needs a site, a side of left/right/bilateral/midline or none, and what was found",
+    );
+    Err(AppError::ValidationFailed(errors))
+}
+
 pub async fn create_consultation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2078,6 +2101,7 @@ pub async fn create_consultation(
     Json(body): Json<CreateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    check_exam_findings(body.physical_examination.as_ref())?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_soap_note_write_access(&restricted_fields)?;
@@ -2190,6 +2214,7 @@ pub async fn update_consultation(
     Json(body): Json<UpdateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    check_exam_findings(body.physical_examination.as_ref())?;
 
     // The route names an encounter; holding the module permission is not the
     // same as being on this patient's care team.

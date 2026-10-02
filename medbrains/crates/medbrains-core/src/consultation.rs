@@ -26,6 +26,18 @@ pub struct Consultation {
     pub updated_at: DateTime<Utc>,
 }
 
+/// One examination finding at a place on the body, kept in
+/// `physical_examination.findings`: the words a chart prints, the FMA code
+/// and side from the body-site picker, and what was found there.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExamFinding {
+    pub site: String,
+    pub site_code: Option<String>,
+    pub laterality: Option<crate::body_site::Laterality>,
+    pub finding: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Diagnosis {
     pub id: Uuid,
