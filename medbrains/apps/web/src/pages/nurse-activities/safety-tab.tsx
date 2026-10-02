@@ -18,6 +18,8 @@ import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconBandage, IconPlus, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { type BodySite, formatBodySite } from "@/components/BodySite/anatomy-atlas";
+import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import {
@@ -108,12 +110,12 @@ export function SafetyTab({
   const isLinkedEncounter = encounterLocked(initialEncounterId);
   const [encounterId, setEncounterId] = useState(initialEncounterId);
   const [painScore, setPainScore] = useState<number>(0);
-  const [painLocation, setPainLocation] = useState("");
+  const [painLocation, setPainLocation] = useState<BodySite | null>(null);
   const [painCharacter, setPainCharacter] = useState("");
   const [painIntervention, setPainIntervention] = useState("");
   const [fallScore, setFallScore] = useState<number>(0);
   const [fallLevel, setFallLevel] = useState("low");
-  const [woundSite, setWoundSite] = useState("");
+  const [woundSite, setWoundSite] = useState<BodySite | null>(null);
   const [woundClassification, setWoundClassification] = useState("pressure_injury");
   const [woundStage, setWoundStage] = useState("");
   const [woundDressing, setWoundDressing] = useState("");
@@ -144,14 +146,16 @@ export function SafetyTab({
         encounter_id: encounterId,
         scale: "NRS",
         score: painScore,
-        location: painLocation.trim() || undefined,
+        location: painLocation ? formatBodySite(painLocation) : undefined,
+        location_code: painLocation?.code ?? undefined,
+        location_laterality: painLocation?.laterality ?? undefined,
         character: painCharacter.trim() || undefined,
         intervention_taken: painIntervention.trim() || undefined,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["nurse-pain"] });
       setPainScore(0);
-      setPainLocation("");
+      setPainLocation(null);
       setPainCharacter("");
       setPainIntervention("");
     },
@@ -184,7 +188,9 @@ export function SafetyTab({
     mutationFn: () =>
       nurseActivitiesService.createWound({
         encounter_id: encounterId,
-        body_site: woundSite.trim(),
+        body_site: woundSite ? formatBodySite(woundSite) : "",
+        body_site_code: woundSite?.code ?? undefined,
+        body_site_laterality: woundSite?.laterality ?? undefined,
         classification: woundClassification,
         stage: woundStage.trim() || undefined,
         dressing_type: woundDressing.trim() || undefined,
@@ -192,7 +198,7 @@ export function SafetyTab({
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["nurse-wounds"] });
-      setWoundSite("");
+      setWoundSite(null);
       setWoundClassification("pressure_injury");
       setWoundStage("");
       setWoundDressing("");
@@ -277,10 +283,11 @@ export function SafetyTab({
                     ]}
                     clearable
                   />
-                  <TextInput
+                  <BodySitePicker
                     label="Location"
                     value={painLocation}
-                    onChange={(event) => setPainLocation(event.currentTarget.value)}
+                    onChange={setPainLocation}
+                    placeholder="e.g. Lower back"
                   />
                   <Textarea
                     label="Intervention"
@@ -422,11 +429,7 @@ export function SafetyTab({
                       { value: "other", label: "Other" },
                     ]}
                   />
-                  <TextInput
-                    label="Body site"
-                    value={woundSite}
-                    onChange={(event) => setWoundSite(event.currentTarget.value)}
-                  />
+                  <BodySitePicker label="Body site" value={woundSite} onChange={setWoundSite} />
                   <Select
                     label="Stage"
                     value={woundStage || null}
@@ -460,7 +463,7 @@ export function SafetyTab({
                     leftSection={<IconPlus size={14} />}
                     onClick={() => createWound.mutate()}
                     loading={createWound.isPending}
-                    disabled={!encounterId || !woundSite.trim()}
+                    disabled={!encounterId || !woundSite?.label.trim()}
                   >
                     Record wound
                   </Button>

@@ -1,0 +1,20 @@
+// Layout only — colour comes from theme tokens.
+.stage {
+  position: relative;
+  height: min(60vh, 32rem);
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+.pickButton {
+  align-self: flex-start;
+}
+
+// Room below the actions: the app's floating assistant sits bottom-right.
+.drawerBody {
+  padding-bottom: calc(var(--mantine-spacing-xl) * 2);
+}

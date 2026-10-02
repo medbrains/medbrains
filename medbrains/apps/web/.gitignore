@@ -17,3 +17,6 @@ public/_theme-preview.html
 dist.tgz
 # Built source maps: kept for decoding error reports, never shipped or committed
 sourcemaps/
+# Anatomy model for the body-site picker — fetched, never committed
+# (python3 scripts/sync_anatomy_atlas.py).
+public/anatomy/

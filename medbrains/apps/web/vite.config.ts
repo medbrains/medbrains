@@ -32,12 +32,31 @@ function keepSourceMapsPrivate(): PluginOption {
   };
 }
 
+/**
+ * The body-site picker's anatomy model (~33 MB) lives in public/anatomy for
+ * dev (`make anatomy-sync`). A build pointed at a CDN must not ship it: drop
+ * the copy unless VITE_ANATOMY_BASE_URL is same-origin (an offline install
+ * serving the model beside the app keeps it).
+ */
+function anatomyOnlyWhenSameOrigin(): PluginOption {
+  return {
+    name: "anatomy-only-when-same-origin",
+    apply: "build",
+    closeBundle() {
+      const base = process.env.VITE_ANATOMY_BASE_URL ?? "/anatomy";
+      if (base.startsWith("/")) return;
+      fs.rmSync(path.resolve(__dirname, "dist", "anatomy"), { recursive: true, force: true });
+    },
+  };
+}
+
 export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
   const plugins: PluginOption[] = [
     react(),
     wasm(),
     keepSourceMapsPrivate(),
+    anatomyOnlyWhenSameOrigin(),
     // Precompress hashed, immutable build assets once (brotli-max + gzip).
     // The server serves these directly (ServeDir precompressed_*), so the
     // bundle ships at max ratio with zero per-request CPU. Originals are kept

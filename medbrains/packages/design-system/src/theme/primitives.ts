@@ -27,3 +27,27 @@ export const slateTuple: MantineColorsTuple = [...slate] as unknown as MantineCo
 
 /** Legacy alias — anything still importing `emeraldTuple` resolves to mint. */
 export const emeraldTuple: MantineColorsTuple = mintTuple;
+
+/**
+ * Tissue colours for the 3D body-site model (BodyParts3D via human-atlas).
+ * Anatomical, not status colour: the same in both themes, since the model
+ * sits on its own lit stage. `selected` marks the picked structure.
+ */
+export const ANATOMY_PALETTE = {
+  skeletal: "#e2d9ba",
+  muscular: "#a85b50",
+  cardiac: "#b96760",
+  sensory: "#b0c8ce",
+  arterial: "#c05245",
+  venous: "#527c9f",
+  nervous: "#d8b565",
+  respiratory: "#b98991",
+  digestive: "#b8916b",
+  urinary: "#b47961",
+  lymphatic: "#879f7c",
+  endocrine: "#c5a09a",
+  reproductive: "#bda098",
+  integumentary: "#ba9b7d",
+  connective: "#aec3bb",
+  selected: "#2fb5a0",
+} as const;

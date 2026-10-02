@@ -389,6 +389,12 @@ coverage-ledger-update-baseline: ## Record the current coverage counts as the fl
 check-parent-id-scoping: ## Ban nested routes that discard their parent id
 	python3 scripts/check_parent_id_scoping.py
 
+anatomy-sync: ## Fetch the pinned anatomy model for the body-site picker into apps/web/public/anatomy
+	python3 scripts/sync_anatomy_atlas.py
+
+anatomy-check-upstream: ## Is there a newer human-atlas release than the one pinned?
+	python3 scripts/sync_anatomy_atlas.py --check-upstream
+
 check-soft-delete-filter: ## Ban new lists that show soft-deleted rows (ratchet)
 	python3 scripts/check_soft_delete_filter.py --check
 

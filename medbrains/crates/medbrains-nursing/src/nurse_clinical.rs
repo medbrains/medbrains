@@ -138,6 +138,9 @@ pub struct WoundAssessment {
     pub tenant_id: Uuid,
     pub encounter_id: Uuid,
     pub body_site: String,
+    /// FMA concept from the body-site picker; None when the site was typed.
+    pub body_site_code: Option<String>,
+    pub body_site_laterality: Option<String>,
     pub classification: Option<String>,
     pub stage: Option<String>,
     pub length_cm: Option<Decimal>,
@@ -158,6 +161,8 @@ pub struct WoundAssessment {
 pub struct CreateWoundRequest {
     pub encounter_id: Uuid,
     pub body_site: String,
+    pub body_site_code: Option<String>,
+    pub body_site_laterality: Option<medbrains_core::body_site::Laterality>,
     pub classification: Option<String>,
     pub stage: Option<String>,
     pub length_cm: Option<Decimal>,
@@ -189,8 +194,9 @@ pub async fn create_wound(
          (tenant_id, encounter_id, body_site, classification, stage, \
           length_cm, width_cm, depth_cm, exudate, odor, photo_urls, \
           dressing_type, dressing_changed_at, dressing_change_due_at, \
-          recorded_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
+          recorded_by, notes, body_site_code, body_site_laterality) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \
+                 $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -209,6 +215,8 @@ pub async fn create_wound(
     .bind(body.dressing_change_due_at)
     .bind(claims.sub)
     .bind(&body.notes)
+    .bind(&body.body_site_code)
+    .bind(body.body_site_laterality.map(medbrains_core::body_site::Laterality::as_str))
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
