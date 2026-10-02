@@ -1,5 +1,7 @@
-# Claude Code session state — do not commit
-.claude/
+# Claude Code: session state and personal settings stay local; the shared
+# hooks file (.claude/settings.json) is versioned.
+.claude/*
+!.claude/settings.json
 
 # OS
 .DS_Store
