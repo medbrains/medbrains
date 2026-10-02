@@ -87,6 +87,7 @@ private fun ConsultationForm(api: DoctorApi, token: WorklistToken, encounterId: 
     var exam by remember { mutableStateOf(existing?.examination ?: "") }
     var assessment by remember { mutableStateOf(existing?.notes ?: "") }
     var plan by remember { mutableStateOf(existing?.plan ?: "") }
+    var findings by remember { mutableStateOf(existing?.physical_examination?.findings.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -110,6 +111,7 @@ private fun ConsultationForm(api: DoctorApi, token: WorklistToken, encounterId: 
         CarbonTextField(exam, { exam = it }, "Examination", Modifier.testTag("field-examination"), keyboardOptions = prose, singleLine = false)
         CarbonTextField(assessment, { assessment = it }, "Assessment", Modifier.testTag("field-assessment"), keyboardOptions = prose, singleLine = false)
         CarbonTextField(plan, { plan = it }, "Plan", Modifier.testTag("field-plan"), keyboardOptions = prose, singleLine = false)
+        ExamFindingsSection(findings, canRecord) { findings = it }
         error?.let { CarbonNotification(NotificationKind.Error, "Could not save the consultation", it) }
         toast?.let { CarbonNotification(NotificationKind.Success, it, "", Modifier.testTag("consultation-toast")) }
         if (canRecord) {
@@ -119,8 +121,9 @@ private fun ConsultationForm(api: DoctorApi, token: WorklistToken, encounterId: 
                 scope.launch {
                     busy = true; error = null; toast = null
                     try {
-                        val notes = ConsultationNotes(chief.trim(), exam.trim(), assessment.trim(), plan.trim())
                         val current = saved
+                        val changed = findings != current?.physical_examination?.findings.orEmpty()
+                        val notes = ConsultationNotes(chief.trim(), exam.trim(), assessment.trim(), plan.trim(), if (changed) SiteFindings(findings) else null)
                         saved = if (current != null) api.updateConsultation(encounterId, current.id, notes) else api.createConsultation(encounterId, notes)
                         toast = "Consultation saved"
                     } catch (e: Exception) { error = (e as? ApiError)?.message ?: "Could not reach the hospital server." } finally { busy = false }

@@ -2207,6 +2207,8 @@ pub async fn create_consultation(
     Ok(Json(filter_consultation_response(row, &restricted_fields)))
 }
 
+/// `physical_examination` merges by top-level key: a phone that sends only
+/// `findings` leaves the web's system notes as they were.
 pub async fn update_consultation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2241,7 +2243,7 @@ pub async fn update_consultation(
          family_history = COALESCE($11, family_history), \
          social_history = COALESCE($12, social_history), \
          review_of_systems = COALESCE($13, review_of_systems), \
-         physical_examination = COALESCE($14, physical_examination), \
+         physical_examination = COALESCE(physical_examination || $14, $14, physical_examination), \
          general_appearance = COALESCE($15, general_appearance), \
          updated_at = now() \
          WHERE id = $6 AND tenant_id = $7 AND encounter_id = $16 \
