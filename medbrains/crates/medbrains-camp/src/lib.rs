@@ -2098,7 +2098,7 @@ async fn materialize_camp_plan_from_value(
                 "INSERT INTO camp_counters \
                  (tenant_id, camp_id, source_key, counter_type, counter_name, status, notes, deleted_at, deleted_by, delete_reason) \
                  VALUES ($1, $2, $3, 'service', $4, 'planned', $5, NULL, NULL, NULL) \
-                 ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+                 ON CONFLICT (tenant_id, camp_id, source_key) WHERE deleted_at IS NULL DO UPDATE SET \
                   counter_name = EXCLUDED.counter_name, notes = EXCLUDED.notes, \
                   deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
             )
@@ -2121,7 +2121,7 @@ async fn materialize_camp_plan_from_value(
             "INSERT INTO camp_department_counters \
              (tenant_id, camp_id, source_key, department_id, service_scope, opd_routing_enabled, status, notes, deleted_at, deleted_by, delete_reason) \
              VALUES ($1, $2, $3, $4, $5, true, 'planned', $6, NULL, NULL, NULL) \
-             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+             ON CONFLICT (tenant_id, camp_id, source_key) WHERE deleted_at IS NULL DO UPDATE SET \
               department_id = EXCLUDED.department_id, service_scope = EXCLUDED.service_scope, \
               opd_routing_enabled = true, notes = EXCLUDED.notes, \
               deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
@@ -6706,7 +6706,7 @@ pub async fn add_camp_counter(
           (tenant_id, camp_id, source_key, counter_type, counter_name, capacity_per_hour, \
            location_label, status, notes, flow_position) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'planned', $8, $9) \
-         ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+         ON CONFLICT (tenant_id, camp_id, source_key) WHERE deleted_at IS NULL DO UPDATE SET \
            counter_type = EXCLUDED.counter_type, counter_name = EXCLUDED.counter_name, \
            capacity_per_hour = EXCLUDED.capacity_per_hour, \
            location_label = EXCLUDED.location_label, notes = EXCLUDED.notes, \
@@ -6730,7 +6730,7 @@ pub async fn add_camp_counter(
         "INSERT INTO camp_department_counters \
           (tenant_id, camp_id, source_key, department_id, counter_id, opd_routing_enabled, status) \
          VALUES ($1, $2, $3, $4, $5, true, 'planned') \
-         ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+         ON CONFLICT (tenant_id, camp_id, source_key) WHERE deleted_at IS NULL DO UPDATE SET \
            department_id = EXCLUDED.department_id, counter_id = EXCLUDED.counter_id, \
            opd_routing_enabled = true, deleted_at = NULL, deleted_by = NULL, \
            delete_reason = NULL, updated_at = now()",

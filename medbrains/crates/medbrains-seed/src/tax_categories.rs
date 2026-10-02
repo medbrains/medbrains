@@ -56,8 +56,9 @@ pub(super) async fn seed_tax_categories(
         sqlx::query(
             "INSERT INTO tax_categories \
              (tenant_id, code, name, rate_percent, applicability, description) \
-             VALUES ($1, $2, $3, $4::numeric, $5::tax_applicability, $6) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4::numeric, $5::tax_applicability, $6 \
+             WHERE NOT EXISTS (SELECT 1 FROM tax_categories WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)

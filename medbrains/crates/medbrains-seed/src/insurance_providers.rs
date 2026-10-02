@@ -200,8 +200,9 @@ pub(super) async fn seed_insurance_providers(
         sqlx::query(
             "INSERT INTO master_insurance_providers \
              (tenant_id, code, name, provider_type, contact_phone, website) \
-             VALUES ($1, $2, $3, $4, $5, $6) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4, $5, $6 \
+             WHERE NOT EXISTS (SELECT 1 FROM master_insurance_providers WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)
