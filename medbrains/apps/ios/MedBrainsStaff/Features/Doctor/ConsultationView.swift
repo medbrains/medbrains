@@ -61,6 +61,7 @@ private struct ConsultationForm: View {
     @State private var exam: String
     @State private var assessment: String
     @State private var plan: String
+    @State private var findings: [ExamFinding]
     @State private var busy = false
     @State private var problem: String?
     @State private var error: String?
@@ -76,6 +77,7 @@ private struct ConsultationForm: View {
         _exam = State(initialValue: existing?.examination ?? "")
         _assessment = State(initialValue: existing?.notes ?? "")
         _plan = State(initialValue: existing?.plan ?? "")
+        _findings = State(initialValue: existing?.physicalExamination?.findings ?? [])
     }
 
     var body: some View {
@@ -96,6 +98,7 @@ private struct ConsultationForm: View {
                 field("Examination", $exam, "examination")
                 field("Assessment", $assessment, "assessment")
                 field("Plan", $plan, "plan")
+                ExamFindingsSection(findings: $findings, canRecord: canRecord)
                 if let error { CarbonNotification(kind: .error, title: "Could not save the consultation", message: error) }
                 if let toast { CarbonNotification(kind: .success, title: toast, message: "").accessibilityIdentifier("consultation-toast") }
                 if canRecord {
@@ -131,7 +134,8 @@ private struct ConsultationForm: View {
         toast = nil
         defer { busy = false }
         focus = nil
-        let notes = ConsultationNotes(chiefComplaint: chief.trimmingCharacters(in: .whitespacesAndNewlines), examination: exam.trimmingCharacters(in: .whitespacesAndNewlines), notes: assessment.trimmingCharacters(in: .whitespacesAndNewlines), plan: plan.trimmingCharacters(in: .whitespacesAndNewlines))
+        let notes = ConsultationNotes(chiefComplaint: chief.trimmingCharacters(in: .whitespacesAndNewlines), examination: exam.trimmingCharacters(in: .whitespacesAndNewlines), notes: assessment.trimmingCharacters(in: .whitespacesAndNewlines), plan: plan.trimmingCharacters(in: .whitespacesAndNewlines),
+                                      physicalExamination: findings == (saved?.physicalExamination?.findings ?? []) ? nil : SiteFindings(findings: findings))
         do {
             let api = DoctorApi(client: client)
             let written: Consultation

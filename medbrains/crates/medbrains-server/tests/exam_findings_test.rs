@@ -94,3 +94,40 @@ async fn a_site_finding_is_kept_with_its_code_and_side() {
     assert_eq!(finding["laterality"], "right");
     assert_eq!(finding["finding"], "Tender, guarding");
 }
+
+/// Given a consultation whose examination has system notes, When the phone
+/// saves only the site findings, Then the notes are kept beside them.
+#[tokio::test]
+async fn saving_findings_alone_keeps_the_system_notes() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let url = app.url(&format!(
+        "/api/opd/encounters/{}/consultation",
+        encounter(&app, &csrf).await
+    ));
+    let (status, created) = send(
+        &csrf,
+        app.client.post(&url).json(&json!({
+            "chief_complaint": "Knee pain",
+            "physical_examination": { "musculoskeletal": "Antalgic gait" },
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{created}");
+    let id = created["id"].as_str().expect("consultation id");
+
+    let (status, updated) = send(
+        &csrf,
+        app.client.put(format!("{url}/{id}")).json(
+            &json!({ "physical_examination": { "findings": [{
+                "site": "Left knee", "site_code": null,
+                "laterality": "left", "finding": "Effusion",
+            }]}}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    let exam = &updated["physical_examination"];
+    assert_eq!(exam["musculoskeletal"], "Antalgic gait");
+    assert_eq!(exam["findings"][0]["site"], "Left knee");
+}

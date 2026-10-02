@@ -1,5 +1,7 @@
 package com.medbrains.staff
 
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -16,6 +18,7 @@ import org.junit.Rule
 import org.junit.rules.RuleChain
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 
 /** The doctor's clinic, proven against the queue and the encounter. Mirrors DoctorJourneyTests.swift. */
 @RunWith(AndroidJUnit4::class)
@@ -112,6 +115,47 @@ class DoctorJourneyTest {
         check(saved.optString("examination") == "Chest clear, throat red")
         check(saved.optString("notes") == "Viral URTI") { "assessment is the notes column" }
         check(saved.optString("plan") == "Fluids, paracetamol, review in 3 days")
+    }
+
+    /**
+     * Given a consultation the web wrote system notes on, When the doctor picks
+     * the patient's left knee on the body map and describes it, Then the
+     * finding is saved as "Left knee" with its side, beside those notes.
+     */
+    @Test
+    fun aFindingIsPickedOnTheBodyMapAndKeptBesideTheSystemNotes() {
+        val (patientId, encounterId) = checkNotNull(api.waitingVisit(doctor.id, "Knee"))
+        val (status, _) = api.call("POST", "/api/opd/encounters/$encounterId/consultation", JSONObject()
+            .put("chief_complaint", "Knee pain").put("physical_examination", JSONObject().put("musculoskeletal", "Antalgic gait")))
+        check(status == 200) { "the web's note to keep" }
+        openQueue()
+        showRow(patientId)
+        compose.onNodeWithTag("queue-row-$patientId").performClick()
+        compose.waitUntil(10_000) { has("screen-queue-detail") }
+        compose.onNodeWithTag("queue-open-consultation").performClick()
+        compose.waitUntil(10_000) { has("consultation-saved") }
+
+        compose.onNodeWithTag("exam-finding-pick").performScrollTo().performClick()
+        compose.waitUntil(10_000) { has("body-map") }
+        compose.onNodeWithTag("body-region-heel").performScrollTo().performClick()
+        compose.onNodeWithTag("body-map-status").assertTextEquals("Choose the side")
+        compose.onNodeWithTag("body-map-use").assertIsNotEnabled()
+        compose.onNodeWithTag("body-zone-knee-left").performScrollTo().performClick()
+        compose.onNodeWithTag("body-map-status").assertTextEquals("Selected: Left knee")
+        compose.onNodeWithTag("body-map-use").performScrollTo().performClick()
+
+        compose.waitUntil(10_000) { has("field-exam-finding") }
+        compose.onNodeWithTag("field-exam-finding").performScrollTo().performTextInput("Effusion")
+        compose.onNodeWithTag("exam-finding-add").performScrollTo().performClick()
+        compose.waitUntil(5_000) { seesText("Left knee: Effusion") }
+        compose.onNodeWithTag("consultation-save").performScrollTo().performClick()
+        compose.waitUntil(15_000) { seesText("Consultation saved") }
+        val exam = checkNotNull(api.consultation(encounterId)).getJSONObject("physical_examination")
+        check(exam.optString("musculoskeletal") == "Antalgic gait") { "the web's note survives the phone's save" }
+        val finding = exam.getJSONArray("findings").getJSONObject(0)
+        check(finding.optString("site") == "Left knee")
+        check(finding.optString("laterality") == "left")
+        check(finding.optString("finding") == "Effusion")
     }
 
     @Test

@@ -1,0 +1,418 @@
+{
+  "_about": "Body regions as clinicians chart them. Read by the web picker (model structures it lights) and the iOS/Android 2D body map (zone: where the patient's RIGHT instance sits on that view, in fractions of the figure; the left is mirrored, x' = 1 - x - w). Structure names are BodyParts3D's own; {side} is Left/Right. A region stores words and side, never a code.",
+  "regions": [
+    {
+      "id": "head",
+      "label": "Head",
+      "sided": false,
+      "structures": [
+        "Frontal bone",
+        "Occipital bone"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.42,
+        "y": 0,
+        "w": 0.16,
+        "h": 0.09
+      }
+    },
+    {
+      "id": "face",
+      "label": "Face",
+      "sided": false,
+      "structures": [
+        "Mandible"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.42,
+        "y": 0,
+        "w": 0.16,
+        "h": 0.09
+      }
+    },
+    {
+      "id": "neck",
+      "label": "Neck",
+      "sided": false,
+      "structures": [
+        "Seventh cervical vertebra"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.44,
+        "y": 0.09,
+        "w": 0.12,
+        "h": 0.035
+      }
+    },
+    {
+      "id": "chest",
+      "label": "Chest",
+      "sided": false,
+      "structures": [
+        "Body of sternum",
+        "Left fifth rib",
+        "Right fifth rib"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.125,
+        "w": 0.34,
+        "h": 0.125
+      }
+    },
+    {
+      "id": "epigastrium",
+      "label": "Epigastrium",
+      "sided": false,
+      "structures": [
+        "Stomach",
+        "Xiphoid process"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.443,
+        "y": 0.25,
+        "w": 0.114,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "right-hypochondrium",
+      "label": "Right hypochondrium",
+      "sided": false,
+      "structures": [
+        "Gallbladder"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.25,
+        "w": 0.113,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "left-hypochondrium",
+      "label": "Left hypochondrium",
+      "sided": false,
+      "structures": [
+        "Spleen"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.557,
+        "y": 0.25,
+        "w": 0.113,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "umbilical",
+      "label": "Umbilical region",
+      "sided": false,
+      "structures": [
+        "Transverse colon"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.31,
+        "w": 0.34,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "right-iliac-fossa",
+      "label": "Right iliac fossa",
+      "sided": false,
+      "structures": [
+        "Appendix"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.37,
+        "w": 0.113,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "left-iliac-fossa",
+      "label": "Left iliac fossa",
+      "sided": false,
+      "structures": [
+        "Descending colon"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.557,
+        "y": 0.37,
+        "w": 0.113,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "suprapubic",
+      "label": "Suprapubic region",
+      "sided": false,
+      "structures": [
+        "Urinary bladder"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.443,
+        "y": 0.37,
+        "w": 0.114,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "loin",
+      "label": "Loin",
+      "sided": true,
+      "structures": [
+        "{side} kidney"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.53,
+        "y": 0.25,
+        "w": 0.14,
+        "h": 0.08
+      }
+    },
+    {
+      "id": "lower-back",
+      "label": "Lower back",
+      "sided": false,
+      "structures": [
+        "First lumbar vertebra",
+        "Fifth lumbar vertebra"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.36,
+        "y": 0.33,
+        "w": 0.28,
+        "h": 0.07
+      }
+    },
+    {
+      "id": "sacral",
+      "label": "Sacral region",
+      "sided": false,
+      "structures": [
+        "Sacrum"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.42,
+        "y": 0.4,
+        "w": 0.16,
+        "h": 0.05
+      }
+    },
+    {
+      "id": "shoulder",
+      "label": "Shoulder",
+      "sided": true,
+      "structures": [
+        "{side} clavicle",
+        "{side} scapula"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.21,
+        "y": 0.125,
+        "w": 0.12,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "upper-arm",
+      "label": "Upper arm",
+      "sided": true,
+      "structures": [
+        "{side} humerus"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.19,
+        "y": 0.185,
+        "w": 0.11,
+        "h": 0.12
+      }
+    },
+    {
+      "id": "forearm",
+      "label": "Forearm",
+      "sided": true,
+      "structures": [
+        "{side} radius",
+        "{side} ulna"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.16,
+        "y": 0.305,
+        "w": 0.11,
+        "h": 0.12
+      }
+    },
+    {
+      "id": "wrist",
+      "label": "Wrist",
+      "sided": true,
+      "structures": [
+        "{side} scaphoid"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.14,
+        "y": 0.425,
+        "w": 0.11,
+        "h": 0.04
+      }
+    },
+    {
+      "id": "hand",
+      "label": "Hand",
+      "sided": true,
+      "structures": [
+        "{side} first metacarpal bone"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.12,
+        "y": 0.465,
+        "w": 0.12,
+        "h": 0.07
+      }
+    },
+    {
+      "id": "hip",
+      "label": "Hip",
+      "sided": true,
+      "structures": [
+        "{side} hip bone"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.3,
+        "y": 0.43,
+        "w": 0.13,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "buttock",
+      "label": "Buttock",
+      "sided": true,
+      "structures": [
+        "{side} gluteus maximus"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.5,
+        "y": 0.45,
+        "w": 0.16,
+        "h": 0.08
+      }
+    },
+    {
+      "id": "thigh",
+      "label": "Thigh",
+      "sided": true,
+      "structures": [
+        "{side} femur"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.31,
+        "y": 0.49,
+        "w": 0.15,
+        "h": 0.16
+      }
+    },
+    {
+      "id": "knee",
+      "label": "Knee",
+      "sided": true,
+      "structures": [
+        "{side} patella"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.32,
+        "y": 0.65,
+        "w": 0.13,
+        "h": 0.06
+      }
+    },
+    {
+      "id": "leg",
+      "label": "Leg (shin)",
+      "sided": true,
+      "structures": [
+        "{side} tibia",
+        "{side} fibula"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.71,
+        "w": 0.11,
+        "h": 0.17
+      }
+    },
+    {
+      "id": "ankle",
+      "label": "Ankle",
+      "sided": true,
+      "structures": [
+        "{side} talus"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.33,
+        "y": 0.88,
+        "w": 0.11,
+        "h": 0.04
+      }
+    },
+    {
+      "id": "heel",
+      "label": "Heel",
+      "sided": true,
+      "structures": [
+        "{side} calcaneus"
+      ],
+      "zone": {
+        "view": "back",
+        "x": 0.55,
+        "y": 0.92,
+        "w": 0.12,
+        "h": 0.07
+      }
+    },
+    {
+      "id": "foot",
+      "label": "Foot",
+      "sided": true,
+      "structures": [
+        "{side} first metatarsal bone"
+      ],
+      "zone": {
+        "view": "front",
+        "x": 0.31,
+        "y": 0.92,
+        "w": 0.14,
+        "h": 0.07
+      }
+    }
+  ]
+}
