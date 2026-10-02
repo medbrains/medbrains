@@ -13,6 +13,8 @@ struct Consultation: Decodable, Sendable {
     /// Assessment. The column is `notes`; the label a clinician reads is not.
     let notes: String?
     let plan: String?
+    /// Only the site findings are read here; the web's system notes ride along untouched.
+    let physicalExamination: SiteFindings?
 }
 
 struct ConsultationNotes: Encodable {
@@ -20,6 +22,28 @@ struct ConsultationNotes: Encodable {
     let examination: String
     let notes: String
     let plan: String
+    /// Sent only when the findings changed; the server merges it into the
+    /// examination by key, so the system notes are kept.
+    let physicalExamination: SiteFindings?
+}
+
+struct SiteFindings: Codable, Sendable {
+    let findings: [ExamFinding]?
+}
+
+/// medbrains-core `ExamFinding`: what was found at a place on the body.
+struct ExamFinding: Codable, Hashable, Sendable {
+    let site: String
+    /// FMA code when picked on the web's 3D model; a region has none.
+    let siteCode: String?
+    let laterality: Laterality?
+    let finding: String
+
+    /// "Left knee: effusion" — the side is in the label when it names one.
+    var line: String {
+        guard let side = laterality?.rawValue, !site.localizedCaseInsensitiveContains(side) else { return "\(site): \(finding)" }
+        return "\(site) (\(side)): \(finding)"
+    }
 }
 
 struct AppointmentRow: Decodable, Identifiable, Sendable {

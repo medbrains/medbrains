@@ -6,6 +6,8 @@ plugins {
 }
 android {
     sourceSets.getByName("androidTest").kotlin.srcDir("../testkit/src")
+    // Shared with the web picker and iOS: one list of body regions for every surface.
+    sourceSets.getByName("main").assets.srcDir("../../../packages/anatomy")
     namespace = "com.medbrains.staff"
     compileSdk = 37
     defaultConfig {

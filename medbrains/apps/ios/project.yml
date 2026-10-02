@@ -31,6 +31,9 @@ targets:
     platform: iOS
     sources:
       - path: MedBrainsStaff
+      # Shared with the web picker: one list of body regions for every surface.
+      - path: ../../packages/anatomy/body-regions.json
+        buildPhase: resources
     dependencies:
       - package: MedBrainsCore
       - package: MedBrainsKit
