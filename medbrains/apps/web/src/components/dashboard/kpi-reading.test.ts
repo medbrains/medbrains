@@ -46,6 +46,20 @@ describe("management KPI wording", () => {
     });
   });
 
+  it("reads a lag in hours", () => {
+    const lag = reading({
+      unit: "h",
+      better: "lower",
+      value: 5.4,
+      baselines: { weekday: 2.1, yesterday: null, week: null },
+    });
+    expect(formatKpi(5.4, "h")).toBe("5.4 h");
+    expect(compareKpi(lag, "weekday")).toMatchObject({
+      text: "3.3 h longer than a usual Friday",
+      tone: "bad",
+    });
+  });
+
   it("speaks of a rate in points", () => {
     const noShow = reading({
       unit: "%",
