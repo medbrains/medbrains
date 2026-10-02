@@ -2513,6 +2513,16 @@ pub mod audit {
 pub mod analytics {
     pub const VIEW: &str = "analytics.view";
     pub const EXPORT: &str = "analytics.export";
+
+    pub mod management {
+        /// View management KPIs and per-doctor performance.
+        ///
+        /// OPD flow against the usual day, documentation completeness by
+        /// doctor, department efficiency. Names clinicians next to their
+        /// numbers, so it is granted to management and quality, not with
+        /// general analytics access.
+        pub const VIEW: &str = "analytics.management.view";
+    }
 }
 
 pub mod command_center {

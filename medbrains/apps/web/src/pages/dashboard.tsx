@@ -3,9 +3,11 @@ import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { IconLayoutDashboard } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
 import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard";
+import { KpiPeriodControls } from "@/components/dashboard/KpiPeriodControls";
+import type { KpiBaseline } from "@/components/dashboard/kpi-reading";
 import { GettingStartedWidget } from "@/components/GettingStartedWidget";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./dashboard.module.scss";
@@ -23,11 +25,18 @@ export function DashboardPage() {
     staleTime: 120_000,
   });
 
+  const [asOf, setAsOf] = useState<string | null>(null);
+  const [compare, setCompare] = useState<KpiBaseline>("weekday");
   const widgetIds = useMemo(() => (dashboard?.widgets ?? []).map((w) => w.id), [dashboard]);
+  // The period controls only mean something on a dashboard with management KPIs.
+  const hasKpis = useMemo(
+    () => (dashboard?.widgets ?? []).some((w) => w.data_source?.module === "management"),
+    [dashboard],
+  );
 
   const { data: widgetData, isLoading: dataLoading } = useQuery({
-    queryKey: ["my-dashboard", "data", widgetIds],
-    queryFn: () => api.batchWidgetData(widgetIds),
+    queryKey: ["my-dashboard", "data", widgetIds, asOf],
+    queryFn: () => api.batchWidgetData(widgetIds, asOf ?? undefined),
     enabled: widgetIds.length > 0,
     staleTime: 60_000,
   });
@@ -69,6 +78,16 @@ export function DashboardPage() {
       <PageHeader
         title={dashboard.dashboard.name}
         subtitle={dashboard.dashboard.description ?? undefined}
+        actions={
+          hasKpis ? (
+            <KpiPeriodControls
+              asOf={asOf}
+              onAsOfChange={setAsOf}
+              compare={compare}
+              onCompareChange={setCompare}
+            />
+          ) : undefined
+        }
       />
       <GettingStartedWidget />
       {dashboard.widgets.length === 0 ? (
@@ -90,6 +109,7 @@ export function DashboardPage() {
                 widget={widget}
                 data={dataById.get(widget.id)}
                 loading={dataLoading}
+                compare={compare}
               />
             </Box>
           ))}

@@ -6,7 +6,9 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use chrono::Utc;
+pub mod management_kpis;
+
+use chrono::{NaiveDate, Utc};
 use medbrains_core::dashboard::{
     Dashboard, DashboardSummary, DashboardWidget, DashboardWithWidgets, WidgetTemplate, WidgetType,
 };
@@ -31,6 +33,8 @@ struct DataFilters {
     department_ids: Vec<Uuid>,
     /// The viewer's user ID — used for "my_*" queries (e.g. my patients today).
     user_id: Option<Uuid>,
+    /// The day the viewer is looking at; today when absent.
+    as_of: Option<NaiveDate>,
 }
 
 /// Resolve the effective data filters for a widget, merging the widget's
@@ -48,6 +52,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
             DataFilters {
                 department_ids: Vec::new(),
                 user_id: Some(claims.sub),
+                as_of: None,
             }
         }
         "custom" => {
@@ -68,6 +73,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: widget_dept_ids,
                     user_id: Some(claims.sub),
+                    as_of: None,
                 }
             } else {
                 // Intersect: only keep widget departments that the user actually has access to
@@ -78,6 +84,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: intersected,
                     user_id: Some(claims.sub),
+                    as_of: None,
                 }
             }
         }
@@ -88,11 +95,13 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 DataFilters {
                     department_ids: Vec::new(),
                     user_id: Some(claims.sub),
+                    as_of: None,
                 }
             } else {
                 DataFilters {
                     department_ids: claims.department_ids.clone(),
                     user_id: Some(claims.sub),
+                    as_of: None,
                 }
             }
         }
@@ -183,6 +192,9 @@ pub struct WidgetLayoutItem {
 #[derive(Debug, Deserialize)]
 pub struct BatchWidgetDataRequest {
     pub widget_ids: Vec<Uuid>,
+    /// Resolve date-based widgets for this day instead of today.
+    #[serde(default)]
+    pub as_of: Option<NaiveDate>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1194,7 +1206,8 @@ pub async fn batch_widget_data(
 
     for widget in &widgets {
         // Re-set department context per widget (each widget may have different scope)
-        let filters = resolve_data_filters(widget, &claims);
+        let mut filters = resolve_data_filters(widget, &claims);
+        filters.as_of = req.as_of;
         medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
             .await?;
 
@@ -1492,7 +1505,7 @@ async fn fetch_viewer_groups(
 }
 
 /// Score a variant's `match` audience against the viewer. Higher = more specific:
-/// user (1_000_000) > group (1000 + group priority) > role (1). `None` = no match.
+/// `user (1_000_000) > group (1000 + group priority) > role (1)`. `None` = no match.
 fn variant_match_score(
     m: Option<&serde_json::Value>,
     role: &str,
@@ -1576,6 +1589,7 @@ async fn resolve_module_query(
 
     match (module, query) {
         // ── Patients (hospital-wide — no department scoping) ──
+        ("management", "kpi") => management_kpis::reading(tx, params, filters.as_of).await,
         ("patients", "count") => {
             let count = sqlx::query_scalar::<_, i64>(
                 "SELECT COUNT(*) FROM patients WHERE is_active = true",
@@ -2859,7 +2873,7 @@ struct LabResultRow {
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 struct RevenueDayRow {
-    day: Option<chrono::NaiveDate>,
+    day: Option<NaiveDate>,
     total: rust_decimal::Decimal,
 }
 

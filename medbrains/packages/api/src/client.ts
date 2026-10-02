@@ -4202,10 +4202,11 @@ export const api = {
     request<{ deleted: boolean }>(`/admin/sso/mappings/${id}`, { method: "DELETE" }),
   getWidgetData: (widgetId: string) =>
     request<WidgetDataResponse>(`/dashboard/widget-data/${widgetId}`),
-  batchWidgetData: (widgetIds: string[]) =>
+  /** `asOf` (YYYY-MM-DD) resolves date-based widgets for that day instead of today. */
+  batchWidgetData: (widgetIds: string[], asOf?: string) =>
     request<WidgetDataResponse[]>("/dashboard/widget-data/batch", {
       method: "POST",
-      body: JSON.stringify({ widget_ids: widgetIds }),
+      body: JSON.stringify({ widget_ids: widgetIds, as_of: asOf }),
     }),
 
   // ── Indent / Store ──────────────────────────────────

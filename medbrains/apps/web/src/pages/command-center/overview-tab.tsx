@@ -225,7 +225,6 @@ export function OverviewTab() {
               value={tile?.value ?? 0}
               icon={t.icon}
               color={t.color}
-              trend={tile?.trend != null ? { value: tile.trend, label: tile.period } : undefined}
             />
           );
         })}

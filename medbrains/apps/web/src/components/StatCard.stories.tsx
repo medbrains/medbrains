@@ -42,7 +42,7 @@ export const Default: Story = {
     value: 247,
     icon: <IconStethoscope size={18} />,
     color: "primary",
-    trend: { value: 12, label: "vs yesterday" },
+    comparison: { text: "12% higher vs yesterday", tone: "neutral", direction: "up" },
   },
 };
 
@@ -52,7 +52,7 @@ export const CriticalAlerts: Story = {
     value: 17,
     icon: <IconAlertTriangle size={18} />,
     color: "danger",
-    trend: { value: 23, label: "since 22:00" },
+    comparison: { text: "23% higher since 22:00", tone: "neutral", direction: "up" },
   },
 };
 
@@ -62,7 +62,7 @@ export const BedOccupancy: Story = {
     value: "86%",
     icon: <IconBed size={18} />,
     color: "mint",
-    trend: { value: -4, label: "vs morning" },
+    comparison: { text: "4% lower vs morning", tone: "neutral", direction: "down" },
   },
 };
 
@@ -72,7 +72,7 @@ export const Revenue: Story = {
     value: "₹4.2m",
     icon: <IconCash size={18} />,
     color: "violet",
-    trend: { value: 8 },
+    comparison: { text: "8% higher", tone: "neutral", direction: "up" },
   },
 };
 
@@ -94,42 +94,42 @@ export const FullDashboardGrid: Story = {
         value={247}
         icon={<IconStethoscope size={18} />}
         color="primary"
-        trend={{ value: 12 }}
+        comparison={{ text: "12% higher", tone: "neutral", direction: "up" }}
       />
       <StatCard
         label="Critical ICU"
         value={17}
         icon={<IconAlertTriangle size={18} />}
         color="danger"
-        trend={{ value: 23 }}
+        comparison={{ text: "23% higher", tone: "neutral", direction: "up" }}
       />
       <StatCard
         label="ICU occupancy"
         value="86%"
         icon={<IconBed size={18} />}
         color="mint"
-        trend={{ value: -4 }}
+        comparison={{ text: "4% lower", tone: "neutral", direction: "down" }}
       />
       <StatCard
         label="Revenue ₹"
         value="4.2m"
         icon={<IconCash size={18} />}
         color="violet"
-        trend={{ value: 8 }}
+        comparison={{ text: "8% higher", tone: "neutral", direction: "up" }}
       />
       <StatCard
         label="Active staff"
         value={86}
         icon={<IconHeartbeat size={18} />}
         color="info"
-        trend={{ value: 4 }}
+        comparison={{ text: "4% higher", tone: "neutral", direction: "up" }}
       />
       <StatCard
         label="Avg wait"
         value="4:23"
         icon={<IconActivity size={18} />}
         color="warning"
-        trend={{ value: -18 }}
+        comparison={{ text: "18% lower", tone: "neutral", direction: "down" }}
       />
     </SimpleGrid>
   ),
