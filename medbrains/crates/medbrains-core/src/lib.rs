@@ -53,6 +53,7 @@ pub mod encounter;
 pub mod facilities_mgmt;
 pub mod facility;
 pub mod fatigue;
+pub mod geofence;
 pub mod form;
 pub mod front_office;
 pub mod geo;
