@@ -1,5 +1,6 @@
 import { SimpleGrid, Stack, Text, Textarea } from "@mantine/core";
 import type { PhysicalExamination } from "@medbrains/types";
+import { ExamFindingsSection } from "./ExamFindingsSection";
 
 interface PhysicalExamPanelProps {
   data: PhysicalExamination;
@@ -8,7 +9,10 @@ interface PhysicalExamPanelProps {
   onUpdate: (exam: PhysicalExamination, generalAppearance?: string) => void;
 }
 
-const EXAM_SYSTEMS: { key: keyof PhysicalExamination; label: string; placeholder: string }[] = [
+/** The free-text system notes (findings are a structured list, not a note). */
+type ExamSystemKey = Exclude<keyof PhysicalExamination, "findings">;
+
+const EXAM_SYSTEMS: { key: ExamSystemKey; label: string; placeholder: string }[] = [
   { key: "heent", label: "HEENT", placeholder: "Head, eyes, ears, nose, throat findings..." },
   { key: "neck", label: "Neck", placeholder: "Thyroid, lymph nodes, JVP..." },
   {
@@ -82,6 +86,12 @@ export function PhysicalExamPanel({
           />
         ))}
       </SimpleGrid>
+
+      <ExamFindingsSection
+        findings={data.findings ?? []}
+        canUpdate={canUpdate}
+        onChange={(findings) => onUpdate({ ...data, findings }, generalAppearance)}
+      />
     </Stack>
   );
 }

@@ -1676,6 +1676,17 @@ export interface PhysicalExamination {
   extremities?: string;
   genitourinary?: string;
   psychiatric?: string;
+  /** Findings at a place on the body, picked on the body-site model. */
+  findings?: ExamFinding[];
+}
+
+/** One examination finding at a place on the body. */
+export interface ExamFinding {
+  site: string;
+  /** FMA concept from the body-site picker; null when typed. */
+  site_code: string | null;
+  laterality: "left" | "right" | "bilateral" | "midline" | null;
+  finding: string;
 }
 
 export interface Consultation {
