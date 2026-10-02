@@ -511,12 +511,20 @@ export function DepartmentsSettings() {
       <Table.Td>
         <Group gap={4}>
           {canUpdate && (
-            <IconButton tone="primary" onClick={() => openEdit(dept)} aria-label="Edit">
+            <IconButton
+              tone="primary"
+              onClick={() => openEdit(dept)}
+              aria-label={`Edit department ${dept.name} (${dept.code})`}
+            >
               <IconPencil size={16} />
             </IconButton>
           )}
           {canDelete && (
-            <IconButton tone="danger" onClick={() => openDelete(dept)} aria-label="Delete">
+            <IconButton
+              tone="danger"
+              onClick={() => openDelete(dept)}
+              aria-label={`Delete department ${dept.name} (${dept.code})`}
+            >
               <IconTrash size={16} />
             </IconButton>
           )}

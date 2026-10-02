@@ -56,8 +56,9 @@ pub(super) async fn seed_departments(
     for &(code, name, dept_type) in DEPARTMENTS {
         sqlx::query(
             "INSERT INTO departments (tenant_id, code, name, department_type) \
-             VALUES ($1, $2, $3, $4::department_type) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4::department_type \
+             WHERE NOT EXISTS (SELECT 1 FROM departments WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)

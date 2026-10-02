@@ -327,7 +327,7 @@ pub(crate) async fn seed_built_in_roles(
         sqlx::query(
             "INSERT INTO roles (tenant_id, code, name, description, permissions, is_system) \
              VALUES ($1, $2, $3, $4, $5, true) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO UPDATE SET \
                permissions = EXCLUDED.permissions, \
                name = EXCLUDED.name, \
                description = EXCLUDED.description",

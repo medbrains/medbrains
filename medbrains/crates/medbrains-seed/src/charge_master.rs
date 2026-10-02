@@ -451,8 +451,9 @@ pub(super) async fn seed_charge_master(
         sqlx::query(
             "INSERT INTO charge_master \
              (tenant_id, code, name, category, base_price, tax_percent) \
-             VALUES ($1, $2, $3, $4, $5::numeric, $6::numeric) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4, $5::numeric, $6::numeric \
+             WHERE NOT EXISTS (SELECT 1 FROM charge_master WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)

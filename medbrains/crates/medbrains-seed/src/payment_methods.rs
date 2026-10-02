@@ -28,8 +28,9 @@ pub(super) async fn seed_payment_methods(
     for &(code, name, is_default) in PAYMENT_METHODS {
         sqlx::query(
             "INSERT INTO payment_methods (tenant_id, code, name, is_default) \
-             VALUES ($1, $2, $3, $4) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4 \
+             WHERE NOT EXISTS (SELECT 1 FROM payment_methods WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)
