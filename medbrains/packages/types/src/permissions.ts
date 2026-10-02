@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 994 permissions, one per constant in the Rust source. */
+/** 996 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2186,6 +2186,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "emergency.mlc.reprint",
     label: "Reprint MLC Packet",
     description: "Reprint medico-legal case packets with a reason and duplicate watermark",
+    module: "emergency",
+  },
+  {
+    code: "emergency.mlc_injuries.list",
+    label: "View the injuries on an MLC",
+    description: "Each injury on a medico-legal case by site, type, size and the examining doctor's opinion of its nature — what the injury certificate lists.",
+    module: "emergency",
+  },
+  {
+    code: "emergency.mlc_injuries.create",
+    label: "Record an injury on an MLC",
+    description: "Appends an injury (site picked on the body, type, size, nature). A legal record: injuries are never edited, a correction is a new entry, and the examining doctor is recorded.",
     module: "emergency",
   },
   {
@@ -7020,6 +7032,12 @@ export const P = {
     MLC_DOCUMENTS_COURT_SUMMONS_CREATE: "emergency.mlc_documents.court_summons.create",
     MLC_DOCUMENTS_POCSO_CREATE: "emergency.mlc_documents.pocso.create",
     MLC_DOCUMENTS_SBAR_CREATE: "emergency.mlc_documents.sbar.create",
+    MLC_INJURIES: {
+      CREATE: "emergency.mlc_injuries.create",
+      LIST: "emergency.mlc_injuries.list",
+    },
+    MLC_INJURIES_CREATE: "emergency.mlc_injuries.create",
+    MLC_INJURIES_LIST: "emergency.mlc_injuries.list",
     MLC_LIST: "emergency.mlc.list",
     MLC_POLICE_INTIMATIONS: {
       CONFIRM: "emergency.mlc_police_intimations.confirm",
@@ -9104,6 +9122,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC_DOCUMENTS.COURT_SUMMONS_CREATE,
       P.EMERGENCY.MLC_DOCUMENTS.POCSO_CREATE,
       P.EMERGENCY.MLC_DOCUMENTS.SBAR_CREATE,
+      P.EMERGENCY.MLC_INJURIES.CREATE,
+      P.EMERGENCY.MLC_INJURIES.LIST,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.CREATE,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.LIST,
       P.EMERGENCY.RESUSCITATION.CREATE,
@@ -9970,6 +9990,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC.LIST,
       P.EMERGENCY.MLC.PRINT,
       P.EMERGENCY.MLC.REPRINT,
+      P.EMERGENCY.MLC_INJURIES.LIST,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.CONFIRM,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.CREATE,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.LIST,

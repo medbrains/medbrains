@@ -293,3 +293,52 @@ export interface MassCasualtyEvent {
   created_at: string;
   updated_at: string;
 }
+
+export type MlcInjuryType =
+  | "abrasion"
+  | "laceration"
+  | "contusion"
+  | "incised_wound"
+  | "stab_wound"
+  | "fracture"
+  | "burn"
+  | "firearm_wound"
+  | "bite"
+  | "other";
+
+/** The examining doctor's opinion of the hurt (IPC 320 / BNS 116). */
+export type MlcInjuryNature = "simple" | "grievous" | "dangerous_to_life" | "undetermined";
+
+/** One injury on a medico-legal case, as the certificate prints it — appended, never edited. */
+export interface MlcInjury {
+  id: string;
+  tenant_id: string;
+  mlc_case_id: string;
+  injury_number: number;
+  injury_type: MlcInjuryType;
+  body_site: string | null;
+  body_site_code: string | null;
+  body_site_laterality: "left" | "right" | "bilateral" | "midline" | null;
+  /** Printed size, e.g. "4.5 × 0.5 cm". */
+  size_cm: string | null;
+  description: string | null;
+  probable_age: string | null;
+  probable_weapon: string | null;
+  nature: MlcInjuryNature;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export interface CreateMlcInjuryRequest {
+  body_site: string;
+  body_site_code?: string | null;
+  body_site_laterality?: "left" | "right" | "bilateral" | "midline" | null;
+  injury_type: MlcInjuryType;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  depth_cm?: number | null;
+  description?: string | null;
+  probable_age?: string | null;
+  probable_weapon?: string | null;
+  nature?: MlcInjuryNature;
+}

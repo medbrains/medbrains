@@ -307,3 +307,85 @@ pub struct ErBay {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// One injury on a medico-legal case, as the injury certificate prints it.
+///
+/// Numbered within the case: where (picked on the body), what, how big, and
+/// the examining doctor's opinion of its nature. Appended, never edited.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MlcInjury {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub mlc_case_id: Uuid,
+    pub injury_number: i32,
+    pub injury_type: String,
+    /// The site, in the words the certificate prints.
+    #[serde(rename = "body_site")]
+    pub location: Option<String>,
+    pub body_site_code: Option<String>,
+    pub body_site_laterality: Option<String>,
+    /// Printed size, e.g. "4.5 × 0.5 cm".
+    pub size_cm: Option<String>,
+    pub description: Option<String>,
+    pub probable_age: Option<String>,
+    pub probable_weapon: Option<String>,
+    pub nature: String,
+    pub recorded_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// What kind of wound — the column carries a CHECK with the same values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InjuryType {
+    Abrasion,
+    Laceration,
+    Contusion,
+    IncisedWound,
+    StabWound,
+    Fracture,
+    Burn,
+    FirearmWound,
+    Bite,
+    Other,
+}
+
+impl InjuryType {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Abrasion => "abrasion",
+            Self::Laceration => "laceration",
+            Self::Contusion => "contusion",
+            Self::IncisedWound => "incised_wound",
+            Self::StabWound => "stab_wound",
+            Self::Fracture => "fracture",
+            Self::Burn => "burn",
+            Self::FirearmWound => "firearm_wound",
+            Self::Bite => "bite",
+            Self::Other => "other",
+        }
+    }
+}
+
+/// The examining doctor's opinion of the hurt (IPC 320 / BNS 116).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InjuryNature {
+    Simple,
+    Grievous,
+    DangerousToLife,
+    Undetermined,
+}
+
+impl InjuryNature {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Simple => "simple",
+            Self::Grievous => "grievous",
+            Self::DangerousToLife => "dangerous_to_life",
+            Self::Undetermined => "undetermined",
+        }
+    }
+}

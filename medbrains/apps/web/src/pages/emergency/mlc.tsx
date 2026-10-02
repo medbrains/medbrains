@@ -370,7 +370,7 @@ export function MlcTab({
             <Tooltip label="View Details & Documents">
               <IconButton
                 tone="primary"
-                aria-label="View MLC case details and documents"
+                aria-label={`View MLC case ${r.mlc_number}: details and documents`}
                 onClick={() => handleViewCase(r)}
               >
                 <IconFileText size={16} />
@@ -381,7 +381,7 @@ export function MlcTab({
             <Tooltip label="Update MLC case">
               <IconButton
                 tone="primary"
-                aria-label="Update MLC case"
+                aria-label={`Update MLC case ${r.mlc_number}`}
                 disabled={updateMutation.isPending}
                 onClick={() => handleOpenUpdateCase(r)}
               >
