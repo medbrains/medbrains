@@ -18,7 +18,7 @@
 //!
 //! **What actually bounds the exposure today is that no built-in role holds
 //! any of the five `command_center.*` codes** (`scripts/check_permission_reachable.py`
-//! — command_center is 5 of the guarded-never-granted set). The whole module
+//! — `command_center` is 5 of the guarded-never-granted set). The whole module
 //! is bypass-only: super_admin and hospital_admin, who see every patient
 //! anyway. The operational arguments above describe roles that cannot reach
 //! these handlers.
@@ -799,12 +799,18 @@ pub async fn all_kpis(
         period: "30d".into(),
     });
 
-    // Bed Occupancy %
+    // Bed Occupancy %. The live state is `bed_states` over the beds in
+    // service — what the ward bed board reads. `locations.status` is never
+    // set for a bed, so reading it reported 0% on a full hospital.
     let occ = sqlx::query_as::<_, TwoFloatRow>(
         "SELECT \
-           COUNT(*) FILTER (WHERE status::text = 'occupied')::float8 AS numerator, \
+           COUNT(*) FILTER (WHERE bs.status::text IN \
+             ('occupied', 'occupied_transfer_pending'))::float8 AS numerator, \
            NULLIF(COUNT(*), 0)::float8 AS denominator \
-         FROM locations WHERE tenant_id = $1 AND level::text = 'bed'",
+         FROM ward_bed_mappings wbm \
+         JOIN bed_states bs ON bs.location_id = wbm.bed_location_id \
+          AND bs.tenant_id = wbm.tenant_id \
+         WHERE wbm.tenant_id = $1 AND wbm.is_active AND wbm.deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)

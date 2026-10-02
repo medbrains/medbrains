@@ -36,14 +36,14 @@ export function isKpiReading(data: unknown): data is KpiReading {
   );
 }
 
-const DECIMALS: Record<string, number> = { min: 1, h: 1, "%": 1, visits: 0 };
+const DECIMALS: Record<string, number> = { min: 1, h: 1, days: 1, "%": 1, visits: 0 };
 
 function round(n: number, unit: string): number {
   const f = 10 ** (DECIMALS[unit] ?? 1);
   return Math.round(n * f) / f;
 }
 
-/** The value as the tile prints it: "42", "12.5 min", "3.2 h", "8.3%", or "—" when unknown. */
+/** The value as the tile prints it: "42", "12.5 min", "3.2 h", "4.1 days", "8.3%", or "—". */
 export function formatKpi(value: number | null, unit: string): string {
   if (value === null) return "—";
   const n = new Intl.NumberFormat(undefined, { maximumFractionDigits: DECIMALS[unit] ?? 1 }).format(
@@ -52,6 +52,7 @@ export function formatKpi(value: number | null, unit: string): string {
   if (unit === "%") return `${n}%`;
   if (unit === "min") return `${n} min`;
   if (unit === "h") return `${n} h`;
+  if (unit === "days") return `${n} days`;
   return n;
 }
 
@@ -59,6 +60,7 @@ const WORDS: Record<string, [up: string, down: string]> = {
   visits: ["more", "fewer"],
   min: ["longer", "shorter"],
   h: ["longer", "shorter"],
+  days: ["longer", "shorter"],
   "%": ["pts higher", "pts lower"],
 };
 

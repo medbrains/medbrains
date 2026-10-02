@@ -54,6 +54,7 @@ describe("management KPI wording", () => {
       baselines: { weekday: 2.1, yesterday: null, week: null },
     });
     expect(formatKpi(5.4, "h")).toBe("5.4 h");
+    expect(formatKpi(4.08, "days")).toBe("4.1 days");
     expect(compareKpi(lag, "weekday")).toMatchObject({
       text: "3.3 h longer than a usual Friday",
       tone: "bad",

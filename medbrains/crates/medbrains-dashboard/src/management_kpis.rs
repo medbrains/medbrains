@@ -34,15 +34,18 @@ const WEEK_DAYS: i64 = 7;
 mod catalog;
 
 pub use catalog::Better;
-use catalog::kpi;
+use catalog::{Shape, kpi};
 
-/// The rate over the seven days ending on each day `from..=to`, from daily
-/// `(numerator, denominator)` counts that start six days before `from`. A
-/// window with no denominator is unknown, not 0%.
+/// Numerator over denominator for the seven days ending on each day.
+///
+/// Days `from..=to`, times `per` (100 for a rate, 1 for a mean), from daily
+/// counts that start six days before `from`. A window with no denominator is
+/// unknown, not 0.
 pub fn rolling_rates(
     counts: &BTreeMap<NaiveDate, (f64, f64)>,
     from: NaiveDate,
     to: NaiveDate,
+    per: f64,
 ) -> BTreeMap<NaiveDate, f64> {
     from.iter_days()
         .take_while(|d| *d <= to)
@@ -50,7 +53,7 @@ pub fn rolling_rates(
             let (num, den) = counts
                 .range(day - Duration::days(WEEK_DAYS - 1)..=day)
                 .fold((0.0, 0.0), |(n, d), (_, (a, b))| (n + a, d + b));
-            (den > 0.0).then(|| (day, 100.0 * num / den))
+            (den > 0.0).then(|| (day, per * num / den))
         })
         .collect()
 }
@@ -121,17 +124,7 @@ pub async fn reading(
     let cutoff = (as_of == today).then_some(now);
     let from = as_of - Duration::days(HISTORY_DAYS);
 
-    let series = if kpi.rolling {
-        let mut query = sqlx::query_as::<_, (NaiveDate, f64, f64)>(kpi.sql)
-            .bind(from - Duration::days(WEEK_DAYS - 1))
-            .bind(as_of);
-        if kpi.clock {
-            query = query.bind(&zone);
-        }
-        let counts = query.fetch_all(&mut **tx).await?;
-        let counts = counts.into_iter().map(|(d, n, t)| (d, (n, t))).collect();
-        rolling_rates(&counts, from, as_of)
-    } else {
+    let series = if kpi.shape == Shape::Daily {
         let mut query = sqlx::query_as::<_, (NaiveDate, Option<f64>)>(kpi.sql)
             .bind(from)
             .bind(as_of);
@@ -142,6 +135,17 @@ pub async fn reading(
         rows.into_iter()
             .filter_map(|(d, v)| v.map(|v| (d, v)))
             .collect()
+    } else {
+        let mut query = sqlx::query_as::<_, (NaiveDate, f64, f64)>(kpi.sql)
+            .bind(from - Duration::days(WEEK_DAYS - 1))
+            .bind(as_of);
+        if kpi.clock {
+            query = query.bind(&zone);
+        }
+        let counts = query.fetch_all(&mut **tx).await?;
+        let counts = counts.into_iter().map(|(d, n, t)| (d, (n, t))).collect();
+        let per = if kpi.shape == Shape::Rate { 100.0 } else { 1.0 };
+        rolling_rates(&counts, from, as_of, per)
     };
     let b = baselines(&series, as_of, kpi.zero_fill);
     let daily: Vec<Value> = (0..=HISTORY_DAYS)
@@ -216,7 +220,7 @@ mod tests {
     fn rates_roll_over_seven_days_and_an_empty_week_is_unknown() {
         // 1 of 2 visits coded on the 20th, 3 of 4 on the 25th, none after.
         let counts = BTreeMap::from([(day(20), (1.0, 2.0)), (day(25), (3.0, 4.0))]);
-        let rates = rolling_rates(&counts, day(24), day(30));
+        let rates = rolling_rates(&counts, day(24), day(30), 100.0);
         assert_eq!(
             rates.get(&day(24)),
             Some(&50.0),
@@ -237,7 +241,7 @@ mod tests {
             Some(&75.0),
             "24th–30th still has the 25th"
         );
-        let quiet = rolling_rates(&BTreeMap::new(), day(24), day(30));
+        let quiet = rolling_rates(&BTreeMap::new(), day(24), day(30), 100.0);
         assert!(
             quiet.is_empty(),
             "a week with no visits has no rate, not 0%"

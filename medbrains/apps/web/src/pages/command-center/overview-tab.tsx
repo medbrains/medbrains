@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { DataTable, StatCard } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { formatKpi } from "@/components/dashboard/kpi-reading";
 import { Badge, IconButton } from "@/components/ui";
 import { commandCenterService } from "@/services/commandCenter.service";
 import { alertLevelColor, fmtDate, REFETCH } from "./shared";
@@ -222,7 +223,8 @@ export function OverviewTab() {
             <StatCard
               key={t.code}
               label={t.label}
-              value={tile?.value ?? 0}
+              // A code the server did not answer is unknown, not a quiet zero.
+              value={tile ? formatKpi(tile.value, tile.unit) : "—"}
               icon={t.icon}
               color={t.color}
             />
