@@ -5,6 +5,7 @@ import type { DashboardWidget } from "@medbrains/types";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button } from "@/components/ui";
+import { formatDateTime } from "@/lib/date-utils";
 import { WidgetIcon } from "./widgetIcons";
 
 interface Props {
@@ -40,8 +41,17 @@ function formatValue(value: unknown, format?: string): string {
 
 function rows(data: unknown): Record<string, unknown>[] {
   if (Array.isArray(data)) return data as Record<string, unknown>[];
-  const items = field(data, "items") ?? field(data, "rows") ?? field(data, "data");
+  const items =
+    field(data, "items") ?? field(data, "rows") ?? field(data, "data") ?? field(data, "trend");
   return Array.isArray(items) ? (items as Record<string, unknown>[]) : [];
+}
+
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/** A table cell as a person reads it: timestamps in local time, blanks as a dash. */
+function cellText(value: unknown): string {
+  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return formatDateTime(value);
+  return String(value ?? "—");
 }
 
 function dataUnavailable(data: unknown): boolean {
@@ -211,7 +221,7 @@ export function DashboardWidgetCard({ widget, data, loading }: Props) {
               {items.slice(0, 10).map((row, i) => (
                 <Table.Tr key={String(row.id ?? i)}>
                   {cols.map((c) => (
-                    <Table.Td key={c}>{String(row[c] ?? "—")}</Table.Td>
+                    <Table.Td key={c}>{cellText(row[c])}</Table.Td>
                   ))}
                 </Table.Tr>
               ))}

@@ -1413,7 +1413,8 @@ async fn resolve_sql_count(
 /// field-access permission code, e.g. `{"value": "billing.amount"}` on a revenue
 /// stat card or `{"total": "billing.amount"}` on a billing table. A `mask`-level
 /// field becomes `"•••"`; a `hidden`-level field is dropped. Applies to a scalar
-/// object and to each row of an array. No-op when the widget declares nothing
+/// object, to each row of an array, and to each row of a list the object wraps
+/// (`{"items": [...]}`, `{"trend": [...]}`). No-op when the widget declares nothing
 /// sensitive or the viewer has no restrictions (e.g. bypass roles).
 fn redact_widget_data(
     data: serde_json::Value,
@@ -1457,6 +1458,14 @@ fn redact_object(
                 obj.remove(field);
             }
             _ => {}
+        }
+    }
+    // Rows wrapped in the object get the same treatment; a list is not a hiding place.
+    for nested in obj.values_mut() {
+        if let serde_json::Value::Array(rows) = nested {
+            for row in rows.iter_mut() {
+                *row = redact_object(row.take(), sensitive, restricted);
+            }
         }
     }
     serde_json::Value::Object(obj)
@@ -1847,6 +1856,33 @@ async fn resolve_module_query(
             };
             Ok(serde_json::json!({"value": count, "label": "Occupied Beds"}))
         }
+        ("ipd", "recent_admissions") => {
+            let limit = params
+                .get("limit")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(10)
+                .clamp(1, 50);
+            let rows = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT COALESCE(json_agg(r), '[]'::json) FROM ( \
+                 SELECT a.id, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+                        d.name AS department, l.name AS bed, a.admitted_at \
+                 FROM admissions a \
+                 JOIN patients p ON p.id = a.patient_id \
+                 LEFT JOIN encounters e ON e.id = a.encounter_id \
+                 LEFT JOIN departments d ON d.id = COALESCE(a.department_id, e.department_id) \
+                 LEFT JOIN locations l ON l.id = a.bed_id \
+                 WHERE a.deleted_at IS NULL \
+                   AND (cardinality($1::uuid[]) = 0 \
+                        OR COALESCE(a.department_id, e.department_id) = ANY($1)) \
+                 ORDER BY a.admitted_at DESC LIMIT $2 \
+                 ) r",
+            )
+            .bind(&filters.department_ids)
+            .bind(limit)
+            .fetch_one(&mut **tx)
+            .await?;
+            Ok(serde_json::json!({"items": rows}))
+        }
         ("ipd", "today_admissions") => {
             let count = if has_dept_filter {
                 sqlx::query_scalar::<_, i64>(
@@ -1935,15 +1971,22 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"departments": rows}))
         }
         ("billing", "revenue_trend") => {
+            // Billed per day, as `today_revenue` counts it: a cancelled or
+            // deleted invoice is not revenue, and a department-scoped viewer
+            // sees their departments' invoices only.
             let rows = sqlx::query_scalar::<_, serde_json::Value>(
                 "SELECT COALESCE(json_agg(r ORDER BY r.date), '[]'::json) FROM ( \
-                 SELECT DATE(created_at)::text as date, \
-                 SUM(total_amount)::float8 as revenue, COUNT(*)::bigint as invoice_count \
-                 FROM invoices \
-                 WHERE created_at >= CURRENT_DATE - INTERVAL '30 days' \
-                 GROUP BY DATE(created_at) \
+                 SELECT DATE(i.created_at)::text as date, \
+                 SUM(i.total_amount)::float8 as revenue, COUNT(*)::bigint as invoice_count \
+                 FROM invoices i \
+                 LEFT JOIN encounters e ON e.id = i.encounter_id \
+                 WHERE i.created_at >= CURRENT_DATE - INTERVAL '30 days' \
+                   AND i.status != 'cancelled' AND i.deleted_at IS NULL \
+                   AND (cardinality($1::uuid[]) = 0 OR e.department_id = ANY($1)) \
+                 GROUP BY DATE(i.created_at) \
                  ) r",
             )
+            .bind(&filters.department_ids)
             .fetch_one(&mut **tx)
             .await?;
             Ok(serde_json::json!({"trend": rows}))
@@ -2855,6 +2898,14 @@ mod redaction_tests {
         let data = json!([{ "id": 1, "total": 100 }, { "id": 2, "total": 200 }]);
         let out = redact_widget_data(data, &config, &restricted(FieldAccessLevel::Mask));
         assert_eq!(out, json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }]));
+    }
+
+    #[test]
+    fn redacts_rows_inside_a_wrapped_list() {
+        let config = json!({ "sensitive": { "revenue": "billing.amount" } });
+        let data = json!({ "trend": [{ "date": "2026-10-01", "revenue": 900.0 }] });
+        let out = redact_widget_data(data, &config, &restricted(FieldAccessLevel::Hidden));
+        assert_eq!(out, json!({ "trend": [{ "date": "2026-10-01" }] }));
     }
 
     #[test]
