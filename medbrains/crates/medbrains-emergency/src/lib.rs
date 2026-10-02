@@ -1871,6 +1871,15 @@ pub async fn list_mlc_documents(
             permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
         ],
     )?;
+    // The documents (SBAR, POCSO, age estimation…) belong to the case named in
+    // the path; holding the permission is not being on that case.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        mlc_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
