@@ -396,6 +396,9 @@ pub struct PainEntry {
     pub scale: String,
     pub score: i32,
     pub location: Option<String>,
+    /// FMA concept from the body-site picker; None when typed.
+    pub location_code: Option<String>,
+    pub location_laterality: Option<String>,
     pub character: Option<String>,
     pub intervention_taken: Option<String>,
     pub recheck_due_at: Option<DateTime<Utc>>,
@@ -408,6 +411,8 @@ pub struct CreatePainEntryRequest {
     pub scale: String,
     pub score: i32,
     pub location: Option<String>,
+    pub location_code: Option<String>,
+    pub location_laterality: Option<medbrains_core::body_site::Laterality>,
     pub character: Option<String>,
     pub intervention_taken: Option<String>,
     pub recheck_due_at: Option<DateTime<Utc>>,
@@ -427,8 +432,8 @@ pub async fn create_pain_entry(
     let row = sqlx::query_as::<_, PainEntry>(
         "INSERT INTO pain_score_entries \
          (tenant_id, encounter_id, recorded_by, scale, score, location, character, \
-          intervention_taken, recheck_due_at, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *",
+          intervention_taken, recheck_due_at, notes, location_code, location_laterality) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.encounter_id)
@@ -440,6 +445,8 @@ pub async fn create_pain_entry(
     .bind(&body.intervention_taken)
     .bind(body.recheck_due_at)
     .bind(&body.notes)
+    .bind(&body.location_code)
+    .bind(body.location_laterality.map(medbrains_core::body_site::Laterality::as_str))
     .fetch_one(&mut *tx)
     .await?;
 

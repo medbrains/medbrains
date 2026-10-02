@@ -27,6 +27,7 @@ pub mod auth;
 pub mod bedside_portal;
 pub mod billing;
 pub mod blood_bank;
+pub mod body_site;
 pub mod bme;
 pub mod boundary_filter;
 pub mod camp;
