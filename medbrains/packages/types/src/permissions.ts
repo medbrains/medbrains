@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 996 permissions, one per constant in the Rust source. */
+/** 997 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5373,6 +5373,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Export analytics reports as CSV",
     module: "analytics",
   },
+  {
+    code: "analytics.management.view",
+    label: "View management KPIs and per-doctor performance",
+    description: "OPD flow against the usual day, documentation completeness by doctor, department efficiency. Names clinicians next to their numbers, so it is granted to management and quality, not with general analytics access.",
+    module: "analytics",
+  },
   // command_center
   {
     code: "command_center.view",
@@ -6361,6 +6367,10 @@ export const P = {
   },
   ANALYTICS: {
     EXPORT: "analytics.export",
+    MANAGEMENT: {
+      VIEW: "analytics.management.view",
+    },
+    MANAGEMENT_VIEW: "analytics.management.view",
     VIEW: "analytics.view",
   },
   ASSETS: {
@@ -10035,6 +10045,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Quality Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.LAB.ORDERS.LIST,
