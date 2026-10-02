@@ -2146,6 +2146,8 @@ pub async fn create_consultation(
             encounter_id: Some(encounter_id),
             modality_id: rad.modality_id,
             body_part: rad.body_part.clone(),
+            body_part_code: None,
+            body_part_laterality: None,
             clinical_indication: rad.clinical_indication.clone(),
             priority: rad.priority.clone(),
             scheduled_at: None,

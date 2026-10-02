@@ -396,6 +396,8 @@ pub struct CreateOrderRequest {
     pub encounter_id: Option<Uuid>,
     pub modality_id: Uuid,
     pub body_part: Option<String>,
+    pub body_part_code: Option<String>,
+    pub body_part_laterality: Option<medbrains_core::body_site::Laterality>,
     pub clinical_indication: Option<String>,
     pub priority: Option<String>,
     pub scheduled_at: Option<String>,
@@ -688,10 +690,11 @@ pub async fn create_order_in_tx_with_options(
         "INSERT INTO radiology_orders \
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
           body_part, clinical_indication, priority, status, \
-          scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy) \
+          scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy, \
+          body_part_code, body_part_laterality) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::radiology_priority, \
                  'ordered'::radiology_order_status, \
-                 $9::timestamptz, $10, $11, $12, $13, $14) \
+                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -708,6 +711,8 @@ pub async fn create_order_in_tx_with_options(
     .bind(pregnancy)
     .bind(allergy)
     .bind(is_dummy)
+    .bind(&body.body_part_code)
+    .bind(body.body_part_laterality.map(medbrains_core::body_site::Laterality::as_str))
     .fetch_one(&mut **tx)
     .await?;
 

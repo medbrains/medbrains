@@ -56,6 +56,9 @@ pub struct RadiologyOrder {
     pub modality_id: Uuid,
     pub ordered_by: Uuid,
     pub body_part: Option<String>,
+    /// FMA concept from the body-site picker; None when typed.
+    pub body_part_code: Option<String>,
+    pub body_part_laterality: Option<String>,
     pub clinical_indication: Option<String>,
     pub priority: RadiologyPriority,
     pub status: RadiologyOrderStatus,

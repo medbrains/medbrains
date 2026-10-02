@@ -24,6 +24,8 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "react-router";
 import { DataTable, StatusDot } from "@/components";
+import type { BodySite } from "@/components/BodySite/anatomy-atlas";
+import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
@@ -97,15 +99,23 @@ function CreateBookingDrawer({
     label: `${room.name} (${room.code})`,
   }));
 
+  // The picked site and side travel with the booking into site marking.
+  const [site, setSite] = useState<BodySite | null>(null);
   const mutation = useMutation({
     mutationFn: (values: OtBookingFormInput) =>
-      otService.createOtBooking(toCreateOtBookingRequest(values)),
+      otService.createOtBooking({
+        ...toCreateOtBookingRequest(values),
+        surgical_site: site?.label,
+        surgical_site_code: site?.code ?? undefined,
+        laterality: site?.laterality ?? undefined,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
       toast.success("OT booking created", { title: "Created" });
       onClose();
       reset(defaultValues);
+      setSite(null);
     },
     onError: () => toast.error("Failed to create booking", { title: "Error" }),
   });
@@ -191,6 +201,14 @@ function CreateBookingDrawer({
               error={errors.procedure_name?.message}
             />
           )}
+        />
+        {/* Wrong-site surgery starts as an ambiguous field: pick the site and
+            its side, and the overview carries both into site marking. */}
+        <BodySitePicker
+          label="Surgical site"
+          value={site}
+          onChange={setSite}
+          placeholder="e.g. Left knee joint"
         />
         <Controller
           control={control}
