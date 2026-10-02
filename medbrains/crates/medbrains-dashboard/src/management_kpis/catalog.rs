@@ -15,6 +15,19 @@ pub enum Better {
     Neutral,
 }
 
+/// How a KPI's daily series is made.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Shape {
+    /// One value per day.
+    Daily,
+    /// A percentage over the seven days ending each day — a day's
+    /// documentation rate swings 33 points on a doctor with three visits; a
+    /// week's does not.
+    Rate,
+    /// A mean over the seven days ending each day: bed-days per discharge.
+    Mean,
+}
+
 pub(super) struct Kpi {
     pub(super) unit: &'static str,
     pub(super) better: Better,
@@ -24,12 +37,10 @@ pub(super) struct Kpi {
     /// KPI, `$4`, an optional local clock cut-off to compare today with
     /// earlier days fairly.
     pub(super) clock: bool,
-    /// A rate over the seven days ending each day, from `(day, numerator,
-    /// denominator)` rows for `$1..=$2` — a day's documentation rate swings
-    /// 33 points on a doctor with three visits; a week's does not.
-    pub(super) rolling: bool,
-    /// `(day date, value float8)` rows for days `$1..=$2`, or for a rolling
-    /// KPI `(day date, numerator float8, denominator float8)`.
+    /// How the daily series is made from the query's rows.
+    pub(super) shape: Shape,
+    /// `(day date, value float8)` rows for days `$1..=$2`, or for a rate or a
+    /// mean `(day date, numerator float8, denominator float8)`.
     pub(super) sql: &'static str,
 }
 
@@ -50,7 +61,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Neutral,
             zero_fill: true,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT encounter_date AS day, COUNT(*)::float8 AS value \
                   FROM encounters \
                   WHERE encounter_type = 'opd' AND deleted_at IS NULL \
@@ -63,7 +74,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM called_at - created_at)) / 60.0)::float8 \
@@ -79,7 +90,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Neutral,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM completed_at - called_at)) / 60.0)::float8 \
@@ -97,7 +108,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: false,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT appointment_date AS day, \
                     (100.0 * COUNT(*) FILTER (WHERE status::text = 'no_show') \
                       / NULLIF(COUNT(*) FILTER (WHERE status::text IN \
@@ -112,7 +123,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Higher,
             zero_fill: false,
             clock: false,
-            rolling: true,
+            shape: Shape::Rate,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
                    SELECT 1 FROM diagnoses d WHERE d.encounter_id = e.id \
@@ -128,7 +139,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Higher,
             zero_fill: false,
             clock: false,
-            rolling: true,
+            shape: Shape::Rate,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
                    SELECT 1 FROM consultations c WHERE c.encounter_id = e.id \
@@ -147,7 +158,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: true,
+            shape: Shape::Rate,
             sql: concat!(
                 "SELECT e.encounter_date, \
                  COUNT(*) FILTER (WHERE e.status::text <> 'completed')::float8, COUNT(*)::float8",
@@ -164,7 +175,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: true,
+            shape: Shape::Rate,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE NOT EXISTS ( \
                    SELECT 1 FROM invoices i WHERE i.encounter_id = e.id \
@@ -179,7 +190,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT timezone($3, i.issued_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM i.issued_at - e.created_at)) / 3600.0)::float8 \
@@ -195,7 +206,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT timezone($3, verified_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM verified_at - collected_at)) / 60.0)::float8 \
@@ -212,7 +223,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Higher,
             zero_fill: false,
             clock: true,
-            rolling: true,
+            shape: Shape::Rate,
             sql: "SELECT timezone($3, verified_at)::date, \
                     COUNT(*) FILTER (WHERE verified_at - collected_at \
                       <= make_interval(mins => expected_tat_minutes))::float8, COUNT(*)::float8 \
@@ -227,7 +238,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT timezone($3, vacated_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM ready_at - vacated_at)) / 60.0)::float8 \
@@ -242,7 +253,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
-            rolling: false,
+            shape: Shape::Daily,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM called_at - created_at)) / 60.0)::float8 \
@@ -252,15 +263,99 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                     AND ($4::time IS NULL OR timezone($3, called_at)::time <= $4) \
                   GROUP BY token_date",
         },
+        // ── IPD ──
+        // Midnight census: patients holding a bed at the end of each day,
+        // over the beds in service — for today, at this clock time.
+        "bed_occupancy_pct" => Kpi {
+            unit: "%",
+            better: Better::Neutral,
+            zero_fill: false,
+            clock: true,
+            shape: Shape::Daily,
+            sql: "SELECT d::date AS day, \
+                    (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
+                      WHERE is_active AND deleted_at IS NULL), 0))::float8 \
+                  FROM generate_series($1::date, $2::date, INTERVAL '1 day') d \
+                  LEFT JOIN admissions a ON a.deleted_at IS NULL AND a.bed_id IS NOT NULL \
+                   AND a.admitted_at < timezone($3, d::date + COALESCE($4::time, '24:00'::time)) \
+                   AND (a.discharged_at IS NULL OR a.discharged_at \
+                        >= timezone($3, d::date + COALESCE($4::time, '24:00'::time))) \
+                  GROUP BY d",
+        },
+        "alos_days" => Kpi {
+            unit: "days",
+            better: Better::Lower,
+            zero_fill: false,
+            clock: true,
+            shape: Shape::Mean,
+            sql: "SELECT timezone($3, discharged_at)::date, \
+                    SUM(EXTRACT(EPOCH FROM discharged_at - admitted_at) / 86400.0)::float8, \
+                    COUNT(*)::float8 \
+                  FROM admissions \
+                  WHERE deleted_at IS NULL AND discharged_at >= admitted_at \
+                    AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
+                  GROUP BY 1",
+        },
+        "mortality_pct" => Kpi {
+            unit: "%",
+            better: Better::Lower,
+            zero_fill: false,
+            clock: true,
+            shape: Shape::Rate,
+            sql: "SELECT timezone($3, discharged_at)::date, \
+                    COUNT(*) FILTER (WHERE discharge_type::text IN ('deceased', 'death') \
+                                        OR status::text = 'deceased')::float8, \
+                    COUNT(*)::float8 \
+                  FROM admissions \
+                  WHERE deleted_at IS NULL AND discharged_at IS NOT NULL \
+                    AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
+                  GROUP BY 1",
+        },
+        // Back within 30 days of going home: the discharge that was too early.
+        "readmission_30d_pct" => Kpi {
+            unit: "%",
+            better: Better::Lower,
+            zero_fill: false,
+            clock: true,
+            shape: Shape::Rate,
+            sql: "SELECT timezone($3, a.admitted_at)::date, \
+                    COUNT(*) FILTER (WHERE EXISTS ( \
+                      SELECT 1 FROM admissions p \
+                       WHERE p.patient_id = a.patient_id AND p.id <> a.id \
+                         AND p.deleted_at IS NULL \
+                         AND p.discharged_at BETWEEN a.admitted_at - INTERVAL '30 days' \
+                                                 AND a.admitted_at))::float8, \
+                    COUNT(*)::float8 \
+                  FROM admissions a \
+                  WHERE a.deleted_at IS NULL \
+                    AND timezone($3, a.admitted_at)::date BETWEEN $1 AND $2 \
+                  GROUP BY 1",
+        },
+        // Left against medical advice, or absconded: care the hospital lost.
+        "lama_dama_pct" => Kpi {
+            unit: "%",
+            better: Better::Lower,
+            zero_fill: false,
+            clock: true,
+            shape: Shape::Rate,
+            sql: "SELECT timezone($3, discharged_at)::date, \
+                    COUNT(*) FILTER (WHERE discharge_type::text IN ('lama', 'dama', 'absconded') \
+                                        OR status::text = 'absconded')::float8, \
+                    COUNT(*)::float8 \
+                  FROM admissions \
+                  WHERE deleted_at IS NULL AND discharged_at IS NOT NULL \
+                    AND timezone($3, discharged_at)::date BETWEEN $1 AND $2 \
+                  GROUP BY 1",
+        },
         _ => return None,
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::kpi;
+    use super::{Shape, kpi};
 
-    const CODES: [&str; 13] = [
+    const CODES: [&str; 18] = [
         "opd_visits",
         "opd_wait_minutes",
         "opd_consult_minutes",
@@ -274,6 +369,11 @@ mod tests {
         "lab_within_target_pct",
         "bed_turnaround_minutes",
         "pharmacy_wait_minutes",
+        "bed_occupancy_pct",
+        "alos_days",
+        "mortality_pct",
+        "readmission_30d_pct",
+        "lama_dama_pct",
     ];
 
     /// Postgres refuses a statement bound with parameters it does not use, at
@@ -288,7 +388,7 @@ mod tests {
             assert_eq!(k.sql.contains("$3"), k.clock, "{code}: $3 is the time zone");
             assert_eq!(
                 k.sql.contains("$4"),
-                k.clock && !k.rolling,
+                k.clock && k.shape == Shape::Daily,
                 "{code}: $4 is the clock cut-off, daily KPIs only"
             );
         }

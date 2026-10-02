@@ -416,3 +416,157 @@ async fn department_efficiency_is_read_against_the_usual_day() {
         assert!((got - want).abs() < 1e-6, "{}: {got} ≠ {want}", codes[i]);
     }
 }
+
+/// Given on a quiet day: one patient in a bed across midnight and one
+/// discharged by afternoon (LAMA, after 6 hours); a death after a 4-day stay;
+/// and a patient readmitted five days after a 3-day stay — When management
+/// reads that day, Then the census is one bed; the week's three discharges
+/// average (0.25 + 4 + 3) / 3 days, one in three died and one in three left
+/// against advice; and one of the week's four admissions is a readmission.
+#[tokio::test]
+async fn ipd_is_read_by_census_and_by_discharge() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let day = quiet_day(1999);
+    let (tenant, doctor): (Uuid, Uuid) =
+        sqlx::query_as("SELECT tenant_id, id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("admin");
+    let at = |days: i64, hours: f64| {
+        format!(
+            "(('{}'::timestamp + make_interval(secs => {})) AT TIME ZONE \
+             (SELECT COALESCE(timezone, 'UTC') FROM tenants WHERE id = '{tenant}'))",
+            day + Duration::days(days),
+            hours * 3600.0
+        )
+    };
+    let exec = |sql: String| {
+        let db = app.db.clone();
+        async move {
+            sqlx::query_scalar::<_, Uuid>(&sql)
+                .fetch_one(&db)
+                .await
+                .unwrap_or_else(|e| unreachable!("{e}: {sql}"))
+        }
+    };
+    let bed = exec(format!(
+        "SELECT bed_location_id FROM ward_bed_mappings \
+          WHERE tenant_id = '{tenant}' AND is_active AND deleted_at IS NULL LIMIT 1"
+    ))
+    .await;
+    let patient = || {
+        exec(format!(
+            "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+             VALUES ('{tenant}', 'UH-IPD-{}', 'Ipd', 'Probe', 'other', '5{}') RETURNING id",
+            &Uuid::new_v4().simple().to_string()[..8],
+            &Uuid::new_v4().as_u128().to_string()[..9]
+        ))
+    };
+    // (admitted, discharged, discharge type, holds the bed)
+    let admit =
+        |who: Uuid, admitted: String, discharged: Option<String>, kind: &str, bed_too: bool| {
+            let kind = if kind.is_empty() {
+                "NULL".to_owned()
+            } else {
+                format!("'{kind}'")
+            };
+            let (status, out) = match &discharged {
+                Some(t) => ("discharged", t.clone()),
+                None => ("admitted", "NULL".to_owned()),
+            };
+            let bed_id = if bed_too {
+                format!("'{bed}'")
+            } else {
+                "NULL".to_owned()
+            };
+            exec(format!(
+                "WITH e AS (INSERT INTO encounters (tenant_id, patient_id, encounter_type) \
+                        VALUES ('{tenant}', '{who}', 'ipd') RETURNING id) \
+             INSERT INTO admissions (tenant_id, encounter_id, patient_id, admitting_doctor, \
+               admitted_at, discharged_at, discharge_type, status, bed_id) \
+             SELECT '{tenant}', e.id, '{who}', '{doctor}', {admitted}, {out}, {kind}, \
+                    '{status}', {bed_id} FROM e RETURNING id"
+            ))
+        };
+    admit(
+        patient().await,
+        at(-2, 10.0),
+        Some(at(1, 10.0)),
+        "normal",
+        true,
+    )
+    .await;
+    admit(patient().await, at(0, 9.0), Some(at(0, 15.0)), "lama", true).await;
+    admit(
+        patient().await,
+        at(-4, 12.0),
+        Some(at(0, 12.0)),
+        "death",
+        false,
+    )
+    .await;
+    let returning = patient().await;
+    admit(returning, at(-8, 9.0), Some(at(-5, 9.0)), "normal", false).await;
+    admit(returning, at(0, 10.0), None, "", false).await;
+
+    let codes = [
+        "bed_occupancy_pct",
+        "alos_days",
+        "mortality_pct",
+        "lama_dama_pct",
+        "readmission_30d_pct",
+    ];
+    let mut ids = Vec::new();
+    for code in codes {
+        ids.push(
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT w.id FROM dashboard_widgets w JOIN dashboards d ON d.id = w.dashboard_id \
+                 WHERE d.tenant_id = $1 AND d.code = 'role-admin' AND w.deleted_at IS NULL \
+                   AND w.data_source->'params'->>'code' = $2",
+            )
+            .bind(tenant)
+            .bind(code)
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded IPD widget"),
+        );
+    }
+    let beds: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ward_bed_mappings \
+          WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL",
+    )
+    .bind(tenant)
+    .fetch_one(&app.db)
+    .await
+    .expect("beds");
+    let answers: Vec<Value> = app
+        .client
+        .post(app.url("/api/dashboard/widget-data/batch"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "widget_ids": ids, "as_of": day }))
+        .send()
+        .await
+        .expect("batch")
+        .json()
+        .await
+        .expect("json");
+    let value = |i: usize| {
+        answers
+            .iter()
+            .find(|a| a["widget_id"] == json!(ids[i]))
+            .and_then(|a| a["data"]["value"].as_f64())
+            .unwrap_or(f64::NAN)
+    };
+    #[allow(clippy::cast_precision_loss)] // a handful of beds
+    let census = 100.0 / beds as f64;
+    let expected = [census, 7.25 / 3.0, 100.0 / 3.0, 100.0 / 3.0, 25.0];
+    for (i, want) in expected.iter().enumerate() {
+        assert!(
+            (value(i) - want).abs() < 1e-6,
+            "{}: {} ≠ {want}",
+            codes[i],
+            value(i)
+        );
+    }
+}
