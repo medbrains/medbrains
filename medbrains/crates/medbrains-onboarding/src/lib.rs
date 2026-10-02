@@ -794,7 +794,7 @@ pub async fn setup(
          VALUES ($1, 'MAIN', \
                  (SELECT name FROM tenants WHERE id = $1), \
                  'main_hospital', 'active') \
-         ON CONFLICT (tenant_id, code) DO UPDATE SET name = EXCLUDED.name \
+         ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO UPDATE SET name = EXCLUDED.name \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -902,7 +902,7 @@ pub async fn setup(
         sqlx::query(
             "INSERT INTO roles (tenant_id, code, name, description, permissions) \
              VALUES ($1, $2, $3, $4, '{}') \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(claims.tenant_id)
         .bind(&role.code)
@@ -1188,7 +1188,7 @@ pub async fn setup(
             sqlx::query(
                 "INSERT INTO bed_types (tenant_id, code, name, daily_rate, description) \
                  VALUES ($1, $2, $3, $4, $5) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&bt.code)
@@ -1208,7 +1208,7 @@ pub async fn setup(
                 "INSERT INTO tax_categories \
                  (tenant_id, code, name, rate_percent, applicability, description) \
                  VALUES ($1, $2, $3, $4, $5::tax_applicability, $6) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&tc.code)
@@ -1227,7 +1227,7 @@ pub async fn setup(
             sqlx::query(
                 "INSERT INTO payment_methods (tenant_id, code, name, is_default) \
                  VALUES ($1, $2, $3, $4) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&pm.code)
@@ -1244,7 +1244,7 @@ pub async fn setup(
             sqlx::query(
                 "INSERT INTO services (tenant_id, code, name, service_type, description) \
                  VALUES ($1, $2, $3, $4::service_type, $5) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&svc.code)

@@ -216,7 +216,7 @@ pub async fn create_exception(
         "INSERT INTO doctor_schedule_exceptions \
          (tenant_id, doctor_id, exception_date, is_available, start_time, end_time, reason) \
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
-         ON CONFLICT (tenant_id, doctor_id, exception_date) \
+         ON CONFLICT (tenant_id, doctor_id, exception_date) WHERE deleted_at IS NULL \
          DO UPDATE SET is_available = EXCLUDED.is_available, \
                        start_time = EXCLUDED.start_time, \
                        end_time = EXCLUDED.end_time, \

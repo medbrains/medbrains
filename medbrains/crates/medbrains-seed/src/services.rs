@@ -238,8 +238,9 @@ pub(super) async fn seed_services(
     for &(code, name, service_type, description) in SERVICES {
         sqlx::query(
             "INSERT INTO services (tenant_id, code, name, service_type, description) \
-             VALUES ($1, $2, $3, $4::service_type, $5) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             SELECT $1, $2, $3, $4::service_type, $5 \
+             WHERE NOT EXISTS (SELECT 1 FROM services WHERE tenant_id = $1 AND code = $2) \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(tenant_id)
         .bind(code)

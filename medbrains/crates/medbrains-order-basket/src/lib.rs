@@ -916,7 +916,7 @@ pub async fn save_draft(
         "INSERT INTO order_basket_drafts \
          (tenant_id, encounter_id, owner_user_id, items, notes) \
          VALUES ($1, $2, $3, $4, $5) \
-         ON CONFLICT (tenant_id, encounter_id, owner_user_id) \
+         ON CONFLICT (tenant_id, encounter_id, owner_user_id) WHERE deleted_at IS NULL \
          DO UPDATE SET items = EXCLUDED.items, notes = EXCLUDED.notes \
          RETURNING *",
     )

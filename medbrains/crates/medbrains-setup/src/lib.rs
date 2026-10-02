@@ -464,7 +464,7 @@ pub async fn create_facility(
         .await?;
 
     let code_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM facilities WHERE tenant_id = $1 AND code = $2)",
+        "SELECT EXISTS(SELECT 1 FROM facilities WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL)",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
@@ -647,7 +647,7 @@ pub async fn create_location(
         .await?;
 
     let code_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM locations WHERE tenant_id = $1 AND code = $2)",
+        "SELECT EXISTS(SELECT 1 FROM locations WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL)",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
@@ -989,7 +989,7 @@ pub async fn create_department(
         .await?;
 
     let code_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM departments WHERE tenant_id = $1 AND code = $2)",
+        "SELECT EXISTS(SELECT 1 FROM departments WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL)",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
@@ -3992,7 +3992,7 @@ pub async fn seed_module_masters(
                 sqlx::query(
                     "INSERT INTO services (id, tenant_id, code, name, service_type) \
                      VALUES ($1, $2, $3, $4, 'consultation') \
-                     ON CONFLICT (tenant_id, code) DO NOTHING",
+                     ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
                 )
                 .bind(Uuid::new_v4())
                 .bind(claims.tenant_id)
@@ -4188,7 +4188,7 @@ pub async fn seed_module_masters(
                 sqlx::query(
                     "INSERT INTO radiology_modalities (id, tenant_id, code, name, description, is_active) \
                      VALUES ($1, $2, $3, $4, $5, true) \
-                     ON CONFLICT (tenant_id, code) DO NOTHING",
+                     ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
                 )
                 .bind(Uuid::new_v4())
                 .bind(claims.tenant_id)
@@ -4304,7 +4304,7 @@ pub async fn import_locations(
                     None
                 } else {
                     let maybe: Option<(Uuid,)> = sqlx::query_as(
-                        "SELECT id FROM locations WHERE tenant_id = $1 AND code = $2",
+                        "SELECT id FROM locations WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL",
                     )
                     .bind(claims.tenant_id)
                     .bind(pc)
@@ -4327,7 +4327,7 @@ pub async fn import_locations(
         let result = sqlx::query(
             "INSERT INTO locations (id, tenant_id, code, name, level, parent_id) \
              VALUES ($1, $2, $3, $4, $5::location_level, $6) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(Uuid::new_v4())
         .bind(claims.tenant_id)
@@ -4426,7 +4426,7 @@ pub async fn import_departments(
                     None
                 } else {
                     let maybe: Option<(Uuid,)> = sqlx::query_as(
-                        "SELECT id FROM departments WHERE tenant_id = $1 AND code = $2",
+                        "SELECT id FROM departments WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL",
                     )
                     .bind(claims.tenant_id)
                     .bind(pc)
@@ -4449,7 +4449,7 @@ pub async fn import_departments(
         let result = sqlx::query(
             "INSERT INTO departments (id, tenant_id, code, name, department_type, parent_id) \
              VALUES ($1, $2, $3, $4, $5::department_type, $6) \
-             ON CONFLICT (tenant_id, code) DO NOTHING",
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
         )
         .bind(Uuid::new_v4())
         .bind(claims.tenant_id)
@@ -5314,7 +5314,7 @@ pub async fn import_config(
                 "INSERT INTO departments \
                  (tenant_id, parent_id, code, name, department_type, working_hours) \
                  VALUES ($1, $2, $3, $4, $5::department_type, $6) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(dept.parent_id)
@@ -5337,7 +5337,7 @@ pub async fn import_config(
             let result = sqlx::query(
                 "INSERT INTO roles (tenant_id, code, name, description, permissions) \
                  VALUES ($1, $2, $3, $4, COALESCE($5, '{}')) \
-                 ON CONFLICT (tenant_id, code) DO NOTHING",
+                 ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING",
             )
             .bind(claims.tenant_id)
             .bind(&role.code)

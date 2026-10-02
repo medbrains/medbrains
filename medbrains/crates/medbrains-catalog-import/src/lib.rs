@@ -456,7 +456,7 @@ pub async fn import_charge_master(
              (tenant_id, code, name, category, base_price, tax_percent, \
               hsn_sac_code, gst_category) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO UPDATE SET \
                name = EXCLUDED.name, \
                category = EXCLUDED.category, \
                base_price = EXCLUDED.base_price, \
@@ -545,7 +545,7 @@ pub async fn import_services(
             "INSERT INTO services \
              (tenant_id, code, name, service_type, base_price, department_id, description) \
              VALUES ($1, $2, $3, $4::text::service_type, $5, $6, $7) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO UPDATE SET \
                name = EXCLUDED.name, \
                service_type = EXCLUDED.service_type, \
                base_price = EXCLUDED.base_price, \
@@ -635,7 +635,7 @@ pub async fn import_insurance_providers(
             "INSERT INTO master_insurance_providers \
              (tenant_id, code, name, provider_type, contact_phone, contact_email, website) \
              VALUES ($1, $2, $3, $4, $5, $6, $7) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO UPDATE SET \
                name = EXCLUDED.name, \
                provider_type = EXCLUDED.provider_type, \
                contact_phone = COALESCE(EXCLUDED.contact_phone, \
