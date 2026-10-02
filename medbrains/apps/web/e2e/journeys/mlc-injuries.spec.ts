@@ -27,7 +27,7 @@ test("a doctor records an injury on an MLC by its site on the body", async ({ ho
   const injuries = page.getByRole("form", { name: "Record an injury" });
   await injuries.getByRole("button", { name: "Pick injury site on the body" }).click();
   const picker = page.getByRole("dialog", { name: "Pick injury site" });
-  await picker.getByLabel("Find a structure").fill("Left patella");
+  await picker.getByLabel("Find a region or structure").fill("Left patella");
   await page.getByRole("option", { name: "Left patella", exact: true }).click();
   await picker.getByRole("button", { name: "Use this site" }).click();
   await injuries.getByRole("textbox", { name: "length (cm)" }).fill("4.5");

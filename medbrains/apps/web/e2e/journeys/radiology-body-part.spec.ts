@@ -28,7 +28,7 @@ test("a radiology order's body part is picked on the body", async ({ hospital })
 
   await order.getByRole("button", { name: "Pick body part on the body" }).click();
   const picker = page.getByRole("dialog", { name: "Pick body part" });
-  await picker.getByLabel("Find a structure").fill("Left patella");
+  await picker.getByLabel("Find a region or structure").fill("Left patella");
   await page.getByRole("option", { name: "Left patella", exact: true }).click();
   await picker.getByRole("button", { name: "Use this site" }).click();
   await expect(order.getByRole("textbox", { name: "Body Part" })).toHaveValue("Left patella");

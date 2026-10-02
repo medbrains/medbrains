@@ -17,7 +17,7 @@ test("a nurse picks the wound site on the body", async ({ hospital }) => {
 
   await page.getByRole("button", { name: "Pick body site on the body" }).click();
   const drawer = page.getByRole("dialog", { name: "Pick body site" });
-  await drawer.getByLabel("Find a structure").fill("Left femur");
+  await drawer.getByLabel("Find a region or structure").fill("Left femur");
   await page.getByRole("option", { name: "Left femur", exact: true }).click();
   await expect(drawer.getByText("Selected: Left femur")).toBeVisible();
   await expect(drawer.getByRole("radio", { name: "Left" })).toBeChecked();
