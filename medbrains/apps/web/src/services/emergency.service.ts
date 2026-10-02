@@ -47,6 +47,9 @@ export const emergencyService = {
   createMlcCase: (data: CreateMlcCaseInput) => api.createMlcCase(data),
   updateMlcCase: (id: string, data: UpdateMlcCaseInput) => api.updateMlcCase(id, data),
   listMlcDocuments: (mlcId: string) => api.listMlcDocuments(mlcId),
+  listMlcInjuries: (mlcId: string) => api.listMlcInjuries(mlcId),
+  createMlcInjury: (...args: Parameters<typeof api.createMlcInjury>) =>
+    api.createMlcInjury(...args),
   createMlcDocument: (mlcId: string, data: CreateMlcDocumentInput) =>
     api.createMlcDocument(mlcId, data),
   listPoliceIntimations: (mlcId: string) => api.listPoliceIntimations(mlcId),

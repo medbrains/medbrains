@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod mlc_injuries;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -3089,6 +3091,10 @@ pub fn router() -> axum::Router<AppState> {
             get(list_mlc_cases).post(create_mlc_case),
         )
         .route("/api/emergency/mlc/{id}", put(update_mlc_case))
+        .route(
+            "/api/emergency/mlc/{mlc_id}/injuries",
+            get(mlc_injuries::list_mlc_injuries).post(mlc_injuries::create_mlc_injury),
+        )
         .route(
             "/api/emergency/mlc/{mlc_id}/documents",
             get(list_mlc_documents).post(create_mlc_document),

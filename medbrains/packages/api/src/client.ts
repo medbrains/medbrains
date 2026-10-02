@@ -615,6 +615,7 @@ import type {
   CreateMigrationRequest,
   CreateMlcCaseRequest,
   CreateMlcDocumentRequest,
+  CreateMlcInjuryRequest,
   CreateModalityRequest,
   CreateMolecularReportRequest,
   CreateMortalityReviewRequest,
@@ -1326,6 +1327,7 @@ import type {
   MlcCase,
   MlcDocument,
   MlcDocumentationPrintData,
+  MlcInjury,
   MlcPoliceIntimation,
   MlcPoliceIntimationPrintData,
   MlcRegisterPrintData,
@@ -8915,6 +8917,14 @@ export const api = {
     }),
 
   listMlcDocuments: (mlcId: string) => request<MlcDocument[]>(`/emergency/mlc/${mlcId}/documents`),
+
+  listMlcInjuries: (mlcId: string) => request<MlcInjury[]>(`/emergency/mlc/${mlcId}/injuries`),
+
+  createMlcInjury: (mlcId: string, data: CreateMlcInjuryRequest) =>
+    request<MlcInjury>(`/emergency/mlc/${mlcId}/injuries`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   createMlcDocument: (mlcId: string, data: CreateMlcDocumentRequest) =>
     request<MlcDocument>(`/emergency/mlc/${mlcId}/documents`, {

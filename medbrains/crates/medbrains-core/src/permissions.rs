@@ -991,6 +991,21 @@ pub mod emergency {
         pub const REPRINT: &str = "emergency.mlc.reprint";
     }
 
+    pub mod mlc_injuries {
+        /// View the injuries on an MLC.
+        ///
+        /// Each injury on a medico-legal case by site, type, size and the
+        /// examining doctor's opinion of its nature — what the injury
+        /// certificate lists.
+        pub const LIST: &str = "emergency.mlc_injuries.list";
+        /// Record an injury on an MLC.
+        ///
+        /// Appends an injury (site picked on the body, type, size, nature).
+        /// A legal record: injuries are never edited, a correction is a new
+        /// entry, and the examining doctor is recorded.
+        pub const CREATE: &str = "emergency.mlc_injuries.create";
+    }
+
     pub mod mlc_documents {
         pub const SBAR_CREATE: &str = "emergency.mlc_documents.sbar.create";
         pub const AGE_ESTIMATION_CREATE: &str = "emergency.mlc_documents.age_estimation.create";
