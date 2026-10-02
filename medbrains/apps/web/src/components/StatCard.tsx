@@ -1,13 +1,35 @@
+import { Sparkline } from "@mantine/charts";
 import { Card, Group, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
-import { IconArrowDownRight, IconArrowUpRight } from "@tabler/icons-react";
+import { IconArrowDownRight, IconArrowUpRight, IconMinus } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+
+/** How the value sits against a baseline. Tone is good/bad for this measure, not up/down. */
+export interface StatComparison {
+  text: string;
+  tone: "good" | "bad" | "neutral";
+  direction: "up" | "down" | "flat";
+}
+
+const TONE_COLOR: Record<StatComparison["tone"], string> = {
+  good: "success",
+  bad: "danger",
+  neutral: "var(--mb-text-caption)",
+};
+
+const DIRECTION_ICON = {
+  up: IconArrowUpRight,
+  down: IconArrowDownRight,
+  flat: IconMinus,
+} as const;
 
 interface StatCardProps {
   label: string;
   value: string | number;
   icon: ReactNode;
   color?: string;
-  trend?: { value: number; label?: string };
+  comparison?: StatComparison;
+  /** Daily values behind the number, oldest first; gaps are unknown days. */
+  sparkline?: (number | null)[];
   onClick?: () => void;
   actionLabel?: string;
 }
@@ -17,7 +39,8 @@ export function StatCard({
   value,
   icon,
   color = "primary",
-  trend,
+  comparison,
+  sparkline,
   onClick,
   actionLabel,
 }: StatCardProps) {
@@ -48,22 +71,20 @@ export function StatCard({
       >
         {value}
       </Text>
-      {trend && (
-        <Group gap={4} mt="sm">
-          {trend.value >= 0 ? (
-            <IconArrowUpRight size={14} color="var(--mb-success-accent, #10b981)" stroke={2} />
-          ) : (
-            <IconArrowDownRight size={14} color="var(--mb-danger-accent, #f43f5e)" stroke={2} />
-          )}
-          <Text size="xs" c={trend.value >= 0 ? "success" : "danger"} fw={600}>
-            {Math.abs(trend.value)}%
-          </Text>
-          {trend.label && (
-            <Text size="xs" c="var(--mb-text-caption)">
-              {trend.label}
-            </Text>
-          )}
-        </Group>
+      {comparison && <ComparisonLine comparison={comparison} />}
+      {sparkline && sparkline.length > 1 && (
+        // The line above says it in words; the shape is for the eye only.
+        <Sparkline
+          mt="xs"
+          h={28}
+          data={sparkline}
+          connectNulls
+          curveType="linear"
+          color="var(--mb-text-caption)"
+          fillOpacity={0.08}
+          strokeWidth={1.5}
+          aria-hidden
+        />
       )}
     </Card>
   );
@@ -78,5 +99,18 @@ export function StatCard({
     >
       {card}
     </UnstyledButton>
+  );
+}
+
+function ComparisonLine({ comparison }: { comparison: StatComparison }) {
+  const Icon = DIRECTION_ICON[comparison.direction];
+  // The arrow takes the line's colour; the words carry the meaning on their own.
+  return (
+    <Group gap={4} mt="sm" wrap="nowrap" c={TONE_COLOR[comparison.tone]}>
+      <Icon size={14} stroke={2} aria-hidden />
+      <Text size="xs" c="inherit" fw={500}>
+        {comparison.text}
+      </Text>
+    </Group>
   );
 }

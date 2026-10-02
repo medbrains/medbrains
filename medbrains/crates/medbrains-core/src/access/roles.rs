@@ -1141,6 +1141,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // Documentation completeness by doctor is a quality measure.
+            permissions::analytics::management::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
             // compliance questions, which is this role's remit.
             permissions::marketing::outreach::APPROVE,

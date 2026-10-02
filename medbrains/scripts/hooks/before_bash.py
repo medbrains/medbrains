@@ -17,9 +17,15 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Only where a command starts — the head of the line, after `&&`/`;`/`|`/`(`,
+# behind `timeout N` or env assignments — so a cargo command that is merely
+# mentioned (a grep pattern, a pgrep) is not mistaken for one being run.
+COMMAND_START = r"(?:^|[;&|(]\s*)(?:(?:timeout\s+\d+|[A-Z_][A-Z0-9_]*=\S*)\s+)*"
 BUILD = re.compile(
-    r"\bcargo\s+(?:\+\S+\s+)?(?:build|check|test|clippy|run|zigbuild|sqlx\s+prepare)\b"
-    r"|\bmake\s+(?:-\S+\s+)*(?:prepare-sqlx|check-sqlx|native-core|build-starter)\b"
+    COMMAND_START
+    + r"(?:cargo\s+(?:\+\S+\s+)?(?:build|check|test|clippy|run|zigbuild|sqlx\s+prepare)\b"
+    r"|make\s+(?:-\S+\s+)*(?:prepare-sqlx|check-sqlx|native-core|build-starter)\b)",
+    re.M,
 )
 WAITS = re.compile(r"build_guard\.sh\s+--wait")
 

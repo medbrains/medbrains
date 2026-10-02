@@ -6,12 +6,15 @@ import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
+import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-reading";
 import { WidgetIcon } from "./widgetIcons";
 
 interface Props {
   widget: DashboardWidget;
   data: unknown;
   loading: boolean;
+  /** What a management KPI is set against; the same weekday unless chosen. */
+  compare?: KpiBaseline;
 }
 
 interface QuickAction {
@@ -27,6 +30,8 @@ function field(obj: unknown, key: string): unknown {
 }
 
 function formatValue(value: unknown, format?: string): string {
+  // Number(null) is 0: an unknown must not print as a real zero.
+  if (value === null || value === undefined) return "—";
   const n = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(n)) return typeof value === "string" ? value : "—";
   if (format === "currency") {
@@ -116,7 +121,7 @@ function WidgetShell({ widget, children }: { widget: DashboardWidget; children: 
 }
 
 /** Renders a single dashboard widget by its type, from resolved `data`. */
-export function DashboardWidgetCard({ widget, data, loading }: Props) {
+export function DashboardWidgetCard({ widget, data, loading, compare = "weekday" }: Props) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((s) => s.hasPermission);
 
@@ -131,6 +136,19 @@ export function DashboardWidgetCard({ widget, data, loading }: Props) {
       <WidgetShell widget={widget}>
         <UnavailableBody />
       </WidgetShell>
+    );
+  }
+
+  if (widget.widget_type === "stat_card" && isKpiReading(data)) {
+    return (
+      <StatCard
+        label={widget.title}
+        value={formatKpi(data.value, data.unit)}
+        icon={<WidgetIcon name={widget.icon} />}
+        color={widget.color ?? "primary"}
+        comparison={compareKpi(data, compare) ?? undefined}
+        sparkline={data.series.map((d) => d.value)}
+      />
     );
   }
 
