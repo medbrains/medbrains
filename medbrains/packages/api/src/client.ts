@@ -4173,6 +4173,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
+  /** Show or hide a catalogue widget on my own dashboard, by its code. */
+  setMyWidget: (code: string, visible: boolean) =>
+    request<{ code: string; visible: boolean }>(
+      `/dashboards/my/widgets/${encodeURIComponent(code)}`,
+      { method: "PUT", body: JSON.stringify({ visible }) },
+    ),
   // ── Enterprise SSO (admin config) ──
   // Public — active providers for the login page (no auth).
   listActiveSsoProviders: (domain?: string) =>

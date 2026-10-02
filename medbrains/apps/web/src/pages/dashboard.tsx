@@ -1,14 +1,16 @@
-import { Box, Center, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Box, Center, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
-import { IconLayoutDashboard } from "@tabler/icons-react";
+import { IconLayoutDashboard, IconLayoutGridAdd } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
 import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard";
 import { KpiPeriodControls } from "@/components/dashboard/KpiPeriodControls";
 import type { KpiBaseline } from "@/components/dashboard/kpi-reading";
+import { WidgetPicker } from "@/components/dashboard/WidgetPicker";
 import { GettingStartedWidget } from "@/components/GettingStartedWidget";
+import { IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./dashboard.module.scss";
 
@@ -27,6 +29,7 @@ export function DashboardPage() {
 
   const [asOf, setAsOf] = useState<string | null>(null);
   const [compare, setCompare] = useState<KpiBaseline>("weekday");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const widgetIds = useMemo(() => (dashboard?.widgets ?? []).map((w) => w.id), [dashboard]);
   // The period controls only mean something on a dashboard with management KPIs.
   const hasKpis = useMemo(
@@ -79,15 +82,30 @@ export function DashboardPage() {
         title={dashboard.dashboard.name}
         subtitle={dashboard.dashboard.description ?? undefined}
         actions={
-          hasKpis ? (
-            <KpiPeriodControls
-              asOf={asOf}
-              onAsOfChange={setAsOf}
-              compare={compare}
-              onCompareChange={setCompare}
-            />
-          ) : undefined
+          <Group gap="sm" align="flex-end">
+            {hasKpis && (
+              <KpiPeriodControls
+                asOf={asOf}
+                onAsOfChange={setAsOf}
+                compare={compare}
+                onCompareChange={setCompare}
+              />
+            )}
+            <IconButton
+              tone="default"
+              size="lg"
+              aria-label="Choose dashboard widgets"
+              onClick={() => setPickerOpen(true)}
+            >
+              <IconLayoutGridAdd size={20} />
+            </IconButton>
+          </Group>
         }
+      />
+      <WidgetPicker
+        opened={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        widgets={dashboard.widgets}
       />
       <GettingStartedWidget />
       {dashboard.widgets.length === 0 ? (
