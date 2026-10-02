@@ -60,6 +60,9 @@ export interface BasketRadiologyItem {
   kind: "radiology";
   modality_id: string;
   body_part?: string | null;
+  /** FMA concept from the body-site picker; null when typed. */
+  body_part_code?: string | null;
+  body_part_laterality?: "left" | "right" | "bilateral" | "midline" | null;
   clinical_indication?: string | null;
   priority?: string | null;
   scheduled_at?: string | null;

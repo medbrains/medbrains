@@ -135,6 +135,9 @@ pub struct OtBooking {
     pub procedure_name: String,
     pub procedure_code: Option<String>,
     pub laterality: Option<String>,
+    /// The site operated on, in words and as an FMA code (body-site picker).
+    pub surgical_site: Option<String>,
+    pub surgical_site_code: Option<String>,
     pub priority: OtCasePriority,
     pub status: OtBookingStatus,
     pub consent_obtained: bool,

@@ -3003,6 +3003,8 @@ export interface RadiologyOrder {
   modality_id: string;
   ordered_by: string;
   body_part: string | null;
+  body_part_code: string | null;
+  body_part_laterality: string | null;
   clinical_indication: string | null;
   priority: RadiologyPriority;
   status: RadiologyOrderStatus;
@@ -3064,6 +3066,9 @@ export interface CreateRadiologyOrderRequest {
   encounter_id?: string;
   modality_id: string;
   body_part?: string;
+  /** FMA concept from the body-site picker. */
+  body_part_code?: string;
+  body_part_laterality?: "left" | "right" | "bilateral" | "midline";
   clinical_indication?: string;
   priority?: string;
   scheduled_at?: string;
