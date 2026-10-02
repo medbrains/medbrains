@@ -471,28 +471,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // for the frontend SPA.
     let csp = SetResponseHeaderLayer::overriding(
         HeaderName::from_static("content-security-policy"),
-        HeaderValue::from_static(
-            // No 'unsafe-inline' on script-src — Vite emits all JS as
-            // external bundles. Inline styles still allowed (Mantine
-            // generates them at runtime). 'wasm-unsafe-eval' permits
-            // Loro CRDT wasm without enabling JS eval.
-            "default-src 'self'; \
-             script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; \
-             script-src-elem 'self' https://*.razorpay.com; \
-             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-             style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-             img-src 'self' data: blob: https:; \
-             font-src 'self' data: https://fonts.gstatic.com; \
-             connect-src 'self' https://*.razorpay.com wss:; \
-             worker-src 'self' blob:; \
-             manifest-src 'self'; \
-             object-src 'none'; \
-             frame-src https://*.razorpay.com; \
-             frame-ancestors 'none'; \
-             base-uri 'self'; \
-             form-action 'self'; \
-             upgrade-insecure-requests",
-        ),
+        content_security_policy(std::env::var("ANATOMY_CDN_ORIGIN").ok().as_deref()),
     );
 
     // Referrer-Policy — never leak full URL paths to third parties.
@@ -950,5 +929,83 @@ mod tests {
         let registry = super::build_outbox_registry();
         let handler = registry.lookup("sms.token_called");
         assert_eq!(handler.map(|h| h.event_type()), Some("sms.token_called"));
+    }
+}
+
+/// The SPA's Content-Security-Policy.
+///
+/// No 'unsafe-inline' on script-src — Vite emits all JS as external bundles.
+/// Inline styles are allowed (Mantine generates them at runtime);
+/// 'wasm-unsafe-eval' permits the Loro CRDT wasm without enabling JS eval.
+///
+/// `anatomy_origin` (env `ANATOMY_CDN_ORIGIN`) is the CDN the body-site
+/// picker loads its anatomy model from; it joins `connect-src`. Only a bare
+/// `https://host[:port]` is accepted — anything else is ignored rather than
+/// spliced into a security header.
+fn content_security_policy(anatomy_origin: Option<&str>) -> HeaderValue {
+    let anatomy = anatomy_origin
+        .filter(|o| {
+            o.strip_prefix("https://").is_some_and(|host| {
+                !host.is_empty()
+                    && host
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':'))
+            })
+        })
+        .map(|o| format!(" {o}"))
+        .unwrap_or_default();
+    let policy = format!(
+        "default-src 'self'; \
+             script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; \
+             script-src-elem 'self' https://*.razorpay.com; \
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+             style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+             img-src 'self' data: blob: https:; \
+             font-src 'self' data: https://fonts.gstatic.com; \
+             connect-src 'self' https://*.razorpay.com wss:{anatomy}; \
+             worker-src 'self' blob:; \
+             manifest-src 'self'; \
+             object-src 'none'; \
+             frame-src https://*.razorpay.com; \
+             frame-ancestors 'none'; \
+             base-uri 'self'; \
+             form-action 'self'; \
+             upgrade-insecure-requests",
+    );
+    HeaderValue::from_str(&policy)
+        .unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'"))
+}
+
+#[cfg(test)]
+mod csp_tests {
+    use super::content_security_policy;
+
+    fn connect_src(origin: Option<&str>) -> String {
+        let policy = content_security_policy(origin);
+        let text = policy.to_str().unwrap_or_default().to_owned();
+        text.split(';')
+            .find(|d| d.trim_start().starts_with("connect-src"))
+            .unwrap_or_default()
+            .trim()
+            .to_owned()
+    }
+
+    #[test]
+    fn the_anatomy_cdn_joins_connect_src() {
+        assert_eq!(
+            connect_src(Some("https://d111.cloudfront.net")),
+            "connect-src 'self' https://*.razorpay.com wss: https://d111.cloudfront.net"
+        );
+    }
+
+    #[test]
+    fn a_malformed_origin_is_ignored_not_spliced_in() {
+        for bad in ["http://cdn.example", "https://x; script-src *", "cdn.example", "https://"] {
+            assert_eq!(
+                connect_src(Some(bad)),
+                "connect-src 'self' https://*.razorpay.com wss:",
+                "{bad}"
+            );
+        }
     }
 }

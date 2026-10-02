@@ -37,6 +37,7 @@ import {
 } from "@mantine/core";
 import { DateInput, DatePickerInput, DateTimePicker } from "@mantine/dates";
 import {
+  ANATOMY_PALETTE,
   amberTuple,
   blueTuple,
   cinnabarTuple,
@@ -667,6 +668,11 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mantine-color-default-hover": scheme.bg.subtle,
     "--mantine-color-default-color": scheme.fg.default,
     "--mantine-color-default-border": scheme.border.default,
+
+    // ── Anatomy model (body-site picker) ─────────────────────────
+    ...Object.fromEntries(
+      Object.entries(ANATOMY_PALETTE).map(([k, v]) => [`--mb-anatomy-${k}`, v]),
+    ),
 
     // ── Surface tiers ────────────────────────────────────────────
     "--mb-bg-canvas": scheme.bg.canvas,
