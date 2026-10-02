@@ -280,3 +280,139 @@ async fn documentation_is_read_by_rate_and_by_doctor() {
         "{table}"
     );
 }
+
+/// Given on a quiet day: two OPD visits, one invoiced two hours after it was
+/// opened; two lab results, verified 30 and 180 minutes after collection
+/// against a 60-minute target; a bed turned around in 45 minutes; pharmacy
+/// tokens waiting 5 and 15 minutes — When management reads that day, Then
+/// half the visits have no bill, billing lags 2 h, the lab's median is
+/// 105 min with half within target, beds take 45 min and pharmacy 10 min.
+#[tokio::test]
+async fn department_efficiency_is_read_against_the_usual_day() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let day = quiet_day(2017);
+    let (tenant, user): (Uuid, Uuid) =
+        sqlx::query_as("SELECT tenant_id, id FROM users WHERE username = 'admin'")
+            .fetch_one(&app.db)
+            .await
+            .expect("admin");
+    // `$day + hours` as the hospital's own clock time.
+    let at = |hours: f64| {
+        format!(
+            "(('{day}'::timestamp + make_interval(secs => {})) AT TIME ZONE \
+             (SELECT COALESCE(timezone, 'UTC') FROM tenants WHERE id = '{tenant}'))",
+            hours * 3600.0
+        )
+    };
+    let exec = |sql: String| {
+        let db = app.db.clone();
+        async move {
+            sqlx::query_scalar::<_, Uuid>(&sql)
+                .fetch_one(&db)
+                .await
+                .unwrap_or_else(|e| unreachable!("{e}: {sql}"))
+        }
+    };
+    let patient = exec(format!(
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone) \
+         VALUES ('{tenant}', 'UH-EFF-{}', 'Eff', 'Probe', 'other', '6{}') RETURNING id",
+        &Uuid::new_v4().simple().to_string()[..8],
+        &Uuid::new_v4().as_u128().to_string()[..9]
+    ))
+    .await;
+    let visit = |hours: f64| {
+        exec(format!(
+            "INSERT INTO encounters (tenant_id, patient_id, encounter_type, encounter_date, \
+               created_at) VALUES ('{tenant}', '{patient}', 'opd', '{day}', {}) RETURNING id",
+            at(hours)
+        ))
+    };
+    let billed = visit(9.0).await;
+    visit(10.0).await;
+    exec(format!(
+        "INSERT INTO invoices (tenant_id, invoice_number, patient_id, encounter_id, status, \
+           issued_at) VALUES ('{tenant}', 'INV-EFF-{}', '{patient}', '{billed}', 'issued', {}) \
+         RETURNING id",
+        &Uuid::new_v4().simple().to_string()[..10],
+        at(11.0)
+    ))
+    .await;
+    for minutes in [30.0, 180.0] {
+        exec(format!(
+            "INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
+               collected_at, verified_at, expected_tat_minutes) \
+             SELECT '{tenant}', '{billed}', '{patient}', id, '{user}', {}, {}, 60 \
+               FROM lab_test_catalog WHERE tenant_id = '{tenant}' LIMIT 1 RETURNING id",
+            at(10.0),
+            at(10.0 + minutes / 60.0)
+        ))
+        .await;
+    }
+    exec(format!(
+        "INSERT INTO bed_turnaround_log (tenant_id, bed_id, vacated_at, ready_at) \
+         SELECT '{tenant}', id, {}, {} FROM locations \
+          WHERE tenant_id = '{tenant}' AND level::text = 'bed' LIMIT 1 RETURNING id",
+        at(12.0),
+        at(12.75)
+    ))
+    .await;
+    for (seq, wait) in [(1, 5.0), (2, 15.0)] {
+        exec(format!(
+            "INSERT INTO tokens (tenant_id, module, number, seq, token_date, status, \
+               created_at, called_at) \
+             VALUES ('{tenant}', 'pharmacy', 'PH-EFF-{seq}', {seq}, '{day}', 'completed', {}, {}) \
+             RETURNING id",
+            at(14.0),
+            at(14.0 + wait / 60.0)
+        ))
+        .await;
+    }
+
+    let codes = [
+        "opd_unbilled_pct",
+        "billing_lag_hours",
+        "lab_tat_minutes",
+        "lab_within_target_pct",
+        "bed_turnaround_minutes",
+        "pharmacy_wait_minutes",
+    ];
+    let mut ids = Vec::new();
+    for code in codes {
+        ids.push(
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT w.id FROM dashboard_widgets w JOIN dashboards d ON d.id = w.dashboard_id \
+                 WHERE d.tenant_id = $1 AND d.code = 'role-admin' AND w.deleted_at IS NULL \
+                   AND w.data_source->'params'->>'code' = $2",
+            )
+            .bind(tenant)
+            .bind(code)
+            .fetch_one(&app.db)
+            .await
+            .expect("a seeded efficiency widget"),
+        );
+    }
+    let answers: Vec<Value> = app
+        .client
+        .post(app.url("/api/dashboard/widget-data/batch"))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "widget_ids": ids, "as_of": day }))
+        .send()
+        .await
+        .expect("batch")
+        .json()
+        .await
+        .expect("json");
+    let value = |i: usize| {
+        answers
+            .iter()
+            .find(|a| a["widget_id"] == json!(ids[i]))
+            .map(|a| a["data"]["value"].clone())
+            .unwrap_or(Value::Null)
+    };
+    let expected = [50.0, 2.0, 105.0, 50.0, 45.0, 10.0];
+    for (i, want) in expected.iter().enumerate() {
+        let got = value(i).as_f64().unwrap_or(f64::NAN);
+        assert!((got - want).abs() < 1e-6, "{}: {got} ≠ {want}", codes[i]);
+    }
+}
