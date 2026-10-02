@@ -17,7 +17,8 @@ import classes from "./body-site.module.scss";
 export interface AnatomySceneProps {
   atlas: Atlas;
   visible: SystemId[];
-  selectedPartId: string | null;
+  /** One structure, or every structure a region covers. */
+  selectedPartIds: string[];
   onPick: (part: AtlasPart) => void;
   onProgress: (percent: number) => void;
   onError: (message: string) => void;
@@ -34,8 +35,8 @@ interface Stage {
   render: () => void;
   systemMeshes: Map<SystemId, T.Mesh[]>;
   pickers: Map<string, T.Mesh>;
-  highlight: T.Mesh;
-  empty: T.BufferGeometry;
+  highlight: T.Group;
+  highlightMaterial: T.Material;
 }
 
 function themeColor(el: HTMLElement, token: string): T.Color {
@@ -46,7 +47,7 @@ function themeColor(el: HTMLElement, token: string): T.Color {
 export function AnatomyScene({
   atlas,
   visible,
-  selectedPartId,
+  selectedPartIds,
   onPick,
   onProgress,
   onError,
@@ -111,16 +112,13 @@ export function AnatomyScene({
       emissiveIntensity: 0.35,
       depthTest: false,
     });
-    const empty = new T.BufferGeometry();
-    const highlight = new T.Mesh(empty, highlightMaterial);
-    highlight.renderOrder = 10;
-    highlight.visible = false;
+    const highlight = new T.Group();
     scene.add(highlight);
-    disposables.push(highlightMaterial, empty);
+    disposables.push(highlightMaterial);
 
     const systemMeshes = new Map<SystemId, T.Mesh[]>();
     const pickers = new Map<string, T.Mesh>();
-    stage.current = { render, systemMeshes, pickers, highlight, empty };
+    stage.current = { render, systemMeshes, pickers, highlight, highlightMaterial };
 
     const addChunk = (index: number, buffer: ArrayBuffer) => {
       const bySystem = new Map<SystemId, T.BufferGeometry[]>();
@@ -236,11 +234,17 @@ export function AnatomyScene({
   useEffect(() => {
     const s = stage.current;
     if (!s) return;
-    const picked = selectedPartId ? s.pickers.get(selectedPartId) : undefined;
-    s.highlight.geometry = picked?.geometry ?? s.empty;
-    s.highlight.visible = Boolean(picked);
+    s.highlight.clear();
+    for (const id of selectedPartIds) {
+      const picked = s.pickers.get(id);
+      if (!picked) continue;
+      // Shares the picker's geometry; the scene's teardown disposes it once.
+      const mesh = new T.Mesh(picked.geometry, s.highlightMaterial);
+      mesh.renderOrder = 10;
+      s.highlight.add(mesh);
+    }
     s.render();
-  }, [selectedPartId]);
+  }, [selectedPartIds]);
 
   return <Box ref={host} className={classes.scene} />;
 }

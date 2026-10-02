@@ -5,8 +5,9 @@
  * to load never blocks a wound or an injury being recorded. "Pick on body"
  * opens the anatomy model (loaded only then) with two equal ways to choose: a
  * tap on the 3D body, or the structure search, which is the keyboard and
- * screen-reader path. A pick stores the FMA concept code and the side; the
- * label is what a chart prints.
+ * screen-reader path. A structure pick stores the FMA concept code and the
+ * side; a region pick ("Left knee") stores its words and side, with no code,
+ * and lights the structures in it. The label is what a chart prints.
  */
 import { Anchor, Box, Group, Progress, Stack, Text } from "@mantine/core";
 import { IconBodyScan } from "@tabler/icons-react";
@@ -22,6 +23,7 @@ import {
   SegmentedControl,
   Select,
 } from "@/components/ui";
+import { groupedSelectData } from "@/lib/select-groups";
 import {
   ANATOMY_BASE_URL,
   type AtlasPart,
@@ -33,6 +35,7 @@ import {
   SYSTEMS,
   type SystemId,
 } from "./anatomy-atlas";
+import { BODY_REGIONS, type BodyRegion, regionLabel, regionParts } from "./body-regions";
 import classes from "./body-site.module.scss";
 
 const AnatomyScene = lazy(() =>
@@ -41,6 +44,8 @@ const AnatomyScene = lazy(() =>
 
 /** Structures offered per keystroke; the list holds 2,234. */
 const SEARCH_LIMIT = 60;
+/** Select values for regions; structure ids are the model's own. */
+const REGION_PREFIX = "region:";
 const NO_SIDE = "none";
 const SIDES = [
   { value: "left", label: "Left" },
@@ -110,6 +115,8 @@ export function BodySitePicker({
   );
 }
 
+type Selection = { part: AtlasPart } | { region: BodyRegion };
+
 interface BodySiteDrawerProps {
   title: string;
   initial: BodySite | null;
@@ -125,7 +132,7 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
     retry: 1,
   });
   const [visible, setVisible] = useState<SystemId[]>(DEFAULT_SYSTEMS);
-  const [part, setPart] = useState<AtlasPart | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [side, setSide] = useState<Laterality | null>(initial?.laterality ?? null);
   const [progress, setProgress] = useState(0);
   const [sceneError, setSceneError] = useState<string | null>(null);
@@ -134,15 +141,60 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
     () => new Map((atlas.data?.parts ?? []).map((p) => [p.id, p])),
     [atlas.data],
   );
-  const options = useMemo(
-    () => (atlas.data?.parts ?? []).map((p) => ({ value: p.id, label: p.name })),
+  const partsByName = useMemo(
+    () => new Map((atlas.data?.parts ?? []).map((p) => [p.name, p])),
     [atlas.data],
   );
-  const choose = (next: AtlasPart | null) => {
-    setPart(next);
-    if (next) setSide(lateralityFromName(next.name) ?? side);
-    if (next && !visible.includes(next.system)) setVisible([...visible, next.system]);
+  const options = useMemo(
+    () =>
+      groupedSelectData([
+        ...BODY_REGIONS.map((r) => ({
+          value: `${REGION_PREFIX}${r.id}`,
+          label: r.label,
+          group: "Regions",
+        })),
+        ...(atlas.data?.parts ?? []).map((p) => ({
+          value: p.id,
+          label: p.name,
+          group: "Structures",
+        })),
+      ]),
+    [atlas.data],
+  );
+  const lit = useMemo(() => {
+    if (!selection) return [];
+    if ("part" in selection) return [selection.part];
+    return regionParts(selection.region, side, partsByName);
+  }, [selection, side, partsByName]);
+  const litIds = useMemo(() => lit.map((p) => p.id), [lit]);
+
+  const showSystems = (parts: AtlasPart[]) => {
+    const missing = parts.map((p) => p.system).filter((sys) => !visible.includes(sys));
+    if (missing.length) setVisible([...new Set([...visible, ...missing])]);
   };
+  const choosePart = (next: AtlasPart | null) => {
+    setSelection(next && { part: next });
+    if (!next) return;
+    setSide(lateralityFromName(next.name) ?? side);
+    showSystems([next]);
+  };
+  const chooseValue = (value: string | null) => {
+    const region = value?.startsWith(REGION_PREFIX)
+      ? BODY_REGIONS.find((r) => `${REGION_PREFIX}${r.id}` === value)
+      : undefined;
+    if (!region) {
+      choosePart(value ? (partsById.get(value) ?? null) : null);
+      return;
+    }
+    setSelection({ region });
+    showSystems(regionParts(region, side, partsByName));
+  };
+  const needsSide = selection !== null && "region" in selection && selection.region.sided && !side;
+  const picked: BodySite | null = !selection
+    ? null
+    : "part" in selection
+      ? { label: selection.part.name, code: selection.part.conceptId, laterality: side }
+      : { label: regionLabel(selection.region, side), code: null, laterality: side };
 
   return (
     <Drawer
@@ -154,16 +206,22 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
     >
       <Stack gap="sm" className={classes.drawerBody}>
         <Select
-          label="Find a structure"
-          placeholder="Type a name — femur, heel, deltoid…"
+          label="Find a region or structure"
+          placeholder="Type a name — knee, right iliac fossa, femur…"
           searchable
           clearable
           limit={SEARCH_LIMIT}
           data={options}
-          value={part?.id ?? null}
-          onChange={(id) => choose(id ? (partsById.get(id) ?? null) : null)}
+          value={
+            !selection
+              ? null
+              : "part" in selection
+                ? selection.part.id
+                : `${REGION_PREFIX}${selection.region.id}`
+          }
+          onChange={chooseValue}
           disabled={!atlas.data}
-          nothingFoundMessage="No structure by that name"
+          nothingFoundMessage="Nothing by that name"
         />
         <ChipGroup multiple value={visible} onChange={(v) => setVisible(v as SystemId[])}>
           <Group gap={6} aria-label="Body systems shown">
@@ -189,8 +247,8 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
                 <AnatomyScene
                   atlas={atlas.data}
                   visible={visible}
-                  selectedPartId={part?.id ?? null}
-                  onPick={choose}
+                  selectedPartIds={litIds}
+                  onPick={choosePart}
                   onProgress={setProgress}
                   onError={setSceneError}
                 />
@@ -206,7 +264,11 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
         />
         <Group justify="space-between" align="flex-end">
           <Text size="sm" aria-live="polite">
-            {part ? `Selected: ${part.name}` : "Nothing selected yet"}
+            {needsSide
+              ? "Choose the side"
+              : picked
+                ? `Selected: ${picked.label}`
+                : "Nothing selected yet"}
           </Text>
           <Group gap="xs">
             <Button tone="ghost" onClick={onClose}>
@@ -214,10 +276,8 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
             </Button>
             <Button
               tone="primary"
-              disabled={!part}
-              onClick={() =>
-                part && onPick({ label: part.name, code: part.conceptId, laterality: side })
-              }
+              disabled={!picked || needsSide}
+              onClick={() => picked && onPick(picked)}
             >
               Use this site
             </Button>

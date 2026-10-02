@@ -21,7 +21,7 @@ test("a doctor records a finding at a site picked on the body", async ({ hospita
 
   await page.getByRole("button", { name: "Pick site on the body" }).click();
   const picker = page.getByRole("dialog", { name: "Pick site" });
-  await picker.getByLabel("Find a structure").fill("Left patella");
+  await picker.getByLabel("Find a region or structure").fill("Left patella");
   await page.getByRole("option", { name: "Left patella", exact: true }).click();
   await picker.getByRole("button", { name: "Use this site" }).click();
   await page.getByRole("textbox", { name: "Finding" }).fill("Swelling, warm");
