@@ -83,6 +83,7 @@ import {
   type PrintCopyRoute,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import { MlcInjuriesPanel } from "./mlc-injuries-panel";
 import {
   MlcDocumentationPrintPreview,
   MlcPoliceIntimationPrintPreview,
@@ -782,6 +783,7 @@ export function MlcCaseDetail({
             </Text>
           )}
         </Card>
+        <MlcInjuriesPanel mlcId={mlcCase.id} />
 
         {/* Action Buttons */}
         {hasMlcDocumentActions && (
