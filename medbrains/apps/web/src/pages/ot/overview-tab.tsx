@@ -85,7 +85,12 @@ export function OverviewTab({ booking: b }: { booking: OtBooking }) {
         {new Date(b.scheduled_end).toLocaleTimeString()}
       </Text>
       <PatientContextBanner patientId={b.patient_id} hideLoadingState />
-      {b.laterality && <Text size="sm">Laterality: {b.laterality}</Text>}
+      {(b.surgical_site || b.laterality) && (
+        <Text size="sm" fw={600}>
+          Site:{" "}
+          {[b.surgical_site, b.laterality && `${b.laterality} side`].filter(Boolean).join(" · ")}
+        </Text>
+      )}
       {b.estimated_duration_min && (
         <Text size="sm">Estimated Duration: {b.estimated_duration_min} min</Text>
       )}

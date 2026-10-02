@@ -80,6 +80,8 @@ pub struct BasketLabItem {
 pub struct BasketRadiologyItem {
     pub modality_id: Uuid,
     pub body_part: Option<String>,
+    pub body_part_code: Option<String>,
+    pub body_part_laterality: Option<medbrains_core::body_site::Laterality>,
     pub clinical_indication: Option<String>,
     pub priority: Option<String>,
     pub scheduled_at: Option<String>,
@@ -1047,6 +1049,8 @@ async fn dispatch_item(
                 encounter_id: Some(*encounter_id),
                 modality_id: it.modality_id,
                 body_part: it.body_part.clone(),
+                body_part_code: it.body_part_code.clone(),
+                body_part_laterality: it.body_part_laterality,
                 clinical_indication: it.clinical_indication.clone(),
                 priority: it.priority.clone(),
                 scheduled_at: it.scheduled_at.clone(),

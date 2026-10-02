@@ -92,7 +92,11 @@ pub struct CreateBookingRequest {
     pub scheduled_end: chrono::DateTime<Utc>,
     pub procedure_name: String,
     pub procedure_code: Option<String>,
-    pub laterality: Option<String>,
+    /// The side operated on — checked against the site marked before incision.
+    pub laterality: Option<medbrains_core::body_site::Laterality>,
+    /// The site operated on, in words and as an FMA code (body-site picker).
+    pub surgical_site: Option<String>,
+    pub surgical_site_code: Option<String>,
     pub priority: Option<String>,
     pub estimated_duration_min: Option<i32>,
     pub assistant_surgeons: Option<serde_json::Value>,
@@ -668,10 +672,10 @@ pub async fn create_booking(
             procedure_name, procedure_code, laterality, priority, status, \
             consent_obtained, site_marked, blood_arranged, \
             assistant_surgeons, scrub_nurses, circulating_nurses, \
-            estimated_duration_min, notes) \
+            estimated_duration_min, notes, surgical_site, surgical_site_code) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, \
                  $13::ot_case_priority, 'requested'::ot_booking_status, \
-                 false, false, false, $14, $15, $16, $17, $18) \
+                 false, false, false, $14, $15, $16, $17, $18, $19, $20) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -685,13 +689,15 @@ pub async fn create_booking(
     .bind(body.scheduled_end)
     .bind(&body.procedure_name)
     .bind(&body.procedure_code)
-    .bind(&body.laterality)
+    .bind(body.laterality.map(medbrains_core::body_site::Laterality::as_str))
     .bind(priority)
     .bind(body.assistant_surgeons.as_ref().unwrap_or(&empty))
     .bind(body.scrub_nurses.as_ref().unwrap_or(&empty))
     .bind(body.circulating_nurses.as_ref().unwrap_or(&empty))
     .bind(body.estimated_duration_min)
     .bind(&body.notes)
+    .bind(&body.surgical_site)
+    .bind(&body.surgical_site_code)
     .fetch_one(&mut *tx)
     .await?;
 

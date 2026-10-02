@@ -409,6 +409,8 @@ export interface OtBooking {
   procedure_name: string;
   procedure_code: string | null;
   laterality: string | null;
+  surgical_site: string | null;
+  surgical_site_code: string | null;
   priority: OtCasePriority;
   status: OtBookingStatus;
   consent_obtained: boolean;
@@ -653,7 +655,10 @@ export interface CreateOtBookingRequest {
   scheduled_end: string;
   procedure_name: string;
   procedure_code?: string;
-  laterality?: string;
+  laterality?: "left" | "right" | "bilateral" | "midline";
+  /** The site operated on, in words and as an FMA code (body-site picker). */
+  surgical_site?: string;
+  surgical_site_code?: string;
   priority?: OtCasePriority;
   estimated_duration_min?: number;
   assistant_surgeons?: unknown;

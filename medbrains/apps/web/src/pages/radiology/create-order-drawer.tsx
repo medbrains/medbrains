@@ -1,7 +1,7 @@
 // Radiology CreateOrderDrawer — split from radiology.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Checkbox, Drawer, Select, Stack, Switch, Textarea, TextInput } from "@mantine/core";
+import { Checkbox, Drawer, Select, Stack, Switch, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { RadiologyOrderFormInput } from "@medbrains/schemas";
 import { radiologyOrderFormSchema } from "@medbrains/schemas";
@@ -10,6 +10,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useClinicalEmit } from "@/components";
+import { type BodySite, formatBodySite } from "@/components/BodySite/anatomy-atlas";
+import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -68,6 +70,8 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     enabled: contrastRequired,
   });
   const [consentOverride, setConsentOverride] = useState(false);
+  // The picked site's code and side, beside the words the form holds.
+  const [site, setSite] = useState<BodySite | null>(null);
   const consentSettled =
     !contrastRequired ||
     consentGate.outcome === "allow" ||
@@ -98,6 +102,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
         priority: result.priority,
       });
       reset(orderDefaults);
+      setSite(null);
       onClose();
     },
   });
@@ -110,7 +115,9 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     createMutation.mutate({
       patient_id: values.patient_id.trim(),
       modality_id: values.modality_id.trim(),
-      body_part: radiologyOptionalText(values.body_part),
+      body_part: site ? formatBodySite(site) : radiologyOptionalText(values.body_part),
+      body_part_code: site?.code ?? undefined,
+      body_part_laterality: site?.laterality ?? undefined,
       clinical_indication: radiologyOptionalText(values.clinical_indication),
       priority: values.priority,
       notes: radiologyOptionalText(values.notes),
@@ -157,7 +164,24 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
             />
           )}
         />
-        <TextInput label="Body Part" error={errors.body_part?.message} {...register("body_part")} />
+        <Controller
+          control={control}
+          name="body_part"
+          render={({ field }) => (
+            <BodySitePicker
+              label="Body Part"
+              placeholder="e.g. Chest, Left knee"
+              error={errors.body_part?.message}
+              value={
+                site ?? (field.value ? { label: field.value, code: null, laterality: null } : null)
+              }
+              onChange={(next) => {
+                setSite(next);
+                field.onChange(next?.label ?? "");
+              }}
+            />
+          )}
+        />
         <Textarea
           label="Clinical Indication"
           error={errors.clinical_indication?.message}

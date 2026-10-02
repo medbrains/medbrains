@@ -6,7 +6,10 @@ import { useHasPermission } from "@medbrains/stores";
 import type { BasketItem, BasketRadiologyItem } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { type BodySite, formatBodySite } from "@/components/BodySite/anatomy-atlas";
+import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { radiologyPriorityOptions } from "@/forms/orderBasket.form";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 
@@ -16,6 +19,8 @@ interface RadiologyPickerFormProps {
 
 export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
   const canAddRadiology = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
+  // The picked site's code and side, beside the words the form holds.
+  const [site, setSite] = useState<BodySite | null>(null);
   const {
     control,
     register,
@@ -44,6 +49,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
   });
 
   const resetForm = () => {
+    setSite(null);
     reset({
       modality_id: "",
       body_part: "",
@@ -61,7 +67,9 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
     const item: BasketRadiologyItem = {
       kind: "radiology",
       modality_id: values.modality_id,
-      body_part: values.body_part.trim() || null,
+      body_part: site ? formatBodySite(site) : values.body_part.trim() || null,
+      body_part_code: site?.code ?? null,
+      body_part_laterality: site?.laterality ?? null,
       clinical_indication: values.clinical_indication.trim() || null,
       priority: values.priority,
       scheduled_at: null,
@@ -93,10 +101,22 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
         )}
       />
       <Group grow>
-        <TextInput
-          label="Body part"
-          placeholder="e.g., Chest PA, Abdomen"
-          {...register("body_part")}
+        <Controller
+          control={control}
+          name="body_part"
+          render={({ field }) => (
+            <BodySitePicker
+              label="Body part"
+              placeholder="e.g. Chest, Left knee"
+              value={
+                site ?? (field.value ? { label: field.value, code: null, laterality: null } : null)
+              }
+              onChange={(next) => {
+                setSite(next);
+                field.onChange(next?.label ?? "");
+              }}
+            />
+          )}
         />
         <Controller
           control={control}
