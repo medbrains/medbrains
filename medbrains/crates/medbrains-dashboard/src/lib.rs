@@ -6,6 +6,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
+pub mod management_doctors;
 pub mod management_kpis;
 
 use chrono::{NaiveDate, Utc};
@@ -1590,6 +1591,9 @@ async fn resolve_module_query(
     match (module, query) {
         // ── Patients (hospital-wide — no department scoping) ──
         ("management", "kpi") => management_kpis::reading(tx, params, filters.as_of).await,
+        ("management", "doctor_documentation") => {
+            management_doctors::documentation_by_doctor(tx, filters.as_of).await
+        }
         ("patients", "count") => {
             let count = sqlx::query_scalar::<_, i64>(
                 "SELECT COUNT(*) FROM patients WHERE is_active = true",

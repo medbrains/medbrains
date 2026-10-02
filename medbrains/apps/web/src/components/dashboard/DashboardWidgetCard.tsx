@@ -221,6 +221,8 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
 
   if (widget.widget_type === "data_table") {
     const cols = (field(widget.config, "columns") as string[] | undefined) ?? [];
+    const labels = (field(widget.config, "labels") as Record<string, string> | undefined) ?? {};
+    const maxRows = Number(field(widget.config, "max_rows") ?? 10);
     const items = rows(data);
     return (
       <WidgetShell widget={widget}>
@@ -231,12 +233,12 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
             <Table.Thead>
               <Table.Tr>
                 {cols.map((c) => (
-                  <Table.Th key={c}>{c.replace(/_/g, " ")}</Table.Th>
+                  <Table.Th key={c}>{labels[c] ?? c.replace(/_/g, " ")}</Table.Th>
                 ))}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {items.slice(0, 10).map((row, i) => (
+              {items.slice(0, maxRows).map((row, i) => (
                 <Table.Tr key={String(row.id ?? i)}>
                   {cols.map((c) => (
                     <Table.Td key={c}>{cellText(row[c])}</Table.Td>

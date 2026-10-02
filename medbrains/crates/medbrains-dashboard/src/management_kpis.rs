@@ -49,8 +49,23 @@ struct Kpi {
     /// Whether the query takes `$3` (tenant time zone) and `$4` (optional
     /// local clock cut-off) to compare today with earlier days fairly.
     clock: bool,
-    /// `(day date, value float8)` rows for days `$1..=$2`.
+    /// A rate over the seven days ending each day, from `(day, numerator,
+    /// denominator)` rows — a day's documentation rate swings 33 points on a
+    /// doctor with three visits; a week's does not.
+    rolling: bool,
+    /// `(day date, value float8)` rows for days `$1..=$2`, or for a rolling
+    /// KPI `(day date, numerator float8, denominator float8)`.
     sql: &'static str,
+}
+
+/// OPD visits that count towards documentation: not cancelled. `$1..=$2`.
+/// A macro, not a const, so `concat!` can build each query at compile time.
+macro_rules! opd_visits {
+    () => {
+        " FROM encounters e \
+          WHERE e.encounter_type = 'opd' AND e.deleted_at IS NULL \
+            AND e.status::text <> 'cancelled' AND e.encounter_date BETWEEN $1 AND $2"
+    };
 }
 
 fn kpi(code: &str) -> Option<Kpi> {
@@ -60,6 +75,7 @@ fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Neutral,
             zero_fill: true,
             clock: true,
+            rolling: false,
             sql: "SELECT encounter_date AS day, COUNT(*)::float8 AS value \
                   FROM encounters \
                   WHERE encounter_type = 'opd' AND deleted_at IS NULL \
@@ -72,6 +88,7 @@ fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: true,
+            rolling: false,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM called_at - created_at)) / 60.0)::float8 \
@@ -87,6 +104,7 @@ fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Neutral,
             zero_fill: false,
             clock: true,
+            rolling: false,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM completed_at - called_at)) / 60.0)::float8 \
@@ -104,6 +122,7 @@ fn kpi(code: &str) -> Option<Kpi> {
             better: Better::Lower,
             zero_fill: false,
             clock: false,
+            rolling: false,
             sql: "SELECT appointment_date AS day, \
                     (100.0 * COUNT(*) FILTER (WHERE status::text = 'no_show') \
                       / NULLIF(COUNT(*) FILTER (WHERE status::text IN \
@@ -113,8 +132,77 @@ fn kpi(code: &str) -> Option<Kpi> {
                   WHERE deleted_at IS NULL AND appointment_date BETWEEN $1 AND $2 \
                   GROUP BY appointment_date",
         },
+        "coded_diagnosis_pct" => Kpi {
+            unit: "%",
+            better: Better::Higher,
+            zero_fill: false,
+            clock: false,
+            rolling: true,
+            sql: concat!(
+                "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
+                   SELECT 1 FROM diagnoses d WHERE d.encounter_id = e.id \
+                     AND d.deleted_at IS NULL AND d.icd_code IS NOT NULL))::float8, \
+                 COUNT(*)::float8",
+                opd_visits!(),
+                " GROUP BY e.encounter_date"
+            ),
+        },
+        // A complete note says why the patient came and what was found.
+        "complete_note_pct" => Kpi {
+            unit: "%",
+            better: Better::Higher,
+            zero_fill: false,
+            clock: false,
+            rolling: true,
+            sql: concat!(
+                "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
+                   SELECT 1 FROM consultations c WHERE c.encounter_id = e.id \
+                     AND c.deleted_at IS NULL AND btrim(COALESCE(c.chief_complaint, '')) <> '' \
+                     AND (btrim(COALESCE(c.examination, '')) <> '' \
+                          OR COALESCE(c.physical_examination, '{}'::jsonb) <> '{}'::jsonb)))::float8, \
+                 COUNT(*)::float8",
+                opd_visits!(),
+                " GROUP BY e.encounter_date"
+            ),
+        },
+        // Of visits from days already over: today's are open because the
+        // clinic is.
+        "visits_left_open_pct" => Kpi {
+            unit: "%",
+            better: Better::Lower,
+            zero_fill: false,
+            clock: false,
+            rolling: true,
+            sql: concat!(
+                "SELECT e.encounter_date, \
+                 COUNT(*) FILTER (WHERE e.status::text <> 'completed')::float8, COUNT(*)::float8",
+                opd_visits!(),
+                " AND e.encounter_date < (SELECT timezone(COALESCE(t.timezone, 'UTC'), now())::date \
+                    FROM tenants t WHERE t.id = current_setting('app.tenant_id')::uuid) \
+                 GROUP BY e.encounter_date"
+            ),
+        },
         _ => return None,
     })
+}
+
+/// The rate over the seven days ending on each day `from..=to`, from daily
+/// `(numerator, denominator)` counts that start six days before `from`. A
+/// window with no denominator is unknown, not 0%.
+pub fn rolling_rates(
+    counts: &BTreeMap<NaiveDate, (f64, f64)>,
+    from: NaiveDate,
+    to: NaiveDate,
+) -> BTreeMap<NaiveDate, f64> {
+    from.iter_days()
+        .take_while(|d| *d <= to)
+        .filter_map(|day| {
+            let (num, den) = counts
+                .range(day - Duration::days(WEEK_DAYS - 1)..=day)
+                .fold((0.0, 0.0), |(n, d), (_, (a, b))| (n + a, d + b));
+            (den > 0.0).then(|| (day, 100.0 * num / den))
+        })
+        .collect()
 }
 
 /// The day's value and its baselines, from a daily series.
@@ -183,17 +271,26 @@ pub async fn reading(
     let cutoff = (as_of == today).then_some(now);
     let from = as_of - Duration::days(HISTORY_DAYS);
 
-    let mut query = sqlx::query_as::<_, (NaiveDate, Option<f64>)>(kpi.sql)
-        .bind(from)
-        .bind(as_of);
-    if kpi.clock {
-        query = query.bind(&zone).bind(cutoff);
-    }
-    let rows = query.fetch_all(&mut **tx).await?;
-    let series: BTreeMap<NaiveDate, f64> = rows
-        .into_iter()
-        .filter_map(|(d, v)| v.map(|v| (d, v)))
-        .collect();
+    let series = if kpi.rolling {
+        let counts: Vec<(NaiveDate, f64, f64)> = sqlx::query_as(kpi.sql)
+            .bind(from - Duration::days(WEEK_DAYS - 1))
+            .bind(as_of)
+            .fetch_all(&mut **tx)
+            .await?;
+        let counts = counts.into_iter().map(|(d, n, t)| (d, (n, t))).collect();
+        rolling_rates(&counts, from, as_of)
+    } else {
+        let mut query = sqlx::query_as::<_, (NaiveDate, Option<f64>)>(kpi.sql)
+            .bind(from)
+            .bind(as_of);
+        if kpi.clock {
+            query = query.bind(&zone).bind(cutoff);
+        }
+        let rows = query.fetch_all(&mut **tx).await?;
+        rows.into_iter()
+            .filter_map(|(d, v)| v.map(|v| (d, v)))
+            .collect()
+    };
     let b = baselines(&series, as_of, kpi.zero_fill);
     let daily: Vec<Value> = (0..=HISTORY_DAYS)
         .rev()
@@ -219,7 +316,7 @@ pub async fn reading(
 
 #[cfg(test)]
 mod tests {
-    use super::{Baselines, baselines};
+    use super::{Baselines, baselines, rolling_rates};
     use chrono::NaiveDate;
     use std::collections::BTreeMap;
 
@@ -260,6 +357,38 @@ mod tests {
                 week: Some(12.0)
             },
             "no consultations is no wait time, not a zero-minute one"
+        );
+    }
+
+    #[test]
+    fn rates_roll_over_seven_days_and_an_empty_week_is_unknown() {
+        // 1 of 2 visits coded on the 20th, 3 of 4 on the 25th, none after.
+        let counts = BTreeMap::from([(day(20), (1.0, 2.0)), (day(25), (3.0, 4.0))]);
+        let rates = rolling_rates(&counts, day(24), day(30));
+        assert_eq!(
+            rates.get(&day(24)),
+            Some(&50.0),
+            "only the 20th is in 18th–24th"
+        );
+        assert_eq!(
+            rates.get(&day(26)),
+            Some(&(400.0 / 6.0)),
+            "20th–26th holds both"
+        );
+        assert_eq!(
+            rates.get(&day(27)),
+            Some(&75.0),
+            "21st–27th has only the 25th"
+        );
+        assert_eq!(
+            rates.get(&day(30)),
+            Some(&75.0),
+            "24th–30th still has the 25th"
+        );
+        let quiet = rolling_rates(&BTreeMap::new(), day(24), day(30));
+        assert!(
+            quiet.is_empty(),
+            "a week with no visits has no rate, not 0%"
         );
     }
 }
