@@ -7,6 +7,7 @@ use axum::{
 use std::collections::HashMap;
 
 pub mod management_doctors;
+pub mod my_widgets;
 pub mod management_kpis;
 
 use chrono::{NaiveDate, Utc};
@@ -17,7 +18,7 @@ use medbrains_core::form::FieldAccessLevel;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,delete,patch};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
@@ -223,27 +224,6 @@ pub struct CreateWidgetTemplateRequest {
     pub default_width: Option<i32>,
     pub default_height: Option<i32>,
     pub category: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AddWidgetRequest {
-    pub widget_type: String,
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub icon: Option<String>,
-    pub color: Option<String>,
-    pub config: serde_json::Value,
-    pub data_source: serde_json::Value,
-    pub position_x: Option<i32>,
-    pub position_y: Option<i32>,
-    pub width: Option<i32>,
-    pub height: Option<i32>,
-    pub permission_code: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ToggleVisibilityRequest {
-    pub is_visible: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -456,10 +436,12 @@ pub async fn personalize_dashboard(
     sqlx::query(
         "INSERT INTO dashboard_widgets (dashboard_id, widget_type, title, subtitle, icon, color,
                 config, data_source, data_filters, variants, position_x, position_y, width, height,
-                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order)
+                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order,
+                template_code)
          SELECT $1, widget_type, title, subtitle, icon, color,
                 config, data_source, data_filters, variants, position_x, position_y, width, height,
-                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order
+                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order,
+                template_code
          FROM dashboard_widgets WHERE dashboard_id = $2",
     )
     .bind(personal.id)
@@ -699,10 +681,12 @@ pub async fn admin_duplicate_dashboard(
     sqlx::query(
         "INSERT INTO dashboard_widgets (dashboard_id, widget_type, title, subtitle, icon, color,
                 config, data_source, data_filters, variants, position_x, position_y, width, height,
-                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order)
+                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order,
+                template_code)
          SELECT $1, widget_type, title, subtitle, icon, color,
                 config, data_source, data_filters, variants, position_x, position_y, width, height,
-                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order
+                min_width, min_height, refresh_interval, is_visible, permission_code, sort_order,
+                template_code
          FROM dashboard_widgets WHERE dashboard_id = $2",
     )
     .bind(new_dash.id)
@@ -976,88 +960,19 @@ pub async fn list_widget_templates(
 
     let all = sqlx::query_as::<_, WidgetTemplate>(
         "SELECT * FROM widget_templates
+         WHERE deleted_at IS NULL
          ORDER BY is_system DESC, category, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
-
-    // Fetch role's widget_access_defaults
-    let role_widget_access = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT COALESCE(widget_access_defaults, '{}'::jsonb) \
-         FROM roles WHERE tenant_id = $1 AND deleted_at IS NULL AND code = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(&claims.role)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or_else(|| serde_json::json!({}));
-
-    // Fetch user's widget_access from access_matrix
-    let user_widget_access = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT COALESCE(access_matrix->'widget_access', '{}'::jsonb) \
-         FROM users WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(claims.sub)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or_else(|| serde_json::json!({}));
-
+    let (role, user) = my_widgets::widget_access(&mut tx, &claims).await?;
     tx.commit().await?;
 
-    let is_bypass = is_bypass_role(&claims);
+    // The same rule decides what a viewer may place (my_widgets::set_my_widget).
     let filtered: Vec<WidgetTemplate> = all
         .into_iter()
-        .filter(|t| {
-            if is_bypass {
-                return true;
-            }
-
-            let tid = t.id.to_string();
-
-            // 1. Widget access resolution: user override → role default → template permissions
-            //    "visible" = allowed, "hidden" = denied
-            if let Some(user_level) = user_widget_access.get(&tid).and_then(|v| v.as_str()) {
-                if user_level == "hidden" {
-                    return false;
-                }
-                if user_level == "visible" {
-                    return true;
-                }
-            }
-
-            if let Some(role_level) = role_widget_access.get(&tid).and_then(|v| v.as_str()) {
-                if role_level == "hidden" {
-                    return false;
-                }
-                if role_level == "visible" {
-                    return true;
-                }
-            }
-
-            // 2. Permission gate: user must have ALL required permissions
-            let perms_ok = match t.required_permissions.as_array() {
-                Some(arr) if !arr.is_empty() => arr.iter().all(|p| {
-                    p.as_str()
-                        .is_some_and(|code| claims.permissions.iter().any(|cp| cp == code))
-                }),
-                _ => true,
-            };
-
-            // 3. Department gate: user must belong to at least one required department
-            let dept_ok = match t.required_departments.as_array() {
-                Some(arr) if !arr.is_empty() => arr.iter().any(|d| {
-                    d.as_str().is_some_and(|did| {
-                        claims.department_ids.iter().any(|ud| ud.to_string() == did)
-                    })
-                }),
-                _ => true,
-            };
-
-            perms_ok && dept_ok
-        })
+        .filter(|t| my_widgets::template_allowed(t, &claims, &role, &user))
         .collect();
-
     Ok(Json(filtered))
 }
 
@@ -2550,114 +2465,6 @@ pub struct RecentActivityRow {
 //  Self-service personal dashboard widget management
 // ══════════════════════════════════════════════════════════
 
-/// POST /api/dashboards/my/widgets — add a widget to the user's personal dashboard.
-/// If no personal dashboard exists, auto-personalizes (clones the role-matched one).
-pub async fn my_add_widget(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Json(req): Json<AddWidgetRequest>,
-) -> Result<Json<DashboardWidget>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Find or create personal dashboard
-    let dashboard_id = ensure_personal_dashboard(&mut tx, &claims).await?;
-
-    let widget = sqlx::query_as::<_, DashboardWidget>(
-        "INSERT INTO dashboard_widgets
-         (dashboard_id, widget_type, title, subtitle, icon, color, config, data_source,
-          position_x, position_y, width, height, permission_code, sort_order)
-         VALUES ($1, $2::widget_type, $3, $4, $5, $6, $7::jsonb, $8::jsonb,
-                 $9, $10, $11, $12, $13,
-                 COALESCE((SELECT MAX(sort_order) + 1 FROM dashboard_widgets WHERE dashboard_id = $1), 0))
-         RETURNING *",
-    )
-    .bind(dashboard_id)
-    .bind(&req.widget_type)
-    .bind(&req.title)
-    .bind(&req.subtitle)
-    .bind(&req.icon)
-    .bind(&req.color)
-    .bind(&req.config)
-    .bind(&req.data_source)
-    .bind(req.position_x.unwrap_or(0))
-    .bind(req.position_y.unwrap_or(0))
-    .bind(req.width.unwrap_or(4))
-    .bind(req.height.unwrap_or(2))
-    .bind(&req.permission_code)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(widget))
-}
-
-/// DELETE /api/dashboards/my/widgets/{wid} — remove a widget from personal dashboard.
-pub async fn my_remove_widget(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Path(widget_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Only allow deleting from own personal dashboard
-    let deleted = sqlx::query_scalar::<_, i64>(
-        "WITH personal AS (
-            SELECT id FROM dashboards WHERE user_id = $1 AND is_active = true LIMIT 1
-         )
-         DELETE FROM dashboard_widgets
-         WHERE id = $2 AND dashboard_id IN (SELECT id FROM personal)
-         RETURNING 1::bigint",
-    )
-    .bind(claims.sub)
-    .bind(widget_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if deleted.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({"deleted": true})))
-}
-
-/// PATCH /api/dashboards/my/widgets/{wid}/visibility — toggle widget visibility.
-pub async fn my_toggle_widget(
-    Extension(claims): Extension<Claims>,
-    State(state): State<AppState>,
-    Path(widget_id): Path<Uuid>,
-    Json(req): Json<ToggleVisibilityRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let result = sqlx::query(
-        "UPDATE dashboard_widgets SET is_visible = $1
-         WHERE id = $2 AND dashboard_id IN (
-             SELECT id FROM dashboards WHERE user_id = $3 AND is_active = true
-         )",
-    )
-    .bind(req.is_visible)
-    .bind(widget_id)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-    if result.rows_affected() == 0 {
-        return Err(AppError::NotFound);
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({"is_visible": req.is_visible})))
-}
-
 // ══════════════════════════════════════════════════════════
 //  Admin per-user / per-role widget access
 // ══════════════════════════════════════════════════════════
@@ -2763,7 +2570,7 @@ pub async fn admin_set_role_widget_access(
 
 /// Ensure a personal dashboard exists for the user; create by cloning the best-match
 /// shared dashboard if needed. Returns the personal dashboard ID.
-async fn ensure_personal_dashboard(
+pub(crate) async fn ensure_personal_dashboard(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
 ) -> Result<Uuid, AppError> {
@@ -2817,11 +2624,13 @@ async fn ensure_personal_dashboard(
             "INSERT INTO dashboard_widgets
              (dashboard_id, widget_type, title, subtitle, icon, color, config, data_source,
               position_x, position_y, width, height, min_width, min_height,
-              refresh_interval, is_visible, permission_code, sort_order, data_filters)
+              refresh_interval, is_visible, permission_code, sort_order, data_filters,
+              variants, template_code)
              SELECT $1, widget_type, title, subtitle, icon, color, config, data_source,
                     position_x, position_y, width, height, min_width, min_height,
-                    refresh_interval, is_visible, permission_code, sort_order, data_filters
-             FROM dashboard_widgets WHERE dashboard_id = $2",
+                    refresh_interval, is_visible, permission_code, sort_order, data_filters,
+                    variants, template_code
+             FROM dashboard_widgets WHERE dashboard_id = $2 AND deleted_at IS NULL",
         )
         .bind(new_dash_id)
         .bind(src)
@@ -2987,16 +2796,8 @@ pub fn router() -> axum::Router<AppState> {
             post(personalize_dashboard),
         )
         .route(
-            "/api/dashboards/my/widgets",
-            post(my_add_widget),
-        )
-        .route(
-            "/api/dashboards/my/widgets/{wid}",
-            delete(my_remove_widget),
-        )
-        .route(
-            "/api/dashboards/my/widgets/{wid}/visibility",
-            patch(my_toggle_widget),
+            "/api/dashboards/my/widgets/{code}",
+            put(my_widgets::set_my_widget),
         )
         .route(
             "/api/dashboards/{id}",

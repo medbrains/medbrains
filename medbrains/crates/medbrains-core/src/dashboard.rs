@@ -93,6 +93,8 @@ pub struct DashboardWidget {
     pub min_height: i32,
     pub refresh_interval: Option<i32>,
     pub is_visible: bool,
+    /// The catalogue entry this widget was placed from, if any.
+    pub template_code: Option<String>,
     pub permission_code: Option<String>,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
@@ -108,6 +110,8 @@ pub struct DashboardWidget {
 pub struct WidgetTemplate {
     pub id: Uuid,
     pub tenant_id: Option<Uuid>,
+    /// Stable key a placed widget names; ids change when the catalogue syncs.
+    pub code: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub widget_type: WidgetType,

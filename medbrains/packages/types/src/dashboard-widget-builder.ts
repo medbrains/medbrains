@@ -77,6 +77,8 @@ export interface DashboardWidget {
   min_height: number;
   refresh_interval: number | null;
   is_visible: boolean;
+  /** The catalogue entry this widget was placed from, if any. */
+  template_code: string | null;
   permission_code: string | null;
   sort_order: number;
   created_at: string;
@@ -102,6 +104,8 @@ export interface DashboardWithWidgets {
 export interface WidgetTemplate {
   id: string;
   tenant_id: string | null;
+  /** Stable key a placed widget names; ids change when the catalogue syncs. */
+  code: string | null;
   name: string;
   description: string | null;
   widget_type: WidgetType;
