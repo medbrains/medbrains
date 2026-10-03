@@ -21,6 +21,8 @@ interface WidgetPickerProps {
 export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  // What the viewer just clicked, until the dashboard reloads with it saved.
+  const [pending, setPending] = useState<Record<string, boolean>>({});
   const templates = useQuery({
     queryKey: ["widget-templates"],
     queryFn: () => api.listWidgetTemplates(),
@@ -38,7 +40,11 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
   const toggle = useMutation({
     mutationFn: ({ code, visible }: { code: string; visible: boolean }) =>
       api.setMyWidget(code, visible),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["my-dashboard"] }),
+    onMutate: ({ code, visible }) => setPending((p) => ({ ...p, [code]: visible })),
+    onSettled: async (_data, _error, { code }) => {
+      await queryClient.invalidateQueries({ queryKey: ["my-dashboard"] });
+      setPending(({ [code]: _done, ...rest }) => rest);
+    },
   });
 
   return (
@@ -73,8 +79,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
                 key={t.code}
                 label={t.name}
                 description={t.description ?? undefined}
-                checked={shown.has(t.code ?? "")}
-                disabled={toggle.isPending}
+                checked={pending[t.code ?? ""] ?? shown.has(t.code ?? "")}
                 onChange={(e) =>
                   t.code && toggle.mutate({ code: t.code, visible: e.currentTarget.checked })
                 }

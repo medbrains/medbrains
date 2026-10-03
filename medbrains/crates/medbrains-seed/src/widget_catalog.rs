@@ -11,9 +11,9 @@
 
 use sqlx::PgPool;
 
-/// One registered widget. Kept intentionally small — config/data_source are the
+/// One registered widget. Kept intentionally small — `config`/`data_source` are the
 /// only flexible parts. `data_source` types: `sql_count` | `module_query` |
-/// `static` (see routes/dashboard.rs::resolve_widget_data).
+/// `static` (see `medbrains_dashboard::resolve_widget_data`).
 struct WidgetSpec {
     /// Stable key: what a placed widget points back to. Never reuse one.
     code: &'static str,
@@ -55,8 +55,7 @@ const CATALOG: &[WidgetSpec] = &[
         icon: "IconStethoscope",
         color: "primary",
         config: r#"{"format": "number"}"#,
-        data_source:
-            r#"{"type": "sql_count", "table": "encounters", "filter": "DATE(encounter_date) = CURRENT_DATE"}"#,
+        data_source: r#"{"type": "sql_count", "table": "encounters", "filter": "DATE(encounter_date) = CURRENT_DATE"}"#,
         width: 3,
         height: 2,
         category: "metrics",
@@ -70,8 +69,7 @@ const CATALOG: &[WidgetSpec] = &[
         icon: "IconFlask",
         color: "warning",
         config: r#"{"format": "number"}"#,
-        data_source:
-            r#"{"type": "sql_count", "table": "lab_orders", "filter": "status IN ('ordered','sample_collected')"}"#,
+        data_source: r#"{"type": "sql_count", "table": "lab_orders", "filter": "status IN ('ordered','sample_collected')"}"#,
         width: 3,
         height: 2,
         category: "metrics",
@@ -114,8 +112,7 @@ const CATALOG: &[WidgetSpec] = &[
         icon: "IconList",
         color: "primary",
         config: r#"{"max_items": 8, "show_timestamp": true}"#,
-        data_source:
-            r#"{"type": "module_query", "module": "lab", "query": "recent_results", "params": {"limit": 8}}"#,
+        data_source: r#"{"type": "module_query", "module": "lab", "query": "recent_results", "params": {"limit": 8}}"#,
         width: 4,
         height: 3,
         category: "data",
@@ -128,7 +125,7 @@ const CATALOG: &[WidgetSpec] = &[
         wtype: "system_health",
         icon: "IconServer",
         color: "neutral",
-        config: r#"{}"#,
+        config: "{}",
         data_source: r#"{"type": "static", "static_data": {"status": "ok"}}"#,
         width: 4,
         height: 2,
@@ -197,24 +194,132 @@ const CATALOG: &[WidgetSpec] = &[
 /// card read against the usual day: `(code, name, description, category, icon)`.
 /// Code doubles as the KPI code the widget's data source names.
 const KPI_WIDGETS: &[(&str, &str, &str, &str, &str)] = &[
-    ("opd_visits", "OPD visits", "Against the usual day", "OPD", "IconStethoscope"),
-    ("opd_wait_minutes", "Median wait", "Token issued to called", "OPD", "IconClock"),
-    ("opd_consult_minutes", "Median consult time", "Called to completed", "OPD", "IconClipboardCheck"),
-    ("appointment_no_show_pct", "Appointment no-shows", "Of appointments with an outcome", "OPD", "IconCalendar"),
-    ("coded_diagnosis_pct", "Coded diagnosis", "OPD visits with an ICD code, 7 days", "Doctors' documentation", "IconFileCheck"),
-    ("complete_note_pct", "Complete notes", "Complaint and examination recorded, 7 days", "Doctors' documentation", "IconClipboardCheck"),
-    ("visits_left_open_pct", "Visits left open", "Not closed after their day, 7 days", "Doctors' documentation", "IconAlertTriangle"),
-    ("opd_unbilled_pct", "Visits with no bill", "OPD visits never invoiced, 7 days", "Department efficiency", "IconReceipt"),
-    ("billing_lag_hours", "Billing lag", "Visit to invoice issued", "Department efficiency", "IconCash"),
-    ("pharmacy_wait_minutes", "Pharmacy wait", "Token issued to called", "Department efficiency", "IconPill"),
-    ("lab_tat_minutes", "Lab turnaround", "Sample collected to verified", "Department efficiency", "IconFlask"),
-    ("lab_within_target_pct", "Lab within target", "Verified within the test's turnaround, 7 days", "Department efficiency", "IconClock"),
-    ("bed_turnaround_minutes", "Bed turnaround", "Vacated to ready for the next patient", "Department efficiency", "IconBed"),
-    ("bed_occupancy_pct", "Bed occupancy", "Patients in beds over beds in service", "IPD", "IconBed"),
-    ("alos_days", "Average length of stay", "Bed-days per discharge, 7 days", "IPD", "IconBed"),
-    ("mortality_pct", "Mortality", "Deaths among discharges, 7 days", "IPD", "IconHeartbeat"),
-    ("readmission_30d_pct", "Readmissions", "Back within 30 days of discharge, 7 days", "IPD", "IconArrowsTransferDown"),
-    ("lama_dama_pct", "Left against advice", "LAMA, DAMA or absconded, 7 days", "IPD", "IconAlertTriangle"),
+    (
+        "opd_visits",
+        "OPD visits",
+        "Against the usual day",
+        "OPD",
+        "IconStethoscope",
+    ),
+    (
+        "opd_wait_minutes",
+        "Median wait",
+        "Token issued to called",
+        "OPD",
+        "IconClock",
+    ),
+    (
+        "opd_consult_minutes",
+        "Median consult time",
+        "Called to completed",
+        "OPD",
+        "IconClipboardCheck",
+    ),
+    (
+        "appointment_no_show_pct",
+        "Appointment no-shows",
+        "Of appointments with an outcome",
+        "OPD",
+        "IconCalendar",
+    ),
+    (
+        "coded_diagnosis_pct",
+        "Coded diagnosis",
+        "OPD visits with an ICD code, 7 days",
+        "Doctors' documentation",
+        "IconFileCheck",
+    ),
+    (
+        "complete_note_pct",
+        "Complete notes",
+        "Complaint and examination recorded, 7 days",
+        "Doctors' documentation",
+        "IconClipboardCheck",
+    ),
+    (
+        "visits_left_open_pct",
+        "Visits left open",
+        "Not closed after their day, 7 days",
+        "Doctors' documentation",
+        "IconAlertTriangle",
+    ),
+    (
+        "opd_unbilled_pct",
+        "Visits with no bill",
+        "OPD visits never invoiced, 7 days",
+        "Department efficiency",
+        "IconReceipt",
+    ),
+    (
+        "billing_lag_hours",
+        "Billing lag",
+        "Visit to invoice issued",
+        "Department efficiency",
+        "IconCash",
+    ),
+    (
+        "pharmacy_wait_minutes",
+        "Pharmacy wait",
+        "Token issued to called",
+        "Department efficiency",
+        "IconPill",
+    ),
+    (
+        "lab_tat_minutes",
+        "Lab turnaround",
+        "Sample collected to verified",
+        "Department efficiency",
+        "IconFlask",
+    ),
+    (
+        "lab_within_target_pct",
+        "Lab within target",
+        "Verified within the test's turnaround, 7 days",
+        "Department efficiency",
+        "IconClock",
+    ),
+    (
+        "bed_turnaround_minutes",
+        "Bed turnaround",
+        "Vacated to ready for the next patient",
+        "Department efficiency",
+        "IconBed",
+    ),
+    (
+        "bed_occupancy_pct",
+        "Bed occupancy",
+        "Patients in beds over beds in service",
+        "IPD",
+        "IconBed",
+    ),
+    (
+        "alos_days",
+        "Average length of stay",
+        "Bed-days per discharge, 7 days",
+        "IPD",
+        "IconBed",
+    ),
+    (
+        "mortality_pct",
+        "Mortality",
+        "Deaths among discharges, 7 days",
+        "IPD",
+        "IconHeartbeat",
+    ),
+    (
+        "readmission_30d_pct",
+        "Readmissions",
+        "Back within 30 days of discharge, 7 days",
+        "IPD",
+        "IconArrowsTransferDown",
+    ),
+    (
+        "lama_dama_pct",
+        "Left against advice",
+        "LAMA, DAMA or absconded, 7 days",
+        "IPD",
+        "IconAlertTriangle",
+    ),
 ];
 /// Who may place or see a management KPI.
 const KPI_PERMISSION: &str = "analytics.management.view";
@@ -250,24 +355,26 @@ fn templates() -> Vec<Template> {
         category: w.category.to_owned(),
         perm: w.perm.to_owned(),
     });
-    let kpis = KPI_WIDGETS.iter().map(|&(code, name, description, category, icon)| Template {
-        code: code.to_owned(),
-        name: name.to_owned(),
-        description: description.to_owned(),
-        wtype: "stat_card".to_owned(),
-        icon: icon.to_owned(),
-        color: "indigo".to_owned(),
-        config: "{}".to_owned(),
-        data_source: serde_json::json!({
-            "type": "module_query", "module": "management", "query": "kpi",
-            "params": { "code": code },
-        })
-        .to_string(),
-        width: 3,
-        height: 2,
-        category: category.to_owned(),
-        perm: KPI_PERMISSION.to_owned(),
-    });
+    let kpis = KPI_WIDGETS
+        .iter()
+        .map(|&(code, name, description, category, icon)| Template {
+            code: code.to_owned(),
+            name: name.to_owned(),
+            description: description.to_owned(),
+            wtype: "stat_card".to_owned(),
+            icon: icon.to_owned(),
+            color: "indigo".to_owned(),
+            config: "{}".to_owned(),
+            data_source: serde_json::json!({
+                "type": "module_query", "module": "management", "query": "kpi",
+                "params": { "code": code },
+            })
+            .to_string(),
+            width: 3,
+            height: 2,
+            category: category.to_owned(),
+            perm: KPI_PERMISSION.to_owned(),
+        });
     specs.chain(kpis).collect()
 }
 
@@ -335,6 +442,9 @@ pub(crate) async fn sync_widget_catalog(pool: &PgPool) -> Result<(), sqlx::Error
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    tracing::info!(count = templates.len(), "widget catalogue synced from code registry");
+    tracing::info!(
+        count = templates.len(),
+        "widget catalogue synced from code registry"
+    );
     Ok(())
 }

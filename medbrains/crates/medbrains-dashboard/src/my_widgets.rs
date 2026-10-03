@@ -6,8 +6,8 @@
 //! could name its own would read anything the resolver can.
 
 use axum::Json;
-use axum::extract::{Path, State};
 use axum::extract::Extension;
+use axum::extract::{Path, State};
 use medbrains_core::dashboard::WidgetTemplate;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
@@ -61,9 +61,10 @@ pub fn template_allowed(t: &WidgetTemplate, claims: &Claims, role: &Value, user:
         }
     }
     let has_all = t.required_permissions.as_array().is_none_or(|perms| {
-        perms
-            .iter()
-            .all(|p| p.as_str().is_some_and(|code| claims.permissions.iter().any(|c| c == code)))
+        perms.iter().all(|p| {
+            p.as_str()
+                .is_some_and(|code| claims.permissions.iter().any(|c| c == code))
+        })
     });
     let in_department = match t.required_departments.as_array() {
         Some(depts) if !depts.is_empty() => depts.iter().any(|d| {

@@ -16177,18 +16177,6 @@ export const api = {
     }),
 
   // ── Contract coverage for backend-registered operational endpoints ──
-  addMyDashboardWidget: (data: Record<string, unknown>) =>
-    request<unknown>("/dashboards/my/widgets", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  removeMyDashboardWidget: (widgetId: string) =>
-    request<unknown>(`/dashboards/my/widgets/${widgetId}`, { method: "DELETE" }),
-  toggleMyDashboardWidgetVisibility: (widgetId: string, data: Record<string, unknown>) =>
-    request<unknown>(`/dashboards/my/widgets/${widgetId}/visibility`, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    }),
   listSetupBrandEntities: () => request<unknown>("/setup/brand-entities"),
   createSetupBrandEntity: (data: Record<string, unknown>) =>
     request<unknown>("/setup/brand-entities", {
