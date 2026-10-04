@@ -1,4 +1,4 @@
-import { Group, Stack } from "@mantine/core";
+import { Group, Loader, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { nullOn404 } from "@medbrains/api";
 import type {
@@ -29,7 +29,7 @@ interface EncounterTabProps {
 export function HistoryTab({ encounterId, canUpdate }: EncounterTabProps) {
   const queryClient = useQueryClient();
 
-  const { data: consultation } = useQuery({
+  const { data: consultation, isPending } = useQuery({
     queryKey: ["consultation", encounterId],
     queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
@@ -58,8 +58,14 @@ export function HistoryTab({ encounterId, canUpdate }: EncounterTabProps) {
 
   const c = consultation as Consultation | null;
 
+  // The history box keeps its own draft from the value it first gets: before
+  // the note has loaded that is "", which would show empty and, on leaving the
+  // box, save "" over the history.
+  if (isPending) return <Loader size="sm" />;
+
   return (
     <StructuredHistory
+      key={c?.id ?? "new"}
       hpi={c?.hpi ?? ""}
       pastMedical={(c?.past_medical_history as PastMedicalEntry[] | null) ?? []}
       pastSurgical={(c?.past_surgical_history as PastSurgicalEntry[] | null) ?? []}
@@ -85,11 +91,6 @@ export function ROSTab({ encounterId, canUpdate }: EncounterTabProps) {
 
   const c = consultation as Consultation | null;
   const serverRos = (c?.review_of_systems as ROSType | null) ?? {};
-
-  // Initialize local state from server (only when not dirty)
-  useState(() => {
-    if (!dirty) setLocalRos(serverRos);
-  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) =>

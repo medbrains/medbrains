@@ -2113,14 +2113,32 @@ pub async fn create_consultation(
     assert_encounter_registered(&mut tx, &claims.tenant_id, encounter_id).await?;
 
     // Resolve patient_id from the encounter so inline lab/radiology
-    // orders carry the right FK without a second client round-trip.
-    let patient_id: Uuid =
-        sqlx::query_scalar("SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2")
-            .bind(encounter_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::NotFound)?;
+    // orders carry the right FK without a second client round-trip. The row
+    // lock serialises two first saves of the same visit.
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // One consultation per visit. The read returns the newest row, so a
+    // second one would silently hide the history, ROS and exam on the first.
+    let existing: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM consultations \
+          WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL)",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if existing {
+        return Err(AppError::Conflict(
+            "This visit already has a consultation note — update it instead".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, Consultation>(
         "INSERT INTO consultations \
