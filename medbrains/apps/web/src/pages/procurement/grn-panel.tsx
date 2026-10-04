@@ -129,11 +129,13 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
     register,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<ProcurementGrnFormInput>({
     resolver: zodResolver(procurementGrnFormSchema),
     defaultValues: {
       po_id: "",
+      store_location_id: "",
       invoice_number: "",
       notes: "",
       items: [emptyGrnItem()],
@@ -148,10 +150,22 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
       procurementService.listPurchaseOrders({ status: "sent_to_vendor", per_page: "100" }),
   });
 
+  // Received stock lands in a store; with one store there is nothing to choose.
+  const { data: stores = [] } = useQuery({
+    queryKey: ["store-locations"],
+    queryFn: () => procurementService.listStoreLocations(),
+    staleTime: 10 * 60 * 1000,
+  });
+  const activeStores = stores.filter((store) => store.is_active);
+  const storeValue = useWatch({ control, name: "store_location_id" });
+  const receivingStore =
+    storeValue || (activeStores.length === 1 ? (activeStores[0]?.id ?? "") : "");
+
   const mutation = useMutation({
     mutationFn: (values: ProcurementGrnFormInput) =>
       procurementService.createGrn({
         po_id: values.po_id,
+        store_location_id: receivingStore || undefined,
         invoice_number: optionalText(values.invoice_number),
         notes: optionalText(values.notes),
         items: values.items.map(toGrnItemInput),
@@ -205,7 +219,16 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+    <Stack
+      component="form"
+      onSubmit={handleSubmit((values) => {
+        if (activeStores.length > 0 && !receivingStore) {
+          setError("store_location_id", { message: "Choose the store receiving this stock" });
+          return;
+        }
+        mutation.mutate(values);
+      })}
+    >
       <Controller
         control={control}
         name="po_id"
@@ -224,6 +247,25 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
             searchable
             required
             error={errors.po_id?.message}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="store_location_id"
+        render={({ field }) => (
+          <Select
+            label="Receive into store"
+            placeholder={
+              activeStores.length > 0 ? "Select the receiving store" : "No store configured"
+            }
+            data={activeStores.map((store) => ({ value: store.id, label: store.name }))}
+            value={receivingStore || null}
+            onChange={(value) => field.onChange(value ?? "")}
+            required={activeStores.length > 0}
+            disabled={activeStores.length === 0}
+            searchable
+            error={errors.store_location_id?.message}
           />
         )}
       />

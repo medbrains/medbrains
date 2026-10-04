@@ -4823,6 +4823,8 @@ const procurementGrnItemFormSchema = z
 
 export const procurementGrnFormSchema = z.object({
   po_id: requiredTrimmed("Purchase order is required"),
+  /** Required where the hospital keeps stores — checked by the form and the server. */
+  store_location_id: z.string(),
   invoice_number: z.string(),
   notes: z.string(),
   items: z.array(procurementGrnItemFormSchema).min(1, "At least one item is required"),

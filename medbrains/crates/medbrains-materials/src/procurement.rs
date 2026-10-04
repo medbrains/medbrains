@@ -1096,6 +1096,24 @@ pub async fn create_grn(
     .await?
     .ok_or_else(|| AppError::BadRequest("PO not found or not in receivable status".into()))?;
 
+    // Stock received where the hospital keeps stores must land in one: stock
+    // that belongs to no store can be neither issued from a store nor moved
+    // between them.
+    if body.store_location_id.is_none() {
+        let has_stores: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM store_locations \
+              WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL)",
+        )
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if has_stores {
+            let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+            errors.add("store_location_id", "Choose the store receiving this stock");
+            return Err(AppError::ValidationFailed(errors));
+        }
+    }
+
     let grn_number = generate_number(&mut tx, &claims.tenant_id, "GRN", "GRN").await?;
 
     let invoice_date = body
