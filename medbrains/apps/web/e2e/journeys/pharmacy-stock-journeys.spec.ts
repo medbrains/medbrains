@@ -58,6 +58,28 @@ async function firstCatalogItem(ctx: AuthContext): Promise<CatalogItem> {
  * contract with itself — which is worth pinning here, because nothing else
  * does.
  */
+/**
+ * Stock of this run's own, received into a store through the batch API — a
+ * journey that moves or picks stock must not depend on what the shared
+ * shelves happen to hold.
+ */
+async function receive(
+  ctx: AuthContext,
+  storeId: string,
+  itemId: string,
+  expiryDate: string,
+  quantity: number,
+): Promise<void> {
+  await api(ctx, "POST", "/api/pharmacy/batches", {
+    catalog_item_id: itemId,
+    batch_number: `RUN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    expiry_date: expiryDate,
+    quantity_received: quantity,
+    store_location_id: storeId,
+    purchase_rate: 1,
+  });
+}
+
 async function raiseTransfer(
   ctx: AuthContext,
   from: string,
@@ -176,21 +198,12 @@ test.describe("pharmacy stock — the transfer lifecycle", () => {
     const all = await stores(ctx);
     if (all.length === 0) test.skip(true, "no store location");
     const item = await firstCatalogItem(ctx);
+    await receive(ctx, all[0]!.id, item.id, "2030-12-31", 5);
     const t = await raiseTransfer(ctx, all[0]!.id, (all[1] ?? all[0])!.id, [
       { catalog_item_id: item.id, quantity: 1 },
     ]);
     await api(ctx, "PUT", `/api/pharmacy/transfers/${t.id}/approve`, {});
-
-    try {
-      await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/dispatch`, {});
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      test.skip(
-        message.includes("insufficient stock"),
-        "no store-assigned stock in this tenant — the lifecycle needs a batch with store_location_id set",
-      );
-      throw error;
-    }
+    await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/dispatch`, {});
 
     await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/receive`, {});
     const list = await api<Transfer[]>(ctx, "GET", "/api/pharmacy/transfers");
@@ -217,17 +230,12 @@ test.describe("pharmacy stock — the transfer lifecycle", () => {
     const all = await stores(ctx);
     if (all.length === 0) test.skip(true, "no store location");
     const item = await firstCatalogItem(ctx);
+    await receive(ctx, all[0]!.id, item.id, "2030-12-31", 5);
     const t = await raiseTransfer(ctx, all[0]!.id, (all[1] ?? all[0])!.id, [
       { catalog_item_id: item.id, quantity: 1 },
     ]);
     await api(ctx, "PUT", `/api/pharmacy/transfers/${t.id}/approve`, {});
-    try {
-      await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/dispatch`, {});
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      test.skip(message.includes("insufficient stock"), "no store-assigned stock in this tenant");
-      throw error;
-    }
+    await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/dispatch`, {});
     await api(ctx, "POST", `/api/pharmacy/transfers/${t.id}/receive`, {});
 
     await expect(
@@ -294,9 +302,13 @@ test.describe("pharmacy stock — expiry and batches", () => {
     const ctx = await getAuthContextFromCookies(request);
     // Ask about an item that actually has stocked batches — asking about one
     // with none proves nothing about ordering.
-    const all = await api<Batch[]>(ctx, "GET", "/api/pharmacy/batches");
-    const stocked = all.find((b) => (b.quantity_on_hand ?? 0) > 0);
-    const itemId = stocked?.catalog_item_id ?? (await firstCatalogItem(ctx)).id;
+    // Two batches of one item, the later-expiring received first: FEFO must
+    // still hand out the earlier one first.
+    const [store] = await stores(ctx);
+    if (!store) throw new Error("the seed has a store");
+    const itemId = (await firstCatalogItem(ctx)).id;
+    await receive(ctx, store.id, itemId, "2031-06-30", 3);
+    await receive(ctx, store.id, itemId, "2030-01-31", 3);
 
     const res = await api<{ batches: Batch[] }>(
       ctx,
@@ -306,7 +318,7 @@ test.describe("pharmacy stock — expiry and batches", () => {
     );
     const rows = res.batches;
     expect(Array.isArray(rows), "fefo-select must answer a batches array").toBe(true);
-    if (rows.length < 2) test.skip(true, "not enough live batches to prove ordering");
+    expect(rows.length, "both of this run's batches are live").toBeGreaterThanOrEqual(2);
     for (let i = 1; i < rows.length; i += 1) {
       expect(
         rows[i - 1]!.expiry_date <= rows[i]!.expiry_date,

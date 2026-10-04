@@ -918,10 +918,19 @@ export async function createGoodsReceiptNote(
     purchaseOrderItem: PurchaseOrderItemLite;
     invoiceAmount?: string;
     invoiceDate?: string;
+    /** The receiving store; the first active one when not given. */
+    storeLocationId?: string;
   },
 ): Promise<GrnDetailLite> {
+  // Received stock lands in a store — the server refuses a GRN that names none.
+  const storeLocationId =
+    opts.storeLocationId ??
+    (
+      await api<{ id: string; is_active: boolean }[]>(ctx, "GET", "/api/procurement/store-locations")
+    ).find((store) => store.is_active)?.id;
   return api(ctx, "POST", "/api/procurement/grns", {
     po_id: opts.purchaseOrderId,
+    store_location_id: storeLocationId,
     invoice_number: `INV-E2E-${String(Date.now()).slice(-8)}`,
     invoice_date: opts.invoiceDate ?? dateDaysFromNow(2),
     invoice_amount: opts.invoiceAmount ?? "1250.00",

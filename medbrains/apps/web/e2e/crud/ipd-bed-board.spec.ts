@@ -55,12 +55,15 @@ test.describe("IPD bed board", () => {
  */
 test.describe("bed hold", () => {
   test("a bed can be held for an incoming patient, and says so", async ({ page, request }) => {
-    // A clean bed of this run's own: the shared pool may be full.
-    await freshWardBeds(await getAuthContextFromCookies(request), 1);
+    // A clean bed of this run's own: the shared pool may be full, and another
+    // test may be changing whichever bed happens to be first on the board.
+    const [bed] = await freshWardBeds(await getAuthContextFromCookies(request), 1);
     await navigateTo(page, "/ipd");
     await page.getByRole("tab", { name: "Bed Dashboard" }).click();
 
-    const holdButton = page.getByRole("button", { name: "Hold bed" }).first();
+    const holdButton = page
+      .locator(".mantine-Card-root", { hasText: `Bed ${bed?.bed_number}` })
+      .getByRole("button", { name: "Hold bed" });
     await expect(holdButton).toBeVisible({ timeout: 15000 });
     await holdButton.click();
 
