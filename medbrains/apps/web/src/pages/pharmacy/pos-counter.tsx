@@ -435,6 +435,7 @@ export function PosCounterTab({
           <PharmacyPatientCell
             patientId={row.patient_id}
             canViewPatientRecord={canViewPatientRecord}
+            name={row.patient_name}
           />
         ) : (
           <Stack gap={0}>

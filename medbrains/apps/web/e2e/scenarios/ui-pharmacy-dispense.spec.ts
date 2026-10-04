@@ -100,6 +100,14 @@ test.describe("Pharmacy Dispensing — UI", () => {
     });
 
     await loginAsRole(page, pharmacistIdentity.username, pharmacistIdentity.password);
+    // The list itself names the patient: a pharmacist off the care team is
+    // refused the patient's record, so a row that fetched it read "Unresolved".
+    const recordFetches: string[] = [];
+    page.on("request", (req) => {
+      if (new URL(req.url()).pathname === `/api/patients/${patient.id}`) {
+        recordFetches.push(req.url());
+      }
+    });
     // The queue shows the 50 oldest; a pharmacist reaches one patient's
     // prescriptions from that patient (search is the queued "search by" work).
     await navigateTo(page, `/pharmacy?patient_id=${patient.id}`);
@@ -107,6 +115,8 @@ test.describe("Pharmacy Dispensing — UI", () => {
     await page.getByRole("tab", { name: "Orders" }).click();
     const row = page.getByRole("row", { name: new RegExp(patient.first_name, "i") });
     await expect(row).toBeVisible({ timeout: 12_000 });
+    await expect(row).toContainText(patient.uhid);
+    expect(recordFetches, "the Orders row fetched the patient record").toEqual([]);
 
     await row.getByRole("button", { name: "Dispense pharmacy order" }).click();
     // The order's bill is unpaid: the pharmacist says why, rather than being
