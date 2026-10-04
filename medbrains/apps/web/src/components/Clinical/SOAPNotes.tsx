@@ -35,6 +35,7 @@ import {
   IconEye,
   IconHistory,
   IconMessage,
+  IconPencil,
   IconPlus,
   IconStethoscope,
 } from "@tabler/icons-react";
@@ -520,10 +521,10 @@ export function SOAPNotes({
             <Button
               size="xs"
               variant={hasVisibleNote ? "light" : "filled"}
-              leftSection={<IconPlus size={14} />}
+              leftSection={hasSavedRecord ? <IconPencil size={14} /> : <IconPlus size={14} />}
               onClick={openEditor}
             >
-              Add note
+              {hasSavedRecord ? "Edit note" : "Add note"}
             </Button>
           )}
         </Group>
@@ -644,7 +645,7 @@ export function SOAPNotes({
       <Modal
         opened={editorOpened && canEditSoap}
         onClose={handleCloseEditor}
-        title="Add SOAP note"
+        title={hasSavedRecord ? "Edit SOAP note" : "Add SOAP note"}
         fullScreen
         classNames={{ body: styles.drawerBody }}
       >
