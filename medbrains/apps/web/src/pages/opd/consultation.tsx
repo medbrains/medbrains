@@ -5,7 +5,6 @@ import { Select, Stack, Text } from "@mantine/core";
 import type {
   Consultation,
   ConsultationTemplate,
-  CreateConsultationRequest,
   PatientConsultationHistoryRow,
   UpdateConsultationRequest,
 } from "@medbrains/types";
@@ -66,9 +65,14 @@ export function ConsultationTab({
     };
   }, [selectedTemplate, consultation]);
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) =>
-      opdService.createConsultation(encounterId, data),
+  // One consultation per encounter: the first save creates it, every later
+  // save updates it — a second row would hide the History, ROS and exam the
+  // other tabs wrote to the first.
+  const saveMutation = useMutation({
+    mutationFn: (data: UpdateConsultationRequest) =>
+      consultation
+        ? opdService.updateConsultation(encounterId, consultation.id, data)
+        : opdService.createConsultation(encounterId, toCreateConsultationPayload(data)),
     onSuccess: (consultation) => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["patient-consultations", patientId] });
@@ -81,8 +85,8 @@ export function ConsultationTab({
     },
   });
 
-  const handleSubmit = (data: CreateConsultationRequest | UpdateConsultationRequest) => {
-    createMutation.mutate(toCreateConsultationPayload(data));
+  const handleSubmit = (data: UpdateConsultationRequest) => {
+    saveMutation.mutate(data);
   };
 
   if (!canUpdate && !consultation) {
@@ -112,11 +116,11 @@ export function ConsultationTab({
         key={consultation?.updated_at ?? templateId ?? "default"}
         onSubmit={handleSubmit}
         defaultValues={consultation ?? templateDefaults}
-        editorDefaultValues={templateDefaults}
+        editorDefaultValues={consultation ?? templateDefaults}
         historyNotes={consultationHistory}
         isHistoryLoading={loadingConsultationHistory}
         submitLabel="Save Note"
-        isSubmitting={createMutation.isPending}
+        isSubmitting={saveMutation.isPending}
         readOnly={!canUpdate}
       />
     </Stack>

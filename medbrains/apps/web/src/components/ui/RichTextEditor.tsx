@@ -32,6 +32,16 @@ export function RichTextEditor({
     extensions: [StarterKit, Link],
     content: value,
     editable: !readOnly,
+    // The name goes on the editable element itself — the textbox a screen
+    // reader lands on — not on the wrapper around it.
+    editorProps: {
+      attributes: {
+        role: "textbox",
+        "aria-multiline": "true",
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        ...(readOnly ? { "aria-readonly": "true" } : {}),
+      },
+    },
     onUpdate: ({ editor: instance }) => onChange?.(instance.getHTML()),
   });
 
@@ -65,7 +75,7 @@ export function RichTextEditor({
           </MantineRichTextEditor.ControlsGroup>
         </MantineRichTextEditor.Toolbar>
       )}
-      <MantineRichTextEditor.Content aria-label={ariaLabel} style={{ minHeight }} />
+      <MantineRichTextEditor.Content style={{ minHeight }} />
     </MantineRichTextEditor>
   );
 }
