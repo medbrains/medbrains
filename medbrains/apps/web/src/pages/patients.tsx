@@ -420,7 +420,7 @@ function PatientsPageInner() {
         emptyDescription={
           debouncedSearch
             ? t("directory.empty.searchDescription")
-            : t("directory.empty.registerDescription")
+            : t("directory.empty.scopeDescription")
         }
         emptyAction={
           !debouncedSearch && canCreate
