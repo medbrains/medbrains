@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { navigateTo } from "../helpers";
+import { getAuthContextFromCookies } from "../helpers/api";
+import { freshWardBeds } from "../helpers/journey-steps";
 
 /**
  * The bed board could not see the hospital's beds.
@@ -52,7 +54,9 @@ test.describe("IPD bed board", () => {
  * that would have protected that hold never fired.
  */
 test.describe("bed hold", () => {
-  test("a bed can be held for an incoming patient, and says so", async ({ page }) => {
+  test("a bed can be held for an incoming patient, and says so", async ({ page, request }) => {
+    // A clean bed of this run's own: the shared pool may be full.
+    await freshWardBeds(await getAuthContextFromCookies(request), 1);
     await navigateTo(page, "/ipd");
     await page.getByRole("tab", { name: "Bed Dashboard" }).click();
 

@@ -1,7 +1,7 @@
 // Shared pharmacy helpers — pure field-access masking + currency formatting used across many
 // tabs, extracted from pharmacy.tsx so tab components can be split into their own files.
 
-import { Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import type {
   PharmacyOrderFormInput,
   PharmacyOrderItemFormInput,
@@ -143,15 +143,36 @@ export function PharmacyRestrictedValue() {
 export function PharmacyPatientCell({
   patientId,
   canViewPatientRecord,
+  name,
+  uhid,
 }: {
   patientId: string | null | undefined;
   canViewPatientRecord: boolean;
+  /** The row's own name and UHID, when its list sends them. */
+  name?: string | null;
+  uhid?: string | null;
 }) {
   if (!patientId) {
     return (
       <Text span size="sm" c="dimmed">
         Walk-in
       </Text>
+    );
+  }
+  // A list that sends the patient's identity has already answered for the
+  // caller's right to it: show the two identifiers a dispense is checked
+  // against, without fetching each patient's record — which a pharmacist
+  // off the care team is refused, and which is one request per row.
+  if (name) {
+    return (
+      <Stack gap={0}>
+        <Text size="sm">{name.trim()}</Text>
+        {uhid && (
+          <Text size="xs" c="dimmed" ff="var(--font-mono, monospace)">
+            {uhid}
+          </Text>
+        )}
+      </Stack>
     );
   }
   if (!canViewPatientRecord) {
@@ -306,6 +327,18 @@ export function applyRxReviewItems(
   });
 }
 
+/** Lines the formulary could not match and the reviewer has not mapped yet. */
+export function rxUnmappedLines(
+  items: PharmacyRxDetailItem[],
+  reviewItems: PharmacyRxReviewItemInput[],
+): PharmacyRxDetailItem[] {
+  return items.filter(
+    (item) =>
+      item.price_source === "unmatched" &&
+      !reviewItems.some((line) => line.prescription_item_id === item.id && line.catalog_item_id),
+  );
+}
+
 export function rxHasPriceOverride(
   items: PharmacyRxDetailItem[],
   reviewItems: PharmacyRxReviewItemInput[],
@@ -314,6 +347,9 @@ export function rxHasPriceOverride(
   return reviewItems.some((line) => {
     const base = items.find((item) => item.id === line.prescription_item_id);
     if (!base) return false;
+    // A line mapped to a formulary product here is at that product's price;
+    // the server holds any later edit to the product's own price.
+    if (base.price_source === "unmatched" && line.catalog_item_id) return false;
     return Math.abs(Number(line.unit_price) - Number(base.unit_price)) >= 0.01;
   });
 }

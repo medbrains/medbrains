@@ -177,6 +177,9 @@ pub struct RxQueueRow {
     pub prescription_id: Uuid,
     pub patient_id: Uuid,
     pub patient_name: String,
+    /// The second identifier: a pharmacist confirms name and UHID before
+    /// dispensing.
+    pub patient_uhid: String,
     pub doctor_name: String,
     pub source: String,
     pub status: PharmacyRxStatus,

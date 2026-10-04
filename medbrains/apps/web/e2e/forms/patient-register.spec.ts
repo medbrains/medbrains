@@ -17,9 +17,12 @@ test.describe("PatientRegisterForm field validation", () => {
   test("required fields reject blank submission", async ({ page }) => {
     await page.getByRole("button", { name: /Save now/i }).click();
 
+    // The shared registration rules (#4668): a first name, a sex, and a phone
+    // or "Has no phone". A last name is not required — one name is a whole name.
     await expect(page.getByText("First name is required")).toBeVisible();
-    await expect(page.getByText("Last name is required")).toBeVisible();
-    await expect(page.getByText("Phone is required")).toBeVisible();
+    await expect(page.getByText("Choose the patient's sex")).toBeVisible();
+    await expect(page.getByText("Enter a phone number, or tick Has no phone")).toBeVisible();
+    await expect(page.getByText("Last name is required")).toHaveCount(0);
   });
 
   test("registration context exposes all canonical patient types and sources", async ({ page }) => {
