@@ -10,6 +10,7 @@ export {
   ReviewOfSystems,
   SOAPNotes,
   StructuredHistory,
+  soapValuesFrom,
   VisitSummaryPrint,
   VitalsRecorder,
 } from "./Clinical";
