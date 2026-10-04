@@ -2,7 +2,11 @@
 
 import { Card, Group, Loader, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
-import type { PharmacyRxDetailItem, PharmacyRxReviewItemInput } from "@medbrains/types";
+import type {
+  PharmacyCatalog,
+  PharmacyRxDetailItem,
+  PharmacyRxReviewItemInput,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconDeviceFloppy,
@@ -15,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components";
 import { IconButton, Table } from "@/components/ui";
 import styles from "../pharmacy.module.scss";
+import { FormularyPicker } from "./formulary-picker";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
@@ -23,7 +28,7 @@ import {
 } from "./shared";
 
 export function RxBillingEstimate({
-  items,
+  items: incoming,
   loading = false,
   editable = false,
   reviewItems,
@@ -37,6 +42,9 @@ export function RxBillingEstimate({
 }) {
   const { t } = useTranslation("pharmacy");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  // Lines the pharmacist mapped to a formulary product during this review.
+  const [mapped, setMapped] = useState<Record<string, PharmacyCatalog>>({});
+  const items = incoming.map((item) => withMapping(item, mapped[item.id]));
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const subtotal = items.reduce((sum, item) => sum + Number(item.taxable_amount || 0), 0);
   const tax = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
@@ -44,10 +52,13 @@ export function RxBillingEstimate({
   const unmatchedCount = items.filter((item) => item.price_source === "unmatched").length;
   const canViewAmounts = canViewPharmacyField(priceAccess);
   const canEdit = editable && Boolean(onReviewItemsChange) && canEditPharmacyField(priceAccess);
+  // Mapping a line is choosing the product, not overriding its price: any
+  // reviewer may do it, at the product's own price.
+  const canMap = editable && Boolean(onReviewItemsChange);
 
   function updateReviewLine(item: PharmacyRxDetailItem, patch: Partial<PharmacyRxReviewItemInput>) {
     if (!onReviewItemsChange) return;
-    const current = reviewItems?.length ? reviewItems : items.map(rxReviewInputFromItem);
+    const current = reviewItems?.length ? reviewItems : incoming.map(rxReviewInputFromItem);
     const next = current.map((line) =>
       line.prescription_item_id === item.id
         ? {
@@ -132,10 +143,32 @@ export function RxBillingEstimate({
                       <Text size="sm" fw={600}>
                         {item.drug_name}
                       </Text>
+                      {mapped[item.id] && (
+                        <Text size="xs" c="dimmed">
+                          {t("rxBillingEstimate.mappedTo", { name: mapped[item.id]?.name })}
+                        </Text>
+                      )}
                       {item.price_source === "unmatched" && (
                         <Text size="xs" c="warning">
                           {t("rxBillingEstimate.unmatchedCatalog")}
                         </Text>
+                      )}
+                      {item.price_source === "unmatched" && canMap && (
+                        <Stack gap={2} mt={4}>
+                          <FormularyPicker
+                            drugName={item.drug_name}
+                            onPick={(product) => {
+                              setMapped((m) => ({ ...m, [item.id]: product }));
+                              updateReviewLine(item, {
+                                catalog_item_id: product.id,
+                                unit_price: Number(product.base_price),
+                              });
+                            }}
+                          />
+                          <Text size="xs" c="dimmed">
+                            {t("rxBillingEstimate.multiDrugHint")}
+                          </Text>
+                        </Stack>
                       )}
                     </Stack>
                   </Table.Td>
@@ -241,3 +274,19 @@ export function RxBillingEstimate({
 // ══════════════════════════════════════════════════════════
 //  POS Counter Tab (Phase 3)
 // ══════════════════════════════════════════════════════════
+
+/** The line as it reads once mapped: the product's price source and GST. */
+function withMapping(item: PharmacyRxDetailItem, product?: PharmacyCatalog): PharmacyRxDetailItem {
+  if (!product) return item;
+  const taxPercent = Number(product.tax_percent || 0);
+  const taxable = Number(item.taxable_amount || 0);
+  const tax = taxable * (taxPercent / 100);
+  return {
+    ...item,
+    catalog_item_id: product.id,
+    price_source: "catalog",
+    tax_percent: taxPercent,
+    tax_amount: tax,
+    line_total: taxable + tax,
+  };
+}

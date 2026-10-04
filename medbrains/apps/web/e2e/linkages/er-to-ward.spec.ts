@@ -24,7 +24,7 @@ import {
   getBedDashboardBeds,
   getEmergencyVisit,
   listAdmissionTasks,
-  listAvailableBeds,
+  freshWardBeds,
   rosterNurse,
   setBedStatus,
 } from "../helpers/journey-steps";
@@ -66,8 +66,8 @@ test.describe("An ER visit becomes a ward admission", () => {
     expect(intimation.intimation_number).toMatch(/^PI-/);
     await createPoliceIntimation(doctor, RANDOM_ID, "Nowhere", { expectStatus: 404 });
 
-    const bed = (await listAvailableBeds(admin)).find((b) => b.ward_id);
-    expect(bed, "a free bed on a ward").toBeDefined();
+    const [bed] = await freshWardBeds(admin, 1);
+    expect(bed, "a bed of this run's own on a ward").toBeDefined();
     const wardId = bed?.ward_id as string;
     const roster = await rosterNurse(admin, { nurseUserId: nurse.userId, wardId, isCharge: true });
     try {

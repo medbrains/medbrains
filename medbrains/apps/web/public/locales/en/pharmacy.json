@@ -189,5 +189,18 @@
   "notify.rxQueueStatusUpdated": "Queue status updated",
   "aria.viewDetails": "View details",
   "aria.confirm": "Confirm",
-  "aria.close": "Close"
+  "aria.close": "Close",
+  "rxBillingEstimate.mappedTo": "Mapped to {{name}}",
+  "rxBillingEstimate.multiDrugHint": "If this line names more than one medicine, hold the prescription and ask the prescriber to write each on its own line.",
+  "rxBillingEstimate.mapLabel": "Map \"{{drug}}\" to formulary",
+  "rxBillingEstimate.mapPlaceholder": "Type the product or generic name",
+  "rxBillingEstimate.mapTypeMore": "Type at least two letters",
+  "rxBillingEstimate.mapSearchFailed": "The formulary could not be searched — try again",
+  "rxBillingEstimate.mapSearching": "Searching…",
+  "rxBillingEstimate.mapNoMatch": "No formulary product by that name",
+  "rxReviewModal.unmappedOne": "Map \"{{drug}}\" to a formulary product to approve.",
+  "rxReviewModal.unmappedMany": "Map {{count}} lines to formulary products to approve.",
+  "rxQueue.searchLabel": "Search prescriptions",
+  "rxQueue.searchPlaceholder": "Patient name, UHID or doctor",
+  "rxQueue.partialList": "Showing the first {{count}} — most urgent and oldest first. Search to find others."
 }

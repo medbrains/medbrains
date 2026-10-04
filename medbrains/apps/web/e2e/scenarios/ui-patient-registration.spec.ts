@@ -74,8 +74,10 @@ test.describe("Patient Registration — UI", () => {
       /\/patients\/[0-9a-f-]{36}/,
       { timeout: 10_000 },
     );
+    // The record is theirs: the page heading names them (their name also
+    // appears in the banner and the breadcrumb).
     await expect(
-      page.getByText(new RegExp(patient.first_name, "i")),
+      page.getByRole("heading", { name: new RegExp(patient.first_name, "i") }).first(),
     ).toBeVisible();
   });
 });

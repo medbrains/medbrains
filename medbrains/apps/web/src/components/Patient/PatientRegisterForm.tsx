@@ -464,12 +464,13 @@ export function PatientRegisterForm({
     }
     return [...options].sort();
   }, [camps]);
+  // Names, not ids: the referrer is free text. Two doctors can share a name,
+  // and a duplicate option crashes the picker — so each name once.
   const referredByNameOptions = useMemo(
     () =>
-      doctors
-        .filter((doctor) => doctor.is_active)
-        .map((doctor) => doctor.full_name)
-        .sort(),
+      [
+        ...new Set(doctors.filter((doctor) => doctor.is_active).map((doctor) => doctor.full_name)),
+      ].sort(),
     [doctors],
   );
   const referredByFacilityOptions = useMemo(() => {
