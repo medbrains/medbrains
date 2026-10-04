@@ -64,6 +64,9 @@ export interface PharmacyReturn {
   restocked: boolean;
   created_at: string;
   updated_at: string;
+  /** Sent by the list endpoints only, so identity shows without a per-row fetch. */
+  patient_name?: string;
+  patient_uhid?: string;
 }
 
 export interface PharmacyStoreAssignment {

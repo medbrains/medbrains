@@ -1792,9 +1792,15 @@ pub async fn list_orders(
         Some("total_price") => format!("total_price {sort_dir}"),
         _ => format!("created_at {sort_dir}"),
     };
+    // The page is chosen first, then named: the filters stay on the order's
+    // own columns, and only the page's patients are looked up.
     let data_sql = format!(
-        "SELECT * FROM pharmacy_orders WHERE {where_clause} \
-         ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}",
+        "SELECT o.*, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+                p.uhid AS patient_uhid \
+           FROM (SELECT * FROM pharmacy_orders WHERE {where_clause} \
+                  ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}) o \
+           LEFT JOIN patients p ON p.id = o.patient_id AND p.tenant_id = o.tenant_id \
+          ORDER BY o.{order_by}",
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, PharmacyOrder>(&data_sql).bind(claims.tenant_id);
@@ -1942,32 +1948,24 @@ pub async fn create_order_in_tx(
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
 
-    let order = sqlx::query_as!(
-        PharmacyOrder,
-        r#"
-        INSERT INTO pharmacy_orders
-          (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,
-           status, notes, dispensing_type, discharge_summary_id, billing_package_id,
-           store_location_id)
-        VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)
-        RETURNING id, tenant_id, prescription_id, patient_id AS "patient_id!",
-                  encounter_id, ordered_by, status, notes,
-                  dispensing_type AS "dispensing_type: _",
-                  discharge_summary_id, billing_package_id, store_location_id,
-                  interaction_check_result, dispensed_by, dispensed_at,
-                  created_at, updated_at
-        "#,
-        claims.tenant_id,
-        body.prescription_id,
-        body.patient_id,
-        body.encounter_id,
-        claims.sub,
-        body.notes.as_deref(),
-        dispensing_type,
-        body.discharge_summary_id,
-        body.billing_package_id,
-        body.store_location_id
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "INSERT INTO pharmacy_orders
+           (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,
+            status, notes, dispensing_type, discharge_summary_id, billing_package_id,
+            store_location_id)
+         VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)
+         RETURNING *",
     )
+    .bind(claims.tenant_id)
+    .bind(body.prescription_id)
+    .bind(body.patient_id)
+    .bind(body.encounter_id)
+    .bind(claims.sub)
+    .bind(body.notes.as_deref())
+    .bind(dispensing_type)
+    .bind(body.discharge_summary_id)
+    .bind(body.billing_package_id)
+    .bind(body.store_location_id)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -5505,7 +5503,11 @@ pub async fn list_returns(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyReturn>(
-        "SELECT * FROM pharmacy_returns WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200",
+        "SELECT r.*, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+                p.uhid AS patient_uhid \
+           FROM pharmacy_returns r \
+           LEFT JOIN patients p ON p.id = r.patient_id AND p.tenant_id = r.tenant_id \
+          WHERE r.tenant_id = $1 ORDER BY r.created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
