@@ -97,6 +97,14 @@ pub struct PharmacyReturn {
     pub restocked: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The patient's name and UHID, sent by the lists so a pharmacist can
+    /// check identity without fetching each record; absent elsewhere.
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patient_name: Option<String>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patient_uhid: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
