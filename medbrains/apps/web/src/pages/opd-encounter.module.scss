@@ -47,3 +47,22 @@
   flex: 1;
   text-align: left;
 }
+
+// The rail's tab groups (layout only).
+.railNav {
+  flex: 1;
+  padding-top: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--mb-border-subtle);
+  overflow-y: auto;
+}
+
+.railList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: none;
+}
+
+.railLabel {
+  letter-spacing: 0.06em;
+}

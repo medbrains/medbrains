@@ -17,26 +17,13 @@ import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowRight,
-  IconCalendarPlus,
-  IconCertificate,
-  IconChartLine,
   IconChevronDown,
   IconClipboardList,
   IconDotsVertical,
   IconEye,
-  IconFileCheck,
   IconFlask,
   IconHeartbeat,
-  IconHistory,
-  IconMedicalCross,
-  IconMessage,
-  IconNotebook,
-  IconPill,
   IconPrinter,
-  IconShieldCheck,
-  IconStar,
-  IconStethoscope,
-  IconTimeline,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -71,6 +58,7 @@ import { AdmitToIpdButton } from "./admit-to-ipd-button";
 import { ConsultationTab } from "./consultation";
 import { DiagnosesTab } from "./diagnoses";
 import { HistoryTab, PhysicalExamTab, ROSTab } from "./documentation-tabs";
+import { EncounterNav } from "./encounter-nav";
 import { FollowUpTab } from "./follow-up";
 import { GroupAppointmentModal } from "./group-appointment-modal";
 import { InvestigationsTab } from "./investigations";
@@ -502,126 +490,15 @@ export function EncounterDetail({
             </Card>
           )}
 
-          {/* Clinical tabs — grouped for doctor workflow without hiding HMS modules */}
-          <div
-            style={{
-              borderTop: "1px solid var(--mb-border-subtle)",
-              paddingTop: 8,
-              flex: 1,
-              overflowY: "auto",
+          <EncounterNav
+            activeTab={activeEncounterTab}
+            isTabAllowed={(value) => {
+              const codes = (TAB_PERMISSIONS as Record<string, readonly string[] | undefined>)[
+                value
+              ];
+              return !codes || hasAnyPermission(codes);
             }}
-          >
-            {[
-              {
-                label: "Clinical workup",
-                tabs: [
-                  { value: "vitals", icon: <IconHeartbeat size={14} />, label: "Vitals" },
-                  {
-                    value: "consultation",
-                    icon: <IconNotebook size={14} />,
-                    label: "Consultation",
-                  },
-                  { value: "history", icon: <IconHistory size={14} />, label: "History" },
-                  { value: "ros", icon: <IconClipboardList size={14} />, label: "ROS" },
-                  {
-                    value: "physical-exam",
-                    icon: <IconStethoscope size={14} />,
-                    label: "Physical Exam",
-                  },
-                ],
-              },
-              {
-                label: "Assessment & orders",
-                tabs: [
-                  { value: "diagnoses", icon: <IconStar size={14} />, label: "Diagnoses" },
-                  {
-                    value: "investigations",
-                    icon: <IconFlask size={14} />,
-                    label: "Investigations",
-                  },
-                  {
-                    value: "procedures",
-                    icon: <IconMedicalCross size={14} />,
-                    label: "Procedures",
-                  },
-                  { value: "prescriptions", icon: <IconPill size={14} />, label: "Prescriptions" },
-                  { value: "referrals", icon: <IconArrowRight size={14} />, label: "Referrals" },
-                  {
-                    value: "specialty",
-                    icon: <IconStethoscope size={14} />,
-                    label: "Specialty",
-                  },
-                ],
-              },
-              {
-                label: "Patient context",
-                tabs: [
-                  {
-                    value: "rx-history",
-                    icon: <IconClipboardList size={14} />,
-                    label: "Rx History",
-                  },
-                  { value: "charts", icon: <IconChartLine size={14} />, label: "Charts" },
-                  { value: "timeline", icon: <IconTimeline size={14} />, label: "Timeline" },
-                ],
-              },
-              {
-                label: "Closure",
-                tabs: [
-                  {
-                    value: "certificates",
-                    icon: <IconCertificate size={14} />,
-                    label: "Certificates",
-                  },
-                  { value: "followup", icon: <IconCalendarPlus size={14} />, label: "Follow-up" },
-                  { value: "reminders", icon: <IconNotebook size={14} />, label: "Reminders" },
-                  { value: "consents", icon: <IconFileCheck size={14} />, label: "Consents" },
-                ],
-              },
-              {
-                label: "Support / admin",
-                tabs: [
-                  { value: "pre-auth", icon: <IconShieldCheck size={14} />, label: "Pre-Auth" },
-                  { value: "docket", icon: <IconStar size={14} />, label: "Docket" },
-                  {
-                    value: "pharmacy-dispatch",
-                    icon: <IconPill size={14} />,
-                    label: "Pharmacy Dispatch",
-                  },
-                  { value: "feedback", icon: <IconMessage size={14} />, label: "Feedback" },
-                ],
-              },
-            ].map((section) => (
-              <div key={section.label} style={{ marginBottom: 6 }}>
-                <Text
-                  fw={700}
-                  c="dimmed"
-                  tt="uppercase"
-                  mb={2}
-                  px={4}
-                  style={{ fontSize: 10, letterSpacing: "0.06em" }}
-                >
-                  {section.label}
-                </Text>
-                <Tabs.List
-                  style={{ border: "none", display: "flex", flexDirection: "column", gap: 2 }}
-                >
-                  {section.tabs
-                    .filter((tab) => {
-                      const codes = (
-                        TAB_PERMISSIONS as Record<string, readonly string[] | undefined>
-                      )[tab.value];
-                      return !codes || hasAnyPermission(codes);
-                    })
-                    .map((tab) => (
-                      <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
-                        {tab.label}
-                      </Tabs.Tab>
-                    ))}
-                </Tabs.List>
-              </div>
-            ))}
-          </div>
+          />
         </div>
 
         {/* ── Right: Content panels ── */}
