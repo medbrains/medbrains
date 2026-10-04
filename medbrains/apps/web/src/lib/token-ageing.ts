@@ -19,6 +19,7 @@ const WEIGHT: Record<string, number> = {
   disabled: 3,
   pregnant: 3,
   carried_over: 4,
+  returned: 4,
   vip: 5,
 };
 const NORMAL_WEIGHT = 6;

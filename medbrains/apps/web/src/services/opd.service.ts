@@ -94,6 +94,12 @@ export const opdService = {
   listPatientReferrals: (...args: Parameters<typeof api.listPatientReferrals>) =>
     api.listPatientReferrals(...args),
   createReferral: (...args: Parameters<typeof api.createReferral>) => api.createReferral(...args),
+  acceptReferral: (...args: Parameters<typeof api.acceptReferral>) => api.acceptReferral(...args),
+  declineReferral: (...args: Parameters<typeof api.declineReferral>) =>
+    api.declineReferral(...args),
+  completeReferral: (...args: Parameters<typeof api.completeReferral>) =>
+    api.completeReferral(...args),
+  cancelReferral: (...args: Parameters<typeof api.cancelReferral>) => api.cancelReferral(...args),
   listReminders: (...args: Parameters<typeof api.listReminders>) => api.listReminders(...args),
   createReminder: (...args: Parameters<typeof api.createReminder>) => api.createReminder(...args),
   completeReminder: (...args: Parameters<typeof api.completeReminder>) =>

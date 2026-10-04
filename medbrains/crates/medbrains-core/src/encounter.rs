@@ -70,4 +70,22 @@ pub struct OpdQueue {
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Whose turn this row is: the doctor the visit was registered to
+    /// (`primary`), a colleague who accepted a referral (`cross_consult`), or
+    /// the referring doctor again after the opinion (`returned`).
+    #[sqlx(default)]
+    pub kind: String,
+    /// The referral that put the patient in this queue, if one did.
+    #[sqlx(default)]
+    pub referral_id: Option<Uuid>,
+}
+
+impl OpdQueue {
+    /// Whether this row is the visit's own: only it closes the visit and its
+    /// bill. A row read without the column (`""`) is a primary one, as every
+    /// row was before visits held more than one.
+    #[must_use]
+    pub fn is_primary(&self) -> bool {
+        !matches!(self.kind.as_str(), "cross_consult" | "returned")
+    }
 }

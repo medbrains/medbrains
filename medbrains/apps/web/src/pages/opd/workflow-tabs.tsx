@@ -6,6 +6,7 @@ import {
   Card,
   Group,
   Modal,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -93,6 +94,7 @@ import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+import { ReferralActions } from "./referral-actions";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
 
@@ -1080,7 +1082,11 @@ export function ReferralsTab({
   const [reason, setReason] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
 
-  const { data: referrals = [], isLoading } = useQuery({
+  const {
+    data: referrals = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["patient-referrals", patientId],
     queryFn: () => opdService.listPatientReferrals(patientId),
   });
@@ -1134,6 +1140,15 @@ export function ReferralsTab({
       <Text size="sm" c="dimmed">
         Loading referrals...
       </Text>
+    );
+  }
+  // An unanswered list is not an empty one: "No referrals" here would tell a
+  // doctor the patient was never referred.
+  if (isError) {
+    return (
+      <Alert tone="danger" title="Referrals could not be loaded">
+        <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
+      </Alert>
     );
   }
 
@@ -1197,6 +1212,7 @@ export function ReferralsTab({
               <Text size="xs">{ref.response_notes}</Text>
             </Alert>
           )}
+          <ReferralActions referral={ref} />
         </Card>
       ))}
 
@@ -2277,13 +2293,21 @@ export function PreAuthTab({
 
 // ── Referral Tracking Sub-View ─────────────────────────
 
+type ReferralScope = "for_me" | "sent" | "all";
+
 export function ReferralTrackingTab() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  // A doctor opens this to see what is waiting for them, so that is the view.
+  const [scope, setScope] = useState<ReferralScope>("for_me");
 
   const { data: referrals = [], isLoading } = useQuery({
-    queryKey: ["opd-referral-tracking", filterStatus],
+    queryKey: ["opd-referral-tracking", filterStatus, scope],
     queryFn: () =>
-      opdService.opdReferralTracking(filterStatus ? { status: filterStatus } : undefined),
+      opdService.opdReferralTracking({
+        status: filterStatus ?? undefined,
+        addressed_to_me: scope === "for_me",
+        sent_by_me: scope === "sent",
+      }),
   });
 
   const refStatusColors: Record<string, BadgeTone> = {
@@ -2340,6 +2364,24 @@ export function ReferralTrackingTab() {
       render: (row: ReferralWithNames) => <Badge>{row.urgency}</Badge>,
     },
     {
+      key: "doctors",
+      label: "Doctors",
+      render: (row: ReferralWithNames) => (
+        <Text size="sm">
+          {row.from_doctor_name ?? "—"} → {row.to_doctor_name ?? "Any doctor"}
+        </Text>
+      ),
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: ReferralWithNames) => (
+        <Text size="sm" lineClamp={2}>
+          {row.reason}
+        </Text>
+      ),
+    },
+    {
       key: "responded_at",
       label: "Responded",
       render: (row: ReferralWithNames) => (
@@ -2348,11 +2390,26 @@ export function ReferralTrackingTab() {
         </Text>
       ),
     },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: ReferralWithNames) => <ReferralActions referral={row} />,
+    },
   ] satisfies Column<ReferralWithNames>[];
 
   return (
     <Stack>
       <Group mb="md">
+        <SegmentedControl
+          aria-label="Which referrals"
+          value={scope}
+          onChange={(value) => setScope(value as ReferralScope)}
+          data={[
+            { value: "for_me", label: "For me" },
+            { value: "sent", label: "Sent by me" },
+            { value: "all", label: "All" },
+          ]}
+        />
         <Select
           placeholder="Filter by status"
           data={[
