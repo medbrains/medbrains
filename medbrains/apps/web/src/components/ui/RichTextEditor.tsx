@@ -14,6 +14,8 @@ export interface RichTextEditorProps {
   minHeight?: number;
   /** Render read-only (no toolbar interactions). */
   readOnly?: boolean;
+  /** "compact" keeps bold, italic and lists — for several editors on one screen. */
+  toolbar?: "full" | "compact";
 }
 
 /**
@@ -27,6 +29,7 @@ export function RichTextEditor({
   ariaLabel,
   minHeight = 180,
   readOnly = false,
+  toolbar = "full",
 }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, Link],
@@ -54,7 +57,17 @@ export function RichTextEditor({
 
   return (
     <MantineRichTextEditor editor={editor}>
-      {!readOnly && (
+      {!readOnly && toolbar === "compact" && (
+        <MantineRichTextEditor.Toolbar>
+          <MantineRichTextEditor.ControlsGroup>
+            <MantineRichTextEditor.Bold />
+            <MantineRichTextEditor.Italic />
+            <MantineRichTextEditor.BulletList />
+            <MantineRichTextEditor.OrderedList />
+          </MantineRichTextEditor.ControlsGroup>
+        </MantineRichTextEditor.Toolbar>
+      )}
+      {!readOnly && toolbar === "full" && (
         <MantineRichTextEditor.Toolbar sticky stickyOffset={0}>
           <MantineRichTextEditor.ControlsGroup>
             <MantineRichTextEditor.Bold />

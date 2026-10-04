@@ -30,27 +30,58 @@ test("editing the SOAP note keeps the history taken in the same visit", async ({
   const page = await hospital.as("doctor");
   await page.goto(`/opd/encounters/${encounterId}`);
   await page.getByRole("tab", { name: "Consultation" }).click();
-  await page.getByRole("button", { name: "Edit note" }).click();
+  // The note opens ready to type and saves itself.
   const plan = page.getByRole("textbox", {
     name: "Treatment plan, medications, investigations, follow-up...",
   });
   await plan.click();
   await page.keyboard.type("Chest X-ray, review in one week");
-  await page.getByRole("button", { name: "Save Note" }).click();
-  await expect(page.getByText("Chest X-ray, review in one week").first()).toBeVisible({
-    timeout: 10_000,
-  });
+  await expect(page.getByText(/^Saved \d/)).toBeVisible({ timeout: 10_000 });
 
   await page.reload();
   await page.getByRole("tab", { name: "History", exact: true }).click();
   await expect(
     page.getByPlaceholder("Describe the history of the present illness in detail..."),
   ).toHaveValue(HPI, { timeout: 10_000 });
-  const read = await api<{ id: string; chief_complaint: string }>(
+  const read = await api<{ id: string; chief_complaint: string; plan: string }>(
     doctorCtx,
     "GET",
     `/api/opd/encounters/${encounterId}/consultation`,
   );
   expect(read.id, "the visit still reads its one note").toBe(first.id);
   expect(read.chief_complaint, "the edit kept what the note already said").toContain("Cough");
+  expect(read.plan).toContain("Chest X-ray, review in one week");
+});
+
+test("a note typed and left at once is still saved", async ({ hospital, request }) => {
+  const doctorCtx = await loginAsRoleApi(request, "doctor");
+  const patient = await createPatientApi(hospital.admin);
+  const encounterId = await createEncounter(doctorCtx, patient.id, {
+    departmentId: (await getOpdDept(doctorCtx)).id,
+  });
+
+  const page = await hospital.as("doctor");
+  await page.goto(`/opd/encounters/${encounterId}`);
+  await page.getByRole("tab", { name: "Consultation" }).click();
+  await page
+    .getByRole("textbox", { name: "Patient's chief complaint, symptoms, duration, history..." })
+    .click();
+  await page.keyboard.type("Fever for two days");
+  // Straight to another tab, before the pause that would save it.
+  await page.getByRole("tab", { name: "Diagnoses" }).click();
+  await page.getByRole("tab", { name: "Consultation" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Patient's chief complaint, symptoms, duration, history..." }),
+  ).toContainText("Fever for two days", { timeout: 10_000 });
+
+  await page.reload();
+  await expect(
+    page.getByRole("textbox", { name: "Patient's chief complaint, symptoms, duration, history..." }),
+  ).toContainText("Fever for two days", { timeout: 10_000 });
+  const note = await api<{ id: string; chief_complaint: string }>(
+    doctorCtx,
+    "GET",
+    `/api/opd/encounters/${encounterId}/consultation`,
+  );
+  expect(note.chief_complaint).toContain("Fever for two days");
 });

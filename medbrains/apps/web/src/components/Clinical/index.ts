@@ -5,7 +5,7 @@ export { PrescriptionPrint } from "./PrescriptionPrint";
 export { PrescriptionViews } from "./PrescriptionViews";
 export { PrescriptionWriter } from "./PrescriptionWriter";
 export { ReviewOfSystems } from "./ReviewOfSystems";
-export { SOAPNotes } from "./SOAPNotes";
+export { SOAPNotes, soapValuesFrom } from "./SOAPNotes";
 export { StructuredHistory } from "./StructuredHistory";
 export { VisitSummaryPrint } from "./VisitSummaryPrint";
 export { VitalsRecorder } from "./VitalsRecorder";
