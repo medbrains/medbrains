@@ -26,6 +26,7 @@ const PRIORITY_ORDER = [
   { name: "disabled", rank: 3, because: "a vulnerability category" },
   { name: "pregnant", rank: 3, because: "a vulnerability category" },
   { name: "carried_over", rank: 4, because: "waited yesterday, was not seen" },
+  { name: "returned", rank: 4, because: "back from a colleague's opinion" },
   { name: "vip", rank: 5, because: "a courtesy, not a clinical claim" },
   { name: "normal", rank: 6, because: "no priority claim" },
 ] as const;

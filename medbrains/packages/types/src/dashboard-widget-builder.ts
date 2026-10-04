@@ -875,6 +875,8 @@ export interface OpdQueue {
   updated_at: string;
 }
 
+export type QueueRowKind = "primary" | "cross_consult" | "returned";
+
 export interface QueueEntry {
   id: string;
   encounter_id: string;
@@ -920,6 +922,11 @@ export interface QueueEntry {
   appointment_slot_start: string | null;
   appointment_slot_end: string | null;
   appointment_reason: string | null;
+  /** `primary`, `cross_consult` (a colleague's opinion) or `returned`. */
+  kind: QueueRowKind;
+  /** For a referral row: who asked, and why. */
+  referral_from_doctor: string | null;
+  referral_reason: string | null;
 }
 
 export interface EncounterListResponse {

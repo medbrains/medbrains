@@ -29,6 +29,8 @@ export interface Hospital {
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
   doctor: () => Promise<{ id: string; fullName: string }>;
+  /** Another doctor, in this department, logged in in their own browser. */
+  colleague: (department: Department) => Promise<{ id: string; fullName: string; page: Page }>;
 }
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
@@ -80,6 +82,28 @@ export const test = base.extend<{ hospital: Hospital }>({
         const me = doctors.find((d) => d.id === identity.id);
         if (!me) throw new Error("the E2E doctor is not in the consultant list");
         return { id: me.id, fullName: me.full_name };
+      },
+      colleague: async (department) => {
+        const suffix = unique().toLowerCase();
+        const username = `colleague_${suffix}`;
+        const password = `Colleague-${suffix}-Pass1!`;
+        const person = freshPerson();
+        const fullName = `${person.firstName} ${person.lastName}`;
+        const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
+          username,
+          email: `${username}@e2e.medbrains.localhost`,
+          password,
+          full_name: fullName,
+          role: "doctor",
+          department_ids: [department.id],
+          specialization: department.name,
+          medical_registration_number: `E2E-COL-${suffix}`,
+          qualification: "MD",
+        });
+        const page = await openPage(browser);
+        await loginAsRole(page, username, password);
+        pages.push(page);
+        return { id: user.id, fullName, page };
       },
       setting: async (category, key, value) => {
         const rows = await api<Array<{ key: string; value: unknown }>>(
