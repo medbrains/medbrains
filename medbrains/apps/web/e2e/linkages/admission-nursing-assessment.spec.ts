@@ -16,23 +16,18 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { api, expectAbsent, getAuthContextFromCookies, loginAsRoleApi, pollUntil } from "../helpers/api";
+import { expectAbsent, getAuthContextFromCookies, loginAsRoleApi, pollUntil } from "../helpers/api";
 import {
   admitToIpd,
   createPatientApi,
   deleteRosterEntry,
   dischargeAdmission,
+  freshWardBeds,
   getRosterCandidates,
   listAdmissionTasks,
   rosterNurse,
   setBedStatus,
 } from "../helpers/journey-steps";
-import { getAvailableBed } from "../helpers/seed-resolvers";
-
-interface AvailableBed {
-  bed_id: string;
-  ward_id: string | null;
-}
 
 const isAssessment = (nurseId: string) => (t: { task_type: string; assigned_to: string | null }) =>
   t.task_type === "initial_assessment" && t.assigned_to === nurseId;
@@ -48,10 +43,11 @@ test.describe("An admission raises the initial nursing assessment for the ward's
     const candidates = await getRosterCandidates(admin);
     expect(candidates.map((c) => c.id)).toContain(nurse.userId);
 
-    const bed = await getAvailableBed(admin);
-    expect(bed?.ward_id, "an available bed with a ward — the seed has 28").toBeTruthy();
+    // Wards of this run's own: one the nurse is rostered on, one nobody is.
+    const [bed] = await freshWardBeds(admin, 1);
+    const [other] = await freshWardBeds(admin, 1);
     const wardId = bed?.ward_id ?? "";
-    const bedId = bed?.id ?? "";
+    const bedId = bed?.bed_id ?? "";
 
     // A nurse may not restaff the ward. Roster.manage is held by bypass roles only.
     await rosterNurse(nurse, { nurseUserId: nurse.userId, wardId }, { expectStatus: 403 });
@@ -77,16 +73,7 @@ test.describe("An admission raises the initial nursing assessment for the ward's
       expect(dueInHours).toBeGreaterThan(22);
       expect(dueInHours).toBeLessThanOrEqual(24.5);
 
-      // Negative: a ward with nobody rostered raises nothing. Prefer a bed on
-      // a different ward; if the seed has only one ward with free beds, take
-      // the roster away and use that.
-      const beds = await api<AvailableBed[]>(admin, "GET", "/api/ipd/beds/available");
-      let other = beds.find((b) => b.ward_id && b.ward_id !== wardId);
-      if (!other) {
-        await deleteRosterEntry(admin, entry.id);
-        other = beds.find((b) => b.bed_id !== bedId && b.ward_id === wardId);
-      }
-      expect(other, "a second free bed to admit into").toBeTruthy();
+      // Negative: a ward with nobody rostered raises nothing.
       if (other) usedBeds.push(other.bed_id);
       const patient2 = await createPatientApi(admin);
       const admission2 = await admitToIpd(admin, { patientId: patient2.id, bedId: other?.bed_id });

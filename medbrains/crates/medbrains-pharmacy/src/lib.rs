@@ -6195,6 +6195,7 @@ pub async fn list_rx_queue(
     let mut conditions = vec!["pr.tenant_id = $1".to_owned()];
     let mut data_sql = "SELECT pr.id, pr.prescription_id, pr.patient_id,
                 p.first_name || ' ' || p.last_name AS patient_name,
+                p.uhid AS patient_uhid,
                 u.full_name AS doctor_name,
                 pr.source, pr.status, pr.priority, pr.received_at,
                 (SELECT COUNT(*) FROM patient_allergies pa
@@ -6218,6 +6219,23 @@ pub async fn list_rx_queue(
     if params.rx_queue_id.is_some() {
         conditions.push(format!("pr.id = ${bind_idx}"));
     }
+    let search = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("%{s}%"));
+    if search.is_some() {
+        let status_bound = params.rx_queue_id.is_none() || params.status.is_some();
+        let idx = 2
+            + usize::from(status_bound)
+            + usize::from(params.patient_id.is_some())
+            + usize::from(params.rx_queue_id.is_some());
+        conditions.push(format!(
+            "((p.first_name || ' ' || p.last_name) ILIKE ${idx} \
+              OR p.uhid ILIKE ${idx} OR u.full_name ILIKE ${idx})"
+        ));
+    }
 
     data_sql.push_str(" WHERE ");
     data_sql.push_str(&conditions.join(" AND "));
@@ -6239,6 +6257,9 @@ pub async fn list_rx_queue(
     }
     if let Some(rx_queue_id) = params.rx_queue_id {
         query = query.bind(rx_queue_id);
+    }
+    if let Some(term) = &search {
+        query = query.bind(term);
     }
 
     let mut rows = query.fetch_all(&mut *tx).await?;
@@ -7978,6 +7999,9 @@ pub struct RxQueueQuery {
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
     pub rx_queue_id: Option<Uuid>,
+    /// Patient name, UHID or prescriber — searched on the server, so a
+    /// prescription past the first page can still be found.
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

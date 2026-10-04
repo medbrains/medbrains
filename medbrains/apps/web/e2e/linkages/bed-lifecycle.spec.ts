@@ -15,7 +15,7 @@
 
 import { expect, test } from "@playwright/test";
 import { api, getAuthContextFromCookies } from "../helpers/api";
-import {
+import { freshWardBeds,
   admitToIpd,
   completeBedTurnaround,
   createPatientApi,
@@ -31,8 +31,8 @@ import { getIpdDept } from "../helpers/seed-resolvers";
 test.describe("A bed follows the admission through transfer and discharge", () => {
   test("occupied → transferred → released, with a turnaround entry per release", async ({ request }) => {
     const admin = await getAuthContextFromCookies(request);
-    const [bedA, bedB] = await listAvailableBeds(admin);
-    if (!bedA || !bedB) throw new Error("two free beds — the seed has 28");
+    const [bedA, bedB] = await freshWardBeds(admin, 2);
+    if (!bedA || !bedB) throw new Error("two beds of this run's own");
     const patient = await createPatientApi(admin);
 
     const admissionId = await admitToIpd(admin, { patientId: patient.id, bedId: bedA.bed_id });

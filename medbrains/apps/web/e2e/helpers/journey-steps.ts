@@ -553,6 +553,37 @@ export interface AvailableBedLite {
   ward_id: string | null;
 }
 
+/**
+ * A ward of this run's own with `count` clean beds, made through the screens'
+ * own API (create ward, create bed locations, map them). A bed journey takes
+ * beds from here, never from the shared pool: earlier runs leave beds
+ * occupied, or released and waiting for housekeeping, and a test that
+ * depends on the pool fails for reasons that are not its own.
+ */
+export async function freshWardBeds(ctx: AuthContext, count: number): Promise<AvailableBedLite[]> {
+  const tag = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+  const ward = await api<{ id: string }>(ctx, "POST", "/api/ipd/wards", {
+    code: `W${tag}`,
+    name: `Run ward ${tag}`,
+  });
+  // A bed sits in a room, as on the ward.
+  const locations = await api<{ id: string; level: string }[]>(ctx, "GET", "/api/setup/locations");
+  const room = locations.find((l) => l.level === "room");
+  if (!room) throw new Error("the seed has rooms to put beds in");
+  const beds: AvailableBedLite[] = [];
+  for (let i = 1; i <= count; i += 1) {
+    const bed = await api<{ id: string }>(ctx, "POST", "/api/setup/locations", {
+      parent_id: room.id,
+      level: "bed",
+      code: `B${tag}${i}`,
+      name: `Bed ${tag}-${i}`,
+    });
+    await api(ctx, "POST", `/api/ipd/wards/${ward.id}/beds`, { bed_location_id: bed.id });
+    beds.push({ bed_id: bed.id, bed_number: `${tag}-${i}`, ward_id: ward.id });
+  }
+  return beds;
+}
+
 /** Uncached, unlike seed-resolvers' `getAvailableBed`: a bed journey needs the list as it is now. */
 export async function listAvailableBeds(ctx: AuthContext): Promise<AvailableBedLite[]> {
   return api(ctx, "GET", "/api/ipd/beds/available");

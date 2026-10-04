@@ -98,7 +98,8 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
     queryKey: ["marketing", "areas"],
     queryFn: () => marketingService.listAreas(),
   });
-  const areaNames = areas.map((a) => a.name);
+  // Two areas can share a name; a picker option must not repeat.
+  const areaNames = [...new Set(areas.map((a) => a.name))];
 
   const openEdit = (row: MarketingCampaign) => {
     setEditing(row);

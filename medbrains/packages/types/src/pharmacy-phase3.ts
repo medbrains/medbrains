@@ -41,6 +41,8 @@ export interface RxQueueRow {
   prescription_id: string;
   patient_id: string;
   patient_name: string;
+  /** The second identifier; a pharmacist confirms name and UHID before dispensing. */
+  patient_uhid: string;
   doctor_name: string;
   source: string;
   status: PharmacyRxStatus;
