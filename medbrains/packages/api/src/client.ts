@@ -330,6 +330,7 @@ import type {
   CompileRustRequest,
   CompileRustResult,
   CompletenessCheck,
+  CompleteReferralRequest,
   CompleteTatRecordRequest,
   ComplianceCalendarEvent,
   ComplianceChecklist,
@@ -848,6 +849,7 @@ import type {
   DecideApprovalRequest,
   DecidedApprovalRequest,
   DecideItemRequest,
+  DeclineReferralRequest,
   DeliveryType,
   DentalChartEntry,
   DentalExam,
@@ -1690,6 +1692,7 @@ import type {
   RecordReactionRequest,
   RecordScoreRequest,
   RecordTransfusionObservationRequest,
+  ReferralStep,
   ReferralWithNames,
   Refund,
   RefundAdvanceRequest,
@@ -4508,6 +4511,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  acceptReferral: (id: string) =>
+    request<ReferralStep>(`/opd/referrals/${id}/accept`, { method: "PUT", body: "{}" }),
+  declineReferral: (id: string, data: DeclineReferralRequest) =>
+    request<ReferralStep>(`/opd/referrals/${id}/decline`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  completeReferral: (id: string, data: CompleteReferralRequest) =>
+    request<ReferralStep>(`/opd/referrals/${id}/complete`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  cancelReferral: (id: string) =>
+    request<ReferralStep>(`/opd/referrals/${id}/cancel`, { method: "PUT", body: "{}" }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
   listProcedureCatalog: () => request<ProcedureCatalog[]>("/opd/procedure-catalog"),
@@ -12921,9 +12938,15 @@ export const api = {
   opdPharmacyDispatchStatus: (visitId: string) =>
     request<PharmacyDispatchStatus[]>(`/opd/visits/${visitId}/pharmacy-status`),
 
-  opdReferralTracking: (params?: { status?: string }) => {
+  opdReferralTracking: (params?: {
+    status?: string;
+    addressed_to_me?: boolean;
+    sent_by_me?: boolean;
+  }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
+    if (params?.addressed_to_me) sp.set("addressed_to_me", "true");
+    if (params?.sent_by_me) sp.set("sent_by_me", "true");
     const qs = sp.toString();
     return request<ReferralWithNames[]>(`/opd/referrals/tracking${qs ? `?${qs}` : ""}`);
   },

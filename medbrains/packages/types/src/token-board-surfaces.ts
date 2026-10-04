@@ -963,7 +963,7 @@ export function currentRoomToken<T extends RoomToken>(
 /**
  * The token priority vocabulary, in the order the queue sorts them.
  *
- * Mirrors `public.token_priority_weight` (migration 1004). Lower sorts first.
+ * Mirrors `public.token_priority_weight` (migrations 1004, 1044). Lower sorts first.
  * Keep the two in step: the board orders by the SQL function, so a label here
  * that the function does not know sorts last rather than where it reads.
  */
@@ -975,6 +975,7 @@ export const TOKEN_PRIORITY_ORDER = [
   "disabled",
   "pregnant",
   "carried_over",
+  "returned",
   "vip",
   "normal",
 ] as const;
@@ -990,6 +991,7 @@ export const TOKEN_PRIORITY_LABEL: Record<string, string> = {
   disabled: "Disabled",
   pregnant: "Pregnant",
   carried_over: "Carried over",
+  returned: "Back with opinion",
   vip: "VIP",
   normal: "Normal",
 };
@@ -1009,6 +1011,7 @@ export const TOKEN_PRIORITY_REASON: Record<string, string> = {
   disabled: "Vulnerability category.",
   pregnant: "Vulnerability category.",
   carried_over: "Waited on an earlier day and was not seen before the day ended.",
+  returned: "Back from a colleague's opinion; already waited once today.",
   vip: "A courtesy — behind every clinical and vulnerability reason.",
   normal: "No priority claim.",
 };

@@ -70,6 +70,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::opd::procedures::CANCEL,
             permissions::opd::referrals::LIST,
             permissions::opd::referrals::CREATE,
+            permissions::opd::referrals::RESPOND,
+            permissions::opd::referrals::CANCEL,
             permissions::opd::certificates::LIST,
             permissions::opd::certificates::CREATE,
             permissions::opd::certificates::PRINT,

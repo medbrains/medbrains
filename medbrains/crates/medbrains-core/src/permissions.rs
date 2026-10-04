@@ -117,6 +117,13 @@ pub mod opd {
     pub mod referrals {
         pub const LIST: &str = "opd.referrals.list";
         pub const CREATE: &str = "opd.referrals.create";
+        /// Accept, decline or answer a referral.
+        /// Only referrals addressed to the caller, or to their department when
+        /// no doctor is named. Accepting puts the patient in the caller's queue.
+        pub const RESPOND: &str = "opd.referrals.respond";
+        /// Withdraw a referral you sent.
+        /// Only while it is still pending, and only the referring doctor.
+        pub const CANCEL: &str = "opd.referrals.cancel";
     }
 
     pub mod certificates {

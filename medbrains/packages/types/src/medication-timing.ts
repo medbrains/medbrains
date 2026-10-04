@@ -198,6 +198,47 @@ export interface ReferralWithNames {
   response_notes: string | null;
   responded_at: string | null;
   created_at: string;
+  /** The caller may accept, decline or answer it. */
+  addressed_to_me: boolean;
+  /** The caller sent it, and may withdraw it while pending. */
+  sent_by_me: boolean;
+}
+
+export interface DeclineReferralRequest {
+  reason: string;
+}
+
+export interface CompleteReferralRequest {
+  opinion: string;
+  /** Send the patient back to the referring doctor (default true). */
+  return_to_referrer?: boolean;
+}
+
+export interface Referral {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  from_department_id: string;
+  to_department_id: string;
+  from_doctor_id: string | null;
+  to_doctor_id: string | null;
+  urgency: ReferralUrgency;
+  status: ReferralStatus;
+  reason: string;
+  clinical_notes: string | null;
+  response_notes: string | null;
+  responded_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A referral after a step, and the queue place that step made, if any. */
+export interface ReferralStep {
+  referral: Referral;
+  queue_id: string | null;
+  token_number: string | null;
 }
 
 export interface CreateReferralRequest {

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 997 permissions, one per constant in the Rust source. */
+/** 999 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -201,6 +201,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "opd.referrals.create",
     label: "Create OPD Referrals",
     description: "Create specialty and department referrals from OPD encounters",
+    module: "opd",
+  },
+  {
+    code: "opd.referrals.respond",
+    label: "Accept, decline or answer a referral",
+    description: "Only referrals addressed to the caller, or to their department when no doctor is named. Accepting puts the patient in the caller's queue.",
+    module: "opd",
+  },
+  {
+    code: "opd.referrals.cancel",
+    label: "Withdraw a referral you sent",
+    description: "Only while it is still pending, and only the referring doctor.",
     module: "opd",
   },
   {
@@ -8013,11 +8025,15 @@ export const P = {
     QUEUE_LIST: "opd.queue.list",
     QUEUE_VIEW: "opd.queue.view",
     REFERRALS: {
+      CANCEL: "opd.referrals.cancel",
       CREATE: "opd.referrals.create",
       LIST: "opd.referrals.list",
+      RESPOND: "opd.referrals.respond",
     },
+    REFERRALS_CANCEL: "opd.referrals.cancel",
     REFERRALS_CREATE: "opd.referrals.create",
     REFERRALS_LIST: "opd.referrals.list",
+    REFERRALS_RESPOND: "opd.referrals.respond",
     REMINDERS: {
       CREATE: "opd.reminders.create",
       LIST: "opd.reminders.list",
@@ -9229,8 +9245,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.PROCEDURES.LIST,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
+      P.OPD.REFERRALS.CANCEL,
       P.OPD.REFERRALS.CREATE,
       P.OPD.REFERRALS.LIST,
+      P.OPD.REFERRALS.RESPOND,
       P.OPD.REMINDERS.CREATE,
       P.OPD.REMINDERS.LIST,
       P.OPD.REMINDERS.UPDATE,

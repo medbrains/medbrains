@@ -119,7 +119,7 @@ pub async fn transfer_encounter(
 /// The same grants a new visit writes: the department sees it, the named
 /// doctor attends it. Without them the new department's doctor could not open
 /// the visit they are now meant to see.
-async fn grant_new_care_team(
+pub(crate) async fn grant_new_care_team(
     state: &AppState,
     claims: &Claims,
     encounter_id: Uuid,
