@@ -68,6 +68,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -1074,6 +1075,7 @@ export function ReferralsTab({
   const queryClient = useQueryClient();
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [toDeptId, setToDeptId] = useState<string | null>(null);
+  const [toDoctorId, setToDoctorId] = useState("");
   const [urgency, setUrgency] = useState<string | null>("routine");
   const [reason, setReason] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
@@ -1104,6 +1106,7 @@ export function ReferralsTab({
       toast.success("Patient referred successfully", { title: "Referral created" });
       closeCreate();
       setToDeptId(null);
+      setToDoctorId("");
       setUrgency("routine");
       setReason("");
       setClinicalNotes("");
@@ -1119,6 +1122,7 @@ export function ReferralsTab({
       patient_id: patientId,
       encounter_id: encounterId,
       to_department_id: toDeptId,
+      to_doctor_id: toDoctorId || undefined,
       urgency: toReferralUrgency(urgency),
       reason: reason.trim(),
       clinical_notes: clinicalNotes.trim() || undefined,
@@ -1210,12 +1214,25 @@ export function ReferralsTab({
             placeholder="Select department"
             data={deptOptions}
             value={toDeptId}
-            onChange={setToDeptId}
+            onChange={(id) => {
+              setToDeptId(id);
+              setToDoctorId("");
+            }}
             searchable
             required
           />
+          <DoctorSearchSelect
+            label="Refer to doctor"
+            placeholder={toDeptId ? "Any doctor in this department" : "Choose a department first"}
+            value={toDoctorId}
+            onChange={setToDoctorId}
+            departmentIds={toDeptId ? [toDeptId] : undefined}
+            disabled={!toDeptId}
+            clearable
+          />
           <Select
             label="Urgency"
+            allowDeselect={false}
             data={[
               { value: "routine", label: "Routine" },
               { value: "urgent", label: "Urgent" },
