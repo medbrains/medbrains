@@ -16,6 +16,7 @@ import { useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { PageHeader } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
 import { ErObservationPanel } from "@/components/Emergency/ErObservationPanel";
@@ -221,6 +222,13 @@ export function EmergencyVisitDetailPage() {
                       canCreate={canCreateResuscitation}
                     />
                   </Box>
+                )}
+                {/* The ER visit's notes: every clinician's dated, signed entries
+                    (RFC-MODULE-clinical-notes, phase 2b). */}
+                {visit.encounter_id && (
+                  <Card id="er-case-sheet" withBorder>
+                    <CaseSheet encounterId={visit.encounter_id} />
+                  </Card>
                 )}
                 <PatientConsumablesPanel
                   patientId={visit.patient_id}
