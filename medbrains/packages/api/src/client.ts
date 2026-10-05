@@ -1385,7 +1385,7 @@ import type {
   NoshowPredictionScore,
   NoshowRateRow,
   Note,
-  NoteSection,
+  NoteSectionPatch,
   NoteType,
   NotifiableReport,
   NotificationListResponse,
@@ -4539,7 +4539,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  saveNoteDraft: (noteId: string, sections: NoteSection[]) =>
+  saveNoteDraft: (noteId: string, sections: NoteSectionPatch[]) =>
     request<Note>(`/clinical-notes/${noteId}/draft`, {
       method: "PUT",
       body: JSON.stringify({ sections }),

@@ -1,14 +1,15 @@
 import { Box, Card, Group, Badge as MantineBadge, Stack, Text } from "@mantine/core";
-import type { Note, NoteSection } from "@medbrains/types";
+import type { Note, NoteSectionPatch } from "@medbrains/types";
 import type { ReactNode } from "react";
 import { Badge, Button, RichTextEditor } from "@/components/ui";
 import { NoteDraftEditor } from "./NoteDraftEditor";
+import { STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
 
 export interface NoteActions {
   canSign: boolean;
   canWrite: boolean;
   canMarkInError: boolean;
-  saveDraft: (note: Note, sections: NoteSection[]) => Promise<void>;
+  saveDraft: (note: Note, patches: NoteSectionPatch[]) => Promise<void>;
   sign: (note: Note) => Promise<void>;
   revise: (note: Note) => void;
   discard: (note: Note) => void;
@@ -53,7 +54,13 @@ function AuthorLine({ note }: { note: Note }) {
 }
 
 function Sections({ note }: { note: Note }) {
-  const written = note.sections.filter((s) => s.text.replace(/<[^>]*>/g, "").trim() !== "");
+  const written = note.sections
+    .map((s) => ({
+      ...s,
+      lines: STRUCTURED_SECTIONS[s.code] ? summariseSection(s.code, s.data) : [],
+      hasText: s.text.replace(/<[^>]*>/g, "").trim() !== "",
+    }))
+    .filter((s) => s.hasText || s.lines.length > 0);
   if (written.length === 0) {
     return (
       <Text size="sm" c="dimmed">
@@ -68,7 +75,12 @@ function Sections({ note }: { note: Note }) {
           <Text size="xs" fw={700} tt="uppercase" c="dimmed">
             {s.title}
           </Text>
-          <RichTextEditor value={s.text} readOnly minHeight={0} />
+          {s.lines.map((line) => (
+            <Text key={line} size="sm">
+              {line}
+            </Text>
+          ))}
+          {s.hasText && <RichTextEditor value={s.text} readOnly minHeight={0} />}
         </Box>
       ))}
     </Stack>
@@ -152,7 +164,8 @@ export function NoteCard({ note, addenda, actions }: NoteCardProps) {
           {editing ? (
             <NoteDraftEditor
               initialSections={note.sections}
-              onSave={(sections) => actions.saveDraft(note, sections)}
+              liveSections={note.sections}
+              onSave={(patches) => actions.saveDraft(note, patches)}
               onSign={actions.canSign ? () => actions.sign(note) : undefined}
             />
           ) : (

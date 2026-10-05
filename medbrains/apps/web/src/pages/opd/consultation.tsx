@@ -57,8 +57,8 @@ export function ConsultationTab({
       clinicalNotesService.createNote(encounterId, {
         note_type_code: "consultation",
         sections: [
-          { code: "subjective", title: "Subjective", text: template.chief_complaints.join(", ") },
-          { code: "plan", title: "Plan", text: template.default_plan ?? "" },
+          { code: "subjective", text: template.chief_complaints.join(", ") },
+          { code: "plan", text: template.default_plan ?? "" },
         ],
       }),
     onSuccess: (note: Note) => {
