@@ -31,6 +31,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::clinical_notes::VIEW,
+            permissions::clinical_notes::WRITE,
+            permissions::clinical_notes::SIGN,
+            permissions::clinical_notes::MARK_IN_ERROR,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
@@ -353,6 +357,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::clinical_notes::VIEW,
+            permissions::clinical_notes::WRITE,
+            permissions::clinical_notes::SIGN,
+            permissions::clinical_notes::MARK_IN_ERROR,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
@@ -1275,6 +1283,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            permissions::clinical_notes::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::mrd::records::LIST,

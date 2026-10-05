@@ -319,6 +319,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Pharmacy ────────────────────────────────────
         .merge(medbrains_pharmacy::router())
         .merge(medbrains_ward_stock::router())
+        .merge(medbrains_clinical_notes::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
         .merge(medbrains_pharmacy_finance::router())
         .merge(medbrains_pharmacy_fulfilment::router())

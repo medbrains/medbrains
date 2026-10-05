@@ -632,6 +632,7 @@ import type {
   CreateNeedleStickIncidentRequest,
   CreateNewbornRecordRequest,
   CreateNewbornResponse,
+  CreateNoteRequest,
   CreateNuclearMedAdminRequest,
   CreateNuclearMedSourceRequest,
   CreateNurseRosterEntryRequest,
@@ -1383,6 +1384,9 @@ import type {
   // Scheduling
   NoshowPredictionScore,
   NoshowRateRow,
+  Note,
+  NoteSection,
+  NoteType,
   NotifiableReport,
   NotificationListResponse,
   NuclearMedAdministration,
@@ -4525,6 +4529,35 @@ export const api = {
     }),
   cancelReferral: (id: string) =>
     request<ReferralStep>(`/opd/referrals/${id}/cancel`, { method: "PUT", body: "{}" }),
+
+  // ── Clinical notes (case sheet) ─────────────────────────
+  listNoteTypes: () => request<NoteType[]>("/clinical-notes/types"),
+  listEncounterNotes: (encounterId: string) =>
+    request<Note[]>(`/encounters/${encounterId}/clinical-notes`),
+  createNote: (encounterId: string, data: CreateNoteRequest) =>
+    request<Note>(`/encounters/${encounterId}/clinical-notes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  saveNoteDraft: (noteId: string, sections: NoteSection[]) =>
+    request<Note>(`/clinical-notes/${noteId}/draft`, {
+      method: "PUT",
+      body: JSON.stringify({ sections }),
+    }),
+  signNote: (noteId: string, lateEntryReason?: string) =>
+    request<Note>(`/clinical-notes/${noteId}/sign`, {
+      method: "POST",
+      body: JSON.stringify({ late_entry_reason: lateEntryReason }),
+    }),
+  reviseNote: (noteId: string) =>
+    request<Note>(`/clinical-notes/${noteId}/revise`, { method: "POST", body: "{}" }),
+  discardNote: (noteId: string) =>
+    request<Note | null>(`/clinical-notes/${noteId}/discard`, { method: "POST", body: "{}" }),
+  markNoteInError: (noteId: string, reason: string) =>
+    request<Note>(`/clinical-notes/${noteId}/entered-in-error`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 
   // ── Procedure Catalog & Orders ──────────────────────────
   listProcedureCatalog: () => request<ProcedureCatalog[]>("/opd/procedure-catalog"),

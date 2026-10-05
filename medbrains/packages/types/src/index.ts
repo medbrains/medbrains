@@ -94,6 +94,7 @@ export * from "./cath-lab";
 export * from "./chronic-care";
 export * from "./clinical-identity-forms";
 export * from "./clinical-knowledge-base";
+export * from "./clinical-notes";
 export * from "./command-center";
 export * from "./common";
 export * from "./communication-hub";
