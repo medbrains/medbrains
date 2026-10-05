@@ -1,6 +1,6 @@
 import { Group, Loader, Menu, Modal, Stack, Text, Textarea } from "@mantine/core";
-import { useHasPermission, usePermissionStore } from "@medbrains/stores";
-import { type Note, type NoteType, P } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import { type Note, P } from "@medbrains/types";
 import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -13,12 +13,6 @@ type Ask = { kind: "late"; note: Note } | { kind: "error"; note: Note } | null;
 
 const notesKey = (encounterId: string) => ["clinical-notes", encounterId] as const;
 
-/** Nurses write nursing notes; everyone else who writes notes, the rest. */
-function writableTypes(types: NoteType[], role: string | null): NoteType[] {
-  const nurse = role === "nurse";
-  return types.filter((t) => (t.category === "nursing") === nurse);
-}
-
 /**
  * The visit's case sheet: every clinician's entries in the order care
  * happened, each with its author, time and signature, addenda beneath the
@@ -29,7 +23,6 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
   const canWrite = useHasPermission(P.CLINICAL_NOTES.WRITE);
   const canSign = useHasPermission(P.CLINICAL_NOTES.SIGN);
   const canMarkInError = useHasPermission(P.CLINICAL_NOTES.MARK_IN_ERROR);
-  const role = usePermissionStore((s) => s.userRole);
   const queryClient = useQueryClient();
   const [ask, setAsk] = useState<Ask>(null);
   const [reason, setReason] = useState("");
@@ -40,9 +33,10 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
     queryFn: () => clinicalNotesService.listEncounterNotes(encounterId),
     enabled: canView,
   });
+  // The types this caller may start on this visit — their role, its kind.
   const types = useQuery({
-    queryKey: ["note-types"],
-    queryFn: () => clinicalNotesService.listNoteTypes(),
+    queryKey: ["note-types", encounterId],
+    queryFn: () => clinicalNotesService.listNoteTypes(encounterId),
     enabled: canWrite,
     staleTime: 300_000,
   });
@@ -111,7 +105,7 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
     );
   }
 
-  const choices = writableTypes(types.data ?? [], role);
+  const choices = types.data ?? [];
   const submitAsk = () => {
     if (!ask) return;
     const note = ask.note;

@@ -32,6 +32,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { DocumentActions, OperationalSignal, useClinicalEmit } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { DamaModal } from "@/components/Ipd/DamaModal";
 import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizard";
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
@@ -105,7 +106,6 @@ import { NursingTab } from "./nursing";
 import { OverviewTab } from "./overview";
 import { PatientScoresPanel } from "./patient-scores";
 import { PrintAdmissionButton } from "./print-admission-button";
-import { ProgressNotesTab } from "./progress-notes";
 import { TransferTab } from "./transfer";
 import { TransferLogTab } from "./transfer-log";
 
@@ -598,7 +598,9 @@ export function AdmissionDetail({
               <OverviewTab admissionId={admissionId} tasks={detail.tasks} />
             </Tabs.Panel>
             <Tabs.Panel value="notes" pt="md">
-              <ProgressNotesTab admissionId={admissionId} />
+              {/* The admission's notes are its case sheet: every clinician's
+                  dated, signed entries (RFC-MODULE-clinical-notes, phase 2a). */}
+              <CaseSheet encounterId={adm.encounter_id} />
             </Tabs.Panel>
             <Tabs.Panel value="assessments" pt="md">
               <AssessmentsTab admissionId={admissionId} />

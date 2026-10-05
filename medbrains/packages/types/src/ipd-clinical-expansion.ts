@@ -259,22 +259,6 @@ export interface IpdDischargeChecklist {
 }
 
 // IPD Clinical Request Types
-export interface CreateProgressNoteRequest {
-  note_type: ProgressNoteType;
-  note_date?: string;
-  subjective?: string;
-  objective?: string;
-  assessment?: string;
-  plan?: string;
-  is_addendum?: boolean;
-  parent_note_id?: string;
-}
-export interface UpdateProgressNoteRequest {
-  subjective?: string;
-  objective?: string;
-  assessment?: string;
-  plan?: string;
-}
 export interface CreateAssessmentRequest {
   assessment_type: ClinicalAssessmentType;
   score_value?: number;

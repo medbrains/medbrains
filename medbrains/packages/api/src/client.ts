@@ -694,7 +694,6 @@ import type {
   CreatePriorAuthRequestBody,
   CreateProcedureOrderRequest,
   CreateProficiencyTestRequest,
-  CreateProgressNoteRequest,
   CreatePsychAssessmentRequest,
   CreatePsychCounselingRequest,
   CreatePsychEctRequest,
@@ -1171,7 +1170,6 @@ import type {
   IpdNursingAssessment,
   IpdPostDischargeRow,
   // IPD Clinical Expansion
-  IpdProgressNote,
   IpdTransferLog,
   // IPD Phase 2b
   IpTypeConfiguration,
@@ -2065,7 +2063,6 @@ import type {
   UpdatePrimaryNurseRequest,
   UpdatePrintJobRequest,
   UpdatePriorAuthRequestBody,
-  UpdateProgressNoteRequest,
   UpdateQualityIncidentRequest,
   UpdateRatePlanRequest,
   UpdateReagentLotRequest,
@@ -4531,7 +4528,10 @@ export const api = {
     request<ReferralStep>(`/opd/referrals/${id}/cancel`, { method: "PUT", body: "{}" }),
 
   // ── Clinical notes (case sheet) ─────────────────────────
-  listNoteTypes: () => request<NoteType[]>("/clinical-notes/types"),
+  listNoteTypes: (encounterId?: string) =>
+    request<NoteType[]>(
+      `/clinical-notes/types${encounterId ? `?encounter_id=${encounterId}` : ""}`,
+    ),
   listEncounterNotes: (encounterId: string) =>
     request<Note[]>(`/encounters/${encounterId}/clinical-notes`),
   createNote: (encounterId: string, data: CreateNoteRequest) =>
@@ -6670,18 +6670,6 @@ export const api = {
   // ── IPD Clinical Expansion ────────────────────────────────
 
   // Progress Notes
-  listProgressNotes: (admissionId: string) =>
-    request<IpdProgressNote[]>(`/ipd/admissions/${admissionId}/progress-notes`),
-  createProgressNote: (admissionId: string, data: CreateProgressNoteRequest) =>
-    request<IpdProgressNote>(`/ipd/admissions/${admissionId}/progress-notes`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateProgressNote: (admissionId: string, noteId: string, data: UpdateProgressNoteRequest) =>
-    request<IpdProgressNote>(`/ipd/admissions/${admissionId}/progress-notes/${noteId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
 
   // Clinical Assessments
   listAssessments: (admissionId: string) =>

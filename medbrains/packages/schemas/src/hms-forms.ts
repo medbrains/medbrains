@@ -452,15 +452,6 @@ export const ipdNursingTaskTypeValues = [
   "discharge_prep",
   "other",
 ] as const;
-export const ipdProgressNoteTypeFormSchema = z.enum([
-  "doctor_round",
-  "nursing_note",
-  "specialist_opinion",
-  "dietitian_note",
-  "physiotherapy_note",
-  "social_worker_note",
-  "discharge_note",
-]);
 /**
  * Draw containers, named by the additive that decides them.
  *
@@ -2357,14 +2348,6 @@ export const opdConsentReprintFormSchema = z.object({
     (value) => value.trim().length >= 5,
     "Enter at least 5 characters",
   ),
-});
-
-export const ipdProgressNoteFormSchema = z.object({
-  note_type: ipdProgressNoteTypeFormSchema,
-  subjective: z.string(),
-  objective: z.string(),
-  assessment: z.string(),
-  plan: z.string(),
 });
 
 const bradenScoreFormValue = z.coerce.number().min(1).max(4);
@@ -5305,7 +5288,6 @@ export type IpdClinicalAssessmentTypeFormValue = z.infer<
   typeof ipdClinicalAssessmentTypeFormSchema
 >;
 export type IpdNursingTaskTypeFormValue = z.infer<typeof ipdNursingTaskTypeFormSchema>;
-export type IpdProgressNoteTypeFormValue = z.infer<typeof ipdProgressNoteTypeFormSchema>;
 export type LabContainerFormValue = z.infer<typeof labContainerFormSchema>;
 export type LabSampleTypeFormValue = z.infer<typeof labSampleTypeFormSchema>;
 export type LabMethodFormValue = z.infer<typeof labMethodFormSchema>;
@@ -5498,7 +5480,6 @@ export type OpdCertificateReprintFormInput = z.infer<typeof opdCertificateReprin
 export type OpdConsentRevokeFormInput = z.infer<typeof opdConsentRevokeFormSchema>;
 export type OpdConsentReprintFormInput = z.infer<typeof opdConsentReprintFormSchema>;
 export type IpdNursingTaskFormInput = z.infer<typeof ipdNursingTaskFormSchema>;
-export type IpdProgressNoteFormInput = z.infer<typeof ipdProgressNoteFormSchema>;
 export type IpdClinicalAssessmentFormInput = z.infer<typeof ipdClinicalAssessmentFormSchema>;
 export type IpdAttenderFormInput = z.infer<typeof ipdAttenderFormSchema>;
 export type IcuFlowsheetFormInput = z.infer<typeof icuFlowsheetFormSchema>;

@@ -6,8 +6,6 @@ import type {
   IpdClinicalAssessmentTypeFormValue,
   IpdNursingTaskFormInput,
   IpdNursingTaskTypeFormValue,
-  IpdProgressNoteFormInput,
-  IpdProgressNoteTypeFormValue,
   IpdTransferFormInput,
   IpdTransferTypeFormValue,
 } from "@medbrains/schemas";
@@ -16,7 +14,6 @@ import type {
   CreateAdmissionRequest,
   CreateAssessmentRequest,
   CreateAttenderRequest,
-  CreateProgressNoteRequest,
 } from "@medbrains/types";
 
 type SelectOption<T extends string> = {
@@ -149,39 +146,6 @@ export const DEFAULT_IPD_ATTENDER_VALUES: IpdAttenderFormInput = {
   is_primary: false,
 };
 
-const progressNoteTypeLabels: Record<IpdProgressNoteTypeFormValue, string> = {
-  doctor_round: "Doctor Round",
-  nursing_note: "Nursing Note",
-  specialist_opinion: "Specialist Opinion",
-  dietitian_note: "Dietitian Note",
-  physiotherapy_note: "Physiotherapy",
-  social_worker_note: "Social Worker",
-  discharge_note: "Discharge Note",
-};
-
-const progressNoteTypeValues: IpdProgressNoteTypeFormValue[] = [
-  "doctor_round",
-  "nursing_note",
-  "specialist_opinion",
-  "dietitian_note",
-  "physiotherapy_note",
-  "social_worker_note",
-  "discharge_note",
-];
-
-export const progressNoteTypeOptions = progressNoteTypeValues.map((value) => ({
-  value,
-  label: progressNoteTypeLabels[value],
-}));
-
-export const DEFAULT_IPD_PROGRESS_NOTE_VALUES: IpdProgressNoteFormInput = {
-  note_type: "doctor_round",
-  subjective: "",
-  objective: "",
-  assessment: "",
-  plan: "",
-};
-
 export const DEFAULT_IPD_TRANSFER_VALUES: IpdTransferFormInput = {
   transfer_type: "inter_ward",
   reason: "",
@@ -294,18 +258,5 @@ export function toCreateAttenderRequest(values: IpdAttenderFormInput): CreateAtt
     id_proof_type: ipdOptionalText(values.id_proof_type),
     id_proof_number: ipdOptionalText(values.id_proof_number),
     is_primary: values.is_primary || undefined,
-  };
-}
-
-export function toCreateProgressNoteRequest(
-  values: IpdProgressNoteFormInput,
-): CreateProgressNoteRequest {
-  return {
-    note_type: values.note_type,
-    note_date: new Date().toISOString().split("T")[0],
-    subjective: ipdOptionalText(values.subjective),
-    objective: ipdOptionalText(values.objective),
-    assessment: ipdOptionalText(values.assessment),
-    plan: ipdOptionalText(values.plan),
   };
 }

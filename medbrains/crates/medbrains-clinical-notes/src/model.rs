@@ -41,6 +41,10 @@ pub struct NoteType {
     pub loinc_code: Option<String>,
     pub category: String,
     pub sections: Value,
+    /// Roles that write this type; empty: anyone who writes notes.
+    pub author_roles: Vec<String>,
+    /// `opd`, `ipd`, `emergency` — the visits it is written on.
+    pub encounter_kinds: Vec<String>,
 }
 
 /// A note as the case sheet shows it: who, where, when, and what it says.

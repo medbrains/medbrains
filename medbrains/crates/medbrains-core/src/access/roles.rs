@@ -1330,6 +1330,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Dietitian",
         description: "Diet templates, nutrition plans, kitchen inventory",
         permissions: &[
+            permissions::clinical_notes::VIEW,
+            permissions::clinical_notes::WRITE,
+            permissions::clinical_notes::SIGN,
+            permissions::clinical_notes::MARK_IN_ERROR,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::diet::orders::LIST,

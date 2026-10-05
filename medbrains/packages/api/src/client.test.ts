@@ -5639,36 +5639,6 @@ describe("/ipd endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("listProgressNotes → GET /ipd/admissions/{param_1}/progress-notes", async () => {
-    mockOk({});
-    await api.listProgressNotes(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-  });
-
-  it("createProgressNote → POST /ipd/admissions/{param_1}/progress-notes", async () => {
-    mockOk({});
-    await api.createProgressNote(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("updateProgressNote → PUT /ipd/admissions/{param_1}/progress-notes/{param_2}", async () => {
-    mockOk({});
-    await api.updateProgressNote(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
   it("listAssessments → GET /ipd/admissions/{param_1}/assessments", async () => {
     mockOk({});
     await api.listAssessments(UUID);
