@@ -160,7 +160,7 @@ async fn place(
            FROM dashboard_widgets WHERE dashboard_id = $1 AND deleted_at IS NULL",
     )
     .bind(dashboard_id)
-    .bind(&t.widget_type)
+    .bind(t.widget_type)
     .bind(&t.name)
     .bind(&t.description)
     .bind(&t.icon)

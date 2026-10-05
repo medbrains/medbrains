@@ -79,6 +79,24 @@ pub mod patients {
     }
 }
 
+/// The case sheet: every clinician's dated, signed notes on a visit.
+pub mod clinical_notes {
+    /// Read a visit's notes.
+    /// Signed notes, and drafts as far as the hospital's draft setting allows.
+    pub const VIEW: &str = "clinical_notes.view";
+    /// Write your own notes.
+    /// Start a note or addendum and keep its draft; nurses write nursing
+    /// notes, doctors the physician notes.
+    pub const WRITE: &str = "clinical_notes.write";
+    /// Sign your own notes.
+    /// Signing stamps your name and time and locks the note after the
+    /// hospital's grace period; revising within it keeps the old version.
+    pub const SIGN: &str = "clinical_notes.sign";
+    /// Mark a note entered in error.
+    /// Your own notes, with a reason; the text stays, struck through.
+    pub const MARK_IN_ERROR: &str = "clinical_notes.mark_in_error";
+}
+
 pub mod opd {
     pub mod queue {
         pub const LIST: &str = "opd.queue.list";

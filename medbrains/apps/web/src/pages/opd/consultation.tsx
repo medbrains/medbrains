@@ -1,43 +1,48 @@
-import { ApiError, nullOn404 } from "@medbrains/api";
-// OPD ConsultationTab — the visit's SOAP note.
+// OPD ConsultationTab — the visit's case sheet (RFCs/RFC-MODULE-clinical-notes.md).
 
-import { Loader, Select, Stack } from "@mantine/core";
-import type {
-  Consultation,
-  ConsultationTemplate,
-  PatientConsultationHistoryRow,
+import { Select, Stack } from "@mantine/core";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import {
+  type ConsultationTemplate,
+  type Note,
+  P,
+  type PatientConsultationHistoryRow,
 } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
-import { SOAPNotes, soapValuesFrom, useClinicalEmit } from "@/components";
-import type { SoapNoteValues } from "@/components/Clinical/SoapNoteEditor";
+import { useState } from "react";
+import { useClinicalEmit } from "@/components";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
+import { SoapTimeline } from "@/components/Clinical/SoapTimeline";
+import { toast } from "@/components/ui";
+import { clinicalNotesService } from "@/services/clinicalNotes.service";
 import { opdService } from "@/services/opd.service";
 
 export function ConsultationTab({
   encounterId,
   patientId,
-  canUpdate,
 }: {
   encounterId: string;
   patientId: string;
-  canUpdate: boolean;
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const canWrite = useHasPermission(P.CLINICAL_NOTES.WRITE);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  // Earlier visits' notes keep the masking the SOAP field always had.
+  const soapAccess = useFieldAccess("opd.soap_note");
 
-  const { data: consultation, isPending } = useQuery<Consultation | null>({
-    queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
+  const { data: notes = [] } = useQuery({
+    queryKey: ["clinical-notes", encounterId],
+    queryFn: () => clinicalNotesService.listEncounterNotes(encounterId),
   });
-
   const { data: templates = [] } = useQuery<ConsultationTemplate[]>({
     queryKey: ["consultation-templates"],
     queryFn: () => opdService.listConsultationTemplates(),
     staleTime: 300_000,
+    enabled: canWrite,
   });
-
-  const { data: consultationHistory = [], isLoading: loadingConsultationHistory } = useQuery<
+  const { data: history = [], isLoading: loadingHistory } = useQuery<
     PatientConsultationHistoryRow[]
   >({
     queryKey: ["patient-consultations", patientId],
@@ -46,87 +51,61 @@ export function ConsultationTab({
     staleTime: 60_000,
   });
 
-  const templateOptions = templates.map((t) => ({
-    value: t.id,
-    label: `${t.name}${t.specialty ? ` (${t.specialty})` : ""}`,
-  }));
-
-  const initialValues = useMemo((): SoapNoteValues => {
-    const template = templates.find((t) => t.id === templateId);
-    if (consultation || !template) return soapValuesFrom(consultation);
-    return soapValuesFrom({
-      chief_complaint: template.chief_complaints.join(", ") || null,
-      plan: template.default_plan ?? null,
-    });
-  }, [templates, templateId, consultation]);
-
-  // One note per visit: the first save creates it, every later save updates
-  // it. Saves run one after another, so a save that starts while the first is
-  // still creating the note updates that note instead of starting a second.
-  const savedId = useRef<string | undefined>(undefined);
-  savedId.current ??= consultation?.id;
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const saveMutation = useMutation({
-    mutationFn: async (values: SoapNoteValues) => {
-      const id = savedId.current;
-      if (id) return opdService.updateConsultation(encounterId, id, values);
-      try {
-        return await opdService.createConsultation(encounterId, values);
-      } catch (error) {
-        // Another screen created the note first (409): write into that one.
-        if (!(error instanceof ApiError && error.status === 409)) throw error;
-        const existing = await opdService.getConsultation(encounterId);
-        return opdService.updateConsultation(encounterId, existing.id, values);
-      }
-    },
-    onSuccess: (saved) => {
-      const isFirstSave = savedId.current === undefined;
-      savedId.current = saved.id;
-      queryClient.setQueryData(["consultation", encounterId], saved);
-      if (!isFirstSave) return;
-      void queryClient.invalidateQueries({ queryKey: ["patient-consultations", patientId] });
+  // A template starts the doctor's Consultation note with its complaints and plan.
+  const fromTemplate = useMutation({
+    mutationFn: (template: ConsultationTemplate) =>
+      clinicalNotesService.createNote(encounterId, {
+        note_type_code: "consultation",
+        sections: [
+          { code: "subjective", title: "Subjective", text: template.chief_complaints.join(", ") },
+          { code: "plan", title: "Plan", text: template.default_plan ?? "" },
+        ],
+      }),
+    onSuccess: (note: Note) => {
+      setTemplateId(null);
+      void queryClient.invalidateQueries({ queryKey: ["clinical-notes", encounterId] });
       emit("opd.consultation.saved", {
-        consultation_id: saved.id,
-        encounter_id: saved.encounter_id,
+        consultation_id: note.id,
+        encounter_id: encounterId,
         patient_id: patientId,
-        source_record_id: saved.id,
+        source_record_id: note.id,
       });
     },
+    onError: (error: Error) => toast.error(error.message, { title: "Template not applied" }),
   });
 
-  const saveNote = (values: SoapNoteValues): Promise<void> => {
-    const run = queue.current.then(() => saveMutation.mutateAsync(values));
-    queue.current = run.catch(() => undefined);
-    return run.then(() => undefined);
-  };
-
-  // The editor keeps its own text from the values it first gets: it waits
-  // for the note, or it would open empty over a saved one.
-  if (isPending) return <Loader size="sm" />;
+  const hasMyConsultation = notes.some(
+    (n) => n.is_mine && n.note_type_code === "consultation" && n.status !== "entered_in_error",
+  );
 
   return (
-    <Stack gap="sm">
-      {!consultation && canUpdate && templateOptions.length > 0 && (
+    <Stack gap="md">
+      {canWrite && !hasMyConsultation && templates.length > 0 && (
         <Select
-          label="Start from a template"
+          label="Start a consultation note from a template"
           placeholder="Select a consultation template..."
-          data={templateOptions}
+          data={templates.map((t) => ({
+            value: t.id,
+            label: `${t.name}${t.specialty ? ` (${t.specialty})` : ""}`,
+          }))}
           value={templateId}
-          onChange={setTemplateId}
-          clearable
+          onChange={(id) => {
+            const template = templates.find((t) => t.id === id);
+            if (template) fromTemplate.mutate(template);
+          }}
           searchable
           size="xs"
           maw={400}
         />
       )}
-      <SOAPNotes
-        key={templateId ?? "note"}
-        consultation={consultation}
-        initialValues={initialValues}
-        onSave={canUpdate ? saveNote : undefined}
-        historyNotes={consultationHistory}
-        isHistoryLoading={loadingConsultationHistory}
-      />
+      <CaseSheet encounterId={encounterId} />
+      {soapAccess !== "hidden" && (
+        <SoapTimeline
+          historyNotes={history}
+          isLoading={loadingHistory}
+          soapText={(value) => fieldAccessText(soapAccess, value)}
+        />
+      )}
     </Stack>
   );
 }

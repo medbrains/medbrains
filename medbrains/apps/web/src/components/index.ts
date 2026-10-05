@@ -8,9 +8,7 @@ export {
   PrescriptionViews,
   PrescriptionWriter,
   ReviewOfSystems,
-  SOAPNotes,
   StructuredHistory,
-  soapValuesFrom,
   VisitSummaryPrint,
   VitalsRecorder,
 } from "./Clinical";

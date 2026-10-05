@@ -20,6 +20,7 @@
   "settings.deviceIntegrations": "Device Integrations",
   "settings.standards": "Standards",
   "settings.printTemplates": "Print Templates",
+  "settings.clinicalNotes": "Clinical notes",
   "settings.compliance": "Compliance",
   "settings.drugInteractions": "Drug Interactions",
   "settings.criticalValues": "Critical Values",
