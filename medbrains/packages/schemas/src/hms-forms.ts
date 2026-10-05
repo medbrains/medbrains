@@ -314,28 +314,6 @@ export const securityCodeDebriefFormSchema = z.object({
 });
 export type SecurityCodeDebriefFormInput = z.infer<typeof securityCodeDebriefFormSchema>;
 
-export const soapNoteFormSchema = z
-  .object({
-    chief_complaint: z.string().max(4000, "Subjective note must be at most 4000 characters"),
-    examination: z.string().max(4000, "Objective note must be at most 4000 characters"),
-    history: z.string().max(4000, "Assessment note must be at most 4000 characters"),
-    plan: z.string().max(4000, "Plan note must be at most 4000 characters"),
-    notes: z.string().max(8000, "Combined note must be at most 8000 characters"),
-  })
-  .refine(
-    (value) =>
-      value.chief_complaint.trim().length > 0 ||
-      value.examination.trim().length > 0 ||
-      value.history.trim().length > 0 ||
-      value.plan.trim().length > 0 ||
-      value.notes.trim().length > 0,
-    {
-      message: "Enter at least one SOAP section",
-      path: ["chief_complaint"],
-    },
-  );
-export type SoapNoteFormInput = z.infer<typeof soapNoteFormSchema>;
-
 export const accessGroupFormSchema = z.object({
   code: requiredTrimmed("Group code is required", 64),
   name: requiredTrimmed("Group name is required", 255),

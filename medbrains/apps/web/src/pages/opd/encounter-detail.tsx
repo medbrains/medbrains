@@ -515,11 +515,7 @@ export function EncounterDetail({
             <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="consultation" keepMounted>
-            <ConsultationTab
-              encounterId={encounterId}
-              patientId={patientId}
-              canUpdate={canUpdate}
-            />
+            <ConsultationTab encounterId={encounterId} patientId={patientId} />
           </Tabs.Panel>
           <Tabs.Panel value="history">
             <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />

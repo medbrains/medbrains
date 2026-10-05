@@ -1,8 +1,7 @@
-import type { SoapNoteFormInput } from "@medbrains/schemas";
 import { IconBrain, IconClipboardList, IconEye, IconMessage } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 
-export type SoapSectionKey = Exclude<keyof SoapNoteFormInput, "notes">;
+export type SoapSectionKey = "chief_complaint" | "examination" | "history" | "plan";
 
 export interface SoapSection {
   key: SoapSectionKey;

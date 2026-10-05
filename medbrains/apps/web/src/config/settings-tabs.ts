@@ -13,6 +13,7 @@ import {
   IconHeartRateMonitor,
   IconMapPin,
   IconMedicalCross,
+  IconNotebook,
   IconPalette,
   IconPill,
   IconPlug,
@@ -33,6 +34,7 @@ import { BillingTaxSettings } from "@/pages/admin/settings/BillingTaxSettings";
 import { BrandingSettings } from "@/pages/admin/settings/BrandingSettings";
 import { ClinicalConfigSettings } from "@/pages/admin/settings/ClinicalConfigSettings";
 import { ClinicalMastersSettings } from "@/pages/admin/settings/ClinicalMastersSettings";
+import { ClinicalNotesSettings } from "@/pages/admin/settings/ClinicalNotesSettings";
 import { ClinicalProtocolsSettings } from "@/pages/admin/settings/ClinicalProtocolsSettings";
 import { ComplianceSettingsTab } from "@/pages/admin/settings/ComplianceSettings";
 import { ConsultationTemplatesSettings } from "@/pages/admin/settings/ConsultationTemplatesSettings";
@@ -323,6 +325,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: ClinicalConfigSettings,
   },
   {
+    value: "clinical-notes",
+    i18nKey: "settings.clinicalNotes",
+    icon: "IconNotebook",
+    requiredPermission: "admin.settings.general.manage",
+    component: ClinicalNotesSettings,
+  },
+  {
     value: "system-health",
     i18nKey: "settings.systemHealth",
     icon: "IconHeartRateMonitor",
@@ -361,6 +370,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconShieldLock,
   IconPill,
   IconAlertTriangle,
+  IconNotebook,
   IconStethoscope,
   IconChartBar,
   IconHeartRateMonitor,

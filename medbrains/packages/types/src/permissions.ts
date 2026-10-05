@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 999 permissions, one per constant in the Rust source. */
+/** 1003 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -105,6 +105,31 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Edit Notes",
     description: "Edit Notes",
     module: "patients",
+  },
+  // clinical_notes
+  {
+    code: "clinical_notes.view",
+    label: "Read a visit's notes",
+    description: "Signed notes, and drafts as far as the hospital's draft setting allows.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.write",
+    label: "Write your own notes",
+    description: "Start a note or addendum and keep its draft; nurses write nursing notes, doctors the physician notes.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.sign",
+    label: "Sign your own notes",
+    description: "Signing stamps your name and time and locks the note after the hospital's grace period; revising within it keeps the old version.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.mark_in_error",
+    label: "Mark a note entered in error",
+    description: "Your own notes, with a reason; the text stays, struck through.",
+    module: "clinical_notes",
   },
   // opd
   {
@@ -6761,6 +6786,12 @@ export const P = {
     ORDER_BASKET_SIGN: "clinical.order_basket.sign",
     ORDER_BASKET_VIEW_AUDIT: "clinical.order_basket.view_audit",
   },
+  CLINICAL_NOTES: {
+    MARK_IN_ERROR: "clinical_notes.mark_in_error",
+    SIGN: "clinical_notes.sign",
+    VIEW: "clinical_notes.view",
+    WRITE: "clinical_notes.write",
+  },
   COMMAND_CENTER: {
     ALERTS: {
       MANAGE: "command_center.alerts.manage",
@@ -9116,6 +9147,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CHRONIC.TIMELINE.VIEW,
       P.CLINICAL.ORDER_BASKET_DRAFT,
       P.CLINICAL.ORDER_BASKET_SIGN,
+      P.CLINICAL_NOTES.MARK_IN_ERROR,
+      P.CLINICAL_NOTES.SIGN,
+      P.CLINICAL_NOTES.VIEW,
+      P.CLINICAL_NOTES.WRITE,
       P.CONSENT.REVOKE,
       P.CONSENT.SIGNATURES.LIST,
       P.CONSENT.TEMPLATES.LIST,
@@ -9406,6 +9441,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CHRONIC.ENROLLMENTS.LIST,
       P.CHRONIC.OUTCOMES.VIEW,
       P.CHRONIC.TIMELINE.VIEW,
+      P.CLINICAL_NOTES.MARK_IN_ERROR,
+      P.CLINICAL_NOTES.SIGN,
+      P.CLINICAL_NOTES.VIEW,
+      P.CLINICAL_NOTES.WRITE,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.DOCUMENTS.GENERATE,
@@ -10175,6 +10214,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "MRD Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CLINICAL_NOTES.VIEW,
       P.DASHBOARD.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,

@@ -97,6 +97,7 @@ members = [
     "crates/medbrains-pharmacy-petty-cash",
     "crates/medbrains-pharmacy-repeats",
     "crates/medbrains-ward-stock",
+    "crates/medbrains-clinical-notes",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
