@@ -4,6 +4,7 @@ import { P } from "@medbrains/types";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
+import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNotesCard";
 import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -149,6 +150,7 @@ export function NurseActivitiesPage() {
         title="Nurse Activities"
         subtitle="Medication rounds, vitals, I/O, safety assessments, code blue and handoffs"
       />
+      <UnsignedNotesCard />
       {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
       <NurseContextStrip
         admissionId={contextAdmissionId}

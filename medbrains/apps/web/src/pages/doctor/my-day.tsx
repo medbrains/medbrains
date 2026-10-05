@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNotesCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -106,6 +107,8 @@ export function MyDayPage() {
           color="danger"
         />
       </SimpleGrid>
+
+      <UnsignedNotesCard />
 
       {myDay && myDay.coverage.length > 0 && (
         <Card padding="md" mb="md" withBorder>
