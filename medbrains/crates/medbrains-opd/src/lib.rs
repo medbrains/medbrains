@@ -2482,8 +2482,12 @@ pub async fn list_diagnoses(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Diagnosis>(
-        "SELECT * FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
-         ORDER BY is_primary DESC, created_at LIMIT 5000",
+        "SELECT d.*, ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name \
+           FROM diagnoses d \
+           LEFT JOIN users ru ON ru.id = d.recorded_by \
+           LEFT JOIN users uu ON uu.id = d.updated_by \
+          WHERE d.encounter_id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL \
+          ORDER BY d.is_primary DESC, d.created_at LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -2526,8 +2530,9 @@ pub async fn create_diagnosis(
         "INSERT INTO diagnoses \
          (tenant_id, encounter_id, icd_code, icd_system, icd_display, icd_source_url, \
           icd_source_version, icd_provider_mode, description, is_primary, notes, \
-          severity, certainty, onset_date, resolved_date, snomed_code, snomed_display) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
+          severity, certainty, onset_date, resolved_date, snomed_code, snomed_display, \
+          recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2547,6 +2552,7 @@ pub async fn create_diagnosis(
     .bind(body.resolved_date)
     .bind(&body.snomed_code)
     .bind(&body.snomed_display)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2652,7 +2658,8 @@ pub async fn update_diagnosis(
             onset_date = CASE WHEN $12 THEN $13 ELSE onset_date END, \
             resolved_date = CASE WHEN $14 THEN $15 ELSE resolved_date END, \
             snomed_code = COALESCE($16, snomed_code), \
-            snomed_display = COALESCE($17, snomed_display) \
+            snomed_display = COALESCE($17, snomed_display), \
+            updated_by = $21, updated_at = now() \
          WHERE id = $18 AND tenant_id = $19 AND encounter_id = $20 \
          RETURNING *",
     )
@@ -2676,6 +2683,7 @@ pub async fn update_diagnosis(
     .bind(did)
     .bind(claims.tenant_id)
     .bind(encounter_id)
+    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -3810,6 +3818,10 @@ pub struct PatientDiagnosisRow {
     pub encounter_date: NaiveDate,
     pub doctor_name: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Who made the diagnosis — not the visit's doctor, who may not have.
+    pub recorded_by_name: Option<String>,
+    pub updated_by_name: Option<String>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 pub async fn list_patient_diagnoses(
@@ -3834,10 +3846,13 @@ pub async fn list_patient_diagnoses(
          d.onset_date, d.resolved_date, d.snomed_code, d.snomed_display, \
          e.encounter_date, \
          u.full_name AS doctor_name, \
-         d.created_at \
+         d.created_at, \
+         ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name, d.updated_at \
          FROM diagnoses d \
          JOIN encounters e ON d.encounter_id = e.id \
          LEFT JOIN users u ON e.doctor_id = u.id \
+         LEFT JOIN users ru ON ru.id = d.recorded_by \
+         LEFT JOIN users uu ON uu.id = d.updated_by \
          WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL \
          ORDER BY d.created_at DESC \
          LIMIT 100",
