@@ -105,6 +105,14 @@ function canEditDiagnosisField(access: FieldAccessLevel): boolean {
   return access === "edit";
 }
 
+/** Who made it — the visit's doctor only stands in when nobody was recorded. */
+function diagnosisAuthor(d: { recorded_by_name?: string | null; doctor_name?: string | null }) {
+  if (d.recorded_by_name) return `Recorded by ${d.recorded_by_name}`;
+  return d.doctor_name
+    ? `Visit doctor ${d.doctor_name} (author not recorded)`
+    : "Author not recorded";
+}
+
 function displayDate(value: string | null | undefined): string {
   if (!value) return "Not dated";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
@@ -564,8 +572,10 @@ export function DiagnosisPanel({
                     )}
                   </Group>
                   <Text size="xs" c="dimmed" mt={4}>
-                    {displayDate(diagnosis.created_at)} ·{" "}
-                    {diagnosis.doctor_name ?? "Provider not recorded"}
+                    {displayDate(diagnosis.created_at)} · {diagnosisAuthor(diagnosis)}
+                    {diagnosis.updated_by_name && diagnosis.updated_at
+                      ? ` · changed by ${diagnosis.updated_by_name} ${displayDate(diagnosis.updated_at)}`
+                      : ""}
                     {canShowDiagnosisDetails && diagnosis.resolved_date
                       ? ` · resolved ${displayDate(diagnosis.resolved_date)}`
                       : ""}
