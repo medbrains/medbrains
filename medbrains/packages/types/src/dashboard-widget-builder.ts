@@ -1780,6 +1780,10 @@ export interface Diagnosis {
   snomed_code: string | null;
   snomed_display: string | null;
   created_at: string;
+  /** Who made the diagnosis; null for diagnoses from before it was kept. */
+  recorded_by_name?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CreateDiagnosisRequest {

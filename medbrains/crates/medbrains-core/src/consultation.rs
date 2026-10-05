@@ -59,6 +59,19 @@ pub struct Diagnosis {
     pub snomed_code: Option<String>,
     pub snomed_display: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Who made the diagnosis; empty for diagnoses from before it was kept.
+    #[sqlx(default)]
+    pub recorded_by: Option<Uuid>,
+    /// Who last changed it, and when.
+    #[sqlx(default)]
+    pub updated_by: Option<Uuid>,
+    #[sqlx(default)]
+    pub updated_at: Option<DateTime<Utc>>,
+    /// Names for the screen, sent by the list.
+    #[sqlx(default)]
+    pub recorded_by_name: Option<String>,
+    #[sqlx(default)]
+    pub updated_by_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
