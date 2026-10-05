@@ -9,10 +9,6 @@ export const ipdService = {
     api.createNursingTask(...args),
   updateNursingTask: (...args: Parameters<typeof api.updateNursingTask>) =>
     api.updateNursingTask(...args),
-  listProgressNotes: (...args: Parameters<typeof api.listProgressNotes>) =>
-    api.listProgressNotes(...args),
-  createProgressNote: (...args: Parameters<typeof api.createProgressNote>) =>
-    api.createProgressNote(...args),
   listAssessments: (...args: Parameters<typeof api.listAssessments>) =>
     api.listAssessments(...args),
   createAssessment: (...args: Parameters<typeof api.createAssessment>) =>

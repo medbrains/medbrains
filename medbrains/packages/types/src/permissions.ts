@@ -10255,6 +10255,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Dietitian",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CLINICAL_NOTES.MARK_IN_ERROR,
+      P.CLINICAL_NOTES.SIGN,
+      P.CLINICAL_NOTES.VIEW,
+      P.CLINICAL_NOTES.WRITE,
       P.DASHBOARD.VIEW,
       P.DIET.AUDITS.CREATE,
       P.DIET.AUDITS.LIST,

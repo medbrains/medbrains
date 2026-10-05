@@ -1,7 +1,7 @@
 import { api } from "@medbrains/api";
 
 export const clinicalNotesService = {
-  listNoteTypes: () => api.listNoteTypes(),
+  listNoteTypes: (...args: Parameters<typeof api.listNoteTypes>) => api.listNoteTypes(...args),
   listEncounterNotes: (...args: Parameters<typeof api.listEncounterNotes>) =>
     api.listEncounterNotes(...args),
   createNote: (...args: Parameters<typeof api.createNote>) => api.createNote(...args),

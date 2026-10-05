@@ -441,3 +441,117 @@ async fn history_ros_and_examination_are_sections_of_the_signed_note() {
     );
     assert_eq!(exam.expect("exam")["respiratory"], "Bilateral wheeze");
 }
+
+/// An admission's case sheet: a consultation is an outpatient note and is
+/// refused on a ward; a signed round reaches the older ward-notes read; its
+/// first signature bills the round once, and a revision does not bill again.
+#[tokio::test]
+async fn a_ward_round_is_a_signed_progress_note_billed_once() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    // The visit becomes an admission — the case sheet keys on the encounter.
+    let admission: Uuid = sqlx::query_scalar(
+        "WITH e AS (UPDATE encounters SET encounter_type = 'ipd' WHERE id = $1::uuid \
+                    RETURNING id, tenant_id, patient_id, department_id) \
+         INSERT INTO admissions (tenant_id, encounter_id, patient_id, department_id, \
+                                 admitting_doctor, status, admitted_at) \
+         SELECT e.tenant_id, e.id, e.patient_id, e.department_id, u.id, 'admitted', now() \
+           FROM e JOIN users u ON u.username = 'admin' RETURNING id",
+    )
+    .bind(&encounter)
+    .fetch_one(&app.db)
+    .await
+    .expect("admission");
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         SELECT tenant_id, 'billing', 'auto_charge_ipd_doctor_round', 'true'::jsonb \
+           FROM users WHERE username = 'admin' \
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+    )
+    .execute(&app.db)
+    .await
+    .expect("billing on");
+    let notes = format!("/api/encounters/{encounter}/clinical-notes");
+
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "POST",
+        &notes,
+        json!({ "note_type_code": "consultation" }),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "no consultation note on a ward"
+    );
+
+    let (status, round) = call(
+        &app,
+        &csrf,
+        "POST",
+        &notes,
+        json!({ "note_type_code": "progress",
+        "sections": [{ "code": "subjective", "text": "Afebrile overnight" }] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{round}");
+    let id = round["id"].as_str().expect("note id").to_owned();
+    call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{id}/sign"),
+        json!({}),
+    )
+    .await;
+    call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{id}/revise"),
+        json!({}),
+    )
+    .await;
+    let (status, second) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{id}/sign"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{second}");
+
+    let charges: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM invoice_items WHERE source_id = $1::uuid AND deleted_at IS NULL",
+    )
+    .bind(&id)
+    .fetch_one(&app.db)
+    .await
+    .expect("charges");
+    assert_eq!(
+        charges, 1,
+        "the round is billed once; a revision is the same round"
+    );
+
+    let (status, legacy) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/ipd/admissions/{admission}/progress-notes"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{legacy}");
+    let row = legacy
+        .as_array()
+        .expect("rows")
+        .iter()
+        .find(|r| r["id"] == json!(id))
+        .expect("listed");
+    assert_eq!(row["note_type"], "doctor_round");
+    assert_eq!(row["subjective"], "Afebrile overnight");
+}

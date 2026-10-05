@@ -171,7 +171,7 @@ async fn resolve_price(
 
     // Try rate plan override: patient_category match first, then is_default
     let patient_category = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT category FROM patients WHERE id = $1 AND tenant_id = $2",
+        "SELECT category::text FROM patients WHERE id = $1 AND tenant_id = $2",
     )
     .bind(patient_id)
     .bind(tenant_id)
@@ -773,7 +773,7 @@ async fn apply_auto_concessions(
 
     // Get patient category for rule matching
     let patient_category = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT category FROM patients WHERE id = $1 AND tenant_id = $2",
+        "SELECT category::text FROM patients WHERE id = $1 AND tenant_id = $2",
     )
     .bind(patient_id)
     .bind(tenant_id)
