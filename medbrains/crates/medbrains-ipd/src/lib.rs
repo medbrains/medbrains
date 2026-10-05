@@ -72,8 +72,7 @@ use medbrains_core::ipd::{
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
     IpdMedicationAdministration, IpdNoDuesCertificate, IpdNursingAssessment, IpdProgressNote,
     IpdTransferLog, IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift,
-    NursingTask, ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward,
-    WardBedMapping,
+    NursingTask, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
@@ -376,26 +375,6 @@ pub struct UpdateNursingTaskRequest {
 }
 
 // ── Progress Notes ─────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-pub struct CreateProgressNoteRequest {
-    pub note_type: String,
-    pub note_date: NaiveDate,
-    pub subjective: Option<String>,
-    pub objective: Option<String>,
-    pub assessment: Option<String>,
-    pub plan: Option<String>,
-    pub is_addendum: Option<bool>,
-    pub parent_note_id: Option<Uuid>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateProgressNoteRequest {
-    pub subjective: Option<String>,
-    pub objective: Option<String>,
-    pub assessment: Option<String>,
-    pub plan: Option<String>,
-}
 
 // ── Assessments ────────────────────────────────────────
 
@@ -2565,185 +2544,6 @@ pub async fn list_progress_notes(
     tx.commit().await?;
 
     Ok(Json(notes))
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/ipd/admissions/{id}/progress-notes
-// ══════════════════════════════════════════════════════════
-
-pub async fn create_progress_note(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<CreateProgressNoteRequest>,
-) -> Result<Json<IpdProgressNote>, AppError> {
-    require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
-
-    // The route names an admission; holding the module permission is not the
-    // same as being on this patient's care team. Without this, any holder of
-    // the code could read or write any admission in the tenant — RLS scopes
-    // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let admission =
-        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
-            .bind(id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(|| AppError::NotFound)?;
-
-    if body.note_type.trim() == "doctor_round" && admission.status != AdmissionStatus::Admitted {
-        return Err(AppError::BadRequest(
-            "Doctor rounds can only be recorded for active admissions".to_owned(),
-        ));
-    }
-
-    let note = sqlx::query_as::<_, IpdProgressNote>(
-        "INSERT INTO ipd_progress_notes \
-           (tenant_id, admission_id, note_type, author_id, note_date, \
-            subjective, objective, assessment, plan, is_addendum, parent_note_id) \
-         VALUES ($1, $2, $3::progress_note_type, $4, $5, $6, $7, $8, $9, $10, $11) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(id)
-    .bind(&body.note_type)
-    .bind(claims.sub)
-    .bind(body.note_date)
-    .bind(&body.subjective)
-    .bind(&body.objective)
-    .bind(&body.assessment)
-    .bind(&body.plan)
-    .bind(body.is_addendum.unwrap_or(false))
-    .bind(body.parent_note_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    if note.note_type == ProgressNoteType::DoctorRound {
-        best_effort_auto_bill_doctor_round_in_tx(&mut tx, &claims, &admission, &note).await?;
-    }
-
-    tx.commit().await?;
-
-    Ok(Json(note))
-}
-
-async fn best_effort_auto_bill_doctor_round_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    admission: &Admission,
-    note: &IpdProgressNote,
-) -> Result<(), AppError> {
-    sqlx::query("SAVEPOINT ipd_doctor_round_auto_bill")
-        .execute(&mut **tx)
-        .await?;
-
-    match auto_bill_doctor_round_in_tx(tx, claims, admission, note).await {
-        Ok(()) => {
-            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-        }
-        Err(error) => {
-            sqlx::query("ROLLBACK TO SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-            tracing::warn!(
-                error = %error,
-                admission_id = %admission.id,
-                note_id = %note.id,
-                "IPD doctor-round auto-billing failed; continuing with progress-note creation"
-            );
-        }
-    }
-
-    Ok(())
-}
-
-async fn auto_bill_doctor_round_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    admission: &Admission,
-    note: &IpdProgressNote,
-) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(
-        tx,
-        &claims.tenant_id,
-        "ipd_doctor_round",
-    )
-    .await?
-    {
-        return Ok(());
-    }
-
-    medbrains_server_services::billing::auto_charge(
-        tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id: admission.patient_id,
-            encounter_id: Some(admission.encounter_id),
-            charge_code: "CON_SPECIALIST".to_owned(),
-            source: "ipd".to_owned(),
-            source_id: note.id,
-            quantity: 1,
-            description_override: Some(format!("IPD doctor round - {}", note.note_date)),
-            unit_price_override: None,
-            tax_percent_override: None,
-        },
-    )
-    .await?;
-
-    Ok(())
-}
-
-// ══════════════════════════════════════════════════════════
-//  PUT /api/ipd/admissions/{id}/progress-notes/{note_id}
-// ══════════════════════════════════════════════════════════
-
-pub async fn update_progress_note(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((id, note_id)): Path<(Uuid, Uuid)>,
-    Json(body): Json<UpdateProgressNoteRequest>,
-) -> Result<Json<IpdProgressNote>, AppError> {
-    require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let note = sqlx::query_as::<_, IpdProgressNote>(
-        "UPDATE ipd_progress_notes SET \
-           subjective = COALESCE($4, subjective), \
-           objective = COALESCE($5, objective), \
-           assessment = COALESCE($6, assessment), \
-           plan = COALESCE($7, plan) \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
-         RETURNING *",
-    )
-    .bind(note_id)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.subjective)
-    .bind(&body.objective)
-    .bind(&body.assessment)
-    .bind(&body.plan)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
-
-    tx.commit().await?;
-
-    Ok(Json(note))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -5486,7 +5286,9 @@ pub async fn finalize_discharge_summary(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("Discharge summary is already finalized".to_owned()));
+        return Err(AppError::BadRequest(
+            "Discharge summary is already finalized".to_owned(),
+        ));
     };
 
     #[derive(sqlx::FromRow)]
@@ -6802,7 +6604,9 @@ pub async fn resolve_clinical_doc(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("Document is already resolved".to_owned()));
+        return Err(AppError::BadRequest(
+            "Document is already resolved".to_owned(),
+        ));
     };
 
     tx.commit().await?;
@@ -8739,11 +8543,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/ipd/admissions/{id}/progress-notes",
-            get(list_progress_notes).post(create_progress_note),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/progress-notes/{note_id}",
-            put(update_progress_note),
+            get(list_progress_notes),
         )
         .route(
             "/api/ipd/admissions/{id}/assessments",

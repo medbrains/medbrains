@@ -87,6 +87,11 @@ pub async fn sign_note(
     .bind(&hash)
     .execute(&mut *tx)
     .await?;
+    // The first signature on a doctor's round note is the round's charge; a
+    // revision is the same round.
+    if note.signed_at.is_none() && note.type_code == "progress" {
+        crate::billing::bill_doctor_round(&mut tx, &claims, note.id, note.encounter_id).await?;
+    }
     finish(tx, &claims, &note, true).await
 }
 

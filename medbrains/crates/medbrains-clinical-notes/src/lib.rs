@@ -7,12 +7,13 @@
 //! that only an addendum adds to it. A note written in error is marked so,
 //! with a reason, and stays on the sheet struck through.
 
+pub mod billing;
 pub mod lifecycle;
 pub mod model;
 pub mod store;
 
 use axum::Json;
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{get, post, put};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
@@ -58,10 +59,18 @@ pub async fn begin(
     Ok(tx)
 }
 
-/// `GET /api/clinical-notes/types` — the kinds of note this hospital writes.
+#[derive(Debug, Deserialize)]
+pub struct NoteTypesQuery {
+    /// Only the types the caller may write on this visit.
+    pub encounter_id: Option<Uuid>,
+}
+
+/// `GET /api/clinical-notes/types` — the kinds of note this hospital writes,
+/// or with `encounter_id`, those the caller may start on that visit.
 pub async fn list_note_types(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<NoteTypesQuery>,
 ) -> Result<Json<Vec<NoteType>>, AppError> {
     require_permission(&claims, permissions::clinical_notes::VIEW)?;
     let mut tx = begin(&state, &claims).await?;
@@ -70,16 +79,42 @@ pub async fn list_note_types(
         .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
+    let kind = match params.encounter_id {
+        Some(id) => Some(encounter_kind(&mut tx, &claims, id).await?),
+        None => None,
+    };
     let types = sqlx::query_as::<_, NoteType>(
-        "SELECT id, code, name, loinc_code, category, sections FROM note_types \
+        "SELECT id, code, name, loinc_code, category, sections, author_roles, encounter_kinds \
+           FROM note_types \
           WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL \
+            AND ($2::text IS NULL OR ($2 = ANY(encounter_kinds) \
+                 AND ($4 OR cardinality(author_roles) = 0 OR $3 = ANY(author_roles)))) \
           ORDER BY sort_order, name",
     )
     .bind(claims.tenant_id)
+    .bind(kind)
+    .bind(&claims.role)
+    .bind(is_bypass_role(&claims))
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(Json(types))
+}
+
+/// `opd`, `ipd` or `emergency`.
+async fn encounter_kind(
+    tx: &mut Transaction<'_, Postgres>,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<String, AppError> {
+    sqlx::query_scalar(
+        "SELECT encounter_type::text FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
 }
 
 /// `GET /api/encounters/{id}/clinical-notes` — the visit's case sheet.
@@ -115,10 +150,10 @@ pub struct CreateNoteRequest {
     pub sections: Vec<SectionPatch>,
 }
 
-/// Who may write a note of this category: nursing notes by nurses, the rest
-/// by everyone else who may write notes.
-fn may_write_category(claims: &Claims, category: &str) -> bool {
-    is_bypass_role(claims) || (category == "nursing") == (claims.role == "nurse")
+/// Whether the caller's role writes this type: its listed roles, or anyone
+/// who may write notes when it lists none.
+fn may_write(claims: &Claims, author_roles: &[String]) -> bool {
+    is_bypass_role(claims) || author_roles.is_empty() || author_roles.contains(&claims.role)
 }
 
 /// `POST /api/encounters/{id}/clinical-notes` — start a note or an addendum.
@@ -140,8 +175,9 @@ pub async fn create_note(
     }
     let mut tx = begin(&state, &claims).await?;
 
-    let (patient_id, department_id): (Uuid, Option<Uuid>) = sqlx::query_as(
-        "SELECT patient_id, department_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    let (patient_id, department_id, kind): (Uuid, Option<Uuid>, String) = sqlx::query_as(
+        "SELECT patient_id, department_id, encounter_type::text FROM encounters \
+          WHERE id = $1 AND tenant_id = $2",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -149,23 +185,34 @@ pub async fn create_note(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let (type_id, category, template) = if let Some(parent) = body.amends_note_id {
+    let (type_id, author_roles, template) = if let Some(parent) = body.amends_note_id {
         addendum_type(&mut tx, &claims, encounter_id, parent).await?
     } else {
-        let (id, category, sections): (Uuid, String, serde_json::Value) = sqlx::query_as(
-            "SELECT id, category, sections FROM note_types \
-              WHERE tenant_id = $1 AND code = $2 AND is_active AND deleted_at IS NULL",
+        let (id, name, sections, roles, kinds): (
+            Uuid,
+            String,
+            serde_json::Value,
+            Vec<String>,
+            Vec<String>,
+        ) = sqlx::query_as(
+            "SELECT id, name, sections, author_roles, encounter_kinds FROM note_types \
+                  WHERE tenant_id = $1 AND code = $2 AND is_active AND deleted_at IS NULL",
         )
         .bind(claims.tenant_id)
         .bind(&body.note_type_code)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or_else(|| AppError::BadRequest("Choose a note type".to_owned()))?;
+        if !kinds.contains(&kind) {
+            return Err(AppError::BadRequest(format!(
+                "A {name} is not written on this kind of visit"
+            )));
+        }
         let template: Vec<Section> = serde_json::from_value(sections)
             .map_err(|e| AppError::Internal(format!("note type sections: {e}")))?;
-        (id, category, template)
+        (id, roles, template)
     };
-    if !may_write_category(&claims, &category) {
+    if !may_write(&claims, &author_roles) {
         return Err(AppError::Forbidden);
     }
     let mut base = template;
@@ -220,9 +267,9 @@ async fn addendum_type(
     claims: &Claims,
     encounter_id: Uuid,
     parent: Uuid,
-) -> Result<(Uuid, String, Vec<Section>), AppError> {
-    let (type_id, category, status): (Uuid, String, String) = sqlx::query_as(
-        "SELECT n.note_type_id, t.category, n.status FROM clinical_notes n \
+) -> Result<(Uuid, Vec<String>, Vec<Section>), AppError> {
+    let (type_id, roles, status): (Uuid, Vec<String>, String) = sqlx::query_as(
+        "SELECT n.note_type_id, t.author_roles, n.status FROM clinical_notes n \
            JOIN note_types t ON t.id = n.note_type_id \
           WHERE n.id = $1 AND n.tenant_id = $2 AND n.encounter_id = $3 \
             AND n.deleted_at IS NULL",
@@ -244,7 +291,7 @@ async fn addendum_type(
         text: String::new(),
         data: None,
     };
-    Ok((type_id, category, vec![section]))
+    Ok((type_id, roles, vec![section]))
 }
 
 /// The caller's own note, locked for the change about to be made.

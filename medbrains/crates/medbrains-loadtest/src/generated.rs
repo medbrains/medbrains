@@ -2509,13 +2509,6 @@ async fn t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb(
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/progress-notes/{note_id}").await;
-    crate::json_put(user, &path, &serde_json::json!({})).await
-}
-
 async fn t_get_api_ipd_admissions_id_mar_246d69(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/mar").await;
     let _ = crate::json_get(user, &path).await?;
@@ -6677,9 +6670,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         ))
         .register_transaction(transaction!(
             t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb
-        ))
-        .register_transaction(transaction!(
-            t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab
         ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_mar_246d69))
         .register_transaction(transaction!(t_put_api_ipd_admissions_id_mar_mar_id_287d43))

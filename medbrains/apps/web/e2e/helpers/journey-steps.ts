@@ -640,6 +640,7 @@ export async function createIpdProgressNote(
   ctx: AuthContext,
   admissionId: string,
   opts: {
+    /** Days before today the round was (0 or less): a note records care given. */
     dayOffset?: number;
     noteType?: string;
     subjective?: string;
@@ -647,18 +648,33 @@ export async function createIpdProgressNote(
     assessment?: string;
     plan?: string;
   } = {},
-): Promise<{ id: string; note_date: string; note_type: string }> {
+): Promise<{ id: string }> {
   const dayOffset = opts.dayOffset ?? 0;
-  return api(ctx, "POST", `/api/ipd/admissions/${admissionId}/progress-notes`, {
-    note_type: opts.noteType ?? "doctor_round",
-    note_date: dateDaysFromNow(dayOffset),
-    subjective: opts.subjective ?? `Day ${dayOffset} review: symptoms improving`,
-    objective: opts.objective ?? "Vitals stable, no new red flags",
-    assessment: opts.assessment ?? "Observation admission, clinically stable",
-    plan:
-      opts.plan ??
-      "Continue monitoring, medication administration, and discharge planning",
+  if (dayOffset > 0) throw new Error("A progress note cannot record a round not yet done");
+  const admission = await api<{ admission: { encounter_id: string } }>(
+    ctx,
+    "GET",
+    `/api/ipd/admissions/${admissionId}`,
+  );
+  const encounterId = admission.admission.encounter_id;
+  const serviceAt = new Date(Date.now() + dayOffset * 86_400_000).toISOString();
+  const note = await api<{ id: string }>(ctx, "POST", `/api/encounters/${encounterId}/clinical-notes`, {
+    note_type_code: opts.noteType ?? "progress",
+    service_at: serviceAt,
+    sections: [
+      { code: "subjective", text: opts.subjective ?? `Day ${dayOffset} review: symptoms improving` },
+      { code: "objective", text: opts.objective ?? "Vitals stable, no new red flags" },
+      { code: "assessment", text: opts.assessment ?? "Observation admission, clinically stable" },
+      {
+        code: "plan",
+        text: opts.plan ?? "Continue monitoring, medication administration, and discharge planning",
+      },
+    ],
   });
+  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {
+    late_entry_reason: dayOffset < 0 ? "Round written up after the day it was done" : undefined,
+  });
+  return note;
 }
 
 export async function createIpdClinicalAssessment(

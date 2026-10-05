@@ -25,6 +25,10 @@ export interface NoteType {
   loinc_code: string | null;
   category: ClinicalNoteCategory;
   sections: NoteSection[];
+  /** Roles that write this type; empty: anyone who writes notes. */
+  author_roles: string[];
+  /** The visits it is written on: opd, ipd, emergency. */
+  encounter_kinds: string[];
 }
 
 export type ClinicalNoteStatus = "draft" | "signed" | "entered_in_error";
