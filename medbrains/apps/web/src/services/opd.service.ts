@@ -42,10 +42,6 @@ export const opdService = {
     api.opdPharmacyDispatchStatus(...args),
   listConsultationTemplates: (...args: Parameters<typeof api.listConsultationTemplates>) =>
     api.listConsultationTemplates(...args),
-  createConsultation: (...args: Parameters<typeof api.createConsultation>) =>
-    api.createConsultation(...args),
-  updateConsultation: (...args: Parameters<typeof api.updateConsultation>) =>
-    api.updateConsultation(...args),
   createDiagnosis: (...args: Parameters<typeof api.createDiagnosis>) =>
     api.createDiagnosis(...args),
   updateDiagnosis: (...args: Parameters<typeof api.updateDiagnosis>) =>

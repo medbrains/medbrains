@@ -87,7 +87,7 @@ pub async fn sign_note(
     .bind(&hash)
     .execute(&mut *tx)
     .await?;
-    finish(tx, &claims, &note).await
+    finish(tx, &claims, &note, true).await
 }
 
 /// `POST /api/clinical-notes/{id}/revise` — reopen a signed note within the
@@ -125,7 +125,7 @@ pub async fn revise_note(
     .bind(note.id)
     .execute(&mut *tx)
     .await?;
-    finish(tx, &claims, &note).await
+    finish(tx, &claims, &note, false).await
 }
 
 /// `POST /api/clinical-notes/{id}/discard` — throw away a draft: a note
@@ -147,7 +147,7 @@ pub async fn discard_note(
         .bind(note.id)
         .execute(&mut *tx)
         .await?;
-        return finish(tx, &claims, &note)
+        return finish(tx, &claims, &note, false)
             .await
             .map(|Json(n)| Json(Some(n)));
     }
@@ -159,9 +159,6 @@ pub async fn discard_note(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
-    if note.type_code == "consultation" {
-        store::project_consultation(&mut tx, claims.tenant_id, note.encounter_id).await?;
-    }
     tx.commit().await?;
     Ok(Json(None))
 }
@@ -202,5 +199,5 @@ pub async fn mark_in_error(
     .bind(reason)
     .execute(&mut *tx)
     .await?;
-    finish(tx, &claims, &note).await
+    finish(tx, &claims, &note, true).await
 }

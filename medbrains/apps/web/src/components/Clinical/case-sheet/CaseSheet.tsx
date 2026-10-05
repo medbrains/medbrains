@@ -68,8 +68,8 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
     canSign,
     canWrite,
     canMarkInError,
-    saveDraft: async (note, sections) => {
-      const saved = await clinicalNotesService.saveNoteDraft(note.id, sections);
+    saveDraft: async (note, patches) => {
+      const saved = await clinicalNotesService.saveNoteDraft(note.id, patches);
       queryClient.setQueryData<Note[]>(notesKey(encounterId), (old) =>
         old?.map((n) => (n.id === saved.id ? saved : n)),
       );

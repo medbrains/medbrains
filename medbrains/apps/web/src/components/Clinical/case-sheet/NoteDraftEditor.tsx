@@ -1,10 +1,11 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import { useDebouncedCallback, useWindowEvent } from "@mantine/hooks";
-import type { NoteSection } from "@medbrains/types";
+import type { NoteSection, NoteSectionPatch } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck, IconLoader2 } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { Button, RichTextEditor } from "@/components/ui";
 import styles from "../soap-notes.module.scss";
+import { STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
 
 /** Quiet time after the last keystroke before the draft is saved. */
 const AUTOSAVE_DELAY_MS = 1200;
@@ -19,8 +20,11 @@ type SaveState =
 
 interface NoteDraftEditorProps {
   initialSections: NoteSection[];
-  /** Persist the draft; resolves once the server has it. */
-  onSave: (sections: NoteSection[]) => Promise<void>;
+  /** The note's sections as the server has them now: the structured ones
+   * change on their own tabs while this editor is open. */
+  liveSections: NoteSection[];
+  /** Persist the draft's text; resolves once the server has it. */
+  onSave: (patches: NoteSectionPatch[]) => Promise<void>;
   /** Sign the note — offered when the author may sign; resolves when done. */
   onSign?: () => Promise<void>;
 }
@@ -30,7 +34,12 @@ interface NoteDraftEditorProps {
  * forget to save before signing. A failed save says so and keeps the text
  * on screen with a retry.
  */
-export function NoteDraftEditor({ initialSections, onSave, onSign }: NoteDraftEditorProps) {
+export function NoteDraftEditor({
+  initialSections,
+  liveSections,
+  onSave,
+  onSign,
+}: NoteDraftEditorProps) {
   const [sections, setSections] = useState(initialSections);
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const inFlight = useRef<Promise<boolean>>(Promise.resolve(true));
@@ -49,7 +58,11 @@ export function NoteDraftEditor({ initialSections, onSave, onSign }: NoteDraftEd
     }
     setState({ kind: "saving" });
     try {
-      await onSave(next);
+      // Only the text sections are typed here; the structured ones belong to
+      // their tabs and are left as the server has them.
+      await onSave(
+        next.filter((s) => !STRUCTURED_SECTIONS[s.code]).map(({ code, text }) => ({ code, text })),
+      );
       setState({ kind: "saved", at: new Date() });
       return true;
     } catch (error) {
@@ -94,20 +107,42 @@ export function NoteDraftEditor({ initialSections, onSave, onSign }: NoteDraftEd
       <Group justify="flex-end">
         <SaveStatus state={state} onRetry={() => void save(sections)} />
       </Group>
-      {sections.map((section) => (
-        <Box key={section.code} className={styles.soapSection}>
-          <Text size="sm" fw={600} mb={6}>
-            {section.title}
-          </Text>
-          <RichTextEditor
-            ariaLabel={section.title}
-            value={section.text}
-            onChange={(html) => change(section.code, html)}
-            minHeight={80}
-            toolbar="compact"
-          />
-        </Box>
-      ))}
+      {sections.map((section) => {
+        const structured = STRUCTURED_SECTIONS[section.code];
+        if (structured) {
+          const live = liveSections.find((s) => s.code === section.code) ?? section;
+          const lines = summariseSection(section.code, live.data);
+          return (
+            <Box key={section.code} className={styles.soapSection}>
+              <Text size="sm" fw={600} mb={4}>
+                {section.title}
+              </Text>
+              {lines.map((line) => (
+                <Text key={line} size="sm">
+                  {line}
+                </Text>
+              ))}
+              <Text size="xs" c="dimmed">
+                {lines.length === 0 ? "Not recorded. " : ""}Edit on the {structured.label} tab.
+              </Text>
+            </Box>
+          );
+        }
+        return (
+          <Box key={section.code} className={styles.soapSection}>
+            <Text size="sm" fw={600} mb={6}>
+              {section.title}
+            </Text>
+            <RichTextEditor
+              ariaLabel={section.title}
+              value={section.text}
+              onChange={(html) => change(section.code, html)}
+              minHeight={80}
+              toolbar="compact"
+            />
+          </Box>
+        );
+      })}
       {onSign && (
         <Group>
           <Button tone="primary" size="xs" loading={signing} onClick={() => void sign()}>

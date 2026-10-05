@@ -333,3 +333,111 @@ async fn a_late_entry_says_why() {
         "Night emergency; written next morning"
     );
 }
+
+/// Given history already taken on the visit, When the doctor starts a
+/// consultation note, Then it opens with that history; saving the history
+/// leaves the plan alone; a draft does not reach the visit's consultation
+/// row, and signing puts the history and the examination there.
+#[tokio::test]
+async fn history_ros_and_examination_are_sections_of_the_signed_note() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/opd/encounters/{encounter}/consultation"),
+        json!({ "hpi": "Cough for three weeks",
+                "past_medical_history": [{ "condition": "Diabetes", "status": "controlled" }] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, note) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/encounters/{encounter}/clinical-notes"),
+        json!({ "note_type_code": "consultation" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{note}");
+    let id = note["id"].as_str().expect("note id").to_owned();
+    let history = note["sections"]
+        .as_array()
+        .expect("sections")
+        .iter()
+        .find(|s| s["code"] == "history")
+        .expect("history section")
+        .clone();
+    assert_eq!(
+        history["data"]["hpi"], "Cough for three weeks",
+        "the note opens with the history taken"
+    );
+
+    call(
+        &app,
+        &csrf,
+        "PUT",
+        &format!("/api/clinical-notes/{id}/draft"),
+        json!({ "sections": [{ "code": "plan", "text": "Chest X-ray" }] }),
+    )
+    .await;
+    let (status, saved) = call(
+        &app,
+        &csrf,
+        "PUT",
+        &format!("/api/clinical-notes/{id}/draft"),
+        json!({ "sections": [
+            { "code": "history", "data": { "hpi": "Cough for three weeks, worse at night" } },
+            { "code": "examination", "data": { "exam": { "respiratory": "Bilateral wheeze" },
+                                               "general_appearance": "Comfortable" } },
+        ]}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let plan = saved["sections"]
+        .as_array()
+        .expect("sections")
+        .iter()
+        .find(|s| s["code"] == "plan")
+        .expect("plan")
+        .clone();
+    assert_eq!(
+        plan["text"], "Chest X-ray",
+        "saving the history leaves the plan alone"
+    );
+
+    let row = || async {
+        sqlx::query_as::<_, (Option<String>, Option<Value>)>(
+            "SELECT hpi, physical_examination FROM consultations \
+              WHERE encounter_id = $1::uuid AND deleted_at IS NULL",
+        )
+        .bind(&encounter)
+        .fetch_one(&app.db)
+        .await
+        .expect("consultation row")
+    };
+    assert_eq!(
+        row().await.0.as_deref(),
+        Some("Cough for three weeks"),
+        "a draft is the author's"
+    );
+
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{id}/sign"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (hpi, exam) = row().await;
+    assert_eq!(
+        hpi.as_deref(),
+        Some("Cough for three weeks, worse at night")
+    );
+    assert_eq!(exam.expect("exam")["respiratory"], "Bilateral wheeze");
+}

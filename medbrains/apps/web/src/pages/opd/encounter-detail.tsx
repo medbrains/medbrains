@@ -518,13 +518,13 @@ export function EncounterDetail({
             <ConsultationTab encounterId={encounterId} patientId={patientId} />
           </Tabs.Panel>
           <Tabs.Panel value="history">
-            <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />
+            <HistoryTab encounterId={encounterId} />
           </Tabs.Panel>
           <Tabs.Panel value="ros">
-            <ROSTab encounterId={encounterId} canUpdate={canUpdate} />
+            <ROSTab encounterId={encounterId} />
           </Tabs.Panel>
           <Tabs.Panel value="physical-exam">
-            <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
+            <PhysicalExamTab encounterId={encounterId} />
           </Tabs.Panel>
           <Tabs.Panel value="diagnoses">
             <PermissionGate codes={TAB_PERMISSIONS.diagnoses} label="diagnoses">
