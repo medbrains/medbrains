@@ -7,6 +7,7 @@ import {
   IconFirstAidKit,
   IconGavel,
   IconHeartbeat,
+  IconNotes,
   IconUrgent,
 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -67,6 +68,17 @@ export function EmergencyVisitContextRail({
             fullWidth
           >
             {t("workspace.resuscitation")}
+          </Button>
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconNotes size={14} />}
+            component="a"
+            href="#er-case-sheet"
+            disabled={!visit.encounter_id}
+            fullWidth
+          >
+            {t("workspace.caseSheet")}
           </Button>
           <Button
             tone="secondary"

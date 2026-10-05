@@ -115,6 +115,7 @@
   "workspace.navigate": "Navigate",
   "workspace.triage": "Triage",
   "workspace.resuscitation": "Resuscitation",
+  "workspace.caseSheet": "Case sheet",
   "workspace.erQueue": "ER queue",
   "workspace.mlcCase": "MLC case",
   "workspace.ipdAdmission": "IPD admission",
