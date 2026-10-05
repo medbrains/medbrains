@@ -9,13 +9,28 @@ use uuid::Uuid;
 
 /// The most a section may hold — a long discharge history, not a pasted book.
 pub const SECTION_MAX_CHARS: usize = 20_000;
+/// The most a structured section's data may hold, serialised.
+pub const SECTION_MAX_DATA_BYTES: usize = 200_000;
 
+/// A part of a note: free text, or a structured record (history, review of
+/// systems, examination) whose shape the screen that edits it owns.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Section {
     pub code: String,
     pub title: String,
     #[serde(default)]
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+/// A change to one section of a draft: what is sent replaces, what is not
+/// sent stays — the History tab saving the history leaves the plan alone.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SectionPatch {
+    pub code: String,
+    pub text: Option<String>,
+    pub data: Option<Value>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -60,34 +75,38 @@ pub struct Note {
     pub revisable: bool,
 }
 
-/// The sections a draft may hold: the type's own, in its order, each within
-/// the size limit. Text the type has no section for is refused, not dropped.
-pub fn merge_sections(template: &[Section], incoming: &[Section]) -> Result<Vec<Section>, String> {
-    if let Some(stray) = incoming
+/// The note's sections with the patches applied, in the note's own order.
+/// A patch for a section the note does not have is refused, not dropped.
+pub fn apply_patches(base: &[Section], patches: &[SectionPatch]) -> Result<Vec<Section>, String> {
+    if let Some(stray) = patches
         .iter()
-        .find(|s| !template.iter().any(|t| t.code == s.code))
+        .find(|p| !base.iter().any(|b| b.code == p.code))
     {
         return Err(format!("This note has no section '{}'", stray.code));
     }
-    if let Some(long) = incoming
-        .iter()
-        .find(|s| s.text.chars().count() > SECTION_MAX_CHARS)
-    {
-        return Err(format!(
-            "{} is longer than {SECTION_MAX_CHARS} characters",
-            long.title
-        ));
+    let mut out = Vec::with_capacity(base.len());
+    for section in base {
+        let mut next = section.clone();
+        if let Some(patch) = patches.iter().find(|p| p.code == section.code) {
+            if let Some(text) = &patch.text {
+                if text.chars().count() > SECTION_MAX_CHARS {
+                    return Err(format!(
+                        "{} is longer than {SECTION_MAX_CHARS} characters",
+                        section.title
+                    ));
+                }
+                next.text.clone_from(text);
+            }
+            if let Some(data) = &patch.data {
+                if data.to_string().len() > SECTION_MAX_DATA_BYTES {
+                    return Err(format!("{} holds too much", section.title));
+                }
+                next.data = Some(data.clone());
+            }
+        }
+        out.push(next);
     }
-    Ok(template
-        .iter()
-        .map(|t| Section {
-            text: incoming
-                .iter()
-                .find(|s| s.code == t.code)
-                .map_or_else(String::new, |s| s.text.clone()),
-            ..t.clone()
-        })
-        .collect())
+    Ok(out)
 }
 
 /// Text with the editor's markup taken out: what a reader would see.
@@ -110,7 +129,21 @@ pub fn plain(text: &str) -> String {
 
 /// Whether a note says anything at all — an empty note is not signed.
 pub fn has_content(sections: &[Section]) -> bool {
-    sections.iter().any(|s| !plain(&s.text).is_empty())
+    sections
+        .iter()
+        .any(|s| !plain(&s.text).is_empty() || s.data.as_ref().is_some_and(has_data))
+}
+
+/// Whether structured data records anything: an empty list or a record of
+/// empty values is not a finding.
+fn has_data(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::String(s) => !s.trim().is_empty(),
+        Value::Array(items) => items.iter().any(has_data),
+        Value::Object(map) => map.values().any(has_data),
+        Value::Bool(_) | Value::Number(_) => true,
+    }
 }
 
 /// The fingerprint a signature is over: the sections exactly as signed.
@@ -123,57 +156,59 @@ pub fn content_hash(sections: &[Section]) -> String {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
-    fn soap() -> Vec<Section> {
-        ["subjective", "plan"]
+    fn note() -> Vec<Section> {
+        ["subjective", "history", "plan"]
             .iter()
             .map(|c| Section {
                 code: (*c).into(),
                 title: (*c).into(),
                 text: String::new(),
+                data: None,
             })
             .collect()
     }
 
-    #[test]
-    fn a_draft_keeps_the_types_sections_in_order() {
-        let incoming = vec![Section {
-            code: "plan".into(),
-            title: "x".into(),
-            text: "CXR".into(),
-        }];
-        let merged = merge_sections(&soap(), &incoming).expect("merged");
-        assert_eq!(merged[0].text, "");
-        assert_eq!(
-            (merged[1].title.as_str(), merged[1].text.as_str()),
-            ("plan", "CXR")
-        );
+    fn patch(code: &str, text: Option<&str>, data: Option<Value>) -> SectionPatch {
+        SectionPatch {
+            code: code.into(),
+            text: text.map(Into::into),
+            data,
+        }
     }
 
     #[test]
-    fn text_for_a_section_the_type_lacks_is_refused() {
-        let stray = vec![Section {
-            code: "billing".into(),
-            title: "x".into(),
-            text: "y".into(),
-        }];
-        assert!(merge_sections(&soap(), &stray).is_err());
+    fn a_patch_changes_only_what_it_sends() {
+        let mut base = note();
+        base[2].text = "Chest X-ray".into();
+        let history = json!({ "hpi": "Cough for three weeks" });
+        let next = apply_patches(&base, &[patch("history", None, Some(history.clone()))])
+            .expect("applied");
+        assert_eq!(next[1].data, Some(history));
+        assert_eq!(next[2].text, "Chest X-ray", "the plan is left alone");
     }
 
     #[test]
-    fn an_empty_editor_document_is_no_content() {
-        let mut s = soap();
+    fn a_patch_for_a_section_the_note_lacks_is_refused() {
+        assert!(apply_patches(&note(), &[patch("billing", Some("x"), None)]).is_err());
+    }
+
+    #[test]
+    fn empty_text_and_empty_records_are_no_content() {
+        let mut s = note();
         s[0].text = "<p></p>".into();
+        s[1].data = Some(json!({ "hpi": "", "past_medical_history": [] }));
         assert!(!has_content(&s));
-        s[1].text = "<p>Review in a week</p>".into();
+        s[1].data = Some(json!({ "past_medical_history": [{ "condition": "Diabetes" }] }));
         assert!(has_content(&s));
     }
 
     #[test]
-    fn the_hash_changes_with_a_single_character() {
-        let mut s = soap();
+    fn the_hash_changes_with_the_data() {
+        let mut s = note();
         let before = content_hash(&s);
-        s[0].text = "a".into();
+        s[1].data = Some(json!({ "hpi": "a" }));
         assert_ne!(before, content_hash(&s));
     }
 }

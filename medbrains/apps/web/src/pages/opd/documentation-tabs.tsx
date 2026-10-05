@@ -1,154 +1,148 @@
-import { Group, Loader, Stack } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import { nullOn404 } from "@medbrains/api";
+// History, Review of systems and Physical exam: sections of the doctor's own
+// Consultation note, edited on their tabs, signed with the note on the case
+// sheet (RFCs/RFC-MODULE-clinical-notes.md, phase 1b).
+
+import { Group, Loader, Stack, Text } from "@mantine/core";
 import type {
-  Consultation,
-  CreateConsultationRequest,
   FamilyHistoryEntry,
   PastMedicalEntry,
   PastSurgicalEntry,
   PhysicalExamination,
   ReviewOfSystems as ROSType,
   SocialHistory,
-  UpdateConsultationRequest,
 } from "@medbrains/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PhysicalExamPanel, ReviewOfSystems, StructuredHistory } from "@/components";
-import { Button } from "@/components/ui";
-import { opdService } from "@/services/opd.service";
-import { toCreateConsultationPayload } from "./consultation-utils";
+import type {
+  ExaminationData,
+  HistoryData,
+} from "@/components/Clinical/case-sheet/section-summary";
+import { Alert, Button, toast } from "@/components/ui";
+import { type SectionCode, type SectionSource, useNoteSection } from "./use-note-section";
 
 interface EncounterTabProps {
   encounterId: string;
-  canUpdate: boolean;
+}
+
+const when = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "";
+
+/** Who recorded what is on screen, and when — the margin of the paper sheet. */
+function Provenance({ source, canWrite }: { source: SectionSource; canWrite: boolean }) {
+  let text = canWrite
+    ? "Not recorded yet — what you enter starts your consultation note."
+    : "Not recorded yet.";
+  if (source.kind === "my_draft") {
+    text = "In your unsigned consultation note — sign it on the Consultation tab.";
+  } else if (source.kind === "signed") {
+    const n = source.note;
+    text = `Recorded by ${n.author_name} · ${when(n.signed_at)}${canWrite ? " — editing starts your own note from it." : ""}`;
+  } else if (source.kind === "legacy") {
+    text = "Recorded before notes were signed.";
+  }
+  return (
+    <Text size="xs" c="dimmed" aria-live="polite">
+      {text}
+    </Text>
+  );
+}
+
+function useSection(encounterId: string, code: SectionCode) {
+  return useNoteSection(encounterId, code, (error) =>
+    toast.error(error.message, { title: "Not saved" }),
+  );
+}
+
+function Unavailable() {
+  return (
+    <Alert tone="danger" title="This section could not be loaded">
+      <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
+    </Alert>
+  );
 }
 
 // ── History ──────────────────────────────────────────────
 
-export function HistoryTab({ encounterId, canUpdate }: EncounterTabProps) {
-  const queryClient = useQueryClient();
-
-  const { data: consultation, isPending } = useQuery({
-    queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) =>
-      opdService.createConsultation(encounterId, data),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data: UpdateConsultationRequest) =>
-      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
-  });
-
-  const handleUpdate = (data: Partial<UpdateConsultationRequest>) => {
-    if (consultation) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(toCreateConsultationPayload(data));
-    }
-  };
-
-  const c = consultation as Consultation | null;
-
-  // The history box keeps its own draft from the value it first gets: before
-  // the note has loaded that is "", which would show empty and, on leaving the
-  // box, save "" over the history.
-  if (isPending) return <Loader size="sm" />;
-
+export function HistoryTab({ encounterId }: EncounterTabProps) {
+  const section = useSection(encounterId, "history");
+  if (section.isPending) return <Loader size="sm" />;
+  if (section.isError) return <Unavailable />;
+  const history = (section.data ?? {}) as HistoryData;
   return (
-    <StructuredHistory
-      key={c?.id ?? "new"}
-      hpi={c?.hpi ?? ""}
-      pastMedical={(c?.past_medical_history as PastMedicalEntry[] | null) ?? []}
-      pastSurgical={(c?.past_surgical_history as PastSurgicalEntry[] | null) ?? []}
-      familyHistory={(c?.family_history as FamilyHistoryEntry[] | null) ?? []}
-      socialHistory={(c?.social_history as SocialHistory | null) ?? {}}
-      canUpdate={canUpdate}
-      onUpdate={handleUpdate}
-    />
+    <Stack gap="xs">
+      <Provenance source={section.source} canWrite={section.canWrite} />
+      <StructuredHistory
+        hpi={history.hpi ?? ""}
+        pastMedical={(history.past_medical_history ?? []) as PastMedicalEntry[]}
+        pastSurgical={(history.past_surgical_history ?? []) as PastSurgicalEntry[]}
+        familyHistory={(history.family_history ?? []) as FamilyHistoryEntry[]}
+        socialHistory={(history.social_history ?? {}) as SocialHistory}
+        canUpdate={section.canWrite}
+        onUpdate={(change) => void section.save({ ...history, ...change }, true)}
+      />
+    </Stack>
   );
 }
 
 // ── Review of Systems ────────────────────────────────────
 
-export function ROSTab({ encounterId, canUpdate }: EncounterTabProps) {
-  const queryClient = useQueryClient();
-  const [localRos, setLocalRos] = useState<ROSType>({});
+export function ROSTab({ encounterId }: EncounterTabProps) {
+  const section = useSection(encounterId, "ros");
+  if (section.isPending) return <Loader size="sm" />;
+  if (section.isError) return <Unavailable />;
+  return (
+    <Stack gap="xs">
+      <Provenance source={section.source} canWrite={section.canWrite} />
+      <ROSEditor
+        initial={(section.data ?? {}) as ROSType}
+        canWrite={section.canWrite}
+        onSave={(ros) => section.save(ros, true)}
+      />
+    </Stack>
+  );
+}
+
+function ROSEditor({
+  initial,
+  canWrite,
+  onSave,
+}: {
+  initial: ROSType;
+  canWrite: boolean;
+  onSave: (ros: ROSType) => Promise<unknown>;
+}) {
+  const [ros, setRos] = useState(initial);
   const [dirty, setDirty] = useState(false);
-
-  const { data: consultation } = useQuery({
-    queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
-  });
-
-  const c = consultation as Consultation | null;
-  const serverRos = (c?.review_of_systems as ROSType | null) ?? {};
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) =>
-      opdService.createConsultation(encounterId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
-      setDirty(false);
-      notifications.show({ title: "Saved", message: "Review of Systems saved", color: "success" });
-    },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to save ROS", color: "danger" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data: UpdateConsultationRequest) =>
-      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
-      setDirty(false);
-      notifications.show({
-        title: "Saved",
-        message: "Review of Systems updated",
-        color: "success",
-      });
-    },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to update ROS", color: "danger" }),
-  });
-
-  const handleChange = (ros: ROSType) => {
-    setLocalRos(ros);
-    setDirty(true);
-  };
-
-  const handleSave = () => {
-    if (consultation) {
-      updateMutation.mutate({ review_of_systems: localRos });
-    } else {
-      createMutation.mutate({ review_of_systems: localRos });
-    }
-  };
-
+  const [saving, setSaving] = useState(false);
   return (
     <Stack>
       <ReviewOfSystems
-        data={dirty ? localRos : serverRos}
-        canUpdate={canUpdate}
-        onUpdate={handleChange}
+        data={ros}
+        canUpdate={canWrite}
+        onUpdate={(next) => {
+          setRos(next);
+          setDirty(true);
+        }}
       />
-      {canUpdate && (
+      {canWrite && (
         <Group justify="flex-end">
           <Button
             tone="primary"
-            onClick={handleSave}
-            loading={createMutation.isPending || updateMutation.isPending}
             disabled={!dirty}
+            loading={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave(ros);
+                setDirty(false);
+              } catch (error) {
+                toast.error((error as Error).message, { title: "Not saved" });
+              } finally {
+                setSaving(false);
+              }
+            }}
           >
-            Save Review of Systems
+            Save to my note
           </Button>
         </Group>
       )}
@@ -158,46 +152,30 @@ export function ROSTab({ encounterId, canUpdate }: EncounterTabProps) {
 
 // ── Physical Examination ─────────────────────────────────
 
-export function PhysicalExamTab({ encounterId, canUpdate }: EncounterTabProps) {
-  const queryClient = useQueryClient();
-
-  const { data: consultation } = useQuery({
-    queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) =>
-      opdService.createConsultation(encounterId, data),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data: UpdateConsultationRequest) =>
-      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
-  });
-
-  const handleUpdate = (exam: PhysicalExamination, generalAppearance?: string) => {
-    const data: UpdateConsultationRequest = { physical_examination: exam };
-    if (generalAppearance !== undefined) data.general_appearance = generalAppearance;
-    if (consultation) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(toCreateConsultationPayload(data));
-    }
-  };
-
-  const c = consultation as Consultation | null;
-
+export function PhysicalExamTab({ encounterId }: EncounterTabProps) {
+  const section = useSection(encounterId, "examination");
+  if (section.isPending) return <Loader size="sm" />;
+  if (section.isError) return <Unavailable />;
+  const exam = (section.data ?? {}) as ExaminationData;
   return (
-    <PhysicalExamPanel
-      data={(c?.physical_examination as PhysicalExamination | null) ?? {}}
-      generalAppearance={c?.general_appearance ?? ""}
-      canUpdate={canUpdate}
-      onUpdate={handleUpdate}
-    />
+    <Stack gap="xs">
+      <Provenance source={section.source} canWrite={section.canWrite} />
+      <PhysicalExamPanel
+        data={(exam.exam ?? {}) as PhysicalExamination}
+        generalAppearance={exam.general_appearance ?? ""}
+        canUpdate={section.canWrite}
+        onUpdate={(next, generalAppearance) =>
+          void section.save(
+            {
+              exam: next,
+              general_appearance: generalAppearance ?? exam.general_appearance ?? null,
+            },
+            // Typing waits for a pause; adding or removing a finding is one act
+            // and is saved at once.
+            JSON.stringify(next.findings ?? []) !== JSON.stringify(exam.exam?.findings ?? []),
+          )
+        }
+      />
+    </Stack>
   );
 }

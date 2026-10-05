@@ -24,7 +24,7 @@ use serde::Deserialize;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use model::{Note, NoteType, Section};
+use model::{Note, NoteType, Section, SectionPatch};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -112,7 +112,7 @@ pub struct CreateNoteRequest {
     /// The signed note this one adds to.
     pub amends_note_id: Option<Uuid>,
     #[serde(default)]
-    pub sections: Vec<Section>,
+    pub sections: Vec<SectionPatch>,
 }
 
 /// Who may write a note of this category: nursing notes by nurses, the rest
@@ -168,8 +168,18 @@ pub async fn create_note(
     if !may_write_category(&claims, &category) {
         return Err(AppError::Forbidden);
     }
-    let sections =
-        model::merge_sections(&template, &body.sections).map_err(AppError::BadRequest)?;
+    let mut base = template;
+    if body.amends_note_id.is_none() {
+        store::prefill_structured(
+            &mut tx,
+            claims.tenant_id,
+            encounter_id,
+            patient_id,
+            &mut base,
+        )
+        .await?;
+    }
+    let sections = model::apply_patches(&base, &body.sections).map_err(AppError::BadRequest)?;
 
     let note_id: Uuid = sqlx::query_scalar(
         "INSERT INTO clinical_notes \
@@ -232,6 +242,7 @@ async fn addendum_type(
         code: "addendum".to_owned(),
         title: "Addendum".to_owned(),
         text: String::new(),
+        data: None,
     };
     Ok((type_id, category, vec![section]))
 }
@@ -244,7 +255,8 @@ pub async fn own_note(
 ) -> Result<OwnNote, AppError> {
     let note = sqlx::query_as::<_, OwnNote>(
         "SELECT n.id, n.encounter_id, n.author_id, n.status, n.current_version, n.service_at, \
-                n.signed_at, n.locked_at, n.migrated_from, v.sections, t.code AS type_code \
+                n.signed_at, n.locked_at, n.migrated_from, v.sections, t.code AS type_code, \
+                t.sections AS type_sections \
            FROM clinical_notes n \
            JOIN note_types t ON t.id = n.note_type_id \
            JOIN note_versions v ON v.note_id = n.id AND v.version = n.current_version \
@@ -277,12 +289,31 @@ pub struct OwnNote {
     pub migrated_from: Option<String>,
     pub sections: serde_json::Value,
     pub type_code: String,
+    pub type_sections: serde_json::Value,
 }
 
 impl OwnNote {
     pub fn sections(&self) -> Result<Vec<Section>, AppError> {
         serde_json::from_value(self.sections.clone())
             .map_err(|e| AppError::Internal(format!("note sections: {e}")))
+    }
+
+    /// The draft's sections, with any the note type has gained since it was
+    /// started placed where the type has them.
+    pub fn draft_sections(&self) -> Result<Vec<Section>, AppError> {
+        let own = self.sections()?;
+        let template: Vec<Section> = serde_json::from_value(self.type_sections.clone())
+            .map_err(|e| AppError::Internal(format!("note type sections: {e}")))?;
+        let mut out: Vec<Section> = template
+            .into_iter()
+            .map(|t| own.iter().find(|s| s.code == t.code).cloned().unwrap_or(t))
+            .collect();
+        let extra: Vec<Section> = own
+            .into_iter()
+            .filter(|s| !out.iter().any(|o| o.code == s.code))
+            .collect();
+        out.extend(extra);
+        Ok(out)
     }
 }
 
@@ -301,8 +332,11 @@ pub async fn finish(
     mut tx: Transaction<'_, Postgres>,
     claims: &Claims,
     note: &OwnNote,
+    signed_record_changed: bool,
 ) -> Result<Json<Note>, AppError> {
-    if note.type_code == "consultation" {
+    // Only what is signed reaches the screens that read the visit's
+    // consultation row: a draft is the author's until they sign it.
+    if signed_record_changed && note.type_code == "consultation" {
         store::project_consultation(&mut tx, claims.tenant_id, note.encounter_id).await?;
     }
     let fresh = store::one_note(&mut tx, claims.tenant_id, note.id, claims.sub).await?;
@@ -312,7 +346,7 @@ pub async fn finish(
 
 #[derive(Debug, Deserialize)]
 pub struct SaveDraftRequest {
-    pub sections: Vec<Section>,
+    pub sections: Vec<SectionPatch>,
 }
 
 /// `PUT /api/clinical-notes/{id}/draft` — the author's autosave.
@@ -326,8 +360,8 @@ pub async fn save_draft(
     let mut tx = begin(&state, &claims).await?;
     let note = own_note(&mut tx, &claims, id).await?;
     require_draft(&note)?;
-    let sections =
-        model::merge_sections(&note.sections()?, &body.sections).map_err(AppError::BadRequest)?;
+    let sections = model::apply_patches(&note.draft_sections()?, &body.sections)
+        .map_err(AppError::BadRequest)?;
     sqlx::query(
         "UPDATE note_versions SET sections = $3, saved_at = now() \
           WHERE note_id = $1 AND version = $2",
@@ -337,5 +371,5 @@ pub async fn save_draft(
     .bind(serde_json::to_value(&sections).map_err(|e| AppError::Internal(e.to_string()))?)
     .execute(&mut *tx)
     .await?;
-    finish(tx, &claims, &note).await
+    finish(tx, &claims, &note, false).await
 }

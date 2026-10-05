@@ -5,6 +5,15 @@ export interface NoteSection {
   code: string;
   title: string;
   text: string;
+  /** A structured section's record (history, review of systems, examination). */
+  data?: unknown;
+}
+
+/** A change to one section of a draft: what is sent replaces, the rest stays. */
+export interface NoteSectionPatch {
+  code: string;
+  text?: string;
+  data?: unknown;
 }
 
 export type ClinicalNoteCategory = "physician" | "nursing" | "allied";
@@ -56,5 +65,5 @@ export interface CreateNoteRequest {
   note_type_code: string;
   service_at?: string;
   amends_note_id?: string;
-  sections?: NoteSection[];
+  sections?: NoteSectionPatch[];
 }

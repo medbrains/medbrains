@@ -27,7 +27,10 @@ test("a doctor records a finding at a site picked on the body", async ({ hospita
   await page.getByRole("textbox", { name: "Finding" }).fill("Swelling, warm");
   await page.getByRole("button", { name: "Add finding" }).click();
 
-  const finding = page.getByText("Left patella: Swelling, warm");
+  // The case sheet repeats the finding in the doctor's note; read the exam.
+  const finding = page
+    .getByRole("tabpanel", { name: "Physical Exam" })
+    .getByText("Left patella: Swelling, warm");
   await expect(finding).toBeVisible();
   await page.reload();
   await page.getByRole("tab", { name: "Physical Exam" }).click();
