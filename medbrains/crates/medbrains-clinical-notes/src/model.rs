@@ -77,6 +77,15 @@ pub struct Note {
     pub is_mine: bool,
     /// The caller may still revise it: theirs, signed, inside the grace.
     pub revisable: bool,
+    /// The consultant who countersigns it, when its author has one.
+    pub cosigner_name: Option<String>,
+    /// `pending`, `countersigned` or `returned`.
+    pub cosign_status: Option<String>,
+    pub cosigned_at: Option<DateTime<Utc>>,
+    /// Why it was returned to its author.
+    pub cosign_comment: Option<String>,
+    /// The caller is the consultant asked to countersign it, and has not yet.
+    pub is_my_cosign: bool,
 }
 
 /// The note's sections with the patches applied, in the note's own order.

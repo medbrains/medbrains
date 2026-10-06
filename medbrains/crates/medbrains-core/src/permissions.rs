@@ -95,6 +95,10 @@ pub mod clinical_notes {
     /// Mark a note entered in error.
     /// Your own notes, with a reason; the text stays, struck through.
     pub const MARK_IN_ERROR: &str = "clinical_notes.mark_in_error";
+    /// Countersign a resident's note.
+    /// Notes signed by the doctors you supervise; return one with a comment
+    /// and it goes back to its author to revise.
+    pub const COSIGN: &str = "clinical_notes.cosign";
 }
 
 pub mod opd {

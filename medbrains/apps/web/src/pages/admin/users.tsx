@@ -50,6 +50,7 @@ import {
   StatusDot,
 } from "@/components";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
+import { UserSupervisorField } from "@/components/admin/UserSupervisorField";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
 import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
@@ -424,6 +425,7 @@ function UserModal({
                 />
               )}
             />
+            {editingUser && <UserSupervisorField user={editingUser} />}
           </>
         )}
 

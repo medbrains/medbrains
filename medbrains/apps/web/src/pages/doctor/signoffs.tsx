@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { CountersignCard } from "@/components/Clinical/case-sheet/CountersignCard";
 import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNotesCard";
 import { CriticalValueInbox } from "@/components/Doctor/CriticalValueInbox";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
@@ -73,6 +74,7 @@ export function SignoffsPage() {
       {/* Clinical notes waiting for this doctor's signature sit with the rest
           of what they must sign (RFC-MODULE-clinical-notes, phase 3a). */}
       <UnsignedNotesCard />
+      <CountersignCard />
 
       <Tabs defaultValue="all">
         <Tabs.List>

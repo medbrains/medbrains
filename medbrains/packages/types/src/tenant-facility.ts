@@ -96,6 +96,8 @@ export interface SetupUser {
   consultation_fee: number | null;
   department_ids: string[];
   access_matrix: Record<string, unknown>;
+  /** The consultant who countersigns this user's clinical notes. */
+  supervisor_id: string | null;
 }
 
 export type IamAccessRequestStatus = "pending" | "approved" | "rejected" | "revoked" | "expired";

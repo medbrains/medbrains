@@ -10,6 +10,9 @@ export const clinicalNotesService = {
   signNote: (...args: Parameters<typeof api.signNote>) => api.signNote(...args),
   reviseNote: (...args: Parameters<typeof api.reviseNote>) => api.reviseNote(...args),
   discardNote: (...args: Parameters<typeof api.discardNote>) => api.discardNote(...args),
+  countersignNote: (noteId: string) => api.countersignNote(noteId),
+  returnNote: (noteId: string, comment: string) => api.returnNote(noteId, comment),
+  listPendingCountersign: () => api.listPendingCountersign(),
   markNoteInError: (...args: Parameters<typeof api.markNoteInError>) =>
     api.markNoteInError(...args),
 };

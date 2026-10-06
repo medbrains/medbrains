@@ -6,8 +6,10 @@ import { Link } from "react-router";
 import { Alert, Badge } from "@/components/ui";
 import { clinicalNotesService } from "@/services/clinicalNotes.service";
 
-/** Where a draft's case sheet lives. */
-function sheetHref(note: UnsignedNote): string {
+/** Where a note's case sheet lives. */
+export function sheetHref(
+  note: Pick<UnsignedNote, "encounter_type" | "admission_id" | "er_visit_id" | "encounter_id">,
+): string {
   if (note.encounter_type === "ipd" && note.admission_id) {
     return `/ipd/admissions/${note.admission_id}#notes`;
   }
@@ -17,7 +19,7 @@ function sheetHref(note: UnsignedNote): string {
   return `/opd/encounters/${note.encounter_id}#consultation`;
 }
 
-const when = (iso: string) =>
+export const when = (iso: string) =>
   new Date(iso).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
 /**

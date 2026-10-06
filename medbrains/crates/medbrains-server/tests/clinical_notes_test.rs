@@ -656,3 +656,218 @@ async fn an_unsigned_note_is_on_the_authors_list_and_holds_up_the_mrd_packet() {
         "a signed note leaves the list"
     );
 }
+
+/// A signed-in doctor in General Medicine: their id, client and CSRF token.
+async fn doctor(app: &common::TestApp, admin_csrf: &str) -> (String, reqwest::Client, String) {
+    let tag = &Uuid::new_v4().simple().to_string()[..10];
+    let (username, password) = (format!("cosign_{tag}"), format!("Cosign#{tag}Aa9"));
+    let dept: Uuid = sqlx::query_scalar(
+        "SELECT d.id FROM departments d JOIN users u ON u.tenant_id = d.tenant_id \
+          WHERE u.username = 'admin' AND d.code = 'GEN-MEDICINE'",
+    )
+    .fetch_one(&app.db)
+    .await
+    .expect("department");
+    let (status, user) = send(
+        admin_csrf,
+        app.client.post(app.url("/api/setup/users")).json(&json!({
+            "username": username, "email": format!("{username}@example.test"),
+            "password": password, "full_name": format!("Dr {tag}"),
+            "role": "doctor", "department_ids": [dept],
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{user}");
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login: Value = client
+        .post(app.url("/api/auth/login"))
+        .json(&json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("login json");
+    let csrf = login["csrf_token"].as_str().unwrap_or("").to_owned();
+    (
+        user["id"].as_str().expect("user id").to_owned(),
+        client,
+        csrf,
+    )
+}
+
+async fn call_as(
+    app: &common::TestApp,
+    (client, csrf): (&reqwest::Client, &str),
+    method: &str,
+    path: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let url = app.url(path);
+    let req = if method == "GET" {
+        client.get(url)
+    } else {
+        client.post(url)
+    };
+    send(csrf, req.json(&body)).await
+}
+
+/// Given a resident whose notes the consultant countersigns, When the
+/// resident signs, Then the note waits on the consultant and holds up the MRD
+/// packet; countersigned, the packet clears; returned with a comment, the
+/// note is the resident's draft again; the resident cannot countersign.
+#[tokio::test]
+async fn a_residents_signed_note_waits_on_the_consultants_countersign() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let (resident_id, resident, resident_csrf) = doctor(&app, &csrf).await;
+    let (consultant_id, consultant, consultant_csrf) = doctor(&app, &csrf).await;
+    let as_resident = (&resident, resident_csrf.as_str());
+    let as_consultant = (&consultant, consultant_csrf.as_str());
+    let (status, body) = call(
+        &app,
+        &csrf,
+        "PUT",
+        &format!("/api/setup/users/{resident_id}/supervisor"),
+        json!({ "supervisor_id": consultant_id }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "PUT",
+        &format!("/api/setup/users/{consultant_id}/supervisor"),
+        json!({ "supervisor_id": resident_id }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "no mutual countersigning");
+
+    let encounter = encounter(&app, &csrf).await;
+    let write_and_sign = |text: &'static str| {
+        let path = format!("/api/encounters/{encounter}/clinical-notes");
+        let app = &app;
+        async move {
+            let (status, note) = call_as(
+                app,
+                as_resident,
+                "POST",
+                &path,
+                json!({ "note_type_code": "consultation",
+                        "sections": [{ "code": "subjective", "text": text }] }),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{note}");
+            let id = note["id"].as_str().expect("note id").to_owned();
+            let (status, signed) = call_as(
+                app,
+                as_resident,
+                "POST",
+                &format!("/api/clinical-notes/{id}/sign"),
+                json!({}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{signed}");
+            (id, signed)
+        }
+    };
+    let (id, signed) = write_and_sign("Fever for three days").await;
+    assert_eq!(signed["cosign_status"], "pending", "{signed}");
+
+    let (_, pending) = call_as(
+        &app,
+        as_consultant,
+        "GET",
+        "/api/clinical-notes/countersign/pending",
+        Value::Null,
+    )
+    .await;
+    assert!(
+        pending
+            .as_array()
+            .expect("pending")
+            .iter()
+            .any(|n| n["id"] == json!(id)),
+        "on the consultant's list: {pending}"
+    );
+    let (status, _) = call_as(
+        &app,
+        as_resident,
+        "POST",
+        &format!("/api/clinical-notes/{id}/countersign"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "the author cannot countersign"
+    );
+
+    let (_, packet) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/mrd/case-sheets/from-opd/{encounter}"),
+        json!({}),
+    )
+    .await;
+    let completeness = format!(
+        "/api/mrd/case-sheets/{}/completeness",
+        packet["id"].as_str().expect("packet id")
+    );
+    let unsigned = |c: &Value| {
+        c["items"]
+            .as_array()
+            .expect("items")
+            .iter()
+            .find(|i| i["code"] == "unsigned_notes")
+            .expect("unsigned_notes item")["status"]
+            .clone()
+    };
+    let (_, before) = call(&app, &csrf, "GET", &completeness, Value::Null).await;
+    assert_eq!(
+        unsigned(&before),
+        "missing",
+        "awaiting countersign holds the packet"
+    );
+
+    let (status, done) = call_as(
+        &app,
+        as_consultant,
+        "POST",
+        &format!("/api/clinical-notes/{id}/countersign"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{done}");
+    assert_eq!(done["cosign_status"], "countersigned");
+    let (_, after) = call(&app, &csrf, "GET", &completeness, Value::Null).await;
+    assert_eq!(unsigned(&after), "ok", "{after}");
+
+    let (second, _) = write_and_sign("Cough, no fever").await;
+    let (status, _) = call_as(
+        &app,
+        as_consultant,
+        "POST",
+        &format!("/api/clinical-notes/{second}/return"),
+        json!({ "comment": "" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a return says why");
+    let (status, returned) = call_as(
+        &app,
+        as_consultant,
+        "POST",
+        &format!("/api/clinical-notes/{second}/return"),
+        json!({ "comment": "Record the chest findings" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{returned}");
+    assert_eq!(returned["status"], "draft");
+    assert_eq!(returned["cosign_status"], "returned");
+    assert_eq!(returned["cosign_comment"], "Record the chest findings");
+}
