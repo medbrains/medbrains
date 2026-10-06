@@ -71,3 +71,20 @@ export interface CreateNoteRequest {
   amends_note_id?: string;
   sections?: NoteSectionPatch[];
 }
+
+/** One of the caller's drafts, with what is needed to open its case sheet. */
+export interface UnsignedNote {
+  id: string;
+  encounter_id: string;
+  encounter_type: "opd" | "ipd" | "emergency";
+  admission_id: string | null;
+  er_visit_id: string | null;
+  patient_id: string;
+  patient_name: string;
+  uhid: string;
+  note_type_name: string;
+  /** A revision of a signed note, rather than a note never signed. */
+  is_revision: boolean;
+  service_at: string;
+  saved_at: string;
+}
