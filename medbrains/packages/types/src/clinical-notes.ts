@@ -63,6 +63,14 @@ export interface Note {
   created_at: string;
   is_mine: boolean;
   revisable: boolean;
+  /** The consultant who countersigns it, when its author has one. */
+  cosigner_name: string | null;
+  cosign_status: "pending" | "countersigned" | "returned" | null;
+  cosigned_at: string | null;
+  /** Why it was returned to its author. */
+  cosign_comment: string | null;
+  /** The caller is the consultant asked to countersign it, and has not yet. */
+  is_my_cosign: boolean;
 }
 
 export interface CreateNoteRequest {
@@ -87,4 +95,18 @@ export interface UnsignedNote {
   is_revision: boolean;
   service_at: string;
   saved_at: string;
+}
+
+/** A note waiting on the caller's countersignature. */
+export interface PendingCountersign {
+  id: string;
+  encounter_id: string;
+  encounter_type: "opd" | "ipd" | "emergency";
+  admission_id: string | null;
+  er_visit_id: string | null;
+  patient_name: string;
+  uhid: string;
+  note_type_name: string;
+  author_name: string;
+  signed_at: string | null;
 }

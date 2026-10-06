@@ -1517,6 +1517,7 @@ import type {
   PcpndtReportPrintData,
   PeerRosterDoc,
   PendingAckUser,
+  PendingCountersign,
   PendingDischargeRow,
   PendingSignoffEntry,
   PersonalizeDashboardRequest,
@@ -3459,6 +3460,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  setUserSupervisor: (id: string, supervisorId: string | null) =>
+    request<{ status: string }>(`/setup/users/${id}/supervisor`, {
+      method: "PUT",
+      body: JSON.stringify({ supervisor_id: supervisorId }),
+    }),
   deleteSetupUser: (id: string) =>
     request<{ status: string }>(`/setup/users/${id}`, { method: "DELETE" }),
   exportTenantConfig: () =>
@@ -4534,6 +4540,15 @@ export const api = {
       `/clinical-notes/types${encounterId ? `?encounter_id=${encounterId}` : ""}`,
     ),
   listMyUnsignedNotes: () => request<UnsignedNote[]>("/clinical-notes/mine/unsigned"),
+  listPendingCountersign: () =>
+    request<PendingCountersign[]>("/clinical-notes/countersign/pending"),
+  countersignNote: (noteId: string) =>
+    request<Note>(`/clinical-notes/${noteId}/countersign`, { method: "POST", body: "{}" }),
+  returnNote: (noteId: string, comment: string) =>
+    request<Note>(`/clinical-notes/${noteId}/return`, {
+      method: "POST",
+      body: JSON.stringify({ comment }),
+    }),
   listEncounterNotes: (encounterId: string) =>
     request<Note[]>(`/encounters/${encounterId}/clinical-notes`),
   createNote: (encounterId: string, data: CreateNoteRequest) =>

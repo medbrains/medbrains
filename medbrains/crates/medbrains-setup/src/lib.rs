@@ -1164,6 +1164,9 @@ pub struct SetupUserRow {
     pub department_ids: Vec<Uuid>,
     pub is_active: bool,
     pub access_matrix: Value,
+    /// The consultant who countersigns this user's clinical notes.
+    #[sqlx(default)]
+    pub supervisor_id: Option<Uuid>,
 }
 
 pub async fn list_users(
@@ -1182,7 +1185,7 @@ pub async fn list_users(
         // page at /admin/api-keys, where the key they belong to is visible.
         "SELECT id, tenant_id, username, email, full_name, role::text, \
          specialization, medical_registration_number, qualification, \
-         consultation_fee, department_ids, is_active, access_matrix \
+         consultation_fee, department_ids, is_active, access_matrix, supervisor_id \
          FROM users WHERE tenant_id = $1 AND is_service_account = false AND deleted_at IS NULL \
          ORDER BY is_active DESC, created_at DESC LIMIT 5000",
         // ponytail: capped at 5000, active and newest first — oldest-first hid
@@ -1498,6 +1501,68 @@ pub async fn update_user(
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetSupervisorRequest {
+    /// The consultant who countersigns this user's notes; `null` clears it.
+    pub supervisor_id: Option<Uuid>,
+}
+
+/// `PUT /api/setup/users/{id}/supervisor` — whose countersignature this
+/// user's clinical notes need (RFCs/RFC-MODULE-clinical-notes.md, 3b).
+pub async fn set_user_supervisor(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetSupervisorRequest>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(supervisor) = body.supervisor_id {
+        if supervisor == id {
+            return Err(AppError::BadRequest(
+                "A doctor cannot countersign their own notes".to_owned(),
+            ));
+        }
+        // An active doctor, and not one who is themselves supervised by this
+        // user — two residents countersigning each other is no countersign.
+        let (is_doctor, supervises_back): (bool, bool) = sqlx::query_as(
+            "SELECT role = 'doctor' AND is_active, coalesce(supervisor_id = $2, false) \
+               FROM users WHERE id = $1 AND tenant_id = $3 AND deleted_at IS NULL",
+        )
+        .bind(supervisor)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("Choose an active doctor".to_owned()))?;
+        if !is_doctor {
+            return Err(AppError::BadRequest("Choose an active doctor".to_owned()));
+        }
+        if supervises_back {
+            return Err(AppError::BadRequest(
+                "That doctor's own notes are countersigned by this user".to_owned(),
+            ));
+        }
+    }
+    let updated = sqlx::query(
+        "UPDATE users SET supervisor_id = $2, updated_at = now() \
+          WHERE id = $1 AND tenant_id = $3 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(body.supervisor_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    tx.commit().await?;
+    Ok(Json(
+        serde_json::json!({ "id": id, "supervisor_id": body.supervisor_id }),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -5987,6 +6052,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/users/{id}",
             put(update_user).delete(delete_user),
         )
+        .route("/api/setup/users/{id}/supervisor", put(set_user_supervisor))
         .route(
             "/api/setup/users/{id}/reset-password",
             post(reset_user_password),
