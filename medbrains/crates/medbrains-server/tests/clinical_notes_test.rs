@@ -555,3 +555,104 @@ async fn a_ward_round_is_a_signed_progress_note_billed_once() {
     assert_eq!(row["note_type"], "doctor_round");
     assert_eq!(row["subjective"], "Afebrile overnight");
 }
+
+/// Given a doctor leaves a note unsigned, Then it is on their unsigned list
+/// and the visit's MRD case sheet is not complete; once signed, it leaves the
+/// list and the case sheet reads signed.
+#[tokio::test]
+async fn an_unsigned_note_is_on_the_authors_list_and_holds_up_the_mrd_packet() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let (_, note) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/encounters/{encounter}/clinical-notes"),
+        json!({ "note_type_code": "consultation",
+                "sections": [{ "code": "subjective", "text": "Headache for two days" }] }),
+    )
+    .await;
+    let id = note["id"].as_str().expect("note id").to_owned();
+
+    let (status, list) = call(
+        &app,
+        &csrf,
+        "GET",
+        "/api/clinical-notes/mine/unsigned",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    assert!(
+        list.as_array()
+            .expect("list")
+            .iter()
+            .any(|n| n["id"] == json!(id)),
+        "the draft is on the author's unsigned list"
+    );
+
+    let (status, packet) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/mrd/case-sheets/from-opd/{encounter}"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{packet}");
+    let packet_id = packet["id"].as_str().expect("packet id").to_owned();
+    let unsigned_item = |completeness: &Value| {
+        completeness["items"]
+            .as_array()
+            .expect("items")
+            .iter()
+            .find(|i| i["code"] == "unsigned_notes")
+            .expect("unsigned_notes item")
+            .clone()
+    };
+    let (_, before) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/mrd/case-sheets/{packet_id}/completeness"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(unsigned_item(&before)["status"], "missing", "{before}");
+
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{id}/sign"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, after) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/mrd/case-sheets/{packet_id}/completeness"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(unsigned_item(&after)["status"], "ok", "{after}");
+    let (_, list) = call(
+        &app,
+        &csrf,
+        "GET",
+        "/api/clinical-notes/mine/unsigned",
+        Value::Null,
+    )
+    .await;
+    assert!(
+        !list
+            .as_array()
+            .expect("list")
+            .iter()
+            .any(|n| n["id"] == json!(id)),
+        "a signed note leaves the list"
+    );
+}
