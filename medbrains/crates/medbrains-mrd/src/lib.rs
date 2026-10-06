@@ -1057,6 +1057,38 @@ async fn count_case_sheet_evidence(
     Ok(count)
 }
 
+/// Every note on the visit's case sheet is signed: an unsigned draft is not
+/// part of the record, so a packet holding one is not complete.
+async fn push_unsigned_notes_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    items: &mut Vec<MrdCaseSheetCompletenessItem>,
+    tenant_id: Uuid,
+    encounter_id: Uuid,
+    source_module: &str,
+) -> Result<(), AppError> {
+    let unsigned: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM clinical_notes \
+          WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'draft' \
+            AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let missing = format!("{unsigned} note(s) on the case sheet are not signed");
+    push_completeness_item(
+        items,
+        "unsigned_notes",
+        "Clinical notes signed",
+        source_module,
+        true,
+        i64::from(unsigned == 0),
+        "Every note on the case sheet is signed",
+        &missing,
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn push_completeness_item(
     items: &mut Vec<MrdCaseSheetCompletenessItem>,
@@ -1516,6 +1548,8 @@ pub async fn get_case_sheet_completeness(
             "SOAP note is available for MRD datewise consolidation",
             "SOAP note is missing for MRD datewise consolidation",
         );
+        push_unsigned_notes_item(&mut tx, &mut items, claims.tenant_id, encounter_id, "opd")
+            .await?;
 
         let diagnosis_count = count_case_sheet_evidence(
             &mut tx,
@@ -1708,6 +1742,14 @@ pub async fn get_case_sheet_completeness(
             "Datewise SOAP/progress notes are available for MRD consolidation",
             "Datewise SOAP/progress notes are missing for MRD consolidation",
         );
+        push_unsigned_notes_item(
+            &mut tx,
+            &mut items,
+            claims.tenant_id,
+            admission.encounter_id,
+            "ipd",
+        )
+        .await?;
 
         let nursing_count = count_case_sheet_evidence(
             &mut tx,

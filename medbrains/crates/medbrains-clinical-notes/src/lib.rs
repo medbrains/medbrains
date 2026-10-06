@@ -11,6 +11,7 @@ pub mod billing;
 pub mod lifecycle;
 pub mod model;
 pub mod store;
+pub mod worklist;
 
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
@@ -30,6 +31,10 @@ use model::{Note, NoteType, Section, SectionPatch};
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/clinical-notes/types", get(list_note_types))
+        .route(
+            "/api/clinical-notes/mine/unsigned",
+            get(worklist::my_unsigned_notes),
+        )
         .route(
             "/api/encounters/{id}/clinical-notes",
             get(list_encounter_notes).post(create_note),

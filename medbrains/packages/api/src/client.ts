@@ -1908,6 +1908,7 @@ import type {
   TvDisplay,
   UnifiedAsset,
   UnreadCountResponse,
+  UnsignedNote,
   UpdateAdmissionRequest,
   UpdateAdrRequest,
   UpdateAiSettingsRequest,
@@ -4532,6 +4533,7 @@ export const api = {
     request<NoteType[]>(
       `/clinical-notes/types${encounterId ? `?encounter_id=${encounterId}` : ""}`,
     ),
+  listMyUnsignedNotes: () => request<UnsignedNote[]>("/clinical-notes/mine/unsigned"),
   listEncounterNotes: (encounterId: string) =>
     request<Note[]>(`/encounters/${encounterId}/clinical-notes`),
   createNote: (encounterId: string, data: CreateNoteRequest) =>
