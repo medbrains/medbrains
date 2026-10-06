@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1003 permissions, one per constant in the Rust source. */
+/** 1004 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -129,6 +129,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "clinical_notes.mark_in_error",
     label: "Mark a note entered in error",
     description: "Your own notes, with a reason; the text stays, struck through.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.cosign",
+    label: "Countersign a resident's note",
+    description: "Notes signed by the doctors you supervise; return one with a comment and it goes back to its author to revise.",
     module: "clinical_notes",
   },
   // opd
@@ -6787,6 +6793,7 @@ export const P = {
     ORDER_BASKET_VIEW_AUDIT: "clinical.order_basket.view_audit",
   },
   CLINICAL_NOTES: {
+    COSIGN: "clinical_notes.cosign",
     MARK_IN_ERROR: "clinical_notes.mark_in_error",
     SIGN: "clinical_notes.sign",
     VIEW: "clinical_notes.view",
@@ -9147,6 +9154,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CHRONIC.TIMELINE.VIEW,
       P.CLINICAL.ORDER_BASKET_DRAFT,
       P.CLINICAL.ORDER_BASKET_SIGN,
+      P.CLINICAL_NOTES.COSIGN,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
       P.CLINICAL_NOTES.SIGN,
       P.CLINICAL_NOTES.VIEW,

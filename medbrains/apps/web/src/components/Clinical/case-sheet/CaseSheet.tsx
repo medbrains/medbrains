@@ -9,7 +9,28 @@ import { clinicalNotesService } from "@/services/clinicalNotes.service";
 import { type NoteActions, NoteCard } from "./NoteCard";
 
 /** A question the sheet must ask before acting: why it is late, or in error. */
-type Ask = { kind: "late"; note: Note } | { kind: "error"; note: Note } | null;
+type Ask = { kind: "late" | "error" | "return"; note: Note } | null;
+
+const ASK_COPY = {
+  late: {
+    title: "Late entry",
+    prompt: "This note is signed well after the care it records. Say why it is written now.",
+    label: "Why it is written now",
+    action: "Sign",
+  },
+  error: {
+    title: "Mark entered in error",
+    prompt: "The note stays on the case sheet, struck through. Say why it is in error.",
+    label: "Why it is in error",
+    action: "Mark in error",
+  },
+  return: {
+    title: "Return to author",
+    prompt: "The note goes back to its author as a draft to correct and sign again.",
+    label: "What needs correcting",
+    action: "Return",
+  },
+} as const;
 
 const notesKey = (encounterId: string) => ["clinical-notes", encounterId] as const;
 
@@ -23,6 +44,7 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
   const canWrite = useHasPermission(P.CLINICAL_NOTES.WRITE);
   const canSign = useHasPermission(P.CLINICAL_NOTES.SIGN);
   const canMarkInError = useHasPermission(P.CLINICAL_NOTES.MARK_IN_ERROR);
+  const canCosign = useHasPermission(P.CLINICAL_NOTES.COSIGN);
   const queryClient = useQueryClient();
   const [ask, setAsk] = useState<Ask>(null);
   const [reason, setReason] = useState("");
@@ -62,6 +84,7 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
     canSign,
     canWrite,
     canMarkInError,
+    canCosign,
     saveDraft: async (note, patches) => {
       const saved = await clinicalNotesService.saveNoteDraft(note.id, patches);
       queryClient.setQueryData<Note[]>(notesKey(encounterId), (old) =>
@@ -82,6 +105,8 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
         }),
       ),
     markInError: (note) => setAsk({ kind: "error", note }),
+    countersign: (note) => step.mutate(() => clinicalNotesService.countersignNote(note.id)),
+    returnToAuthor: (note) => setAsk({ kind: "return", note }),
   };
 
   const { top, addendaOf } = useMemo(() => {
@@ -109,12 +134,14 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
   const submitAsk = () => {
     if (!ask) return;
     const note = ask.note;
-    step.mutate(() =>
-      ask.kind === "late"
-        ? clinicalNotesService.signNote(note.id, reason)
-        : clinicalNotesService.markNoteInError(note.id, reason),
-    );
+    const run = {
+      late: () => clinicalNotesService.signNote(note.id, reason),
+      error: () => clinicalNotesService.markNoteInError(note.id, reason),
+      return: () => clinicalNotesService.returnNote(note.id, reason),
+    }[ask.kind];
+    step.mutate(run);
   };
+  const copy = ASK_COPY[ask?.kind ?? "late"];
 
   return (
     <Stack gap="sm">
@@ -163,19 +190,11 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
         />
       ))}
 
-      <Modal
-        opened={ask !== null}
-        onClose={() => setAsk(null)}
-        title={ask?.kind === "late" ? "Late entry" : "Mark entered in error"}
-      >
+      <Modal opened={ask !== null} onClose={() => setAsk(null)} title={copy.title}>
         <Stack gap="sm">
-          <Text size="sm">
-            {ask?.kind === "late"
-              ? "This note is signed well after the care it records. Say why it is written now."
-              : "The note stays on the case sheet, struck through. Say why it is in error."}
-          </Text>
+          <Text size="sm">{copy.prompt}</Text>
           <Textarea
-            label={ask?.kind === "late" ? "Why it is written now" : "Why it is in error"}
+            label={copy.label}
             value={reason}
             onChange={(e) => setReason(e.currentTarget.value)}
             autosize
@@ -187,12 +206,12 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
               Cancel
             </Button>
             <Button
-              tone={ask?.kind === "late" ? "primary" : "danger"}
+              tone={ask?.kind === "error" ? "danger" : "primary"}
               disabled={!reason.trim()}
               loading={step.isPending}
               onClick={submitAsk}
             >
-              {ask?.kind === "late" ? "Sign" : "Mark in error"}
+              {copy.action}
             </Button>
           </Group>
         </Stack>

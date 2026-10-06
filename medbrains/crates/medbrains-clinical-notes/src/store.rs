@@ -63,11 +63,16 @@ fn note_select(me: usize) -> String {
                 n.migrated_from, n.entered_in_error_at, n.entered_in_error_reason, \
                 v.sections, v.saved_at, n.created_at, \
                 n.author_id = ${me} AS is_mine, \
-                (n.author_id = ${me} AND n.status = 'signed' \
-                  AND n.migrated_from IS NULL AND now() < n.locked_at) AS revisable \
+                COALESCE(n.author_id = ${me} AND n.status = 'signed' \
+                  AND n.migrated_from IS NULL AND now() < n.locked_at, false) AS revisable, \
+                cu.full_name AS cosigner_name, n.cosign_status, n.cosigned_at, \
+                n.cosign_comment, \
+                COALESCE(n.cosigner_id = ${me} AND n.cosign_status = 'pending' \
+                  AND n.status = 'signed', false) AS is_my_cosign \
            FROM clinical_notes n \
            JOIN note_types t ON t.id = n.note_type_id \
            JOIN users u ON u.id = n.author_id \
+           LEFT JOIN users cu ON cu.id = n.cosigner_id \
            JOIN note_versions v ON v.note_id = n.id AND v.version = n.current_version \
            LEFT JOIN departments d ON d.id = n.service_department_id"
     )

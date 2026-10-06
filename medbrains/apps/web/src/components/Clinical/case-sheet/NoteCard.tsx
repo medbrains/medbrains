@@ -9,12 +9,15 @@ export interface NoteActions {
   canSign: boolean;
   canWrite: boolean;
   canMarkInError: boolean;
+  canCosign: boolean;
   saveDraft: (note: Note, patches: NoteSectionPatch[]) => Promise<void>;
   sign: (note: Note) => Promise<void>;
   revise: (note: Note) => void;
   discard: (note: Note) => void;
   addendum: (note: Note) => void;
   markInError: (note: Note) => void;
+  countersign: (note: Note) => void;
+  returnToAuthor: (note: Note) => void;
 }
 
 const when = (iso: string) =>
@@ -36,6 +39,23 @@ function statusOf(note: Note): {
     return { label: `Recorded ${when(note.signed_at ?? note.created_at)}`, tone: "neutral" };
   const revised = note.current_version > 1 ? " · revised" : "";
   return { label: `Signed ${when(note.signed_at ?? note.created_at)}${revised}`, tone: "success" };
+}
+
+/** Where the consultant's countersignature stands, when one is asked for. */
+function CosignLine({ note }: { note: Note }) {
+  if (!note.cosign_status || note.status === "entered_in_error") return null;
+  const by = note.cosigner_name ?? "the consultant";
+  const text =
+    note.cosign_status === "pending"
+      ? `Awaiting countersign by ${by}`
+      : note.cosign_status === "countersigned"
+        ? `Countersigned by ${by} ${note.cosigned_at ? when(note.cosigned_at) : ""}`
+        : `Returned by ${by}: ${note.cosign_comment ?? ""}`;
+  return (
+    <Text size="xs" c={note.cosign_status === "returned" ? "var(--mb-support-warning)" : "dimmed"}>
+      {text.trim()}
+    </Text>
+  );
 }
 
 /** Who wrote it, as the sheet's margin would: name, role, registration, unit. */
@@ -121,6 +141,16 @@ export function NoteCard({ note, addenda, actions }: NoteCardProps) {
       </Button>,
     );
   }
+  if (note.is_my_cosign && actions.canCosign) {
+    controls.push(
+      <Button key="cosign" tone="primary" size="xs" onClick={() => actions.countersign(note)}>
+        Countersign
+      </Button>,
+      <Button key="return" tone="tertiary" size="xs" onClick={() => actions.returnToAuthor(note)}>
+        Return to author
+      </Button>,
+    );
+  }
   if (note.is_mine && note.status === "signed" && actions.canMarkInError) {
     controls.push(
       <Button key="error" tone="danger-ghost" size="xs" onClick={() => actions.markInError(note)}>
@@ -155,6 +185,7 @@ export function NoteCard({ note, addenda, actions }: NoteCardProps) {
             Entered in error: {note.entered_in_error_reason}
           </Text>
         )}
+        <CosignLine note={note} />
         {note.late_entry_reason && (
           <Text size="xs" c="dimmed">
             Late entry: {note.late_entry_reason}

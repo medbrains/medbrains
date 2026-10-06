@@ -14,10 +14,12 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -317,8 +319,7 @@ pub async fn create_record(
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
     // The body names the patient the record is opened on.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -585,8 +586,7 @@ pub async fn create_birth(
     // A birth register entry is statutory, and the register itself is rightly
     // unfiltered — but CREATING one names a specific patient, and recording a
     // birth against the wrong person is a legal document about the wrong life.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -708,8 +708,7 @@ pub async fn create_death(
     // As with births: reading the death register is statutory and stays open;
     // recording a death against a named patient is not something
     // `mrd.deaths.create` alone should authorise on ANY patient in the tenant.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1057,8 +1056,9 @@ async fn count_case_sheet_evidence(
     Ok(count)
 }
 
-/// Every note on the visit's case sheet is signed: an unsigned draft is not
-/// part of the record, so a packet holding one is not complete.
+/// Every note on the visit's case sheet is signed, and countersigned where a
+/// resident wrote it: until then it is not the final record, so a packet
+/// holding one is not complete.
 async fn push_unsigned_notes_item(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     items: &mut Vec<MrdCaseSheetCompletenessItem>,
@@ -1068,14 +1068,15 @@ async fn push_unsigned_notes_item(
 ) -> Result<(), AppError> {
     let unsigned: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::bigint FROM clinical_notes \
-          WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'draft' \
-            AND deleted_at IS NULL",
+          WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
+            AND (status = 'draft' OR (status = 'signed' AND cosign_status = 'pending'))",
     )
     .bind(tenant_id)
     .bind(encounter_id)
     .fetch_one(&mut **tx)
     .await?;
-    let missing = format!("{unsigned} note(s) on the case sheet are not signed");
+    let missing =
+        format!("{unsigned} note(s) on the case sheet are unsigned or awaiting countersign");
     push_completeness_item(
         items,
         "unsigned_notes",
@@ -2432,9 +2433,18 @@ pub async fn update_case_sheet_page_status(
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
 
     if !["deficient", "waived", "available"].contains(&body.status.as_str()) {
-        return Err(AppError::BadRequest(format!("Invalid page status '{}'.", body.status)));
+        return Err(AppError::BadRequest(format!(
+            "Invalid page status '{}'.",
+            body.status
+        )));
     }
-    if body.status == "deficient" && body.deficiency_reason.as_deref().unwrap_or("").trim().is_empty()
+    if body.status == "deficient"
+        && body
+            .deficiency_reason
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
     {
         return Err(AppError::BadRequest(
             "A reason is required to flag a page deficient.".to_owned(),
@@ -2442,7 +2452,8 @@ pub async fn update_case_sheet_page_status(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MrdCaseSheetPage>(
         "UPDATE mrd_case_sheet_pages SET \
@@ -2833,42 +2844,18 @@ pub async fn attach_form_document(
 /// Medical Records Department (records, coding, deficiencies, ROI, forms) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/mrd/records",
-            get(list_records).post(create_record),
-        )
-        .route(
-            "/api/mrd/records/{id}",
-            get(get_record).put(update_record),
-        )
-        .route(
-            "/api/mrd/records/{id}/movements",
-            get(list_movements),
-        )
-        .route(
-            "/api/mrd/records/{id}/issue",
-            post(issue_record),
-        )
+        .route("/api/mrd/records", get(list_records).post(create_record))
+        .route("/api/mrd/records/{id}", get(get_record).put(update_record))
+        .route("/api/mrd/records/{id}/movements", get(list_movements))
+        .route("/api/mrd/records/{id}/issue", post(issue_record))
         .route(
             "/api/mrd/records/{record_id}/movements/{id}/return",
             post(return_record),
         )
-        .route(
-            "/api/mrd/births",
-            get(list_births).post(create_birth),
-        )
-        .route(
-            "/api/mrd/births/{id}",
-            get(get_birth),
-        )
-        .route(
-            "/api/mrd/deaths",
-            get(list_deaths).post(create_death),
-        )
-        .route(
-            "/api/mrd/deaths/{id}",
-            get(get_death),
-        )
+        .route("/api/mrd/births", get(list_births).post(create_birth))
+        .route("/api/mrd/births/{id}", get(get_birth))
+        .route("/api/mrd/deaths", get(list_deaths).post(create_death))
+        .route("/api/mrd/deaths/{id}", get(get_death))
         .route(
             "/api/mrd/retention-policies",
             get(list_retention_policies).post(create_retention_policy),
@@ -2885,10 +2872,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/storage-locations/{id}",
             put(update_storage_location),
         )
-        .route(
-            "/api/mrd/case-sheets",
-            get(list_case_sheet_packets),
-        )
+        .route("/api/mrd/case-sheets", get(list_case_sheet_packets))
         .route(
             "/api/mrd/case-sheets/from-opd/{encounter_id}",
             post(generate_opd_case_sheet_packet),
@@ -2897,10 +2881,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/case-sheets/from-ipd/{admission_id}",
             post(generate_ipd_case_sheet_packet),
         )
-        .route(
-            "/api/mrd/case-sheets/{id}",
-            get(get_case_sheet_packet),
-        )
+        .route("/api/mrd/case-sheets/{id}", get(get_case_sheet_packet))
         .route(
             "/api/mrd/case-sheets/{id}/pages",
             get(list_case_sheet_pages),
@@ -2929,10 +2910,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/stats/admission-discharge",
             get(stats_admission_discharge),
         )
-        .route(
-            "/api/mrd/form-records",
-            get(list_form_records),
-        )
+        .route("/api/mrd/form-records", get(list_form_records))
         .route(
             "/api/mrd/form-records/{id}/complete",
             post(complete_form_record),

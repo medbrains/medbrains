@@ -87,6 +87,7 @@ pub async fn sign_note(
     .bind(&hash)
     .execute(&mut *tx)
     .await?;
+    crate::cosign::request_countersign(&mut tx, note.id).await?;
     // The first signature on a doctor's round note is the round's charge; a
     // revision is the same round.
     if note.signed_at.is_none() && note.type_code == "progress" {
