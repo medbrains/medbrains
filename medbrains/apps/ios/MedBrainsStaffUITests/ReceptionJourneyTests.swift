@@ -307,6 +307,30 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertTrue(el("patient-start-visit").exists, "and the desk can take them through to a visit")
     }
 
+    /// A returning patient goes back to the doctor who saw them: starting the
+    /// visit names the last one and has that consultant chosen.
+    func testAReturningPatientIsOfferedTheDoctorWhoSawThemLast() {
+        let dept = api.list("/api/setup/departments").first { ($0["code"] as? String) == "GEN-MEDICINE" }?["id"] as? String
+        guard let doctor = api.list("/api/setup/doctors").first, let doctorId = doctor["id"] as? String,
+              let doctorName = doctor["full_name"] as? String, let dept else { return XCTFail("a doctor and a department") }
+        let p = api.patient("Return")
+        guard let id = p["id"] as? String, let uhid = p["uhid"] as? String else { return XCTFail("seeded a patient") }
+        let (status, _) = api.call("POST", "/api/opd/encounters", ["patient_id": id, "department_id": dept, "doctor_id": doctorId, "visit_type": "walk_in"])
+        XCTAssertTrue((200..<300).contains(status), "an earlier visit with that doctor")
+        el("module-action-find").tap()
+        XCTAssertTrue(el("screen-find-patient").waitForExistence(timeout: 10))
+        type("find-search", uhid)
+        tapWhenReady(el("find-submit"))
+        XCTAssertTrue(reveal("find-row-\(id)"))
+        tapWhenReady(el("find-row-\(id)"))
+        tapWhenReady(el("patient-start-visit"))
+        XCTAssertTrue(el("last-visit").waitForExistence(timeout: 10), "the last visit is named")
+        XCTAssertTrue(sees(doctorName), "with the doctor who saw them")
+        shoot("reception-last-visit")
+        let consultant = app.buttons["picker-consultant"].firstMatch
+        XCTAssertTrue(consultant.label.contains(doctorName), "and that doctor is chosen: \(consultant.label)")
+    }
+
     /// Three characters is the floor. Two matches half the register, and a desk
     /// lookup is a lookup for someone in particular, not a way to page through it.
     func testTwoCharactersAreNotASearch() {

@@ -3,7 +3,8 @@ import MedBrainsUI
 import SwiftUI
 
 /// One call: the visit, the queue entry and the token come back together.
-/// Department and consultant are prefilled from the desk.
+/// Department and consultant are prefilled from the patient's last visit,
+/// else from the desk.
 struct StartVisitView: View {
     @Environment(\.apiClient) private var client
     @Environment(ReceptionSession.self) private var session
@@ -14,12 +15,14 @@ struct StartVisitView: View {
     @State private var failure: String?
     @State private var busy = false
     @State private var started: VisitStarted?
+    @State private var last: LastVisitState = .loading
     @FocusState private var focused: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CarbonPageHeader(eyebrow: "Start visit", title: patient.fullName, subtitle: patient.identifiers)
+                lastVisitRow
                 CarbonPicker("Department", options: session.departments.map { .init(id: $0.id, label: $0.name) }, selection: $departmentId, placeholder: "Choose a department", error: failure == nil || departmentId != nil ? nil : "Choose a department")
                     .accessibilityIdentifier("picker-department")
                 CarbonPicker("Consultant", options: session.doctors.map { .init(id: $0.id, label: $0.fullName) }, selection: $doctorId, placeholder: "Any consultant")
@@ -38,9 +41,36 @@ struct StartVisitView: View {
         .navigationTitle("Start visit").navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("screen-start-visit")
         .onAppear { if departmentId == nil { departmentId = session.departmentId; doctorId = session.consultantId } }
+        .task { await loadLastVisit() }
         .navigationDestination(item: $started) { v in
             TokenIssuedView(patient: patient, visit: v, departmentName: session.departmentName(departmentId) ?? "the clinic")
                 .environment(session)
+        }
+    }
+
+    @ViewBuilder private var lastVisitRow: some View {
+        switch last {
+        case .loading: EmptyView()
+        case .none: CarbonRow("Last visit", detail: "First OPD visit")
+        case .found(let visit):
+            CarbonRow("Last visit", detail: visit.doctorName != nil && visit.doctorId == nil ? visit.summary + " — no longer taking patients" : visit.summary)
+                .accessibilityIdentifier("last-visit")
+        case .failed: CarbonRow("Last visit", detail: "Could not be loaded; choose the doctor yourself")
+        }
+    }
+
+    /// Send them back to the doctor who saw them, unless the desk has
+    /// already changed the pickers.
+    private func loadLastVisit() async {
+        guard let client else { return }
+        do {
+            guard let visit = try await ReceptionApi(client: client).lastVisit(patient.id) else { last = .none; return }
+            last = .found(visit)
+            guard departmentId == session.departmentId, doctorId == session.consultantId else { return }
+            if let dept = visit.departmentId, session.departments.contains(where: { $0.id == dept }) { departmentId = dept }
+            if let doctor = visit.doctorId, session.doctors.contains(where: { $0.id == doctor }) { doctorId = doctor }
+        } catch {
+            last = .failed
         }
     }
 
@@ -61,6 +91,8 @@ struct StartVisitView: View {
         }
     }
 }
+
+private enum LastVisitState { case loading, none, found(LastVisit), failed }
 
 /// The token in display type, and the sentence the desk says. Announced,
 /// not only shown. Pushed by an item destination, so its own onward moves are

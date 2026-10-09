@@ -956,6 +956,18 @@ export interface CreateEncounterResponse {
   token_refused: string | null;
 }
 
+/**
+ * A returning patient's last OPD visit, for the desk starting today's.
+ * An id is null when that doctor or department no longer takes patients.
+ */
+export interface LastOpdVisit {
+  encounter_date: string;
+  doctor_id: string | null;
+  doctor_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
+}
+
 /** Move a waiting visit to another department. */
 export interface TransferVisitRequest {
   department_id: string;

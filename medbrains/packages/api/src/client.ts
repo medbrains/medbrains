@@ -530,6 +530,7 @@ import type {
   CreateEmployeeRequest,
   CreateEncounterRequest,
   CreateEncounterResponse,
+  LastOpdVisit,
   CreateEndoscopyBiopsyRequest,
   CreateEndoscopyProcedureRequest,
   CreateEndoscopyReprocessingRequest,
@@ -4381,6 +4382,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getLastOpdVisit: (patientId: string) =>
+    request<LastOpdVisit | null>(`/opd/patients/${patientId}/last-visit`),
   getRegistrationPolicy: () => request<OpdRegistrationPolicy>("/opd/registration-policy"),
   updateRegistrationPolicy: (data: OpdRegistrationPolicy) =>
     request<OpdRegistrationPolicy>("/opd/registration-policy", {

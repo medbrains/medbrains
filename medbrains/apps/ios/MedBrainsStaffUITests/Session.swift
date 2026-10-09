@@ -39,5 +39,17 @@ enum Session {
         app.secureTextFields["Password"].typeText(password)
         app.buttons["signIn"].tap()
         XCTAssertTrue(el(app, home).waitForExistence(timeout: 15), "lands on \(home)")
+        declineSavePassword(app)
+    }
+
+    /// iOS 26 offers to save the password after every sign-in, in a system
+    /// sheet over the app that takes the first tap of the journey. The sheet
+    /// is hosted remotely but sits in the app's own element tree.
+    private static func declineSavePassword(_ app: XCUIApplication) {
+        let notNow = app.sheets.buttons["Not Now"]
+        guard notNow.waitForExistence(timeout: 3) else { return }
+        notNow.tap()
+        // A tap while it slides away lands on nothing.
+        _ = app.sheets.firstMatch.waitForNonExistence(timeout: 5)
     }
 }
