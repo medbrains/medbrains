@@ -1,6 +1,6 @@
 /**
  * The doctor prints the visit's case sheet and the print files itself to
- * the medical record: medical records find it on the packet's notes page
+ * the medical record: the MRD officer finds it on the packet's notes page
  * (RFC-MODULE-clinical-notes, phase 4).
  */
 import { api, loginAsRoleApi } from "../helpers/api";
@@ -37,10 +37,8 @@ test("a printed case sheet is filed to the medical record", async ({ hospital, r
   expect(rendered.status()).toBe(200);
   expect(await rendered.json()).toMatchObject({ filed_to_mrd: true });
 
-  // ponytail: an administrator, not the MRD officer — the officer's packet
-  // list is scoped to patients they have a care relation with (open policy
-  // question: MRD-wide record access).
-  const mrd = await hospital.asAdmin();
+  // Medical records hold every chart, not only those of patients they treat.
+  const mrd = await hospital.as("mrd_officer");
   await mrd.goto(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`);
   await mrd.getByRole("button", { name: "View page checklist" }).first().click();
   const notesPage = mrd.getByRole("row", { name: /Clinical notes, datewise/ });

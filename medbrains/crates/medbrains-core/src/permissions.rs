@@ -1595,6 +1595,11 @@ pub mod mrd {
         pub const LIST: &str = "mrd.records.list";
         pub const CREATE: &str = "mrd.records.create";
         pub const MANAGE: &str = "mrd.records.manage";
+        /// Open every patient's medical record.
+        /// For medical records staff, who file, issue and complete every
+        /// chart — not only those of patients in their care. Each record
+        /// opened this way is written to the patient's access log.
+        pub const VIEW_ALL: &str = "mrd.records.view_all";
     }
 
     pub mod births {
