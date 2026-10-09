@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1006 permissions, one per constant in the Rust source. */
+/** 1007 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3375,6 +3375,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "mrd.records.manage",
     label: "Manage Medical Records",
     description: "Update records and manage movements",
+    module: "mrd",
+  },
+  {
+    code: "mrd.records.view_all",
+    label: "Open every patient's medical record",
+    description: "For medical records staff, who file, issue and complete every chart — not only those of patients in their care. Each record opened this way is written to the patient's access log.",
     module: "mrd",
   },
   {
@@ -7858,10 +7864,12 @@ export const P = {
       CREATE: "mrd.records.create",
       LIST: "mrd.records.list",
       MANAGE: "mrd.records.manage",
+      VIEW_ALL: "mrd.records.view_all",
     },
     RECORDS_CREATE: "mrd.records.create",
     RECORDS_LIST: "mrd.records.list",
     RECORDS_MANAGE: "mrd.records.manage",
+    RECORDS_VIEW_ALL: "mrd.records.view_all",
     STORAGE: {
       MANAGE: "mrd.storage.manage",
     },
@@ -10258,6 +10266,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.CREATE,
       P.MRD.RECORDS.LIST,
       P.MRD.RECORDS.MANAGE,
+      P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
