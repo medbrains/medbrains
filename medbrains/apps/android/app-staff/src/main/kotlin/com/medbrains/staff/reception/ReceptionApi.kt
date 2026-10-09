@@ -60,6 +60,18 @@ data class CampRegistrationLink(
 )
 
 @Serializable data class DoctorRow(val id: String, val full_name: String, val specialization: String? = null)
+/** A returning patient's last OPD visit. An id is null when that doctor or department no longer takes patients: named, not offered. */
+@Serializable
+data class LastVisit(
+    val encounter_date: String,
+    val doctor_id: String? = null,
+    val doctor_name: String? = null,
+    val department_id: String? = null,
+    val department_name: String? = null,
+) {
+    val summary: String get() = listOfNotNull(encounter_date, doctor_name, department_name).joinToString(" · ")
+}
+
 @Serializable data class StartVisitBody(val patient_id: String, val department_id: String, val doctor_id: String?, val chief_complaint: String?, val visit_type: String)
 
 /** The visit and the token the server issued for it, in one answer. */
@@ -86,5 +98,6 @@ class ReceptionApi(private val client: ApiClient) {
     suspend fun doctors(): List<DoctorRow> = client.get("/api/setup/doctors")
     suspend fun camps(): List<CampSummary> = client.get("/api/camp/camps")
     suspend fun linkToCamp(body: CampRegistrationLink): com.medbrains.staff.camp.CampRegistered = client.post(com.medbrains.staff.camp.CampEndpoint.REGISTRATIONS, body)
+    suspend fun lastVisit(patientId: String): LastVisit? = client.get("/api/opd/patients/$patientId/last-visit")
     suspend fun startVisit(body: StartVisitBody): VisitStarted = client.post("/api/opd/encounters", body)
 }

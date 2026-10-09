@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,7 +40,14 @@ import com.medbrains.ui.NotificationKind
 import com.medbrains.ui.PickerOption
 import kotlinx.coroutines.launch
 
-/** One call: the visit, the queue entry and the token come back together. Department and consultant are prefilled from the desk. */
+private sealed interface LastVisitState {
+    data object Loading : LastVisitState
+    data object None : LastVisitState
+    data class Found(val visit: LastVisit) : LastVisitState
+    data object Failed : LastVisitState
+}
+
+/** One call: the visit, the queue entry and the token come back together. Department and consultant are prefilled from the patient's last visit, else from the desk. */
 @Composable
 fun StartVisitScreen(nav: NavHostController, api: ReceptionApi, session: ReceptionSession, patient: PatientSummary) {
     val scope = rememberCoroutineScope()
@@ -48,10 +56,32 @@ fun StartVisitScreen(nav: NavHostController, api: ReceptionApi, session: Recepti
     var complaint by remember { mutableStateOf("") }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var last by remember { mutableStateOf<LastVisitState>(LastVisitState.Loading) }
+
+    // Send them back to the doctor who saw them, unless the desk has already changed the pickers.
+    LaunchedEffect(patient.id) {
+        last = try {
+            api.lastVisit(patient.id)?.let { visit ->
+                if (departmentId == session.departmentId && doctorId == session.consultantId) {
+                    visit.department_id?.takeIf { id -> session.departments.any { it.id == id } }?.let { departmentId = it }
+                    visit.doctor_id?.takeIf { id -> session.doctors.any { it.id == id } }?.let { doctorId = it }
+                }
+                LastVisitState.Found(visit)
+            } ?: LastVisitState.None
+        } catch (e: Exception) { LastVisitState.Failed }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().testTag("screen-start-visit")) {
         CarbonPageHeader("Start visit", patient.fullName, patient.identifiers)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            when (val l = last) {
+                LastVisitState.Loading -> Unit
+                LastVisitState.None -> CarbonRow("Last visit", "First OPD visit")
+                is LastVisitState.Found -> Column(Modifier.testTag("last-visit")) {
+                    CarbonRow("Last visit", if (l.visit.doctor_name != null && l.visit.doctor_id == null) l.visit.summary + " — no longer taking patients" else l.visit.summary)
+                }
+                LastVisitState.Failed -> CarbonRow("Last visit", "Could not be loaded; choose the doctor yourself")
+            }
             CarbonPicker("Department", session.departments.map { PickerOption(it.id, it.name) }, departmentId, { departmentId = it }, placeholder = "Choose a department", allowNone = false, tag = "picker-department")
             CarbonPicker("Consultant", session.doctors.map { PickerOption(it.id, it.full_name) }, doctorId, { doctorId = it }, placeholder = "Any consultant", tag = "picker-consultant")
             CarbonTextField(complaint, { complaint = it }, "Chief complaint (optional)", Modifier.testTag("field-chief_complaint"), singleLine = false)
