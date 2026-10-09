@@ -199,6 +199,11 @@ final class Api {
         return (campId, ((route as? [[String: Any]]) ?? []).compactMap { $0["counter_id"] as? String })
     }
     func campQueue(_ station: String) -> [[String: Any]] { list("/api/tokens/worklist?module=camp&scope=counter&scope_id=\(station)") }
-    func consultation(_ encounterId: String) -> [String: Any]? { call("GET", "/api/opd/encounters/\(encounterId)/consultation").1 as? [String: Any] }
+    /// The visit's case-sheet notes, in the order care happened.
+    func notes(_ encounterId: String) -> [[String: Any]] { list("/api/encounters/\(encounterId)/clinical-notes") }
+    /// One section's text on a note read from `notes`.
+    func section(_ note: [String: Any]?, _ code: String) -> String? {
+        ((note?["sections"] as? [[String: Any]])?.first { $0["code"] as? String == code })?["text"] as? String
+    }
     func responders() -> [[String: Any]] { list("/api/nurse/code-blue/responders") }
 }
