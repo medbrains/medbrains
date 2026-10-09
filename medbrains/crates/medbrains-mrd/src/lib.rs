@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+mod access;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -289,7 +291,7 @@ pub async fn list_records(
     // every patient's. Both resolve to a set of permitted ids so the dangerous
     // mode cannot be left open while the safe one looks guarded.
     let permitted_patients =
-        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+        access::list_filter(&state, &claims, q.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -395,6 +397,7 @@ pub async fn get_record(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
+    access::open_record(&state, &claims, id, "get record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -417,6 +420,7 @@ pub async fn update_record(
     Json(body): Json<UpdateRecordRequest>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, id, "update record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -458,6 +462,7 @@ pub async fn list_movements(
     Path(record_id): Path<Uuid>,
 ) -> Result<Json<Vec<MrdRecordMovement>>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
+    access::open_record(&state, &claims, record_id, "list movements").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -483,6 +488,7 @@ pub async fn issue_record(
     Json(body): Json<IssueRecordRequest>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, record_id, "issue record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -525,6 +531,7 @@ pub async fn return_record(
     Path((record_id, movement_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, record_id, "return record").await?;
 
     // The URL names a parent; scope the statement by it so it cannot address a
     // child under the wrong one. Without this the parent segment is decorative
@@ -1387,7 +1394,7 @@ pub async fn list_case_sheet_packets(
     // every patient's. Both resolve to a set of permitted ids so the dangerous
     // mode cannot be left open while the safe one looks guarded.
     let permitted_patients =
-        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+        access::list_filter(&state, &claims, q.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1422,6 +1429,7 @@ pub async fn get_case_sheet_packet(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    access::open_packet(&state, &claims, id, "get case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1437,6 +1445,7 @@ pub async fn list_case_sheet_pages(
     Path(packet_id): Path<Uuid>,
 ) -> Result<Json<Vec<MrdCaseSheetPage>>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    access::open_packet(&state, &claims, packet_id, "list case sheet pages").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1462,13 +1471,7 @@ pub async fn get_case_sheet_completeness(
 ) -> Result<Json<MrdCaseSheetCompletenessResponse>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
     // The path names the packet; the patient is one hop away on it.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CASE_SHEET_PACKET,
-        packet_id,
-    )
-    .await?;
+    access::open_packet(&state, &claims, packet_id, "get case sheet completeness").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2257,13 +2260,7 @@ pub async fn print_case_sheet_packet(
     // any authenticated user in the tenant could perform it once per packet.
     // `mrd.case_sheets.print` already existed and was simply never asked for.
     require_permission(&claims, permissions::mrd::case_sheets::PRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CASE_SHEET_PACKET,
-        id,
-    )
-    .await?;
+    access::open_packet(&state, &claims, id, "print case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2431,6 +2428,7 @@ pub async fn update_case_sheet_page_status(
     Json(body): Json<UpdatePageStatusRequest>,
 ) -> Result<Json<MrdCaseSheetPage>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    access::open_packet(&state, &claims, packet_id, "update case sheet page status").await?;
 
     if !["deficient", "waived", "available"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest(format!(
@@ -2486,6 +2484,7 @@ pub async fn file_case_sheet_packet(
     Json(body): Json<FileCaseSheetPacketRequest>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    access::open_packet(&state, &claims, id, "file case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

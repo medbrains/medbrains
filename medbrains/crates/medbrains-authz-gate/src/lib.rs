@@ -340,6 +340,8 @@ pub mod links {
     /// Keyed on `patient_id`, which is NOT NULL, rather than on the nullable
     /// `encounter_id`/`admission_id` — a packet may be assembled from either.
     pub const CASE_SHEET_PACKET: ParentLink = ParentLink::on_patient("mrd_case_sheet_packets");
+    /// A medical record's physical file in MRD, held per patient.
+    pub const MRD_RECORD: ParentLink = ParentLink::on_patient("mrd_medical_records");
 
     /// Clinical-trial subject records. Each carries a NOT NULL `patient_id`
     /// beside its `trial_id`, so the hop is direct — the trial is the roster,
