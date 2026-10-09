@@ -172,6 +172,7 @@ pub async fn case_sheet_context(
     let kind = match h.encounter_type.as_str() {
         "ipd" => "Admission",
         "emergency" => "Emergency visit",
+        "home_health" => "Home visit",
         _ => "OPD visit",
     };
     let sheet = json!({

@@ -1063,7 +1063,6 @@ import type {
   HomeDischargeItem,
   HomeEscalation,
   HomeMedAdministration,
-  HomeProgressNote,
   HomeVisit,
   HospiceEnrollment,
   HospitalBrandingPrintData,
@@ -7266,8 +7265,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listHomeProgressNotes: (patientId: string) =>
-    request<HomeProgressNote[]>(`/home-health/progress-notes?patient_id=${patientId}`),
   listDischargeProgram: (patientId: string) =>
     request<HomeDischargeItem[]>(`/home-health/discharge-program?patient_id=${patientId}`),
   addDischargeItem: (data: {
@@ -7284,16 +7281,6 @@ export const api = {
     request<HomeDischargeItem>(`/home-health/discharge-program/${id}`, {
       method: "PUT",
       body: JSON.stringify({ is_complete: isComplete }),
-    }),
-  addHomeProgressNote: (data: {
-    patient_id: string;
-    author_role?: string;
-    note_text: string;
-    vitals?: unknown;
-  }) =>
-    request<HomeProgressNote>("/home-health/progress-notes", {
-      method: "POST",
-      body: JSON.stringify(data),
     }),
   listEscalations: (patientId: string) =>
     request<HomeEscalation[]>(`/home-health/escalations?patient_id=${patientId}`),

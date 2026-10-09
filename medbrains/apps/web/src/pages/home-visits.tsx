@@ -7,11 +7,13 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconRoute } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Drawer, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { homeHealthService } from "@/services/homeHealth.service";
 
@@ -166,6 +168,13 @@ export function HomeVisitsPage() {
   const [date, setDate] = useState<string | null>(today());
   const [modalOpen, modal] = useDisclosure(false);
   const [docVisit, setDocVisit] = useState<HomeVisit | null>(null);
+  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
+  // The open case sheet lives in the URL, so the unsigned-notes worklist
+  // can link straight to it.
+  const [params, setParams] = useSearchParams();
+  const caseSheet = params.get("case_sheet");
+  const openCaseSheet = (encounterId: string | null) =>
+    setParams(encounterId ? { case_sheet: encounterId } : {}, { replace: true });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["home-visits", date],
@@ -219,8 +228,21 @@ export function HomeVisitsPage() {
       key: "actions",
       label: "",
       render: (r) => {
-        if (!canManage) return null;
         const actions = [];
+        if (canViewNotes && r.encounter_id) {
+          const encounterId = r.encounter_id;
+          actions.push(
+            <Button
+              key="case-sheet"
+              size="xs"
+              tone="tertiary"
+              onClick={() => openCaseSheet(encounterId)}
+            >
+              Case sheet
+            </Button>,
+          );
+        }
+        if (!canManage) return actions.length > 0 ? <Group gap="xs">{actions}</Group> : null;
         if (r.status === "scheduled") actions.push(act(r.id, "en_route", "En route", "primary"));
         if (r.status === "scheduled" || r.status === "en_route") {
           actions.push(act(r.id, "completed", "Complete", "primary"));
@@ -271,6 +293,14 @@ export function HomeVisitsPage() {
       />
       {date && <ScheduleVisitModal date={date} opened={modalOpen} onClose={modal.close} />}
       {docVisit && <DocumentModal visit={docVisit} onClose={() => setDocVisit(null)} />}
+      <Drawer
+        opened={caseSheet !== null}
+        onClose={() => openCaseSheet(null)}
+        title="Home visit case sheet"
+        size="xl"
+      >
+        {caseSheet && <CaseSheet encounterId={caseSheet} />}
+      </Drawer>
     </Stack>
   );
 }

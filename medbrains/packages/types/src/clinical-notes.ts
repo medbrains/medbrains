@@ -84,7 +84,7 @@ export interface CreateNoteRequest {
 export interface UnsignedNote {
   id: string;
   encounter_id: string;
-  encounter_type: "opd" | "ipd" | "emergency";
+  encounter_type: "opd" | "ipd" | "emergency" | "home_health";
   admission_id: string | null;
   er_visit_id: string | null;
   patient_id: string;
@@ -101,7 +101,7 @@ export interface UnsignedNote {
 export interface PendingCountersign {
   id: string;
   encounter_id: string;
-  encounter_type: "opd" | "ipd" | "emergency";
+  encounter_type: "opd" | "ipd" | "emergency" | "home_health";
   admission_id: string | null;
   er_visit_id: string | null;
   patient_name: string;
@@ -114,7 +114,7 @@ export interface PendingCountersign {
 /** The visit a chart-review note was written on. */
 export interface ChartVisit {
   encounter_id: string;
-  encounter_type: "opd" | "ipd" | "emergency";
+  encounter_type: "opd" | "ipd" | "emergency" | "home_health";
   encounter_date: string | null;
   admission_id: string | null;
   er_visit_id: string | null;
