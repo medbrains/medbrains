@@ -1723,39 +1723,6 @@ export interface Consultation {
   updated_at: string;
 }
 
-export interface CreateConsultationRequest {
-  chief_complaint?: string;
-  history?: string;
-  examination?: string;
-  plan?: string;
-  notes?: string;
-  hpi?: string;
-  past_medical_history?: PastMedicalEntry[];
-  past_surgical_history?: PastSurgicalEntry[];
-  family_history?: FamilyHistoryEntry[];
-  social_history?: SocialHistory;
-  review_of_systems?: ReviewOfSystems;
-  physical_examination?: PhysicalExamination;
-  general_appearance?: string;
-}
-
-export interface UpdateConsultationRequest {
-  chief_complaint?: string;
-  history?: string;
-  examination?: string;
-  plan?: string;
-  notes?: string;
-  hpi?: string;
-  past_medical_history?: PastMedicalEntry[];
-  past_surgical_history?: PastSurgicalEntry[];
-  family_history?: FamilyHistoryEntry[];
-  social_history?: SocialHistory;
-  review_of_systems?: ReviewOfSystems;
-  physical_examination?: PhysicalExamination;
-  general_appearance?: string;
-  snomed_codes?: Array<{ code: string; display: string }>;
-}
-
 export type DiagnosisSeverity = "mild" | "moderate" | "severe" | "critical";
 export type DiagnosisCertainty = "suspected" | "probable" | "confirmed" | "ruled_out";
 export type DiagnosisCodingSystem = "icd10" | "icd11" | "snomed";

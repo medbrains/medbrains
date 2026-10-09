@@ -7,9 +7,9 @@ rust-version = "1.85"
 [dependencies]
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
-medbrains-opd = { path = "../medbrains-opd" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

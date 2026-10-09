@@ -480,7 +480,6 @@ import type {
   CreateConsentRequest,
   CreateConsentSignatureRequest,
   CreateConsentTemplateRequest,
-  CreateConsultationRequest,
   CreateConsultationTemplateRequest,
   CreateCorporateRequest,
   CreateCoSignatureRequest,
@@ -1974,7 +1973,6 @@ import type {
   UpdateCondemnationStatusRequest,
   UpdateConnectorRequest,
   UpdateConsentTemplateRequest,
-  UpdateConsultationRequest,
   UpdateCorporateRequest,
   UpdateCredentialRequest,
   UpdateCreditPatientRequest,
@@ -4430,20 +4428,6 @@ export const api = {
     request<Vital[]>(`/nurse/vitals/encounter/${encounterId}`),
   getConsultation: (encounterId: string) =>
     request<Consultation>(`/opd/encounters/${encounterId}/consultation`),
-  createConsultation: (encounterId: string, data: CreateConsultationRequest) =>
-    request<Consultation>(`/opd/encounters/${encounterId}/consultation`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateConsultation: (
-    encounterId: string,
-    consultationId: string,
-    data: UpdateConsultationRequest,
-  ) =>
-    request<Consultation>(`/opd/encounters/${encounterId}/consultation/${consultationId}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
   listDiagnoses: (encounterId: string) =>
     request<Diagnosis[]>(`/opd/encounters/${encounterId}/diagnoses`),
   createDiagnosis: (encounterId: string, data: CreateDiagnosisRequest) =>
