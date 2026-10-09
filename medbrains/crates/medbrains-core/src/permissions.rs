@@ -109,6 +109,17 @@ pub mod clinical_notes {
     pub const EXPORT: &str = "clinical_notes.export";
 }
 
+pub mod home_health {
+    /// View home care.
+    /// Home visits, home medication schedules, escalations, remote vitals,
+    /// care packages, hospice, advance directives and bereavement follow-up.
+    pub const LIST: &str = "home_health.list";
+    /// Run home care.
+    /// Schedule and document home visits, record home doses, raise and
+    /// close escalations, and keep hospice and advance-directive records.
+    pub const MANAGE: &str = "home_health.manage";
+}
+
 pub mod opd {
     pub mod queue {
         pub const LIST: &str = "opd.queue.list";

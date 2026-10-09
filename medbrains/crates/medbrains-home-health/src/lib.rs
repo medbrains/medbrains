@@ -1,6 +1,6 @@
 //! Home Healthcare / Hospital-at-Home — medication administration tracking (ticket #2979).
 //! A home eMAR: a dose (IV antibiotics / infusions) is scheduled, then the visiting nurse records
-//! it as administered / missed / held with the site + notes. Gated by `ipd.mar.{list,create}`.
+//! it as administered / missed / held with the site + notes. Gated by `home_health.{list,manage}`.
 
 use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
@@ -51,7 +51,7 @@ pub async fn list_home_meds(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeMedAdministration>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -88,7 +88,7 @@ pub async fn schedule_home_med(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ScheduleHomeMedRequest>,
 ) -> Result<Json<HomeMedAdministration>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -133,7 +133,7 @@ pub async fn record_home_med(
     Path(id): Path<Uuid>,
     Json(body): Json<RecordHomeMedRequest>,
 ) -> Result<Json<HomeMedAdministration>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -198,7 +198,7 @@ pub async fn list_escalations(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeEscalation>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -232,7 +232,7 @@ pub async fn raise_escalation(
     Extension(claims): Extension<Claims>,
     Json(body): Json<RaiseEscalationRequest>,
 ) -> Result<Json<HomeEscalation>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -273,7 +273,7 @@ pub async fn update_escalation(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateEscalationRequest>,
 ) -> Result<Json<HomeEscalation>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -332,7 +332,7 @@ pub async fn list_discharge_program(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeDischargeItem>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -366,7 +366,7 @@ pub async fn add_discharge_item(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AddDischargeItemRequest>,
 ) -> Result<Json<HomeDischargeItem>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -405,7 +405,7 @@ pub async fn toggle_discharge_item(
     Path(id): Path<Uuid>,
     Json(body): Json<ToggleDischargeItemRequest>,
 ) -> Result<Json<HomeDischargeItem>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -479,7 +479,7 @@ pub async fn list_home_visits(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeVisitQuery>,
 ) -> Result<Json<Vec<HomeVisit>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
     // Unscoped this listed every home visit in the tenant — who is being
     // visited at home, and when somebody is alone in their house. Dual-mode
     // via ?patient_id.
@@ -523,7 +523,7 @@ pub async fn schedule_home_visit(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ScheduleHomeVisitRequest>,
 ) -> Result<Json<HomeVisit>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -632,7 +632,7 @@ pub async fn update_home_visit(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateHomeVisitRequest>,
 ) -> Result<Json<HomeVisit>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -688,7 +688,7 @@ pub async fn document_home_visit(
     Path(id): Path<Uuid>,
     Json(body): Json<DocumentVisitRequest>,
 ) -> Result<Json<HomeVisit>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -760,7 +760,7 @@ pub async fn list_remote_vitals(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<RemoteVitalReading>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -795,7 +795,7 @@ pub async fn ingest_remote_vital(
     Extension(claims): Extension<Claims>,
     Json(body): Json<IngestVitalRequest>,
 ) -> Result<Json<RemoteVitalReading>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -852,7 +852,7 @@ pub async fn list_home_care_packages(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeCarePackage>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -886,7 +886,7 @@ pub async fn create_home_care_package(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateHomeCarePackageRequest>,
 ) -> Result<Json<HomeCarePackage>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -943,7 +943,7 @@ pub async fn consume_package_visit(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HomeCarePackage>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, HomeCarePackage>(&format!(
@@ -984,7 +984,7 @@ pub async fn bill_home_visit(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1047,7 +1047,7 @@ pub async fn list_caregiver_education(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<CaregiverEducation>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -1084,7 +1084,7 @@ pub async fn record_caregiver_education(
     Extension(claims): Extension<Claims>,
     Json(body): Json<RecordEducationRequest>,
 ) -> Result<Json<CaregiverEducation>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -1143,7 +1143,7 @@ pub async fn list_hospice_enrollments(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HospiceEnrollment>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -1180,7 +1180,7 @@ pub async fn enroll_hospice(
     Extension(claims): Extension<Claims>,
     Json(body): Json<EnrollHospiceRequest>,
 ) -> Result<Json<HospiceEnrollment>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -1242,7 +1242,7 @@ pub async fn update_hospice(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateHospiceRequest>,
 ) -> Result<Json<HospiceEnrollment>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1310,7 +1310,7 @@ pub async fn list_advance_directives(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<AdvanceDirective>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -1349,7 +1349,7 @@ pub async fn create_advance_directive(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateDirectiveRequest>,
 ) -> Result<Json<AdvanceDirective>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -1395,7 +1395,7 @@ pub async fn revoke_advance_directive(
     Path(id): Path<Uuid>,
     Json(body): Json<RevokeDirectiveRequest>,
 ) -> Result<Json<AdvanceDirective>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1450,7 +1450,7 @@ pub async fn list_bereavement(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<BereavementFollowup>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    require_permission(&claims, permissions::home_health::LIST)?;
 
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
@@ -1486,7 +1486,7 @@ pub async fn schedule_bereavement(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ScheduleBereavementRequest>,
 ) -> Result<Json<BereavementFollowup>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -1534,7 +1534,7 @@ pub async fn update_bereavement(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBereavementRequest>,
 ) -> Result<Json<BereavementFollowup>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    require_permission(&claims, permissions::home_health::MANAGE)?;
     if !["scheduled", "completed", "declined"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest("Invalid status".to_owned()));
     }

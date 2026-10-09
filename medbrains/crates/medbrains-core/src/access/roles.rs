@@ -38,6 +38,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
+            permissions::home_health::LIST,
+            permissions::home_health::MANAGE,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
@@ -364,6 +366,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
+            permissions::home_health::LIST,
+            permissions::home_health::MANAGE,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             // Camp stations are staffed by the same clinicians.
