@@ -7,6 +7,7 @@ import { IconHome2, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { ChartReview } from "@/components/Clinical/case-sheet/ChartReview";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
@@ -19,7 +20,6 @@ import { CaregiverEducationPanel } from "./home-healthcare/caregiver-education-p
 import { DischargePanel } from "./home-healthcare/discharge-panel";
 import { EscalationsPanel } from "./home-healthcare/escalations-panel";
 import { HospicePanel } from "./home-healthcare/hospice-panel";
-import { ProgressNotesPanel } from "./home-healthcare/progress-notes-panel";
 import { RecordModal } from "./home-healthcare/record-modal";
 import { RemoteVitalsPanel } from "./home-healthcare/remote-vitals-panel";
 import { ScheduleModal } from "./home-healthcare/schedule-modal";
@@ -152,7 +152,9 @@ export function HomeHealthcarePage() {
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <ProgressNotesPanel patientId={patientId} canManage={canRecord} />
+          {/* The patient's notes from every visit, home visits among them;
+              each is written on its visit's case sheet. */}
+          <ChartReview patientId={patientId} />
         </Card>
       )}
       {patientId && (

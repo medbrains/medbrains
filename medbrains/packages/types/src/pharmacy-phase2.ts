@@ -534,6 +534,8 @@ export interface HomeVisit {
   documented_at: string | null;
   completed_at: string | null;
   created_at: string;
+  /** The visit's encounter: its case sheet. */
+  encounter_id: string | null;
 }
 
 /** A home medication administration (Hospital-at-Home eMAR — IV antibiotics / infusions). */
@@ -675,20 +677,6 @@ export interface HomeDischargeItem {
   completed_at: string | null;
   completed_by: string | null;
   notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** A Home Healthcare daily clinical progress note (visiting nurse / remote physician). */
-export interface HomeProgressNote {
-  id: string;
-  tenant_id: string;
-  patient_id: string;
-  note_date: string;
-  author_id: string | null;
-  author_role: string;
-  note_text: string;
-  vitals: unknown;
   created_at: string;
   updated_at: string;
 }

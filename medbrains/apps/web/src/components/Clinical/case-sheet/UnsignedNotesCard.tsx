@@ -13,6 +13,9 @@ export function sheetHref(
   if (note.encounter_type === "ipd" && note.admission_id) {
     return `/ipd/admissions/${note.admission_id}#notes`;
   }
+  if (note.encounter_type === "home_health") {
+    return `/home-visits?case_sheet=${note.encounter_id}`;
+  }
   if (note.encounter_type === "emergency" && note.er_visit_id) {
     return `/emergency/visits/${note.er_visit_id}#er-case-sheet`;
   }

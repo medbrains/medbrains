@@ -184,7 +184,7 @@ fn encounter_class_for(encounter_type: &str) -> Coding {
         "opd" | "outpatient" | "consultation" => ("AMB", "ambulatory"),
         "ipd" | "inpatient" | "admission" => ("IMP", "inpatient encounter"),
         "emergency" => ("EMER", "emergency"),
-        "home_visit" => ("HH", "home health"),
+        "home_health" | "home_visit" => ("HH", "home health"),
         _ => ("AMB", "ambulatory"),
     };
     Coding {
