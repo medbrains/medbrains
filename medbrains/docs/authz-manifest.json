@@ -336,8 +336,6 @@
       "lms.courses.list",
       "lms.my_learning.view",
       "lms.quizzes.attempt",
-      "mrd.forms.manage",
-      "mrd.forms.view",
       "nurse.code_blue.record",
       "nurse.code_blue.view",
       "nurse.dashboard.view",
@@ -882,8 +880,6 @@
       "mrd.case_sheets.view",
       "mrd.deaths.create",
       "mrd.deaths.list",
-      "mrd.forms.manage",
-      "mrd.forms.view",
       "mrd.records.create",
       "mrd.records.list",
       "mrd.records.manage",
@@ -3055,14 +3051,6 @@
     "mrd.deaths.list": {
       "label": "View Death Register",
       "description": "View death registry"
-    },
-    "mrd.forms.manage": {
-      "label": "Manage Form Records",
-      "description": "Mark forms complete/verified and attach scanned documents"
-    },
-    "mrd.forms.view": {
-      "label": "View Form Records",
-      "description": "View nursing/clinical form completion status for admissions"
     },
     "mrd.records.create": {
       "label": "Create Medical Records",
@@ -32501,78 +32489,6 @@
       "roles_with_it": [
         "audit_officer",
         "mrd_officer"
-      ],
-      "entity": null,
-      "entity_action": null,
-      "entity_action_confidence": "none",
-      "ui_methods": [],
-      "ui_pages": [],
-      "unauthenticated": false,
-      "unbuilt": false
-    },
-    {
-      "method": "GET",
-      "path": "/api/mrd/form-records",
-      "permission": "mrd.forms.view",
-      "permission_label": "View Form Records",
-      "grantable_in_ui": true,
-      "roles_with_it": [
-        "mrd_officer",
-        "nurse"
-      ],
-      "entity": null,
-      "entity_action": null,
-      "entity_action_confidence": "none",
-      "ui_methods": [],
-      "ui_pages": [],
-      "unauthenticated": false,
-      "unbuilt": false
-    },
-    {
-      "method": "POST",
-      "path": "/api/mrd/form-records/{id}/attach-document",
-      "permission": "mrd.forms.manage",
-      "permission_label": "Manage Form Records",
-      "grantable_in_ui": true,
-      "roles_with_it": [
-        "mrd_officer",
-        "nurse"
-      ],
-      "entity": null,
-      "entity_action": null,
-      "entity_action_confidence": "none",
-      "ui_methods": [],
-      "ui_pages": [],
-      "unauthenticated": false,
-      "unbuilt": false
-    },
-    {
-      "method": "POST",
-      "path": "/api/mrd/form-records/{id}/complete",
-      "permission": "mrd.forms.manage",
-      "permission_label": "Manage Form Records",
-      "grantable_in_ui": true,
-      "roles_with_it": [
-        "mrd_officer",
-        "nurse"
-      ],
-      "entity": null,
-      "entity_action": null,
-      "entity_action_confidence": "none",
-      "ui_methods": [],
-      "ui_pages": [],
-      "unauthenticated": false,
-      "unbuilt": false
-    },
-    {
-      "method": "POST",
-      "path": "/api/mrd/form-records/{id}/verify",
-      "permission": "mrd.forms.manage",
-      "permission_label": "Manage Form Records",
-      "grantable_in_ui": true,
-      "roles_with_it": [
-        "mrd_officer",
-        "nurse"
       ],
       "entity": null,
       "entity_action": null,

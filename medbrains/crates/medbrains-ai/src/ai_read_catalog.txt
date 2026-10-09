@@ -420,7 +420,6 @@
 /api/mrd/case-sheets/{id}/pages
 /api/mrd/deaths
 /api/mrd/deaths/{id}
-/api/mrd/form-records
 /api/mrd/records
 /api/mrd/records/{id}
 /api/mrd/records/{id}/movements

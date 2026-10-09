@@ -545,8 +545,6 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::code_blue::RESPOND,
             permissions::nurse::equipment::VIEW,
             permissions::nurse::equipment::RECORD,
-            permissions::mrd::forms::VIEW,
-            permissions::mrd::forms::MANAGE,
             // Intensive care. No built-in role named a single `icu.*` code, so
             // every ICU endpoint answered 403 to the staff who use it — an ICU
             // nurse could not record a ventilator setting. Granted on the
@@ -1305,8 +1303,6 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
-            permissions::mrd::forms::VIEW,
-            permissions::mrd::forms::MANAGE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,

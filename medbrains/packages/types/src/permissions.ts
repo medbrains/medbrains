@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1007 permissions, one per constant in the Rust source. */
+/** 1005 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3441,18 +3441,6 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "mrd.storage.manage",
     label: "Manage MRD Storage",
     description: "Manage MRD rooms, racks, shelves, bins, and barcodes",
-    module: "mrd",
-  },
-  {
-    code: "mrd.forms.view",
-    label: "View Form Records",
-    description: "View nursing/clinical form completion status for admissions",
-    module: "mrd",
-  },
-  {
-    code: "mrd.forms.manage",
-    label: "Manage Form Records",
-    description: "Mark forms complete/verified and attach scanned documents",
     module: "mrd",
   },
   // facilities
@@ -7854,12 +7842,6 @@ export const P = {
     },
     DEATHS_CREATE: "mrd.deaths.create",
     DEATHS_LIST: "mrd.deaths.list",
-    FORMS: {
-      MANAGE: "mrd.forms.manage",
-      VIEW: "mrd.forms.view",
-    },
-    FORMS_MANAGE: "mrd.forms.manage",
-    FORMS_VIEW: "mrd.forms.view",
     RECORDS: {
       CREATE: "mrd.records.create",
       LIST: "mrd.records.list",
@@ -9551,8 +9533,6 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
-      P.MRD.FORMS.MANAGE,
-      P.MRD.FORMS.VIEW,
       P.NURSE.CODE_BLUE.RECORD,
       P.NURSE.CODE_BLUE.RESPOND,
       P.NURSE.CODE_BLUE.VIEW,
@@ -10261,8 +10241,6 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.MRD.DEATHS.CREATE,
       P.MRD.DEATHS.LIST,
-      P.MRD.FORMS.MANAGE,
-      P.MRD.FORMS.VIEW,
       P.MRD.RECORDS.CREATE,
       P.MRD.RECORDS.LIST,
       P.MRD.RECORDS.MANAGE,

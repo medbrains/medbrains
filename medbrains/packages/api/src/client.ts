@@ -113,7 +113,6 @@ import type {
   AssignTransportRequest,
   AssignUserFacilitiesRequest,
   AttachDocumentRequest,
-  AttachFormDocumentRequest,
   AttendanceRecord,
   AudiologyTest,
   AuditChainVerification,
@@ -1350,7 +1349,6 @@ import type {
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
-  MrdFormRecord,
   // MRD
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
@@ -10750,24 +10748,6 @@ export const api = {
       `/mrd/stats/admission-discharge${qs ? `?${qs}` : ""}`,
     );
   },
-
-  // Form Records
-  listMrdFormRecords: (params: { admission_id?: string; form_type?: string }) => {
-    const sp = new URLSearchParams();
-    if (params.admission_id) sp.set("admission_id", params.admission_id);
-    if (params.form_type) sp.set("form_type", params.form_type);
-    const qs = sp.toString();
-    return request<MrdFormRecord[]>(`/mrd/form-records${qs ? `?${qs}` : ""}`);
-  },
-  completeMrdFormRecord: (id: string) =>
-    request<MrdFormRecord>(`/mrd/form-records/${id}/complete`, { method: "POST", body: "{}" }),
-  verifyMrdFormRecord: (id: string) =>
-    request<MrdFormRecord>(`/mrd/form-records/${id}/verify`, { method: "POST" }),
-  attachMrdFormDocument: (id: string, body: AttachFormDocumentRequest) =>
-    request<MrdFormRecord>(`/mrd/form-records/${id}/attach-document`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
 
   // ── Specialty Clinical: Cath Lab ────────────────────────────
 
