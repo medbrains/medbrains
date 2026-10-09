@@ -996,3 +996,83 @@ async fn chart_review_reads_the_record_newest_care_first() {
         "the page continues after it"
     );
 }
+
+/// Given a visit with a case-sheet packet, When its notes are printed, Then
+/// the print is filed on the packet's datewise notes page; a visit with no
+/// packet files nothing and says so.
+#[tokio::test]
+async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let encounter_id: Uuid = encounter.parse().expect("uuid");
+    let (status, packet) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/mrd/case-sheets/from-opd/{encounter}"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{packet}");
+    let packet_id: Uuid = packet["id"].as_str().expect("packet").parse().expect("uuid");
+    let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM encounters WHERE id = $1")
+        .bind(encounter_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("tenant");
+    let output: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs (tenant_id, module_code, source_table, source_id, \
+           document_number, title, category, status) \
+         VALUES ($1, 'clinical_notes', 'encounters', $2, $3, 'Case Sheet', \
+           'custom'::document_template_category, 'generated'::document_output_status) \
+         RETURNING id",
+    )
+    .bind(tenant)
+    .bind(encounter_id)
+    .bind(format!("CS-NOTES-TEST-{}", &Uuid::new_v4().simple().to_string()[..8]))
+    .fetch_one(&app.db)
+    .await
+    .expect("document output");
+
+    let mut tx = app.db.begin().await.expect("tx");
+    let filed =
+        medbrains_clinical_notes::print::file_to_mrd(&mut tx, tenant, encounter_id, output)
+            .await
+            .expect("filed");
+    let other = medbrains_clinical_notes::print::file_to_mrd(
+        &mut tx,
+        tenant,
+        Uuid::new_v4(),
+        output,
+    )
+    .await
+    .expect("no packet");
+    tx.commit().await.expect("commit");
+    assert!(filed, "the visit's packet takes the print");
+    assert!(!other, "a visit with no packet files nothing");
+
+    let (page_output, page_status): (Option<Uuid>, String) = sqlx::query_as(
+        "SELECT document_output_id, status FROM mrd_case_sheet_pages \
+          WHERE packet_id = $1 AND page_code = 'opd-datewise-soap'",
+    )
+    .bind(packet_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("notes page");
+    assert_eq!(page_output, Some(output));
+    assert_eq!(page_status, "printed");
+
+    // Medical records find the packet: the list bound the permitted-patient
+    // set to a single-uuid filter and answered 500 to every call.
+    let (status, packets) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/mrd/case-sheets?packet_type=opd&encounter_id={encounter}"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{packets}");
+    assert_eq!(packets[0]["id"], json!(packet_id));
+}

@@ -26,6 +26,13 @@ export function DocumentActions({
 }: DocumentActionsProps) {
   const renderMutation = useMutation({
     mutationFn: () => api.renderDocument({ template_code: templateCode, source_id: sourceId }),
+    // A document that could not be made must say so, not do nothing.
+    onError: (error: Error) =>
+      notifications.show({
+        title: "Document not generated",
+        message: error.message,
+        color: "danger",
+      }),
   });
 
   const generateAndOpen = async () => {
@@ -61,7 +68,7 @@ export function DocumentActions({
         <Menu.Item
           leftSection={<IconDownload size={14} />}
           onClick={() => {
-            void generateAndOpen();
+            void generateAndOpen().catch(() => undefined);
           }}
         >
           Generate & open PDF
@@ -69,7 +76,7 @@ export function DocumentActions({
         <Menu.Item
           leftSection={<IconPrinter size={14} />}
           onClick={() => {
-            void queuePrint();
+            void queuePrint().catch(() => undefined);
           }}
         >
           Send to print queue

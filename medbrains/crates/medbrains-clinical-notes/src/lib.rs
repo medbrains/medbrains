@@ -12,7 +12,9 @@ pub mod chart;
 pub mod cosign;
 pub mod lifecycle;
 pub mod model;
+pub mod print;
 pub mod store;
+pub mod summary;
 pub mod worklist;
 
 use axum::Json;

@@ -1,4 +1,5 @@
-import { Box, Drawer, Group, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Anchor, Box, Drawer, Group, Select, Stack, Text, Textarea } from "@mantine/core";
+import { api } from "@medbrains/api";
 import type { MrdCaseSheetFileFormInput, MrdCaseSheetReprintFormInput } from "@medbrains/schemas";
 import type {
   MrdCaseSheetCompletenessResponse,
@@ -121,6 +122,17 @@ export function CaseSheetDrawers({
                     <Text size="xs" c="dimmed">
                       {page.page_code}
                     </Text>
+                    {/* The print filed onto this page, e.g. the visit's notes. */}
+                    {page.document_output_id && (
+                      <Anchor
+                        href={api.downloadDocumentUrl(page.document_output_id)}
+                        target="_blank"
+                        rel="noopener"
+                        size="xs"
+                      >
+                        Open filed print
+                      </Anchor>
+                    )}
                   </Stack>
                 ),
               },

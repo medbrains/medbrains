@@ -99,6 +99,10 @@ pub mod clinical_notes {
     /// Notes signed by the doctors you supervise; return one with a comment
     /// and it goes back to its author to revise.
     pub const COSIGN: &str = "clinical_notes.cosign";
+    /// Print a visit's case-sheet notes.
+    /// Every signed note with its author, time and signature, as the paper
+    /// sheet reads; the print is filed to the visit's medical record.
+    pub const PRINT: &str = "clinical_notes.print";
 }
 
 pub mod opd {

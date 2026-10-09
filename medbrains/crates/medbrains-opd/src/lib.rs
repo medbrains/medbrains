@@ -5350,7 +5350,7 @@ pub async fn list_reminders(
     let rows = sqlx::query_as::<_, PatientReminder>(
         "SELECT * FROM patient_reminders \
          WHERE tenant_id = $1 AND doctor_id = $2 \
-           AND ($3::uuid IS NULL OR patient_id = $3) \
+           AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
            AND ($4::text IS NULL OR status = $4) \
            AND ($5::date IS NULL OR reminder_date >= $5) \
            AND ($6::date IS NULL OR reminder_date <= $6) \
