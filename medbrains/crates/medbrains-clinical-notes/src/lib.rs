@@ -212,6 +212,16 @@ pub async fn create_note(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // A hospital that requires registration first opens no OPD record
+    // before the visit holds its queue token.
+    if kind == "opd" {
+        medbrains_server_services::mrd_lock::assert_encounter_registered(
+            &mut tx,
+            &claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+    }
 
     let (type_id, author_roles, template) = if let Some(parent) = body.amends_note_id {
         addendum_type(&mut tx, &claims, encounter_id, parent).await?

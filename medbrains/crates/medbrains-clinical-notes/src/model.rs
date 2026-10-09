@@ -114,12 +114,32 @@ pub fn apply_patches(base: &[Section], patches: &[SectionPatch]) -> Result<Vec<S
                 if data.to_string().len() > SECTION_MAX_DATA_BYTES {
                     return Err(format!("{} holds too much", section.title));
                 }
+                if section.code == "examination" && !findings_well_formed(data) {
+                    return Err(
+                        "Each finding needs a site, a side of left/right/bilateral/midline or \
+                         none, and what was found"
+                            .to_owned(),
+                    );
+                }
                 next.data = Some(data.clone());
             }
         }
         out.push(next);
     }
     Ok(out)
+}
+
+/// The examination's site findings, if any, are each a site, a known side
+/// and what was found — a malformed entry is refused, not stored.
+fn findings_well_formed(data: &Value) -> bool {
+    let Some(findings) = data.get("exam").and_then(|e| e.get("findings")) else {
+        return true;
+    };
+    serde_json::from_value::<Vec<medbrains_core::consultation::ExamFinding>>(findings.clone())
+        .is_ok_and(|list| {
+            list.iter()
+                .all(|f| !f.site.trim().is_empty() && !f.finding.trim().is_empty())
+        })
 }
 
 /// Text with the editor's markup taken out: what a reader would see.
@@ -205,6 +225,26 @@ mod tests {
     #[test]
     fn a_patch_for_a_section_the_note_lacks_is_refused() {
         assert!(apply_patches(&note(), &[patch("billing", Some("x"), None)]).is_err());
+    }
+
+    #[test]
+    fn a_malformed_site_finding_is_refused() {
+        let mut base = note();
+        base.push(Section {
+            code: "examination".into(),
+            title: "Examination".into(),
+            text: String::new(),
+            data: None,
+        });
+        let good = json!({ "exam": { "musculoskeletal": "Antalgic gait",
+            "findings": [{ "site": "Left knee", "laterality": "left", "finding": "Effusion" }] } });
+        assert!(apply_patches(&base, &[patch("examination", None, Some(good))]).is_ok());
+        for bad in [
+            json!({ "exam": { "findings": [{ "site": "Knee", "laterality": "sideways", "finding": "x" }] } }),
+            json!({ "exam": { "findings": [{ "site": " ", "finding": "Effusion" }] } }),
+        ] {
+            assert!(apply_patches(&base, &[patch("examination", None, Some(bad))]).is_err());
+        }
     }
 
     #[test]

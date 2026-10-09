@@ -244,22 +244,33 @@ export async function createEncounter(
   return resp.encounter.id;
 }
 
+/**
+ * The doctor's consultation, written and signed on the visit's case sheet —
+ * the record the OPD screens and the consultation projection read. Keys are
+ * the old consultation fields: `history` lands in Assessment, which the
+ * projection keeps in that column.
+ */
 export async function createConsultation(
   ctx: AuthContext,
   encounterId: string,
-  body: Record<string, unknown> = {
+  body: { chief_complaint?: string; history?: string; examination?: string; plan?: string } = {
     chief_complaint: "Fever x 3 days",
     history: "Onset gradual",
     examination: "Temp 38.4C",
     plan: "Antipyretic + follow-up",
   },
 ): Promise<void> {
-  await api(
-    ctx,
-    "POST",
-    `/api/opd/encounters/${encounterId}/consultation`,
-    body,
-  );
+  const paragraph = (text?: string) => (text ? `<p>${text}</p>` : "");
+  const note = await api<{ id: string }>(ctx, "POST", `/api/encounters/${encounterId}/clinical-notes`, {
+    note_type_code: "consultation",
+    sections: [
+      { code: "subjective", text: paragraph(body.chief_complaint) },
+      { code: "objective", text: paragraph(body.examination) },
+      { code: "assessment", text: paragraph(body.history) },
+      { code: "plan", text: paragraph(body.plan) },
+    ],
+  });
+  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {});
 }
 
 export interface PrescriptionFanout {

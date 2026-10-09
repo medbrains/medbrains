@@ -343,16 +343,17 @@ async fn history_ros_and_examination_are_sections_of_the_signed_note() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let encounter = encounter(&app, &csrf).await;
-    let (status, _) = call(
-        &app,
-        &csrf,
-        "POST",
-        &format!("/api/opd/encounters/{encounter}/consultation"),
-        json!({ "hpi": "Cough for three weeks",
-                "past_medical_history": [{ "condition": "Diabetes", "status": "controlled" }] }),
+    // A consultation recorded before the case sheet existed.
+    sqlx::query(
+        "INSERT INTO consultations (tenant_id, encounter_id, doctor_id, hpi, past_medical_history) \
+         SELECT e.tenant_id, e.id, u.id, 'Cough for three weeks', \
+                '[{\"condition\": \"Diabetes\", \"status\": \"controlled\"}]'::jsonb \
+           FROM encounters e JOIN users u ON u.username = 'admin' WHERE e.id = $1::uuid",
     )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    .bind(&encounter)
+    .execute(&app.db)
+    .await
+    .expect("legacy consultation");
 
     let (status, note) = call(
         &app,
@@ -1202,4 +1203,57 @@ async fn the_visit_reads_as_fhir_compositions() {
         StatusCode::NOT_FOUND,
         "a draft does not exist to a reader"
     );
+}
+
+/// Given a hospital that requires registration first, When a note is
+/// started on an OPD visit that holds no queue token, Then it is refused;
+/// a registered visit takes notes as before.
+#[tokio::test]
+async fn an_unregistered_opd_visit_opens_no_case_sheet_under_the_lock() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let registered = encounter(&app, &csrf).await;
+    let unregistered: Uuid = sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, status, department_id) \
+         SELECT e.tenant_id, e.patient_id, 'opd', 'open', e.department_id \
+           FROM encounters e WHERE e.id = $1::uuid RETURNING id",
+    )
+    .bind(&registered)
+    .fetch_one(&app.db)
+    .await
+    .expect("unregistered visit");
+    let lock = |on: bool| {
+        let db = app.db.clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+                 SELECT tenant_id, 'mrd', 'require_opd_registration', to_jsonb($1) \
+                   FROM users WHERE username = 'admin' \
+                 ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+            )
+            .bind(on)
+            .execute(&db)
+            .await
+            .expect("lock setting");
+        }
+    };
+    let start = |visit: String| {
+        let (app, csrf) = (&app, &csrf);
+        async move {
+            call(
+                app,
+                csrf,
+                "POST",
+                &format!("/api/encounters/{visit}/clinical-notes"),
+                json!({ "note_type_code": "consultation" }),
+            )
+            .await
+        }
+    };
+    lock(true).await;
+    let refused = start(unregistered.to_string()).await;
+    let allowed = start(registered).await;
+    lock(false).await;
+    assert_eq!(refused.0, StatusCode::CONFLICT, "{}", refused.1);
+    assert_eq!(allowed.0, StatusCode::OK, "{}", allowed.1);
 }
