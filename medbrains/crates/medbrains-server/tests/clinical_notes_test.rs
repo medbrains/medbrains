@@ -1015,7 +1015,11 @@ async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{packet}");
-    let packet_id: Uuid = packet["id"].as_str().expect("packet").parse().expect("uuid");
+    let packet_id: Uuid = packet["id"]
+        .as_str()
+        .expect("packet")
+        .parse()
+        .expect("uuid");
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM encounters WHERE id = $1")
         .bind(encounter_id)
         .fetch_one(&app.db)
@@ -1030,24 +1034,22 @@ async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
     )
     .bind(tenant)
     .bind(encounter_id)
-    .bind(format!("CS-NOTES-TEST-{}", &Uuid::new_v4().simple().to_string()[..8]))
+    .bind(format!(
+        "CS-NOTES-TEST-{}",
+        &Uuid::new_v4().simple().to_string()[..8]
+    ))
     .fetch_one(&app.db)
     .await
     .expect("document output");
 
     let mut tx = app.db.begin().await.expect("tx");
-    let filed =
-        medbrains_clinical_notes::print::file_to_mrd(&mut tx, tenant, encounter_id, output)
+    let filed = medbrains_clinical_notes::print::file_to_mrd(&mut tx, tenant, encounter_id, output)
+        .await
+        .expect("filed");
+    let other =
+        medbrains_clinical_notes::print::file_to_mrd(&mut tx, tenant, Uuid::new_v4(), output)
             .await
-            .expect("filed");
-    let other = medbrains_clinical_notes::print::file_to_mrd(
-        &mut tx,
-        tenant,
-        Uuid::new_v4(),
-        output,
-    )
-    .await
-    .expect("no packet");
+            .expect("no packet");
     tx.commit().await.expect("commit");
     assert!(filed, "the visit's packet takes the print");
     assert!(!other, "a visit with no packet files nothing");
@@ -1075,4 +1077,129 @@ async fn a_printed_case_sheet_is_filed_on_the_packets_notes_page() {
     .await;
     assert_eq!(status, StatusCode::OK, "{packets}");
     assert_eq!(packets[0]["id"], json!(packet_id));
+}
+
+/// Given a visit with a signed note, its addendum, a note entered in error
+/// and a draft, When it is read as FHIR, Then the three that are the record
+/// come back as Compositions — typed by LOINC, attested by the signer, the
+/// addendum appending its note, the struck one entered-in-error, the text
+/// escaped XHTML — and the draft does not exist to a reader.
+#[tokio::test]
+async fn the_visit_reads_as_fhir_compositions() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let notes = format!("/api/encounters/{encounter}/clinical-notes");
+    let write = |text: &'static str, amends: Option<String>| {
+        let notes = notes.clone();
+        let (app, csrf) = (&app, &csrf);
+        async move {
+            let mut body = json!({ "note_type_code": "consultation",
+                                   "sections": [{ "code": "subjective", "text": text }] });
+            if let Some(parent) = amends {
+                body = json!({ "note_type_code": "consultation", "amends_note_id": parent,
+                               "sections": [{ "code": "addendum", "text": text }] });
+            }
+            let (status, note) = call(app, csrf, "POST", &notes, body).await;
+            assert_eq!(status, StatusCode::OK, "{note}");
+            note["id"].as_str().expect("id").to_owned()
+        }
+    };
+    let sign = |id: String| {
+        let (app, csrf) = (&app, &csrf);
+        async move {
+            let (status, _) = call(
+                app,
+                csrf,
+                "POST",
+                &format!("/api/clinical-notes/{id}/sign"),
+                json!({}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    };
+    let main = write("<p>BP &lt;140 &amp; stable</p>", None).await;
+    sign(main.clone()).await;
+    sqlx::query(
+        "UPDATE clinical_notes SET locked_at = now() - interval '1 minute' WHERE id = $1::uuid",
+    )
+    .bind(&main)
+    .execute(&app.db)
+    .await
+    .expect("grace over");
+    let addendum = write("CXR normal", Some(main.clone())).await;
+    sign(addendum.clone()).await;
+    let struck = write("Wrong patient", None).await;
+    sign(struck.clone()).await;
+    call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{struck}/entered-in-error"),
+        json!({ "reason": "Wrong patient" }),
+    )
+    .await;
+    let draft = write("Not yet signed", None).await;
+
+    let (status, bundle) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/fhir/Composition?encounter={encounter}"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{bundle}");
+    assert_eq!(bundle["resourceType"], "Bundle");
+    let by_id = |id: &str| -> Value {
+        bundle["entry"]
+            .as_array()
+            .expect("entries")
+            .iter()
+            .map(|e| e["resource"].clone())
+            .find(|r| r["id"] == json!(id))
+            .unwrap_or(Value::Null)
+    };
+    assert_eq!(bundle["total"], 3, "the draft is not the record: {bundle}");
+    let first = by_id(&main);
+    assert_eq!(first["resourceType"], "Composition");
+    assert_eq!(first["status"], "final");
+    assert_eq!(first["type"]["coding"][0]["code"], "34108-1", "{first}");
+    assert_eq!(first["attester"][0]["mode"], "legal");
+    assert_eq!(
+        first["encounter"]["reference"],
+        format!("Encounter/{encounter}")
+    );
+    let div = first["section"][0]["text"]["div"].as_str().expect("div");
+    assert!(div.contains("BP &lt;140 &amp; stable"), "{div}");
+    assert_eq!(
+        by_id(&addendum)["relatesTo"][0],
+        json!({ "code": "appends", "targetReference": { "reference": format!("Composition/{main}") } })
+    );
+    assert_eq!(by_id(&struck)["status"], "entered-in-error");
+
+    let (status, one) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/fhir/Composition/{main}"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{one}");
+    assert_eq!(one["id"], json!(main));
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("/api/fhir/Composition/{draft}"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "a draft does not exist to a reader"
+    );
 }

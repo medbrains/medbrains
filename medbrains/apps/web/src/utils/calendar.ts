@@ -5,6 +5,8 @@
  * doctor's/patient's calendar regardless of provider.
  */
 
+import { downloadBlob } from "./download";
+
 export interface CalendarEvent {
   title: string;
   description: string;
@@ -75,15 +77,7 @@ function hashString(value: string): number {
 
 /** Trigger a browser download of the event as an .ics file. */
 export function downloadIcs(event: CalendarEvent, filename = "consultation.ics"): void {
-  const blob = new Blob([buildIcs(event)], { type: "text/calendar;charset=utf-8" });
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = href;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(href);
+  downloadBlob(new Blob([buildIcs(event)], { type: "text/calendar;charset=utf-8" }), filename);
 }
 
 /** One-click "Add to Google Calendar" template URL (no OAuth). */

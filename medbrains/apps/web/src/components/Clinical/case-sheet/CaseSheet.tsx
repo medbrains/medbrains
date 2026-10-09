@@ -1,12 +1,13 @@
 import { Group, Loader, Menu, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { type Note, P } from "@medbrains/types";
-import { IconChevronDown, IconPlus } from "@tabler/icons-react";
+import { IconChevronDown, IconFileExport, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DocumentActions } from "@/components/DocumentActions";
 import { Alert, Button, toast } from "@/components/ui";
 import { clinicalNotesService } from "@/services/clinicalNotes.service";
+import { downloadBlob } from "@/utils/download";
 import { type NoteActions, NoteCard } from "./NoteCard";
 
 /** A question the sheet must ask before acting: why it is late, or in error. */
@@ -47,6 +48,7 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
   const canMarkInError = useHasPermission(P.CLINICAL_NOTES.MARK_IN_ERROR);
   const canCosign = useHasPermission(P.CLINICAL_NOTES.COSIGN);
   const canPrint = useHasPermission(P.CLINICAL_NOTES.PRINT);
+  const canExport = useHasPermission(P.CLINICAL_NOTES.EXPORT);
   const queryClient = useQueryClient();
   const [ask, setAsk] = useState<Ask>(null);
   const [reason, setReason] = useState("");
@@ -81,6 +83,16 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
       }
       toast.error(error.message, { title: "Note not updated" });
     },
+  });
+  // The signed notes as FHIR Compositions, for another hospital or ABDM.
+  const fhirExport = useMutation({
+    mutationFn: () => clinicalNotesService.exportVisitFhir(encounterId),
+    onSuccess: (bundle) =>
+      downloadBlob(
+        new Blob([JSON.stringify(bundle, null, 2)], { type: "application/fhir+json" }),
+        `case-sheet-${encounterId}.fhir.json`,
+      ),
+    onError: (error: Error) => toast.error(error.message, { title: "FHIR export failed" }),
   });
   const actions: NoteActions = {
     canSign,
@@ -153,6 +165,17 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
           {/* The print is filed to the visit's medical record as it is made. */}
           {canPrint && top.length > 0 && (
             <DocumentActions templateCode="clinical_notes" sourceId={encounterId} />
+          )}
+          {canExport && top.length > 0 && (
+            <Button
+              tone="ghost"
+              size="xs"
+              leftSection={<IconFileExport size={16} />}
+              loading={fhirExport.isPending}
+              onClick={() => fhirExport.mutate()}
+            >
+              FHIR
+            </Button>
           )}
           {canWrite && choices.length > 0 && (
             <Menu position="bottom-end">
