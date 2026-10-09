@@ -54,7 +54,6 @@ const MRD_PAGE_PERMISSIONS = [
   P.MRD.CASE_SHEETS_VIEW,
   P.MRD.BIRTHS_LIST,
   P.MRD.DEATHS_LIST,
-  P.MRD.FORMS_VIEW,
 ] as const;
 
 // ══════════════════════════════════════════════════════════
