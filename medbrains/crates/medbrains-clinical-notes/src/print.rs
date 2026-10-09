@@ -130,6 +130,7 @@ pub async fn case_sheet_context(
 ) -> Result<(Value, Uuid), AppError> {
     require_permission(claims, permissions::clinical_notes::PRINT)?;
     medbrains_authz_gate::require_encounter_access(state, claims, encounter_id).await?;
+    crate::soap_access::require_whole_record(state, claims).await?;
     let mut tx = crate::begin(state, claims).await?;
     let h = heading(&mut tx, claims.tenant_id, encounter_id).await?;
     let notes: Vec<Note> =

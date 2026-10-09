@@ -18,6 +18,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+private const val WITHHELD_MESSAGE = "Content withheld: your access to consultation notes is restricted."
+
 /** One note on the case sheet as the paper margin reads it: the kind of note, who wrote it and when, signed or not, and what it says. */
 @Composable
 fun NoteBlock(note: Note) {
@@ -42,6 +44,7 @@ fun NoteBlock(note: Note) {
         }
         note.entered_in_error_reason?.let { Text("Entered in error: $it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error) }
         Column(Modifier.padding(top = 8.dp)) {
+            if (note.withheld) Text(WITHHELD_MESSAGE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("note-withheld"))
             lines.forEach { (title, text) ->
                 Eyebrow(title)
                 Text(text, style = MaterialTheme.typography.bodyMedium, textDecoration = if (struck) TextDecoration.LineThrough else null)

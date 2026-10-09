@@ -34,6 +34,8 @@ struct Note: Decodable, Identifiable, Sendable {
     /// The caller may still revise it: theirs, signed, inside the grace.
     let revisable: Bool
     let cosignerName: String?
+    /// Its content is withheld from this user (consultation access restricted).
+    let withheld: Bool?
     let cosignStatus: String?
 }
 

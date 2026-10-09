@@ -13,7 +13,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::model::{self, Note};
-use crate::{begin, finish, own_note, require_draft, store};
+use crate::own::{finish, own_note, require_draft};
+use crate::{begin, store};
 
 #[derive(Debug, Deserialize, Default)]
 pub struct SignRequest {
@@ -32,7 +33,7 @@ pub async fn sign_note(
     require_permission(&claims, permissions::clinical_notes::SIGN)?;
     let body = body.map(|Json(b)| b).unwrap_or_default();
     let mut tx = begin(&state, &claims).await?;
-    let note = own_note(&mut tx, &claims, id).await?;
+    let note = own_note(&state, &mut tx, &claims, id).await?;
     require_draft(&note)?;
     let sections = note.sections()?;
     if !model::has_content(&sections) {
@@ -105,7 +106,7 @@ pub async fn revise_note(
 ) -> Result<Json<Note>, AppError> {
     require_permission(&claims, permissions::clinical_notes::SIGN)?;
     let mut tx = begin(&state, &claims).await?;
-    let note = own_note(&mut tx, &claims, id).await?;
+    let note = own_note(&state, &mut tx, &claims, id).await?;
     let open = note.status == "signed"
         && note.migrated_from.is_none()
         && note.locked_at.is_some_and(|at| Utc::now() < at);
@@ -143,7 +144,7 @@ pub async fn discard_note(
 ) -> Result<Json<Option<Note>>, AppError> {
     require_permission(&claims, permissions::clinical_notes::WRITE)?;
     let mut tx = begin(&state, &claims).await?;
-    let note = own_note(&mut tx, &claims, id).await?;
+    let note = own_note(&state, &mut tx, &claims, id).await?;
     require_draft(&note)?;
     if note.current_version > 1 {
         sqlx::query(
@@ -190,7 +191,7 @@ pub async fn mark_in_error(
         ));
     }
     let mut tx = begin(&state, &claims).await?;
-    let note = own_note(&mut tx, &claims, id).await?;
+    let note = own_note(&state, &mut tx, &claims, id).await?;
     if note.status != "signed" {
         return Err(AppError::Conflict(
             "Only a signed note is marked in error — discard a draft instead".to_owned(),
