@@ -85,6 +85,20 @@ struct DoctorRow: Decodable, Hashable, Identifiable, Sendable {
     let specialization: String?
 }
 
+/// A returning patient's last OPD visit. An id is nil when that doctor or
+/// department no longer takes patients: named, not offered.
+struct LastVisit: Decodable, Sendable {
+    let encounterDate: String
+    let doctorId: String?
+    let doctorName: String?
+    let departmentId: String?
+    let departmentName: String?
+
+    var summary: String {
+        ([encounterDate] + [doctorName, departmentName].compactMap { $0 }).joined(separator: " · ")
+    }
+}
+
 struct StartVisitBody: Encodable {
     let patientId: String
     let departmentId: String
@@ -121,5 +135,6 @@ struct ReceptionApi: Sendable {
     func doctors() async throws -> [DoctorRow] { try await client.request(.get, "/api/setup/doctors") }
     func camps() async throws -> [CampSummary] { try await client.request(.get, "/api/camp/camps") }
     func linkToCamp(_ body: CampRegistrationLink) async throws -> CampRegistered { try await client.request(.post, CampEndpoint.registrations, body: body) }
+    func lastVisit(_ patientId: String) async throws -> LastVisit? { try await client.request(.get, "/api/opd/patients/\(patientId)/last-visit") }
     func startVisit(_ body: StartVisitBody) async throws -> VisitStarted { try await client.request(.post, "/api/opd/encounters", body: body) }
 }

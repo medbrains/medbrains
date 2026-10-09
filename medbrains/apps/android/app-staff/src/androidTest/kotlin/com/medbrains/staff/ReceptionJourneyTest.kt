@@ -1,6 +1,7 @@
 package com.medbrains.staff
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -274,6 +275,30 @@ class ReceptionJourneyTest {
         compose.waitUntil(10_000) { has("screen-reception-queue") }
         compose.waitUntil(10_000) { has("reception-queue-tokens") }
         compose.onNodeWithTag("reception-queue-tokens").performScrollToNode(hasTestTag("queue-row-$id"))
+    }
+
+    /** A returning patient goes back to the doctor who saw them: starting the visit names the last one and has that consultant chosen. */
+    @Test
+    fun aReturningPatientIsOfferedTheDoctorWhoSawThemLast() {
+        val dept = checkNotNull(api.firstDepartmentId())
+        val doctor = checkNotNull(api.list("/api/setup/doctors").firstOrNull()) { "a doctor" }
+        val doctorName = doctor.getString("full_name")
+        val p = api.patient("Return")
+        val id = p.getString("id")
+        val earlier = org.json.JSONObject().put("patient_id", id).put("department_id", dept).put("doctor_id", doctor.getString("id")).put("visit_type", "walk_in")
+        check(api.call("POST", "/api/opd/encounters", earlier).first in 200..299) { "an earlier visit with that doctor" }
+        tap("module-action-find")
+        compose.waitUntil(10_000) { has("screen-find-patient") }
+        type("find-search", p.getString("uhid"))
+        tap("find-submit")
+        compose.waitUntil(10_000) { has("find-row-$id") }
+        tap("find-row-$id")
+        compose.waitUntil(10_000) { has("screen-reception-patient") }
+        tap("patient-start-visit")
+        compose.waitUntil(10_000) { has("last-visit") }
+        for (tag in listOf("last-visit", "picker-consultant")) {
+            compose.onNode(hasTestTag(tag) and hasAnyDescendant(hasText(doctorName, substring = true)), useUnmergedTree = true).assertExists()
+        }
     }
 
     @Test

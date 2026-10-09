@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod last_visit;
 pub mod referral_lifecycle;
 pub mod transfer;
 
@@ -6487,6 +6488,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/opd/encounters/{id}",
             get(get_encounter).put(update_encounter),
+        )
+        .route(
+            "/api/opd/patients/{id}/last-visit",
+            get(last_visit::get_last_visit),
         )
         .route(
             "/api/opd/encounters/{id}/transfer",
