@@ -59,7 +59,7 @@ pub async fn create_scan(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Register-first lock (opt-in): no case-sheet scan until the OPD visit is registered.
-    medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
+    medbrains_server_services::mrd_lock::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
 
     let scan = sqlx::query_as::<_, CaseSheetScan>(
         "INSERT INTO case_sheet_scans \

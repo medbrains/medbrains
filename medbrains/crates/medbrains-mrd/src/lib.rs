@@ -327,7 +327,7 @@ pub async fn create_record(
 
     // Register-first lock (opt-in): an OPD medical record needs a registered OPD visit.
     if body.record_type.as_deref().unwrap_or("opd") == "opd" {
-        medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
+        medbrains_server_services::mrd_lock::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
             .await?;
     }
 

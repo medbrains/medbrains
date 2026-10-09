@@ -7418,28 +7418,6 @@ describe("/opd endpoints", () => {
     expect(url).toContain("/api/opd/encounters");
   });
 
-  it("createConsultation → POST /opd/encounters/{param_1}/consultation", async () => {
-    mockOk({});
-    await api.createConsultation(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/opd/encounters");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("updateConsultation → PUT /opd/encounters/{param_1}/consultation/{param_2}", async () => {
-    mockOk({});
-    await api.updateConsultation(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/opd/encounters");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
   it("listDiagnoses → GET /opd/encounters/{param_1}/diagnoses", async () => {
     mockOk({});
     await api.listDiagnoses(UUID);

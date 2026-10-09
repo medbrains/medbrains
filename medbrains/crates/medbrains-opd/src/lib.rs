@@ -244,70 +244,6 @@ pub struct CreateVitalRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CreateConsultationRequest {
-    pub chief_complaint: Option<String>,
-    pub history: Option<String>,
-    pub examination: Option<String>,
-    pub plan: Option<String>,
-    pub notes: Option<String>,
-    pub hpi: Option<String>,
-    pub past_medical_history: Option<serde_json::Value>,
-    pub past_surgical_history: Option<serde_json::Value>,
-    pub family_history: Option<serde_json::Value>,
-    pub social_history: Option<serde_json::Value>,
-    pub review_of_systems: Option<serde_json::Value>,
-    pub physical_examination: Option<serde_json::Value>,
-    pub general_appearance: Option<String>,
-    /// Inline lab orders attached to this consultation. Each row is
-    /// inserted in the same transaction so a partial failure rolls
-    /// back the consultation as well. Saves the doctor a hop to the
-    /// Lab module.
-    #[serde(default)]
-    pub lab_orders: Vec<InlineLabOrder>,
-    /// Same as `lab_orders`, for radiology.
-    #[serde(default)]
-    pub radiology_orders: Vec<InlineRadiologyOrder>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InlineLabOrder {
-    pub test_id: Uuid,
-    #[serde(default)]
-    pub priority: Option<String>,
-    #[serde(default)]
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InlineRadiologyOrder {
-    pub modality_id: Uuid,
-    #[serde(default)]
-    pub body_part: Option<String>,
-    #[serde(default)]
-    pub clinical_indication: Option<String>,
-    #[serde(default)]
-    pub priority: Option<String>,
-    #[serde(default)]
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateConsultationRequest {
-    pub chief_complaint: Option<String>,
-    pub history: Option<String>,
-    pub examination: Option<String>,
-    pub plan: Option<String>,
-    pub notes: Option<String>,
-    pub hpi: Option<String>,
-    pub past_medical_history: Option<serde_json::Value>,
-    pub past_surgical_history: Option<serde_json::Value>,
-    pub family_history: Option<serde_json::Value>,
-    pub social_history: Option<serde_json::Value>,
-    pub review_of_systems: Option<serde_json::Value>,
-    pub physical_examination: Option<serde_json::Value>,
-    pub general_appearance: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateDiagnosisRequest {
@@ -473,78 +409,6 @@ pub(crate) async fn assign_department_doctor(
     Ok(doctor_id)
 }
 
-// ══════════════════════════════════════════════════════════
-//  MRD register-lock (opt-in, tenant-global)
-// ══════════════════════════════════════════════════════════
-
-const MRD_LOCK_MSG: &str = "Register the OPD visit before opening the medical record";
-
-/// True when this tenant requires an OPD registration before medical records may be opened.
-pub(crate) async fn mrd_lock_enabled(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<bool, AppError> {
-    let value = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'mrd' AND key = 'require_opd_registration'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    Ok(value.and_then(|v| v.as_bool()).unwrap_or(false))
-}
-
-/// When the lock is on, require the encounter to carry an OPD registration (a queue token).
-pub(crate) async fn assert_encounter_registered(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    encounter_id: Uuid,
-) -> Result<(), AppError> {
-    if !mrd_lock_enabled(tx, tenant_id).await? {
-        return Ok(());
-    }
-    let registered = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM opd_queues WHERE tenant_id = $1 AND encounter_id = $2)",
-    )
-    .bind(tenant_id)
-    .bind(encounter_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    if registered {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
-    }
-}
-
-/// When the lock is on, require the patient to have an open OPD encounter / a registration today.
-pub async fn assert_patient_opd_registered(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    patient_id: Uuid,
-) -> Result<(), AppError> {
-    if !mrd_lock_enabled(tx, tenant_id).await? {
-        return Ok(());
-    }
-    let registered = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM encounters \
-            WHERE tenant_id = $1 AND patient_id = $2 \
-              AND encounter_type = 'opd' AND status = 'open') \
-         OR EXISTS (SELECT 1 FROM opd_queues q \
-            JOIN encounters e ON e.id = q.encounter_id \
-            WHERE q.tenant_id = $1 AND q.queue_date = CURRENT_DATE AND e.patient_id = $2)",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    if registered {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
-    }
-}
-
 /// Whether the tenant requires OPD registration before medical records may be opened.
 #[derive(Debug, serde::Serialize)]
 pub struct OpdRegistrationPolicy {
@@ -559,7 +423,7 @@ pub async fn get_registration_policy(
     require_permission(&claims, permissions::opd::queue::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let require_opd_registration = mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
+    let require_opd_registration = medbrains_server_services::mrd_lock::mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(OpdRegistrationPolicy {
         require_opd_registration,
@@ -2033,10 +1897,6 @@ fn opd_soap_note_access(restricted: &HashMap<String, FieldAccessLevel>) -> Field
         .unwrap_or(FieldAccessLevel::Edit)
 }
 
-fn can_write_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
-    opd_soap_note_access(restricted) == FieldAccessLevel::Edit
-}
-
 fn should_hide_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
     opd_soap_note_access(restricted) == FieldAccessLevel::Hidden
 }
@@ -2045,16 +1905,6 @@ fn should_mask_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> 
     opd_soap_note_access(restricted) == FieldAccessLevel::Mask
 }
 
-fn validate_opd_soap_note_write_access(
-    restricted: &HashMap<String, FieldAccessLevel>,
-) -> Result<(), AppError> {
-    if can_write_opd_soap_note(restricted) {
-        return Ok(());
-    }
-    Err(AppError::BadRequest(
-        "Cannot write restricted OPD SOAP note fields".to_owned(),
-    ))
-}
 
 fn filter_consultation_response(
     mut row: Consultation,
@@ -2125,225 +1975,6 @@ pub async fn get_consultation(
     Ok(Json(row.map(|consultation| {
         filter_consultation_response(consultation, &restricted_fields)
     })))
-}
-
-/// `physical_examination.findings`, if present, must be well-formed site
-/// findings — a malformed entry or an unknown side is refused, not stored.
-fn check_exam_findings(exam: Option<&serde_json::Value>) -> Result<(), AppError> {
-    let Some(findings) = exam.and_then(|e| e.get("findings")) else {
-        return Ok(());
-    };
-    let parsed: Result<Vec<medbrains_core::consultation::ExamFinding>, _> =
-        serde_json::from_value(findings.clone());
-    let well_formed = parsed.is_ok_and(|list| {
-        list.iter()
-            .all(|f| !f.site.trim().is_empty() && !f.finding.trim().is_empty())
-    });
-    if well_formed {
-        return Ok(());
-    }
-    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
-    errors.add(
-        "physical_examination.findings",
-        "Each finding needs a site, a side of left/right/bilateral/midline or none, and what was found",
-    );
-    Err(AppError::ValidationFailed(errors))
-}
-
-pub async fn create_consultation(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(encounter_id): Path<Uuid>,
-    Json(body): Json<CreateConsultationRequest>,
-) -> Result<Json<Consultation>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    check_exam_findings(body.physical_examination.as_ref())?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
-    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
-    validate_opd_soap_note_write_access(&restricted_fields)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Register-first lock (opt-in): no case sheet until the OPD visit is registered.
-    assert_encounter_registered(&mut tx, &claims.tenant_id, encounter_id).await?;
-
-    // Resolve patient_id from the encounter so inline lab/radiology
-    // orders carry the right FK without a second client round-trip. The row
-    // lock serialises two first saves of the same visit.
-    let patient_id: Uuid = sqlx::query_scalar(
-        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    // One consultation per visit. The read returns the newest row, so a
-    // second one would silently hide the history, ROS and exam on the first.
-    let existing: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM consultations \
-          WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL)",
-    )
-    .bind(encounter_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    if existing {
-        return Err(AppError::Conflict(
-            "This visit already has a consultation note — update it instead".to_owned(),
-        ));
-    }
-
-    let row = sqlx::query_as::<_, Consultation>(
-        "INSERT INTO consultations \
-         (tenant_id, encounter_id, doctor_id, chief_complaint, history, \
-          examination, plan, notes, hpi, past_medical_history, past_surgical_history, \
-          family_history, social_history, review_of_systems, physical_examination, \
-          general_appearance) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(encounter_id)
-    .bind(claims.sub)
-    .bind(&body.chief_complaint)
-    .bind(&body.history)
-    .bind(&body.examination)
-    .bind(&body.plan)
-    .bind(&body.notes)
-    .bind(&body.hpi)
-    .bind(&body.past_medical_history)
-    .bind(&body.past_surgical_history)
-    .bind(&body.family_history)
-    .bind(&body.social_history)
-    .bind(&body.review_of_systems)
-    .bind(&body.physical_examination)
-    .bind(&body.general_appearance)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let mut created_lab_order_ids = Vec::with_capacity(body.lab_orders.len());
-    for lab in &body.lab_orders {
-        let req = medbrains_lab::CreateOrderRequest {
-            encounter_id,
-            patient_id,
-            test_id: lab.test_id,
-            priority: lab.priority.clone(),
-            notes: lab.notes.clone(),
-            is_dummy: None,
-        };
-        let lab_order = medbrains_lab::create_order_in_tx(&mut tx, &claims, &req).await?;
-        created_lab_order_ids.push(lab_order.id);
-    }
-
-    for rad in &body.radiology_orders {
-        let req = medbrains_radiology::CreateOrderRequest {
-            patient_id,
-            encounter_id: Some(encounter_id),
-            modality_id: rad.modality_id,
-            body_part: rad.body_part.clone(),
-            body_part_code: None,
-            body_part_laterality: None,
-            clinical_indication: rad.clinical_indication.clone(),
-            priority: rad.priority.clone(),
-            scheduled_at: None,
-            notes: rad.notes.clone(),
-            contrast_required: Some(false),
-            pregnancy_checked: Some(false),
-            allergy_flagged: Some(false),
-            is_dummy: None,
-        };
-        medbrains_radiology::create_order_in_tx(&mut tx, &claims, &req).await?;
-    }
-
-    tx.commit().await?;
-
-    for lab_order_id in created_lab_order_ids {
-        medbrains_lab::grant_lab_order_access(
-            &state,
-            &claims,
-            lab_order_id,
-            "opd_consultation_lab_order_created",
-        )
-        .await?;
-    }
-
-    tracing::info!(
-        encounter_id = %encounter_id,
-        consultation_id = %row.id,
-        labs = body.lab_orders.len(),
-        radiology = body.radiology_orders.len(),
-        "consultation: created with inline orders"
-    );
-
-    Ok(Json(filter_consultation_response(row, &restricted_fields)))
-}
-
-/// `physical_examination` merges by top-level key: a phone that sends only
-/// `findings` leaves the web's system notes as they were.
-pub async fn update_consultation(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((encounter_id, id)): Path<(Uuid, Uuid)>,
-    Json(body): Json<UpdateConsultationRequest>,
-) -> Result<Json<Consultation>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    check_exam_findings(body.physical_examination.as_ref())?;
-
-    // The route names an encounter; holding the module permission is not the
-    // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
-    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
-    validate_opd_soap_note_write_access(&restricted_fields)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, Consultation>(
-        "UPDATE consultations SET \
-         chief_complaint = COALESCE($1, chief_complaint), \
-         history = COALESCE($2, history), \
-         examination = COALESCE($3, examination), \
-         plan = COALESCE($4, plan), \
-         notes = COALESCE($5, notes), \
-         hpi = COALESCE($8, hpi), \
-         past_medical_history = COALESCE($9, past_medical_history), \
-         past_surgical_history = COALESCE($10, past_surgical_history), \
-         family_history = COALESCE($11, family_history), \
-         social_history = COALESCE($12, social_history), \
-         review_of_systems = COALESCE($13, review_of_systems), \
-         physical_examination = COALESCE(physical_examination || $14, $14, physical_examination), \
-         general_appearance = COALESCE($15, general_appearance), \
-         updated_at = now() \
-         WHERE id = $6 AND tenant_id = $7 AND encounter_id = $16 \
-         RETURNING *",
-    )
-    .bind(&body.chief_complaint)
-    .bind(&body.history)
-    .bind(&body.examination)
-    .bind(&body.plan)
-    .bind(&body.notes)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.hpi)
-    .bind(&body.past_medical_history)
-    .bind(&body.past_surgical_history)
-    .bind(&body.family_history)
-    .bind(&body.social_history)
-    .bind(&body.review_of_systems)
-    .bind(&body.physical_examination)
-    .bind(&body.general_appearance)
-    .bind(encounter_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    row.map_or_else(
-        || Err(AppError::NotFound),
-        |r| Ok(Json(filter_consultation_response(r, &restricted_fields))),
-    )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -6876,11 +6507,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/opd/encounters/{id}/consultation",
-            get(get_consultation).post(create_consultation),
-        )
-        .route(
-            "/api/opd/encounters/{eid}/consultation/{id}",
-            put(update_consultation),
+            get(get_consultation),
         )
         .route(
             "/api/opd/encounters/{id}/diagnoses",
