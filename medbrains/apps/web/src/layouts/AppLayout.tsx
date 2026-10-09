@@ -38,6 +38,7 @@ import { Brand } from "@/components/Brand";
 import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
+import { HelpButton } from "@/components/HelpButton";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
 import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
 import { AddProductModal } from "@/components/Materials/AddProductModal";
@@ -514,6 +515,8 @@ export function AppLayout() {
             >
               <AnimatedIcon icon={Search} size={18} motion="float" />
             </ActionIcon>
+
+            <HelpButton />
 
             <NotificationCenter />
 

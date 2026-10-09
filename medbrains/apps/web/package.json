@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:scan": "VITE_REACT_SCAN=true VITE_DEV_PORT=5174 vite --host 127.0.0.1 --port 5174",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && pnpm run build:help",
+    "build:help": "pnpm --filter @medbrains/docs build && node -e \"require('node:fs').cpSync('../docs/build', 'dist/help', { recursive: true })\"",
     "preview": "vite preview",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
