@@ -1138,9 +1138,9 @@ async fn create_case_sheet_pages(
             ("opd-cover", "OPD case sheet cover", "opd", "encounters"),
             (
                 "opd-datewise-soap",
-                "Datewise SOAP notes consolidation",
+                "Clinical notes, datewise",
                 "opd",
-                "consultations",
+                "clinical_notes",
             ),
             (
                 "opd-history",
@@ -1174,9 +1174,9 @@ async fn create_case_sheet_pages(
             ("ipd-admission-note", "Admission note", "ipd", "admissions"),
             (
                 "ipd-datewise-soap",
-                "Datewise SOAP progress notes consolidation",
+                "Clinical notes, datewise",
                 "ipd",
-                "ipd_progress_notes",
+                "clinical_notes",
             ),
             (
                 "ipd-nursing",
@@ -1397,7 +1397,7 @@ pub async fn list_case_sheet_packets(
         "{} WHERE p.tenant_id = $1 \
            AND ($2::text IS NULL OR p.status = $2::text) \
            AND ($3::text IS NULL OR p.packet_type = $3::text) \
-           AND ($4::uuid IS NULL OR p.patient_id = $4) \
+           AND ($4::uuid[] IS NULL OR p.patient_id = ANY($4)) \
            AND ($5::uuid IS NULL OR p.encounter_id = $5) \
            AND ($6::uuid IS NULL OR p.admission_id = $6) \
          ORDER BY p.created_at DESC LIMIT 500",

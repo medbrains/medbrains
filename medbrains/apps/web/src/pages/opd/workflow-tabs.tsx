@@ -1321,7 +1321,7 @@ export function RemindersTab({
   });
   const reminderValues = watch();
 
-  const { data: reminders = [] } = useQuery<PatientReminder[]>({
+  const { data: reminders = [], isError: remindersFailed } = useQuery<PatientReminder[]>({
     queryKey: ["reminders", patientId],
     queryFn: () => opdService.listReminders({ patient_id: patientId }),
   });
@@ -1389,7 +1389,11 @@ export function RemindersTab({
         </Group>
       )}
 
-      {reminders.length === 0 ? (
+      {remindersFailed ? (
+        <Alert tone="danger" title="Reminders could not be loaded">
+          Reload the page; if it keeps failing, tell IT.
+        </Alert>
+      ) : reminders.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No reminders yet.
         </Text>

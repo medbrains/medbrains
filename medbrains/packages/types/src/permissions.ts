@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1004 permissions, one per constant in the Rust source. */
+/** 1005 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -135,6 +135,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "clinical_notes.cosign",
     label: "Countersign a resident's note",
     description: "Notes signed by the doctors you supervise; return one with a comment and it goes back to its author to revise.",
+    module: "clinical_notes",
+  },
+  {
+    code: "clinical_notes.print",
+    label: "Print a visit's case-sheet notes",
+    description: "Every signed note with its author, time and signature, as the paper sheet reads; the print is filed to the visit's medical record.",
     module: "clinical_notes",
   },
   // opd
@@ -6795,6 +6801,7 @@ export const P = {
   CLINICAL_NOTES: {
     COSIGN: "clinical_notes.cosign",
     MARK_IN_ERROR: "clinical_notes.mark_in_error",
+    PRINT: "clinical_notes.print",
     SIGN: "clinical_notes.sign",
     VIEW: "clinical_notes.view",
     WRITE: "clinical_notes.write",
@@ -9156,6 +9163,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CLINICAL.ORDER_BASKET_SIGN,
       P.CLINICAL_NOTES.COSIGN,
       P.CLINICAL_NOTES.MARK_IN_ERROR,
+      P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.SIGN,
       P.CLINICAL_NOTES.VIEW,
       P.CLINICAL_NOTES.WRITE,
@@ -10222,6 +10230,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "MRD Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CLINICAL_NOTES.PRINT,
       P.CLINICAL_NOTES.VIEW,
       P.DASHBOARD.VIEW,
       P.IPD.ADMISSIONS.LIST,
