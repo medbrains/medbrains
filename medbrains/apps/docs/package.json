@@ -1,0 +1,20 @@
+{
+  "name": "@medbrains/docs",
+  "private": true,
+  "version": "0.0.0",
+  "description": "MedBrains user guide, served by the app at /help",
+  "scripts": {
+    "dev": "docusaurus start --port 3010 --no-open",
+    "build": "docusaurus build --out-dir build",
+    "serve": "docusaurus serve --port 3010"
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.10.2",
+    "@docusaurus/preset-classic": "^3.10.2",
+    "@easyops-cn/docusaurus-search-local": "^0.55.3",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  }
+}

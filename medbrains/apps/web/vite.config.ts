@@ -214,6 +214,8 @@ export default defineConfig(async ({ command }) => {
         // The boards' live queue and alert sockets. Without this a board on
         // the dev server connected to nothing: calls arrived only through
         // polling and nothing was ever announced.
+        // The user guide's dev server (apps/docs, `pnpm --filter @medbrains/docs dev`).
+        "/help": { target: "http://localhost:3010", changeOrigin: true },
         "/ws": {
           target: "ws://localhost:3000",
           ws: true,
