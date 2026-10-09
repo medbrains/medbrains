@@ -1,7 +1,7 @@
 //! A home visit is a visit of its own: scheduled, it has a case sheet; the
 //! nurse sent on it writes and signs the nursing note there; a nurse who was
-//! not sent does not open it; and a home visit offers home notes, not a
-//! clinic consultation.
+//! not sent does not open it; a home visit offers home notes, not a clinic
+//! consultation; and home care is the care team's, not the front desk's.
 
 mod common;
 
@@ -19,8 +19,9 @@ async fn send(csrf: &str, req: reqwest::RequestBuilder) -> (StatusCode, Value) {
     (status, resp.json().await.unwrap_or(Value::Null))
 }
 
-/// A nurse with a login and a staff record: their employee id, client, CSRF.
-async fn nurse(app: &common::TestApp, admin_csrf: &str) -> (Uuid, Client, String) {
+/// A member of staff in `role` with a login and a staff record: their
+/// employee id, client, CSRF.
+async fn staff(app: &common::TestApp, admin_csrf: &str, role: &str) -> (Uuid, Client, String) {
     let tag = &Uuid::new_v4().simple().to_string()[..10];
     let (username, password) = (format!("home_{tag}"), format!("Home#{tag}Aa9"));
     let dept: Uuid = sqlx::query_scalar(
@@ -34,8 +35,8 @@ async fn nurse(app: &common::TestApp, admin_csrf: &str) -> (Uuid, Client, String
         admin_csrf,
         app.client.post(app.url("/api/setup/users")).json(&json!({
             "username": username, "email": format!("{username}@example.test"),
-            "password": password, "full_name": format!("Nurse {tag}"),
-            "role": "nurse", "department_ids": [dept],
+            "password": password, "full_name": format!("Staff {tag}"),
+            "role": role, "department_ids": [dept],
         })),
     )
     .await;
@@ -85,8 +86,8 @@ async fn the_nurse_sent_on_a_home_visit_signs_its_note_on_its_case_sheet() {
     .fetch_one(&app.db)
     .await
     .expect("patient");
-    let (sent, nurse_client, nurse_csrf) = nurse(&app, &csrf).await;
-    let (_, other_client, other_csrf) = nurse(&app, &csrf).await;
+    let (sent, nurse_client, nurse_csrf) = staff(&app, &csrf, "nurse").await;
+    let (_, other_client, other_csrf) = staff(&app, &csrf, "nurse").await;
 
     let (status, visit) = send(
         &csrf,
@@ -164,4 +165,20 @@ async fn the_nurse_sent_on_a_home_visit_signs_its_note_on_its_case_sheet() {
         StatusCode::NOT_FOUND,
         "a nurse not sent does not open the visit"
     );
+}
+
+#[tokio::test]
+async fn doctors_and_nurses_reach_home_care_and_the_front_desk_does_not() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    for (role, expected) in [
+        ("doctor", StatusCode::OK),
+        ("nurse", StatusCode::OK),
+        ("receptionist", StatusCode::FORBIDDEN),
+    ] {
+        let (_, client, staff_csrf) = staff(&app, &csrf, role).await;
+        let (status, body) =
+            send(&staff_csrf, client.get(app.url("/api/home-health/visits"))).await;
+        assert_eq!(status, expected, "{role}: {body}");
+    }
 }

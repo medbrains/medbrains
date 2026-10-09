@@ -162,8 +162,8 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
 }
 
 export function HomeVisitsPage() {
-  useRequirePermission(P.IPD.MAR_LIST);
-  const canManage = useHasPermission(P.IPD.MAR_CREATE);
+  useRequirePermission(P.HOME_HEALTH.LIST);
+  const canManage = useHasPermission(P.HOME_HEALTH.MANAGE);
   const qc = useQueryClient();
   const [date, setDate] = useState<string | null>(today());
   const [modalOpen, modal] = useDisclosure(false);

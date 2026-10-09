@@ -32,8 +32,8 @@ function statusTone(s: string): BadgeTone {
 }
 
 export function HomeHealthcarePage() {
-  useRequirePermission(P.IPD.MAR_LIST);
-  const canRecord = useHasPermission(P.IPD.MAR_CREATE);
+  useRequirePermission(P.HOME_HEALTH.LIST);
+  const canRecord = useHasPermission(P.HOME_HEALTH.MANAGE);
   const [patientId, setPatientId] = useState("");
   const [scheduleOpen, schedule] = useDisclosure(false);
   const [recordMed, setRecordMed] = useState<HomeMedAdministration | null>(null);

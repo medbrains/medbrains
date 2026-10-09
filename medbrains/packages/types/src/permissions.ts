@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1005 permissions, one per constant in the Rust source. */
+/** 1007 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -148,6 +148,19 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Export a visit's notes as FHIR",
     description: "The signed notes as FHIR R4 Compositions, for another hospital, ABDM or an integration; drafts are never exported.",
     module: "clinical_notes",
+  },
+  // home_health
+  {
+    code: "home_health.list",
+    label: "View home care",
+    description: "Home visits, home medication schedules, escalations, remote vitals, care packages, hospice, advance directives and bereavement follow-up.",
+    module: "home_health",
+  },
+  {
+    code: "home_health.manage",
+    label: "Run home care",
+    description: "Schedule and document home visits, record home doses, raise and close escalations, and keep hospice and advance-directive records.",
+    module: "home_health",
   },
   // opd
   {
@@ -7225,6 +7238,10 @@ export const P = {
     VISITORS_LIST: "front_office.visitors.list",
     VISITORS_MANAGE: "front_office.visitors.manage",
   },
+  HOME_HEALTH: {
+    LIST: "home_health.list",
+    MANAGE: "home_health.manage",
+  },
   HOUSEKEEPING: {
     CLEANING: {
       CREATE: "housekeeping.cleaning.create",
@@ -9207,6 +9224,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.LIST,
       P.EMERGENCY.VISITS.UPDATE,
+      P.HOME_HEALTH.LIST,
+      P.HOME_HEALTH.MANAGE,
       P.ICU.DEVICES.LIST,
       P.ICU.DEVICES.MANAGE,
       P.ICU.FLOWSHEETS.CREATE,
@@ -9476,6 +9495,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.CREATE,
       P.EMERGENCY.VISITS.LIST,
+      P.HOME_HEALTH.LIST,
+      P.HOME_HEALTH.MANAGE,
       P.ICU.DEVICES.LIST,
       P.ICU.DEVICES.MANAGE,
       P.ICU.FLOWSHEETS.CREATE,
