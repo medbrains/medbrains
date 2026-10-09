@@ -871,3 +871,128 @@ async fn a_residents_signed_note_waits_on_the_consultants_countersign() {
     assert_eq!(returned["cosign_status"], "returned");
     assert_eq!(returned["cosign_comment"], "Record the chest findings");
 }
+
+/// Given a patient with three notes, one entered in error and one with an
+/// addendum, When the record is reviewed, Then the newest care comes first,
+/// each addendum follows its note, the struck note shows only when asked
+/// for, and a page continues after the note it ended on.
+#[tokio::test]
+async fn chart_review_reads_the_record_newest_care_first() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let notes = format!("/api/encounters/{encounter}/clinical-notes");
+    let mut signed = Vec::new();
+    for (hours_ago, text) in [
+        (3, "Fever"),
+        (2, "Wrong patient's history"),
+        (1, "Afebrile"),
+    ] {
+        let (_, note) = call(
+            &app,
+            &csrf,
+            "POST",
+            &notes,
+            json!({ "note_type_code": "consultation",
+                    "sections": [{ "code": "subjective", "text": text }] }),
+        )
+        .await;
+        let id = note["id"].as_str().expect("note id").to_owned();
+        let (status, _) = call(
+            &app,
+            &csrf,
+            "POST",
+            &format!("/api/clinical-notes/{id}/sign"),
+            json!({}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        sqlx::query(
+            "UPDATE clinical_notes SET service_at = now() - make_interval(hours => $2), \
+                    locked_at = now() - interval '1 minute' WHERE id = $1::uuid",
+        )
+        .bind(&id)
+        .bind(hours_ago)
+        .execute(&app.db)
+        .await
+        .expect("backdate");
+        signed.push(id);
+    }
+    let (first, struck, last) = (&signed[0], &signed[1], &signed[2]);
+    let (status, _) = call(
+        &app,
+        &csrf,
+        "POST",
+        &format!("/api/clinical-notes/{struck}/entered-in-error"),
+        json!({ "reason": "Wrong patient" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, addendum) = call(
+        &app,
+        &csrf,
+        "POST",
+        &notes,
+        json!({ "note_type_code": "consultation", "amends_note_id": first,
+                "sections": [{ "code": "addendum", "title": "Addendum", "text": "CXR normal" }] }),
+    )
+    .await;
+    let addendum = addendum["id"].as_str().expect("addendum id").to_owned();
+
+    let patient: Uuid = sqlx::query_scalar("SELECT patient_id FROM encounters WHERE id = $1::uuid")
+        .bind(&encounter)
+        .fetch_one(&app.db)
+        .await
+        .expect("patient");
+    let chart = format!("/api/patients/{patient}/clinical-notes");
+    let ids = |page: &Value| -> Vec<String> {
+        page["notes"]
+            .as_array()
+            .expect("notes")
+            .iter()
+            .map(|n| n["id"].as_str().expect("id").to_owned())
+            .collect()
+    };
+
+    let (status, page) = call(&app, &csrf, "GET", &chart, Value::Null).await;
+    assert_eq!(status, StatusCode::OK, "{page}");
+    assert_eq!(
+        ids(&page),
+        vec![last.clone(), first.clone(), addendum.clone()],
+        "newest care first, the addendum after its note, the struck note left out"
+    );
+    assert_eq!(page["visits"][0]["encounter_id"], json!(encounter));
+    assert!(
+        page["facets"]
+            .as_array()
+            .expect("facets")
+            .iter()
+            .any(|f| f["kind"] == "note_type" && f["value"] == "consultation"),
+        "{page}"
+    );
+
+    let (_, in_error) = call(
+        &app,
+        &csrf,
+        "GET",
+        &format!("{chart}?status=entered_in_error"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(ids(&in_error), vec![struck.clone()]);
+
+    let newest = &page["notes"][0];
+    let next = format!(
+        "{chart}?before_at={}&before_id={last}",
+        newest["service_at"]
+            .as_str()
+            .expect("service_at")
+            .replace('+', "%2B")
+    );
+    let (_, older) = call(&app, &csrf, "GET", &next, Value::Null).await;
+    assert_eq!(
+        ids(&older),
+        vec![first.clone(), addendum],
+        "the page continues after it"
+    );
+}

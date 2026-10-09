@@ -51,7 +51,7 @@ pub async fn settings(
 
 /// The SELECT every note read shares; `$me` is the caller, the rest of the
 /// WHERE clause is the caller's.
-fn note_select(me: usize) -> String {
+pub(crate) fn note_select(me: usize) -> String {
     format!(
         "SELECT n.id, n.encounter_id, n.patient_id, t.code AS note_type_code, \
                 t.name AS note_type_name, n.author_id, u.full_name AS author_name, \

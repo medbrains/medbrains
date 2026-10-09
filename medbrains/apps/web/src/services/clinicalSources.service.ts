@@ -22,14 +22,9 @@ interface NarrativeNotes {
   last_edited_at?: string;
 }
 
-type ClinicalNotesResponse = Awaited<ReturnType<typeof api.getPatientNotes>>;
 type NursingNotesResponse = Awaited<ReturnType<typeof api.getNursingShiftNotes>>;
 
 export const clinicalSourcesService = {
-  getPatientNotes: async (patientId: string): Promise<NarrativeNotes> =>
-    toNarrativeNotes(await api.getPatientNotes(patientId)),
-  updatePatientNotes: async (patientId: string, text: string): Promise<NarrativeNotes> =>
-    toNarrativeNotes(await api.updatePatientNotes(patientId, { text })),
   getNursingNotes: async (shiftId: string): Promise<NarrativeNotes> =>
     toNarrativeNotes(await api.getNursingShiftNotes(shiftId)),
   updateNursingNotes: async (shiftId: string, text: string): Promise<NarrativeNotes> =>
@@ -40,7 +35,7 @@ export const clinicalSourcesService = {
     toTriageEntry(await api.createClinicalTriageEntry(visitId, entry)),
 };
 
-function toNarrativeNotes(entry: ClinicalNotesResponse | NursingNotesResponse): NarrativeNotes {
+function toNarrativeNotes(entry: NursingNotesResponse): NarrativeNotes {
   return {
     text: entry.text,
     last_author: entry.last_author_name ?? undefined,

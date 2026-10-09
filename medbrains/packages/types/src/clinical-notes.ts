@@ -110,3 +110,38 @@ export interface PendingCountersign {
   author_name: string;
   signed_at: string | null;
 }
+
+/** The visit a chart-review note was written on. */
+export interface ChartVisit {
+  encounter_id: string;
+  encounter_type: "opd" | "ipd" | "emergency";
+  encounter_date: string | null;
+  admission_id: string | null;
+  er_visit_id: string | null;
+}
+
+/** A filter choice drawn from what is on the patient's record. */
+export interface ChartFacet {
+  kind: "note_type" | "author" | "department";
+  value: string;
+  label: string;
+}
+
+/** A page of the patient's notes across visits, addenda after their note. */
+export interface ChartPage {
+  notes: Note[];
+  visits: ChartVisit[];
+  facets: ChartFacet[];
+  has_more: boolean;
+}
+
+export interface ChartQuery {
+  note_type?: string;
+  author_id?: string;
+  department_id?: string;
+  status?: "signed" | "draft" | "entered_in_error";
+  from?: string;
+  to?: string;
+  before_at?: string;
+  before_id?: string;
+}
