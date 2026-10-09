@@ -44,6 +44,8 @@ pub async fn read_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    // The permission says what may be read; access says whose record.
+    medbrains_authz_gate::require_patient_access(&state, &claims, id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -108,6 +110,7 @@ pub async fn read_encounter(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -170,6 +173,8 @@ pub async fn patient_everything(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    // The permission says what may be read; access says whose record.
+    medbrains_authz_gate::require_patient_access(&state, &claims, id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -266,6 +271,11 @@ pub async fn metadata() -> impl IntoResponse {
                     "operation": [{ "name": "everything", "definition": "Patient/$everything" }]
                 },
                 { "type": "Encounter", "interaction": [{ "code": "read" }] },
+                {
+                    "type": "Composition",
+                    "interaction": [{ "code": "read" }, { "code": "search-type" }],
+                    "searchParam": [{ "name": "encounter", "type": "reference" }]
+                },
                 { "type": "Observation", "interaction": [{ "code": "read" }] }
             ]
         }]

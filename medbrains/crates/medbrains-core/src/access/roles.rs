@@ -34,6 +34,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::COSIGN,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::PRINT,
+            permissions::clinical_notes::EXPORT,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
             permissions::clinical_notes::MARK_IN_ERROR,
@@ -1287,6 +1288,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::PRINT,
+            permissions::clinical_notes::EXPORT,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::mrd::records::LIST,
