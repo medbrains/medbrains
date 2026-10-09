@@ -134,6 +134,7 @@ pub async fn search_compositions(
 ) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::clinical_notes::EXPORT)?;
     medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter).await?;
+    crate::soap_access::require_whole_record(&state, &claims).await?;
     let mut tx = crate::begin(&state, &claims).await?;
     let loinc = loinc_codes(&mut tx, claims.tenant_id).await?;
     let notes =
@@ -168,6 +169,7 @@ pub async fn read_composition(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::clinical_notes::EXPORT)?;
+    crate::soap_access::require_whole_record(&state, &claims).await?;
     let mut tx = crate::begin(&state, &claims).await?;
     let note = crate::store::one_note(&mut tx, claims.tenant_id, id, claims.sub).await?;
     // A draft is not the record: to a reader it does not exist yet.

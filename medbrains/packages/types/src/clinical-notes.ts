@@ -71,6 +71,8 @@ export interface Note {
   cosign_comment: string | null;
   /** The caller is the consultant asked to countersign it, and has not yet. */
   is_my_cosign: boolean;
+  /** Its content is withheld from the caller (consultation access restricted). */
+  withheld: boolean;
 }
 
 export interface CreateNoteRequest {

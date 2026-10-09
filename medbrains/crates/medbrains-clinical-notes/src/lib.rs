@@ -13,7 +13,9 @@ pub mod cosign;
 pub mod fhir;
 pub mod lifecycle;
 pub mod model;
+mod own;
 pub mod print;
+mod soap_access;
 pub mod store;
 pub mod summary;
 pub mod worklist;
@@ -32,6 +34,7 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use model::{Note, NoteType, Section, SectionPatch};
+use own::{finish, own_note, require_draft};
 
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -111,7 +114,7 @@ pub async fn list_note_types(
         Some(id) => Some(encounter_kind(&mut tx, &claims, id).await?),
         None => None,
     };
-    let types = sqlx::query_as::<_, NoteType>(
+    let mut types = sqlx::query_as::<_, NoteType>(
         "SELECT id, code, name, loinc_code, category, sections, author_roles, encounter_kinds \
            FROM note_types \
           WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL \
@@ -126,6 +129,9 @@ pub async fn list_note_types(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
+    if params.encounter_id.is_some() {
+        soap_access::drop_unwritable(&state, &claims, &mut types).await?;
+    }
     Ok(Json(types))
 }
 
@@ -155,7 +161,7 @@ pub async fn list_encounter_notes(
     medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = begin(&state, &claims).await?;
     let settings = store::settings(&mut tx, claims.tenant_id).await?;
-    let notes = store::encounter_notes(
+    let mut notes = store::encounter_notes(
         &mut tx,
         claims.tenant_id,
         encounter_id,
@@ -164,6 +170,7 @@ pub async fn list_encounter_notes(
     )
     .await?;
     tx.commit().await?;
+    soap_access::withhold(&state, &claims, &mut notes).await?;
     Ok(Json(notes))
 }
 
@@ -253,6 +260,7 @@ pub async fn create_note(
     if !may_write(&claims, &author_roles) {
         return Err(AppError::Forbidden);
     }
+    soap_access::require_write_type(&state, &claims, &mut tx, type_id).await?;
     let mut base = template;
     if body.amends_note_id.is_none() {
         store::prefill_structured(
@@ -332,103 +340,6 @@ async fn addendum_type(
     Ok((type_id, roles, vec![section]))
 }
 
-/// The caller's own note, locked for the change about to be made.
-pub async fn own_note(
-    tx: &mut Transaction<'_, Postgres>,
-    claims: &Claims,
-    note_id: Uuid,
-) -> Result<OwnNote, AppError> {
-    let note = sqlx::query_as::<_, OwnNote>(
-        "SELECT n.id, n.encounter_id, n.author_id, n.status, n.current_version, n.service_at, \
-                n.signed_at, n.locked_at, n.migrated_from, v.sections, t.code AS type_code, \
-                t.sections AS type_sections \
-           FROM clinical_notes n \
-           JOIN note_types t ON t.id = n.note_type_id \
-           JOIN note_versions v ON v.note_id = n.id AND v.version = n.current_version \
-          WHERE n.id = $1 AND n.tenant_id = $2 AND n.deleted_at IS NULL \
-          FOR UPDATE OF n",
-    )
-    .bind(note_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    // Somebody else's note is not theirs to change, and is not confirmed to
-    // exist by the refusal.
-    if note.author_id != claims.sub {
-        return Err(AppError::NotFound);
-    }
-    Ok(note)
-}
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct OwnNote {
-    pub id: Uuid,
-    pub encounter_id: Uuid,
-    pub author_id: Uuid,
-    pub status: String,
-    pub current_version: i32,
-    pub service_at: DateTime<Utc>,
-    pub signed_at: Option<DateTime<Utc>>,
-    pub locked_at: Option<DateTime<Utc>>,
-    pub migrated_from: Option<String>,
-    pub sections: serde_json::Value,
-    pub type_code: String,
-    pub type_sections: serde_json::Value,
-}
-
-impl OwnNote {
-    pub fn sections(&self) -> Result<Vec<Section>, AppError> {
-        serde_json::from_value(self.sections.clone())
-            .map_err(|e| AppError::Internal(format!("note sections: {e}")))
-    }
-
-    /// The draft's sections, with any the note type has gained since it was
-    /// started placed where the type has them.
-    pub fn draft_sections(&self) -> Result<Vec<Section>, AppError> {
-        let own = self.sections()?;
-        let template: Vec<Section> = serde_json::from_value(self.type_sections.clone())
-            .map_err(|e| AppError::Internal(format!("note type sections: {e}")))?;
-        let mut out: Vec<Section> = template
-            .into_iter()
-            .map(|t| own.iter().find(|s| s.code == t.code).cloned().unwrap_or(t))
-            .collect();
-        let extra: Vec<Section> = own
-            .into_iter()
-            .filter(|s| !out.iter().any(|o| o.code == s.code))
-            .collect();
-        out.extend(extra);
-        Ok(out)
-    }
-}
-
-pub fn require_draft(note: &OwnNote) -> Result<(), AppError> {
-    if note.status == "draft" {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(
-            "This note is signed — revise it within the grace period, or add an addendum"
-                .to_owned(),
-        ))
-    }
-}
-
-pub async fn finish(
-    mut tx: Transaction<'_, Postgres>,
-    claims: &Claims,
-    note: &OwnNote,
-    signed_record_changed: bool,
-) -> Result<Json<Note>, AppError> {
-    // Only what is signed reaches the screens that read the visit's
-    // consultation row: a draft is the author's until they sign it.
-    if signed_record_changed && note.type_code == "consultation" {
-        store::project_consultation(&mut tx, claims.tenant_id, note.encounter_id).await?;
-    }
-    let fresh = store::one_note(&mut tx, claims.tenant_id, note.id, claims.sub).await?;
-    tx.commit().await?;
-    Ok(Json(fresh))
-}
-
 #[derive(Debug, Deserialize)]
 pub struct SaveDraftRequest {
     pub sections: Vec<SectionPatch>,
@@ -443,7 +354,7 @@ pub async fn save_draft(
 ) -> Result<Json<Note>, AppError> {
     require_permission(&claims, permissions::clinical_notes::WRITE)?;
     let mut tx = begin(&state, &claims).await?;
-    let note = own_note(&mut tx, &claims, id).await?;
+    let note = own_note(&state, &mut tx, &claims, id).await?;
     require_draft(&note)?;
     let sections = model::apply_patches(&note.draft_sections()?, &body.sections)
         .map_err(AppError::BadRequest)?;

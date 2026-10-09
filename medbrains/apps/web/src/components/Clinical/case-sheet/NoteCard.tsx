@@ -74,6 +74,13 @@ function AuthorLine({ note }: { note: Note }) {
 }
 
 function Sections({ note }: { note: Note }) {
+  if (note.withheld) {
+    return (
+      <Text size="sm" c="dimmed">
+        Content withheld: your access to consultation notes is restricted.
+      </Text>
+    );
+  }
   const written = note.sections
     .map((s) => ({
       ...s,
