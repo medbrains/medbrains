@@ -41,8 +41,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AskAiButton } from "@/components/ai";
+import { ChartReview } from "@/components/Clinical/case-sheet/ChartReview";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
-import { NotesPanel } from "@/components/crdt/NotesPanel";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "@/components/PageHeader";
@@ -108,6 +108,7 @@ export function PatientDetailPageInner() {
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
+  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -372,7 +373,16 @@ export function PatientDetailPageInner() {
       section: "Programs",
       icon: <IconReportMedical size={14} />,
     },
-    { value: "notes", label: "Notes", section: "Records", icon: <IconReportMedical size={14} /> },
+    ...(canViewNotes
+      ? [
+          {
+            value: "notes" as const,
+            label: "Notes",
+            section: "Records",
+            icon: <IconReportMedical size={14} />,
+          },
+        ]
+      : []),
     { value: "merge", label: "Merge", section: "Admin", icon: <IconGitMerge size={14} /> },
   ] satisfies Array<{
     value: PatientDetailTabValue;
@@ -562,7 +572,7 @@ export function PatientDetailPageInner() {
                 <ActivePackagesSection patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-notes" value="notes" pt="md">
-                <NotesPanel patientId={patient.id} label="Clinical Notes" />
+                <ChartReview patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-merge" value="merge" pt="md">
                 <MergeTab patient={patient} />

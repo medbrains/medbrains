@@ -8,6 +8,7 @@
 //! with a reason, and stays on the sheet struck through.
 
 pub mod billing;
+pub mod chart;
 pub mod cosign;
 pub mod lifecycle;
 pub mod model;
@@ -47,6 +48,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/clinical-notes/{id}/return",
             post(cosign::return_to_author),
+        )
+        .route(
+            "/api/patients/{id}/clinical-notes",
+            get(chart::patient_notes),
         )
         .route(
             "/api/encounters/{id}/clinical-notes",

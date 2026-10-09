@@ -271,6 +271,8 @@ import type {
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
   ChargeMaster,
+  ChartPage,
+  ChartQuery,
   // Order Basket
   CheckBasketRequest,
   CheckBasketResponse,
@@ -4549,6 +4551,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ comment }),
     }),
+  listPatientNotes: (patientId: string, query: ChartQuery = {}) => {
+    const params = new URLSearchParams(
+      Object.entries(query).filter((entry): entry is [string, string] => Boolean(entry[1])),
+    );
+    const qs = params.toString();
+    return request<ChartPage>(`/patients/${patientId}/clinical-notes${qs ? `?${qs}` : ""}`);
+  },
   listEncounterNotes: (encounterId: string) =>
     request<Note[]>(`/encounters/${encounterId}/clinical-notes`),
   createNote: (encounterId: string, data: CreateNoteRequest) =>
