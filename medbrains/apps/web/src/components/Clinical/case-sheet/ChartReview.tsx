@@ -31,6 +31,7 @@ const KIND_LABEL: Record<ChartVisit["encounter_type"], string> = {
   opd: "OPD visit",
   ipd: "Admission",
   emergency: "Emergency visit",
+  home_health: "Home visit",
 };
 
 /** Every note on the patient's record, newest care first, across visits. */

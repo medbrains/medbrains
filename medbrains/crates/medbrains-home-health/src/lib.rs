@@ -10,7 +10,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -56,8 +56,7 @@ pub async fn list_home_meds(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeMedAdministration>(&format!(
@@ -92,10 +91,11 @@ pub async fn schedule_home_med(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.drug_name.trim().is_empty() || body.dose.trim().is_empty() {
-        return Err(AppError::BadRequest("Drug name and dose are required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Drug name and dose are required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -143,7 +143,9 @@ pub async fn record_home_med(
     .await?;
     let status = body.status.as_deref().unwrap_or("administered");
     if !["administered", "missed", "held"].contains(&status) {
-        return Err(AppError::BadRequest("Invalid administration status".to_owned()));
+        return Err(AppError::BadRequest(
+            "Invalid administration status".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -201,8 +203,7 @@ pub async fn list_escalations(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeEscalation>(&format!(
@@ -234,8 +235,7 @@ pub async fn raise_escalation(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.reason.trim().is_empty() {
         return Err(AppError::BadRequest("A reason is required".to_owned()));
     }
@@ -305,97 +305,6 @@ pub async fn update_escalation(
     Ok(Json(row))
 }
 
-// ── Daily clinical progress notes (#2981) ──────────────────────────────────
-
-const NOTE_COLS: &str = "id, tenant_id, patient_id, note_date, author_id, author_role, \
-     note_text, vitals, created_at, updated_at";
-
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct HomeProgressNote {
-    pub id: Uuid,
-    pub tenant_id: Uuid,
-    pub patient_id: Uuid,
-    pub note_date: chrono::NaiveDate,
-    pub author_id: Option<Uuid>,
-    pub author_role: String,
-    pub note_text: String,
-    pub vitals: serde_json::Value,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// `GET /api/home-health/progress-notes?patient_id=` — a patient's home progress notes.
-pub async fn list_progress_notes(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(q): Query<HomeMedQuery>,
-) -> Result<Json<Vec<HomeProgressNote>>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::LIST)?;
-
-    // The patient id arrives on the query string rather than the path, which is
-    // why the route map read as "no path parameter". It is still a per-patient
-    // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, HomeProgressNote>(&format!(
-        "SELECT {NOTE_COLS} FROM home_progress_notes \
-         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY note_date DESC, created_at DESC LIMIT 500"
-    ))
-    .bind(claims.tenant_id)
-    .bind(q.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AddProgressNoteRequest {
-    pub patient_id: Uuid,
-    pub author_role: Option<String>,
-    pub note_text: String,
-    pub vitals: Option<serde_json::Value>,
-}
-
-/// `POST /api/home-health/progress-notes` — the visiting nurse / remote physician writes a note.
-pub async fn add_progress_note(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<AddProgressNoteRequest>,
-) -> Result<Json<HomeProgressNote>, AppError> {
-    require_permission(&claims, permissions::ipd::mar::CREATE)?;
-    // No route-derived id: the caller names the patient. Weaker than a path
-    // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    if body.note_text.trim().is_empty() {
-        return Err(AppError::BadRequest("Note text is required".to_owned()));
-    }
-    let role = body.author_role.as_deref().unwrap_or("nurse");
-    if !["nurse", "physician"].contains(&role) {
-        return Err(AppError::BadRequest("Invalid author role".to_owned()));
-    }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row = sqlx::query_as::<_, HomeProgressNote>(&format!(
-        "INSERT INTO home_progress_notes \
-         (tenant_id, patient_id, author_id, author_role, note_text, vitals) \
-         VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{{}}'::jsonb)) RETURNING {NOTE_COLS}"
-    ))
-    .bind(claims.tenant_id)
-    .bind(body.patient_id)
-    .bind(claims.sub)
-    .bind(role)
-    .bind(body.note_text.trim())
-    .bind(&body.vitals)
-    .fetch_one(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
 // ── Training materials + discharge criteria (#2982) ────────────────────────
 
 const DP_COLS: &str = "id, tenant_id, patient_id, item_type, title, description, is_complete, \
@@ -428,8 +337,7 @@ pub async fn list_discharge_program(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeDischargeItem>(&format!(
@@ -461,8 +369,7 @@ pub async fn add_discharge_item(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if !["training", "criterion"].contains(&body.item_type.as_str()) {
         return Err(AppError::BadRequest("Invalid item type".to_owned()));
     }
@@ -531,7 +438,8 @@ const VISIT_COLS: &str = "hv.id, hv.patient_id, p.first_name, p.last_name, hv.nu
      NULLIF(TRIM(CONCAT(e.first_name, ' ', COALESCE(e.last_name, ''))), '') AS nurse_name, \
      hv.scheduled_date, hv.scheduled_time, hv.address, hv.purpose, \
      hv.status, hv.visit_order, hv.notes, hv.vitals, hv.wound_photo_url, \
-     hv.medication_compliance, hv.documented_at, hv.completed_at, hv.created_at";
+     hv.medication_compliance, hv.documented_at, hv.completed_at, hv.created_at, \
+     hv.encounter_id";
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct HomeVisit {
@@ -554,6 +462,8 @@ pub struct HomeVisit {
     pub documented_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// The visit's encounter: its case sheet.
+    pub encounter_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -616,14 +526,24 @@ pub async fn schedule_home_visit(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // A home visit is a visit of its own: its notes go on its case sheet.
+    let encounter_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, encounter_date) \
+         VALUES ($1, $2, 'home_health', $3) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.scheduled_date)
+    .fetch_one(&mut *tx)
+    .await?;
     let new_id: Uuid = sqlx::query_scalar(
         "INSERT INTO home_visits \
-         (tenant_id, patient_id, nurse_id, scheduled_date, scheduled_time, address, purpose, visit_order) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+         (tenant_id, patient_id, nurse_id, scheduled_date, scheduled_time, address, purpose, \
+          visit_order, encounter_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
@@ -633,8 +553,11 @@ pub async fn schedule_home_visit(
     .bind(&body.address)
     .bind(&body.purpose)
     .bind(body.visit_order)
+    .bind(encounter_id)
     .fetch_one(&mut *tx)
     .await?;
+    // The nurse who goes is on the visit's care team; so is whoever booked it.
+    let nurse = nurse_user(&mut tx, claims.tenant_id, body.nurse_id).await?;
     let row = sqlx::query_as::<_, HomeVisit>(&format!(
         "SELECT {VISIT_COLS} FROM home_visits hv \
          LEFT JOIN patients p ON p.id = hv.patient_id \
@@ -644,7 +567,55 @@ pub async fn schedule_home_visit(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
+    medbrains_authz_gate::grant_encounter_owner(&state, &claims, encounter_id).await?;
+    if let Some(nurse) = nurse {
+        grant_visit_nurse(&state, &claims, encounter_id, nurse).await?;
+    }
     Ok(Json(row))
+}
+
+/// The login behind a nurse's staff record, when they have one.
+async fn nurse_user(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    employee: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(employee) = employee else {
+        return Ok(None);
+    };
+    Ok(sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT user_id FROM employees WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(employee)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten())
+}
+
+/// The assigned nurse may open and write the visit's case sheet.
+async fn grant_visit_nurse(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+    nurse: Uuid,
+) -> Result<(), AppError> {
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    state
+        .authz
+        .write_tuple(
+            &ctx,
+            "encounter",
+            encounter_id,
+            // Editor, not Nurse: the nurse relation alone does not open the record.
+            medbrains_authz::Relation::Editor,
+            medbrains_authz::Subject::User(nurse),
+            None,
+            Some("home_visit_assigned".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("home visit nurse authz grant failed: {e}")))?;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -694,7 +665,12 @@ pub async fn update_home_visit(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // A nurse newly sent on the visit joins its care team.
+    let nurse = nurse_user(&mut tx, claims.tenant_id, body.nurse_id).await?;
     tx.commit().await?;
+    if let (Some(nurse), Some(encounter)) = (nurse, row.encounter_id) {
+        grant_visit_nurse(&state, &claims, encounter, nurse).await?;
+    }
     Ok(Json(row))
 }
 
@@ -789,8 +765,7 @@ pub async fn list_remote_vitals(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, RemoteVitalReading>(&format!(
@@ -823,9 +798,9 @@ pub async fn ingest_remote_vital(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
-    if !["bp", "glucometer", "pulse_ox", "thermometer", "weight"].contains(&body.device_type.as_str())
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    if !["bp", "glucometer", "pulse_ox", "thermometer", "weight"]
+        .contains(&body.device_type.as_str())
     {
         return Err(AppError::BadRequest("Invalid device type".to_owned()));
     }
@@ -882,8 +857,7 @@ pub async fn list_home_care_packages(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeCarePackage>(&format!(
@@ -915,8 +889,7 @@ pub async fn create_home_care_package(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.name.trim().is_empty() || body.total_visits <= 0 {
         return Err(AppError::BadRequest(
             "Package name and a positive visit count are required".to_owned(),
@@ -997,7 +970,9 @@ pub async fn consume_package_visit(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("Package is exhausted or not active".to_owned()));
+        return Err(AppError::BadRequest(
+            "Package is exhausted or not active".to_owned(),
+        ));
     };
     tx.commit().await?;
     Ok(Json(row))
@@ -1077,8 +1052,7 @@ pub async fn list_caregiver_education(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, CaregiverEducation>(&format!(
@@ -1113,10 +1087,11 @@ pub async fn record_caregiver_education(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.caregiver_name.trim().is_empty() || body.topic.trim().is_empty() {
-        return Err(AppError::BadRequest("Caregiver name and topic are required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Caregiver name and topic are required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1173,8 +1148,7 @@ pub async fn list_hospice_enrollments(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HospiceEnrollment>(&format!(
@@ -1209,8 +1183,7 @@ pub async fn enroll_hospice(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1342,8 +1315,7 @@ pub async fn list_advance_directives(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, AdvanceDirective>(&format!(
@@ -1380,8 +1352,7 @@ pub async fn create_advance_directive(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if !["living_will", "dnr", "dpoa", "molst", "organ_donation"]
         .contains(&body.directive_type.as_str())
     {
@@ -1433,7 +1404,9 @@ pub async fn revoke_advance_directive(
     )
     .await?;
     if body.reason.trim().is_empty() {
-        return Err(AppError::BadRequest("A revoke reason is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "A revoke reason is required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1482,8 +1455,7 @@ pub async fn list_bereavement(
     // The patient id arrives on the query string rather than the path, which is
     // why the route map read as "no path parameter". It is still a per-patient
     // read, so it needs a per-patient check — not list filtering.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, BereavementFollowup>(&format!(
@@ -1517,10 +1489,11 @@ pub async fn schedule_bereavement(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     // No route-derived id: the caller names the patient. Weaker than a path
     // id, but it refuses a record filed against somebody out of reach.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.family_contact_name.trim().is_empty() {
-        return Err(AppError::BadRequest("Family contact name is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Family contact name is required".to_owned(),
+        ));
     }
     let ctype = body.contact_type.as_deref().unwrap_or("call");
     if !["call", "visit", "support_group", "letter", "other"].contains(&ctype) {
@@ -1590,22 +1563,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/home-health/medications",
             get(list_home_meds).post(schedule_home_med),
         )
-        .route(
-            "/api/home-health/medications/{id}",
-            put(record_home_med),
-        )
+        .route("/api/home-health/medications/{id}", put(record_home_med))
         .route(
             "/api/home-health/escalations",
             get(list_escalations).post(raise_escalation),
         )
-        .route(
-            "/api/home-health/escalations/{id}",
-            put(update_escalation),
-        )
-        .route(
-            "/api/home-health/progress-notes",
-            get(list_progress_notes).post(add_progress_note),
-        )
+        .route("/api/home-health/escalations/{id}", put(update_escalation))
         .route(
             "/api/home-health/discharge-program",
             get(list_discharge_program).post(add_discharge_item),
@@ -1618,14 +1581,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/home-health/visits",
             get(list_home_visits).post(schedule_home_visit),
         )
-        .route(
-            "/api/home-visits/{id}",
-            put(update_home_visit),
-        )
-        .route(
-            "/api/home-visits/{id}/document",
-            put(document_home_visit),
-        )
+        .route("/api/home-visits/{id}", put(update_home_visit))
+        .route("/api/home-visits/{id}/document", put(document_home_visit))
         .route(
             "/api/home-health/remote-vitals",
             get(list_remote_vitals).post(ingest_remote_vital),
@@ -1638,14 +1595,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/home-health/packages/{id}/consume",
             post(consume_package_visit),
         )
-        .route(
-            "/api/home-visits/{id}/bill",
-            post(bill_home_visit),
-        )
+        .route("/api/home-visits/{id}/bill", post(bill_home_visit))
         .route(
             "/api/home-health/caregiver-education",
-            get(list_caregiver_education)
-                .post(record_caregiver_education),
+            get(list_caregiver_education).post(record_caregiver_education),
         )
         .route(
             "/api/home-health/hospice",
@@ -1654,8 +1607,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/hospice/{id}", put(update_hospice))
         .route(
             "/api/home-health/advance-directives",
-            get(list_advance_directives)
-                .post(create_advance_directive),
+            get(list_advance_directives).post(create_advance_directive),
         )
         .route(
             "/api/advance-directives/{id}/revoke",
