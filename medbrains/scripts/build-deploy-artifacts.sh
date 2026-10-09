@@ -95,6 +95,8 @@ pnpm --filter "@medbrains/types" \
      --filter "@medbrains/expressions" \
      --filter "@medbrains/crdt" build
 pnpm --filter @medbrains/web exec vite build
+# The user guide, served by the app at /help (apps/docs).
+pnpm --filter @medbrains/web run build:help
 
 # Ship the SPA as one file, not 1,571.
 #
