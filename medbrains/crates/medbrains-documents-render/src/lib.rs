@@ -256,9 +256,19 @@ pub async fn render_document(
         watermark,
     )
     .await?;
+    // The printed case sheet is the visit's record: file it to MRD as it is made.
+    let filed_to_mrd = template.code == "clinical_notes"
+        && medbrains_clinical_notes::print::file_to_mrd(
+            &mut tx,
+            claims.tenant_id,
+            body.source_id,
+            document_output_id,
+        )
+        .await?;
     tx.commit().await?;
 
     Ok(Json(serde_json::json!({
+        "filed_to_mrd": filed_to_mrd,
         "document_output_id": document_output_id,
         "file_key": file_key,
         "download_url": format!("/api/documents/{document_output_id}/download"),

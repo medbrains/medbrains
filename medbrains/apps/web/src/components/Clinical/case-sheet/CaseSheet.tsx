@@ -4,6 +4,7 @@ import { type Note, P } from "@medbrains/types";
 import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { DocumentActions } from "@/components/DocumentActions";
 import { Alert, Button, toast } from "@/components/ui";
 import { clinicalNotesService } from "@/services/clinicalNotes.service";
 import { type NoteActions, NoteCard } from "./NoteCard";
@@ -45,6 +46,7 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
   const canSign = useHasPermission(P.CLINICAL_NOTES.SIGN);
   const canMarkInError = useHasPermission(P.CLINICAL_NOTES.MARK_IN_ERROR);
   const canCosign = useHasPermission(P.CLINICAL_NOTES.COSIGN);
+  const canPrint = useHasPermission(P.CLINICAL_NOTES.PRINT);
   const queryClient = useQueryClient();
   const [ask, setAsk] = useState<Ask>(null);
   const [reason, setReason] = useState("");
@@ -147,34 +149,40 @@ export function CaseSheet({ encounterId }: { encounterId: string }) {
     <Stack gap="sm">
       <Group justify="space-between">
         <Text fw={700}>Case sheet</Text>
-        {canWrite && choices.length > 0 && (
-          <Menu position="bottom-end">
-            <Menu.Target>
-              <Button
-                tone="primary"
-                size="xs"
-                leftSection={<IconPlus size={16} />}
-                rightSection={<IconChevronDown size={16} />}
-              >
-                New note
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {choices.map((t) => (
-                <Menu.Item
-                  key={t.code}
-                  onClick={() =>
-                    step.mutate(() =>
-                      clinicalNotesService.createNote(encounterId, { note_type_code: t.code }),
-                    )
-                  }
+        <Group gap="xs">
+          {/* The print is filed to the visit's medical record as it is made. */}
+          {canPrint && top.length > 0 && (
+            <DocumentActions templateCode="clinical_notes" sourceId={encounterId} />
+          )}
+          {canWrite && choices.length > 0 && (
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconPlus size={16} />}
+                  rightSection={<IconChevronDown size={16} />}
                 >
-                  {t.name}
-                </Menu.Item>
-              ))}
-            </Menu.Dropdown>
-          </Menu>
-        )}
+                  New note
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {choices.map((t) => (
+                  <Menu.Item
+                    key={t.code}
+                    onClick={() =>
+                      step.mutate(() =>
+                        clinicalNotesService.createNote(encounterId, { note_type_code: t.code }),
+                      )
+                    }
+                  >
+                    {t.name}
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
+          )}
+        </Group>
       </Group>
       {top.length === 0 && (
         <Text size="sm" c="dimmed">

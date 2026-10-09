@@ -32,6 +32,12 @@ export interface ExaminationData {
 }
 
 const humanise = (key: string) => key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+/** Keys in a fixed order: the database does not keep the order they were
+ *  written in, and the print must read the same as the screen. */
+const sortedEntries = <T extends object>(record: T) =>
+  (Object.entries(record) as Array<[string, T[keyof T]]>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
 const joined = (parts: Array<string | null | undefined | false>) =>
   parts.filter(Boolean).join(", ");
 
@@ -57,7 +63,7 @@ function historyLines(d: HistoryData): string[] {
 }
 
 function rosLines(d: ReviewOfSystems): string[] {
-  const entries = Object.entries(d).filter(([, v]) => v !== undefined);
+  const entries = sortedEntries(d).filter(([, v]) => v !== undefined);
   const abnormal = entries
     .filter(([, v]) => v?.abnormal)
     .map(([k, v]) => `${humanise(k)}: ${v?.details?.trim() || "abnormal"}`);
@@ -67,7 +73,7 @@ function rosLines(d: ReviewOfSystems): string[] {
 
 function examLines(d: ExaminationData): string[] {
   const exam = d.exam ?? {};
-  const systems = Object.entries(exam)
+  const systems = sortedEntries(exam)
     .filter(([k, v]) => k !== "findings" && typeof v === "string" && v.trim())
     .map(([k, v]) => `${humanise(k)}: ${String(v).trim()}`);
   // The same words the examination tab shows the finding in.

@@ -1,0 +1,69 @@
+[
+  {
+    "name": "reads a history as the paper sheet would",
+    "code": "history",
+    "data": {
+      "hpi": "Cough for three weeks",
+      "past_medical_history": [{ "condition": "Diabetes", "status": "controlled" }],
+      "past_surgical_history": [{ "procedure": "Appendicectomy", "year": 2015 }],
+      "family_history": [{ "relation": "Father", "condition": "Hypertension" }],
+      "social_history": { "smoking": { "status": "former" }, "occupation": "teacher" }
+    },
+    "lines": [
+      "HPI: Cough for three weeks",
+      "Past medical: Diabetes (controlled)",
+      "Past surgical: Appendicectomy, 2015",
+      "Family: Father: Hypertension",
+      "Social: smoking former, works as teacher"
+    ]
+  },
+  {
+    "name": "lists abnormal systems with their detail, then the normal ones",
+    "code": "ros",
+    "data": {
+      "respiratory": { "abnormal": true, "details": "Dry cough" },
+      "gastrointestinal": { "abnormal": false },
+      "cardiovascular": { "abnormal": false },
+      "general": { "abnormal": true, "details": " " }
+    },
+    "lines": [
+      "General: abnormal",
+      "Respiratory: Dry cough",
+      "Normal: Cardiovascular, Gastrointestinal"
+    ]
+  },
+  {
+    "name": "puts a finding at its side and site",
+    "code": "examination",
+    "data": {
+      "general_appearance": "Comfortable",
+      "exam": {
+        "respiratory": "Bilateral wheeze",
+        "abdomen": "Soft",
+        "findings": [
+          { "site": "knee", "site_code": null, "laterality": "left", "finding": "Effusion" },
+          { "site": "Left wrist", "site_code": null, "laterality": "left", "finding": "Swelling" }
+        ]
+      }
+    },
+    "lines": [
+      "General appearance: Comfortable",
+      "Abdomen: Soft",
+      "Respiratory: Bilateral wheeze",
+      "knee (left): Effusion",
+      "Left wrist: Swelling"
+    ]
+  },
+  {
+    "name": "an empty record says nothing",
+    "code": "history",
+    "data": { "hpi": " ", "past_medical_history": [] },
+    "lines": []
+  },
+  {
+    "name": "a free-text section has no structured lines",
+    "code": "plan",
+    "data": { "anything": 1 },
+    "lines": []
+  }
+]

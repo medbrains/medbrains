@@ -3,6 +3,7 @@
 //! render harness. Live data binding lives in the server's context
 //! builders — field names here match the `*PrintData` structs verbatim.
 
+use crate::case_sheet::{CASE_SHEET_HTML, CASE_SHEET_SAMPLE};
 use crate::paper::{MarginsMm, Paper};
 
 #[derive(Debug)]
@@ -69,6 +70,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         margins: A4_MARGINS,
         html: DISCHARGE_HTML,
         sample_context: DISCHARGE_SAMPLE,
+    },
+    SystemTemplate {
+        code: "clinical_notes",
+        title: "Case Sheet — Clinical Notes",
+        module_code: "clinical_notes",
+        source_table: "encounters",
+        number_prefix: "CS-NOTES",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: CASE_SHEET_HTML,
+        sample_context: CASE_SHEET_SAMPLE,
     },
     SystemTemplate {
         code: "er_discharge_summary",

@@ -224,6 +224,11 @@ pub(crate) async fn build_context(
             .await?;
             serde_json::json!({ "claim": data })
         }
+        "clinical_notes" => {
+            medbrains_clinical_notes::print::case_sheet_context(state, claims, source_id)
+                .await?
+                .0
+        }
         other => {
             return Err(AppError::BadRequest(format!(
                 "no context builder for template '{other}'"
