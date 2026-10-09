@@ -10,6 +10,7 @@
 pub mod billing;
 pub mod chart;
 pub mod cosign;
+pub mod fhir;
 pub mod lifecycle;
 pub mod model;
 pub mod print;
@@ -35,6 +36,8 @@ use model::{Note, NoteType, Section, SectionPatch};
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/clinical-notes/types", get(list_note_types))
+        .route("/api/fhir/Composition", get(fhir::search_compositions))
+        .route("/api/fhir/Composition/{id}", get(fhir::read_composition))
         .route(
             "/api/clinical-notes/mine/unsigned",
             get(worklist::my_unsigned_notes),

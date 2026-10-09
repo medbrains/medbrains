@@ -103,6 +103,10 @@ pub mod clinical_notes {
     /// Every signed note with its author, time and signature, as the paper
     /// sheet reads; the print is filed to the visit's medical record.
     pub const PRINT: &str = "clinical_notes.print";
+    /// Export a visit's notes as FHIR.
+    /// The signed notes as FHIR R4 Compositions, for another hospital, ABDM
+    /// or an integration; drafts are never exported.
+    pub const EXPORT: &str = "clinical_notes.export";
 }
 
 pub mod opd {
