@@ -64,7 +64,11 @@ final class DoctorJourneyTests: JourneyCase {
         shoot("doctor-no-show")
     }
 
-    func testConsultationRefusesAnEmptyNoteThenRecordsAllFourFields() {
+    /// Given a waiting patient, When the doctor saves an empty note it is
+    /// refused on the field; written, it saves as a draft on the case sheet,
+    /// and signed it is the record — under the doctor's name, reopening as
+    /// signed with a Revise inside the grace.
+    func testAConsultationNoteIsDraftedThenSignedOnTheCaseSheet() {
         let visit = api.waitingVisit(doctorId: doctor.id, last: "Consult")!
         openQueue()
         XCTAssertTrue(reveal("queue-row-\(visit.patientId)"))
@@ -76,38 +80,52 @@ final class DoctorJourneyTests: JourneyCase {
         XCTAssertTrue(el("consultation-unsaved").exists, "nothing is written yet")
         el("consultation-save").tap()
         XCTAssertTrue(app.staticTexts["Record why the patient is here"].waitForExistence(timeout: 5), "refused on the field, button still pressable")
-        XCTAssertNil(api.consultation(visit.encounterId)?["id"], "and nothing reached the server")
+        XCTAssertTrue(api.notes(visit.encounterId).isEmpty, "and nothing reached the server")
         shoot("doctor-consultation-refused")
         for (field, text) in [("chief_complaint", "Fever and cough, three days"), ("examination", "Chest clear, throat red"), ("assessment", "Viral URTI"), ("plan", "Fluids, paracetamol, review in 3 days")] {
             type("field-\(field)", text)
         }
         el("consultation-save").tap()
-        XCTAssertTrue(el("consultation-saved").waitForExistence(timeout: 15))
-        let saved = api.consultation(visit.encounterId)
-        XCTAssertEqual(saved?["chief_complaint"] as? String, "Fever and cough, three days")
-        XCTAssertEqual(saved?["examination"] as? String, "Chest clear, throat red")
-        XCTAssertEqual(saved?["notes"] as? String, "Viral URTI", "assessment is the notes column")
-        XCTAssertEqual(saved?["plan"] as? String, "Fluids, paracetamol, review in 3 days")
-        shoot("doctor-consultation-saved")
-        // Reopening shows the record, not a blank.
+        XCTAssertTrue(el("consultation-draft-saved").waitForExistence(timeout: 15), "saved as a draft")
+        let draft = api.notes(visit.encounterId).first
+        XCTAssertEqual(draft?["status"] as? String, "draft")
+        XCTAssertEqual(api.section(draft, "subjective"), "<p>Fever and cough, three days</p>", "the web reads it as written")
+        XCTAssertEqual(api.section(draft, "assessment"), "<p>Viral URTI</p>")
+        shoot("doctor-consultation-draft")
+
+        tapWhenReady(el("consultation-sign"))
+        XCTAssertTrue(el("note-status-signed").waitForExistence(timeout: 15), "signed, on the sheet")
+        let signed = api.notes(visit.encounterId).first
+        XCTAssertEqual(signed?["status"] as? String, "signed")
+        XCTAssertEqual(signed?["author_id"] as? String, doctor.id, "under the doctor's own name")
+        XCTAssertTrue(el("consultation-revise").exists, "revisable inside the grace")
+        shoot("doctor-consultation-signed")
+        // Reopening shows the signed note, not a blank form.
         app.navigationBars.buttons.element(boundBy: 0).tap()
         el("queue-open-consultation").tap()
-        XCTAssertTrue(el("consultation-saved").waitForExistence(timeout: 10), "a written note reopens as Recorded")
+        XCTAssertTrue(el("note-status-signed").waitForExistence(timeout: 10), "a signed note reopens as signed")
+        XCTAssertFalse(el("field-chief_complaint").exists, "and is not a form to write over")
     }
 
-    /// Given a consultation the web wrote system notes on, When the doctor
-    /// picks the patient's left knee on the body map and describes it, Then
-    /// the finding is saved as "Left knee" with its side, beside those notes.
+    /// Given a draft the doctor began on the web with a system note in its
+    /// examination, When they pick the patient's left knee on the body map
+    /// and describe it, Then the finding is saved as "Left knee" with its
+    /// side, beside the web's note.
     func testAFindingIsPickedOnTheBodyMapAndKeptBesideTheSystemNotes() {
         let visit = api.waitingVisit(doctorId: doctor.id, last: "Knee")!
-        let (status, _) = api.call("POST", "/api/opd/encounters/\(visit.encounterId)/consultation",
-                                   ["chief_complaint": "Knee pain", "physical_examination": ["musculoskeletal": "Antalgic gait"]])
-        XCTAssertEqual(status, 200, "the web's note to keep")
+        let asDoctor = Api.signIn(doctor.username, doctor.password)
+        let (status, _) = asDoctor.call("POST", "/api/encounters/\(visit.encounterId)/clinical-notes", [
+            "note_type_code": "consultation",
+            "sections": [["code": "subjective", "text": "<p>Knee pain</p>"],
+                         ["code": "examination", "data": ["exam": ["musculoskeletal": "Antalgic gait"]]]],
+        ])
+        XCTAssertEqual(status, 200, "the web's draft to keep")
         openQueue()
         XCTAssertTrue(reveal("queue-row-\(visit.patientId)"))
         el("queue-row-\(visit.patientId)").tap()
         el("queue-open-consultation").tap()
-        XCTAssertTrue(el("consultation-saved").waitForExistence(timeout: 10))
+        XCTAssertTrue(el("consultation-saved").waitForExistence(timeout: 10), "the web's draft opens to continue")
+        XCTAssertEqual(el("field-chief_complaint").value as? String, "Knee pain", "its text, without the markup")
 
         tapWhenReady(el("exam-finding-pick"))
         XCTAssertTrue(reveal("body-region-heel"))
@@ -123,11 +141,14 @@ final class DoctorJourneyTests: JourneyCase {
         type("field-exam-finding", "Effusion")
         el("exam-finding-add").tap()
         XCTAssertTrue(app.staticTexts["Left knee: Effusion"].waitForExistence(timeout: 5))
+        type("field-plan", "Aspirate, review")
         tapWhenReady(el("consultation-save"))
-        XCTAssertTrue(app.staticTexts["Consultation saved"].waitForExistence(timeout: 15))
-        let exam = api.consultation(visit.encounterId)?["physical_examination"] as? [String: Any]
-        XCTAssertEqual(exam?["musculoskeletal"] as? String, "Antalgic gait", "the web's note survives the phone's save")
-        let finding = (exam?["findings"] as? [[String: Any]])?.first
+        XCTAssertTrue(el("consultation-draft-saved").waitForExistence(timeout: 15))
+        let draft = api.notes(visit.encounterId).first
+        let exam = (draft?["sections"] as? [[String: Any]])?.first { $0["code"] as? String == "examination" }?["data"] as? [String: Any]
+        let inner = exam?["exam"] as? [String: Any]
+        XCTAssertEqual(inner?["musculoskeletal"] as? String, "Antalgic gait", "the web's note survives the phone's save")
+        let finding = (inner?["findings"] as? [[String: Any]])?.first
         XCTAssertEqual(finding?["site"] as? String, "Left knee")
         XCTAssertEqual(finding?["laterality"] as? String, "left")
         XCTAssertEqual(finding?["finding"] as? String, "Effusion")

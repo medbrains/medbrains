@@ -147,7 +147,12 @@ class Api private constructor(private var token: String?) {
         return id to (0 until route.length()).map { route.getJSONObject(it).getString("counter_id") }
     }
     fun campQueue(station: String) = list("/api/tokens/worklist?module=camp&scope=counter&scope_id=$station")
-    fun consultation(encounterId: String): JSONObject? = runCatching { JSONObject(call("GET", "/api/opd/encounters/$encounterId/consultation").second) }.getOrNull()
+    /** The visit's case-sheet notes, in the order care happened. */
+    fun notes(encounterId: String): List<JSONObject> = list("/api/encounters/$encounterId/clinical-notes")
+    /** One section's text on a note read from [notes]. */
+    fun section(note: JSONObject, code: String): String? = note.getJSONArray("sections").let { s ->
+        (0 until s.length()).map { s.getJSONObject(it) }.firstOrNull { it.optString("code") == code }?.optString("text")
+    }
     fun responders() = list("/api/nurse/code-blue/responders")
 
     companion object {

@@ -61,12 +61,13 @@ fun DoctorModule() {
     val session = remember { DoctorSession() }
     val client = LocalApiClient.current
     val api = DoctorApi(client)
+    val notesApi = remember { NotesApi(client) }
     val tokens = remember { TokenApi(client, TokenModule.OPD) }
     NavHost(nav, startDestination = "home") {
         composable("home") { DoctorHome(nav, tokens) }
         composable("queue") { QueueListScreen(nav, tokens, session) }
         composable("queue/{id}") { QueueDetailScreen(nav, tokens, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
-        composable("consultation/{id}") { ConsultationScreen(api, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
+        composable("consultation/{id}") { ConsultationScreen(notesApi, session.tokens.getValue(it.arguments!!.getString("id")!!)) }
         composable("ipd-rounds") { IpdRoundsScreen(nav, NurseApi(client), session) }
         composable("round/{id}") { IpdRoundDetailScreen(session.admissions.getValue(it.arguments!!.getString("id")!!)) }
         composable("my-clinic") { MyClinicScreen(api) }
