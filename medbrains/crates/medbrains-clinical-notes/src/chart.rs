@@ -149,6 +149,9 @@ pub async fn patient_notes(
 
     let facets = facets(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
+    crate::soap_access::withhold(&state, &claims, &mut notes).await?;
+    let mut addenda = addenda;
+    crate::soap_access::withhold(&state, &claims, &mut addenda).await?;
 
     let ordered = nest_addenda(notes, addenda);
     Ok(Json(ChartPage {

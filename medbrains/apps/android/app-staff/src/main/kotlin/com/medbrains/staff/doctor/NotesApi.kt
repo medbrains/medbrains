@@ -33,6 +33,8 @@ data class Note(
     /** The caller may still revise it: theirs, signed, inside the grace. */
     val revisable: Boolean,
     val cosigner_name: String? = null,
+    /** Its content is withheld from this user (consultation access restricted). */
+    val withheld: Boolean = false,
     val cosign_status: String? = null,
 )
 

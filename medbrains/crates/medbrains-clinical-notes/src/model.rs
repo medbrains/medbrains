@@ -86,6 +86,9 @@ pub struct Note {
     pub cosign_comment: Option<String>,
     /// The caller is the consultant asked to countersign it, and has not yet.
     pub is_my_cosign: bool,
+    /// Its content is withheld from the caller (`opd.soap_note` restricted).
+    #[sqlx(skip)]
+    pub withheld: bool,
 }
 
 /// The note's sections with the patches applied, in the note's own order.

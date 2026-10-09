@@ -4,6 +4,7 @@ import SwiftUI
 /// One note on the case sheet as the paper margin reads it: the kind of
 /// note, who wrote it and when, signed or not, and what it says.
 struct NoteBlock: View {
+    static let withheldMessage = "Content withheld: your access to consultation notes is restricted."
     let note: Note
 
     private var statusTag: (String, CarbonTone) {
@@ -36,6 +37,10 @@ struct NoteBlock: View {
             }
             if let reason = note.enteredInErrorReason {
                 Text("Entered in error: \(reason)").font(CarbonType.label).foregroundStyle(MedBrainsTheme.danger)
+            }
+            if note.withheld == true {
+                Text(NoteBlock.withheldMessage).font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary)
+                    .accessibilityIdentifier("note-withheld")
             }
             ForEach(lines, id: \.0) { title, text in
                 Eyebrow(title)

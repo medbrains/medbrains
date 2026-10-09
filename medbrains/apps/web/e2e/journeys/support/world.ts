@@ -29,8 +29,14 @@ export interface Hospital {
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
   doctor: () => Promise<{ id: string; fullName: string }>;
-  /** Another doctor, in this department, logged in in their own browser. */
-  colleague: (department: Department) => Promise<{ id: string; fullName: string; page: Page }>;
+  /**
+   * Another doctor, in this department, logged in in their own browser —
+   * with `fieldAccess` restrictions, when the test is about them.
+   */
+  colleague: (
+    department: Department,
+    fieldAccess?: Record<string, "view" | "mask" | "hidden">,
+  ) => Promise<{ id: string; fullName: string; page: Page }>;
 }
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
@@ -83,7 +89,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         if (!me) throw new Error("the E2E doctor is not in the consultant list");
         return { id: me.id, fullName: me.full_name };
       },
-      colleague: async (department) => {
+      colleague: async (department, fieldAccess) => {
         const suffix = unique().toLowerCase();
         const username = `colleague_${suffix}`;
         const password = `Colleague-${suffix}-Pass1!`;
@@ -99,6 +105,9 @@ export const test = base.extend<{ hospital: Hospital }>({
           specialization: department.name,
           medical_registration_number: `E2E-COL-${suffix}`,
           qualification: "MD",
+          ...(fieldAccess && {
+            access_matrix: { extra: [], denied: [], field_access: fieldAccess },
+          }),
         });
         const page = await openPage(browser);
         await loginAsRole(page, username, password);

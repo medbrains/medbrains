@@ -81,7 +81,8 @@ pub async fn countersign(
 ) -> Result<Json<Note>, AppError> {
     require_permission(&claims, permissions::clinical_notes::COSIGN)?;
     let mut tx = begin(&state, &claims).await?;
-    let (_, version, _) = awaiting_me(&mut tx, &claims, id).await?;
+    let (_, version, type_code) = awaiting_me(&mut tx, &claims, id).await?;
+    crate::soap_access::require_write(&state, &claims, &type_code).await?;
     sqlx::query(
         "UPDATE clinical_notes SET cosign_status = 'countersigned', cosigned_at = now() \
           WHERE id = $1",
@@ -128,6 +129,7 @@ pub async fn return_to_author(
     }
     let mut tx = begin(&state, &claims).await?;
     let (encounter_id, version, type_code) = awaiting_me(&mut tx, &claims, id).await?;
+    crate::soap_access::require_write(&state, &claims, &type_code).await?;
     sqlx::query(
         "INSERT INTO note_versions (tenant_id, note_id, version, sections, saved_by) \
          SELECT tenant_id, note_id, version + 1, sections, $3 FROM note_versions \
