@@ -22,6 +22,6 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-async-trait = "0.1"
+async-trait = "0.1.92"
 anyhow = "1"
 bytes = "1"
