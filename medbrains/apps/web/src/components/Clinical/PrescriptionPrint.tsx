@@ -3,6 +3,7 @@ import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import { P, type PrescriptionWithItems } from "@medbrains/types";
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
+import { formatDate } from "@/lib/date-utils";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
@@ -38,6 +39,16 @@ function escapePrintText(value: string) {
 
 const PRESCRIPTION_PRINT_COPIES = PRINT_COPY_PACKETS.prescription;
 
+/** "Valid until 09 Nov 2026 · Refills: 2, at least 30 days apart" */
+function rxTermsText(rx: PrescriptionWithItems["prescription"]): string | null {
+  const parts = [
+    rx.valid_until && `Valid until ${formatDate(rx.valid_until)}`,
+    rx.repeats_allowed > 0 &&
+      `Refills: ${rx.repeats_allowed}, at least ${rx.repeat_interval_days} days apart`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function PrescriptionPrint({
   opened,
   onClose,
@@ -58,6 +69,7 @@ export function PrescriptionPrint({
     P.PHARMACY.RX_QUEUE_REVIEW,
   ]);
   const canPrint = canViewPatient && canPrintPrescription;
+  const terms = rxTermsText(prescription.prescription);
 
   const handlePrint = () => {
     if (!canPrint) return;
@@ -178,6 +190,9 @@ export function PrescriptionPrint({
                   <strong>Instructions:</strong> {prescription.prescription.notes}
                 </div>
               )}
+
+              {/* Validity and refills: the pharmacy dispenses nothing against it after this. */}
+              {terms && <div className={styles.notes}>{terms}</div>}
 
               {/* Footer */}
               <div className={styles.footer}>

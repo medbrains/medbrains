@@ -59,6 +59,12 @@ export interface CreatePrescriptionRequest {
   duplicate_override_reason?: string;
   /** Reason for prescribing when the prescriber's medical registration has expired — required in that case. */
   credential_override_reason?: string;
+  /** Refills the doctor authorises without a new visit (0-12); never on a controlled drug. */
+  repeats_allowed?: number;
+  /** Days between refills; required with refills. */
+  repeat_interval_days?: number;
+  /** Last day the prescription may be dispensed or refilled (YYYY-MM-DD). */
+  valid_until?: string;
 }
 
 export interface UpdatePrescriptionRequest {
@@ -3338,9 +3344,24 @@ export interface RepeatEligibility {
   repeats_allowed: number;
   repeats_used: number;
   remaining: number;
+  repeat_interval_days: number | null;
+  valid_until: string | null;
   last_dispense_at: string | null;
   next_eligible_at: string | null;
   is_eligible_now: boolean;
+  /** Why a refill can't be issued now, in words for the counter. */
+  reason: string | null;
+}
+
+export interface RepeatRow {
+  id: string;
+  prescription_id: string;
+  pharmacy_order_id: string | null;
+  rx_queue_id: string | null;
+  repeat_index: number;
+  dispensed_at: string;
+  dispensed_by: string;
+  notes: string | null;
 }
 
 export interface PharmacySubstitution {

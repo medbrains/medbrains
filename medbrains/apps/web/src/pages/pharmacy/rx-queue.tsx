@@ -26,7 +26,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, FormModal, OperationalSignal } from "@/components";
-import { Alert, Button, IconButton, Input, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Input, toast } from "@/components/ui";
 import { optionalFormText } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { RxBillingEstimate } from "./rx-billing-estimate";
@@ -258,13 +258,20 @@ export function RxQueueTab({
       key: "source",
       label: t("rxQueue.columns.source"),
       render: (row: RxQueueRow) => (
-        <OperationalSignal
-          icon={IconPrescription}
-          label={rxSourceLabel(t, row.source)}
-          shape={rxSourceShape(row.source)}
-          size="xs"
-          tone={rxSourceTone(row.source)}
-        />
+        <Group gap={6} wrap="nowrap">
+          <OperationalSignal
+            icon={IconPrescription}
+            label={rxSourceLabel(t, row.source)}
+            shape={rxSourceShape(row.source)}
+            size="xs"
+            tone={rxSourceTone(row.source)}
+          />
+          {row.repeat_index !== null && (
+            <Badge tone="info" size="xs">
+              Refill {row.repeat_index}
+            </Badge>
+          )}
+        </Group>
       ),
     },
     {

@@ -121,6 +121,10 @@ pub struct Prescription {
     pub read_back_confirmed: bool,
     pub countersign_due_at: Option<DateTime<Utc>>,
     pub is_signed: bool,
+    pub repeats_allowed: i32,
+    pub repeat_interval_days: Option<i32>,
+    pub repeats_used: i32,
+    pub valid_until: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

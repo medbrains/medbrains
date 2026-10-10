@@ -8,6 +8,7 @@ use std::{
 
 pub mod last_visit;
 pub mod referral_lifecycle;
+pub mod rx_terms;
 pub mod transfer;
 
 use axum::{
@@ -313,6 +314,13 @@ pub struct CreatePrescriptionRequest {
     /// has expired (`doctor_profiles.registration_valid_until` in the past). Required
     /// (non-blank) in that case; logged. Without it the prescription is blocked.
     pub credential_override_reason: Option<String>,
+    /// Refills the doctor authorises without a new visit (0-12). Never on a
+    /// Schedule X, H1 or NDPS line.
+    pub repeats_allowed: Option<i32>,
+    /// Days between refills; required with refills.
+    pub repeat_interval_days: Option<i32>,
+    /// Last day the prescription may be dispensed or refilled against.
+    pub valid_until: Option<NaiveDate>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2755,11 +2763,20 @@ pub async fn create_prescription(
         )));
     }
 
+    let terms = medbrains_core::rx_refills::RefillTerms {
+        refills: body.repeats_allowed.unwrap_or(0),
+        interval_days: body.repeat_interval_days,
+        valid_until: body.valid_until,
+    };
+    let catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    rx_terms::check_refill_terms(&mut tx, &claims, terms, &catalog_ids, is_verbal).await?;
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
-            read_back_confirmed, countersign_due_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+            read_back_confirmed, countersign_due_at, repeats_allowed, repeat_interval_days, \
+            valid_until) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(encounter_id)
@@ -2769,6 +2786,9 @@ pub async fn create_prescription(
     .bind(transcribed_by)
     .bind(is_verbal)
     .bind(countersign_due)
+    .bind(terms.refills)
+    .bind(terms.interval_days.filter(|_| terms.refills > 0))
+    .bind(terms.valid_until)
     .fetch_one(&mut *tx)
     .await?;
 

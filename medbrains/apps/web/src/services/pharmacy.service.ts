@@ -1,10 +1,5 @@
 import { api } from "@medbrains/api";
-import type {
-  CreateSubstitutionInput,
-  FefoBatch,
-  PharmacySubstitution,
-  RepeatEligibility,
-} from "@medbrains/types";
+import type { CreateSubstitutionInput, FefoBatch, PharmacySubstitution } from "@medbrains/types";
 
 export const pharmacyService = {
   selectFefoBatch: (data: {
@@ -13,8 +8,8 @@ export const pharmacyService = {
     store_location_id?: string;
   }) => api.selectFefoBatch(data) as Promise<{ batches: FefoBatch[] }>,
   dispenseRepeat: (...args: Parameters<typeof api.dispenseRepeat>) => api.dispenseRepeat(...args),
-  checkRepeatEligibility: (prescriptionId: string) =>
-    api.checkRepeatEligibility(prescriptionId) as Promise<RepeatEligibility>,
+  checkRepeatEligibility: (...args: Parameters<typeof api.checkRepeatEligibility>) =>
+    api.checkRepeatEligibility(...args),
   createSubstitution: (data: CreateSubstitutionInput) =>
     api.createSubstitution(
       data as unknown as Record<string, unknown>,
