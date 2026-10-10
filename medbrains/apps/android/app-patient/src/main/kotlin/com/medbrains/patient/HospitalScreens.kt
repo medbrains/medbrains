@@ -86,6 +86,7 @@ fun MedicinesScreen(portal: PortalApi) {
     val state by remote.state.collectAsState()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-prescriptions")) {
         CarbonPageHeader("Medicines", "Your prescriptions", "What was prescribed, and how to take it.")
+        RefillsSection(portal)
         RemoteContent("prescriptions", state, "Couldn't load your prescriptions", "Try again in a moment.", { it.isEmpty() }, "No prescriptions yet", "Nothing has been prescribed to you.", { scope.launch { remote.load { portal.prescriptions() } } }) { rows ->
             Column {
                 rows.take(200).groupBy { it.prescription_id }.values.sortedByDescending { it.first().prescribed_at }.forEach { items ->
