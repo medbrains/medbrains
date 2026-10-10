@@ -3339,7 +3339,7 @@ pub async fn list_patient_prescriptions(
     let prescriptions = sqlx::query_as::<_, Prescription>(
         "SELECT p.* FROM prescriptions p \
          JOIN encounters e ON p.encounter_id = e.id \
-         WHERE e.patient_id = $1 AND p.tenant_id = $2 \
+         WHERE e.patient_id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL \
          ORDER BY p.created_at DESC \
          LIMIT 50",
     )

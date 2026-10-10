@@ -24,6 +24,7 @@ import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
 import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
+import { useLastPrescription } from "./useLastPrescription";
 
 interface Props {
   encounterId: string;
@@ -131,6 +132,14 @@ export function RxSuiteWriter({
     staleTime: 600_000,
   });
   const nlemGenerics = useMemo(() => new Set(nlemList), [nlemList]);
+
+  const lastRx = useLastPrescription(
+    patientId,
+    encounterId,
+    catalog,
+    formularyById,
+    canUpdate && prescriber === "doctor",
+  );
 
   const templateToItems = (tpl: PrescriptionTemplate): RxItem[] =>
     prescriptionItemsToRx(tpl.items, formularyById);
@@ -354,6 +363,7 @@ export function RxSuiteWriter({
         signer={signer}
         templates={templates}
         templateToItems={templateToItems}
+        lastRx={lastRx}
         onSaveTemplate={(name, items) => saveTemplateMutation.mutate({ name, items })}
         priorDrugIds={priorDrugIds}
         onItemsChange={handleItemsChange}

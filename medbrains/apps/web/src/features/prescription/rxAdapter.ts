@@ -32,6 +32,8 @@ import {
   type DrugSchedule,
   dosesFreqCode,
   type FormularyDrug,
+  FREQ_CODES,
+  freqCodeToDoses,
   type Repeat,
   type Route,
   type RxItem,
@@ -212,6 +214,12 @@ function dosesFromTiming(timing: MedicationTiming): Dose[] {
   return doses;
 }
 
+/** A line saved with a bare frequency ("OD", "TDS") and no timing detail. */
+function dosesFromCode(code: string): Dose[] {
+  const quick = code === "TDS" ? "TID" : code;
+  return (FREQ_CODES as readonly string[]).includes(quick) ? freqCodeToDoses(quick).doses : [];
+}
+
 /** Reverse-map saved prescription items into rx-suite items so an existing Rx
  *  can be loaded back into the composer for editing. Best-effort: cadence that
  *  was folded into `custom_instruction` returns as the note. */
@@ -224,7 +232,8 @@ export function prescriptionItemsToRx(
     const parsed = parseInstructions(item.instructions);
     const timing = parsed && !("text" in parsed) ? parsed : null;
     const freeText = parsed && "text" in parsed ? parsed.text : "";
-    const isSos = item.frequency.toUpperCase() === "SOS" || item.frequency.toUpperCase() === "PRN";
+    const code = item.frequency.toUpperCase();
+    const isSos = code === "SOS" || code === "PRN";
     const dur = parseDuration(item.duration);
     const repeat: Repeat = { type: "daily" };
     return {
@@ -234,7 +243,7 @@ export function prescriptionItemsToRx(
       form: drug?.form ?? "",
       strength: item.dosage,
       brand: drug?.brands[0] ?? item.drug_name,
-      doses: isSos || !timing ? [] : dosesFromTiming(timing),
+      doses: isSos ? [] : timing ? dosesFromTiming(timing) : dosesFromCode(code),
       sos: isSos,
       repeat,
       days: dur.days || 5,

@@ -16,6 +16,7 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconExclamationCircle,
+  IconRepeat,
   IconShieldCheck,
   IconTemplate,
 } from "@tabler/icons-react";
@@ -34,6 +35,7 @@ import {
   searchFormulary,
   stockStatus,
 } from "./rxModel";
+import type { LastPrescription } from "./useLastPrescription";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -102,6 +104,8 @@ interface Props {
   /** Convert a saved set into rx-suite rows (uses the live formulary). */
   templateToItems: (tpl: PrescriptionTemplate) => RxItem[];
   onSaveTemplate: (name: string, items: RxItem[]) => void;
+  /** The patient's last prescription from another visit, if any. */
+  lastRx?: LastPrescription | null;
   /** Digital-sign control rendered in the card footer (provided when a saved Rx exists). */
   signAction?: ReactNode;
   /** Catalog ids already prescribed on this visit — warns (doesn't block) on re-add. */
@@ -129,6 +133,7 @@ export function RxDoctor({
   templates,
   templateToItems,
   onSaveTemplate,
+  lastRx,
   signAction,
   priorDrugIds,
   onItemsChange,
@@ -203,12 +208,27 @@ export function RxDoctor({
     if (expandedUid === uid) setExpandedUid(null);
     commit(items.filter((it) => it.uid !== uid));
   };
-  const loadTemplate = (tpl: PrescriptionTemplate) => {
-    const fresh = templateToItems(tpl).map((it) => {
-      UID += 1;
-      return { ...it, uid: UID };
-    });
+  const loadItems = (incoming: RxItem[]) => {
+    // A drug already on the pad stays as written; it is not added twice.
+    const fresh = incoming
+      .filter((it) => !items.some((have) => have.id === it.id))
+      .map((it) => {
+        UID += 1;
+        return { ...it, uid: UID };
+      });
     commit([...items, ...fresh]);
+  };
+  const loadTemplate = (tpl: PrescriptionTemplate) => loadItems(templateToItems(tpl));
+  const repeatLast = () => {
+    if (!lastRx) return;
+    loadItems(lastRx.items);
+    if (lastRx.skipped.length > 0) {
+      notifications.show({
+        title: "Not repeated",
+        message: `No longer in the formulary: ${lastRx.skipped.join(", ")}`,
+        color: "yellow",
+      });
+    }
   };
   const saveTemplate = () => {
     if (!setName.trim()) return;
@@ -305,6 +325,16 @@ export function RxDoctor({
                 {reviewCount ? reviewCount : "clear"}
               </span>
             </Button>
+            {lastRx && lastRx.items.length > 0 && (
+              <Button
+                tone="ghost"
+                leftSection={<IconRepeat size={15} />}
+                title={`Last prescription: ${lastRx.label}`}
+                onClick={repeatLast}
+              >
+                Repeat last prescription
+              </Button>
+            )}
             <Menu shadow="md" width={240} position="bottom-end">
               <Menu.Target>
                 <Button tone="ghost" leftSection={<IconTemplate size={15} />}>
