@@ -189,7 +189,7 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
             issue_count: 0,
         };
     }
-    issues.sort_by(|a, b| b.0.cmp(&a.0));
+    issues.sort_by_key(|i| std::cmp::Reverse(i.0));
     let critical = issues.iter().filter(|i| i.0 == 2).count();
     let severity = if critical > 0 { "critical" } else { "warning" };
     let top: Vec<String> = issues.iter().take(3).map(|i| i.1.clone()).collect();

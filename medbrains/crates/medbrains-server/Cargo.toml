@@ -130,7 +130,7 @@ medbrains-fhir = { path = "../medbrains-fhir" }
 medbrains-crypto = { path = "../medbrains-crypto" }
 medbrains-db-topology = { path = "../medbrains-db-topology" }
 medbrains-abdm = { path = "../medbrains-abdm" }
-async-trait = "0.1"
+async-trait = "0.1.92"
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }

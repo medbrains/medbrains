@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 anyhow.workspace = true
-async-trait = "0.1"
+async-trait = "0.1.92"
 chrono = { workspace = true }
 prost = "0.14.3"
 prost-types = "0.14.3"
