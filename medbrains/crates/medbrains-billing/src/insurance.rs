@@ -1138,7 +1138,7 @@ fn extract_claim_number_from_description(desc: &str) -> Option<String> {
                 .take_while(|c| c.is_alphanumeric() || *c == '-')
                 .collect();
             if candidate.len() >= 4 {
-                return Some(format!("{}{}", &prefix.replace(' ', ""), candidate));
+                return Some(format!("{}{}", prefix.replace(' ', ""), candidate));
             }
         }
     }

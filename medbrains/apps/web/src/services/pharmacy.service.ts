@@ -47,6 +47,8 @@ export const pharmacyService = {
     api.importPharmacyCatalog(...args),
   createPharmacyCatalog: (...args: Parameters<typeof api.createPharmacyCatalog>) =>
     api.createPharmacyCatalog(...args),
+  updatePharmacyCatalog: (...args: Parameters<typeof api.updatePharmacyCatalog>) =>
+    api.updatePharmacyCatalog(...args),
   listStock: (...args: Parameters<typeof api.listStock>) => api.listStock(...args),
   createStockTransaction: (...args: Parameters<typeof api.createStockTransaction>) =>
     api.createStockTransaction(...args),

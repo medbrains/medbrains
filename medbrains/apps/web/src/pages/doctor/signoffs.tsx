@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 import { CountersignCard } from "@/components/Clinical/case-sheet/CountersignCard";
 import { UnsignedNotesCard } from "@/components/Clinical/case-sheet/UnsignedNotesCard";
 import { CriticalValueInbox } from "@/components/Doctor/CriticalValueInbox";
+import { RefillDecision } from "@/components/Doctor/RefillDecision";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
@@ -225,11 +226,20 @@ function SignoffList({
                   </Badge>
                 )}
               </Stack>
-              <Tooltip label="Sign">
-                <IconButton tone="primary" size="lg" onClick={() => onSign(item)} aria-label="Sign">
-                  <IconSignature size={18} />
-                </IconButton>
-              </Tooltip>
+              {item.record_type === "refill_request" ? (
+                <RefillDecision item={item} />
+              ) : (
+                <Tooltip label="Sign">
+                  <IconButton
+                    tone="primary"
+                    size="lg"
+                    onClick={() => onSign(item)}
+                    aria-label="Sign"
+                  >
+                    <IconSignature size={18} />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Group>
           </Card>
         );
@@ -260,6 +270,8 @@ function labelFor(type: string): string {
       return "Operative Note";
     case "progress_note":
       return "Progress Note";
+    case "refill_request":
+      return "Refill request";
     default:
       return type.replace(/_/g, " ");
   }

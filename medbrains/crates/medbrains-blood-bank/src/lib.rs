@@ -1418,13 +1418,7 @@ pub async fn add_reading(
     .ok_or(AppError::NotFound)?;
 
     let alert_level = match (device.min_temp, device.max_temp) {
-        (Some(min), Some(max)) => {
-            if body.temperature < min || body.temperature > max {
-                "critical"
-            } else {
-                "normal"
-            }
-        }
+        (Some(min), Some(max)) if body.temperature < min || body.temperature > max => "critical",
         _ => "normal",
     };
 

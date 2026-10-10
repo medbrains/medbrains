@@ -286,6 +286,8 @@ export type {
   PortalInvoice,
   PortalLabReport,
   PortalPrescriptionItem,
+  PortalRefill,
+  PortalRefillRequest,
   PortalSession,
   PublicAvailableSlot,
   PublicBookableDoctor,

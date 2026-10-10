@@ -22,6 +22,7 @@ import { useParams } from "react-router";
 import { Alert, Button } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { PortalHome } from "./PortalHome";
+import { PortalRefills } from "./portal-refills";
 import {
   clearPortalSession,
   readPortalSession,
@@ -70,7 +71,10 @@ export function PatientPortalPage() {
           <PortalReports token={session.token} />
         </Tabs.Panel>
         <Tabs.Panel value="prescriptions" pt="md">
-          <PortalPrescriptions token={session.token} />
+          <Stack gap="lg">
+            <PortalRefills token={session.token} />
+            <PortalPrescriptions token={session.token} />
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="bills" pt="md">
           <PortalBills token={session.token} />

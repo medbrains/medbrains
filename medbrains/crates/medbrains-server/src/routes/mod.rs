@@ -10,6 +10,7 @@ pub mod debug;
 pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
+pub mod portal_refills;
 pub mod rx_verify;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -764,6 +765,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/portal/appointments", get(portal::portal_appointments))
         .route("/api/portal/entitlements", get(portal::portal_entitlements))
+        .route("/api/portal/refills", get(portal_refills::portal_refills))
+        .route(
+            "/api/portal/prescriptions/{id}/refill-request",
+            post(portal_refills::portal_request_refill),
+        )
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +
