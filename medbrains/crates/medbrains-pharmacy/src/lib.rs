@@ -235,6 +235,7 @@ pub struct CreateCatalogRequest {
     pub black_box_warning: Option<String>,
     pub barcode: Option<String>,
     pub refill_policy: Option<String>,
+    pub needs_cold_chain: Option<bool>,
 }
 
 /// Refuse a refill policy the catalogue doesn't know, rather than letting the
@@ -282,6 +283,7 @@ pub struct UpdateCatalogRequest {
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
     pub refill_policy: Option<String>,
+    pub needs_cold_chain: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4099,10 +4101,11 @@ pub async fn create_catalog_entry(
           drug_schedule, is_controlled, inn_name, atc_code, rxnorm_code, \
           snomed_code, formulary_status, aware_category, is_lasa, lasa_group, \
           max_dose_per_day, batch_tracking_required, storage_conditions, \
-          black_box_warning, barcode, refill_policy) \
+          black_box_warning, barcode, refill_policy, needs_cold_chain) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
                  $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, \
-                 $22, $23, $24, $25, $26, COALESCE($27, 'doctor_approval')) \
+                 $22, $23, $24, $25, $26, COALESCE($27, 'doctor_approval'), \
+                 COALESCE($28, false)) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -4132,6 +4135,7 @@ pub async fn create_catalog_entry(
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
     .bind(&body.refill_policy)
+    .bind(body.needs_cold_chain)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4184,6 +4188,7 @@ pub async fn update_catalog_entry(
          black_box_warning = COALESCE($25, black_box_warning), \
          barcode = COALESCE($26, barcode), \
          refill_policy = COALESCE($27, refill_policy), \
+         needs_cold_chain = COALESCE($28, needs_cold_chain), \
          updated_at = now() \
          WHERE id = $10 AND tenant_id = $11 \
          RETURNING *",
@@ -4215,6 +4220,7 @@ pub async fn update_catalog_entry(
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
     .bind(&body.refill_policy)
+    .bind(body.needs_cold_chain)
     .fetch_optional(&mut *tx)
     .await?;
 

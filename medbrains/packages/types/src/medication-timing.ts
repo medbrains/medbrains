@@ -3244,6 +3244,8 @@ export interface PharmacyCatalog {
   barcode: string | null;
   /** Who may let a refill through on the patient's request. */
   refill_policy: RefillPolicy;
+  /** Needs refrigeration: delivered only by the hospital's runner, never by courier. */
+  needs_cold_chain: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3469,6 +3471,7 @@ export interface CreatePharmacyCatalogRequest {
   black_box_warning?: string;
   barcode?: string;
   refill_policy?: RefillPolicy;
+  needs_cold_chain?: boolean;
 }
 
 export interface UpdatePharmacyCatalogRequest {
@@ -3498,6 +3501,7 @@ export interface UpdatePharmacyCatalogRequest {
   black_box_warning?: string;
   barcode?: string;
   refill_policy?: RefillPolicy;
+  needs_cold_chain?: boolean;
 }
 
 export interface CreateStockTransactionRequest {

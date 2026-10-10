@@ -36,6 +36,7 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
+import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
 import { EditablePharmacyQuantity } from "./editable-quantity";
 import { NearExpiryHints } from "./near-expiry-hints";
 import { PrescriptionAuditTrail } from "./prescription-audit-trail";
@@ -255,6 +256,7 @@ export function PharmacyOrderDetail({
       {detail.order.prescription_id && (
         <RepeatPanel prescriptionId={detail.order.prescription_id} />
       )}
+      <ArrangeDeliveryButton orderId={detail.order.id} orderStatus={detail.order.status} />
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.

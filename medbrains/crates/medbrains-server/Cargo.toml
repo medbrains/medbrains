@@ -75,6 +75,7 @@ medbrains-documents-render = { path = "../medbrains-documents-render" }
 medbrains-mail-provisioning = { path = "../medbrains-mail-provisioning" }
 medbrains-pharmacy-petty-cash = { path = "../medbrains-pharmacy-petty-cash" }
 medbrains-pharmacy-repeats = { path = "../medbrains-pharmacy-repeats" }
+medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
 medbrains-ward-stock = { path = "../medbrains-ward-stock" }
 medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
 medbrains-app-manifest = { path = "../medbrains-app-manifest" }

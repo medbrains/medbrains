@@ -755,6 +755,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            permissions::pharmacy::deliveries::VIEW,
+            permissions::pharmacy::deliveries::ARRANGE,
+            permissions::pharmacy::deliveries::COMPLETE,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
@@ -1772,6 +1775,17 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ot::preferences::MANAGE,
             permissions::ot::reports::VIEW,
             permissions::ot::safety_checklist::CREATE,
+        ],
+    },
+    BuiltInRole {
+        code: "delivery_runner",
+        name: "Delivery runner",
+        description: "Takes medicines to patients' homes and hands them over against the patient's code",
+        permissions: &[
+            permissions::admin::settings::READ,
+            permissions::dashboard::VIEW,
+            permissions::pharmacy::deliveries::VIEW,
+            permissions::pharmacy::deliveries::COMPLETE,
         ],
     },
 ];

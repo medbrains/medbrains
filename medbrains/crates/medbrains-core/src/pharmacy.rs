@@ -40,6 +40,8 @@ pub struct PharmacyCatalog {
     /// Who may let a refill through on the patient's request: `pharmacy`,
     /// `doctor_approval` or `never`. Controlled drugs are never refilled.
     pub refill_policy: String,
+    /// Needs refrigeration: delivered only by the hospital's runner, never by courier.
+    pub needs_cold_chain: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

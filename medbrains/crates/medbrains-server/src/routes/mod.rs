@@ -371,6 +371,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
         .merge(medbrains_pharmacy_repeats::router())
+        .merge(medbrains_pharmacy_delivery::router())
         // ── Pharmacy Finance: Cash Drawer ──────────────────
         .merge(medbrains_pharmacy_cash_drawer::router())
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──

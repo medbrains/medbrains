@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1008 permissions, one per constant in the Rust source. */
+/** 1011 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -601,6 +601,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.stock.manage",
     label: "Manage Stock",
     description: "Manage pharmacy inventory",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.deliveries.view",
+    label: "View home deliveries",
+    description: "The deliveries list and each delivery's address, status and payment. A runner sees the ones assigned to them.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.deliveries.arrange",
+    label: "Arrange home deliveries",
+    description: "Send an order out for delivery: address, runner or courier, payment, dispatch — and record a failed attempt.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.deliveries.complete",
+    label: "Complete deliveries at the door",
+    description: "Hand the medicines over against the patient's one-time code and record cash collected on delivery.",
     module: "pharmacy",
   },
   {
@@ -8259,6 +8277,14 @@ export const P = {
       LOOKUP: "pharmacy.catalog.lookup",
     },
     CATALOG_LOOKUP: "pharmacy.catalog.lookup",
+    DELIVERIES: {
+      ARRANGE: "pharmacy.deliveries.arrange",
+      COMPLETE: "pharmacy.deliveries.complete",
+      VIEW: "pharmacy.deliveries.view",
+    },
+    DELIVERIES_ARRANGE: "pharmacy.deliveries.arrange",
+    DELIVERIES_COMPLETE: "pharmacy.deliveries.complete",
+    DELIVERIES_VIEW: "pharmacy.deliveries.view",
     DISPENSING: {
       CANCEL: "pharmacy.dispensing.cancel",
       CREATE: "pharmacy.dispensing.create",
@@ -9805,6 +9831,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
+      P.PHARMACY.DELIVERIES.ARRANGE,
+      P.PHARMACY.DELIVERIES.COMPLETE,
+      P.PHARMACY.DELIVERIES.VIEW,
       P.PHARMACY.DISPENSING.CANCEL,
       P.PHARMACY.DISPENSING.CREATE,
       P.PHARMACY.DISPENSING.PARTIAL,
@@ -10657,6 +10686,15 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OT.ROOMS.MANAGE,
       P.OT.SAFETY_CHECKLIST.CREATE,
       P.OT.SAFETY_CHECKLIST.LIST,
+    ],
+  },
+  delivery_runner: {
+    label: "Delivery runner",
+    permissions: [
+      P.ADMIN.SETTINGS.READ,
+      P.DASHBOARD.VIEW,
+      P.PHARMACY.DELIVERIES.COMPLETE,
+      P.PHARMACY.DELIVERIES.VIEW,
     ],
   },
 };
