@@ -3242,9 +3242,14 @@ export interface PharmacyCatalog {
   black_box_warning: string | null;
   /** GTIN/EAN-13 or other pack barcode. Batch and expiry live on the batch. */
   barcode: string | null;
+  /** Who may let a refill through on the patient's request. */
+  refill_policy: RefillPolicy;
   created_at: string;
   updated_at: string;
 }
+
+/** Who may let a refill through on the patient's request; controlled drugs never. */
+export type RefillPolicy = "pharmacy" | "doctor_approval" | "never";
 
 /** A stock row with its batch facts aggregated server-side.
  *
@@ -3463,6 +3468,7 @@ export interface CreatePharmacyCatalogRequest {
   storage_conditions?: string;
   black_box_warning?: string;
   barcode?: string;
+  refill_policy?: RefillPolicy;
 }
 
 export interface UpdatePharmacyCatalogRequest {
@@ -3491,6 +3497,7 @@ export interface UpdatePharmacyCatalogRequest {
   storage_conditions?: string;
   black_box_warning?: string;
   barcode?: string;
+  refill_policy?: RefillPolicy;
 }
 
 export interface CreateStockTransactionRequest {

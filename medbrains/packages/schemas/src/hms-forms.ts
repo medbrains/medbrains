@@ -1675,6 +1675,7 @@ export const pharmacyCatalogFormSchema = z.object({
   // to typing the name.
   barcode: z.string(),
   is_controlled: z.boolean(),
+  refill_policy: z.enum(["pharmacy", "doctor_approval", "never"]),
 });
 
 export const miniAddLabTestFormSchema = z.object({

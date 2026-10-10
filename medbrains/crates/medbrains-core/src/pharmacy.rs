@@ -37,6 +37,9 @@ pub struct PharmacyCatalog {
     /// GTIN/EAN-13 or other pack barcode identifying the product. Batch and
     /// expiry are not encoded here — those live on the batch.
     pub barcode: Option<String>,
+    /// Who may let a refill through on the patient's request: `pharmacy`,
+    /// `doctor_approval` or `never`. Controlled drugs are never refilled.
+    pub refill_policy: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

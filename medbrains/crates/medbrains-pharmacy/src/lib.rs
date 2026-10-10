@@ -234,6 +234,18 @@ pub struct CreateCatalogRequest {
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
     pub barcode: Option<String>,
+    pub refill_policy: Option<String>,
+}
+
+/// Refuse a refill policy the catalogue doesn't know, rather than letting the
+/// database's check answer 500.
+fn check_refill_policy(policy: Option<&str>) -> Result<(), AppError> {
+    match policy {
+        None | Some("pharmacy" | "doctor_approval" | "never") => Ok(()),
+        Some(other) => Err(AppError::BadRequest(format!(
+            "Unknown refill policy \"{other}\": use pharmacy, doctor_approval or never"
+        ))),
+    }
 }
 
 /// An empty barcode box means "not recorded", not an empty string — otherwise
@@ -269,6 +281,7 @@ pub struct UpdateCatalogRequest {
     pub batch_tracking_required: Option<bool>,
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
+    pub refill_policy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4065,6 +4078,7 @@ pub async fn create_catalog_entry(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_catalog_price_write(Some(body.base_price), &restricted_fields, true)?;
+    check_refill_policy(body.refill_policy.as_deref())?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
     let stock = body.current_stock.unwrap_or(0);
@@ -4085,10 +4099,10 @@ pub async fn create_catalog_entry(
           drug_schedule, is_controlled, inn_name, atc_code, rxnorm_code, \
           snomed_code, formulary_status, aware_category, is_lasa, lasa_group, \
           max_dose_per_day, batch_tracking_required, storage_conditions, \
-          black_box_warning, barcode) \
+          black_box_warning, barcode, refill_policy) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
                  $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, \
-                 $22, $23, $24, $25, $26) \
+                 $22, $23, $24, $25, $26, COALESCE($27, 'doctor_approval')) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -4117,6 +4131,7 @@ pub async fn create_catalog_entry(
     .bind(&body.storage_conditions)
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
+    .bind(&body.refill_policy)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4136,6 +4151,7 @@ pub async fn update_catalog_entry(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_catalog_price_write(body.base_price, &restricted_fields, false)?;
+    check_refill_policy(body.refill_policy.as_deref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4167,6 +4183,7 @@ pub async fn update_catalog_entry(
          storage_conditions = COALESCE($24, storage_conditions), \
          black_box_warning = COALESCE($25, black_box_warning), \
          barcode = COALESCE($26, barcode), \
+         refill_policy = COALESCE($27, refill_policy), \
          updated_at = now() \
          WHERE id = $10 AND tenant_id = $11 \
          RETURNING *",
@@ -4197,6 +4214,7 @@ pub async fn update_catalog_entry(
     .bind(&body.storage_conditions)
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
+    .bind(&body.refill_policy)
     .fetch_optional(&mut *tx)
     .await?;
 
