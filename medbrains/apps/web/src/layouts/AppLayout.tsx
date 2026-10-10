@@ -478,16 +478,22 @@ export function AppLayout() {
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
-            <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
+            <Group
+              gap={8}
+              wrap="nowrap"
+              miw={0}
+              className={classes.logoArea}
+              onClick={() => navigate("/dashboard")}
+            >
               <Brand surface="header" />
             </Group>
           </Group>
 
           <Group gap="sm" wrap="nowrap">
             <HeaderWidgets />
-            <Box visibleFrom="lg" style={{ height: "100%" }}>
+            <Box visibleFrom="xl" style={{ height: "100%" }}>
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
@@ -548,7 +554,7 @@ export function AppLayout() {
 
             <Menu shadow="lg" width={180} position="bottom-end">
               <Menu.Target>
-                <Group gap={8} style={{ cursor: "pointer" }}>
+                <Group gap={8} wrap="nowrap" style={{ cursor: "pointer" }}>
                   <Avatar
                     color="primary"
                     radius="lg"
@@ -557,11 +563,17 @@ export function AppLayout() {
                   >
                     {userInitial}
                   </Avatar>
-                  <Box visibleFrom="sm" style={{ lineHeight: 1.2 }}>
-                    <Text size="xs" fw={600} c="var(--mb-text-primary)">
+                  <Box visibleFrom="lg" maw={160} style={{ lineHeight: 1.2 }}>
+                    <Text size="xs" fw={600} c="var(--mb-text-primary)" truncate="end">
                       {user?.full_name}
                     </Text>
-                    <Text size="xs" c="var(--mb-text-muted)" fw={400} tt="capitalize">
+                    <Text
+                      size="xs"
+                      c="var(--mb-text-muted)"
+                      fw={400}
+                      tt="capitalize"
+                      truncate="end"
+                    >
                       {user?.role?.replace(/_/g, " ")}
                     </Text>
                   </Box>

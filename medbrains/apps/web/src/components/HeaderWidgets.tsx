@@ -111,8 +111,11 @@ export function HeaderWidgets() {
   return (
     <Group gap="xs" wrap="nowrap" visibleFrom="lg">
       <MyShiftWidget />
-      <ClockWidget />
-      <WeatherWidget />
+      {/* Ambient, so the first to go when the bar is tight (zoom, small laptops). */}
+      <Group gap="xs" wrap="nowrap" visibleFrom="xl">
+        <ClockWidget />
+        <WeatherWidget />
+      </Group>
     </Group>
   );
 }

@@ -21,13 +21,16 @@ export function VerifyEmailBanner() {
 
   return (
     <Alert tone="warning" title="Verify your email">
-      <Group justify="space-between" wrap="nowrap" gap="md">
-        <Text size="sm">
+      {/* Wraps, and the button keeps its size: at high zoom the line breaks,
+          the address breaks if it must, and Resend moves below the text. */}
+      <Group justify="space-between" gap="md">
+        <Text size="sm" miw={0} style={{ flex: "1 1 20rem", overflowWrap: "anywhere" }}>
           Confirm <b>{me.email}</b> to secure your account — check your inbox for the link.
         </Text>
         <Button
           tone="ghost"
           size="compact-sm"
+          style={{ flexShrink: 0 }}
           onClick={() => resend.mutate()}
           loading={resend.isPending}
         >
