@@ -5,6 +5,7 @@ import { P } from "@medbrains/types";
 import { useMemo } from "react";
 import { AiInlinePanel, SseTransport } from "@/components/ai";
 import type { KpiBaseline } from "./kpi-reading";
+import { useReportWidgetData } from "./useReportWidgetData";
 import { widgetAiContext } from "./widget-ai-context";
 
 interface Props {
@@ -26,7 +27,12 @@ export default function WidgetAskAi({ widget, data, compare }: Props) {
   // The real assistant — the panel's own default is a mock that would answer
   // with invented text.
   const transport = useMemo(() => new SseTransport(), []);
-  const context = useMemo(() => widgetAiContext(widget, data, compare), [widget, data, compare]);
+  const reportId = widget.data_source?.type === "report" ? widget.data_source.report_id : undefined;
+  const { shape } = useReportWidgetData(reportId);
+  const context = useMemo(
+    () => widgetAiContext(widget, data, compare, shape),
+    [widget, data, compare, shape],
+  );
   if (!canAsk) return null;
   return (
     <Stack gap="xs">

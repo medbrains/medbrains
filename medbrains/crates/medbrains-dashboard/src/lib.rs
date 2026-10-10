@@ -37,6 +37,9 @@ struct DataFilters {
     user_id: Option<Uuid>,
     /// The day the viewer is looking at; today when absent.
     as_of: Option<NaiveDate>,
+    /// One department the viewer has narrowed this widget to, where the
+    /// widget's data can be (a KPI that says so); hospital-wide when absent.
+    department_id: Option<Uuid>,
 }
 
 /// Resolve the effective data filters for a widget, merging the widget's
@@ -55,6 +58,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                 department_ids: Vec::new(),
                 user_id: Some(claims.sub),
                 as_of: None,
+                department_id: None,
             }
         }
         "custom" => {
@@ -76,6 +80,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                     department_ids: widget_dept_ids,
                     user_id: Some(claims.sub),
                     as_of: None,
+                    department_id: None,
                 }
             } else {
                 // Intersect: only keep widget departments that the user actually has access to
@@ -87,6 +92,7 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                     department_ids: intersected,
                     user_id: Some(claims.sub),
                     as_of: None,
+                    department_id: None,
                 }
             }
         }
@@ -98,12 +104,14 @@ fn resolve_data_filters(widget: &DashboardWidget, claims: &Claims) -> DataFilter
                     department_ids: Vec::new(),
                     user_id: Some(claims.sub),
                     as_of: None,
+                    department_id: None,
                 }
             } else {
                 DataFilters {
                     department_ids: claims.department_ids.clone(),
                     user_id: Some(claims.sub),
                     as_of: None,
+                    department_id: None,
                 }
             }
         }
@@ -197,6 +205,17 @@ pub struct BatchWidgetDataRequest {
     /// Resolve date-based widgets for this day instead of today.
     #[serde(default)]
     pub as_of: Option<NaiveDate>,
+    /// What each widget's viewer has narrowed it to, by widget id.
+    #[serde(default)]
+    pub filters: HashMap<Uuid, WidgetViewFilter>,
+}
+
+/// A viewer's own narrowing of one widget. It can only narrow: a KPI that
+/// is hospital-wide already counts every department.
+#[derive(Debug, Default, Deserialize)]
+pub struct WidgetViewFilter {
+    #[serde(default)]
+    pub department_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1124,6 +1143,7 @@ pub async fn batch_widget_data(
         // Re-set department context per widget (each widget may have different scope)
         let mut filters = resolve_data_filters(widget, &claims);
         filters.as_of = req.as_of;
+        filters.department_id = req.filters.get(&widget.id).and_then(|f| f.department_id);
         medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &filters.department_ids)
             .await?;
 
@@ -1273,6 +1293,10 @@ async fn resolve_widget_data(
             .get("static_data")
             .cloned()
             .unwrap_or(serde_json::json!(null))),
+        // A report's chart: the tile reads the report's own data endpoint,
+        // which holds the report's permission check; here it only learns
+        // which report it is.
+        "report" => Ok(serde_json::json!({ "report_id": source.get("report_id") })),
         // "api"-sourced widgets are resolved by the client calling the named
         // endpoint directly (charts/tables); nothing to compute server-side here.
         _ => Ok(serde_json::json!({"error": "unsupported data source type"})),
@@ -1505,7 +1529,9 @@ async fn resolve_module_query(
 
     match (module, query) {
         // ── Patients (hospital-wide — no department scoping) ──
-        ("management", "kpi") => management_kpis::reading(tx, params, filters.as_of).await,
+        ("management", "kpi") => {
+            management_kpis::reading(tx, params, filters.as_of, filters.department_id).await
+        }
         ("management", "doctor_documentation") => {
             management_doctors::documentation_by_doctor(tx, filters.as_of).await
         }
@@ -2798,6 +2824,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/dashboards/my/widgets/{code}",
             put(my_widgets::set_my_widget),
+        )
+        .route(
+            "/api/dashboards/my/report-widgets/{report_id}",
+            put(my_widgets::set_my_report_widget),
         )
         .route(
             "/api/dashboards/{id}",
