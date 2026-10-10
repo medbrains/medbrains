@@ -26,4 +26,15 @@ test("a dashboard widget expands to its figures and data, and Escape closes it",
   await page.getByRole("button", { name: "Expand Recent Admissions" }).click();
   const table = page.getByRole("dialog", { name: "Recent Admissions" });
   await expect(table.getByLabel("Search these rows")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+
+  // Ask AI goes to the real assistant, with the widget's figures and not its rows.
+  await page.getByRole("button", { name: "Expand Revenue, last 30 days" }).click();
+  const revenue = page.getByRole("dialog", { name: "Revenue, last 30 days" });
+  await revenue.getByRole("tab", { name: "Ask AI" }).click();
+  const asked = page.waitForRequest((r) => r.url().endsWith("/api/ai/chat") && r.method() === "POST");
+  await revenue.getByRole("button", { name: "What stands out here?" }).click();
+  const body = (await asked).postDataJSON() as { context: { surface: string; widget: string } };
+  expect(body.context).toMatchObject({ surface: "dashboard_widget", widget: "Revenue, last 30 days" });
 });
