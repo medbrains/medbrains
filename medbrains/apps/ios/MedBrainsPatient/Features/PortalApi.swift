@@ -50,6 +50,34 @@ struct PortalInvoice: Decodable, Identifiable, Sendable {
     let createdAt: String
 }
 
+/// A refill the patient asked for; the doctor's note shows when declined.
+struct PortalRefillRequest: Decodable, Sendable {
+    let id: String
+    let prescriptionId: String
+    let status: String
+    let decisionNote: String?
+    let createdAt: String
+}
+
+/// A recent prescription and what asking for a refill of it would do.
+struct PortalRefill: Decodable, Identifiable, Sendable {
+    let prescriptionId: String
+    let prescribedAt: String
+    let doctorName: String?
+    let drugs: [String]
+    let refillsLeft: Int
+    let validUntil: String?
+    /// "pharmacy" or "doctor"; nil when a request can't be made now.
+    let goesTo: String?
+    /// What happens if they ask, or why they can't.
+    let message: String
+    let latestRequest: PortalRefillRequest?
+
+    var id: String { prescriptionId }
+}
+
+private struct RefillAsk: Encodable { let note: String? }
+
 /// What the tenant has licensed for this patient, beyond their record.
 struct PortalEntitlements: Decodable, Sendable {
     let companion: Bool
@@ -76,5 +104,10 @@ struct PortalApi: Sendable {
     func labReports() async throws -> [PortalLabReport] { try await client.request(.get, "/api/portal/lab-reports") }
     func prescriptions() async throws -> [PortalPrescriptionItem] { try await client.request(.get, "/api/portal/prescriptions") }
     func bills() async throws -> [PortalInvoice] { try await client.request(.get, "/api/portal/bills") }
+    func refills() async throws -> [PortalRefill] { try await client.request(.get, "/api/portal/refills") }
+    /// The server decides where it goes and refuses, with the reason, when it can't be asked for.
+    func requestRefill(prescriptionId: String) async throws -> PortalRefillRequest {
+        try await client.request(.post, "/api/portal/prescriptions/\(prescriptionId)/refill-request", body: RefillAsk(note: nil))
+    }
     func entitlements() async throws -> PortalEntitlements { try await client.request(.get, "/api/portal/entitlements") }
 }

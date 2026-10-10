@@ -12,6 +12,9 @@ import java.net.URL
  * The sign-in code itself is seeded by `scripts/seed_portal_otp.sh` before the run.
  */
 class PortalSeed private constructor(private var token: String?) {
+    /** Step-up is a cookie; the seed carries it by hand, as a browser would. */
+    private var stepUpCookie: String? = null
+
     data class Invoice(val id: String, val number: String, val total: Double, val balance: Double)
 
     fun call(method: String, path: String, body: Any? = null): Pair<Int, String> {
@@ -20,8 +23,10 @@ class PortalSeed private constructor(private var token: String?) {
         c.setRequestProperty("Content-Type", "application/json")
         c.setRequestProperty("X-MedBrains-Client", "mobile-staff")
         token?.let { c.setRequestProperty("Authorization", "Bearer $it") }
+        stepUpCookie?.let { c.setRequestProperty("Cookie", it) }
         if (body != null) { c.doOutput = true; c.outputStream.use { it.write(body.toString().toByteArray()) } }
         val text = (if (c.responseCode < 400) c.inputStream else c.errorStream)?.bufferedReader()?.readText().orEmpty()
+        c.headerFields["Set-Cookie"]?.firstOrNull { it.startsWith("step_up=") }?.let { stepUpCookie = it.substringBefore(';') }
         return c.responseCode to text
     }
 
@@ -54,6 +59,38 @@ class PortalSeed private constructor(private var token: String?) {
     fun outstanding(patientId: String): Double {
         val rows = runCatching { JSONArray(call("GET", "/api/patients/$patientId/invoices").second) }.getOrDefault(JSONArray())
         return (0 until rows.length()).sumOf { rows.getJSONObject(it).optString("balance").toDoubleOrNull() ?: 0.0 }
+    }
+
+    /**
+     * A prescription written at a visit and dispensed at the counter, of a drug
+     * the doctor approves refills of — what a refill is asked for.
+     */
+    fun dispensedPrescription(patientId: String): Pair<String, String> {
+        check(call("POST", "/api/auth/step-up", JSONObject().put("password", "admin123")).first == 200) { "step-up for prescribing" }
+        val departments = JSONArray(call("GET", "/api/setup/departments").second)
+        val dept = (0 until departments.length()).map { departments.getJSONObject(it) }.first { it.optString("code") == "GEN-MEDICINE" }.getString("id")
+        val (visitStatus, visitText) = call("POST", "/api/opd/encounters", JSONObject().put("patient_id", patientId).put("department_id", dept))
+        val encounter = runCatching { JSONObject(visitText).getJSONObject("encounter").getString("id") }.getOrElse { error("visit $visitStatus $visitText") }
+        val catalog = JSONArray(call("GET", "/api/pharmacy/catalog").second)
+        val drug = (0 until catalog.length()).map { catalog.getJSONObject(it) }.first {
+            it.optBoolean("is_active") && !it.optBoolean("is_controlled") && it.optString("drug_schedule") !in setOf("X", "H1", "NDPS") &&
+                it.optString("refill_policy") == "doctor_approval" && (it.optString("current_stock").toDoubleOrNull() ?: it.optDouble("current_stock", 0.0)) >= 10
+        }
+        val line = JSONObject().put("drug_name", drug.getString("name")).put("catalog_item_id", drug.getString("id")).put("dosage", "1 tab").put("frequency", "OD").put("duration", "5 days").put("route", "oral")
+        val (rxStatus, rxText) = call("POST", "/api/opd/encounters/$encounter/prescriptions", JSONObject().put("items", JSONArray().put(line)))
+        val written = runCatching { JSONObject(rxText) }.getOrElse { error("prescription $rxStatus $rxText") }
+        val rx = written.getJSONObject("prescription").getString("id")
+        check(call("PUT", "/api/pharmacy/rx-queue/${written.getString("pharmacy_rx_queue_id")}/review", JSONObject().put("action", "approved")).first == 200) { "pharmacist approves" }
+        val orders = obj("GET", "/api/pharmacy/orders?patient_id=$patientId").getJSONArray("orders")
+        val order = (0 until orders.length()).map { orders.getJSONObject(it) }.first { it.optString("prescription_id") == rx }.getString("id")
+        check(call("PUT", "/api/pharmacy/orders/$order/dispense", JSONObject().put("unpaid_override_reason", "native e2e $RUN — paid at the counter")).first == 200) { "dispensed at the counter" }
+        return rx to drug.getString("name")
+    }
+
+    /** Refill requests for `drug` waiting in the prescriber's sign-offs. */
+    fun refillRequestsAwaiting(drug: String): Int {
+        val rows = JSONArray(call("GET", "/api/doctors/me/pending-signoffs").second)
+        return (0 until rows.length()).map { rows.getJSONObject(it) }.count { it.optString("record_type") == "refill_request" && it.optString("summary").contains(drug) }
     }
 
     /** The hospital licenses (or drops) a module for every patient at once. */
