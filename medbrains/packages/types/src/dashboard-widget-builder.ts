@@ -123,7 +123,9 @@ export interface WidgetTemplate {
 }
 
 export interface WidgetDataSource {
-  type: "module_query" | "api" | "static";
+  type: "module_query" | "api" | "static" | "sql_count" | "report";
+  /** For `report`: the report whose chart this widget is. */
+  report_id?: string;
   module?: string;
   query?: string;
   params?: Record<string, unknown>;
@@ -264,6 +266,11 @@ export interface WidgetDataResponse {
   widget_id: string;
   data: unknown;
   fetched_at: string;
+}
+
+/** A viewer's own narrowing of one widget (only narrows; never widens). */
+export interface WidgetViewFilter {
+  department_id?: string;
 }
 
 export interface DashboardStatsResponse {

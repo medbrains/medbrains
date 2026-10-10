@@ -38,7 +38,7 @@ const GOVERNED_EXPORTS: &[ReportExportFormat] = &[
 ];
 
 #[derive(Clone, Copy)]
-enum ReportDataKind {
+pub(crate) enum ReportDataKind {
     DeptRevenue,
     OpdFootfall,
     OpdQueueWait,
@@ -61,9 +61,9 @@ enum ReportDataKind {
 }
 
 #[derive(Clone)]
-struct ReportSeed {
-    definition: ReportDefinition,
-    data_kind: ReportDataKind,
+pub(crate) struct ReportSeed {
+    pub(crate) definition: ReportDefinition,
+    pub(crate) data_kind: ReportDataKind,
 }
 
 #[derive(Clone)]
@@ -2040,7 +2040,7 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
     ]
 }
 
-fn can_access_report(claims: &Claims, report: &ReportDefinition) -> bool {
+pub(crate) fn can_access_report(claims: &Claims, report: &ReportDefinition) -> bool {
     is_bypass_role(claims)
         || report
             .permissions
@@ -2062,7 +2062,7 @@ fn all_catalog_permissions() -> Vec<String> {
     permissions
 }
 
-fn find_report(report_id: &str) -> Option<ReportSeed> {
+pub(crate) fn find_report(report_id: &str) -> Option<ReportSeed> {
     catalog_seed()
         .into_iter()
         .flat_map(|family| family.reports)

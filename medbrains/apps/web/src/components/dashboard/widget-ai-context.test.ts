@@ -32,4 +32,18 @@ describe("what the assistant is told about a widget", () => {
     const ctx = widgetAiContext(widget("stat_card"), reading, "week");
     expect(ctx).toMatchObject({ value: 3, compared_with: "week", baselines: { week: 6 } });
   });
+
+  it("gets a report widget's chart, not its rows", () => {
+    const w = {
+      ...widget("chart"),
+      data_source: { type: "report", report_id: "credential-expiry" },
+    } as unknown as DashboardWidget;
+    const ctx = widgetAiContext(w, { report_id: "credential-expiry" }, "weekday", {
+      x: ["2026-10-01"],
+      series: [{ name: "Expiring", values: [2] }],
+      isTrend: true,
+    });
+    expect(ctx).toMatchObject({ report_id: "credential-expiry", x: ["2026-10-01"] });
+    expect(ctx).not.toHaveProperty("rows");
+  });
 });

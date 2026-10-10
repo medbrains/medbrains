@@ -17,6 +17,7 @@ import {
   reportStatusLabel,
 } from "./report-helpers";
 import type { ReportDefinition, ReportLoadingState, ReportRuntimeData } from "./types";
+import { useReportOnDashboard } from "./useReportOnDashboard";
 
 export function ReportTile({
   report,
@@ -36,6 +37,8 @@ export function ReportTile({
   const canView = usePermissionStore((state) =>
     report.permissions.some((permission) => state.hasPermission(permission)),
   );
+  // Before any early return: a hook runs on every render, in the same order.
+  const dashboard = useReportOnDashboard(report.id);
   const readiness = READINESS_META[report.readiness];
   const priority = PRIORITY_META[report.priority];
 
@@ -95,6 +98,7 @@ export function ReportTile({
       disabledActions={option === null}
       sourceHref={undefined}
       onViewDetails={() => onDetails(report)}
+      dashboard={option && dashboard.canPlace ? dashboard : undefined}
     />
   );
 }

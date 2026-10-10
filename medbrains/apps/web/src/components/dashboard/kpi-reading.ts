@@ -25,6 +25,10 @@ export interface KpiReading {
   so_far: boolean;
   baselines: Record<KpiBaseline, number | null>;
   series: { date: string; value: number | null }[];
+  /** What a reader may narrow it by — `department` where the KPI has one. */
+  filters?: string[];
+  /** The department it is narrowed to, when it is. */
+  department_id?: string | null;
 }
 
 export interface KpiComparison {

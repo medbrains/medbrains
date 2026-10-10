@@ -7,7 +7,9 @@ import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
 import { KpiCompareMenu } from "./KpiCompareMenu";
+import { KpiDepartmentMenu } from "./KpiDepartmentMenu";
 import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-reading";
+import { ReportWidgetTile } from "./ReportWidgetTile";
 import { SeriesMetrics } from "./SeriesMetrics";
 import { columnValues } from "./series-stats";
 import { TrendChart, type TrendKind } from "./TrendChart";
@@ -189,6 +191,9 @@ function WidgetBody({
         sparkline={data.series.map((d) => d.value)}
         actions={
           <>
+            {data.filters?.includes("department") && (
+              <KpiDepartmentMenu widgetId={widget.id} title={widget.title} />
+            )}
             <KpiCompareMenu title={widget.title} value={compare} onChange={onCompareChange} />
             {onExpand && (
               <IconButton aria-label={`Expand ${widget.title}`} onClick={onExpand}>
@@ -299,6 +304,14 @@ function WidgetBody({
             </Table.Tbody>
           </Table>
         )}
+      </WidgetShell>
+    );
+  }
+
+  if (widget.data_source?.type === "report") {
+    return (
+      <WidgetShell widget={widget} onExpand={onExpand}>
+        <ReportWidgetTile reportId={widget.data_source.report_id} />
       </WidgetShell>
     );
   }

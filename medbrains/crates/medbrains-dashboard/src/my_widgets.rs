@@ -175,3 +175,66 @@ async fn place(
     .await?;
     Ok(())
 }
+
+/// `PUT /api/dashboards/my/report-widgets/{report_id}` — show or hide a
+/// report's chart on my own dashboard. Only a report the caller may read,
+/// and only one that has data: a chart of nothing is not placed.
+pub async fn set_my_report_widget(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(report_id): Path<String>,
+    Json(req): Json<MyWidgetVisibility>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, medbrains_core::permissions::dashboard::VIEW)?;
+    let spec = medbrains_reports::report_widget::report_for_widget(&claims, &report_id)
+        .ok_or(AppError::NotFound)?;
+    if req.visible && !spec.wired {
+        return Err(AppError::BadRequest(
+            "This report is not connected to data yet, so it has no chart to place".to_owned(),
+        ));
+    }
+    let code = format!("report:{report_id}");
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let dashboard_id = crate::ensure_personal_dashboard(&mut tx, &claims).await?;
+    let placed: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM dashboard_widgets \
+          WHERE dashboard_id = $1 AND template_code = $2 AND deleted_at IS NULL LIMIT 1",
+    )
+    .bind(dashboard_id)
+    .bind(&code)
+    .fetch_optional(&mut *tx)
+    .await?;
+    match placed {
+        Some(id) => {
+            sqlx::query("UPDATE dashboard_widgets SET is_visible = $1 WHERE id = $2")
+                .bind(req.visible)
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        None if req.visible => {
+            sqlx::query(
+                "INSERT INTO dashboard_widgets \
+                   (dashboard_id, widget_type, title, subtitle, icon, color, config, data_source, \
+                    position_x, position_y, width, height, permission_code, sort_order, \
+                    template_code) \
+                 SELECT $1, 'chart', $2, $3, 'IconChartLine', 'primary', '{}'::jsonb, $4, 0, \
+                        COALESCE(MAX(position_y + height), 0), 6, 4, $5, \
+                        COALESCE(MAX(sort_order) + 1, 0), $6 \
+                   FROM dashboard_widgets WHERE dashboard_id = $1 AND deleted_at IS NULL",
+            )
+            .bind(dashboard_id)
+            .bind(&spec.title)
+            .bind(&spec.purpose)
+            .bind(json!({ "type": "report", "report_id": report_id }))
+            .bind(&spec.permission)
+            .bind(&code)
+            .execute(&mut *tx)
+            .await?;
+        }
+        None => {}
+    }
+    tx.commit().await?;
+    Ok(Json(json!({ "report_id": report_id, "visible": req.visible })))
+}
