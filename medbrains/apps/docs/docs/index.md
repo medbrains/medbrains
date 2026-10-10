@@ -9,6 +9,7 @@ sidebar_label: Welcome
 This guide explains how to do your day's work in MedBrains, screen by screen.
 
 - **Getting started** covers signing in and finding your way around.
+- **Front desk** covers registering patients and starting their visits.
 - **Clinical** covers the case sheet: writing, signing and reading notes.
 
 Each page says who does the task, where to find it in the menu, the steps,

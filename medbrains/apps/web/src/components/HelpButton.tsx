@@ -4,6 +4,9 @@ import { IconButton, Tooltip } from "@/components/ui";
 
 /** Screens with their own page in the guide; the rest open its front page. */
 const GUIDE_PAGES: ReadonlyArray<[prefix: string, page: string]> = [
+  ["/patients/register", "front-desk/register-a-patient/"],
+  ["/opd/new", "front-desk/start-an-opd-visit/"],
+  ["/opd/encounters", "clinical/consultation/"],
   ["/home-visits", "clinical/home-visit-case-sheet/"],
   ["/home-healthcare", "clinical/home-visit-case-sheet/"],
 ];
