@@ -189,6 +189,15 @@ async fn refills_follow_the_doctors_terms() {
         .execute(&app.db)
         .await
         .expect("age the prescription");
+    // ...and the first supply has gone out: a refill never sits on top of a
+    // supply still waiting at the counter.
+    sqlx::query(
+        "UPDATE pharmacy_prescriptions SET status = 'dispensed' WHERE prescription_id = $1",
+    )
+    .bind(rx_id)
+    .execute(&app.db)
+    .await
+    .expect("dispense the original");
     let (status, refill) = send(&app, &csrf, "POST", &refills, json!({})).await;
     assert_eq!(status, StatusCode::OK, "{refill}");
     assert_eq!(refill["repeat_index"], json!(1));

@@ -56,6 +56,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
             permissions::doctor::signoffs::VERBAL_REGISTER,
+            permissions::doctor::refill_requests::DECIDE,
             permissions::audit::START,
             permissions::patients::LIST,
             permissions::patients::VIEW,

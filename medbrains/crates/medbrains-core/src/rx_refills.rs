@@ -113,6 +113,83 @@ impl RefillState {
     }
 }
 
+/// Who may let a refill through when the patient asks for one, per drug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefillPolicy {
+    /// The pharmacy issues it within the refills the doctor wrote.
+    Pharmacy,
+    /// The prescribing doctor approves each one.
+    DoctorApproval,
+    /// Not on request: the patient books a visit.
+    Never,
+}
+
+impl RefillPolicy {
+    /// The catalogue's value; anything else, or a controlled drug, is `Never`.
+    #[must_use]
+    pub fn parse(raw: &str, controlled: bool) -> Self {
+        match raw {
+            _ if controlled => Self::Never,
+            "pharmacy" => Self::Pharmacy,
+            "doctor_approval" => Self::DoctorApproval,
+            _ => Self::Never,
+        }
+    }
+}
+
+/// Where a patient's refill request goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RequestRoute {
+    /// Straight to the pharmacy's queue.
+    Pharmacy,
+    /// To the prescribing doctor to approve.
+    Doctor,
+    /// Not taken, and why — in words for the patient.
+    Refused(String),
+}
+
+/// Route a patient's refill request for a prescription whose lines carry
+/// `policies` (drug name, policy).
+///
+/// Refills the doctor already wrote go to the pharmacy when every drug allows
+/// it; anything else — a drug needing approval, refills used up, an expired
+/// prescription — goes to the doctor. Never early, and never for a drug that
+/// can't be refilled.
+#[must_use]
+pub fn route_request(
+    state: RefillState,
+    policies: &[(String, RefillPolicy)],
+    now: DateTime<Utc>,
+) -> RequestRoute {
+    let never: Vec<&str> = policies
+        .iter()
+        .filter(|(_, p)| *p == RefillPolicy::Never)
+        .map(|(name, _)| name.as_str())
+        .collect();
+    if policies.is_empty() || !never.is_empty() {
+        return RequestRoute::Refused(format!(
+            "{} can't be refilled on request. Please book a visit.",
+            if never.is_empty() {
+                "This prescription".to_owned()
+            } else {
+                never.join(", ")
+            }
+        ));
+    }
+    if let Some(next) = state.next_eligible_at().filter(|next| *next > now) {
+        return RequestRoute::Refused(format!(
+            "You can ask for the next refill from {}",
+            next.format("%d %b %Y")
+        ));
+    }
+    let all_pharmacy = policies.iter().all(|(_, p)| *p == RefillPolicy::Pharmacy);
+    if all_pharmacy && state.refusal(now).is_none() {
+        RequestRoute::Pharmacy
+    } else {
+        RequestRoute::Doctor
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,5 +282,58 @@ mod tests {
     fn an_expired_prescription_is_not_refilled() {
         let refusal = state(1, Some(day(2026, 10, 1))).refusal(at(day(2027, 1, 2)));
         assert!(refusal.is_some_and(|m| m.contains("expired")));
+    }
+
+    fn ask(state: RefillState, policies: &[RefillPolicy], on: NaiveDate) -> RequestRoute {
+        let named: Vec<(String, RefillPolicy)> = policies
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (format!("Drug{i}"), *p))
+            .collect();
+        route_request(state, &named, at(on))
+    }
+
+    #[test]
+    fn a_due_refill_of_pharmacy_drugs_goes_to_the_pharmacy() {
+        let due = day(2026, 10, 2);
+        assert_eq!(
+            ask(state(0, None), &[RefillPolicy::Pharmacy], due),
+            RequestRoute::Pharmacy
+        );
+        // One drug needing approval sends the whole prescription to the doctor.
+        assert_eq!(
+            ask(
+                state(0, None),
+                &[RefillPolicy::Pharmacy, RefillPolicy::DoctorApproval],
+                due
+            ),
+            RequestRoute::Doctor
+        );
+    }
+
+    #[test]
+    fn used_up_or_expired_goes_to_the_doctor_to_renew() {
+        let used_up = state(2, Some(day(2026, 10, 1)));
+        assert_eq!(
+            ask(used_up, &[RefillPolicy::Pharmacy], day(2026, 11, 5)),
+            RequestRoute::Doctor
+        );
+        assert_eq!(
+            ask(
+                state(1, Some(day(2026, 10, 1))),
+                &[RefillPolicy::Pharmacy],
+                day(2027, 1, 5)
+            ),
+            RequestRoute::Doctor
+        );
+    }
+
+    #[test]
+    fn never_early_and_never_for_a_drug_that_cant_be_refilled() {
+        let early = ask(state(0, None), &[RefillPolicy::Pharmacy], day(2026, 9, 10));
+        assert!(matches!(early, RequestRoute::Refused(m) if m.contains("01 Oct 2026")));
+        let never = ask(state(0, None), &[RefillPolicy::Never], day(2026, 10, 2));
+        assert!(matches!(never, RequestRoute::Refused(m) if m.contains("Drug0")));
+        assert_eq!(RefillPolicy::parse("pharmacy", true), RefillPolicy::Never);
     }
 }

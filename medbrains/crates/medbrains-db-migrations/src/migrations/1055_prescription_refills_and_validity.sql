@@ -1,3 +1,10 @@
+-- ====================================================================
+-- Migration: 1055_prescription_refills_and_validity.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
 -- A prescription's expiry, and refills issued as their own pharmacy queue
 -- entries. Until now `repeats_allowed` existed with no screen to set it, and a
 -- "repeat" re-used the original order instead of issuing anything new.

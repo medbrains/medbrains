@@ -1569,6 +1569,8 @@ import type {
   PortalInvoice,
   PortalLabReport,
   PortalPrescriptionItem,
+  PortalRefill,
+  PortalRefillRequest,
   PortalSession,
   PosDaySummary,
   PosSaleRequest,
@@ -16476,6 +16478,20 @@ export const api = {
     request<PortalPrescriptionItem[]>("/portal/prescriptions", portalAuth(token)),
   getPortalAppointments: (token: string) =>
     request<PortalAppointment[]>("/portal/appointments", portalAuth(token)),
+  getPortalRefills: (token: string) =>
+    request<PortalRefill[]>("/portal/refills", portalAuth(token)),
+  requestPortalRefill: (token: string, prescriptionId: string, data: { note?: string }) =>
+    request<PortalRefillRequest>(`/portal/prescriptions/${prescriptionId}/refill-request`, {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** The prescriber approves (it goes to the pharmacy) or declines a patient's refill request. */
+  decideRefillRequest: (requestId: string, data: { approve: boolean; note?: string }) =>
+    request<PortalRefillRequest>(`/doctors/me/refill-requests/${requestId}/decide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   /** Doctors a member of the public may book with. 404 unless the tenant opts in. */
   getPublicBookableDoctors: (tenantCode: string) =>

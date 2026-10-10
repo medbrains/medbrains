@@ -25,6 +25,8 @@ export interface Hospital {
   as: (role: string) => Promise<Page>;
   /** An administrator's page (the setup project's session). */
   asAdmin: () => Promise<Page>;
+  /** A page signed in to nothing: a patient or a member of the public. */
+  asPublic: () => Promise<Page>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
@@ -70,6 +72,11 @@ export const test = base.extend<{ hospital: Hospital }>({
         const page = await openPage(browser);
         const identity = getE2EIdentity(role);
         await loginAsRole(page, identity.username, identity.password);
+        pages.push(page);
+        return page;
+      },
+      asPublic: async () => {
+        const page = await openPage(browser);
         pages.push(page);
         return page;
       },

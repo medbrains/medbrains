@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1007 permissions, one per constant in the Rust source. */
+/** 1008 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5060,6 +5060,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Ward/compliance-wide verbal & telephone order countersign register (NABH audit view) — broader than the prescriber's own queue.",
     module: "doctor",
   },
+  {
+    code: "doctor.refill_requests.decide",
+    label: "Decide patient refill requests",
+    description: "Approve or decline a refill a patient asked for on a prescription this doctor wrote; approving sends it to the pharmacy.",
+    module: "doctor",
+  },
   // patient_packages
   {
     code: "patient_packages.view",
@@ -7030,6 +7036,10 @@ export const P = {
     },
     PROFILE_UPDATE_OWN: "doctor.profile.update_own",
     PROFILE_VIEW_OWN: "doctor.profile.view_own",
+    REFILL_REQUESTS: {
+      DECIDE: "doctor.refill_requests.decide",
+    },
+    REFILL_REQUESTS_DECIDE: "doctor.refill_requests.decide",
     SIGNATURE: {
       CO_SIGN: "doctor.signature.co_sign",
       SIGN: "doctor.signature.sign",
@@ -9190,6 +9200,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCTOR.DASHBOARD.VIEW_OWN,
       P.DOCTOR.PROFILE.UPDATE_OWN,
       P.DOCTOR.PROFILE.VIEW_OWN,
+      P.DOCTOR.REFILL_REQUESTS.DECIDE,
       P.DOCTOR.SIGNATURE.SIGN,
       P.DOCTOR.SIGNATURE.VERIFY,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,

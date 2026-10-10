@@ -1140,7 +1140,7 @@ pub async fn get_admission_consolidated_bill_print_data(
         .format("%d-%b-%Y")
         .to_string();
     let age_str = header.age.map(|a| format!("{} Y", a as i32));
-    let admission_ref = format!("IP/{}", &admission_id.to_string()[..8].to_uppercase());
+    let admission_ref = format!("IP/{}", admission_id.to_string()[..8].to_uppercase());
 
     let total: f64 = totals.3.parse().unwrap_or(0.0);
     let insurance: f64 = payments.1.parse().unwrap_or(0.0);

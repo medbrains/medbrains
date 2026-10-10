@@ -904,6 +904,33 @@ export interface PortalPrescriptionItem {
   prescribed_at: string;
 }
 
+/** A refill a patient asked for. */
+export interface PortalRefillRequest {
+  id: string;
+  prescription_id: string;
+  status: "with_doctor" | "sent_to_pharmacy" | "declined";
+  patient_note: string | null;
+  /** The doctor's reason, shown to the patient. */
+  decision_note: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+/** One recent prescription, and what asking for a refill of it would do. */
+export interface PortalRefill {
+  prescription_id: string;
+  prescribed_at: string;
+  doctor_name: string | null;
+  drugs: string[];
+  refills_left: number;
+  valid_until: string | null;
+  /** Where a request goes; null when one can't be made now. */
+  goes_to: "pharmacy" | "doctor" | null;
+  /** What happens if they ask, or why they can't. */
+  message: string;
+  latest_request: PortalRefillRequest | null;
+}
+
 export interface PortalAppointment {
   id: string;
   appointment_date: string;

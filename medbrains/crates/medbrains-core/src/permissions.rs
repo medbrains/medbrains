@@ -2418,6 +2418,13 @@ pub mod doctor {
         /// (NABH audit view) — broader than the prescriber's own queue.
         pub const VERBAL_REGISTER: &str = "doctor.signoffs.verbal_register";
     }
+    pub mod refill_requests {
+        /// Decide patient refill requests.
+        ///
+        /// Approve or decline a refill a patient asked for on a prescription
+        /// this doctor wrote; approving sends it to the pharmacy.
+        pub const DECIDE: &str = "doctor.refill_requests.decide";
+    }
 }
 
 /// Patient-side packages (subscribing + consuming).

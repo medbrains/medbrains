@@ -26,6 +26,7 @@ import {
   optionalFormText,
 } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { REFILL_POLICY_OPTIONS, RefillPolicySelect } from "./refill-policy-select";
 import { renderPharmacySensitiveCurrency } from "./shared";
 
 const DRUG_CATEGORIES = [
@@ -76,6 +77,7 @@ export function PharmacyCatalogTab({
     atc_code: "",
     barcode: "",
     is_controlled: false,
+    refill_policy: "doctor_approval",
   };
   const {
     control,
@@ -125,6 +127,7 @@ export function PharmacyCatalogTab({
       atc_code: optionalFormText(values.atc_code),
       barcode: optionalFormText(values.barcode),
       is_controlled: values.is_controlled || undefined,
+      refill_policy: values.refill_policy,
     });
   };
 
@@ -186,6 +189,11 @@ export function PharmacyCatalogTab({
           )}
         </Text>
       ),
+    },
+    {
+      key: "refill_policy",
+      label: "Refills on request",
+      render: (row: PharmacyCatalog) => <RefillPolicySelect row={row} canManage={canManage} />,
     },
     {
       key: "regulatory",
@@ -467,6 +475,20 @@ export function PharmacyCatalogTab({
                 checked={field.value}
                 onChange={(event) => field.onChange(event.currentTarget.checked)}
                 error={errors.is_controlled?.message}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="refill_policy"
+            render={({ field }) => (
+              <Select
+                label="Refills on request"
+                description="Who lets a refill through when the patient asks. Controlled drugs never."
+                data={REFILL_POLICY_OPTIONS}
+                value={field.value}
+                onChange={(value) => value && field.onChange(value)}
+                allowDeselect={false}
               />
             )}
           />
