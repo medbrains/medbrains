@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
@@ -23,9 +24,10 @@ import org.junit.runner.RunWith
 
 /**
  * The patient's way in and the hospital's record of them, proven against the
- * server. See PatientJourneyTests.swift for the scenarios; the code is seeded
- * with `scripts/seed_portal_otp.sh 9876500777 424242` before the run and is
- * spent by the one sign-in, so the signed-in scenarios share a test.
+ * server. See PatientJourneyTests.swift for the scenarios. The code is spent
+ * by the one sign-in, so the signed-in scenarios share a test. Each run signs
+ * in as a fresh patient: `PHONE=$(scripts/seed_portal_patient.sh 424242)`, passed
+ * as `-Pandroid.testInstrumentationRunnerArguments.portalPhone=$PHONE`.
  */
 @RunWith(AndroidJUnit4::class)
 class PatientJourneyTest {
@@ -33,7 +35,7 @@ class PatientJourneyTest {
 
     @get:Rule
     val chain: RuleChain = RuleChain.outerRule(compose).around(Evidence { compose })
-    private val phone = "9876500777"
+    private val phone = InstrumentationRegistry.getArguments().getString("portalPhone") ?: "9876500777"
     private var scenario: ActivityScenario<MainActivity>? = null
 
     private fun launch(baseUrl: String = "http://10.0.2.2:3000") {
@@ -110,6 +112,8 @@ class PatientJourneyTest {
             val bill = checkNotNull(seed.invoice(patientId, 1234.50)) { "the desk raises a bill through the real API" }
             check(bill.total == 1234.50) { "the server holds the charge" }
             val owed = seed.outstanding(patientId)
+            val (rx, drug) = seed.dispensedPrescription(patientId)
+            val waitingBefore = seed.refillRequestsAwaiting(drug)
 
             launch(); signOutIfSignedIn()
             compose.onNodeWithTag("phone").performTextInput(phone)
@@ -129,6 +133,17 @@ class PatientJourneyTest {
             check(seesText("₹%.2f".format(bill.total), sub = true)) { "the server's total, not a client sum" }
             check(seesText("₹%.2f due".format(bill.balance), sub = true)) { "unpaid, and says so" }
             check(seesText("₹%.2f".format(owed))) { "still to pay = the sum of the server's balances" }
+
+            // The supply runs out: the patient asks, and it goes to the doctor.
+            launch()
+            compose.waitUntil(15_000) { has("module-prescriptions") }
+            compose.onNodeWithTag("module-prescriptions").performClick()
+            compose.waitUntil(10_000) { has("refill-$rx") }
+            check(seesText("approves it first", sub = true)) { "told the doctor decides, before asking" }
+            compose.onNodeWithTag("request-refill-$rx").performScrollTo().performClick()
+            compose.waitUntil(10_000) { has("refill-outcome") }
+            compose.waitUntil(10_000) { seesText("With your doctor") }
+            check(seed.refillRequestsAwaiting(drug) == waitingBefore + 1) { "and it is in the prescriber's sign-offs" }
 
             seed.setModule("companion", enabled = true)
             launch()

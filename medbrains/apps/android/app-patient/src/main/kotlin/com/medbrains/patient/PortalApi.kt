@@ -13,6 +13,20 @@ import kotlinx.serialization.Serializable
 @Serializable data class PortalPrescriptionItem(val prescription_id: String, val drug_name: String, val dosage: String, val frequency: String, val duration: String, val prescribed_at: String)
 @Serializable data class PortalInvoice(val id: String, val invoice_number: String, val status: String, val total_amount: String, val paid_amount: String = "0", val balance_due: String, val created_at: String)
 @Serializable data class PortalEntitlements(val companion: Boolean = false)
+/** A refill the patient asked for; the doctor's note shows when declined. */
+@Serializable data class PortalRefillRequest(val id: String, val prescription_id: String, val status: String, val decision_note: String? = null, val created_at: String)
+/** A recent prescription and what asking for a refill of it would do; `goes_to` is null when it can't be asked for now. */
+@Serializable data class PortalRefill(
+    val prescription_id: String,
+    val prescribed_at: String,
+    val doctor_name: String? = null,
+    val drugs: List<String>,
+    val refills_left: Int,
+    val valid_until: String? = null,
+    val goes_to: String? = null,
+    val message: String,
+    val latest_request: PortalRefillRequest? = null,
+)
 @Serializable private data class OtpRequest(val tenant_code: String, val phone: String)
 @Serializable private data class OtpVerify(val tenant_code: String, val phone: String, val code: String)
 @Serializable data class Ack(val ok: Boolean = true)
@@ -26,6 +40,9 @@ class PortalApi(private val client: ApiClient) {
     suspend fun prescriptions(): List<PortalPrescriptionItem> = client.get("/api/portal/prescriptions")
     suspend fun bills(): List<PortalInvoice> = client.get("/api/portal/bills")
     suspend fun entitlements(): PortalEntitlements = client.get("/api/portal/entitlements")
+    suspend fun refills(): List<PortalRefill> = client.get("/api/portal/refills")
+    /** The server decides where it goes and refuses, with the reason, when it can't be asked for. */
+    suspend fun requestRefill(prescriptionId: String): PortalRefillRequest = client.post("/api/portal/prescriptions/$prescriptionId/refill-request")
 }
 
 val LocalPortalApi = compositionLocalOf<PortalApi> { error("PortalApi not provided") }

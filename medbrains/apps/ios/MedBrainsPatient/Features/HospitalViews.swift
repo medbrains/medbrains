@@ -91,6 +91,7 @@ struct MedicinesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 CarbonPageHeader(eyebrow: "Medicines", title: "Your prescriptions", subtitle: "What was prescribed, and how to take it.")
+                RefillsSection()
                 RemoteContentView(id: "prescriptions", state: remote.state, unavailableTitle: "Couldn't load your prescriptions", unavailableMessage: "Try again in a moment.", isEmpty: \.isEmpty, emptyTitle: "No prescriptions yet", emptyMessage: "Nothing has been prescribed to you.", retry: { Task { await load() } }) { rows in
                     let groups = Dictionary(grouping: rows.prefix(200), by: \.prescriptionId)
                     let ordered = groups.values.sorted { ($0.first?.prescribedAt ?? "") > ($1.first?.prescribedAt ?? "") }

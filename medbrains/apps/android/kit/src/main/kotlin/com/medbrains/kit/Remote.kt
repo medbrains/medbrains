@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import java.time.Instant
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -72,6 +73,9 @@ object ServerTime {
     private val short = DateTimeFormatter.ofPattern("d MMM, HH:mm")
     /** "12 Sep, 14:05" in the device's zone. */
     fun short(text: String?): String = parse(text)?.let { short.format(it.atZone(ZoneId.systemDefault())) } ?: "—"
+    private val day = DateTimeFormatter.ofPattern("d MMM yyyy")
+    /** "9 Nov 2026" for a calendar date the server sends as YYYY-MM-DD: no time, no zone to shift it. */
+    fun day(text: String?): String = text?.let { runCatching { day.format(LocalDate.parse(it)) }.getOrNull() } ?: "—"
 }
 
 /** The app's client and session, for module screens deep in the tree. */
