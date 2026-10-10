@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 use chrono::{Duration, NaiveDate, NaiveTime};
 use serde::Serialize;
 use serde_json::{Value, json};
+use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
@@ -104,6 +105,7 @@ pub async fn reading(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     params: &Value,
     as_of: Option<NaiveDate>,
+    department_id: Option<Uuid>,
 ) -> Result<Value, AppError> {
     let code = params
         .get("code")
@@ -130,6 +132,9 @@ pub async fn reading(
             .bind(as_of);
         if kpi.clock {
             query = query.bind(&zone).bind(cutoff);
+        }
+        if kpi.departmental {
+            query = query.bind(department_id);
         }
         let rows = query.fetch_all(&mut **tx).await?;
         rows.into_iter()
@@ -167,6 +172,9 @@ pub async fn reading(
         "so_far": cutoff.is_some(),
         "baselines": { "weekday": b.weekday, "yesterday": b.yesterday, "week": b.week },
         "series": daily,
+        // What a reader may narrow this KPI by, and what it is narrowed to.
+        "filters": if kpi.departmental { vec!["department"] } else { Vec::new() },
+        "department_id": department_id.filter(|_| kpi.departmental),
     }))
 }
 

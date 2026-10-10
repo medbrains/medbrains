@@ -3,4 +3,5 @@
 
 pub mod analytics;
 pub mod nabh_indicators;
+pub mod report_widget;
 pub mod reports;

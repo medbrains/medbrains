@@ -9,6 +9,7 @@ import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard"
 import { KpiPeriodControls } from "@/components/dashboard/KpiPeriodControls";
 import type { KpiBaseline } from "@/components/dashboard/kpi-reading";
 import { WidgetPicker } from "@/components/dashboard/WidgetPicker";
+import { useWidgetFilterStore } from "@/components/dashboard/widget-filter-store";
 import { GettingStartedWidget } from "@/components/GettingStartedWidget";
 import { IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -37,9 +38,17 @@ export function DashboardPage() {
     [dashboard],
   );
 
+  // Each tile's own narrowing (a department), sent with the one data call.
+  const allFilters = useWidgetFilterStore((s) => s.filters);
+  const filters = useMemo(
+    () =>
+      Object.fromEntries(widgetIds.flatMap((id) => (allFilters[id] ? [[id, allFilters[id]]] : []))),
+    [widgetIds, allFilters],
+  );
   const { data: widgetData, isLoading: dataLoading } = useQuery({
-    queryKey: ["my-dashboard", "data", widgetIds, asOf],
-    queryFn: () => api.batchWidgetData(widgetIds, asOf ?? undefined),
+    queryKey: ["my-dashboard", "data", widgetIds, asOf, filters],
+    queryFn: () => api.batchWidgetData(widgetIds, asOf ?? undefined, filters),
+    placeholderData: (previous) => previous,
     enabled: widgetIds.length > 0,
     staleTime: 60_000,
   });

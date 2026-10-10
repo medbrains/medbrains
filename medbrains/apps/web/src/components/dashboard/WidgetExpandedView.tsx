@@ -1,7 +1,8 @@
-import { Stack, Table, Text, TextInput } from "@mantine/core";
+import { Group, Stack, Table, Text, TextInput } from "@mantine/core";
 import type { DashboardWidget } from "@medbrains/types";
 import { useMemo, useState } from "react";
 import { SegmentedControl } from "@/components/ui";
+import { KpiDepartmentMenu } from "./KpiDepartmentMenu";
 import {
   compareKpi,
   formatKpi,
@@ -10,9 +11,11 @@ import {
   type KpiBaseline,
   type KpiReading,
 } from "./kpi-reading";
+import { ReportWidgetChart } from "./ReportWidgetChart";
 import { SeriesMetrics } from "./SeriesMetrics";
 import { columnValues } from "./series-stats";
 import { TrendChart, type TrendKind } from "./TrendChart";
+import { useReportWidgetData } from "./useReportWidgetData";
 import { cellText, field, formatValue, rows } from "./widget-data";
 
 interface Props {
@@ -31,7 +34,14 @@ const BASELINE_LABEL: Record<KpiBaseline, string> = {
 /** A widget at full size: its figure, its trend and the numbers behind them. */
 export function WidgetExpandedView({ widget, data, compare, onCompareChange }: Props) {
   if (widget.widget_type === "stat_card" && isKpiReading(data)) {
-    return <KpiDetail reading={data} compare={compare} onCompareChange={onCompareChange} />;
+    return (
+      <KpiDetail
+        widget={widget}
+        reading={data}
+        compare={compare}
+        onCompareChange={onCompareChange}
+      />
+    );
   }
   if (widget.widget_type === "stat_card") {
     return (
@@ -44,6 +54,9 @@ export function WidgetExpandedView({ widget, data, compare, onCompareChange }: P
         </Text>
       </Stack>
     );
+  }
+  if (widget.data_source?.type === "report") {
+    return <ReportDetail reportId={widget.data_source.report_id} title={widget.title} />;
   }
   if (widget.widget_type === "chart") {
     const x = String(field(widget.config, "x_axis") ?? "date");
@@ -83,10 +96,12 @@ export function WidgetExpandedView({ widget, data, compare, onCompareChange }: P
 }
 
 function KpiDetail({
+  widget,
   reading,
   compare,
   onCompareChange,
 }: {
+  widget: DashboardWidget;
   reading: KpiReading;
   compare: KpiBaseline;
   onCompareChange: (next: KpiBaseline) => void;
@@ -96,12 +111,17 @@ function KpiDetail({
   const points = reading.series.map((d) => ({ date: d.date, value: d.value }));
   return (
     <Stack gap="lg">
-      <SegmentedControl
-        aria-label="Compare with"
-        value={compare}
-        onChange={(v) => onCompareChange(v as KpiBaseline)}
-        data={KPI_BASELINES}
-      />
+      <Group gap="sm" wrap="wrap">
+        <SegmentedControl
+          aria-label="Compare with"
+          value={compare}
+          onChange={(v) => onCompareChange(v as KpiBaseline)}
+          data={KPI_BASELINES}
+        />
+        {reading.filters?.includes("department") && (
+          <KpiDepartmentMenu widgetId={widget.id} title={widget.title} />
+        )}
+      </Group>
       <Stack gap={2}>
         <Text fz={40} fw={600} lh={1.1}>
           {formatKpi(reading.value, reading.unit)}
@@ -135,6 +155,22 @@ function KpiDetail({
         reference={usual === null ? undefined : { value: usual, label: BASELINE_LABEL[compare] }}
       />
       <RowsTable items={points} cols={["date", "value"]} caption="Daily values" />
+    </Stack>
+  );
+}
+
+/** A report widget at full size: its chart, and every row it draws from. */
+function ReportDetail({ reportId, title }: { reportId: string | undefined; title: string }) {
+  const { shape, rows: reportRows, isLoading, isError } = useReportWidgetData(reportId);
+  return (
+    <Stack gap="lg">
+      <ReportWidgetChart shape={shape} loading={isLoading} failed={isError} h={340} />
+      <RowsTable
+        items={reportRows}
+        cols={Object.keys(reportRows[0] ?? {})}
+        caption={`${title}, as a table`}
+        searchable
+      />
     </Stack>
   );
 }

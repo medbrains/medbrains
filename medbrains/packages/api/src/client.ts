@@ -2169,6 +2169,7 @@ import type {
   WellsPeResult,
   WidgetAccessLevel,
   WidgetDataResponse,
+  WidgetViewFilter,
   WidgetTemplate,
   WorklistToken,
   WorkOrderPrintData,
@@ -4182,6 +4183,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
+  /** Show or hide a report's chart on my own dashboard. */
+  setMyReportWidget: (reportId: string, visible: boolean) =>
+    request<{ report_id: string; visible: boolean }>(
+      `/dashboards/my/report-widgets/${encodeURIComponent(reportId)}`,
+      { method: "PUT", body: JSON.stringify({ visible }) },
+    ),
   /** Show or hide a catalogue widget on my own dashboard, by its code. */
   setMyWidget: (code: string, visible: boolean) =>
     request<{ code: string; visible: boolean }>(
@@ -4217,11 +4224,18 @@ export const api = {
     request<{ deleted: boolean }>(`/admin/sso/mappings/${id}`, { method: "DELETE" }),
   getWidgetData: (widgetId: string) =>
     request<WidgetDataResponse>(`/dashboard/widget-data/${widgetId}`),
-  /** `asOf` (YYYY-MM-DD) resolves date-based widgets for that day instead of today. */
-  batchWidgetData: (widgetIds: string[], asOf?: string) =>
+  /**
+   * `asOf` (YYYY-MM-DD) resolves date-based widgets for that day instead of
+   * today; `filters` is what each widget's viewer narrowed it to, by id.
+   */
+  batchWidgetData: (
+    widgetIds: string[],
+    asOf?: string,
+    filters?: Record<string, WidgetViewFilter>,
+  ) =>
     request<WidgetDataResponse[]>("/dashboard/widget-data/batch", {
       method: "POST",
-      body: JSON.stringify({ widget_ids: widgetIds, as_of: asOf }),
+      body: JSON.stringify({ widget_ids: widgetIds, as_of: asOf, filters }),
     }),
 
   // ── Indent / Store ──────────────────────────────────

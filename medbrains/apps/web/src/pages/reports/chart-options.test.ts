@@ -3,7 +3,8 @@ import { optionForReport, rowsOption } from "./chart-options";
 import type { ReportDefinition, ReportRuntimeData } from "./types";
 
 const empty: ReportRuntimeData = { opdFootfall: [], bedOccupancy: [], noShows: [] };
-const report = (id: string) => ({ id, dataEndpoint: `/api/reports/${id}/data` }) as ReportDefinition;
+const report = (id: string) =>
+  ({ id, dataEndpoint: `/api/reports/${id}/data` }) as ReportDefinition;
 
 describe("report charts", () => {
   it("draws nothing when a report has no rows — never a sample", () => {

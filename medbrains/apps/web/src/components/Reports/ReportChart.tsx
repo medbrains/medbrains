@@ -16,6 +16,7 @@ import {
   IconDotsVertical,
   IconDownload,
   IconFileSpreadsheet,
+  IconLayoutDashboard,
   IconLink,
   IconMail,
   IconPhoto,
@@ -156,6 +157,8 @@ interface ReportChartProps {
   disabledActions?: boolean;
   sourceHref?: string;
   onViewDetails?: () => void;
+  /** Put this chart on, or take it off, the reader's own dashboard. */
+  dashboard?: { placed: boolean; onToggle: () => void };
 }
 
 export function ReportChart({
@@ -170,6 +173,7 @@ export function ReportChart({
   disabledActions = false,
   sourceHref,
   onViewDetails,
+  dashboard,
 }: ReportChartProps) {
   const canView = usePermissionStore((state) => state.hasPermission(permission));
   const [expanded, setExpanded] = useState(false);
@@ -279,6 +283,17 @@ export function ReportChart({
                   </ActionIcon>
                 </Menu.Target>
                 <Menu.Dropdown>
+                  {dashboard && (
+                    <>
+                      <Menu.Item
+                        leftSection={<IconLayoutDashboard size={14} />}
+                        onClick={dashboard.onToggle}
+                      >
+                        {dashboard.placed ? "Remove from my dashboard" : "Add to my dashboard"}
+                      </Menu.Item>
+                      <Menu.Divider />
+                    </>
+                  )}
                   <Menu.Label>Export</Menu.Label>
                   <Menu.Item leftSection={<IconDownload size={14} />} disabled={disabledActions}>
                     Download CSV

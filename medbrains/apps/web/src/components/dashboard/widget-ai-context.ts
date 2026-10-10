@@ -1,4 +1,5 @@
 import type { DashboardWidget } from "@medbrains/types";
+import type { ReportSeries } from "@/pages/reports/report-series";
 import { isKpiReading, type KpiBaseline } from "./kpi-reading";
 import { field, rows } from "./widget-data";
 
@@ -11,8 +12,26 @@ const MAX_POINTS = 30;
  * goes as it is. A table can hold patients' names, so it goes as its columns
  * and its size only.
  */
-export function widgetAiContext(widget: DashboardWidget, data: unknown, compare: KpiBaseline) {
+export function widgetAiContext(
+  widget: DashboardWidget,
+  data: unknown,
+  compare: KpiBaseline,
+  report?: ReportSeries | null,
+) {
   const base = { surface: "dashboard_widget", widget: widget.title, subtitle: widget.subtitle };
+  // A report widget goes as its chart — points by date or category — never
+  // its rows, which for some reports name staff.
+  if (widget.data_source?.type === "report") {
+    return {
+      ...base,
+      report_id: widget.data_source.report_id,
+      x: report?.x.slice(-MAX_POINTS) ?? [],
+      series: (report?.series ?? []).map((s) => ({
+        name: s.name,
+        values: s.values.slice(-MAX_POINTS),
+      })),
+    };
+  }
   if (isKpiReading(data)) {
     return {
       ...base,

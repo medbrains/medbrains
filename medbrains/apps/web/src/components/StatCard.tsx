@@ -93,7 +93,7 @@ export function StatCard({
       {actions && (
         // The tile's own controls sit at its foot, so the figure stays where
         // the eye goes first and every tile in a row lines up.
-        <Group justify="space-between" gap={4} mt="auto" pt="xs" wrap="nowrap">
+        <Group justify="space-between" gap={4} mt="auto" pt="xs" wrap="wrap">
           {actions}
         </Group>
       )}
