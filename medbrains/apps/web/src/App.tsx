@@ -150,6 +150,9 @@ const FulfilmentQueuePage = lazy(() =>
 const VerifyPackPage = lazy(() =>
   import("./pages/pharmacy/verify-view").then((m) => ({ default: m.VerifyPackPage })),
 );
+const DeliveriesPage = lazy(() =>
+  import("./pages/pharmacy/deliveries").then((m) => ({ default: m.DeliveriesPage })),
+);
 const DispatchPage = lazy(() =>
   import("./pages/pharmacy/dispatch-view").then((m) => ({ default: m.DispatchPage })),
 );
@@ -548,6 +551,7 @@ export function App() {
               <Route path="pharmacy/fulfilment" element={<FulfilmentQueuePage />} />
               <Route path="pharmacy/fulfilment/:orderId" element={<VerifyPackPage />} />
               <Route path="pharmacy/dispatch" element={<DispatchPage />} />
+              <Route path="pharmacy/deliveries" element={<DeliveriesPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />

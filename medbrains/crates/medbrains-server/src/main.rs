@@ -740,6 +740,10 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
     registry.register(twilio::SmsSendHandler::new("sms.password_reset_otp"));
     registry.register(twilio::SmsSendHandler::new("sms.public_booking_otp"));
+    // A patient's portal sign-in code. Unregistered, it fell to the pipeline
+    // fallback, which marked it sent without texting anyone.
+    registry.register(twilio::SmsSendHandler::new("sms.patient_portal_otp"));
+    registry.register(twilio::SmsSendHandler::new("sms.pharmacy_delivery_code"));
     // SMS counterparts for WhatsApp fallback targets that had none.
     registry.register(twilio::SmsSendHandler::new("sms.lab_report_ready"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_link"));
@@ -932,6 +936,16 @@ mod tests {
         let registry = super::build_outbox_registry();
         let handler = registry.lookup("sms.token_called");
         assert_eq!(handler.map(|h| h.event_type()), Some("sms.token_called"));
+    }
+
+    /// A portal sign-in code and a delivery code are texted, not swallowed
+    /// by the fallback.
+    #[test]
+    fn patient_codes_have_a_sender() {
+        let registry = super::build_outbox_registry();
+        for event in ["sms.patient_portal_otp", "sms.pharmacy_delivery_code"] {
+            assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
+        }
     }
 }
 

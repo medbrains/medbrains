@@ -86,6 +86,7 @@ pub mod peer_sync;
 pub mod permissions;
 pub mod perms_block;
 pub mod pharmacy;
+pub mod pharmacy_delivery;
 pub mod pharmacy_phase2;
 pub mod pharmacy_phase3;
 pub mod print_data;

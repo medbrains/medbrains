@@ -27,6 +27,8 @@ export interface Hospital {
   asAdmin: () => Promise<Page>;
   /** A page signed in to nothing: a patient or a member of the public. */
   asPublic: () => Promise<Page>;
+  /** A new staff member in this role, logged in in their own browser. */
+  newStaff: (role: string, fullName: string) => Promise<{ id: string; page: Page }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
@@ -79,6 +81,22 @@ export const test = base.extend<{ hospital: Hospital }>({
         const page = await openPage(browser);
         pages.push(page);
         return page;
+      },
+      newStaff: async (role, fullName) => {
+        const suffix = unique().toLowerCase();
+        const username = `${role}_${suffix}`;
+        const password = `Staff-${suffix}-Pass1!`;
+        const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
+          username,
+          email: `${username}@e2e.medbrains.localhost`,
+          password,
+          full_name: fullName,
+          role,
+        });
+        const page = await openPage(browser);
+        await loginAsRole(page, username, password);
+        pages.push(page);
+        return { id: user.id, page };
       },
       asAdmin: async () => {
         const page = await openPage(browser, "e2e/.auth/user.json");

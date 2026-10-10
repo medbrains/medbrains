@@ -329,6 +329,24 @@ pub mod pharmacy {
         pub const MANAGE: &str = "pharmacy.stock.manage";
     }
 
+    pub mod deliveries {
+        /// View home deliveries.
+        ///
+        /// The deliveries list and each delivery's address, status and
+        /// payment. A runner sees the ones assigned to them.
+        pub const VIEW: &str = "pharmacy.deliveries.view";
+        /// Arrange home deliveries.
+        ///
+        /// Send an order out for delivery: address, runner or courier,
+        /// payment, dispatch — and record a failed attempt.
+        pub const ARRANGE: &str = "pharmacy.deliveries.arrange";
+        /// Complete deliveries at the door.
+        ///
+        /// Hand the medicines over against the patient's one-time code and
+        /// record cash collected on delivery.
+        pub const COMPLETE: &str = "pharmacy.deliveries.complete";
+    }
+
     pub mod ndps {
         pub const LIST: &str = "pharmacy.ndps.list";
         pub const MANAGE: &str = "pharmacy.ndps.manage";

@@ -104,6 +104,7 @@ import type {
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
+  ArrangeDeliveryRequest,
   AssetCategory,
   AssetClassification,
   AssetMovement,
@@ -850,6 +851,8 @@ import type {
   DecidedApprovalRequest,
   DecideItemRequest,
   DeclineReferralRequest,
+  DeliveryOptions,
+  DeliveryRunner,
   DeliveryType,
   DentalChartEntry,
   DentalExam,
@@ -1534,6 +1537,8 @@ import type {
   PharmacyCreditNote,
   PharmacyDaySettlement,
   PharmacyDeadStockRow,
+  PharmacyDelivery,
+  PharmacyDeliveryList,
   PharmacyDestructionLog,
   PharmacyDispatchStatus,
   PharmacyDrugRecall,
@@ -6197,6 +6202,35 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  // ── Home delivery ─────────────────────────────────────
+  getDeliveryOptions: (orderId: string) =>
+    request<DeliveryOptions>(`/pharmacy/orders/${orderId}/delivery-options`),
+  arrangeDelivery: (data: ArrangeDeliveryRequest) =>
+    request<PharmacyDelivery>("/pharmacy/deliveries", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listDeliveries: (status?: string) =>
+    request<PharmacyDeliveryList>(`/pharmacy/deliveries${status ? `?status=${status}` : ""}`),
+  listDeliveryRunners: () => request<DeliveryRunner[]>("/pharmacy/delivery-runners"),
+  dispatchDelivery: (id: string) =>
+    request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/dispatch`, {
+      method: "POST",
+      body: "{}",
+    }),
+  completeDelivery: (id: string, data: { code?: string; cash_collected?: number }) =>
+    request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  failDelivery: (id: string, data: { reason: string }) =>
+    request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/fail`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  cancelDelivery: (id: string) =>
+    request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/cancel`, { method: "POST", body: "{}" }),
+
   updatePharmacyCatalog: (id: string, data: UpdatePharmacyCatalogRequest) =>
     request<PharmacyCatalog>(`/pharmacy/catalog/${id}`, {
       method: "PUT",

@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-pharmacy-delivery"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+axum = { workspace = true }
+chrono = { workspace = true }
+getrandom = { version = "0.3", features = ["std"] }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

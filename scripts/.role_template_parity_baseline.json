@@ -35,6 +35,10 @@
     "missing_from_template": 0,
     "template_only": []
   },
+  "delivery_runner": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
   "dietitian": {
     "missing_from_template": 0,
     "template_only": []
