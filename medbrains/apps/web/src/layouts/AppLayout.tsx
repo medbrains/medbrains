@@ -491,9 +491,10 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" miw={0}>
             <HeaderWidgets />
-            <Box visibleFrom="xl" style={{ height: "100%" }}>
+            {/* The ticker gives way first when the bar is tight. */}
+            <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />

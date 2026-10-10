@@ -1,12 +1,17 @@
-import { BarChart, LineChart } from "@mantine/charts";
 import { Box, Card, Group, Loader, Stack, Table, Text, ThemeIcon } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { DashboardWidget } from "@medbrains/types";
+import { IconArrowsMaximize } from "@tabler/icons-react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
-import { Button } from "@/components/ui";
-import { formatDateTime } from "@/lib/date-utils";
+import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
 import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-reading";
+import { SeriesMetrics } from "./SeriesMetrics";
+import { columnValues } from "./series-stats";
+import { TrendChart, type TrendKind } from "./TrendChart";
+import { WidgetExpandedView } from "./WidgetExpandedView";
+import { cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
 
 interface Props {
@@ -22,41 +27,6 @@ interface QuickAction {
   label: string;
   route: string;
   permission?: string;
-}
-
-/** Read a JSON-ish value from an unknown record. */
-function field(obj: unknown, key: string): unknown {
-  return obj && typeof obj === "object" ? (obj as Record<string, unknown>)[key] : undefined;
-}
-
-function formatValue(value: unknown, format?: string): string {
-  // Number(null) is 0: an unknown must not print as a real zero.
-  if (value === null || value === undefined) return "—";
-  const n = typeof value === "number" ? value : Number(value);
-  if (Number.isNaN(n)) return typeof value === "string" ? value : "—";
-  if (format === "currency") {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(n);
-  }
-  return new Intl.NumberFormat().format(n);
-}
-
-function rows(data: unknown): Record<string, unknown>[] {
-  if (Array.isArray(data)) return data as Record<string, unknown>[];
-  const items =
-    field(data, "items") ?? field(data, "rows") ?? field(data, "data") ?? field(data, "trend");
-  return Array.isArray(items) ? (items as Record<string, unknown>[]) : [];
-}
-
-const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
-
-/** A table cell as a person reads it: timestamps in local time, blanks as a dash. */
-function cellText(value: unknown): string {
-  if (typeof value === "string" && ISO_TIMESTAMP.test(value)) return formatDateTime(value);
-  return String(value ?? "—");
 }
 
 function dataUnavailable(data: unknown): boolean {
@@ -97,10 +67,17 @@ function UnavailableBody() {
   );
 }
 
-function WidgetShell({ widget, children }: { widget: DashboardWidget; children: React.ReactNode }) {
+interface ShellProps {
+  widget: DashboardWidget;
+  children: React.ReactNode;
+  /** Opens the widget at full size; absent where there is nothing more to show. */
+  onExpand?: () => void;
+}
+
+function WidgetShell({ widget, children, onExpand }: ShellProps) {
   return (
     <Card withBorder padding="md" h="100%">
-      <Group gap="xs" mb="sm">
+      <Group gap="xs" mb="sm" wrap="nowrap">
         <ThemeIcon variant="light" color={widget.color ?? "primary"} size={28} radius="md">
           <WidgetIcon name={widget.icon} size={16} />
         </ThemeIcon>
@@ -114,14 +91,45 @@ function WidgetShell({ widget, children }: { widget: DashboardWidget; children: 
             </Text>
           )}
         </Box>
+        {onExpand && (
+          <Tooltip label="Expand">
+            <IconButton aria-label={`Expand ${widget.title}`} ml="auto" onClick={onExpand}>
+              <IconArrowsMaximize size={16} />
+            </IconButton>
+          </Tooltip>
+        )}
       </Group>
       {children}
     </Card>
   );
 }
 
+/** Widget types with a larger view: a trend, a full table, a history. */
+const EXPANDABLE = new Set(["stat_card", "chart", "data_table", "list"]);
+
+/** A dashboard widget, with its expanded view one click away. */
+export function DashboardWidgetCard(props: Props) {
+  const { widget, data, loading, compare = "weekday" } = props;
+  const [expanded, setExpanded] = useState(false);
+  const canExpand = EXPANDABLE.has(widget.widget_type) && !loading && !dataUnavailable(data);
+  return (
+    <>
+      <WidgetBody {...props} onExpand={canExpand ? () => setExpanded(true) : undefined} />
+      <Drawer opened={expanded} onClose={() => setExpanded(false)} title={widget.title} size="xl">
+        {expanded && <WidgetExpandedView widget={widget} data={data} compare={compare} />}
+      </Drawer>
+    </>
+  );
+}
+
 /** Renders a single dashboard widget by its type, from resolved `data`. */
-export function DashboardWidgetCard({ widget, data, loading, compare = "weekday" }: Props) {
+function WidgetBody({
+  widget,
+  data,
+  loading,
+  compare = "weekday",
+  onExpand,
+}: Props & { onExpand?: () => void }) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((s) => s.hasPermission);
 
@@ -148,6 +156,8 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
         color={widget.color ?? "primary"}
         comparison={compareKpi(data, compare) ?? undefined}
         sparkline={data.series.map((d) => d.value)}
+        onClick={onExpand}
+        actionLabel={`Expand ${widget.title}`}
       />
     );
   }
@@ -163,6 +173,8 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
         }
         icon={<WidgetIcon name={widget.icon} />}
         color={widget.color ?? "primary"}
+        onClick={onExpand}
+        actionLabel={`Expand ${widget.title}`}
       />
     );
   }
@@ -203,7 +215,7 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
   if (widget.widget_type === "list") {
     const items = rows(data);
     return (
-      <WidgetShell widget={widget}>
+      <WidgetShell widget={widget} onExpand={onExpand}>
         {items.length === 0 ? (
           <EmptyBody label="Nothing to show" />
         ) : (
@@ -225,7 +237,7 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
     const maxRows = Number(field(widget.config, "max_rows") ?? 10);
     const items = rows(data);
     return (
-      <WidgetShell widget={widget}>
+      <WidgetShell widget={widget} onExpand={onExpand}>
         {items.length === 0 || cols.length === 0 ? (
           <EmptyBody label="Nothing to show" />
         ) : (
@@ -256,15 +268,16 @@ export function DashboardWidgetCard({ widget, data, loading, compare = "weekday"
     const series = rows(data);
     const x = String(field(widget.config, "x_axis") ?? "date");
     const y = String(field(widget.config, "y_axis") ?? "value");
-    const kind = String(field(widget.config, "chart_type") ?? "bar");
+    const kind = String(field(widget.config, "chart_type") ?? "bar") as TrendKind;
     return (
-      <WidgetShell widget={widget}>
+      <WidgetShell widget={widget} onExpand={onExpand}>
         {series.length === 0 ? (
           <EmptyBody label="Nothing to show" />
-        ) : kind === "line" ? (
-          <LineChart h={160} data={series} dataKey={x} series={[{ name: y, color: "indigo.6" }]} />
         ) : (
-          <BarChart h={160} data={series} dataKey={x} series={[{ name: y, color: "indigo.6" }]} />
+          <Stack gap="xs">
+            <SeriesMetrics values={columnValues(series, y)} compact />
+            <TrendChart data={series} xKey={x} yKey={y} kind={kind} />
+          </Stack>
         )}
       </WidgetShell>
     );
