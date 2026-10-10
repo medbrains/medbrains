@@ -787,5 +787,12 @@ pub fn build_router(state: AppState) -> Router {
         .merge(public_booking)
         .merge(portal_routes)
         .merge(reminder_routes)
+        // An API path nothing answers is a JSON 404, never the app's HTML:
+        // the SPA fallback answers 200, so a mistyped call would otherwise
+        // read as success. Specific routes win over the wildcard.
+        .route(
+            "/api/{*rest}",
+            axum::routing::any(|| async { medbrains_server_core::error::AppError::NotFound }),
+        )
         .with_state(state)
 }

@@ -505,10 +505,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Serve build-time precompressed bundles (.br/.gz emitted by Vite) when the
     // client accepts them — max ratio computed once, zero per-request CPU. Falls
     // back to the original (which the global CompressionLayer compresses live).
+    // `fallback`, not `not_found_service`: a deep link (/dashboard) is the
+    // app, and the app is a 200. not_found_service served index.html with the
+    // miss's 404, which monitors and crawlers read as a broken page.
     let spa_fallback = tower_http::services::ServeDir::new(&static_dir)
         .precompressed_br()
         .precompressed_gzip()
-        .not_found_service(tower_http::services::ServeFile::new(format!(
+        .fallback(tower_http::services::ServeFile::new(format!(
             "{static_dir}/index.html"
         )));
     // Same directory, mounted separately so the immutable header lands on the
