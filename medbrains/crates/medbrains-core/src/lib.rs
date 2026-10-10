@@ -96,6 +96,7 @@ pub mod radiology;
 pub mod regulatory;
 pub mod reports;
 pub mod retrospective;
+pub mod rx_refills;
 pub mod scheduling;
 pub mod screen;
 pub mod secrets;

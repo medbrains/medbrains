@@ -6199,7 +6199,7 @@ pub async fn list_rx_queue(
                 p.first_name || ' ' || p.last_name AS patient_name,
                 p.uhid AS patient_uhid,
                 u.full_name AS doctor_name,
-                pr.source, pr.status, pr.priority, pr.received_at,
+                pr.source, pr.status, pr.priority, pr.received_at, pr.repeat_index,
                 (SELECT COUNT(*) FROM patient_allergies pa
                  WHERE pa.patient_id = pr.patient_id AND pa.is_active = true
                    AND pa.allergy_type = 'drug') AS allergy_count
@@ -6414,11 +6414,23 @@ pub async fn get_rx_detail(
     .fetch_one(&mut *tx)
     .await?;
 
+    // What the doctor wrote about refills and expiry, for the review.
+    let terms = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT json_build_object('valid_until', valid_until, 'repeats_allowed', repeats_allowed, \
+                'repeat_interval_days', repeat_interval_days, 'repeats_used', repeats_used) \
+           FROM prescriptions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(rx.prescription_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(json!({
         "prescription": rx,
         "items": items,
         "allergies": allergies,
+        "terms": terms,
     })))
 }
 
@@ -6445,6 +6457,27 @@ pub async fn review_prescription(
             ));
         }
     };
+
+    // Past its valid-until date a prescription is not dispensed: the patient
+    // needs a new one. Hold and reject stay open, to say so.
+    if new_status == "approved" {
+        let expired: Option<NaiveDate> = sqlx::query_scalar(
+            "SELECT p.valid_until FROM pharmacy_prescriptions q \
+               JOIN prescriptions p ON p.id = q.prescription_id AND p.tenant_id = q.tenant_id \
+              WHERE q.id = $1 AND q.tenant_id = $2 AND p.valid_until < CURRENT_DATE",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+        if let Some(until) = expired {
+            return Err(AppError::Conflict(format!(
+                "This prescription expired on {}. The patient needs a new one.",
+                until.format("%d %b %Y")
+            )));
+        }
+    }
 
     let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
         "UPDATE pharmacy_prescriptions SET

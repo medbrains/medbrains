@@ -137,6 +137,7 @@ export function PrescriptionsTab({
         patientId={patientId}
         prescriptions={prescriptions as PrescriptionWithItems[]}
         canUpdate={canUpdate}
+        withRefillTerms
         onSave={(data) => createMutation.mutate(data)}
         onUpdate={(prescriptionId, data) => updateMutation.mutate({ prescriptionId, data })}
         isSaving={createMutation.isPending}

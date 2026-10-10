@@ -41,13 +41,13 @@ def checks_for(path: str) -> dict[str, list[str]]:
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py", path)
         with open(path, encoding="utf-8") as fh:
             if ".route(" in fh.read():
-                checks["api-contract"] = py("scripts/check_api_contract.py")
+                checks["api-contract"] = py("../scripts/check_api_contract.py")
     elif "/migrations/" in rel and rel.endswith(".sql"):
         checks["migration-headers"] = ["make", "-s", "check-migration-headers"]
         checks["rls"] = py("../scripts/check_rls.py")
         checks["partial-upserts"] = py("scripts/check_partial_upserts.py")
     elif rel == "packages/api/src/client.ts":
-        checks["api-contract"] = py("scripts/check_api_contract.py")
+        checks["api-contract"] = py("../scripts/check_api_contract.py")
     elif rel.startswith("apps/web/src/") and rel.endswith((".ts", ".tsx")):
         checks["biome"] = ["npx", "biome", "check", rel]
         if rel.endswith(".tsx"):

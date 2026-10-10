@@ -253,10 +253,7 @@ export function PharmacyOrderDetail({
         </Text>
       )}
       {detail.order.prescription_id && (
-        <RepeatPanel
-          prescriptionId={detail.order.prescription_id}
-          pharmacyOrderId={detail.order.id}
-        />
+        <RepeatPanel prescriptionId={detail.order.prescription_id} />
       )}
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
