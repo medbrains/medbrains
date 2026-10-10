@@ -114,8 +114,20 @@ if [ -f "$SCHEMA_FILE" ]; then
         . /etc/spicedb/env
         say "applying schema from $(basename "$SCHEMA_FILE")"
         if command -v zed >/dev/null 2>&1; then
-            zed context set local 127.0.0.1:50051 "$SPICEDB_GRPC_PRESHARED_KEY" --insecure >/dev/null 2>&1 || true
-            zed schema write "$SCHEMA_FILE" --insecure >/dev/null && say "schema applied"
+            # zed authenticates from the environment, for this one call.
+            # `zed context set` stores the token in a keyring; a server has no
+            # desktop session, so zed falls back to an encrypted file and asks
+            # for its password on the terminal. With the output discarded that
+            # prompt was invisible, and the deploy waited on it for half an
+            # hour. The environment also keeps the key out of `ps`, where the
+            # context command line showed it. No stdin and a time limit, so no
+            # future prompt can wait forever.
+            if ZED_ENDPOINT=127.0.0.1:50051 ZED_TOKEN="$SPICEDB_GRPC_PRESHARED_KEY" ZED_INSECURE=true \
+                timeout 120 zed schema write "$SCHEMA_FILE" </dev/null >/dev/null; then
+                say "schema applied"
+            else
+                say "WARNING: zed schema write failed — schema not applied"
+            fi
         else
             # zed is a separate download; the HTTP API takes the same schema.
             payload="$(python3 -c 'import json,sys; print(json.dumps({"schema": open(sys.argv[1]).read()}))' "$SCHEMA_FILE")"
