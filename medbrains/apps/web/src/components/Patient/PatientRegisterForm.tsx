@@ -313,6 +313,10 @@ export function PatientRegisterForm({
     formState: { errors },
   } = useForm<PatientRegistrationFormInput>({
     resolver: zodResolver(patientRegistrationFormSchema),
+    // Checked as a field changes, so a message clears the moment its field is
+    // put right rather than at the next press of Next. Not "onTouched": the
+    // pickers do not report a blur, so they would never be re-checked.
+    mode: "onChange",
     defaultValues: {
       // No default: an untouched field recorded every patient as "unknown".
       gender: initialValues?.gender ?? "",
@@ -2006,7 +2010,9 @@ export function PatientRegisterForm({
           left: "var(--app-shell-navbar-width, 0px)",
           right: 0,
           zIndex: 190,
-          padding: "12px 24px",
+          // The right side stays clear of the assistant's button (60px at a
+          // 16px margin), which sits over this pinned bar's last step.
+          padding: "12px 96px 12px 24px",
           background: "var(--mb-bg-content, var(--mantine-color-body))",
           borderTop: "1px solid var(--mb-border-subtle)",
           boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.08)",
