@@ -1,7 +1,7 @@
 import { Group } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { SegmentedControl } from "@/components/ui";
-import type { KpiBaseline } from "./kpi-reading";
+import { KPI_BASELINES, type KpiBaseline } from "./kpi-reading";
 
 interface KpiPeriodControlsProps {
   /** YYYY-MM-DD, or null for today. */
@@ -10,12 +10,6 @@ interface KpiPeriodControlsProps {
   compare: KpiBaseline;
   onCompareChange: (value: KpiBaseline) => void;
 }
-
-const BASELINES: { value: KpiBaseline; label: string }[] = [
-  { value: "weekday", label: "Usual weekday" },
-  { value: "yesterday", label: "Yesterday" },
-  { value: "week", label: "Last 7 days" },
-];
 
 /** The day management KPIs are read for, and what each is set against. */
 export function KpiPeriodControls({
@@ -43,7 +37,7 @@ export function KpiPeriodControls({
         aria-label="Compare with"
         value={compare}
         onChange={(v) => onCompareChange(v as KpiBaseline)}
-        data={BASELINES}
+        data={KPI_BASELINES}
       />
     </Group>
   );

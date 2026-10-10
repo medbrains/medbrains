@@ -32,6 +32,9 @@ interface StatCardProps {
   sparkline?: (number | null)[];
   onClick?: () => void;
   actionLabel?: string;
+  /** Controls of the tile's own (compare, expand). With these the card is
+   *  not one big button — a control inside a button cannot be reached. */
+  actions?: ReactNode;
 }
 
 export function StatCard({
@@ -43,9 +46,10 @@ export function StatCard({
   sparkline,
   onClick,
   actionLabel,
+  actions,
 }: StatCardProps) {
   const card = (
-    <Card className="stat-card" padding="lg">
+    <Card className="stat-card" padding="lg" h="100%">
       <Group justify="space-between" mb="sm">
         <Text
           size="xs"
@@ -86,10 +90,17 @@ export function StatCard({
           aria-hidden
         />
       )}
+      {actions && (
+        // The tile's own controls sit at its foot, so the figure stays where
+        // the eye goes first and every tile in a row lines up.
+        <Group justify="space-between" gap={4} mt="auto" pt="xs" wrap="nowrap">
+          {actions}
+        </Group>
+      )}
     </Card>
   );
 
-  if (!onClick) return card;
+  if (!onClick || actions) return card;
 
   return (
     <UnstyledButton
