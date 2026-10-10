@@ -53,45 +53,6 @@
   }
 }
 
-// Idle compact pill (opens the AI assistant).
-.idleBtn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0 2px;
-  font: inherit;
-}
-
-.idleLabel {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.pulseDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--mb-status-success-emphasis, #34d399);
-  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
-  animation: island-pulse 2s ease-in-out infinite;
-}
-
-@keyframes island-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 7px rgba(52, 211, 153, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
-  }
-}
-
 .alertBody {
   display: flex;
   align-items: center;
@@ -131,12 +92,9 @@
   flex-shrink: 0;
 }
 
-// Respect reduced-motion: no morph, no pulse.
+// Respect reduced-motion: no morph.
 @media (prefers-reduced-motion: reduce) {
   .island {
     transition: none;
-  }
-  .pulseDot {
-    animation: none;
   }
 }
