@@ -25,6 +25,8 @@
 #   operator   a release build, anything with --target (a cross-compile), or
 #              anything outside this workspace. Never killed, never waited on
 #              silently — reported so a human decides.
+#   serving    a `cargo run` whose program is up and which compiles nothing:
+#              a dev server. Listed, never counted as a build, never stopped.
 #   stale      burning no CPU for minutes. Probably wedged, but "probably" is
 #              not enough to kill without being asked.
 #
@@ -59,8 +61,35 @@ elapsed_seconds() {
     echo $((total + days * 86400))
 }
 
+# Every process below `$1`, one pid per line.
+descendants() {
+    local child
+    for child in $(pgrep -P "$1" 2>/dev/null); do
+        echo "$child"
+        descendants "$child"
+    done
+}
+
+# A `cargo run` whose program is running and which compiles nothing is
+# serving, not building: no compiler beneath it, no build lock held. A dev
+# server left up — this project's or another's — must not hold every build
+# in the queue for as long as it runs.
+is_serving() {
+    local pid="$1" child
+    local -a kids
+    kids=($(descendants "$pid"))
+    (( ${#kids[@]} > 0 )) || return 1
+    for child in "${kids[@]}"; do
+        ps -o command= -p "$child" 2>/dev/null | grep -qE 'rustc|build-script|cc1|ld( |$)' && return 1
+    done
+    return 0
+}
+
 classify() {
     local command="$1" cpu="$2" elapsed="$3" pid="$4"
+    if [[ "$command" == *"cargo run"* ]] && is_serving "$pid"; then
+        echo "serving"; return
+    fi
     # Operator work first: a false "agent" reading is the expensive mistake.
     if [[ "$command" == *"--release"* || "$command" == *"--target "* || "$command" == *"--target="* ]]; then
         echo "operator"; return
@@ -86,7 +115,8 @@ scan() {
         local seconds kind
         seconds="$(elapsed_seconds "$etime")"
         kind="$(classify "$rest" "$pcpu" "$seconds" "$pid")"
-        FOUND=$((FOUND + 1))
+        # Shown, so the reader sees it, but it does not hold the queue.
+        [[ "$kind" == "serving" ]] || FOUND=$((FOUND + 1))
         printf "  %-9s pid %-7s %5ss  %4s%%cpu  %s\n" \
             "$kind" "$pid" "$seconds" "$pcpu" "${rest:0:80}"
         [[ "$kind" == "stale" ]] && REAPABLE+=("$pid")
