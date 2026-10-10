@@ -99,6 +99,8 @@ export function ReportTile({
       sourceHref={undefined}
       onViewDetails={() => onDetails(report)}
       dashboard={option && dashboard.canPlace ? dashboard : undefined}
+      rows={(reportData?.rows ?? []) as Record<string, unknown>[]}
+      link={`/reports?q=${encodeURIComponent(report.title)}`}
     />
   );
 }

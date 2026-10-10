@@ -12,13 +12,11 @@ import {
 import { usePermissionStore } from "@medbrains/stores";
 import {
   IconArrowsMaximize,
-  IconCalendarStats,
   IconDotsVertical,
   IconDownload,
   IconFileSpreadsheet,
   IconLayoutDashboard,
   IconLink,
-  IconMail,
   IconPhoto,
   IconReport,
 } from "@tabler/icons-react";
@@ -84,6 +82,7 @@ import {
 import { type EChartsCoreOption, type EChartsType, init, use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef, useState } from "react";
+import { useReportExport } from "./useReportExport";
 
 use([
   BarChart,
@@ -159,6 +158,10 @@ interface ReportChartProps {
   onViewDetails?: () => void;
   /** Put this chart on, or take it off, the reader's own dashboard. */
   dashboard?: { placed: boolean; onToggle: () => void };
+  /** The rows behind the chart, for the exports. */
+  rows?: Record<string, unknown>[];
+  /** A link to this report for a colleague — it still needs their login. */
+  link?: string;
 }
 
 export function ReportChart({
@@ -174,6 +177,8 @@ export function ReportChart({
   sourceHref,
   onViewDetails,
   dashboard,
+  rows = [],
+  link,
 }: ReportChartProps) {
   const canView = usePermissionStore((state) => state.hasPermission(permission));
   const [expanded, setExpanded] = useState(false);
@@ -182,6 +187,8 @@ export function ReportChart({
   const expandedHostRef = useRef<HTMLDivElement | null>(null);
   const expandedChartRef = useRef<EChartsType | null>(null);
   const hasChart = option !== null;
+  const hasRows = !disabledActions && rows.length > 0;
+  const exporter = useReportExport({ title, rows, chartRef, link });
 
   useEffect(() => {
     if (!canView || !hasChart || !hostRef.current) return;
@@ -295,31 +302,42 @@ export function ReportChart({
                     </>
                   )}
                   <Menu.Label>Export</Menu.Label>
-                  <Menu.Item leftSection={<IconDownload size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconDownload size={14} />}
+                    disabled={!hasRows}
+                    onClick={exporter.csv}
+                  >
                     Download CSV
                   </Menu.Item>
                   <Menu.Item
                     leftSection={<IconFileSpreadsheet size={14} />}
-                    disabled={disabledActions}
+                    disabled={!hasRows}
+                    onClick={exporter.excel}
                   >
                     Download Excel
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconReport size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconReport size={14} />}
+                    disabled={!hasRows}
+                    onClick={exporter.pdf}
+                  >
                     Export PDF
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconPhoto size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconPhoto size={14} />}
+                    disabled={!hasChart}
+                    onClick={exporter.image}
+                  >
                     Save chart image
                   </Menu.Item>
-                  <Menu.Divider />
-                  <Menu.Item leftSection={<IconLink size={14} />} disabled={disabledActions}>
-                    Secure share link
-                  </Menu.Item>
-                  <Menu.Item leftSection={<IconCalendarStats size={14} />}>
-                    Schedule report
-                  </Menu.Item>
-                  <Menu.Item leftSection={<IconMail size={14} />} disabled={disabledActions}>
-                    Email now
-                  </Menu.Item>
+                  {link && (
+                    <>
+                      <Menu.Divider />
+                      <Menu.Item leftSection={<IconLink size={14} />} onClick={exporter.copyLink}>
+                        Copy link
+                      </Menu.Item>
+                    </>
+                  )}
                   {sourceHref && (
                     <>
                       <Menu.Divider />
