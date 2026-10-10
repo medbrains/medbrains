@@ -4,6 +4,7 @@
 
 import type { EChartsTemplate } from "@medbrains/types";
 import type { EChartsCoreOption } from "@/components/Reports/ReportChart";
+import { reportSeries } from "./report-series";
 import type { ReportDefinition, ReportRuntimeData } from "./types";
 
 export function templateForReport(report: ReportDefinition): EChartsTemplate {
@@ -107,46 +108,24 @@ function bespokeOption(
   return null;
 }
 
-const ID_COLUMN = /(^id$|_id$)/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
-const MAX_SERIES = 3;
-/** A bar per category stops reading past this many; the table has the rest. */
-const MAX_BARS = 20;
-
-const humanise = (key: string) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-
 /**
- * A chart of any report's rows: its first text column along the bottom (a
- * date makes it a line), up to three of its number columns as series, the
- * axis from zero. Null when the rows hold no number to draw.
+ * A chart of any report's rows (see `reportSeries`): dates make a line,
+ * categories bars, the axis from zero. Null when the rows hold no number.
  */
 export function rowsOption(rows: Record<string, unknown>[]): EChartsCoreOption | null {
-  const keys = Object.keys(rows[0] ?? {}).filter((k) => !ID_COLUMN.test(k));
-  const numeric = keys.filter(
-    (k) =>
-      rows.some((r) => typeof r[k] === "number") &&
-      rows.every((r) => r[k] === null || r[k] === undefined || typeof r[k] === "number"),
-  );
-  if (numeric.length === 0) return null;
-  const category = keys.find(
-    (k) => !numeric.includes(k) && rows.every((r) => r[k] == null || typeof r[k] === "string"),
-  );
-  const isTrend = category !== undefined && ISO_DATE.test(String(rows[0]?.[category] ?? ""));
-  const shown = isTrend ? rows : rows.slice(0, MAX_BARS);
+  const shape = reportSeries(rows);
+  if (!shape) return null;
   return {
     tooltip: { trigger: "axis" },
     legend: { bottom: 0 },
     grid: { left: 48, right: 18, top: 24, bottom: 54 },
-    xAxis: {
-      type: "category",
-      data: shown.map((r, i) => (category ? String(r[category] ?? "—") : String(i + 1))),
-      axisLabel: { hideOverlap: true },
-    },
+    xAxis: { type: "category", data: shape.x, axisLabel: { hideOverlap: true } },
     yAxis: { type: "value", min: 0 },
-    series: numeric.slice(0, MAX_SERIES).map((k) => ({
-      name: humanise(k),
-      type: isTrend ? "line" : "bar",
-      data: shown.map((r) => (typeof r[k] === "number" ? r[k] : null)),
+    series: shape.series.map((s) => ({
+      name: s.name,
+      type: shape.isTrend ? "line" : "bar",
+      connectNulls: true,
+      data: s.values,
     })),
   };
 }
