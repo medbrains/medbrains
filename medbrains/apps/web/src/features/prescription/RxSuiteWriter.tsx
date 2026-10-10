@@ -15,14 +15,17 @@ import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
+import { todayDateString } from "@/lib/date-utils";
 import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
+import { RxRefillTerms } from "./RxRefillTerms";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
+import { NO_REFILLS, type RefillTerms, refillRequest } from "./rxRefills";
 import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
 import { useLastPrescription } from "./useLastPrescription";
 
@@ -42,6 +45,18 @@ interface Props {
   allergies?: string[];
   /** "nurse" → nurse-draft mode (Rx-only items route to MD). */
   prescriber?: "doctor" | "nurse";
+  /** Ask for refills and an expiry (outpatient prescriptions). */
+  withRefillTerms?: boolean;
+}
+
+/** Lines that may never be refilled: Schedule X (incl. NDPS) and H1. */
+function controlledNames(items: RxItem[], formularyById: Record<string, FormularyDrug>): string[] {
+  return items
+    .filter((it) => {
+      const d = formularyById[it.id];
+      return d?.controlled || d?.schedule === "X" || d?.schedule === "H1";
+    })
+    .map((it) => it.name);
 }
 
 const EMPTY_SAFETY: RxSafety = {
@@ -72,6 +87,7 @@ export function RxSuiteWriter({
   uhid,
   allergies = [],
   prescriber = "doctor",
+  withRefillTerms = false,
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -87,6 +103,12 @@ export function RxSuiteWriter({
   const [pendingItems, setPendingItems] = useState<RxItem[] | null>(null);
   const [overrideIssues, setOverrideIssues] = useState<SafetyIssue[]>([]);
   const isVerbal = prescriber === "nurse" && orderMode !== "written";
+  const askRefills = withRefillTerms && prescriber === "doctor";
+  const [refillTerms, setRefillTerms] = useState<RefillTerms>(NO_REFILLS);
+  const today = todayDateString();
+  // A controlled line on the pad means no refills, whatever was typed first.
+  const refillable = (terms: RefillTerms, items: RxItem[]) =>
+    controlledNames(items, formularyById).length > 0 ? { ...terms, refills: 0 } : terms;
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["pharmacy-catalog"],
@@ -198,6 +220,7 @@ export function RxSuiteWriter({
       ...(overrides?.allergy ? { allergy_override_reason: overrides.allergy } : {}),
       ...(overrides?.interaction ? { interaction_override_reason: overrides.interaction } : {}),
       ...(overrides?.duplicate ? { duplicate_override_reason: overrides.duplicate } : {}),
+      ...(askRefills ? refillRequest(refillable(refillTerms, items), today) : {}),
       ...(isVerbal
         ? {
             order_mode: orderMode,
@@ -208,6 +231,7 @@ export function RxSuiteWriter({
     });
     setSafety(EMPTY_SAFETY);
     setReadBack(false);
+    setRefillTerms(NO_REFILLS);
   };
 
   // Safety guards checked at save: a documented drug allergy (sentinel event)
@@ -347,6 +371,14 @@ export function RxSuiteWriter({
           interactions. Documented allergies and dose limits are still checked, and the server
           re-checks both at save.
         </Alert>
+      )}
+      {askRefills && (
+        <RxRefillTerms
+          value={refillTerms}
+          onChange={setRefillTerms}
+          today={today}
+          controlled={controlledNames(currentItems, formularyById)}
+        />
       )}
       <RxDoctor
         formulary={formulary}

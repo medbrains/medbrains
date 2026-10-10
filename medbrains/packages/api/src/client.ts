@@ -530,7 +530,6 @@ import type {
   CreateEmployeeRequest,
   CreateEncounterRequest,
   CreateEncounterResponse,
-  LastOpdVisit,
   CreateEndoscopyBiopsyRequest,
   CreateEndoscopyProcedureRequest,
   CreateEndoscopyReprocessingRequest,
@@ -1233,6 +1232,7 @@ import type {
   LabTatRow,
   LabTestCatalog,
   LabTestPanel,
+  LastOpdVisit,
   LaundryBatch,
   LearningPathWithCourses,
   LeaveActionRequest,
@@ -1713,6 +1713,8 @@ import type {
   RemoteVitalReading,
   RemoveIndwellingDeviceRequest,
   ReorderAlert,
+  RepeatEligibility,
+  RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
   ReportToCertInRequest,
@@ -2169,8 +2171,8 @@ import type {
   WellsPeResult,
   WidgetAccessLevel,
   WidgetDataResponse,
-  WidgetViewFilter,
   WidgetTemplate,
+  WidgetViewFilter,
   WorklistToken,
   WorkOrderPrintData,
   WoundCertificatePrintData,
@@ -15773,11 +15775,11 @@ export const api = {
 
   // Repeats
   checkRepeatEligibility: (prescription_id: string) =>
-    request<unknown>(`/pharmacy/prescriptions/${prescription_id}/repeat-eligibility`),
+    request<RepeatEligibility>(`/pharmacy/prescriptions/${prescription_id}/repeat-eligibility`),
   listRepeatsForRx: (prescription_id: string) =>
-    request<unknown[]>(`/pharmacy/prescriptions/${prescription_id}/repeats`),
-  dispenseRepeat: (prescription_id: string, data: { pharmacy_order_id: string; notes?: string }) =>
-    request<unknown>(`/pharmacy/prescriptions/${prescription_id}/repeats`, {
+    request<RepeatRow[]>(`/pharmacy/prescriptions/${prescription_id}/repeats`),
+  dispenseRepeat: (prescription_id: string, data: { notes?: string }) =>
+    request<RepeatRow>(`/pharmacy/prescriptions/${prescription_id}/repeats`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

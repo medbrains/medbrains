@@ -56,6 +56,8 @@ pub struct PharmacyPrescriptionRx {
     pub interaction_check_done: bool,
     pub interaction_check_result: Option<serde_json::Value>,
     pub store_location_id: Option<Uuid>,
+    /// Which refill this entry is; `None` for the prescription itself.
+    pub repeat_index: Option<i32>,
     pub received_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -185,6 +187,8 @@ pub struct RxQueueRow {
     pub status: PharmacyRxStatus,
     pub priority: String,
     pub received_at: DateTime<Utc>,
+    /// Which refill this entry is; `None` for the prescription itself.
+    pub repeat_index: Option<i32>,
     pub allergy_count: i64,
 }
 

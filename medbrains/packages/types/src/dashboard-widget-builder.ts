@@ -2044,6 +2044,10 @@ export interface Prescription {
   read_back_confirmed: boolean;
   countersign_due_at: string | null;
   is_signed: boolean;
+  repeats_allowed: number;
+  repeat_interval_days: number | null;
+  repeats_used: number;
+  valid_until: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -31,6 +31,8 @@ export interface PharmacyPrescriptionRx {
   interaction_check_done: boolean;
   interaction_check_result?: unknown;
   store_location_id?: string;
+  /** Which refill this entry is; null for the prescription itself. */
+  repeat_index: number | null;
   received_at: string;
   created_at: string;
   updated_at: string;
@@ -48,6 +50,8 @@ export interface RxQueueRow {
   status: PharmacyRxStatus;
   priority: string;
   received_at: string;
+  /** Which refill this entry is; null for the prescription itself. */
+  repeat_index: number | null;
   allergy_count: number;
 }
 
@@ -73,6 +77,15 @@ export interface PharmacyRxDetailResponse {
   prescription: PharmacyPrescriptionRx;
   items: PharmacyRxDetailItem[];
   allergies: unknown[];
+  /** What the doctor wrote about refills and expiry. */
+  terms: PrescriptionRefillTerms | null;
+}
+
+export interface PrescriptionRefillTerms {
+  valid_until: string | null;
+  repeats_allowed: number;
+  repeat_interval_days: number | null;
+  repeats_used: number;
 }
 
 export interface PharmacyRxReviewItemInput {
