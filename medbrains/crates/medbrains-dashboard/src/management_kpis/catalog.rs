@@ -69,6 +69,21 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
                     AND ($4::time IS NULL OR timezone($3, created_at)::time <= $4) \
                   GROUP BY encounter_date",
         },
+        // New patients registered, by the hospital's clock: a morning is set
+        // against earlier mornings. A merged duplicate is not a new patient.
+        "patient_registrations" => Kpi {
+            unit: "patients",
+            better: Better::Neutral,
+            zero_fill: true,
+            clock: true,
+            shape: Shape::Daily,
+            sql: "SELECT timezone($3, created_at)::date AS day, COUNT(*)::float8 AS value \
+                  FROM patients \
+                  WHERE deleted_at IS NULL AND NOT COALESCE(is_merged, false) \
+                    AND timezone($3, created_at)::date BETWEEN $1 AND $2 \
+                    AND ($4::time IS NULL OR timezone($3, created_at)::time <= $4) \
+                  GROUP BY 1",
+        },
         "opd_wait_minutes" => Kpi {
             unit: "min",
             better: Better::Lower,
@@ -355,8 +370,9 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
 mod tests {
     use super::{Shape, kpi};
 
-    const CODES: [&str; 18] = [
+    const CODES: [&str; 19] = [
         "opd_visits",
+        "patient_registrations",
         "opd_wait_minutes",
         "opd_consult_minutes",
         "appointment_no_show_pct",

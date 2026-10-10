@@ -1,10 +1,12 @@
 import { Stack, Table, Text, TextInput } from "@mantine/core";
 import type { DashboardWidget } from "@medbrains/types";
 import { useMemo, useState } from "react";
+import { SegmentedControl } from "@/components/ui";
 import {
   compareKpi,
   formatKpi,
   isKpiReading,
+  KPI_BASELINES,
   type KpiBaseline,
   type KpiReading,
 } from "./kpi-reading";
@@ -17,6 +19,7 @@ interface Props {
   widget: DashboardWidget;
   data: unknown;
   compare: KpiBaseline;
+  onCompareChange: (next: KpiBaseline) => void;
 }
 
 const BASELINE_LABEL: Record<KpiBaseline, string> = {
@@ -26,9 +29,9 @@ const BASELINE_LABEL: Record<KpiBaseline, string> = {
 };
 
 /** A widget at full size: its figure, its trend and the numbers behind them. */
-export function WidgetExpandedView({ widget, data, compare }: Props) {
+export function WidgetExpandedView({ widget, data, compare, onCompareChange }: Props) {
   if (widget.widget_type === "stat_card" && isKpiReading(data)) {
-    return <KpiDetail reading={data} compare={compare} />;
+    return <KpiDetail reading={data} compare={compare} onCompareChange={onCompareChange} />;
   }
   if (widget.widget_type === "stat_card") {
     return (
@@ -79,12 +82,26 @@ export function WidgetExpandedView({ widget, data, compare }: Props) {
   );
 }
 
-function KpiDetail({ reading, compare }: { reading: KpiReading; compare: KpiBaseline }) {
+function KpiDetail({
+  reading,
+  compare,
+  onCompareChange,
+}: {
+  reading: KpiReading;
+  compare: KpiBaseline;
+  onCompareChange: (next: KpiBaseline) => void;
+}) {
   const comparison = compareKpi(reading, compare);
   const usual = reading.baselines[compare];
   const points = reading.series.map((d) => ({ date: d.date, value: d.value }));
   return (
     <Stack gap="lg">
+      <SegmentedControl
+        aria-label="Compare with"
+        value={compare}
+        onChange={(v) => onCompareChange(v as KpiBaseline)}
+        data={KPI_BASELINES}
+      />
       <Stack gap={2}>
         <Text fz={40} fw={600} lh={1.1}>
           {formatKpi(reading.value, reading.unit)}

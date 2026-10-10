@@ -6,10 +6,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
+import { KpiCompareMenu } from "./KpiCompareMenu";
 import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-reading";
 import { SeriesMetrics } from "./SeriesMetrics";
 import { columnValues } from "./series-stats";
 import { TrendChart, type TrendKind } from "./TrendChart";
+import { useWidgetCompare } from "./useWidgetCompare";
 import { WidgetExpandedView } from "./WidgetExpandedView";
 import { cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
@@ -109,14 +111,27 @@ const EXPANDABLE = new Set(["stat_card", "chart", "data_table", "list"]);
 
 /** A dashboard widget, with its expanded view one click away. */
 export function DashboardWidgetCard(props: Props) {
-  const { widget, data, loading, compare = "weekday" } = props;
+  const { widget, data, loading } = props;
   const [expanded, setExpanded] = useState(false);
+  const [compare, setCompare] = useWidgetCompare(widget.id, props.compare ?? "weekday");
   const canExpand = EXPANDABLE.has(widget.widget_type) && !loading && !dataUnavailable(data);
   return (
     <>
-      <WidgetBody {...props} onExpand={canExpand ? () => setExpanded(true) : undefined} />
+      <WidgetBody
+        {...props}
+        compare={compare}
+        onCompareChange={setCompare}
+        onExpand={canExpand ? () => setExpanded(true) : undefined}
+      />
       <Drawer opened={expanded} onClose={() => setExpanded(false)} title={widget.title} size="xl">
-        {expanded && <WidgetExpandedView widget={widget} data={data} compare={compare} />}
+        {expanded && (
+          <WidgetExpandedView
+            widget={widget}
+            data={data}
+            compare={compare}
+            onCompareChange={setCompare}
+          />
+        )}
       </Drawer>
     </>
   );
@@ -129,7 +144,8 @@ function WidgetBody({
   loading,
   compare = "weekday",
   onExpand,
-}: Props & { onExpand?: () => void }) {
+  onCompareChange,
+}: Props & { onExpand?: () => void; onCompareChange: (next: KpiBaseline) => void }) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((s) => s.hasPermission);
 
@@ -156,8 +172,16 @@ function WidgetBody({
         color={widget.color ?? "primary"}
         comparison={compareKpi(data, compare) ?? undefined}
         sparkline={data.series.map((d) => d.value)}
-        onClick={onExpand}
-        actionLabel={`Expand ${widget.title}`}
+        actions={
+          <>
+            <KpiCompareMenu title={widget.title} value={compare} onChange={onCompareChange} />
+            {onExpand && (
+              <IconButton aria-label={`Expand ${widget.title}`} onClick={onExpand}>
+                <IconArrowsMaximize size={16} />
+              </IconButton>
+            )}
+          </>
+        }
       />
     );
   }
