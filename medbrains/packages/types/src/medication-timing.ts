@@ -1,5 +1,5 @@
 // Medication timing (structured administration instructions) types — split from index.ts, barrel-re-exported.
-import type { DiagnosisCodingSystem, PharmacyRxStatus, Prescription } from "./index";
+import type { DiagnosisCodingSystem, Gender, PharmacyRxStatus, Prescription } from "./index";
 
 // ── Medication Timing (structured instructions) ──────────────
 export type FoodTiming = "before_food" | "with_food" | "after_food" | "empty_stomach" | "any";
@@ -2072,8 +2072,18 @@ export interface LabTestCatalog {
   updated_at: string;
 }
 
+/** Who a worklist row is about, masked per the reader's field access. */
+export interface PatientIdentity {
+  id: string;
+  uhid: string;
+  full_name: string;
+  gender: Gender;
+}
+
 export interface LabOrderListResponse {
   orders: LabOrder[];
+  /** The patients on this page of orders. */
+  patients: PatientIdentity[];
   total: number;
   page: number;
   per_page: number;
