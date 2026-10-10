@@ -114,6 +114,7 @@ export function MyShiftWidget() {
         size="xs"
         tone="secondary"
         leftSection={<IconClockPlay size={14} />}
+        style={{ flexShrink: 0 }}
         loading={start.isPending}
         onClick={() => start.mutate()}
       >
