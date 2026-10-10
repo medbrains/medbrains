@@ -1,8 +1,8 @@
-import { Box, Card, Group, Loader, Stack, Table, Text, ThemeIcon } from "@mantine/core";
+import { Box, Card, Group, Loader, Stack, Table, Tabs, Text, ThemeIcon } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { DashboardWidget } from "@medbrains/types";
 import { IconArrowsMaximize } from "@tabler/icons-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
@@ -15,6 +15,8 @@ import { useWidgetCompare } from "./useWidgetCompare";
 import { WidgetExpandedView } from "./WidgetExpandedView";
 import { cellText, field, formatValue, rows } from "./widget-data";
 import { WidgetIcon } from "./widgetIcons";
+
+const WidgetAskAi = lazy(() => import("./WidgetAskAi"));
 
 interface Props {
   widget: DashboardWidget;
@@ -125,12 +127,25 @@ export function DashboardWidgetCard(props: Props) {
       />
       <Drawer opened={expanded} onClose={() => setExpanded(false)} title={widget.title} size="xl">
         {expanded && (
-          <WidgetExpandedView
-            widget={widget}
-            data={data}
-            compare={compare}
-            onCompareChange={setCompare}
-          />
+          <Tabs defaultValue="details" keepMounted={false}>
+            <Tabs.List mb="md">
+              <Tabs.Tab value="details">Details</Tabs.Tab>
+              <Tabs.Tab value="ask">Ask AI</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="details">
+              <WidgetExpandedView
+                widget={widget}
+                data={data}
+                compare={compare}
+                onCompareChange={setCompare}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="ask">
+              <Suspense fallback={<Loader size="sm" />}>
+                <WidgetAskAi widget={widget} data={data} compare={compare} />
+              </Suspense>
+            </Tabs.Panel>
+          </Tabs>
         )}
       </Drawer>
     </>
