@@ -106,11 +106,19 @@ function LabPageInner() {
     queryFn: () => labService.listLabOrders(params),
   });
 
+  // The list names its patients; a lab need not hold each patient's record.
+  const patientsById = new Map((data?.patients ?? []).map((p) => [p.id, p]));
   const columns = [
     {
       key: "patient_id",
       label: "Patient",
-      render: (row: LabOrder) => <PatientNameCell patientId={row.patient_id} showUhid={false} />,
+      render: (row: LabOrder) => (
+        <PatientNameCell
+          patientId={row.patient_id}
+          identity={patientsById.get(row.patient_id)}
+          showUhid={false}
+        />
+      ),
     },
     {
       key: "test_id",

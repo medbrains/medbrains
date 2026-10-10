@@ -60,6 +60,9 @@ pub struct ListOrdersQuery {
 #[derive(Debug, Serialize)]
 pub struct OrderListResponse {
     pub orders: Vec<LabOrder>,
+    /// Who each order is for, so the worklist names the patient without
+    /// fetching every patient's record.
+    pub patients: Vec<medbrains_server_services::patient_identity::PatientIdentity>,
     pub total: i64,
     pub page: i64,
     pub per_page: i64,
@@ -459,6 +462,7 @@ pub async fn list_orders(
     if visible_ids.as_ref().is_some_and(Vec::is_empty) {
         return Ok(Json(OrderListResponse {
             orders: Vec::new(),
+            patients: Vec::new(),
             total: 0,
             page,
             per_page,
@@ -492,10 +496,26 @@ pub async fn list_orders(
         };
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
+    let restricted = medbrains_server_core::middleware::field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let patient_ids: Vec<Uuid> = orders.iter().map(|o| o.patient_id).collect();
+    let patients = medbrains_server_services::patient_identity::patient_identities(
+        &mut tx,
+        claims.tenant_id,
+        &patient_ids,
+        &restricted,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(Json(OrderListResponse {
         orders,
+        patients,
         total,
         page,
         per_page,
@@ -973,6 +993,22 @@ pub async fn complete_order(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // A test is completed by its results. Completing an empty one billed the
+    // patient and told the ward it was done, and only verification noticed
+    // there was nothing to release.
+    let has_results: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM lab_results WHERE order_id = $1 AND tenant_id = $2)",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !has_results {
+        return Err(AppError::Conflict(
+            "Enter the results before completing this test".to_owned(),
+        ));
+    }
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \

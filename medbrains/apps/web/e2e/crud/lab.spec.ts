@@ -76,12 +76,16 @@ test.describe("lab STAT monitoring — what the breach alert can see", () => {
       priority: "stat",
     });
 
-    // Walk the finished one all the way through: collected -> processing -> complete.
+    // Walk the finished one all the way through: collected -> processing ->
+    // results -> complete. A test with no results cannot be completed.
     // Positive patient ID at the draw — the order will not advance without it.
     await api(ctx, "PUT", `/api/lab/orders/${finished}/collect`, {
       patient_identifier: patient.uhid,
     });
     await api(ctx, "PUT", `/api/lab/orders/${finished}/process`, {});
+    await api(ctx, "POST", `/api/lab/orders/${finished}/results`, {
+      results: [{ parameter_name: "Haemoglobin", value: "13.4", flag: "normal" }],
+    });
     await api(ctx, "PUT", `/api/lab/orders/${finished}/complete`, {});
 
     const rows = await api<Array<{ order_id: string }>>(ctx, "GET", "/api/lab/stat-orders");
