@@ -22,12 +22,20 @@ export function Brand({ surface }: { surface: BrandSurface }) {
     return (
       <>
         <BrandMark size={30} radius={2} />
-        <Stack gap={0} style={{ lineHeight: 1.05 }}>
-          <Text size="sm" fw={600} c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
+        {/* On a phone-width bar the mark alone carries the brand. */}
+        <Stack gap={0} miw={0} visibleFrom="xs" style={{ lineHeight: 1.05 }}>
+          <Text
+            size="sm"
+            fw={600}
+            c="var(--mb-text-primary)"
+            truncate="end"
+            title={displayName}
+            style={{ letterSpacing: "-0.02em" }}
+          >
             {displayName}
           </Text>
           {tenant && (
-            <Text size="10px" c="var(--mb-text-secondary)">
+            <Text size="10px" c="var(--mb-text-secondary)" truncate="end">
               powered by MedBrains
             </Text>
           )}
