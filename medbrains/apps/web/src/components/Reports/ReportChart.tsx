@@ -147,7 +147,9 @@ interface ReportChartProps {
   title: string;
   description: string;
   permission: string;
-  option: EChartsCoreOption;
+  /** Null when there is nothing real to draw; `emptyMessage` says why. */
+  option: EChartsCoreOption | null;
+  emptyMessage?: string;
   isLoading?: boolean;
   height?: number;
   status?: string;
@@ -161,6 +163,7 @@ export function ReportChart({
   description,
   permission,
   option,
+  emptyMessage = "Nothing to chart.",
   isLoading = false,
   height = 280,
   status,
@@ -174,9 +177,10 @@ export function ReportChart({
   const chartRef = useRef<EChartsType | null>(null);
   const expandedHostRef = useRef<HTMLDivElement | null>(null);
   const expandedChartRef = useRef<EChartsType | null>(null);
+  const hasChart = option !== null;
 
   useEffect(() => {
-    if (!canView || !hostRef.current) return;
+    if (!canView || !hasChart || !hostRef.current) return;
 
     const chart = init(hostRef.current, undefined, { renderer: "canvas" });
     chartRef.current = chart;
@@ -189,15 +193,16 @@ export function ReportChart({
       chart.dispose();
       chartRef.current = null;
     };
-  }, [canView]);
+    // The host appears only once there is a chart; it is created then.
+  }, [canView, hasChart]);
 
   useEffect(() => {
-    if (!canView || !chartRef.current) return;
+    if (!canView || !chartRef.current || !option) return;
     chartRef.current.setOption(option, true);
   }, [canView, option]);
 
   useEffect(() => {
-    if (!canView || !expanded || !expandedHostRef.current) return;
+    if (!canView || !hasChart || !expanded || !expandedHostRef.current) return;
 
     const chart = init(expandedHostRef.current, undefined, { renderer: "canvas" });
     expandedChartRef.current = chart;
@@ -218,10 +223,10 @@ export function ReportChart({
       chart.dispose();
       expandedChartRef.current = null;
     };
-  }, [canView, expanded]);
+  }, [canView, expanded, hasChart]);
 
   useEffect(() => {
-    if (!canView || !expanded || !expandedChartRef.current) return;
+    if (!canView || !expanded || !expandedChartRef.current || !option) return;
 
     expandedChartRef.current.setOption(option, true);
     expandedChartRef.current.resize();
@@ -325,12 +330,20 @@ export function ReportChart({
                 View details
               </Button>
             )}
-            <div
-              ref={hostRef}
-              role="img"
-              style={{ height, width: "100%" }}
-              aria-label={`${title} chart`}
-            />
+            {hasChart ? (
+              <div
+                ref={hostRef}
+                role="img"
+                style={{ height, width: "100%" }}
+                aria-label={`${title} chart`}
+              />
+            ) : (
+              <Stack h={height} justify="center" align="center" px="md">
+                <Text size="sm" c="dimmed" ta="center">
+                  {isLoading ? "Loading…" : emptyMessage}
+                </Text>
+              </Stack>
+            )}
           </div>
         </Stack>
       </Card>
