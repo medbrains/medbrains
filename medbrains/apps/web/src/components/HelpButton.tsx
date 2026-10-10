@@ -7,6 +7,7 @@ const GUIDE_PAGES: ReadonlyArray<[prefix: string, page: string]> = [
   ["/patients/register", "front-desk/register-a-patient/"],
   ["/opd/new", "front-desk/start-an-opd-visit/"],
   ["/opd/encounters", "clinical/consultation/"],
+  ["/lab", "lab/from-order-to-report/"],
   ["/home-visits", "clinical/home-visit-case-sheet/"],
   ["/home-healthcare", "clinical/home-visit-case-sheet/"],
 ];
