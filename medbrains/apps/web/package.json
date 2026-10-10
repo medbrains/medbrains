@@ -89,6 +89,7 @@
     "rehype-highlight": "^7.0.2",
     "rehype-sanitize": "^6.0.0",
     "three": "^0.180.0",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.11"
   },
