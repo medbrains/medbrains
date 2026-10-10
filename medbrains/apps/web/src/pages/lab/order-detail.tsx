@@ -172,6 +172,7 @@ export function LabOrderDetail({
     queryFn: () => labService.getLabOrder(orderId),
     enabled: canViewOrder,
   });
+  const hasResults = (data?.results.length ?? 0) > 0;
 
   // What was corrected, and why.
   //
@@ -607,9 +608,18 @@ export function LabOrderDetail({
             </Button>
           )}
           {order.status === "processing" && (
-            <Button tone="primary" size="xs" onClick={() => completeMutation.mutate()}>
-              {t("complete")}
-            </Button>
+            // A test is completed by its results; the server refuses an
+            // empty one, so the button says why rather than failing.
+            <Tooltip label="Add the results first" disabled={hasResults}>
+              <Button
+                tone="primary"
+                size="xs"
+                disabled={!hasResults}
+                onClick={() => completeMutation.mutate()}
+              >
+                {t("complete")}
+              </Button>
+            </Tooltip>
           )}
           {/* Cancelling is an order-level act: `cancel_order` requires
               `lab.orders.create`, not the results code the rest of this block

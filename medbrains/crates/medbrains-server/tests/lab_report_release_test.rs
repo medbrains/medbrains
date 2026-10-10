@@ -38,16 +38,14 @@ async fn put(app: &common::TestApp, csrf: &str, path: &str, body: Value) -> reqw
         .status()
 }
 
-#[tokio::test]
-async fn a_lab_report_prints_only_once_the_order_has_been_released() {
-    let app = common::spawn_app().await;
-    let csrf = app.login_admin().await;
-
+/// An order for a fresh patient, collected and in processing: ready for its
+/// results. Its order id.
+async fn order_in_processing(app: &common::TestApp, csrf: &str, phone: &str) -> String {
     let patient = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/patients",
-        json!({ "first_name": "Release", "last_name": "Gate", "gender": "female", "date_of_birth": "1985-06-15", "phone": "9990000411" }),
+        json!({ "first_name": "Release", "last_name": "Gate", "gender": "female", "date_of_birth": "1985-06-15", "phone": phone }),
     )
     .await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
@@ -61,8 +59,8 @@ async fn a_lab_report_prints_only_once_the_order_has_been_released() {
         .expect("departments");
     let department_id = depts[0]["id"].as_str().expect("a department").to_owned();
     let encounter = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/opd/encounters",
         json!({ "patient_id": patient_id, "department_id": department_id, "encounter_type": "opd" }),
     )
@@ -81,8 +79,8 @@ async fn a_lab_report_prints_only_once_the_order_has_been_released() {
         .expect("catalog");
     let test_id = tests[0]["id"].as_str().expect("a lab test").to_owned();
     let order = post(
-        &app,
-        &csrf,
+        app,
+        csrf,
         "/api/lab/orders",
         json!({ "patient_id": patient_id, "encounter_id": encounter_id, "test_id": test_id }),
     )
@@ -90,19 +88,27 @@ async fn a_lab_report_prints_only_once_the_order_has_been_released() {
     let order_id = order["id"].as_str().expect("order id").to_owned();
 
     put(
-        &app,
-        &csrf,
+        app,
+        csrf,
         &format!("/api/lab/orders/{order_id}/collect"),
         json!({ "patient_identifier": uhid }),
     )
     .await;
     put(
-        &app,
-        &csrf,
+        app,
+        csrf,
         &format!("/api/lab/orders/{order_id}/process"),
         json!({}),
     )
     .await;
+    order_id
+}
+
+#[tokio::test]
+async fn a_lab_report_prints_only_once_the_order_has_been_released() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let order_id = order_in_processing(&app, &csrf, "9990000411").await;
     // A perfectly ordinary, non-critical result: nothing else is holding this
     // order back, so release is the only thing standing between it and paper.
     post(
@@ -158,4 +164,42 @@ async fn a_lab_report_prints_only_once_the_order_has_been_released() {
             resp.status()
         );
     }
+}
+
+/// A test is completed by its results: completing an empty one billed the
+/// patient and told the ward it was done, and only verification noticed.
+#[tokio::test]
+async fn a_test_with_no_results_cannot_be_completed() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let order_id = order_in_processing(&app, &csrf, "9990000412").await;
+
+    let empty = put(
+        &app,
+        &csrf,
+        &format!("/api/lab/orders/{order_id}/complete"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(
+        empty,
+        reqwest::StatusCode::CONFLICT,
+        "nothing to complete yet"
+    );
+
+    post(
+        &app,
+        &csrf,
+        &format!("/api/lab/orders/{order_id}/results"),
+        json!({ "results": [{ "parameter_name": "Haemoglobin", "value": "13.4", "flag": "normal" }] }),
+    )
+    .await;
+    let done = put(
+        &app,
+        &csrf,
+        &format!("/api/lab/orders/{order_id}/complete"),
+        json!({}),
+    )
+    .await;
+    assert_eq!(done, reqwest::StatusCode::OK, "with a result it completes");
 }
