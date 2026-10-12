@@ -819,7 +819,6 @@ import type {
   CsvImportRequest,
   CsvImportResult,
   // Phase 2 Print Data - Lab & Blood Bank
-  CultureSensitivityPrintData,
   CultureSensitivityRow,
   CultureSurveillance,
   CumulativeDoseResult,
@@ -1381,7 +1380,6 @@ import type {
   NewsFeedArticle,
   NewsFeedListItem,
   NmcComplianceReportPrintData,
-  NmcNarfAssessmentPrintData,
   // Scheduling
   NoshowPredictionScore,
   NoshowRateRow,
@@ -1487,7 +1485,6 @@ import type {
   PatientContext,
   PatientDiagnosisRow,
   PatientDocument,
-  PatientEducationPrintData,
   PatientFamilyLink,
   PatientFeedback,
   // Command Center
@@ -1868,7 +1865,6 @@ import type {
   TatRecord,
   TatRecordSummary,
   TaxCategoryRow,
-  TdsCertificatePrintData,
   TdsDeduction,
   TeachingConsentPrintData,
   TeleChatMessage,
@@ -13499,8 +13495,6 @@ export const api = {
   getCreditNotePrintData: (id: string) =>
     request<CreditNotePrintData>(`/print-data/credit-note/${id}`),
 
-  getTdsCertPrintData: (id: string) =>
-    request<TdsCertificatePrintData>(`/print-data/tds-certificate/${id}`),
 
   getGstInvoicePrintData: (invoiceId: string) =>
     request<GstInvoicePrintData>(`/print-data/gst-invoice/${invoiceId}`),
@@ -13586,8 +13580,6 @@ export const api = {
 
   // ── Phase 2: Lab & Blood Bank Report Print Data ────────────
 
-  getCultureSensitivityPrintData: (orderId: string) =>
-    request<CultureSensitivityPrintData>(`/print-data/culture-sensitivity/${orderId}`),
 
   getHistopathReportPrintData: (orderId: string) =>
     request<HistopathReportPrintData>(`/print-data/histopath-report/${orderId}`),
@@ -13626,8 +13618,6 @@ export const api = {
   getTransferSummaryPrintData: (transferId: string) =>
     request<TransferSummaryPrintData>(`/print-data/transfer-summary/${transferId}`),
 
-  getPatientEducationPrintData: (materialId: string) =>
-    request<PatientEducationPrintData>(`/print-data/patient-education/${materialId}`),
 
   getRegistrationCardPrintData: (patientId: string) =>
     request<RegistrationCardPrintData>(`/print-data/registration-card/${patientId}`),
@@ -13765,8 +13755,6 @@ export const api = {
   getInsuranceClaimPrintData: (claimId: string) =>
     request<InsuranceClaimPrintData>(`/print-data/insurance-claim/${claimId}`),
 
-  getTdsCertificateFullPrintData: (tdsId: string) =>
-    request<TdsCertificatePrintData>(`/print-data/tds-certificate/${tdsId}`),
 
   // ── NABH KPI rollup ───────────────────────────────────────
   getNabhIndicators: () => request<NabhRollupResponse>(`/nabh/indicators`),
@@ -13805,8 +13793,6 @@ export const api = {
   getAebasAttendancePrintData: (period: string) =>
     request<AebasAttendanceReportPrintData>(`/print-data/aebas-attendance/${period}`),
 
-  getNmcNarfAssessmentPrintData: (year: string) =>
-    request<NmcNarfAssessmentPrintData>(`/print-data/nmc-narf-assessment/${year}`),
 
   // ── Phase 4: Admin & Procurement Print Data ───────────────
   getIndentFormPrintData: (indentId: string) =>

@@ -4905,14 +4905,6 @@ async fn t_get_api_print_data_treatment_chart_admission_id_9bec36(
     Ok(())
 }
 
-async fn t_get_api_print_data_patient_education_material_id_eafb5f(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/patient-education/{material_id}").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
 async fn t_get_api_print_data_infant_wristband_newborn_id_b64b02(
     user: &mut GooseUser,
 ) -> TransactionResult {
@@ -4925,12 +4917,6 @@ async fn t_get_api_print_data_estimate_invoice_id_df3464(
     user: &mut GooseUser,
 ) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/estimate/{invoice_id}").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_get_api_print_data_tds_certificate_id_100c08(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/tds-certificate/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -7274,15 +7260,11 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
             t_get_api_print_data_treatment_chart_admission_id_9bec36
         ))
         .register_transaction(transaction!(
-            t_get_api_print_data_patient_education_material_id_eafb5f
-        ))
-        .register_transaction(transaction!(
             t_get_api_print_data_infant_wristband_newborn_id_b64b02
         ))
         .register_transaction(transaction!(
             t_get_api_print_data_estimate_invoice_id_df3464
         ))
-        .register_transaction(transaction!(t_get_api_print_data_tds_certificate_id_100c08))
         .register_transaction(transaction!(
             t_get_api_print_data_opd_bill_invoice_id_998cc3
         ))

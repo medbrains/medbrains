@@ -3,11 +3,11 @@
 //! These endpoints generate data for NABH, NMC, NABL, SPCB, PESO, PCPNDT,
 //! and other regulatory compliance reports.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
@@ -17,10 +17,9 @@ use medbrains_core::print_data::{
     DrugLicenseReportPrintData, DrugStockCategory, ExpiryAlert, FormFCompliance, GasIncident,
     MedicalGasSystem, MlcCaseTypeCount, MlcOutcomeCount, MlcRegisterSummaryEntry,
     MlcRegisterSummaryPrintData, NabhQualityReportPrintData, NablQualityReportPrintData,
-    NarfCriterion, NarfSection, NmcComplianceReportPrintData, NmcNarfAssessmentPrintData,
-    PcpndtEquipment, PcpndtInspection, PcpndtPersonnel, PcpndtProcedure, PcpndtReportPrintData,
-    PesoComplianceReportPrintData, PtResult, QcMetric, QualityIndicator, QualitySummary,
-    SafetyInspection, SpcbBmwReturnsPrintData, TatMetric,
+    NmcComplianceReportPrintData, PcpndtEquipment, PcpndtInspection, PcpndtPersonnel,
+    PcpndtProcedure, PcpndtReportPrintData, PesoComplianceReportPrintData, PtResult, QcMetric,
+    QualityIndicator, QualitySummary, SafetyInspection, SpcbBmwReturnsPrintData, TatMetric,
 };
 
 use medbrains_server_core::error::AppError;
@@ -1452,146 +1451,6 @@ pub async fn get_aebas_attendance_print_data(
 
 // ── NMC NARF Self-Assessment ────────────────────────────────
 
-#[derive(Debug, sqlx::FromRow)]
-struct NarfSectionRow {
-    section_name: String,
-    max_score: f64,
-    achieved_score: f64,
-    percentage: f64,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct NarfCriterionRow {
-    section_name: String,
-    criterion: String,
-    max_marks: f64,
-    achieved_marks: f64,
-    evidence: Option<String>,
-}
-
-pub async fn get_nmc_narf_assessment_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(year): Path<i32>,
-) -> Result<Json<NmcNarfAssessmentPrintData>, AppError> {
-    require_permission(&claims, permissions::regulatory::checklists::LIST)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let sections = sqlx::query_as::<_, NarfSectionRow>(
-        "SELECT section_name, max_score, achieved_score, percentage \
-         FROM narf_assessment_sections \
-         WHERE assessment_year = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let criteria = sqlx::query_as::<_, NarfCriterionRow>(
-        "SELECT section_name, criterion, max_marks, achieved_marks, evidence \
-         FROM narf_assessment_criteria \
-         WHERE assessment_year = $1 AND tenant_id = $2 \
-         ORDER BY section_name, display_order LIMIT 5000",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let summary = sqlx::query_as::<_, (f64, f64, f64, String)>(
-        "SELECT overall_score, maximum_score, percentage, grade \
-         FROM narf_assessment_summary \
-         WHERE assessment_year = $1 AND tenant_id = $2",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or((0.0, 100.0, 0.0, "N/A".to_string()));
-
-    let strengths: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_strengths WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let improvements: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_improvements WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let action_plan: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_action_plan WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
-    )
-    .bind(year)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, nmc_registration_number FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    // Group criteria by section
-    let mut section_criteria: std::collections::HashMap<String, Vec<NarfCriterion>> =
-        std::collections::HashMap::new();
-    for c in criteria {
-        section_criteria
-            .entry(c.section_name.clone())
-            .or_default()
-            .push(NarfCriterion {
-                criterion: c.criterion,
-                max_marks: c.max_marks,
-                achieved_marks: c.achieved_marks,
-                evidence: c.evidence,
-            });
-    }
-
-    Ok(Json(NmcNarfAssessmentPrintData {
-        assessment_year: year,
-        report_date: chrono::Utc::now().format("%d-%b-%Y").to_string(),
-        hospital_name: tenant.0,
-        nmc_registration_number: tenant.2,
-        assessment_sections: sections
-            .into_iter()
-            .map(|s| {
-                let criteria = section_criteria.remove(&s.section_name).unwrap_or_default();
-                NarfSection {
-                    section_name: s.section_name,
-                    max_score: s.max_score,
-                    achieved_score: s.achieved_score,
-                    percentage: s.percentage,
-                    criteria,
-                }
-            })
-            .collect(),
-        overall_score: summary.0,
-        maximum_score: summary.1,
-        percentage: summary.2,
-        grade: summary.3,
-        strengths,
-        areas_for_improvement: improvements,
-        action_plan,
-        assessed_by: None,
-        verified_by: None,
-        hospital_logo_url: tenant.1,
-    }))
-}
-
 /// Print-data regulatory/compliance routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -1639,7 +1498,4 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/aebas-attendance/{period}",
             get(get_aebas_attendance_print_data),
         )
-        .route(
-            "/api/print-data/nmc-narf-assessment/{year}",
-            get(get_nmc_narf_assessment_print_data),
-        )}
+}

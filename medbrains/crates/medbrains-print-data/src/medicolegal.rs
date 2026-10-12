@@ -1,10 +1,10 @@
 //! Print-data endpoints — medico-legal forms.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -19,7 +19,9 @@ use medbrains_core::print_data::{
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -337,8 +339,7 @@ pub async fn get_ama_form_print_data(
 ) -> Result<Json<AmaFormPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1293,21 +1294,18 @@ pub async fn get_mlc_documentation_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let operative_procedures: Vec<String> = sqlx::query_scalar(
-        "SELECT procedure_name FROM mlc_procedures \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY performed_at LIMIT 5000",
-    )
-    .bind(case_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    // ponytail: the MLC module records no operative procedures; the section
+    // prints empty until it does (the OT record is the place to link).
+    let operative_procedures: Vec<String> = Vec::new();
 
     let police_visits = sqlx::query_as::<_, PoliceVisitEntry>(
-        "SELECT visit_date::text, officer_name, officer_rank, purpose, statement_recorded \
-         FROM mlc_police_visits \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY visit_date LIMIT 5000",
+        "SELECT sent_at::date::text AS visit_date, COALESCE(officer_name, '') AS officer_name, \
+                COALESCE(officer_designation, '') AS officer_rank, \
+                'Intimation ' || COALESCE(intimation_number, '') || ' to ' || police_station AS purpose, \
+                receipt_confirmed AS statement_recorded \
+         FROM mlc_police_intimations \
+         WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY sent_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1315,11 +1313,12 @@ pub async fn get_mlc_documentation_print_data(
     .await?;
 
     let samples_preserved = sqlx::query_as::<_, SamplePreservedEntry>(
-        "SELECT sample_type, quantity, preservation_method, \
-           collected_date::text, handed_to, handed_date::text \
-         FROM mlc_samples \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY collected_date LIMIT 5000",
+        "SELECT s.sample_description AS sample_type, ''::text AS quantity, \
+           ''::text AS preservation_method, s.created_at::date::text AS collected_date, \
+           mlc.samples_handed_to AS handed_to, NULL::text AS handed_date \
+         FROM mlc_samples s JOIN mlc_cases mlc ON mlc.id = s.mlc_case_id \
+         WHERE s.mlc_case_id = $1 AND s.tenant_id = $2 AND s.deleted_at IS NULL \
+         ORDER BY s.created_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1327,9 +1326,9 @@ pub async fn get_mlc_documentation_print_data(
     .await?;
 
     let certificates_issued: Vec<String> = sqlx::query_scalar(
-        "SELECT certificate_type FROM mlc_certificates \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY issued_date LIMIT 5000",
+        "SELECT COALESCE(NULLIF(title, ''), document_type::text) FROM mlc_documents \
+         WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1337,10 +1336,17 @@ pub async fn get_mlc_documentation_print_data(
     .await?;
 
     let important_dates = sqlx::query_as::<_, MlcDateEntry>(
-        "SELECT event_date::text, event_description \
-         FROM mlc_important_dates \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY event_date LIMIT 5000",
+        "SELECT event_date, event_description FROM ( \
+           SELECT sent_at AS at, sent_at::date::text AS event_date, \
+                  'Police intimated: ' || police_station AS event_description \
+             FROM mlc_police_intimations \
+            WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+           UNION ALL \
+           SELECT created_at, created_at::date::text, \
+                  COALESCE(NULLIF(title, ''), document_type::text) || ' issued' \
+             FROM mlc_documents \
+            WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ) dates ORDER BY at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)

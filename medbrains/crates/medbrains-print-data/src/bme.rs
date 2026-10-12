@@ -2,22 +2,23 @@
 //!
 //! Phase 5: AMC Contracts, Calibration, Breakdown, History, MGPS, Water, DG/UPS, Fire Inspection.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    AmcContractPrintData, BatteryStatus, BreakdownEvent, CalibrationCertificatePrintData,
-    CalibrationEvent, CalibrationParameter, DgUpsParameters, DgUpsRunLogPrintData,
-    DrillObservation, EquipmentBreakdownReportPrintData, EquipmentCoverage,
-    EquipmentHistoryCardPrintData, EscalationContact, FireEquipmentInspectionPrintData, FireMockDrillReportPrintData, FirstResponder, FuelStatus, MaintenanceEvent,
-    MateriovigilanceReportPrintData, MgpsDailyLogPrintData, RunEvent, WaterQualityTestPrintData, 
+    AmcContractPrintData, BreakdownEvent, CalibrationCertificatePrintData, CalibrationEvent,
+    CalibrationParameter, DgUpsRunLogPrintData, DrillObservation,
+    EquipmentBreakdownReportPrintData, EquipmentCoverage, EquipmentHistoryCardPrintData,
+    EscalationContact, FireEquipmentInspectionPrintData, FireMockDrillReportPrintData,
+    FirstResponder, MaintenanceEvent, MateriovigilanceReportPrintData, MgpsDailyLogPrintData,
+    WaterQualityTestPrintData,
 };
 
 use medbrains_server_core::error::AppError;
@@ -507,7 +508,9 @@ pub async fn get_equipment_history_print_data(
             .map_or_else(String::new, |d| d.format("%d-%m-%Y").to_string()),
         maintenance_type: row.order_type,
         description: row.description.unwrap_or_default(),
-        performed_by: row.performed_by.unwrap_or_else(|| "Not recorded".to_owned()),
+        performed_by: row
+            .performed_by
+            .unwrap_or_else(|| "Not recorded".to_owned()),
         cost: row.total_cost.and_then(|c| c.to_string().parse().ok()),
     })
     .collect::<Vec<_>>();
@@ -530,7 +533,9 @@ pub async fn get_equipment_history_print_data(
         date: row.reported_at.format("%d-%m-%Y").to_string(),
         fault: row.description.unwrap_or_default(),
         downtime_hours: f64::from(row.downtime_minutes.unwrap_or(0)) / 60.0,
-        repair_cost: row.total_repair_cost.and_then(|c| c.to_string().parse().ok()),
+        repair_cost: row
+            .total_repair_cost
+            .and_then(|c| c.to_string().parse().ok()),
     })
     .collect::<Vec<_>>();
 
@@ -641,112 +646,15 @@ pub async fn get_water_quality_print_data(
 
 /// GET /print-data/dg-ups-log/{equipment_id}/{date}
 pub async fn get_dg_ups_log_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((equipment_id, date)): Path<(Uuid, String)>,
+    State(_state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path((_equipment_id, _date)): Path<(Uuid, String)>,
 ) -> Result<Json<DgUpsRunLogPrintData>, AppError> {
-    // Diesel generator and UPS logs are the energy record.
-    require_permission(&claims, permissions::facilities::energy::LIST)?;
-
-    // A tenant-scoped connection rather than the bare pool: every table below
-    // is row-level secured, and a pool query carries no tenant, so under
-    // enforcement this prints an empty form. A blank statutory register is
-    // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-
-    let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .unwrap_or_else(|_| Utc::now().date_naive());
-
-    #[derive(sqlx::FromRow)]
-    struct EquipRow {
-        equipment_type: String,
-        equipment_code: String,
-        location: String,
-        capacity: Option<String>,
-    }
-
-    let equip = sqlx::query_as::<_, EquipRow>(
-        r"
-        SELECT
-            e.equipment_type,
-            e.equipment_code,
-            COALESCE(l.name, 'Power Room') as location,
-            e.capacity
-        FROM equipment e
-        LEFT JOIN locations l ON e.location_id = l.id
-        WHERE e.id = $1
-        ",
-    )
-    .bind(equipment_id)
-    .fetch_optional(&mut *conn)
-    .await?
-    .unwrap_or(EquipRow {
-        equipment_type: "DG".to_string(),
-        equipment_code: "DG-001".to_string(),
-        location: "Power Room".to_string(),
-        capacity: Some("500 KVA".to_string()),
-    });
-
-    let hospital = get_hospital_info(&state.db).await?;
-
-    let is_dg = equip.equipment_type.to_uppercase().contains("DG");
-
-    let run_events = vec![
-        RunEvent {
-            start_time: "10:15".to_string(),
-            end_time: Some("10:45".to_string()),
-            duration_minutes: 30.0,
-            reason: "Power Outage".to_string(),
-            load_percent: Some(65.0),
-        },
-        RunEvent {
-            start_time: "14:00".to_string(),
-            end_time: Some("14:15".to_string()),
-            duration_minutes: 15.0,
-            reason: "Scheduled Test".to_string(),
-            load_percent: Some(50.0),
-        },
-    ];
-
-    Ok(Json(DgUpsRunLogPrintData {
-        log_date: log_date.format("%d-%m-%Y").to_string(),
-        equipment_type: equip.equipment_type,
-        equipment_id: equip.equipment_code,
-        location: equip.location,
-        capacity: equip.capacity.unwrap_or_else(|| "500 KVA".to_string()),
-        run_events,
-        fuel_status: if is_dg {
-            Some(FuelStatus {
-                opening_level: 85.0,
-                closing_level: 75.0,
-                fuel_added: 0.0,
-                fuel_consumed: 45.0,
-            })
-        } else {
-            None
-        },
-        battery_status: if is_dg {
-            None
-        } else {
-            Some(BatteryStatus {
-                voltage: 384.0,
-                current: 25.0,
-                charge_percent: 100.0,
-                health_status: "Good".to_string(),
-            })
-        },
-        daily_parameters: DgUpsParameters {
-            voltage_r: Some(415.0),
-            voltage_y: Some(412.0),
-            voltage_b: Some(418.0),
-            frequency: Some(50.0),
-            load_kw: Some(250.0),
-            runtime_hours: 0.75,
-        },
-        operator_name: "Electrical Operator".to_string(),
-        remarks: None,
-        hospital_name: hospital.name,
-    }))
+    // It returned invented run events, fuel and battery figures for any
+    // equipment id. The real readings (`fms_energy_readings`) are keyed by
+    // equipment name and location, not by this id; until the print reads
+    // them, no document is better than a fabricated statutory log.
+    Err(AppError::NotImplemented)
 }
 
 // ── Fire Equipment Inspection ─────────────────────────────────────────────────
