@@ -122,4 +122,26 @@ elif [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR:-/nonexistent}" ]]; then
     fi
 fi
 
+# WAL archiving (opt-in, medbrains-wal-g-setup). A failing archive_command
+# raises nothing anywhere: Postgres retries forever while pg_wal grows toward
+# a full disk, and the RPO silently becomes "since it broke". Failing NOW is
+# a failure newer than the last success. Not "no archive in N minutes": an
+# idle hospital at 3 a.m. writes no WAL, and that is not an outage.
+if [[ "${WAL_ARCHIVING:-0}" == "1" ]]; then
+    if ! row="$(runuser -u postgres -- psql -XAtc \
+        "SELECT coalesce(last_failed_time > coalesce(last_archived_time, 'epoch'), false),
+                failed_count, coalesce(last_archived_wal, '-'), coalesce(last_archived_time::text, 'never')
+           FROM pg_stat_archiver" 2>/dev/null)"; then
+        echo "wal: could not query pg_stat_archiver — unknown, not treated as failed" >&2
+    else
+        IFS='|' read -r failing failed_count last_wal last_time <<<"$row"
+        if [[ "$failing" == "t" ]]; then
+            echo "WAL: archiving is failing (failed_count=$failed_count, last success $last_time $last_wal)" >&2
+            failed=1
+        else
+            echo "wal: archiving ok (last $last_wal at $last_time)"
+        fi
+    fi
+fi
+
 exit "$failed"
