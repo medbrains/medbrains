@@ -9216,13 +9216,6 @@ describe("/print-data endpoints", () => {
     expect(url).toContain("/api/print-data/credit-note");
   });
 
-  it("getTdsCertPrintData → GET /print-data/tds-certificate/{param_1}", async () => {
-    mockOk({});
-    await api.getTdsCertPrintData(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/print-data/tds-certificate");
-  });
 
   it("getGstInvoicePrintData → GET /print-data/gst-invoice/{param_1}", async () => {
     mockOk({});

@@ -1,10 +1,10 @@
 //! Print-data endpoints — wristband, appointment, death certificate, discharge.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -13,12 +13,11 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
-    DischargeSummaryPrintData, EducationSection, ErDischargeSummaryPrintData, InfantWristbandPrintData,
-    KeyImage, LabParameter,
-    LabReportFullPrintData, OpdCertificatePrintData, OpdPrescriptionPrintData,
-    OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PatientEducationPrintData,
-    PrescriptionMedication, RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder,
-    TokenSlipPrintData, TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
+    DischargeSummaryPrintData, ErDischargeSummaryPrintData, InfantWristbandPrintData, KeyImage,
+    LabParameter, LabReportFullPrintData, OpdCertificatePrintData, OpdPrescriptionPrintData,
+    OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PrescriptionMedication,
+    RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder, TokenSlipPrintData,
+    TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
     TreatmentChartPrintData, TrendValue, VisitorPassPrintData, WristbandPrintData,
 };
 
@@ -150,13 +149,13 @@ pub async fn get_opd_certificate_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::opd::certificates::REPRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
-        certificate_id,
-    )
-    .await?;
+        medbrains_authz_gate::require_access_via(
+            &state,
+            &claims,
+            medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
+            certificate_id,
+        )
+        .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first certificate print".to_owned(),
@@ -927,7 +926,9 @@ pub async fn get_er_discharge_print_data(
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         arrival_time: row.arrival_time.format("%d-%b-%Y %H:%M").to_string(),
-        discharge_date: row.finalized_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        discharge_date: row
+            .finalized_at
+            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
         chief_complaint: row.chief_complaint,
         triage_level: row.triage_level,
         disposition: row.disposition,
@@ -1464,93 +1465,6 @@ pub async fn get_transfer_summary_print_data(
 }
 
 // ── Patient Education Material ─────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct PatientEducationRow {
-    patient_name: String,
-    uhid: String,
-    material_title: String,
-    material_code: String,
-    category: String,
-    language: String,
-    provided_date: chrono::DateTime<Utc>,
-    provided_by: Option<String>,
-}
-
-pub async fn get_patient_education_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(material_id): Path<Uuid>,
-) -> Result<Json<PatientEducationPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PATIENT_EDUCATION,
-        material_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, PatientEducationRow>(
-        "SELECT \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           em.title AS material_title, \
-           em.code AS material_code, \
-           em.category, \
-           COALESCE(pe.language, 'en') AS language, \
-           pe.provided_at AS provided_date, \
-           u.full_name AS provided_by \
-         FROM patient_education pe \
-         JOIN patients p ON p.id = pe.patient_id AND p.tenant_id = pe.tenant_id \
-         JOIN education_materials em ON em.id = pe.material_id AND em.tenant_id = pe.tenant_id \
-         LEFT JOIN users u ON u.id = pe.provided_by \
-         WHERE pe.id = $1 AND pe.tenant_id = $2",
-    )
-    .bind(material_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get content sections
-    let sections: Vec<EducationSection> = sqlx::query_as(
-        "SELECT heading, content, COALESCE(bullet_points, '{}') AS bullet_points \
-         FROM education_material_sections \
-         WHERE material_id = (SELECT material_id FROM patient_education WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
-    )
-    .bind(material_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .flatten();
-
-    tx.commit().await?;
-
-    Ok(Json(PatientEducationPrintData {
-        patient_name: row.patient_name,
-        uhid: row.uhid,
-        material_title: row.material_title,
-        material_code: row.material_code,
-        category: row.category,
-        content_sections: sections,
-        language: row.language,
-        provided_date: row.provided_date.format("%d-%b-%Y").to_string(),
-        provided_by: row.provided_by,
-        hospital_name: h_name,
-    }))
-}
 
 // ── Registration Card (Enhanced) ───────────────────────
 
@@ -3853,10 +3767,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/transfer-summary/{transfer_id}",
             get(get_transfer_summary_print_data),
-        )
-        .route(
-            "/api/print-data/patient-education/{material_id}",
-            get(get_patient_education_print_data),
         )
         .route(
             "/api/print-data/registration-card/{patient_id}",

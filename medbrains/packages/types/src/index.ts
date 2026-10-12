@@ -3412,25 +3412,6 @@ export interface TransferSummaryPrintData {
   receiving_nurse: string | null;
 }
 
-export interface EducationSection {
-  heading: string;
-  content: string;
-  bullet_points: string[];
-}
-
-export interface PatientEducationPrintData {
-  patient_name: string;
-  uhid: string;
-  material_title: string;
-  material_code: string;
-  category: string;
-  content_sections: EducationSection[];
-  language: string;
-  provided_date: string;
-  provided_by: string | null;
-  hospital_name: string | null;
-}
-
 // ── Identity Print Data (Phase 2) ───────────────────────
 
 export interface RegistrationCardPrintData {
@@ -4373,39 +4354,6 @@ export interface DepartmentAttendance {
   average_absent: number;
   average_leave: number;
   attendance_percentage: number;
-}
-
-export interface NmcNarfAssessmentPrintData {
-  assessment_year: number;
-  report_date: string;
-  hospital_name: string;
-  nmc_registration_number: string | null;
-  assessment_sections: NarfSection[];
-  overall_score: number;
-  maximum_score: number;
-  percentage: number;
-  grade: string;
-  strengths: string[];
-  areas_for_improvement: string[];
-  action_plan: string[];
-  assessed_by: string | null;
-  verified_by: string | null;
-  hospital_logo_url: string | null;
-}
-
-export interface NarfSection {
-  section_name: string;
-  max_score: number;
-  achieved_score: number;
-  percentage: number;
-  criteria: NarfCriterion[];
-}
-
-export interface NarfCriterion {
-  criterion: string;
-  max_marks: number;
-  achieved_marks: number;
-  evidence: string | null;
 }
 
 // ══════════════════════════════════════════════════════════
