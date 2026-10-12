@@ -4,19 +4,18 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    AntibioticSensitivity, ComponentSlipPrintData, CrossmatchReportPrintData, CrossmatchUnit,
-    CultureSensitivityPrintData, HistopathReportPrintData, IhcMarker,
-    InvestigationRequisitionPrintData, LabOrderHeaderRow, LabReportPrintData, LabResultLine,
-    MedicationLine, OrderedTest, PatientCardPrintData, PrescriptionHeaderRow,
+    ComponentSlipPrintData, CrossmatchReportPrintData, CrossmatchUnit, HistopathReportPrintData,
+    IhcMarker, InvestigationRequisitionPrintData, LabOrderHeaderRow, LabReportPrintData,
+    LabResultLine, MedicationLine, OrderedTest, PatientCardPrintData, PrescriptionHeaderRow,
     PrescriptionPrintData, RadiologyReportPrintData,
 };
 
@@ -33,8 +32,7 @@ pub async fn get_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<PrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id)
-        .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -372,138 +370,6 @@ async fn hospital_name(
 }
 
 // ── Culture Sensitivity Report ──────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct CultureSensitivityRow {
-    patient_name: String,
-    uhid: String,
-    age: Option<f64>,
-    gender: String,
-    sample_type: String,
-    sample_id: String,
-    collected_at: Option<chrono::DateTime<chrono::Utc>>,
-    received_at: Option<chrono::DateTime<chrono::Utc>>,
-    reported_at: Option<chrono::DateTime<chrono::Utc>>,
-    referring_doctor: Option<String>,
-    clinical_history: Option<String>,
-    organism_isolated: Option<String>,
-    colony_count: Option<String>,
-    gram_stain: Option<String>,
-    interpretation: Option<String>,
-    comments: Option<String>,
-    microbiologist_name: Option<String>,
-}
-
-pub async fn get_culture_sensitivity_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(order_id): Path<Uuid>,
-) -> Result<Json<CultureSensitivityPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, CultureSensitivityRow>(
-        "SELECT \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
-           p.gender::text AS gender, \
-           lo.sample_type, \
-           lo.sample_id, \
-           lo.collected_at, \
-           lo.received_at, \
-           lo.verified_at AS reported_at, \
-           doc.full_name AS referring_doctor, \
-           lo.clinical_history, \
-           cr.organism_isolated, \
-           cr.colony_count, \
-           cr.gram_stain, \
-           cr.interpretation, \
-           cr.comments, \
-           micro.full_name AS microbiologist_name \
-         FROM lab_orders lo \
-         JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
-         JOIN culture_results cr ON cr.order_id = lo.id AND cr.tenant_id = lo.tenant_id \
-         LEFT JOIN users doc ON doc.id = lo.ordered_by \
-         LEFT JOIN users micro ON micro.id = lo.verified_by \
-         WHERE lo.id = $1 AND lo.tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get sensitivity results
-    let sensitivities = sqlx::query_as::<_, AntibioticSensitivity>(
-        "SELECT \
-           antibiotic_name, \
-           antibiotic_class, \
-           mic, \
-           interpretation, \
-           zone_size \
-         FROM antibiotic_sensitivities \
-         WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY antibiotic_class, antibiotic_name LIMIT 5000",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
-
-    // Check NABL accreditation
-    let nabl_logo: bool = sqlx::query_scalar(
-        "SELECT COALESCE((value->>'nabl_accredited')::boolean, false) \
-         FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'lab' AND key = 'accreditation' \
-         LIMIT 1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(false);
-
-    tx.commit().await?;
-
-    let fmt_ts = |dt: Option<chrono::DateTime<chrono::Utc>>| {
-        dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string())
-    };
-    let age_str = row.age.map(|a| format!("{} Y", a as i32));
-
-    Ok(Json(CultureSensitivityPrintData {
-        patient_name: row.patient_name,
-        uhid: row.uhid,
-        age: age_str,
-        gender: row.gender,
-        sample_type: row.sample_type,
-        sample_id: row.sample_id,
-        collected_at: fmt_ts(row.collected_at),
-        received_at: fmt_ts(row.received_at),
-        reported_at: fmt_ts(row.reported_at),
-        referring_doctor: row.referring_doctor,
-        clinical_history: row.clinical_history,
-        organism_isolated: row.organism_isolated,
-        colony_count: row.colony_count,
-        gram_stain: row.gram_stain,
-        sensitivity_results: sensitivities,
-        interpretation: row.interpretation,
-        comments: row.comments,
-        microbiologist_name: row.microbiologist_name,
-        hospital_name: h_name,
-        nabl_logo,
-    }))
-}
 
 // ── Histopathology Report ───────────────────────────────
 
@@ -1025,10 +891,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/patient-card/{patient_id}",
             get(get_patient_card_print_data),
-        )
-        .route(
-            "/api/print-data/culture-sensitivity/{order_id}",
-            get(get_culture_sensitivity_print_data),
         )
         .route(
             "/api/print-data/histopath-report/{order_id}",

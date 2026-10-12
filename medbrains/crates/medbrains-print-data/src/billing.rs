@@ -4,11 +4,11 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -16,11 +16,11 @@ use uuid::Uuid;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AdvanceReceiptPrintData, BillCategoryTotal, BillLineItem, CashlessClaimPrintData,
-    CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData, InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
+    CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData,
+    InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
     IpdInterimBillPrintData, NoDuesCertificatePrintData, OpdBillPrintData, PackageAdditionalCharge,
     PackageBillPrintData, PackageEstimatePrintData, PackageExclusion, ReceiptPrintData,
     RefundReceiptPrintData,
-    TdsCertificatePrintData, TdsEntry,
 };
 
 use medbrains_server_core::error::AppError;
@@ -103,13 +103,13 @@ pub async fn get_receipt_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::billing::receipts::REPRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PAYMENT,
-        payment_id,
-    )
-    .await?;
+        medbrains_authz_gate::require_access_via(
+            &state,
+            &claims,
+            medbrains_authz_gate::links::PAYMENT,
+            payment_id,
+        )
+        .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first receipt print".to_owned(),
@@ -526,8 +526,7 @@ pub async fn get_ipd_interim_bill_print_data(
 ) -> Result<Json<IpdInterimBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -917,8 +916,7 @@ pub async fn get_admission_consolidated_bill_print_data(
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1056,7 +1054,9 @@ pub async fn get_admission_consolidated_bill_print_data(
             .admission_date
             .map(|d| d.format("%d-%b-%Y").to_string())
             .unwrap_or_default(),
-        discharge_date: header.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        discharge_date: header
+            .discharge_date
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         bed_number: header.bed_number,
         ward_name: header.ward_name,
         doctor_name: header.doctor_name,
@@ -1107,8 +1107,7 @@ pub async fn get_no_dues_certificate_print_data(
 ) -> Result<Json<NoDuesCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2348,146 +2347,6 @@ pub async fn get_insurance_claim_print_data(
 
 // ── TDS Certificate ────────────────────────────────────────
 
-#[derive(Debug, sqlx::FromRow)]
-struct TdsCertRow {
-    certificate_number: String,
-    financial_year: String,
-    quarter: String,
-    deductor_name: String,
-    deductor_tan: String,
-    deductor_pan: String,
-    deductor_address: Option<String>,
-    deductee_name: String,
-    deductee_pan: String,
-    deductee_address: Option<String>,
-    section_code: String,
-    nature_of_payment: String,
-    total_payment: f64,
-    total_tds_deducted: f64,
-    total_tds_deposited: f64,
-    challan_number: Option<String>,
-    challan_date: Option<chrono::NaiveDate>,
-    bsr_code: Option<String>,
-    verified_by: Option<String>,
-    designation: Option<String>,
-    verification_date: chrono::NaiveDate,
-    place: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct TdsEntryRow {
-    invoice_number: String,
-    invoice_date: chrono::NaiveDate,
-    payment_date: chrono::NaiveDate,
-    gross_amount: f64,
-    tds_rate: f64,
-    tds_amount: f64,
-}
-
-pub async fn get_tds_certificate_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(tds_id): Path<Uuid>,
-) -> Result<Json<TdsCertificatePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::tds::LIST)?;
-    // A tax-deduction certificate for a deductee, not a patient record;
-    // `tds_certificates` has no patient column.
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, TdsCertRow>(
-        "SELECT \
-           tc.certificate_number, \
-           tc.financial_year, \
-           tc.quarter, \
-           t.name AS deductor_name, \
-           t.tan AS deductor_tan, \
-           t.pan AS deductor_pan, \
-           t.address_line1 AS deductor_address, \
-           v.name AS deductee_name, \
-           v.pan AS deductee_pan, \
-           v.address AS deductee_address, \
-           tc.section_code, \
-           tc.nature_of_payment, \
-           tc.total_payment, \
-           tc.total_tds_deducted, \
-           tc.total_tds_deposited, \
-           tc.challan_number, \
-           tc.challan_date, \
-           tc.bsr_code, \
-           u.full_name AS verified_by, \
-           u.designation, \
-           tc.verification_date, \
-           tc.place \
-         FROM tds_certificates tc \
-         JOIN tenants t ON t.id = tc.tenant_id \
-         JOIN vendors v ON v.id = tc.vendor_id AND v.tenant_id = tc.tenant_id \
-         LEFT JOIN users u ON u.id = tc.verified_by_id \
-         WHERE tc.id = $1 AND tc.tenant_id = $2",
-    )
-    .bind(tds_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let entries = sqlx::query_as::<_, TdsEntryRow>(
-        "SELECT \
-           invoice_number, \
-           invoice_date, \
-           payment_date, \
-           gross_amount, \
-           tds_rate, \
-           tds_amount \
-         FROM tds_entries \
-         WHERE tds_certificate_id = $1 AND tenant_id = $2 \
-         ORDER BY invoice_date LIMIT 5000",
-    )
-    .bind(tds_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(TdsCertificatePrintData {
-        certificate_number: row.certificate_number,
-        financial_year: row.financial_year,
-        quarter: row.quarter,
-        deductor_name: row.deductor_name,
-        deductor_tan: row.deductor_tan,
-        deductor_pan: row.deductor_pan,
-        deductor_address: row.deductor_address,
-        deductee_name: row.deductee_name,
-        deductee_pan: row.deductee_pan,
-        deductee_address: row.deductee_address,
-        section_code: row.section_code,
-        nature_of_payment: row.nature_of_payment,
-        tds_entries: entries
-            .into_iter()
-            .map(|e| TdsEntry {
-                invoice_number: e.invoice_number,
-                invoice_date: e.invoice_date.format("%d-%b-%Y").to_string(),
-                payment_date: e.payment_date.format("%d-%b-%Y").to_string(),
-                gross_amount: e.gross_amount,
-                tds_rate: e.tds_rate,
-                tds_amount: e.tds_amount,
-            })
-            .collect(),
-        total_payment: row.total_payment,
-        total_tds_deducted: row.total_tds_deducted,
-        total_tds_deposited: row.total_tds_deposited,
-        challan_number: row.challan_number,
-        challan_date: row.challan_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        bsr_code: row.bsr_code,
-        verified_by: row.verified_by,
-        designation: row.designation,
-        verification_date: row.verification_date.format("%d-%b-%Y").to_string(),
-        place: row.place,
-    }))
-}
-
 /// Alias for `number_to_words`
 fn amount_to_words(amount: f64) -> String {
     number_to_words(amount)
@@ -2507,10 +2366,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/credit-note/{id}",
             get(get_credit_note_print_data),
-        )
-        .route(
-            "/api/print-data/tds-certificate/{id}",
-            get(get_tds_certificate_print_data),
         )
         .route(
             "/api/print-data/gst-invoice/{invoice_id}",

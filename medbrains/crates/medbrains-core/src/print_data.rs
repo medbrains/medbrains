@@ -834,39 +834,6 @@ pub struct PackageEstimatePrintData {
 // ── Lab/Blood Bank Report Prints (Phase 2) ───────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CultureSensitivityPrintData {
-    pub patient_name: String,
-    pub uhid: String,
-    pub age: Option<String>,
-    pub gender: String,
-    pub sample_type: String,
-    pub sample_id: String,
-    pub collected_at: Option<String>,
-    pub received_at: Option<String>,
-    pub reported_at: Option<String>,
-    pub referring_doctor: Option<String>,
-    pub clinical_history: Option<String>,
-    pub organism_isolated: Option<String>,
-    pub colony_count: Option<String>,
-    pub gram_stain: Option<String>,
-    pub sensitivity_results: Vec<AntibioticSensitivity>,
-    pub interpretation: Option<String>,
-    pub comments: Option<String>,
-    pub microbiologist_name: Option<String>,
-    pub hospital_name: Option<String>,
-    pub nabl_logo: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct AntibioticSensitivity {
-    pub antibiotic_name: String,
-    pub antibiotic_class: Option<String>,
-    pub mic: Option<String>,
-    pub interpretation: String, // S, I, R
-    pub zone_size: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistopathReportPrintData {
     pub patient_name: String,
     pub uhid: String,
@@ -1199,27 +1166,6 @@ pub struct TransferSummaryPrintData {
     pub receiving_nurse: Option<String>,
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PatientEducationPrintData {
-    pub patient_name: String,
-    pub uhid: String,
-    pub material_title: String,
-    pub material_code: String,
-    pub category: String, // disease, procedure, medication, lifestyle
-    pub content_sections: Vec<EducationSection>,
-    pub language: String,
-    pub provided_date: String,
-    pub provided_by: Option<String>,
-    pub hospital_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct EducationSection {
-    pub heading: String,
-    pub content: String,
-    pub bullet_points: Vec<String>,
 }
 
 // ── Identity Prints Enhancement (Phase 2) ────────────────
@@ -2872,49 +2818,6 @@ pub struct InsuranceClaimPrintData {
     pub signatures: Vec<PrintSignatureData>,
 }
 
-/// TDS Certificate print data
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct TdsCertificatePrintData {
-    pub certificate_number: String,
-    pub financial_year: String,
-    pub quarter: String,
-    // Deductor Details (Hospital)
-    pub deductor_name: String,
-    pub deductor_tan: String,
-    pub deductor_pan: String,
-    pub deductor_address: Option<String>,
-    // Deductee Details (Vendor/Doctor)
-    pub deductee_name: String,
-    pub deductee_pan: String,
-    pub deductee_address: Option<String>,
-    // TDS Details
-    pub section_code: String,
-    pub nature_of_payment: String,
-    pub tds_entries: Vec<TdsEntry>,
-    pub total_payment: f64,
-    pub total_tds_deducted: f64,
-    pub total_tds_deposited: f64,
-    // Challan Details
-    pub challan_number: Option<String>,
-    pub challan_date: Option<String>,
-    pub bsr_code: Option<String>,
-    // Verification
-    pub verified_by: Option<String>,
-    pub designation: Option<String>,
-    pub verification_date: String,
-    pub place: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TdsEntry {
-    pub invoice_number: String,
-    pub invoice_date: String,
-    pub payment_date: String,
-    pub gross_amount: f64,
-    pub tds_rate: f64,
-    pub tds_amount: f64,
-}
-
 // ══════════════════════════════════════════════════════════
 // Phase 4: Regulatory Print Data
 // ══════════════════════════════════════════════════════════
@@ -3367,43 +3270,6 @@ pub struct DepartmentAttendance {
     pub average_absent: f64,
     pub average_leave: f64,
     pub attendance_percentage: f64,
-}
-
-/// NMC NARF Self-Assessment
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct NmcNarfAssessmentPrintData {
-    pub assessment_year: i32,
-    pub report_date: String,
-    pub hospital_name: String,
-    pub nmc_registration_number: Option<String>,
-    pub assessment_sections: Vec<NarfSection>,
-    pub overall_score: f64,
-    pub maximum_score: f64,
-    pub percentage: f64,
-    pub grade: String,
-    pub strengths: Vec<String>,
-    pub areas_for_improvement: Vec<String>,
-    pub action_plan: Vec<String>,
-    pub assessed_by: Option<String>,
-    pub verified_by: Option<String>,
-    pub hospital_logo_url: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NarfSection {
-    pub section_name: String,
-    pub max_score: f64,
-    pub achieved_score: f64,
-    pub percentage: f64,
-    pub criteria: Vec<NarfCriterion>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NarfCriterion {
-    pub criterion: String,
-    pub max_marks: f64,
-    pub achieved_marks: f64,
-    pub evidence: Option<String>,
 }
 
 // ══════════════════════════════════════════════════════════

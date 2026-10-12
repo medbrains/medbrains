@@ -48,7 +48,7 @@ ID_KIND = {
 # mistake idKind exists to prevent. The route prefix disambiguates.
 ORDER_KIND_BY_PREFIX = {
     "lab-report": "lab_order", "cumulative-lab-report": "lab_order",
-    "culture-sensitivity": "lab_order", "histopath-report": "lab_order",
+    "histopath-report": "lab_order",
     "investigation-requisition": "lab_order", "lab-report-full": "lab_order",
     "radiology-report": "radiology_order", "radiology-report-full": "radiology_order",
     "dicom": "radiology_order", "imaging": "radiology_order",

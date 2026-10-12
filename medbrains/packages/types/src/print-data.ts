@@ -235,21 +235,6 @@ export interface CreditNotePrintData {
   hospital_name: string | null;
 }
 
-export interface TdsCertificatePrintData {
-  deductee_name: string;
-  deductee_pan: string;
-  tds_section: string;
-  tds_rate: string;
-  base_amount: string;
-  tds_amount: string;
-  deducted_date: string;
-  certificate_number: string | null;
-  certificate_date: string | null;
-  financial_year: string;
-  quarter: string;
-  hospital_name: string | null;
-}
-
 export interface PackageAdditionalCharge {
   description: string;
   amount: number;

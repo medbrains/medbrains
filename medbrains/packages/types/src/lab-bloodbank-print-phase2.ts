@@ -2,37 +2,6 @@
 
 // ── Lab/Blood Bank Print Data (Phase 2) ─────────────────
 
-export interface AntibioticSensitivity {
-  antibiotic_name: string;
-  antibiotic_class: string | null;
-  mic: string | null;
-  interpretation: string;
-  zone_size: string | null;
-}
-
-export interface CultureSensitivityPrintData {
-  patient_name: string;
-  uhid: string;
-  age: string | null;
-  gender: string;
-  sample_type: string;
-  sample_id: string;
-  collected_at: string | null;
-  received_at: string | null;
-  reported_at: string | null;
-  referring_doctor: string | null;
-  clinical_history: string | null;
-  organism_isolated: string | null;
-  colony_count: string | null;
-  gram_stain: string | null;
-  sensitivity_results: AntibioticSensitivity[];
-  interpretation: string | null;
-  comments: string | null;
-  microbiologist_name: string | null;
-  hospital_name: string | null;
-  nabl_logo: boolean;
-}
-
 export interface IhcMarker {
   marker_name: string;
   result: string;
