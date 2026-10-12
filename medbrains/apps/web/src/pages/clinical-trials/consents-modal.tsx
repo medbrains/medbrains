@@ -5,6 +5,7 @@ import type { ClinicalTrial } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { clinicalTrialsService } from "@/services/clinicalTrials.service";
 
@@ -74,6 +75,11 @@ export function ConsentsModal({ trial, onClose }: { trial: ClinicalTrial; onClos
               <Text size="xs" c="dimmed">
                 {c.patient_signed_at ? new Date(c.patient_signed_at).toLocaleDateString() : ""}
               </Text>
+              <PrintDocumentIconMenu
+                idKind="consent"
+                recordId={c.id}
+                recordLabel={`research consent of ${c.first_name} ${c.last_name}`}
+              />
             </Group>
           ))
         )}

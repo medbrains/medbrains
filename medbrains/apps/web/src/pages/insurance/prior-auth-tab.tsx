@@ -28,6 +28,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Button, IconButton, toast } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
@@ -274,6 +275,11 @@ export function PriorAuthTab() {
                 <IconButton onClick={() => setDetailId(r.id)} aria-label="Document">
                   <IconFileText size={16} />
                 </IconButton>
+                <PrintDocumentIconMenu
+                  idKind="insurance_preauth"
+                  recordId={r.id}
+                  recordLabel={r.pa_number}
+                />
                 {canSubmit && (r.status === "draft" || r.status === "pending_info") && (
                   <IconButton
                     tone="primary"

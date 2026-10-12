@@ -13,6 +13,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -22,6 +23,16 @@ import {
 import { confirmDestructive } from "@/lib/confirm";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { formatDate } from "./shared";
+
+/** Printed by the buttons above, or by the page header's own card printer. */
+const PRINTED_ELSEWHERE = [
+  "consent.hiv",
+  "consent.photo",
+  "consent.organ_donation",
+  "consent.abdm",
+  "patient-card",
+  "registration-card",
+] as const;
 
 export function DetailDocumentsTab({ patientId }: { patientId: string }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
@@ -80,6 +91,12 @@ export function DetailDocumentsTab({ patientId }: { patientId: string }) {
         <PrintDocumentButton documentKey="consent.photo" recordId={patientId} />
         <PrintDocumentButton documentKey="consent.organ_donation" recordId={patientId} />
         <PrintDocumentButton documentKey="consent.abdm" recordId={patientId} />
+        <PrintDocumentIconMenu
+          idKind="patient"
+          recordId={patientId}
+          recordLabel="other patient documents"
+          exclude={PRINTED_ELSEWHERE}
+        />
       </Group>
       {canUpdate && (
         <Group justify="flex-end">

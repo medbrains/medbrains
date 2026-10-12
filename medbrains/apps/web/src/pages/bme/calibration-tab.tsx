@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { daysUntil, fmtDate, PM_FREQUENCIES } from "./shared";
@@ -151,6 +152,17 @@ export function CalibrationTab() {
             Locked
           </Badge>
         ) : null,
+    },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu
+          idKind="calibration"
+          recordId={r.id}
+          recordLabel={r.certificate_number}
+        />
+      ),
     },
   ];
 

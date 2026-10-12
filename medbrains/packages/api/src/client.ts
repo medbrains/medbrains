@@ -163,6 +163,7 @@ import type {
   BedsideNurseRequestRow,
   BedsideRealtimeFeedbackRow,
   BedsideSessionRow,
+  BedsideTransfusion,
   BedsideVitalReading,
   BedTransferRequest,
   BedTransferResponse,
@@ -331,6 +332,7 @@ import type {
   CommTemplateRow,
   CompileRustRequest,
   CompileRustResult,
+  CompleteBedsideTransfusionRequest,
   CompletenessCheck,
   CompleteReferralRequest,
   CompleteTatRecordRequest,
@@ -1828,6 +1830,7 @@ import type {
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
   StaffLocationAssignment,
+  StartBedsideTransfusionRequest,
   StateFormularyRow,
   StateScheme,
   Station,
@@ -6792,6 +6795,18 @@ export const api = {
     }),
   updateInfusion: (admissionId: string, infusionId: string, data: UpdateInfusionInput) =>
     request<IvFluidOrder>(`/ipd/admissions/${admissionId}/infusions/${infusionId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listBedsideTransfusions: (admissionId: string) =>
+    request<BedsideTransfusion[]>(`/ipd/admissions/${admissionId}/transfusions`),
+  startBedsideTransfusion: (admissionId: string, data: StartBedsideTransfusionRequest) =>
+    request<BedsideTransfusion>(`/ipd/admissions/${admissionId}/transfusions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completeBedsideTransfusion: (id: string, data: CompleteBedsideTransfusionRequest) =>
+    request<BedsideTransfusion>(`/ipd/transfusions/${id}/complete`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -13495,7 +13510,6 @@ export const api = {
   getCreditNotePrintData: (id: string) =>
     request<CreditNotePrintData>(`/print-data/credit-note/${id}`),
 
-
   getGstInvoicePrintData: (invoiceId: string) =>
     request<GstInvoicePrintData>(`/print-data/gst-invoice/${invoiceId}`),
 
@@ -13563,8 +13577,8 @@ export const api = {
   getAdmissionConsolidatedBillPrintData: (admissionId: string) =>
     request<IpdFinalBillPrintData>(`/print-data/admission-consolidated-bill/${admissionId}`),
 
-  getAdvanceReceiptPrintData: (paymentId: string) =>
-    request<AdvanceReceiptPrintData>(`/print-data/advance-receipt/${paymentId}`),
+  getAdvanceReceiptPrintData: (advanceId: string) =>
+    request<AdvanceReceiptPrintData>(`/print-data/advance-receipt/${advanceId}`),
 
   getRefundReceiptPrintData: (refundId: string) =>
     request<RefundReceiptPrintData>(`/print-data/refund-receipt/${refundId}`),
@@ -13579,7 +13593,6 @@ export const api = {
     request<PackageEstimatePrintData>(`/print-data/package-estimate/${packageId}`),
 
   // ── Phase 2: Lab & Blood Bank Report Print Data ────────────
-
 
   getHistopathReportPrintData: (orderId: string) =>
     request<HistopathReportPrintData>(`/print-data/histopath-report/${orderId}`),
@@ -13601,8 +13614,8 @@ export const api = {
   getOrganDonationConsentPrintData: (patientId: string) =>
     request<OrganDonationConsentPrintData>(`/print-data/consent/organ-donation/${patientId}`),
 
-  getResearchConsentPrintData: (enrollmentId: string) =>
-    request<ResearchConsentPrintData>(`/print-data/consent/research/${enrollmentId}`),
+  getResearchConsentPrintData: (consentId: string) =>
+    request<ResearchConsentPrintData>(`/print-data/consent/research/${consentId}`),
 
   getAbdmConsentPrintData: (patientId: string) =>
     request<AbdmConsentPrintData>(`/print-data/consent/abdm/${patientId}`),
@@ -13615,9 +13628,8 @@ export const api = {
   getTreatmentChartPrintData: (admissionId: string) =>
     request<TreatmentChartPrintData>(`/print-data/treatment-chart/${admissionId}`),
 
-  getTransferSummaryPrintData: (transferId: string) =>
-    request<TransferSummaryPrintData>(`/print-data/transfer-summary/${transferId}`),
-
+  getTransferSummaryPrintData: (transferLogId: string) =>
+    request<TransferSummaryPrintData>(`/print-data/transfer-summary/${transferLogId}`),
 
   getRegistrationCardPrintData: (patientId: string) =>
     request<RegistrationCardPrintData>(`/print-data/registration-card/${patientId}`),
@@ -13629,21 +13641,21 @@ export const api = {
   getCaseSheetCoverPrintData: (admissionId: string) =>
     request<CaseSheetCoverPrintData>(`/print-data/case-sheet-cover/${admissionId}`),
 
-  getPreopAssessmentPrintData: (admissionId: string) =>
-    request<PreopAssessmentPrintData>(`/print-data/preop-assessment/${admissionId}`),
+  getPreopAssessmentPrintData: (bookingId: string) =>
+    request<PreopAssessmentPrintData>(`/print-data/preop-assessment/${bookingId}`),
 
   // The OT booking, not a surgery: the checklist rows hang off the booking.
   getSurgicalSafetyChecklistPrintData: (bookingId: string) =>
     request<SurgicalSafetyChecklistPrintData>(`/print-data/surgical-safety-checklist/${bookingId}`),
 
-  getAnesthesiaRecordPrintData: (surgeryId: string) =>
-    request<AnesthesiaRecordPrintData>(`/print-data/anesthesia-record/${surgeryId}`),
+  getAnesthesiaRecordPrintData: (bookingId: string) =>
+    request<AnesthesiaRecordPrintData>(`/print-data/anesthesia-record/${bookingId}`),
 
-  getOperationNotesPrintData: (surgeryId: string) =>
-    request<OperationNotesPrintData>(`/print-data/operation-notes/${surgeryId}`),
+  getOperationNotesPrintData: (bookingId: string) =>
+    request<OperationNotesPrintData>(`/print-data/operation-notes/${bookingId}`),
 
-  getPostopOrdersPrintData: (surgeryId: string) =>
-    request<PostopOrdersPrintData>(`/print-data/postop-orders/${surgeryId}`),
+  getPostopOrdersPrintData: (bookingId: string) =>
+    request<PostopOrdersPrintData>(`/print-data/postop-orders/${bookingId}`),
 
   getTransfusionMonitoringPrintData: (transfusionId: string) =>
     request<TransfusionMonitoringPrintData>(`/print-data/transfusion-monitoring/${transfusionId}`),
@@ -13686,8 +13698,8 @@ export const api = {
   getWoundCertificatePrintData: (caseId: string) =>
     request<WoundCertificatePrintData>(`/print-data/wound-certificate/${caseId}`),
 
-  getAgeEstimationPrintData: (caseId: string) =>
-    request<AgeEstimationPrintData>(`/print-data/age-estimation/${caseId}`),
+  getAgeEstimationPrintData: (documentId: string) =>
+    request<AgeEstimationPrintData>(`/print-data/age-estimation/${documentId}`),
 
   getDeathDeclarationPrintData: (patientId: string) =>
     request<DeathDeclarationPrintData>(`/print-data/death-declaration/${patientId}`),
@@ -13710,8 +13722,8 @@ export const api = {
   getAdrReportPrintData: (reportId: string) =>
     request<AdrReportPrintData>(`/print-data/adr-report/${reportId}`),
 
-  getTransfusionReactionPrintData: (reactionId: string) =>
-    request<TransfusionReactionPrintData>(`/print-data/transfusion-reaction/${reactionId}`),
+  getTransfusionReactionPrintData: (transfusionId: string) =>
+    request<TransfusionReactionPrintData>(`/print-data/transfusion-reaction/${transfusionId}`),
 
   // ── Phase 4: Clinical Delivery Print Data ─────────────────
   /**
@@ -13742,19 +13754,15 @@ export const api = {
   getRadiologyReportFullPrintData: (orderId: string) =>
     request<RadiologyReportFullPrintData>(`/print-data/radiology-report-full/${orderId}`),
 
-  getDeathCertificateFullPrintData: (patientId: string) =>
-    request<DeathCertificatePrintData>(`/print-data/death-certificate/${patientId}`),
-
   // ── Phase 4: Billing Print Data ───────────────────────────
   getCreditNoteFullPrintData: (creditNoteId: string) =>
     request<CreditNotePrintData>(`/print-data/credit-note/${creditNoteId}`),
 
-  getPackageBillPrintData: (packageId: string) =>
-    request<PackageBillPrintData>(`/print-data/package-bill/${packageId}`),
+  getPackageBillPrintData: (subscriptionId: string) =>
+    request<PackageBillPrintData>(`/print-data/package-bill/${subscriptionId}`),
 
   getInsuranceClaimPrintData: (claimId: string) =>
     request<InsuranceClaimPrintData>(`/print-data/insurance-claim/${claimId}`),
-
 
   // ── NABH KPI rollup ───────────────────────────────────────
   getNabhIndicators: () => request<NabhRollupResponse>(`/nabh/indicators`),
@@ -13793,7 +13801,6 @@ export const api = {
   getAebasAttendancePrintData: (period: string) =>
     request<AebasAttendanceReportPrintData>(`/print-data/aebas-attendance/${period}`),
 
-
   // ── Phase 4: Admin & Procurement Print Data ───────────────
   getIndentFormPrintData: (indentId: string) =>
     request<IndentFormPrintData>(`/print-data/indent-form/${indentId}`),
@@ -13803,8 +13810,8 @@ export const api = {
 
   getGrnPrintData: (grnId: string) => request<GrnPrintData>(`/print-data/grn/${grnId}`),
 
-  getMaterialIssueVoucherPrintData: (voucherId: string) =>
-    request<MaterialIssueVoucherPrintData>(`/print-data/material-issue-voucher/${voucherId}`),
+  getMaterialIssueVoucherPrintData: (indentId: string) =>
+    request<MaterialIssueVoucherPrintData>(`/print-data/material-issue-voucher/${indentId}`),
 
   getStockTransferNotePrintData: (transferId: string) =>
     request<StockTransferNotePrintData>(`/print-data/stock-transfer-note/${transferId}`),
@@ -13826,8 +13833,8 @@ export const api = {
   getWorkOrderPrintData: (workOrderId: string) =>
     request<WorkOrderPrintData>(`/print-data/work-order/${workOrderId}`),
 
-  getPmChecklistPrintData: (pmId: string) =>
-    request<PmChecklistPrintData>(`/print-data/pm-checklist/${pmId}`),
+  getPmChecklistPrintData: (workOrderId: string) =>
+    request<PmChecklistPrintData>(`/print-data/pm-checklist/${workOrderId}`),
 
   // ══════════════════════════════════════════════════════════
   //  Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
@@ -13872,14 +13879,14 @@ export const api = {
   getEquipmentHistoryPrintData: (equipmentId: string) =>
     request<EquipmentHistoryCardPrintData>(`/print-data/equipment-history/${equipmentId}`),
 
-  getMgpsLogPrintData: (date: string, shift: string) =>
-    request<MgpsDailyLogPrintData>(`/print-data/mgps-log/${date}/${shift}`),
+  getMgpsLogPrintData: (readingId: string) =>
+    request<MgpsDailyLogPrintData>(`/print-data/mgps-log/${readingId}`),
 
   getWaterQualityPrintData: (testId: string) =>
     request<WaterQualityTestPrintData>(`/print-data/water-quality/${testId}`),
 
-  getDgUpsLogPrintData: (equipmentId: string, date: string) =>
-    request<DgUpsRunLogPrintData>(`/print-data/dg-ups-log/${equipmentId}/${date}`),
+  getDgUpsLogPrintData: (readingId: string) =>
+    request<DgUpsRunLogPrintData>(`/print-data/dg-ups-log/${readingId}`),
 
   getFireInspectionPrintData: (inspectionId: string) =>
     request<FireEquipmentInspectionPrintData>(`/print-data/fire-inspection/${inspectionId}`),
@@ -13891,14 +13898,16 @@ export const api = {
     request<FireMockDrillReportPrintData>(`/print-data/fire-mock-drill/${drillId}`),
 
   // ── Blood Bank & OT Forms ───────────────────────────────────
-  getOtRegisterPrintData: (otId: string, date: string) =>
-    request<OtRegisterPrintData>(`/print-data/ot-register/${otId}/${date}`),
+  getOtRegisterPrintData: (otRoomId: string, date: string) =>
+    request<OtRegisterPrintData>(`/print-data/ot-register/${otRoomId}/${date}`),
 
   getBloodDonorFormPrintData: (donorId: string) =>
     request<BloodDonorFormPrintData>(`/print-data/blood-donor-form/${donorId}`),
 
-  getCrossMatchRequisitionPrintData: (requisitionId: string) =>
-    request<CrossMatchRequisitionPrintData>(`/print-data/cross-match-requisition/${requisitionId}`),
+  getCrossMatchRequisitionPrintData: (crossmatchRequestId: string) =>
+    request<CrossMatchRequisitionPrintData>(
+      `/print-data/cross-match-requisition/${crossmatchRequestId}`,
+    ),
 
   // ── Clinical/Identity Forms ─────────────────────────────────
   getAppointmentSlipPrintData: (appointmentId: string) =>
@@ -13907,11 +13916,13 @@ export const api = {
   getDpdpConsentPrintData: (consentId: string) =>
     request<DpdpConsentPrintData>(`/print-data/dpdp-consent/${consentId}`),
 
-  getVideoConsentPrintData: (videoConsentId: string) =>
-    request<VideoConsentPrintData>(`/print-data/video-consent/${videoConsentId}`),
+  getVideoConsentPrintData: (signatureId: string) =>
+    request<VideoConsentPrintData>(`/print-data/video-consent/${signatureId}`),
 
-  getRestraintDocumentationPrintData: (restraintId: string) =>
-    request<RestraintDocumentationPrintData>(`/print-data/restraint-documentation/${restraintId}`),
+  getRestraintDocumentationPrintData: (restraintDocId: string) =>
+    request<RestraintDocumentationPrintData>(
+      `/print-data/restraint-documentation/${restraintDocId}`,
+    ),
 
   // ══════════════════════════════════════════════════════════
   // PHASE 6: ACADEMIC/SPECIALTY FORMS & BRANDING

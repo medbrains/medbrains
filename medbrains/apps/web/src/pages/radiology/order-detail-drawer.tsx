@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, useClinicalEmit } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
@@ -201,6 +202,14 @@ export function OrderDetailDrawer({
                     >
                       Print report
                     </Button>
+                  )}
+                  {order.status === "verified" && (
+                    <PrintDocumentMenu
+                      idKind="radiology_order"
+                      recordId={order.id}
+                      exclude={["radiology-report"]}
+                      label="Also print"
+                    />
                   )}
                 </Stack>
               ) : canReport && ["completed", "in_progress"].includes(order.status) ? (

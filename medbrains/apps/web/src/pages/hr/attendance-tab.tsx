@@ -8,8 +8,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
+import { AebasImportDrawer } from "./aebas-import-drawer";
 
 export function AttendanceTab({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
@@ -74,11 +76,15 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
             style={{ width: 160 }}
           />
         </Group>
-        {canManage && (
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Mark Attendance
-          </Button>
-        )}
+        <Group gap="xs">
+          <PrintRegisterButton documentKey="aebas-attendance" period="month" />
+          {canManage && <AebasImportDrawer />}
+          {canManage && (
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              Mark Attendance
+            </Button>
+          )}
+        </Group>
       </Group>
 
       <DataTable

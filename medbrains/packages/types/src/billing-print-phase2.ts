@@ -150,26 +150,26 @@ export interface InsurancePreauthPrintData {
   diagnosis: string | null;
   icd_codes: string[];
   planned_procedures: string[];
-  estimated_cost: string;
+  estimated_cost: string | null;
   treating_doctor: string | null;
-  contact_number: string;
+  contact_number: string | null;
   hospital_name: string | null;
 }
 
 export interface CashlessClaimPrintData {
-  claim_number: string;
+  claim_number: string | null;
   claim_date: string;
   patient_name: string;
   uhid: string;
-  policy_number: string;
+  policy_number: string | null;
   insurance_company: string;
   tpa_name: string | null;
-  admission_date: string;
+  admission_date: string | null;
   discharge_date: string | null;
   diagnosis: string | null;
   procedures_performed: string[];
   total_bill_amount: string;
-  approved_amount: string;
+  approved_amount: string | null;
   deductions: string;
   patient_payable: string;
   claim_status: string;
@@ -178,13 +178,13 @@ export interface CashlessClaimPrintData {
 }
 
 export interface PackageEstimatePrintData {
-  estimate_number: string;
+  estimate_number: string | null;
   estimate_date: string;
   valid_until: string;
   patient_name: string | null;
   package_name: string;
   package_code: string;
-  procedure_name: string;
+  procedure_name: string | null;
   inclusions: string[];
   exclusions: string[];
   package_price: string;

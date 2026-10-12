@@ -33,7 +33,7 @@ import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import {
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -292,66 +292,64 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
+  // Consents, pre-op, anaesthesia, operation notes, post-op orders and the WHO
+  // checklist all key on the booking, so one menu above every tab.
   return (
-    <Tabs defaultValue="overview">
-      <Tabs.List>
-        <Tabs.Tab value="overview">Overview</Tabs.Tab>
-        <Tabs.Tab value="preop">Pre-Op</Tabs.Tab>
-        <Tabs.Tab value="checklist">WHO Checklist</Tabs.Tab>
-        <Tabs.Tab value="case-record">Case Record</Tabs.Tab>
-        <Tabs.Tab value="anesthesia">Anesthesia</Tabs.Tab>
-        <Tabs.Tab value="postop">Post-Op</Tabs.Tab>
-        <Tabs.Tab value="consumables">Consumables</Tabs.Tab>
-      </Tabs.List>
+    <Stack>
+      <PrintDocumentMenu idKind="booking" recordId={bookingId} />
+      <Tabs defaultValue="overview">
+        <Tabs.List>
+          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="preop">Pre-Op</Tabs.Tab>
+          <Tabs.Tab value="checklist">WHO Checklist</Tabs.Tab>
+          <Tabs.Tab value="case-record">Case Record</Tabs.Tab>
+          <Tabs.Tab value="anesthesia">Anesthesia</Tabs.Tab>
+          <Tabs.Tab value="postop">Post-Op</Tabs.Tab>
+          <Tabs.Tab value="consumables">Consumables</Tabs.Tab>
+        </Tabs.List>
 
-      <Tabs.Panel value="overview" pt="md">
-        <Stack>
-          <OverviewTab booking={data} />
-          {/* Surgical and anaesthesia consent are booking-scoped: they name
-              the operation, not the admission. Both had a print-data endpoint
-              and no renderer. */}
-          <Group gap="xs">
-            <PrintDocumentButton documentKey="consent.surgical" recordId={bookingId} />
-            <PrintDocumentButton documentKey="consent.anesthesia" recordId={bookingId} />
-          </Group>
-          {data.ot_room_id && (
-            <StationHandoffPanel
-              module="ot"
-              stationType="ot_room"
-              stationKey={data.ot_room_id}
-              stationLabel="OT room"
-            />
-          )}
-        </Stack>
-      </Tabs.Panel>
-      <Tabs.Panel value="preop" pt="md">
-        <Stack>
-          <PreopTab bookingId={bookingId} />
-          <PreopHandoffCard bookingId={bookingId} />
-        </Stack>
-      </Tabs.Panel>
-      <Tabs.Panel value="checklist" pt="md">
-        <ChecklistTab bookingId={bookingId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="case-record" pt="md">
-        <CaseRecordTab bookingId={bookingId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="anesthesia" pt="md">
-        <AnesthesiaTab bookingId={bookingId} />
-      </Tabs.Panel>
-      <Tabs.Panel value="postop" pt="md">
-        <Stack>
-          <PostopTab bookingId={bookingId} />
-          <PostopHandoffCard bookingId={bookingId} />
-        </Stack>
-      </Tabs.Panel>
-      <Tabs.Panel value="consumables" pt="md">
-        <Stack>
-          <ConsumablesSubTab booking={data} />
-          <OtImplantRegisterPanel booking={data} />
-        </Stack>
-      </Tabs.Panel>
-    </Tabs>
+        <Tabs.Panel value="overview" pt="md">
+          <Stack>
+            <OverviewTab booking={data} />
+            {data.ot_room_id && (
+              <StationHandoffPanel
+                module="ot"
+                stationType="ot_room"
+                stationKey={data.ot_room_id}
+                stationLabel="OT room"
+              />
+            )}
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="preop" pt="md">
+          <Stack>
+            <PreopTab bookingId={bookingId} />
+            <PreopHandoffCard bookingId={bookingId} />
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="checklist" pt="md">
+          <ChecklistTab bookingId={bookingId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="case-record" pt="md">
+          <CaseRecordTab bookingId={bookingId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="anesthesia" pt="md">
+          <AnesthesiaTab bookingId={bookingId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="postop" pt="md">
+          <Stack>
+            <PostopTab bookingId={bookingId} />
+            <PostopHandoffCard bookingId={bookingId} />
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="consumables" pt="md">
+          <Stack>
+            <ConsumablesSubTab booking={data} />
+            <OtImplantRegisterPanel booking={data} />
+          </Stack>
+        </Tabs.Panel>
+      </Tabs>
+    </Stack>
   );
 }
 

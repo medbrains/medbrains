@@ -13,6 +13,7 @@ import { IconCheck, IconEye, IconSend, IconTruckDelivery, IconX } from "@tabler/
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, StatusDot, useClinicalEmit } from "@/components";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { indentService } from "@/services/indent.service";
@@ -426,6 +427,7 @@ export function IndentListPanel({
         </Tooltip>
       ),
     },
+    printColumn<IndentRequisition>("indent", { label: (row) => row.indent_number }),
   ];
 
   return (

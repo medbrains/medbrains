@@ -74,6 +74,12 @@ pub struct ImplantRegistryEntry {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub catalog_item_id: Uuid,
+    /// `store_catalog.name` / `.code`, joined by the list query only;
+    /// `RETURNING *` writes leave them `None`.
+    #[sqlx(default)]
+    pub catalog_item_name: Option<String>,
+    #[sqlx(default)]
+    pub catalog_item_code: Option<String>,
     pub batch_stock_id: Option<Uuid>,
     pub patient_id: Uuid,
     pub serial_number: Option<String>,
@@ -95,6 +101,12 @@ pub struct EquipmentCondemnation {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub catalog_item_id: Uuid,
+    /// `store_catalog.name` / `.code`, joined by the list query only;
+    /// `RETURNING *` writes leave them `None`.
+    #[sqlx(default)]
+    pub catalog_item_name: Option<String>,
+    #[sqlx(default)]
+    pub catalog_item_code: Option<String>,
     pub condemnation_number: String,
     pub status: CondemnationStatus,
     pub reason: String,

@@ -28,6 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -205,6 +206,18 @@ export function EnergyTab() {
       key: "reading_at",
       label: "Time",
       render: (r) => <Text size="sm">{new Date(r.reading_at).toLocaleString()}</Text>,
+    },
+    {
+      key: "print",
+      label: "",
+      render: (r) =>
+        r.source_type === "dg_set" || r.source_type === "ups" ? (
+          <PrintDocumentIconMenu
+            idKind="energy_reading"
+            recordId={r.id}
+            recordLabel={r.equipment_name ?? r.source_type}
+          />
+        ) : null,
     },
   ];
 

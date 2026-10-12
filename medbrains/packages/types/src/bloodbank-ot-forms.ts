@@ -38,24 +38,24 @@ export interface OtRegisterPrintData {
 }
 
 export interface DonorMedicalHistory {
-  recent_illness: boolean;
-  recent_surgery: boolean;
-  recent_transfusion: boolean;
-  chronic_disease: boolean;
-  on_medication: boolean;
-  pregnant_or_lactating: boolean;
-  high_risk_behavior: boolean;
-  tattoo_recent: boolean;
+  recent_illness: boolean | null;
+  recent_surgery: boolean | null;
+  recent_transfusion: boolean | null;
+  chronic_disease: boolean | null;
+  on_medication: boolean | null;
+  pregnant_or_lactating: boolean | null;
+  high_risk_behavior: boolean | null;
+  tattoo_recent: boolean | null;
   details: string | null;
 }
 
 export interface DonorPhysicalExam {
-  weight_kg: number;
-  blood_pressure: string;
-  pulse: number;
-  temperature: number;
-  hemoglobin: number;
-  fit_to_donate: boolean;
+  weight_kg: number | null;
+  blood_pressure: string | null;
+  pulse: number | null;
+  temperature: number | null;
+  hemoglobin: number | null;
+  fit_to_donate: boolean | null;
   deferral_reason: string | null;
 }
 
@@ -63,7 +63,7 @@ export interface BloodDonorFormPrintData {
   registration_number: string;
   registration_date: string;
   donor_name: string;
-  age: number;
+  age: number | null;
   gender: string;
   blood_group: string;
   rh_factor: string;
@@ -79,16 +79,16 @@ export interface BloodDonorFormPrintData {
   last_donation_date: string | null;
   medical_history: DonorMedicalHistory;
   physical_exam: DonorPhysicalExam;
-  consent_given: boolean;
+  consent_given: boolean | null;
   consent_date: string | null;
   medical_officer: string | null;
   hospital_name: string;
 }
 
 export interface CrossMatchRequisitionPrintData {
-  requisition_number: string;
+  requisition_number: string | null;
   requisition_date: string;
-  urgency: string;
+  urgency: string | null;
   patient_name: string;
   uhid: string;
   age_gender: string;
@@ -103,8 +103,8 @@ export interface CrossMatchRequisitionPrintData {
   previous_transfusions: number;
   transfusion_reactions_history: boolean;
   reaction_details: string | null;
-  sample_collected_by: string;
-  sample_collected_at: string;
+  sample_collected_by: string | null;
+  sample_collected_at: string | null;
   requesting_doctor: string;
   doctor_signature_date: string;
   hospital_name: string;

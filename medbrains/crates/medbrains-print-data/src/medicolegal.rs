@@ -11,10 +11,9 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    AgeEstimationPrintData, AmaFormPrintData, DeathDeclarationPrintData, EpiphysealFusion,
-    InjuryEntry, MlcDateEntry, MlcDocumentationPrintData, MlcPoliceIntimationPrintData,
-    MlcRegisterPrintData, PoliceVisitEntry, SamplePreservedEntry, SecondaryCharacters,
-    WoundCertificatePrintData, WoundEntry,
+    AgeEstimationPrintData, AmaFormPrintData, DeathDeclarationPrintData, InjuryEntry, MlcDateEntry,
+    MlcDocumentationPrintData, MlcPoliceIntimationPrintData, MlcRegisterPrintData,
+    PoliceVisitEntry, SecondaryCharacters, WoundCertificatePrintData, WoundEntry,
 };
 
 use medbrains_server_core::error::AppError;
@@ -94,16 +93,16 @@ async fn record_mlc_print_output(
         }
     }
 
-    let today = chrono::Utc::now().format("%Y%m%d").to_string();
-    let day_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint \
-         FROM document_outputs \
-         WHERE tenant_id = $1 \
-           AND module_code = 'emergency' \
-           AND document_number LIKE 'ER-MLC-' || $2 || '-%'",
+    // The hospital's date, from the transaction's TimeZone — not the server's.
+    let (today, day_count): (String, i64) = sqlx::query_as(
+        "SELECT d.today, \
+           (SELECT COUNT(*)::bigint FROM document_outputs \
+             WHERE tenant_id = $1 \
+               AND module_code = 'emergency' \
+               AND document_number LIKE 'ER-MLC-' || d.today || '-%') \
+         FROM (SELECT to_char(now(), 'YYYYMMDD') AS today) d",
     )
     .bind(claims.tenant_id)
-    .bind(&today)
     .fetch_one(&mut **tx)
     .await?;
     let document_number = format!("ER-MLC-{today}-{:04}", day_count + 1);
@@ -218,16 +217,16 @@ async fn record_mlc_police_intimation_print_output(
         }
     }
 
-    let today = chrono::Utc::now().format("%Y%m%d").to_string();
-    let day_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint \
-         FROM document_outputs \
-         WHERE tenant_id = $1 \
-           AND module_code = 'emergency' \
-           AND document_number LIKE 'ER-MLC-PI-' || $2 || '-%'",
+    // The hospital's date, from the transaction's TimeZone — not the server's.
+    let (today, day_count): (String, i64) = sqlx::query_as(
+        "SELECT d.today, \
+           (SELECT COUNT(*)::bigint FROM document_outputs \
+             WHERE tenant_id = $1 \
+               AND module_code = 'emergency' \
+               AND document_number LIKE 'ER-MLC-PI-' || d.today || '-%') \
+         FROM (SELECT to_char(now(), 'YYYYMMDD') AS today) d",
     )
     .bind(claims.tenant_id)
-    .bind(&today)
     .fetch_one(&mut **tx)
     .await?;
     let document_number = format!("ER-MLC-PI-{today}-{:04}", day_count + 1);
@@ -312,26 +311,19 @@ struct AmaFormRow {
     treating_doctor: Option<String>,
     ama_date: chrono::NaiveDate,
     ama_time: chrono::NaiveTime,
-    patient_understands_risks: bool,
-    patient_refuses_treatment: bool,
-    patient_assumes_responsibility: bool,
+    risks_explained: Option<String>,
     reason_for_ama: Option<String>,
     patient_signature_obtained: bool,
     relative_name: Option<String>,
     relative_relationship: Option<String>,
     relative_signature_obtained: bool,
     witness1_name: Option<String>,
-    witness1_designation: Option<String>,
-    witness2_name: Option<String>,
-    witness2_designation: Option<String>,
     doctor_name: Option<String>,
-    doctor_signature_obtained: bool,
-    thumb_impression_taken: bool,
-    interpreter_used: bool,
-    interpreter_name: Option<String>,
-    interpreter_language: Option<String>,
 }
 
+/// The DAMA/LAMA declaration recorded on the admission (`ipd_dama_records`,
+/// written by the IPD DAMA modal). No declaration → 404: there is nothing to
+/// print, and a blank form dated today would be a document nobody signed.
 pub async fn get_ama_form_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -344,6 +336,7 @@ pub async fn get_ama_form_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AmaFormRow>(
         "SELECT \
@@ -353,51 +346,40 @@ pub async fn get_ama_form_print_data(
            p.gender::text AS gender, \
            a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
-           COALESCE(w.name, 'N/A') AS ward_name, \
-           COALESCE(l.name, 'N/A') AS bed_number, \
-           COALESCE(a.provisional_diagnosis, 'N/A') AS diagnosis, \
+           COALESCE(w.name, '') AS ward_name, \
+           COALESCE(l.name, '') AS bed_number, \
+           COALESCE(a.provisional_diagnosis, '') AS diagnosis, \
            doc.full_name AS treating_doctor, \
-           COALESCE(ama.ama_date, CURRENT_DATE) AS ama_date, \
-           COALESCE(ama.ama_time, CURRENT_TIME) AS ama_time, \
-           COALESCE(ama.patient_understands_risks, true) AS patient_understands_risks, \
-           COALESCE(ama.patient_refuses_treatment, true) AS patient_refuses_treatment, \
-           COALESCE(ama.patient_assumes_responsibility, true) AS patient_assumes_responsibility, \
-           ama.reason_for_ama, \
-           COALESCE(ama.patient_signature_obtained, false) AS patient_signature_obtained, \
-           ama.relative_name, \
-           ama.relative_relationship, \
-           COALESCE(ama.relative_signature_obtained, false) AS relative_signature_obtained, \
-           ama.witness1_name, \
-           ama.witness1_designation, \
-           ama.witness2_name, \
-           ama.witness2_designation, \
-           doc.full_name AS doctor_name, \
-           COALESCE(ama.doctor_signature_obtained, false) AS doctor_signature_obtained, \
-           COALESCE(ama.thumb_impression_taken, false) AS thumb_impression_taken, \
-           COALESCE(ama.interpreter_used, false) AS interpreter_used, \
-           ama.interpreter_name, \
-           ama.interpreter_language \
+           d.declared_at::date AS ama_date, \
+           d.declared_at::time AS ama_time, \
+           d.risks_explained, \
+           d.reason_for_leaving AS reason_for_ama, \
+           COALESCE(d.patient_signed, false) AS patient_signature_obtained, \
+           d.relative_name, \
+           d.relative_relation AS relative_relationship, \
+           COALESCE(d.relative_signed, false) AS relative_signature_obtained, \
+           d.witness_name AS witness1_name, \
+           decl.full_name AS doctor_name \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         JOIN LATERAL ( \
+           SELECT * FROM ipd_dama_records r \
+           WHERE r.admission_id = a.id AND r.tenant_id = a.tenant_id \
+             AND r.deleted_at IS NULL \
+           ORDER BY r.declared_at DESC LIMIT 1 \
+         ) d ON true \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           AND w.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN users doc ON doc.id = a.admitting_doctor \
-         LEFT JOIN ama_forms ama ON ama.admission_id = a.id AND ama.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         LEFT JOIN users decl ON decl.id = d.declared_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await?;
-
-    let risks_explained: Vec<String> = sqlx::query_scalar(
-        "SELECT risk_text FROM ama_risks_explained \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
     .await?;
 
     let ama_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
@@ -410,6 +392,10 @@ pub async fn get_ama_form_print_data(
 
     tx.commit().await?;
 
+    // ponytail: the DAMA record captures one free-text risk statement, one
+    // witness, and no per-clause acknowledgements, doctor signature flag,
+    // thumb impression or interpreter. Those print as not recorded (`None`)
+    // until the DAMA modal captures them.
     Ok(Json(AmaFormPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
@@ -423,25 +409,25 @@ pub async fn get_ama_form_print_data(
         treating_doctor: row.treating_doctor.unwrap_or_default(),
         ama_date: row.ama_date.format("%d-%b-%Y").to_string(),
         ama_time: row.ama_time.format("%H:%M").to_string(),
-        risks_explained,
-        patient_understands_risks: row.patient_understands_risks,
-        patient_refuses_treatment: row.patient_refuses_treatment,
-        patient_assumes_responsibility: row.patient_assumes_responsibility,
+        risks_explained: row.risks_explained.into_iter().collect(),
+        patient_understands_risks: None,
+        patient_refuses_treatment: None,
+        patient_assumes_responsibility: None,
         reason_for_ama: row.reason_for_ama,
         patient_signature_obtained: row.patient_signature_obtained,
         relative_name: row.relative_name,
         relative_relationship: row.relative_relationship,
         relative_signature_obtained: row.relative_signature_obtained,
         witness1_name: row.witness1_name,
-        witness1_designation: row.witness1_designation,
-        witness2_name: row.witness2_name,
-        witness2_designation: row.witness2_designation,
+        witness1_designation: None,
+        witness2_name: None,
+        witness2_designation: None,
         doctor_name: row.doctor_name.unwrap_or_default(),
-        doctor_signature_obtained: row.doctor_signature_obtained,
-        thumb_impression_taken: row.thumb_impression_taken,
-        interpreter_used: row.interpreter_used,
-        interpreter_name: row.interpreter_name,
-        interpreter_language: row.interpreter_language,
+        doctor_signature_obtained: None,
+        thumb_impression_taken: None,
+        interpreter_used: None,
+        interpreter_name: None,
+        interpreter_language: None,
         signatures: medbrains_signing::signed_documents::to_print_signatures(ama_sigs),
     }))
 }
@@ -476,7 +462,7 @@ struct MlcRegisterRow {
     opinion: Option<String>,
     patient_condition_at_discharge: Option<String>,
     examining_doctor: Option<String>,
-    examined_at: chrono::DateTime<chrono::Utc>,
+    examined_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 pub async fn get_mlc_register_print_data(
@@ -498,14 +484,15 @@ pub async fn get_mlc_register_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcRegisterRow>(
         "SELECT \
            mlc.patient_id, \
            mlc.admission_id, \
            mlc.mlc_number, \
-           mlc.registration_date, \
-           mlc.registration_time, \
+           COALESCE(mlc.registration_date, mlc.registered_at::date) AS registration_date, \
+           COALESCE(mlc.registration_time, mlc.registered_at::time) AS registration_time, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
@@ -516,22 +503,23 @@ pub async fn get_mlc_register_print_data(
            mlc.police_officer_name, \
            mlc.police_officer_rank, \
            mlc.police_dd_number, \
-           mlc.nature_of_case, \
-           mlc.alleged_history, \
+           COALESCE(mlc.nature_of_case, mlc.case_type, '') AS nature_of_case, \
+           COALESCE(mlc.alleged_history, mlc.history_of_incident, '') AS alleged_history, \
            mlc.date_time_of_incident, \
            mlc.place_of_incident, \
            mlc.weapon_used, \
-           mlc.condition_on_arrival, \
-           mlc.treatment_given, \
+           COALESCE(mlc.condition_on_arrival, '') AS condition_on_arrival, \
+           COALESCE(mlc.treatment_given, '') AS treatment_given, \
            mlc.samples_handed_to, \
-           mlc.opinion, \
+           COALESCE(mlc.opinion, mlc.medical_opinion) AS opinion, \
            mlc.patient_condition_at_discharge, \
            doc.full_name AS examining_doctor, \
            mlc.examined_at \
          FROM mlc_cases mlc \
          JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+           AND p.deleted_at IS NULL \
          LEFT JOIN users doc ON doc.id = mlc.examining_doctor_id \
-         WHERE mlc.id = $1 AND mlc.tenant_id = $2",
+         WHERE mlc.id = $1 AND mlc.tenant_id = $2 AND mlc.deleted_at IS NULL",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -542,13 +530,13 @@ pub async fn get_mlc_register_print_data(
         "SELECT \
            injury_number, \
            injury_type, \
-           location, \
+           COALESCE(location, '') AS location, \
            size_cm, \
-           description, \
+           COALESCE(description, '') AS description, \
            probable_age, \
            probable_weapon \
          FROM mlc_injuries \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
+         WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY injury_number LIMIT 5000",
     )
     .bind(case_id)
@@ -556,15 +544,9 @@ pub async fn get_mlc_register_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let samples_collected: Vec<String> = sqlx::query_scalar(
-        "SELECT sample_description FROM mlc_samples \
-         WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(case_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    // ponytail: this list prints as empty; the table behind it has no
+    // writer yet (no screen or handler), so nothing is claimed.
+    let samples_collected: Vec<String> = Vec::new();
 
     let reprint_reason = query
         .reprint_reason
@@ -605,7 +587,7 @@ pub async fn get_mlc_register_print_data(
         alleged_history: row.alleged_history,
         date_time_of_incident: row
             .date_time_of_incident
-            .map(|dt| dt.format("%d-%b-%Y %H:%M").to_string()),
+            .map(|dt| dt.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()),
         place_of_incident: row.place_of_incident,
         weapon_used: row.weapon_used,
         condition_on_arrival: row.condition_on_arrival,
@@ -616,7 +598,10 @@ pub async fn get_mlc_register_print_data(
         opinion: row.opinion,
         patient_condition_at_discharge: row.patient_condition_at_discharge,
         examining_doctor: row.examining_doctor.unwrap_or_default(),
-        examined_at: row.examined_at.format("%d-%b-%Y %H:%M").to_string(),
+        examined_at: row
+            .examined_at
+            .map(|t| t.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
+            .unwrap_or_default(),
     }))
 }
 
@@ -663,6 +648,7 @@ pub async fn get_mlc_police_intimation_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcPoliceIntimationPrintRow>(
         "SELECT \
@@ -688,9 +674,11 @@ pub async fn get_mlc_police_intimation_print_data(
            sender.full_name AS sent_by \
          FROM mlc_police_intimations pi \
          JOIN mlc_cases mlc ON mlc.id = pi.mlc_case_id AND mlc.tenant_id = pi.tenant_id \
+           AND mlc.deleted_at IS NULL \
          JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+           AND p.deleted_at IS NULL \
          LEFT JOIN users sender ON sender.id = pi.sent_by AND sender.tenant_id = pi.tenant_id \
-         WHERE pi.id = $1 AND pi.tenant_id = $2",
+         WHERE pi.id = $1 AND pi.tenant_id = $2 AND pi.deleted_at IS NULL",
     )
     .bind(intimation_id)
     .bind(claims.tenant_id)
@@ -727,16 +715,26 @@ pub async fn get_mlc_police_intimation_print_data(
         officer_name: row.officer_name,
         officer_designation: row.officer_designation,
         officer_contact: row.officer_contact,
-        sent_at: row.sent_at.format("%d-%b-%Y %H:%M").to_string(),
+        sent_at: row
+            .sent_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         sent_via: row.sent_via,
         receipt_confirmed: row.receipt_confirmed,
-        receipt_confirmed_at: row
-            .receipt_confirmed_at
-            .map(|value| value.format("%d-%b-%Y %H:%M").to_string()),
+        receipt_confirmed_at: row.receipt_confirmed_at.map(|value| {
+            value
+                .with_timezone(&tz)
+                .format("%d-%b-%Y %H:%M")
+                .to_string()
+        }),
         receipt_number: row.receipt_number,
         notes: row.notes,
         sent_by: row.sent_by,
-        generated_at: chrono::Utc::now().format("%d-%b-%Y %H:%M").to_string(),
+        generated_at: chrono::Utc::now()
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
     }))
 }
 
@@ -744,38 +742,27 @@ pub async fn get_mlc_police_intimation_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct WoundCertRow {
-    certificate_number: String,
-    certificate_date: chrono::NaiveDate,
     patient_name: String,
     patient_age: Option<f64>,
     patient_gender: String,
     patient_address: Option<String>,
     patient_occupation: Option<String>,
-    identified_by: Option<String>,
-    identification_document: Option<String>,
-    examination_date: chrono::NaiveDate,
-    examination_time: chrono::NaiveTime,
-    mlc_number: Option<String>,
-    police_requisition_number: Option<String>,
+    examined_at: Option<chrono::DateTime<chrono::Utc>>,
+    mlc_number: String,
     police_station: Option<String>,
-    alleged_incident_date: Option<chrono::NaiveDate>,
-    alleged_incident_time: Option<chrono::NaiveTime>,
-    alleged_incident_place: Option<String>,
+    date_time_of_incident: Option<chrono::DateTime<chrono::Utc>>,
+    place_of_incident: Option<String>,
     alleged_manner: Option<String>,
-    general_condition: String,
-    vital_signs: Option<String>,
-    x_ray_findings: Option<String>,
-    other_investigations: Option<String>,
-    opinion_nature: String,
-    opinion_weapon: Option<String>,
-    opinion_duration: Option<String>,
-    opinion_disability: Option<String>,
-    opinion_danger_to_life: Option<String>,
+    general_condition: Option<String>,
+    opinion_nature: Option<String>,
+    weapon_used: Option<String>,
     examining_doctor: Option<String>,
     doctor_designation: Option<String>,
     doctor_registration_number: Option<String>,
 }
 
+/// The wound certificate of an MLC case: the case's examination and opinion
+/// (`mlc_cases`) plus its injury list (`mlc_injuries`, the body-map screen).
 pub async fn get_wound_certificate_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -783,69 +770,68 @@ pub async fn get_wound_certificate_print_data(
 ) -> Result<Json<WoundCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `wound_certificates` does not exist in the schema.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        case_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, WoundCertRow>(
         "SELECT \
-           wc.certificate_number, \
-           wc.certificate_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS patient_age, \
            p.gender::text AS patient_gender, \
            p.address::text AS patient_address, \
            p.occupation AS patient_occupation, \
-           wc.identified_by, \
-           wc.identification_document, \
-           wc.examination_date, \
-           wc.examination_time, \
+           mlc.examined_at, \
            mlc.mlc_number, \
-           wc.police_requisition_number, \
-           wc.police_station, \
-           wc.alleged_incident_date, \
-           wc.alleged_incident_time, \
-           wc.alleged_incident_place, \
-           wc.alleged_manner, \
-           wc.general_condition, \
-           wc.vital_signs, \
-           wc.x_ray_findings, \
-           wc.other_investigations, \
-           wc.opinion_nature, \
-           wc.opinion_weapon, \
-           wc.opinion_duration, \
-           wc.opinion_disability, \
-           wc.opinion_danger_to_life, \
+           mlc.police_station, \
+           mlc.date_time_of_incident, \
+           mlc.place_of_incident, \
+           COALESCE(mlc.alleged_history, mlc.history_of_incident) AS alleged_manner, \
+           mlc.condition_on_arrival AS general_condition, \
+           COALESCE(mlc.opinion, mlc.medical_opinion) AS opinion_nature, \
+           mlc.weapon_used, \
            doc.full_name AS examining_doctor, \
            doc.designation AS doctor_designation, \
            doc.registration_number AS doctor_registration_number \
-         FROM wound_certificates wc \
-         JOIN patients p ON p.id = wc.patient_id AND p.tenant_id = wc.tenant_id \
-         LEFT JOIN mlc_cases mlc ON mlc.id = wc.mlc_case_id AND mlc.tenant_id = wc.tenant_id \
-         LEFT JOIN users doc ON doc.id = wc.examining_doctor_id \
-         WHERE wc.id = $1 AND wc.tenant_id = $2",
+         FROM mlc_cases mlc \
+         JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN users doc ON doc.id = mlc.examining_doctor_id \
+         WHERE mlc.id = $1 AND mlc.tenant_id = $2 AND mlc.deleted_at IS NULL",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
+    // ponytail: margins, floor, surrounding area and healing stage are not
+    // recorded per injury yet; they print empty.
     let injuries = sqlx::query_as::<_, WoundEntry>(
         "SELECT \
-           wound_number, \
-           wound_type, \
-           location, \
-           dimensions, \
-           margins, \
-           floor, \
-           surrounding_area, \
-           healing_stage, \
-           probable_age_of_wound \
-         FROM wound_certificate_injuries \
-         WHERE wound_certificate_id = $1 AND tenant_id = $2 \
-         ORDER BY wound_number LIMIT 5000",
+           injury_number AS wound_number, \
+           injury_type AS wound_type, \
+           COALESCE(location, '') AS location, \
+           size_cm AS dimensions, \
+           NULL::text AS margins, \
+           NULL::text AS floor, \
+           NULL::text AS surrounding_area, \
+           NULL::text AS healing_stage, \
+           probable_age AS probable_age_of_wound, \
+           description, \
+           probable_weapon, \
+           nature \
+         FROM mlc_injuries \
+         WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY injury_number LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -862,39 +848,48 @@ pub async fn get_wound_certificate_print_data(
 
     tx.commit().await?;
 
+    // ponytail: certificate number/date, identification, police requisition,
+    // vitals, x-ray/other investigations and the duration/disability/danger
+    // opinions are not recorded on an MLC case yet; they print empty.
     Ok(Json(WoundCertificatePrintData {
-        certificate_number: row.certificate_number,
-        certificate_date: row.certificate_date.format("%d-%b-%Y").to_string(),
+        certificate_number: String::new(),
+        certificate_date: String::new(),
         patient_name: row.patient_name,
         patient_age: row.patient_age.map(|a| format!("{} yrs", a as i64)),
         patient_gender: row.patient_gender,
         patient_address: row.patient_address,
         patient_occupation: row.patient_occupation,
-        identified_by: row.identified_by,
-        identification_document: row.identification_document,
-        examination_date: row.examination_date.format("%d-%b-%Y").to_string(),
-        examination_time: row.examination_time.format("%H:%M").to_string(),
-        mlc_number: row.mlc_number,
-        police_requisition_number: row.police_requisition_number,
+        identified_by: None,
+        identification_document: None,
+        examination_date: row
+            .examined_at
+            .map(|t| t.with_timezone(&tz).format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
+        examination_time: row
+            .examined_at
+            .map(|t| t.with_timezone(&tz).format("%H:%M").to_string())
+            .unwrap_or_default(),
+        mlc_number: Some(row.mlc_number),
+        police_requisition_number: None,
         police_station: row.police_station,
         alleged_incident_date: row
-            .alleged_incident_date
-            .map(|d| d.format("%d-%b-%Y").to_string()),
+            .date_time_of_incident
+            .map(|t| t.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         alleged_incident_time: row
-            .alleged_incident_time
-            .map(|t| t.format("%H:%M").to_string()),
-        alleged_incident_place: row.alleged_incident_place,
+            .date_time_of_incident
+            .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
+        alleged_incident_place: row.place_of_incident,
         alleged_manner: row.alleged_manner,
-        general_condition: row.general_condition,
-        vital_signs: row.vital_signs,
+        general_condition: row.general_condition.unwrap_or_default(),
+        vital_signs: None,
         injuries,
-        x_ray_findings: row.x_ray_findings,
-        other_investigations: row.other_investigations,
-        opinion_nature: row.opinion_nature,
-        opinion_weapon: row.opinion_weapon,
-        opinion_duration: row.opinion_duration,
-        opinion_disability: row.opinion_disability,
-        opinion_danger_to_life: row.opinion_danger_to_life,
+        x_ray_findings: None,
+        other_investigations: None,
+        opinion_nature: row.opinion_nature.unwrap_or_default(),
+        opinion_weapon: row.weapon_used,
+        opinion_duration: None,
+        opinion_disability: None,
+        opinion_danger_to_life: None,
         examining_doctor: row.examining_doctor.unwrap_or_default(),
         doctor_designation: row.doctor_designation.unwrap_or_default(),
         doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
@@ -906,162 +901,119 @@ pub async fn get_wound_certificate_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct AgeEstimationRow {
-    certificate_number: String,
     certificate_date: chrono::NaiveDate,
     person_name: String,
     person_gender: String,
-    stated_age: Option<String>,
-    purpose_of_examination: String,
-    requisition_from: Option<String>,
-    requisition_number: Option<String>,
-    requisition_date: Option<chrono::NaiveDate>,
-    general_physical_development: String,
-    height_cm: Option<f64>,
-    weight_kg: Option<f64>,
-    breast_development: Option<String>,
-    pubic_hair: Option<String>,
-    axillary_hair: Option<String>,
-    facial_hair: Option<String>,
-    voice_change: Option<String>,
-    other_findings: Option<String>,
-    dental_formula: String,
-    third_molars_status: String,
-    teeth_wear: Option<String>,
-    xray_wrist_findings: Option<String>,
-    xray_elbow_findings: Option<String>,
-    xray_shoulder_findings: Option<String>,
-    estimated_age_years: String,
-    age_range_min: Option<i32>,
-    age_range_max: Option<i32>,
-    opinion_basis: String,
+    secondary_sexual_characteristics: Option<String>,
+    dental_examination: Option<String>,
+    estimated_age_range: Option<String>,
+    examiner_opinion: Option<String>,
+    ossification_findings: Option<String>,
     examining_doctor: Option<String>,
     doctor_designation: Option<String>,
     doctor_registration_number: Option<String>,
 }
 
+/// One age-estimation document of an MLC case (`mlc_documents` with
+/// `document_type = 'age_estimation'`, saved from the MLC case screen). Its
+/// `content` is the five free-text fields that form captures.
 pub async fn get_age_estimation_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(case_id): Path<Uuid>,
+    Path(document_id): Path<Uuid>,
 ) -> Result<Json<AgeEstimationPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `age_estimations` carries no patient, admission or
-    // encounter column, so there is nothing to resolve a care relationship
-    // through. Permission-gated only until the schema links it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_DOCUMENT,
+        document_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AgeEstimationRow>(
         "SELECT \
-           ae.certificate_number, \
-           ae.certificate_date, \
-           ae.person_name, \
-           ae.person_gender, \
-           ae.stated_age, \
-           ae.purpose_of_examination, \
-           ae.requisition_from, \
-           ae.requisition_number, \
-           ae.requisition_date, \
-           ae.general_physical_development, \
-           ae.height_cm, \
-           ae.weight_kg, \
-           ae.breast_development, \
-           ae.pubic_hair, \
-           ae.axillary_hair, \
-           ae.facial_hair, \
-           ae.voice_change, \
-           ae.other_findings, \
-           ae.dental_formula, \
-           ae.third_molars_status, \
-           ae.teeth_wear, \
-           ae.xray_wrist_findings, \
-           ae.xray_elbow_findings, \
-           ae.xray_shoulder_findings, \
-           ae.estimated_age_years, \
-           ae.age_range_min, \
-           ae.age_range_max, \
-           ae.opinion_basis, \
+           d.created_at::date AS certificate_date, \
+           (p.first_name || ' ' || p.last_name) AS person_name, \
+           p.gender::text AS person_gender, \
+           NULLIF(d.content->>'secondary_sexual_characteristics', '') \
+             AS secondary_sexual_characteristics, \
+           NULLIF(d.content->>'dental_examination', '') AS dental_examination, \
+           NULLIF(d.content->>'estimated_age_range', '') AS estimated_age_range, \
+           NULLIF(d.content->>'examiner_opinion', '') AS examiner_opinion, \
+           NULLIF(d.content->>'ossification_center_findings', '') \
+             AS ossification_findings, \
            doc.full_name AS examining_doctor, \
            doc.designation AS doctor_designation, \
            doc.registration_number AS doctor_registration_number \
-         FROM age_estimations ae \
-         LEFT JOIN users doc ON doc.id = ae.examining_doctor_id \
-         WHERE ae.id = $1 AND ae.tenant_id = $2",
+         FROM mlc_documents d \
+         JOIN mlc_cases mlc ON mlc.id = d.mlc_case_id AND mlc.tenant_id = d.tenant_id \
+           AND mlc.deleted_at IS NULL \
+         JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN users doc ON doc.id = d.generated_by \
+         WHERE d.id = $1 AND d.tenant_id = $2 \
+           AND d.document_type = 'age_estimation' AND d.deleted_at IS NULL",
     )
-    .bind(case_id)
+    .bind(document_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await?;
-
-    let identification_marks: Vec<String> = sqlx::query_scalar(
-        "SELECT mark_description FROM age_estimation_marks \
-         WHERE age_estimation_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(case_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let epiphyseal_fusion_status = sqlx::query_as::<_, EpiphysealFusion>(
-        "SELECT joint, bone, fusion_status, typical_age_range \
-         FROM age_estimation_epiphyseal \
-         WHERE age_estimation_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(case_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
     .await?;
 
     let age_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "mlc_certificate",
-        case_id,
+        document_id,
     )
     .await?;
 
     tx.commit().await?;
 
+    // ponytail: the age-estimation form records only five free-text fields.
+    // Certificate number, purpose, requisition, identification marks,
+    // physique, height/weight, third molars and per-joint x-rays are not
+    // printed; the ossification findings print as recorded, in free text.
     Ok(Json(AgeEstimationPrintData {
-        certificate_number: row.certificate_number,
+        certificate_number: String::new(),
         certificate_date: row.certificate_date.format("%d-%b-%Y").to_string(),
         person_name: row.person_name,
         person_gender: row.person_gender,
-        stated_age: row.stated_age,
-        purpose_of_examination: row.purpose_of_examination,
-        requisition_from: row.requisition_from,
-        requisition_number: row.requisition_number,
-        requisition_date: row
-            .requisition_date
-            .map(|d| d.format("%d-%b-%Y").to_string()),
-        identification_marks,
-        general_physical_development: row.general_physical_development,
-        height_cm: row.height_cm,
-        weight_kg: row.weight_kg,
+        stated_age: None,
+        purpose_of_examination: String::new(),
+        requisition_from: None,
+        requisition_number: None,
+        requisition_date: None,
+        identification_marks: Vec::new(),
+        general_physical_development: String::new(),
+        height_cm: None,
+        weight_kg: None,
         secondary_sexual_characters: SecondaryCharacters {
-            breast_development: row.breast_development,
-            pubic_hair: row.pubic_hair,
-            axillary_hair: row.axillary_hair,
-            facial_hair: row.facial_hair,
-            voice_change: row.voice_change,
-            other_findings: row.other_findings,
+            breast_development: None,
+            pubic_hair: None,
+            axillary_hair: None,
+            facial_hair: None,
+            voice_change: None,
+            other_findings: row.secondary_sexual_characteristics,
         },
-        dental_formula: row.dental_formula,
-        third_molars_status: row.third_molars_status,
-        teeth_wear: row.teeth_wear,
-        xray_wrist_findings: row.xray_wrist_findings,
-        xray_elbow_findings: row.xray_elbow_findings,
-        xray_shoulder_findings: row.xray_shoulder_findings,
-        epiphyseal_fusion_status,
-        estimated_age_years: row.estimated_age_years,
-        age_range_min: row.age_range_min,
-        age_range_max: row.age_range_max,
-        opinion_basis: row.opinion_basis,
+        dental_formula: row.dental_examination.unwrap_or_default(),
+        third_molars_status: String::new(),
+        teeth_wear: None,
+        xray_wrist_findings: None,
+        xray_elbow_findings: None,
+        xray_shoulder_findings: None,
+        epiphyseal_fusion_status: Vec::new(),
+        ossification_findings: row.ossification_findings,
+        estimated_age_years: row.estimated_age_range.unwrap_or_default(),
+        age_range_min: None,
+        age_range_max: None,
+        opinion_basis: row.examiner_opinion.unwrap_or_default(),
         examining_doctor: row.examining_doctor.unwrap_or_default(),
         doctor_designation: row.doctor_designation.unwrap_or_default(),
         doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
@@ -1082,28 +1034,24 @@ struct DeathDeclRow {
     admission_date: Option<chrono::NaiveDate>,
     ward_name: Option<String>,
     bed_number: Option<String>,
-    date_of_death: chrono::NaiveDate,
-    time_of_death: chrono::NaiveTime,
-    place_of_death: String,
-    brought_dead: bool,
-    cause_of_death_immediate: String,
-    cause_of_death_antecedent: Option<String>,
-    cause_of_death_underlying: Option<String>,
-    other_significant_conditions: Option<String>,
+    death_date: chrono::NaiveDate,
+    death_time: Option<chrono::NaiveTime>,
+    is_brought_dead: bool,
+    immediate_cause: Option<String>,
+    antecedent_cause: Option<String>,
+    underlying_cause: Option<String>,
     manner_of_death: String,
-    is_mlc: bool,
+    is_medico_legal: bool,
     mlc_number: Option<String>,
-    autopsy_required: bool,
-    autopsy_performed: bool,
-    relatives_informed: bool,
-    relative_name: Option<String>,
-    relative_relationship: Option<String>,
+    autopsy_requested: Option<bool>,
     declared_by: Option<String>,
     doctor_designation: Option<String>,
     doctor_registration_number: Option<String>,
-    death_certificate_number: Option<String>,
+    certificate_number: Option<String>,
 }
 
+/// The patient's entry in the MRD death register (`mrd_death_register`, the
+/// MRD → Deaths screen). A patient dies once, so the patient id names it.
 pub async fn get_death_declaration_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1111,52 +1059,57 @@ pub async fn get_death_declaration_print_data(
 ) -> Result<Json<DeathDeclarationPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `death_declarations` does not exist in the schema.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // Register "cause of death" is the general field; it stands in for the
+    // immediate cause only when the immediate cause was not split out.
+    // Autopsy request lives on the IPD death summary of the same admission.
     let row = sqlx::query_as::<_, DeathDeclRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
+           EXTRACT(YEAR FROM age(dr.death_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.address::text AS address, \
            a.id::text AS admission_number, \
            a.admitted_at::date AS admission_date, \
            w.name AS ward_name, \
            l.name AS bed_number, \
-           dd.date_of_death, \
-           dd.time_of_death, \
-           dd.place_of_death, \
-           dd.brought_dead, \
-           dd.cause_of_death_immediate, \
-           dd.cause_of_death_antecedent, \
-           dd.cause_of_death_underlying, \
-           dd.other_significant_conditions, \
-           dd.manner_of_death, \
-           dd.is_mlc, \
+           dr.death_date, \
+           dr.death_time, \
+           dr.is_brought_dead, \
+           COALESCE(dr.immediate_cause, dr.cause_of_death) AS immediate_cause, \
+           dr.antecedent_cause, \
+           dr.underlying_cause, \
+           dr.manner_of_death, \
+           dr.is_medico_legal, \
            mlc.mlc_number, \
-           dd.autopsy_required, \
-           dd.autopsy_performed, \
-           dd.relatives_informed, \
-           dd.relative_name, \
-           dd.relative_relationship, \
+           ds.autopsy_requested, \
            doc.full_name AS declared_by, \
            doc.designation AS doctor_designation, \
            doc.registration_number AS doctor_registration_number, \
-           dd.death_certificate_number \
-         FROM death_declarations dd \
-         JOIN patients p ON p.id = dd.patient_id AND p.tenant_id = dd.tenant_id \
-         LEFT JOIN admissions a ON a.id = dd.admission_id AND a.tenant_id = dd.tenant_id \
+           dr.certificate_number \
+         FROM mrd_death_register dr \
+         JOIN patients p ON p.id = dr.patient_id AND p.tenant_id = dr.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN admissions a ON a.id = dr.admission_id AND a.tenant_id = dr.tenant_id \
+           AND a.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           AND w.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
-         LEFT JOIN mlc_cases mlc ON mlc.id = dd.mlc_case_id AND mlc.tenant_id = dd.tenant_id \
-         LEFT JOIN users doc ON doc.id = dd.declared_by_id \
-         WHERE dd.patient_id = $1 AND dd.tenant_id = $2 \
-         ORDER BY dd.created_at DESC LIMIT 1",
+           AND l.deleted_at IS NULL \
+         LEFT JOIN mlc_cases mlc ON mlc.id = dr.mlc_case_id AND mlc.tenant_id = dr.tenant_id \
+           AND mlc.deleted_at IS NULL \
+         LEFT JOIN ipd_death_summaries ds ON ds.admission_id = dr.admission_id \
+           AND ds.tenant_id = dr.tenant_id AND ds.deleted_at IS NULL \
+         LEFT JOIN users doc ON doc.id = dr.certifying_doctor_id \
+         WHERE dr.patient_id = $1 AND dr.tenant_id = $2 AND dr.deleted_at IS NULL \
+         ORDER BY dr.created_at DESC LIMIT 1",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -1173,6 +1126,9 @@ pub async fn get_death_declaration_print_data(
 
     tx.commit().await?;
 
+    // ponytail: place of death, other significant conditions, autopsy
+    // performed and relatives informed are not recorded anywhere yet; they
+    // print empty / `None` (= not recorded).
     Ok(Json(DeathDeclarationPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
@@ -1183,26 +1139,29 @@ pub async fn get_death_declaration_print_data(
         admission_date: row.admission_date.map(|d| d.format("%d-%b-%Y").to_string()),
         ward_name: row.ward_name,
         bed_number: row.bed_number,
-        date_of_death: row.date_of_death.format("%d-%b-%Y").to_string(),
-        time_of_death: row.time_of_death.format("%H:%M").to_string(),
-        place_of_death: row.place_of_death,
-        brought_dead: row.brought_dead,
-        cause_of_death_immediate: row.cause_of_death_immediate,
-        cause_of_death_antecedent: row.cause_of_death_antecedent,
-        cause_of_death_underlying: row.cause_of_death_underlying,
-        other_significant_conditions: row.other_significant_conditions,
+        date_of_death: row.death_date.format("%d-%b-%Y").to_string(),
+        time_of_death: row
+            .death_time
+            .map(|t| t.format("%H:%M").to_string())
+            .unwrap_or_default(),
+        place_of_death: String::new(),
+        brought_dead: row.is_brought_dead,
+        cause_of_death_immediate: row.immediate_cause.unwrap_or_default(),
+        cause_of_death_antecedent: row.antecedent_cause,
+        cause_of_death_underlying: row.underlying_cause,
+        other_significant_conditions: None,
         manner_of_death: row.manner_of_death,
-        is_mlc: row.is_mlc,
+        is_mlc: row.is_medico_legal,
         mlc_number: row.mlc_number,
-        autopsy_required: row.autopsy_required,
-        autopsy_performed: row.autopsy_performed,
-        relatives_informed: row.relatives_informed,
-        relative_name: row.relative_name,
-        relative_relationship: row.relative_relationship,
+        autopsy_required: row.autopsy_requested,
+        autopsy_performed: None,
+        relatives_informed: None,
+        relative_name: None,
+        relative_relationship: None,
         declared_by: row.declared_by.unwrap_or_default(),
         doctor_designation: row.doctor_designation.unwrap_or_default(),
         doctor_registration_number: row.doctor_registration_number.unwrap_or_default(),
-        death_certificate_number: row.death_certificate_number,
+        death_certificate_number: row.certificate_number,
         signatures: medbrains_signing::signed_documents::to_print_signatures(dd_sigs),
     }))
 }
@@ -1229,6 +1188,7 @@ struct MlcDocRow {
     prognosis: String,
     permanent_disability: Option<String>,
     disability_percentage: Option<String>,
+    examination_findings: Option<String>,
     police_station: Option<String>,
     fir_number: Option<String>,
     court_case_number: Option<String>,
@@ -1256,6 +1216,7 @@ pub async fn get_mlc_documentation_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, MlcDocRow>(
         "SELECT \
@@ -1269,14 +1230,15 @@ pub async fn get_mlc_documentation_print_data(
            p.address::text AS address, \
            a.admitted_at::date AS admission_date, \
            a.discharged_at::date AS discharge_date, \
-           COALESCE(mlc.medical_opinion, 'N/A') AS final_diagnosis, \
-           'N/A'::text AS treatment_summary, \
-           'N/A'::text AS investigation_summary, \
-           COALESCE(mlc.examination_findings, 'N/A') AS clinical_findings_at_discharge, \
+           COALESCE(mlc.medical_opinion, '') AS final_diagnosis, \
+           ''::text AS treatment_summary, \
+           ''::text AS investigation_summary, \
+           ''::text AS clinical_findings_at_discharge, \
            NULL::text AS complications, \
-           'N/A'::text AS prognosis, \
+           ''::text AS prognosis, \
            NULL::text AS permanent_disability, \
            NULL::text AS disability_percentage, \
+           mlc.examination_findings, \
            mlc.police_station, \
            mlc.fir_number, \
            NULL::text AS court_case_number, \
@@ -1285,9 +1247,11 @@ pub async fn get_mlc_documentation_print_data(
            mlc.updated_at AS prepared_at \
          FROM mlc_cases mlc \
          JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+           AND p.deleted_at IS NULL \
          LEFT JOIN admissions a ON a.id = mlc.admission_id AND a.tenant_id = mlc.tenant_id \
+           AND a.deleted_at IS NULL \
          LEFT JOIN users preparer ON preparer.id = mlc.registered_by \
-         WHERE mlc.id = $1 AND mlc.tenant_id = $2",
+         WHERE mlc.id = $1 AND mlc.tenant_id = $2 AND mlc.deleted_at IS NULL",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1298,11 +1262,13 @@ pub async fn get_mlc_documentation_print_data(
     // prints empty until it does (the OT record is the place to link).
     let operative_procedures: Vec<String> = Vec::new();
 
+    // An intimation receipt is not a recorded statement; nothing records
+    // police statements yet, so `statement_recorded` is `None` (= not recorded).
     let police_visits = sqlx::query_as::<_, PoliceVisitEntry>(
         "SELECT sent_at::date::text AS visit_date, COALESCE(officer_name, '') AS officer_name, \
                 COALESCE(officer_designation, '') AS officer_rank, \
                 'Intimation ' || COALESCE(intimation_number, '') || ' to ' || police_station AS purpose, \
-                receipt_confirmed AS statement_recorded \
+                NULL::boolean AS statement_recorded \
          FROM mlc_police_intimations \
          WHERE mlc_case_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY sent_at LIMIT 5000",
@@ -1312,18 +1278,9 @@ pub async fn get_mlc_documentation_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let samples_preserved = sqlx::query_as::<_, SamplePreservedEntry>(
-        "SELECT s.sample_description AS sample_type, ''::text AS quantity, \
-           ''::text AS preservation_method, s.created_at::date::text AS collected_date, \
-           mlc.samples_handed_to AS handed_to, NULL::text AS handed_date \
-         FROM mlc_samples s JOIN mlc_cases mlc ON mlc.id = s.mlc_case_id \
-         WHERE s.mlc_case_id = $1 AND s.tenant_id = $2 AND s.deleted_at IS NULL \
-         ORDER BY s.created_at LIMIT 5000",
-    )
-    .bind(case_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    // ponytail: this list prints as empty; the table behind it has no
+    // writer yet (no screen or handler), so nothing is claimed.
+    let samples_preserved = Vec::new();
 
     let certificates_issued: Vec<String> = sqlx::query_scalar(
         "SELECT COALESCE(NULLIF(title, ''), document_type::text) FROM mlc_documents \
@@ -1400,6 +1357,7 @@ pub async fn get_mlc_documentation_print_data(
         prognosis: row.prognosis,
         permanent_disability: row.permanent_disability,
         disability_percentage: row.disability_percentage,
+        examination_findings: row.examination_findings,
         police_station: row.police_station,
         fir_number: row.fir_number,
         court_case_number: row.court_case_number,
@@ -1409,7 +1367,11 @@ pub async fn get_mlc_documentation_print_data(
         important_dates,
         prepared_by: row.prepared_by.unwrap_or_default(),
         verified_by: row.verified_by.unwrap_or_default(),
-        prepared_at: row.prepared_at.format("%d-%b-%Y %H:%M").to_string(),
+        prepared_at: row
+            .prepared_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         signatures: medbrains_signing::signed_documents::to_print_signatures(mlc_sigs),
     }))
 }
@@ -1434,7 +1396,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_wound_certificate_print_data),
         )
         .route(
-            "/api/print-data/age-estimation/{case_id}",
+            "/api/print-data/age-estimation/{document_id}",
             get(get_age_estimation_print_data),
         )
         .route(

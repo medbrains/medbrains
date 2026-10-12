@@ -27,6 +27,12 @@ export const ipdService = {
     api.listIntakeOutput(...args),
   getIoBalance: (...args: Parameters<typeof api.getIoBalance>) => api.getIoBalance(...args),
   listInfusions: (...args: Parameters<typeof api.listInfusions>) => api.listInfusions(...args),
+  listBedsideTransfusions: (...args: Parameters<typeof api.listBedsideTransfusions>) =>
+    api.listBedsideTransfusions(...args),
+  startBedsideTransfusion: (...args: Parameters<typeof api.startBedsideTransfusion>) =>
+    api.startBedsideTransfusion(...args),
+  completeBedsideTransfusion: (...args: Parameters<typeof api.completeBedsideTransfusion>) =>
+    api.completeBedsideTransfusion(...args),
   createInfusion: (...args: Parameters<typeof api.createInfusion>) => api.createInfusion(...args),
   updateInfusion: (...args: Parameters<typeof api.updateInfusion>) => api.updateInfusion(...args),
   listCarePlans: (...args: Parameters<typeof api.listCarePlans>) => api.listCarePlans(...args),

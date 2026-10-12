@@ -10,6 +10,8 @@ export const hrService = {
   endShift: (...args: Parameters<typeof api.endShift>) => api.endShift(...args),
   acknowledgeFatigue: (...args: Parameters<typeof api.acknowledgeFatigue>) =>
     api.acknowledgeFatigue(...args),
+  importAebasPeriodSummary: (...args: Parameters<typeof api.importAebasPeriodSummary>) =>
+    api.importAebasPeriodSummary(...args),
   listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
   getEmployee: (...args: Parameters<typeof api.getEmployee>) => api.getEmployee(...args),
   createEmployee: (...args: Parameters<typeof api.createEmployee>) => api.createEmployee(...args),
@@ -51,6 +53,8 @@ export const hrService = {
     api.listTrainingPrograms(...args),
   createTrainingProgram: (...args: Parameters<typeof api.createTrainingProgram>) =>
     api.createTrainingProgram(...args),
+  listTrainingRecords: (...args: Parameters<typeof api.listTrainingRecords>) =>
+    api.listTrainingRecords(...args),
   createTrainingRecord: (...args: Parameters<typeof api.createTrainingRecord>) =>
     api.createTrainingRecord(...args),
   trainingCompliance: (...args: Parameters<typeof api.trainingCompliance>) =>

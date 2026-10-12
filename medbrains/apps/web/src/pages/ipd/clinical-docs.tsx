@@ -15,6 +15,7 @@ import { P } from "@medbrains/types";
 import { IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
@@ -388,6 +389,13 @@ export function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                         <RestraintChecksSummary admissionId={admissionId} docId={doc.id} />
                       </>
                     )}
+                    {doc.doc_type === "restraint" && (
+                      <PrintDocumentIconMenu
+                        idKind="restraint"
+                        recordId={doc.id}
+                        recordLabel="restraint"
+                      />
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>
@@ -440,7 +448,3 @@ export function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
     </Stack>
   );
 }
-
-// ══════════════════════════════════════════════════════════
-//  IPD Phase 2b — Admission Checklist
-// ══════════════════════════════════════════════════════════

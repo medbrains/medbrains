@@ -185,6 +185,12 @@ pub struct TransfusionRecord {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The unit's bag number, joined on the list read only; `RETURNING *` paths leave it `None`.
+    #[sqlx(default)]
+    pub bag_number: Option<String>,
+    /// The unit's component type, joined on the list read only.
+    #[sqlx(default)]
+    pub component_type: Option<String>,
 }
 
 // ── Phase 2 Enums ──────────────────────────────────────

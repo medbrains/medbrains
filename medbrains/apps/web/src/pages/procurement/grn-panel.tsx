@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { procurementService } from "@/services/procurement.service";
 import { colorToBadgeTone, optionalText, requiredFormNumber } from "./shared";
@@ -418,6 +419,7 @@ export function GrnPanel({ canCreate }: { canCreate: boolean }) {
         </Tooltip>
       ),
     },
+    printColumn<GoodsReceiptNote>("grn", { label: (row) => row.grn_number }),
   ];
 
   return (

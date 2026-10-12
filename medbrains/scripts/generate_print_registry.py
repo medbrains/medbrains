@@ -55,6 +55,66 @@ ORDER_KIND_BY_PREFIX = {
 }
 
 
+# A param this vague names no record on its own — a crossmatch "request" and
+# a radiology "request" are different tables — so the document names it.
+GENERIC_PARAMS = {"id", "request_id", "issue_id", "report_id", "record_id", "item_id"}
+PERIOD_PARAMS = {"period", "year", "month", "date", "quarter"}
+
+# Where a param name is shared by documents keyed on different tables, the
+# document says which record it takes. Two "reading" logs read gas and energy
+# readings; two "transfusion" forms read the bedside episode and the blood-bank
+# record — the same word, different rows, and the wrong one fetches nothing.
+KIND_BY_DOCUMENT = {
+    "mgps-log": "gas_reading", "dg-ups-log": "energy_reading",
+    "transfusion-monitoring": "bedside_transfusion",
+    "transfusion-reaction": "transfusion_record",
+    "pm-checklist": "bme_work_order", "work-order": "fms_work_order",
+    "cross-match-requisition": "crossmatch_request",
+    "crossmatch-report": "crossmatch_request",
+    "transfusion-requisition": "crossmatch_request",
+    "wound-certificate": "mlc_case", "age-estimation": "mlc_document",
+    "video-consent": "consent_signature", "dpdp-consent": "dpdp_consent",
+    "package-estimate": "billing_package", "package-bill": "package_subscription",
+    "fire-inspection": "fire_inspection", "fire-mock-drill": "fire_drill",
+    "dispensing-label": "pharmacy_order_item",
+    "restraint-documentation": "restraint", "water-quality": "water_test",
+    "employee-id-card": "user", "component-slip": "transfusion_record",
+    "leave-application": "leave_request", "training-certificate": "training_record",
+}
+
+
+def id_kind(param: str, segment: str) -> str:
+    """The kind of record a document's id points at, so a screen holding one
+    offers exactly the documents that accept it."""
+    document = segment.split("/")[0]
+    if document in KIND_BY_DOCUMENT:
+        return KIND_BY_DOCUMENT[document]
+    if param in ID_KIND:
+        return ID_KIND[param]
+    if param in PERIOD_PARAMS:
+        return "period"
+    if param in GENERIC_PARAMS or not param.endswith("_id"):
+        return segment.split("/")[0].replace("-", "_")
+    return param.removesuffix("_id")
+
+
+# Sentence case, as the content rules ask — but an acronym stays one: "IPD
+# interim bill", not "Ipd Interim Bill".
+ACRONYMS = {
+    "ipd", "opd", "rca", "ndps", "amc", "grn", "capa", "adr", "mlc", "nabh",
+    "nabl", "pcpndt", "peso", "spcb", "bmw", "dg", "ups", "mgps", "nmc", "aebas",
+    "ot", "id", "pm", "dpdp", "gst", "er", "gcs", "io", "mar", "tds", "icd", "ama",
+}
+
+
+def sentence_label(segment: str) -> str:
+    words = segment.replace("_", "-").split("-")
+    out = [w.upper() if w in ACRONYMS else w for w in words]
+    if out and out[0] == words[0]:
+        out[0] = out[0].capitalize()
+    return " ".join(out)
+
+
 def permission_constants() -> dict[str, str]:
     """`indent::STOCK_MANAGE` -> "indent.stock.manage", read from the source."""
     text = (ROOT / "crates/medbrains-core/src/permissions.rs").read_text()
@@ -162,12 +222,18 @@ def source_tables(handler_body: str) -> set[str]:
     """
     body = re.sub(r"//[^\n]*", "", handler_body)
     expr = re.compile(r"(?:EXTRACT|SUBSTRING|TRIM|OVERLAY|POSITION)\s*\([^()]*$")
+    # A CTE is named inside the statement, not in the schema: `WITH inv AS (`
+    # made a working bill look like it read a table called `inv`.
+    ctes = {c.lower() for c in re.findall(r"\b(\w+)\s+AS\s+(?:NOT\s+)?(?:MATERIALIZED\s+)?\(", body)}
     tables = set()
     for m in re.finditer(r"\b(FROM|JOIN)\s+(\w+)(\s*\()?", body):
         if m.group(3):
             continue
         name = m.group(2).lower()
-        if name in {"select", "lateral", "unnest"}:
+        if name in {"select", "lateral", "unnest"} or name in ctes:
+            continue
+        # `a IS NOT DISTINCT FROM b` compares two values; it reads no table.
+        if body[max(0, m.start() - 9):m.start()].strip().upper().endswith("DISTINCT"):
             continue
         if m.group(1).upper() == "FROM":
             back = body[max(0, m.start() - 80):m.start()].replace("\\\n", " ").replace("\n", " ")
@@ -236,15 +302,13 @@ def main() -> int:
             continue
         segment = route.replace("/api/print-data/", "").split("/{")[0]
         key = segment.replace("/", ".")
-        if key in ALREADY_HAND_WRITTEN:
+        # Hand-written keys use `_`, routes use `-`: the organ-donation consent
+        # was offered twice on the patient page under both spellings.
+        if key.replace("-", "_") in ALREADY_HAND_WRITTEN:
             continue
         param = re.search(r"\{(\w+)\}", route)
-        label = re.sub(
-            r"(^|[._])(\w)",
-            lambda m: (" " if m.group(1) else "") + m.group(2).upper(),
-            segment.split("/")[-1].replace("-", "_"),
-        ).strip()
-        kind = ID_KIND.get(param.group(1) if param else "", "record")
+        label = sentence_label(segment.split("/")[-1])
+        kind = id_kind(param.group(1) if param else "", segment)
         if kind == "order":
             kind = ORDER_KIND_BY_PREFIX.get(segment.split("/")[0], "order")
         entries.append({
@@ -258,6 +322,7 @@ def main() -> int:
         f'    fetch: (id) => api.{e["method"]}(id),\n  }},'
         for e in entries
     )
+    kinds = "\n".join(f'  | "{k}"' for k in sorted({e["idKind"] for e in entries}))
     OUT.write_text(
         "// GENERATED by scripts/generate_print_registry.py — do not edit by hand.\n"
         "//\n"
@@ -267,6 +332,8 @@ def main() -> int:
         "// excluded: a button that 501s or 403s is worse than no button.\n"
         'import { api } from "@medbrains/api";\n\n'
         'import type { PrintDocumentDef } from "./print-registry";\n\n'
+        "/** Every kind of record a generated document keys on. */\n"
+        f"export type GeneratedPrintIdKind =\n{kinds};\n\n"
         "export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [\n"
         f"{body}\n];\n"
     )

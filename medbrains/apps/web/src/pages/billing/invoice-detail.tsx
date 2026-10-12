@@ -68,6 +68,7 @@ import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator"
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import type { PaymentModalSettlement } from "@/components/PaymentModal";
 import { PaymentModal } from "@/components/PaymentModal";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingChargeSourceOptions,
@@ -651,6 +652,7 @@ export function InvoiceDetail({
               {inv.status !== "draft" && (
                 <DocumentActions templateCode="invoice_gst" sourceId={inv.id} />
               )}
+              <PrintDocumentMenu idKind="invoice" recordId={inv.id} />
               {canEditDraft && inv.status === "draft" && (
                 <Button
                   tone="primary"

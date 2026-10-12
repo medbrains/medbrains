@@ -1,6 +1,6 @@
 // REGULATORY PcpndtTab — split from regulatory.tsx (pure move).
 
-import { Drawer, NumberInput, Paper, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Drawer, Group, NumberInput, Paper, Select, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePcpndtRequest, PcpndtForm } from "@medbrains/types";
@@ -11,6 +11,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 import { statusColorTone } from "./shared";
@@ -47,11 +48,14 @@ export function PcpndtTab() {
         title="PCPNDT Form F"
         subtitle="Pre-Conception and Pre-Natal Diagnostic Techniques Act compliance"
         actions={
-          canCreate ? (
-            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-              New Form F
-            </Button>
-          ) : undefined
+          <Group gap="xs">
+            <PrintRegisterButton documentKey="pcpndt-report" period="month" />
+            {canCreate && (
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
+                New Form F
+              </Button>
+            )}
+          </Group>
         }
       />
 

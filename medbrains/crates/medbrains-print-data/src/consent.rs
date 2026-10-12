@@ -4,11 +4,11 @@
 //! Consent forms include patient details, procedure info, risks, alternatives,
 //! and signature blocks for patient, guardian, witness, and doctor.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -81,12 +81,12 @@ pub async fn get_general_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -131,8 +131,8 @@ pub async fn get_general_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "general_admission".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: Some(row.admission_id.to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -180,6 +180,7 @@ pub async fn get_surgical_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -229,8 +230,8 @@ pub async fn get_surgical_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "surgical".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: row.admission_id.map(|id| id.to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -282,6 +283,7 @@ pub async fn get_anesthesia_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, SurgicalConsentRow>(
         "SELECT \
@@ -331,8 +333,8 @@ pub async fn get_anesthesia_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "anesthesia".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: row.admission_id.map(|id| id.to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -375,12 +377,12 @@ pub async fn get_blood_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -425,8 +427,8 @@ pub async fn get_blood_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "blood_transfusion".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: Some(row.admission_id.to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -478,6 +480,7 @@ pub async fn get_hiv_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -511,8 +514,8 @@ pub async fn get_hiv_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "hiv_testing".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: None,
         bed_number: None,
         ward_name: None,
@@ -552,12 +555,12 @@ pub async fn get_ama_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -612,8 +615,8 @@ pub async fn get_ama_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "ama".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: Some(row.admission_id.to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
@@ -657,6 +660,7 @@ pub async fn get_photo_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -690,8 +694,8 @@ pub async fn get_photo_consent_print_data(
         address: row.address,
         phone: row.phone,
         consent_type: "photography".to_string(),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         admission_id: None,
         bed_number: None,
         ward_name: None,
@@ -745,12 +749,12 @@ pub async fn get_dnr_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DnrConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, DnrConsentRow>(
         "SELECT \
@@ -785,13 +789,17 @@ pub async fn get_dnr_consent_print_data(
         uhid: row.uhid,
         age: age_str,
         gender: row.gender,
-        admission_date: row.admission_date.format("%d-%b-%Y").to_string(),
+        admission_date: row
+            .admission_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         diagnosis: row.diagnosis,
         prognosis: Some("Terminal illness with poor prognosis".to_string()),
-        consent_date: now.format("%d-%b-%Y").to_string(),
-        consent_time: now.format("%H:%M").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        consent_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         dnr_type: "full_dnr".to_string(),
         interventions_declined: vec![
             "Cardiopulmonary Resuscitation (CPR)".to_string(),
@@ -826,6 +834,7 @@ pub async fn get_organ_donation_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, ConsentBaseRow>(
         "SELECT \
@@ -876,10 +885,17 @@ pub async fn get_organ_donation_consent_print_data(
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
     // What the form lists for a donor to tick. Options, not assertions.
-    let organs_offered = ["Heart", "Lungs", "Liver", "Kidneys", "Pancreas", "Intestines"]
-        .iter()
-        .map(|o| (*o).to_owned())
-        .collect::<Vec<_>>();
+    let organs_offered = [
+        "Heart",
+        "Lungs",
+        "Liver",
+        "Kidneys",
+        "Pancreas",
+        "Intestines",
+    ]
+    .iter()
+    .map(|o| (*o).to_owned())
+    .collect::<Vec<_>>();
     let tissues_offered = ["Corneas", "Skin", "Heart Valves", "Bone", "Tendons"]
         .iter()
         .map(|t| (*t).to_owned())
@@ -895,7 +911,12 @@ pub async fn get_organ_donation_consent_print_data(
         // because the date on a consent is when the person agreed.
         consent_date: recorded
             .as_ref()
-            .map(|c| c.consent_date.format("%d-%b-%Y").to_string())
+            .map(|c| {
+                c.consent_date
+                    .with_timezone(&tz)
+                    .format("%d-%b-%Y")
+                    .to_string()
+            })
             .unwrap_or_default(),
         consent_type: if recorded.is_some() {
             "pledge".to_owned()
@@ -909,7 +930,9 @@ pub async fn get_organ_donation_consent_print_data(
         organs_offered,
         tissues_offered,
         next_of_kin_name: recorded.as_ref().and_then(|c| c.consented_by.clone()),
-        next_of_kin_relation: recorded.as_ref().and_then(|c| c.consented_by_relation.clone()),
+        next_of_kin_relation: recorded
+            .as_ref()
+            .and_then(|c| c.consented_by_relation.clone()),
         next_of_kin_phone: None,
         thoa_registration_number: None,
         transplant_coordinator: None,
@@ -928,7 +951,7 @@ struct RecordedOrganConsent {
 // ── Research Participation Consent ──────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
-struct ResearchEnrollmentRow {
+struct ResearchConsentRow {
     patient_name: String,
     uhid: String,
     age: Option<f64>,
@@ -936,90 +959,101 @@ struct ResearchEnrollmentRow {
     study_title: String,
     study_protocol_number: String,
     principal_investigator: Option<String>,
-    iec_approval_number: String,
-    iec_approval_date: chrono::NaiveDate,
+    iec_approval_number: Option<String>,
+    iec_approval_date: Option<chrono::NaiveDate>,
     sponsor_name: Option<String>,
-    study_purpose: String,
-    compensation: Option<String>,
-    enrolled_at: chrono::DateTime<chrono::Utc>,
+    risks_explained: Option<String>,
+    signed_at: Option<chrono::DateTime<chrono::Utc>>,
+    language: String,
 }
 
+/// `consent_id` is the trial consent in `consent_records` (`consent_type =
+/// 'research'`, written by `record_trial_consent`); the study comes from its
+/// `clinical_trials` row and the IEC approval from the latest approved
+/// `trial_irb_submissions` entry.
 pub async fn get_research_consent_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(enrollment_id): Path<Uuid>,
+    Path(consent_id): Path<Uuid>,
 ) -> Result<Json<ResearchConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `research_enrollments` does not exist in the schema, so
-    // this handler cannot run and there is nothing to resolve a patient
-    // through. Guard it when the table lands.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CONSENT_RECORD,
+        consent_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, ResearchEnrollmentRow>(
+    let row = sqlx::query_as::<_, ResearchConsentRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           rs.title AS study_title, \
-           rs.protocol_number AS study_protocol_number, \
-           pi.full_name AS principal_investigator, \
-           rs.iec_approval_number, \
-           rs.iec_approval_date, \
-           rs.sponsor_name, \
-           rs.study_purpose, \
-           re.compensation, \
-           re.enrolled_at \
-         FROM research_enrollments re \
-         JOIN patients p ON p.id = re.patient_id AND p.tenant_id = re.tenant_id \
-         JOIN research_studies rs ON rs.id = re.study_id AND rs.tenant_id = re.tenant_id \
-         LEFT JOIN users pi ON pi.id = rs.principal_investigator_id \
-         WHERE re.id = $1 AND re.tenant_id = $2",
+           ct.title AS study_title, \
+           ct.protocol_number AS study_protocol_number, \
+           ct.principal_investigator, \
+           irb.reference_number AS iec_approval_number, \
+           irb.decision_date AS iec_approval_date, \
+           ct.sponsor AS sponsor_name, \
+           cr.risks_explained, \
+           COALESCE(cr.patient_signed_at, cr.obtained_at) AS signed_at, \
+           cr.language::text AS language \
+         FROM consent_records cr \
+         JOIN patients p ON p.id = cr.patient_id AND p.tenant_id = cr.tenant_id \
+           AND p.deleted_at IS NULL \
+         JOIN clinical_trials ct ON ct.id = cr.trial_id AND ct.tenant_id = cr.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT s.reference_number, s.decision_date FROM trial_irb_submissions s \
+           WHERE s.trial_id = ct.id AND s.tenant_id = ct.tenant_id AND s.status = 'approved' \
+           ORDER BY s.decision_date DESC NULLS LAST, s.submitted_date DESC LIMIT 1 \
+         ) irb ON true \
+         WHERE cr.id = $1 AND cr.tenant_id = $2 AND cr.consent_type = 'research' \
+           AND cr.deleted_at IS NULL",
     )
-    .bind(enrollment_id)
+    .bind(consent_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get procedures involved
-    let procedures: Vec<String> = sqlx::query_scalar(
-        "SELECT procedure_description FROM research_study_procedures \
-         WHERE study_id = (SELECT study_id FROM research_enrollments WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
-    )
-    .bind(enrollment_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
+    let fmt_date = |d: chrono::NaiveDate| d.format("%d-%b-%Y").to_string();
 
     Ok(Json(ResearchConsentPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
         age: age_str,
         gender: row.gender,
-        consent_date: row.enrolled_at.format("%d-%b-%Y").to_string(),
+        consent_date: row
+            .signed_at
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
         study_title: row.study_title,
         study_protocol_number: row.study_protocol_number,
         principal_investigator: row.principal_investigator.unwrap_or_default(),
-        iec_approval_number: row.iec_approval_number,
-        iec_approval_date: row.iec_approval_date.format("%d-%b-%Y").to_string(),
+        // Blank when no approved IEC submission is on file — a finding, not a gap to fill.
+        iec_approval_number: row.iec_approval_number.unwrap_or_default(),
+        iec_approval_date: row.iec_approval_date.map(fmt_date).unwrap_or_default(),
         sponsor_name: row.sponsor_name,
-        study_purpose: row.study_purpose,
-        procedures_involved: procedures,
-        risks_benefits: "Detailed risks and benefits have been explained as per study protocol.".to_string(),
-        compensation: row.compensation,
+        // ponytail: study_purpose, procedures and compensation not recorded anywhere yet
+        study_purpose: None,
+        procedures_involved: Vec::new(),
+        compensation: None,
+        // What the consent record says was explained, never a claim that it was.
+        risks_benefits: row.risks_explained.unwrap_or_default(),
         confidentiality_statement: "All personal information will be kept strictly confidential. Data will be coded and de-identified.".to_string(),
         withdrawal_rights: "Participation is voluntary. You may withdraw at any time without affecting your medical care.".to_string(),
         contact_details: "For queries, contact the Principal Investigator or IEC.".to_string(),
-        language: "en".to_string(),
+        language: row.language,
     }))
 }
 
@@ -1036,6 +1070,7 @@ pub async fn get_abdm_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // Get patient with ABHA details
     let row: (String, String, Option<String>, Option<String>) = sqlx::query_as(
@@ -1060,17 +1095,18 @@ pub async fn get_abdm_consent_print_data(
         .flatten();
 
     // Whether this patient ever gave one. Absent prints a blank form.
-    let recorded_date: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar!(
-        "SELECT created_at AS \"created_at?\" FROM dpdp_consents \
-          WHERE patient_id = $1 AND tenant_id = $2 AND consent_given = true \
-            AND deleted_at IS NULL \
-          ORDER BY created_at DESC LIMIT 1",
-        patient_id,
-        claims.tenant_id,
+    // An ABHA-linking consent is a `patient_consents` row of type
+    // `abdm_linking`; `dpdp_consents` was never written.
+    let recorded_date: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT consent_date FROM patient_consents \
+          WHERE patient_id = $1 AND tenant_id = $2 AND consent_type = 'abdm_linking' \
+            AND consent_status = 'granted' AND deleted_at IS NULL \
+          ORDER BY consent_date DESC LIMIT 1",
     )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    .await?;
 
     tx.commit().await?;
 
@@ -1117,12 +1153,12 @@ pub async fn get_teaching_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TeachingConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionConsentRow>(
         "SELECT \
@@ -1164,7 +1200,7 @@ pub async fn get_teaching_consent_print_data(
         age: age_str,
         gender: row.gender,
         admission_id: Some(row.admission_id.to_string()),
-        consent_date: now.format("%d-%b-%Y").to_string(),
+        consent_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         consent_type: "observation".to_string(),
         teaching_activity: "Clinical case discussion and examination".to_string(),
         student_level: "pg".to_string(),
@@ -1216,7 +1252,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_organ_donation_consent_print_data),
         )
         .route(
-            "/api/print-data/consent/research/{enrollment_id}",
+            "/api/print-data/consent/research/{consent_id}",
             get(get_research_consent_print_data),
         )
         .route(
