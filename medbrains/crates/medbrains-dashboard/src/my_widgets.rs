@@ -227,7 +227,7 @@ pub async fn set_my_report_widget(
             .bind(dashboard_id)
             .bind(&spec.title)
             .bind(&spec.purpose)
-            .bind(json!({ "type": "report", "report_id": report_id }))
+            .bind(json!({ "type": "report", "report_id": report_id, "stacked": spec.stacked }))
             .bind(&spec.permission)
             .bind(&code)
             .execute(&mut *tx)

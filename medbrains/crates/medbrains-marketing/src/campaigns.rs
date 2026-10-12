@@ -43,6 +43,9 @@ pub struct Campaign {
     /// not distinguish ten thousand pamphlets in one ward from a full-page
     /// insert in a daily.
     pub medium: Option<String>,
+    /// The short code printed on the ad or put in a link (`?c=DIWALI25`);
+    /// a patient who arrives with it is attributed to this campaign.
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +63,7 @@ pub struct UpsertCampaignRequest {
     /// and free text so a campaign can name a ward before somebody defines it.
     pub target_areas: Option<Vec<String>>,
     pub medium: Option<String>,
+    pub code: Option<String>,
 }
 
 /// One row of the funnel, per campaign.
@@ -78,6 +82,52 @@ pub struct CampaignFunnelRow {
     pub won: i64,
 }
 
+/// A campaign code as stored: trimmed, upper-case, none when blank.
+fn campaign_code(code: Option<&str>) -> Option<String> {
+    code.map(str::trim).filter(|c| !c.is_empty()).map(str::to_uppercase)
+}
+
+/// Two campaigns can't share a code: a link would not know which it meant.
+fn code_taken(e: sqlx::Error) -> AppError {
+    match e {
+        sqlx::Error::Database(db) if db.is_unique_violation() => {
+            AppError::Conflict("Another campaign already uses that code".to_owned())
+        }
+        other => other.into(),
+    }
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampaignOption {
+    pub id: Uuid,
+    pub name: String,
+    pub channel: String,
+    pub code: Option<String>,
+}
+
+/// `GET /api/marketing/campaigns/lookup` — the running campaigns, by name,
+/// for the registration desk to say where a patient heard of the hospital.
+/// Names and codes only: no spend, no results.
+pub async fn lookup_campaigns(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<CampaignOption>>, AppError> {
+    require_permission(&claims, permissions::marketing::campaigns::LOOKUP)?;
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, CampaignOption>(
+        "SELECT id, name, channel, code FROM mkt_campaigns \
+          WHERE tenant_id = $1 AND is_active \
+            AND (ended_on IS NULL OR ended_on >= CURRENT_DATE - 90) \
+          ORDER BY name LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 /// `GET /api/marketing/campaigns`
 ///
 /// # Errors
@@ -93,7 +143,7 @@ pub async fn list_campaigns(
 
     let rows = sqlx::query_as::<_, Campaign>(
         "SELECT id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
-                started_on, ended_on, is_active \
+                started_on, ended_on, is_active, code \
          FROM mkt_campaigns WHERE tenant_id = $1 \
          ORDER BY is_active DESC, started_on DESC NULLS LAST, name",
     )
@@ -126,11 +176,11 @@ pub async fn create_campaign(
     let row = sqlx::query_as::<_, Campaign>(
         "INSERT INTO mkt_campaigns \
             (tenant_id, name, channel, source, external_ref, spend_minor, \
-             started_on, ended_on, created_by, target_areas, medium) \
+             started_on, ended_on, created_by, target_areas, medium, code) \
          VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0), $7, $8, $9, \
-                 COALESCE($10, '{}'), $11) \
+                 COALESCE($10, '{}'), $11, $12) \
          RETURNING id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
-                   started_on, ended_on, is_active",
+                   started_on, ended_on, is_active, code",
     )
     .bind(claims.tenant_id)
     .bind(body.name.trim())
@@ -143,8 +193,10 @@ pub async fn create_campaign(
     .bind(claims.sub)
     .bind(body.target_areas.as_deref())
     .bind(body.medium.as_deref().map(str::trim))
+    .bind(campaign_code(body.code.as_deref()))
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(code_taken)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -172,10 +224,10 @@ pub async fn update_campaign(
             spend_minor = COALESCE($7, spend_minor), \
             started_on = $8, ended_on = $9, \
             target_areas = COALESCE($10, target_areas), \
-            medium = $11, updated_at = now() \
+            medium = $11, code = $12, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
-                   started_on, ended_on, is_active",
+                   started_on, ended_on, is_active, code",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -188,8 +240,10 @@ pub async fn update_campaign(
     .bind(body.ended_on)
     .bind(body.target_areas.as_deref())
     .bind(body.medium.as_deref().map(str::trim))
+    .bind(campaign_code(body.code.as_deref()))
     .fetch_optional(&mut *tx)
-    .await?
+    .await
+    .map_err(code_taken)?
     .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;

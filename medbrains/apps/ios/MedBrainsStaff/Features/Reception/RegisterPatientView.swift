@@ -40,7 +40,8 @@ struct RegisterPatientView: View {
         OptionLists(
             departments: session.departments.map { CatalogueOption(value: $0.id, label: $0.name) },
             doctors: session.doctors.map { CatalogueOption(value: $0.id, label: $0.fullName) },
-            camps: session.camps.map { CatalogueOption(value: $0.id, label: $0.name) }
+            camps: session.camps.map { CatalogueOption(value: $0.id, label: $0.name) },
+            campaigns: session.campaigns.map { CatalogueOption(value: $0.id, label: $0.name) }
         )
     }
 

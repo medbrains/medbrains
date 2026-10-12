@@ -1,3 +1,4 @@
+import { GateCheck } from "@/components/FrontOffice/GateCheck";
 import { EnquiryDeskTab } from "./front-office/enquiry-desk-tab";
 import { PatientFlowHub } from "./front-office/patient-flow-hub";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
@@ -24,6 +25,7 @@ import {
   IconDoorEnter,
   IconGauge,
   IconPhone,
+  IconScan,
   IconSettings,
   IconUserPlus,
   IconUsers,
@@ -45,6 +47,7 @@ const FRONT_OFFICE_TAB_VALUES = [
   "queue",
   "token-boards",
   "visitors",
+  "gate",
   "config",
   "enquiry",
   "analytics",
@@ -59,6 +62,7 @@ const FRONT_OFFICE_PAGE_PERMISSIONS: readonly string[] = [
   P.FRONT_OFFICE.VISITORS_MANAGE,
   P.FRONT_OFFICE.PASSES_LIST,
   P.FRONT_OFFICE.PASSES_MANAGE,
+  P.FRONT_OFFICE.PASSES_VERIFY,
   P.FRONT_OFFICE.QUEUE_LIST,
   P.FRONT_OFFICE.QUEUE_MANAGE,
   P.FRONT_OFFICE.ENQUIRY_LIST,
@@ -91,6 +95,7 @@ export function FrontOfficePage() {
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
   const canViewPasses = useHasPermission(P.FRONT_OFFICE.PASSES_LIST);
   const canManagePasses = useHasPermission(P.FRONT_OFFICE.PASSES_MANAGE);
+  const canVerifyPasses = useHasPermission(P.FRONT_OFFICE.PASSES_VERIFY);
   const canViewQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
   const canManageQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
   const canViewEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_LIST);
@@ -167,6 +172,9 @@ export function FrontOfficePage() {
       label: "Visitor Management",
       icon: <IconDoorEnter size={16} />,
     });
+  }
+  if (canVerifyPasses) {
+    visibleTabs.push({ value: "gate", label: "Gate check", icon: <IconScan size={16} /> });
   }
   if (canOpenQueueConfig) {
     visibleTabs.push({
@@ -280,6 +288,11 @@ export function FrontOfficePage() {
         {canOpenVisitors && (
           <Tabs.Panel value="visitors" pt="md">
             <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
+          </Tabs.Panel>
+        )}
+        {canVerifyPasses && (
+          <Tabs.Panel value="gate" pt="md">
+            <GateCheck />
           </Tabs.Panel>
         )}
         {canOpenQueueConfig && (

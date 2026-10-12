@@ -75,6 +75,8 @@ pub enum Options {
     Departments,
     Doctors,
     Camps,
+    /// The hospital's campaigns (`/api/marketing/campaigns/lookup`).
+    Campaigns,
     DrugCatalogue,
     /// The ICD-11 terminology search (`/api/terminology/search?system=icd11`).
     Icd11,

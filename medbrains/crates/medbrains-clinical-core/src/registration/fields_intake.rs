@@ -200,6 +200,14 @@ pub(super) const INTAKE: &[Field] = &[
         ],
     ),
     plain("camp_name", "Camp name", Step::Intake, Kind::Text),
+    hinted(
+        with(
+            plain("campaign_id", "Campaign", Step::Intake, Kind::Select),
+            Options::Campaigns,
+            &[],
+        ),
+        "The advert, offer or drive that brought them in, if they say.",
+    ),
     with(
         plain("department_id", "Department", Step::Intake, Kind::Select),
         Options::Departments,

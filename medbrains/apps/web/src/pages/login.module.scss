@@ -42,15 +42,6 @@
   }
 }
 
-.manifestoEcg {
-  position: absolute;
-  bottom: 80px;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  opacity: 0.14;
-  z-index: 1;
-}
 
 .manifestoLogo {
   display: flex;
@@ -277,4 +268,9 @@
   color: var(--mb-text-muted);
   margin-top: 12px;
   font-family: var(--font-mono);
+}
+
+.title {
+  letter-spacing: 0.08em;
+  margin: 0;
 }

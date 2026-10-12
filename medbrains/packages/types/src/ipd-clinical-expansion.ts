@@ -836,7 +836,8 @@ export type BloodBagStatus =
   | "transfused"
   | "returned"
   | "expired"
-  | "discarded";
+  | "discarded"
+  | "quarantined";
 
 export type CrossmatchStatus =
   | "requested"
@@ -1089,7 +1090,24 @@ export type IcuScoreType =
   | "prism"
   | "snappe"
   | "rass"
-  | "cam_icu";
+  | "cam_icu"
+  | "aldrete"
+  | "cha2ds2_vasc"
+  | "child_pugh"
+  | "ciwa_ar"
+  | "cpot"
+  | "curb65"
+  | "glasgow_blatchford"
+  | "has_bled"
+  | "hypoglycaemia"
+  | "meld"
+  | "meows"
+  | "must_nutrition"
+  | "news2"
+  | "pews"
+  | "qsofa"
+  | "wells_dvt"
+  | "wells_pe";
 
 export type VentilatorMode =
   | "cmv"

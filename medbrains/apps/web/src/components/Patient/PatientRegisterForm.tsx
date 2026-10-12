@@ -68,6 +68,7 @@ import { lookupsService } from "@/services/lookups.service";
 import { patientsService } from "@/services/patients.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 import { AbhaLinkPanel } from "./AbhaLinkPanel";
+import { CampaignSelect } from "./CampaignSelect";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -689,6 +690,7 @@ export function PatientRegisterForm({
       clinical_unit: trimOrUndefined(values.clinical_unit),
       camp_id: trimOrUndefined(values.camp_id),
       camp_name: trimOrUndefined(values.camp_name),
+      campaign_id: values.campaign_id || undefined,
       initial_diagnosis_text: trimOrUndefined(values.initial_diagnosis_text),
       icd11_code: trimOrUndefined(values.icd11_code),
       icd11_display: selectedIcd11?.display,
@@ -1259,6 +1261,13 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
               </Grid>
+              <Controller
+                control={control}
+                name="campaign_id"
+                render={({ field }) => (
+                  <CampaignSelect value={field.value} onChange={field.onChange} />
+                )}
+              />
             </FormRow>
             <FormRow label={t("registrationForm.row.campReference")}>
               <Grid>

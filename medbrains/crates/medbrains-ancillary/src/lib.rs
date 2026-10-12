@@ -5,6 +5,7 @@ use medbrains_server_core::state::AppState;
 
 pub mod clinical_trials;
 pub mod front_office;
+pub mod pass_check;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -75,6 +76,7 @@ pub fn router() -> Router<AppState> {
             get(front_office::list_passes)
                 .post(front_office::create_pass),
         )
+        .route("/api/front-office/passes/scan", get(pass_check::scan_pass))
         .route(
             "/api/front-office/passes/{id}/revoke",
             put(front_office::revoke_pass),

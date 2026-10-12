@@ -16,8 +16,7 @@ use uuid::Uuid;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AdvanceReceiptPrintData, BillCategoryTotal, BillLineItem, CashlessClaimPrintData,
-    CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData, GstInvoiceItemLine,
-    GstInvoicePrintData, InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
+    CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData, InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
     IpdInterimBillPrintData, NoDuesCertificatePrintData, OpdBillPrintData, PackageAdditionalCharge,
     PackageBillPrintData, PackageEstimatePrintData, PackageExclusion, ReceiptPrintData,
     RefundReceiptPrintData,
@@ -31,7 +30,7 @@ use medbrains_server_core::state::AppState;
 
 // ── Helper: fetch hospital name from tenants table ───────
 
-async fn hospital_name(
+pub(crate) async fn hospital_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<Option<String>, AppError> {
@@ -361,108 +360,6 @@ pub async fn get_estimate_print_data(
 
 // ── GST Invoice ──────────────────────────────────────────
 
-#[derive(Debug, sqlx::FromRow)]
-struct GstInvoiceHeaderRow {
-    invoice_number: String,
-    patient_name: String,
-    uhid: String,
-    subtotal: String,
-    tax_amount: String,
-    total_amount: String,
-    hospital_gstin: Option<String>,
-    hospital_address: Option<String>,
-    issued_at: Option<chrono::DateTime<chrono::Utc>>,
-    created_at: chrono::DateTime<chrono::Utc>,
-}
-
-pub async fn get_gst_invoice_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(invoice_id): Path<Uuid>,
-) -> Result<Json<GstInvoicePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let header = sqlx::query_as::<_, GstInvoiceHeaderRow>(
-        "SELECT \
-           inv.invoice_number, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           inv.subtotal::text AS subtotal, \
-           inv.tax_amount::text AS tax_amount, \
-           inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
-            WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
-            LIMIT 1) AS hospital_gstin, \
-           (SELECT ts.value->>'address' FROM tenant_settings ts \
-            WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
-            LIMIT 1) AS hospital_address, \
-           inv.issued_at, \
-           inv.created_at \
-         FROM invoices inv \
-         JOIN patients p ON p.id = inv.patient_id \
-                         AND p.tenant_id = inv.tenant_id \
-         WHERE inv.id = $1 AND inv.tenant_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let items = sqlx::query_as::<_, GstInvoiceItemLine>(
-        "SELECT description, \
-                hsn_sac_code AS hsn_code, \
-                quantity, \
-                unit_price::text AS unit_price, \
-                tax_percent::text AS tax_percent, \
-                total_price::text AS total_price \
-         FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
-
-    tx.commit().await?;
-
-    let date = header
-        .issued_at
-        .unwrap_or(header.created_at)
-        .format("%d-%b-%Y")
-        .to_string();
-
-    Ok(Json(GstInvoicePrintData {
-        invoice_number: header.invoice_number,
-        patient_name: header.patient_name,
-        uhid: header.uhid,
-        subtotal: header.subtotal,
-        tax_amount: header.tax_amount,
-        total_amount: header.total_amount,
-        hospital_gstin: header.hospital_gstin,
-        hospital_name: h_name,
-        hospital_address: header.hospital_address,
-        items,
-        date,
-    }))
-}
-
 // ── OPD Bill ─────────────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
@@ -519,9 +416,9 @@ pub async fn get_opd_bill_print_data(
            inv.discount_amount::text AS discount_amount, \
            inv.tax_amount::text AS tax_amount, \
            inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM invoices inv \
          JOIN patients p ON p.id = inv.patient_id AND p.tenant_id = inv.tenant_id \
@@ -860,9 +757,9 @@ pub async fn get_ipd_final_bill_print_data(
            inv.discount_amount::text AS discount_amount, \
            inv.tax_amount::text AS tax_amount, \
            inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM invoices inv \
          JOIN patients p ON p.id = inv.patient_id AND p.tenant_id = inv.tenant_id \
@@ -1041,9 +938,9 @@ pub async fn get_admission_consolidated_bill_print_data(
            d.name AS department, \
            adm.primary_diagnosis AS diagnosis, \
            adm.discharge_type, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = adm.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM admissions adm \
          JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
@@ -2617,7 +2514,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/print-data/gst-invoice/{invoice_id}",
-            get(get_gst_invoice_print_data),
+            get(crate::gst_invoice::get_gst_invoice_print_data),
         )
         .route(
             "/api/print-data/opd-bill/{invoice_id}",

@@ -18,7 +18,7 @@ import type { PublicBookingResponse } from "@medbrains/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { Alert, Button, Card } from "@/components/ui";
 import { appointmentsService } from "@/services/appointments.service";
 import {
@@ -34,6 +34,9 @@ import {
 
 export function PublicBookingPage() {
   const { tenantCode = "" } = useParams<{ tenantCode: string }>();
+  // The campaign an ad or link sent the patient from (`?c=DIWALI25`).
+  const [search] = useSearchParams();
+  const campaignCode = search.get("c")?.trim() || undefined;
 
   const directory = useQuery({
     queryKey: ["public-directory", tenantCode],
@@ -93,6 +96,7 @@ export function PublicBookingPage() {
         patient_phone: patientPhone.trim(),
         reason: reason.trim() || undefined,
         otp: otpRequired ? otp.replace(/\D/g, "") : undefined,
+        campaign_code: campaignCode,
       });
     },
     onSuccess: setBooked,

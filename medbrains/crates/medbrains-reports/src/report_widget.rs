@@ -7,6 +7,8 @@
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::is_bypass_role;
 
+use medbrains_core::reports::EChartsTemplate;
+
 use crate::reports::{ReportDataKind, can_access_report, find_report};
 
 /// What a report widget is: its name, the one permission its viewer holds
@@ -17,6 +19,8 @@ pub struct ReportWidgetSpec {
     pub purpose: String,
     pub permission: String,
     pub wired: bool,
+    /// Drawn as stacked bars (each period's groups add up to its total).
+    pub stacked: bool,
 }
 
 /// The report `report_id` as a widget, if it exists and the caller may read
@@ -38,5 +42,6 @@ pub fn report_for_widget(claims: &Claims, report_id: &str) -> Option<ReportWidge
         purpose: definition.purpose,
         permission: held,
         wired: !matches!(report.data_kind, ReportDataKind::NotWired),
+        stacked: matches!(definition.echarts_template, EChartsTemplate::BarStack),
     })
 }

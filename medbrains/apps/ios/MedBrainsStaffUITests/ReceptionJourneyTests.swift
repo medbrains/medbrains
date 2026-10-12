@@ -89,6 +89,27 @@ final class ReceptionJourneyTests: JourneyCase {
         XCTAssertTrue(sees(deptName), "the desk's department survived the next walk-in")
     }
 
+    /// The campaign that brought a walk-in is picked at the desk and recorded
+    /// against the patient — the campaign report counts it from there.
+    func testTheCampaignThatBroughtThePatientIsRecorded() {
+        let name = "Knee camp \(Api.runId)\(Self.serial)"
+        let campaign = Api.admin().obj("POST", "/api/marketing/campaigns", ["name": name, "channel": "print", "source": "newspaper"])
+        guard let campaignId = campaign["id"] as? String else { return XCTFail("campaign created") }
+        // The desk loads campaigns as it opens: reopen it to see the new one.
+        app.terminate(); app.launch()
+        XCTAssertTrue(el("module-home-reception").waitForExistence(timeout: 15))
+        let phone = freshPhone()
+        openRegister()
+        fillPerson("Camp", "Walkin\(Api.runId)", phone: phone)
+        XCTAssertTrue(choose("field-campaign_id", name), "the desk is offered the campaign")
+        submitRegistration()
+        XCTAssertTrue(el("registered-uhid").waitForExistence(timeout: 15))
+        guard let id = patient(byPhone: phone)?["id"] as? String else { return XCTFail("the record exists") }
+        let acquisition = api.obj("GET", "/api/patients/\(id)/acquisition")
+        XCTAssertEqual(acquisition["campaign_id"] as? String, campaignId, "the campaign is recorded against the patient")
+        XCTAssertEqual(acquisition["captured_via"] as? String, "registration")
+    }
+
     /// A returning patient registered at another desk, reached the other way:
     /// the desk types them in fresh, and the duplicate check offers the record
     /// that already exists instead of creating a second one. Find reaches them

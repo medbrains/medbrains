@@ -69,6 +69,8 @@ class ReceptionSession {
     val doctors = mutableStateListOf<DoctorRow>()
     /** Camps a registration can name, for a desk allowed to list them. */
     val camps = mutableStateListOf<CampSummary>()
+    /** Running campaigns a registration can name, for a desk allowed to pick one. */
+    val campaigns = mutableStateListOf<CampaignOption>()
     val patients = mutableStateMapOf<String, PatientSummary>()
     val visits = mutableStateMapOf<String, VisitStarted>()
 
@@ -77,15 +79,17 @@ class ReceptionSession {
 
 /**
  * The pickers' rows for a registration desk: departments, doctors, and the
- * open camps when the role may list them. An unloadable department list is
+ * open camps and running campaigns when the role may list them (`can` is the
+ * signed-in identity's permission check). An unloadable department list is
  * an outage, never an empty hospital.
  */
-suspend fun ReceptionSession.load(api: ReceptionApi, canListCamps: Boolean) {
+suspend fun ReceptionSession.load(api: ReceptionApi, can: (String) -> Boolean) {
     runCatching { api.departments() }
         .onSuccess { departments.clear(); departments.addAll(it); departmentsFailed = false }
         .onFailure { departmentsFailed = true }
     runCatching { api.doctors() }.getOrNull()?.let { doctors.clear(); doctors.addAll(it) }
-    if (canListCamps) runCatching { api.camps() }.getOrNull()?.let { camps.clear(); camps.addAll(it.filter { c -> c.isOpen }) }
+    if (can("camp.list")) runCatching { api.camps() }.getOrNull()?.let { camps.clear(); camps.addAll(it.filter { c -> c.isOpen }) }
+    if (can("marketing.campaigns.lookup")) runCatching { api.campaigns() }.getOrNull()?.let { campaigns.clear(); campaigns.addAll(it) }
 }
 
 @Composable
@@ -94,8 +98,8 @@ fun ReceptionModule() {
     val session = remember { ReceptionSession() }
     val client = LocalApiClient.current
     val api = remember { ReceptionApi(client) }
-    val canListCamps = LocalIdentity.current?.can("camp.list") == true
-    LaunchedEffect(Unit) { session.load(api, canListCamps) }
+    val identity = LocalIdentity.current
+    LaunchedEffect(Unit) { session.load(api) { identity?.can(it) == true } }
     NavHost(nav, startDestination = "home") {
         composable("home") { ReceptionHome(nav, TokenApi(client, TokenModule.OPD), session) }
         composable("register") { RegisterPatientScreen(nav, api, session) }

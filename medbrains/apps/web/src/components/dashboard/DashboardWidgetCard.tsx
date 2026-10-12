@@ -311,7 +311,10 @@ function WidgetBody({
   if (widget.data_source?.type === "report") {
     return (
       <WidgetShell widget={widget} onExpand={onExpand}>
-        <ReportWidgetTile reportId={widget.data_source.report_id} />
+        <ReportWidgetTile
+          reportId={widget.data_source.report_id}
+          stacked={widget.data_source.stacked}
+        />
       </WidgetShell>
     );
   }

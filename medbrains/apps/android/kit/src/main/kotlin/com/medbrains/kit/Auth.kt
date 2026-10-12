@@ -141,11 +141,8 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
             _state.value = AuthState.SignedIn(who)
             true
         } catch (e: ApiError) {
-            _lastError.value = when {
-                e.status != 401 -> e.message
-                code.isEmpty() -> "Wrong username or password."
-                else -> "Wrong username, password or hospital code."
-            }
+            // The hospital was confirmed before this step: a refusal is the credentials.
+            _lastError.value = if (e.status == 401) "Wrong username or password." else e.message
             false
         } catch (e: Exception) {
             _lastError.value = "Could not reach the hospital server."
@@ -164,6 +161,26 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
         prefs.edit().putString(IDENTITY, json.encodeToString(TenantIdentity.serializer(), who)).apply()
         _lastError.value = null
         _state.value = AuthState.SignedIn(who)
+    }
+
+    /** The hospital a code names, and how it signs in. */
+    suspend fun lookUpHospital(code: String): HospitalLookup {
+        val trimmed = code.trim()
+        if (trimmed.isEmpty()) return HospitalLookup.Unknown
+        return try {
+            HospitalLookup.Found(client.get("/api/auth/sign-in-options?code=${java.net.URLEncoder.encode(trimmed, "UTF-8")}"))
+        } catch (e: ApiError) {
+            if (e.status == 404) HospitalLookup.Unknown else HospitalLookup.Failed(e.message ?: "The hospital server refused.")
+        } catch (e: Exception) {
+            HospitalLookup.Failed("Could not reach the hospital server.")
+        }
+    }
+
+    /** "Change hospital": the next sign-in starts from the code again. */
+    fun forgetHospital() {
+        prefs.edit().remove(HOSPITAL_CODE).apply()
+        _needsHospital.value = false
+        _lastError.value = null
     }
 
     fun signOut() {

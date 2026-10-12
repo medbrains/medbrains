@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1011 permissions, one per constant in the Rust source. */
+/** 1014 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -86,6 +86,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.acquisition.update",
+    label: "Correct where a patient came from",
+    description: "Set or change the campaign a registered patient is attributed to; every change is audited.",
     module: "patients",
   },
   {
@@ -3104,6 +3110,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "marketing",
   },
   {
+    code: "marketing.campaigns.lookup",
+    label: "Pick a campaign when registering",
+    description: "The active campaigns' names and codes only — enough for the desk to record where a new patient heard of the hospital, without spend or results.",
+    module: "marketing",
+  },
+  {
     code: "marketing.consent.view",
     label: "View a contact's consent history",
     description: "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
@@ -3235,6 +3247,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "front_office.passes.manage",
     label: "Manage Passes",
     description: "Issue and revoke visitor passes",
+    module: "front_office",
+  },
+  {
+    code: "front_office.passes.verify",
+    label: "Check a visitor pass at the gate",
+    description: "Scan a pass's QR to see whether it is valid now, who it was issued to and which ward it opens. Read-only: it cannot issue or revoke.",
     module: "front_office",
   },
   {
@@ -7240,9 +7258,11 @@ export const P = {
     PASSES: {
       LIST: "front_office.passes.list",
       MANAGE: "front_office.passes.manage",
+      VERIFY: "front_office.passes.verify",
     },
     PASSES_LIST: "front_office.passes.list",
     PASSES_MANAGE: "front_office.passes.manage",
+    PASSES_VERIFY: "front_office.passes.verify",
     QUEUE: {
       CONFIG: {
         MANAGE: "front_office.queue.config.manage",
@@ -7789,9 +7809,11 @@ export const P = {
   },
   MARKETING: {
     CAMPAIGNS: {
+      LOOKUP: "marketing.campaigns.lookup",
       MANAGE: "marketing.campaigns.manage",
       VIEW: "marketing.campaigns.view",
     },
+    CAMPAIGNS_LOOKUP: "marketing.campaigns.lookup",
     CAMPAIGNS_MANAGE: "marketing.campaigns.manage",
     CAMPAIGNS_VIEW: "marketing.campaigns.view",
     COHORTS: {
@@ -8245,6 +8267,10 @@ export const P = {
     SAFETY_CHECKLIST_LIST: "ot.safety_checklist.list",
   },
   PATIENTS: {
+    ACQUISITION: {
+      UPDATE: "patients.acquisition.update",
+    },
+    ACQUISITION_UPDATE: "patients.acquisition.update",
     ALLERGIES: {
       VERIFY: "patients.allergies.verify",
     },
@@ -9728,6 +9754,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.ENQUIRY.MANAGE,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
+      P.FRONT_OFFICE.PASSES.VERIFY,
       P.FRONT_OFFICE.QUEUE.CONFIG.VIEW,
       P.FRONT_OFFICE.QUEUE.LIST,
       P.FRONT_OFFICE.QUEUE.MANAGE,
@@ -9741,6 +9768,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.MARKETING.CAMPAIGNS.LOOKUP,
       P.MARKETING.CONSENT.CAPTURE,
       P.MARKETING.CONSENT.VIEW,
       P.MARKETING.CONSENT.WITHDRAW,
@@ -9763,6 +9791,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.VISIT.TRANSFER,
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
+      P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.LIST,
@@ -10351,6 +10380,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.FRONT_OFFICE.PASSES.LIST,
+      P.FRONT_OFFICE.PASSES.VERIFY,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.SECURITY.ACCESS.LIST,
       P.SECURITY.ACCESS.MANAGE,
@@ -10464,6 +10494,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Marketing Executive",
     permissions: [
       P.DASHBOARD.VIEW,
+      P.MARKETING.CAMPAIGNS.LOOKUP,
       P.MARKETING.CAMPAIGNS.MANAGE,
       P.MARKETING.CAMPAIGNS.VIEW,
       P.MARKETING.COHORTS.MANAGE,
@@ -10503,12 +10534,14 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.ENQUIRY.LIST,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
+      P.FRONT_OFFICE.PASSES.VERIFY,
       P.FRONT_OFFICE.QUEUE.CONFIG.VIEW,
       P.FRONT_OFFICE.QUEUE.LIST,
       P.FRONT_OFFICE.QUEUE.MANAGE,
       P.FRONT_OFFICE.VISITORS.CREATE,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.FRONT_OFFICE.VISITORS.MANAGE,
+      P.MARKETING.CAMPAIGNS.LOOKUP,
       P.MARKETING.CONSENT.CAPTURE,
       P.MARKETING.CONSENT.VIEW,
       P.MARKETING.CONSENT.WITHDRAW,
@@ -10521,6 +10554,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
       P.OPD.VISIT.TRANSFER,
+      P.PATIENTS.ACQUISITION.UPDATE,
     ],
   },
   infection_control_officer: {

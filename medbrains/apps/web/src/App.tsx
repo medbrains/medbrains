@@ -42,6 +42,9 @@ const QueueStatusPage = lazy(() =>
 const VerifyPrescriptionPage = lazy(() =>
   import("./pages/verify-prescription").then((m) => ({ default: m.VerifyPrescriptionPage })),
 );
+const VerifyBillPage = lazy(() =>
+  import("./pages/verify-bill").then((m) => ({ default: m.VerifyBillPage })),
+);
 const KioskSelfCheckinPage = lazy(() =>
   import("./pages/kiosk/self-checkin").then((m) => ({ default: m.KioskSelfCheckinPage })),
 );
@@ -474,6 +477,7 @@ export function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />
+            <Route path="/verify/bill" element={<VerifyBillPage />} />
             {/* Scanned off the kiosk slip — the patient has no login. */}
             <Route path="/queue/:token" element={<QueueStatusPage />} />
             {/* Public self-service booking — off unless the tenant enables it. */}

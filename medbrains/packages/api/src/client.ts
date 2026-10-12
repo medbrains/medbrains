@@ -1283,6 +1283,7 @@ import type {
   MarketingCampaign,
   MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
+  MarketingCampaignOption,
   MarketingCampBridgeResult,
   MarketingChannelJourneyRow,
   MarketingCohort,
@@ -1471,6 +1472,7 @@ import type {
   PaRequirementRule,
   Patient,
   PatientAccessLogRow,
+  PatientAcquisition,
   PatientAddress,
   // Billing Phase 2
   PatientAdvance,
@@ -1805,6 +1807,7 @@ import type {
   SignBasketRequest,
   SignBasketResponse,
   SignedRecord,
+  SignInOptions,
   SignPreviewRequest,
   SignPreviewResponse,
   SignRequest,
@@ -2131,6 +2134,7 @@ import type {
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
+  VerifiedBill,
   VerifiedPrescription,
   VerifyAllergyRequest,
   VerifyConsentRequest,
@@ -2148,6 +2152,7 @@ import type {
   VisitorAnalytics,
   VisitorLog,
   VisitorPass,
+  VisitorPassCheck,
   VisitorPassPrintData,
   VisitorRegisterPrintData,
   VisitorRegistration,
@@ -4204,6 +4209,12 @@ export const api = {
       `/dashboards/my/widgets/${encodeURIComponent(code)}`,
       { method: "PUT", body: JSON.stringify({ visible }) },
     ),
+  // Public — how a hospital signs in: by its code, or (no code) by the
+  // hospital's own domain the page is on. 404 when neither names one.
+  getSignInOptions: (code?: string) =>
+    request<SignInOptions>(
+      `/auth/sign-in-options${code ? `?code=${encodeURIComponent(code)}` : ""}`,
+    ),
   // ── Enterprise SSO (admin config) ──
   // Public — active providers for the login page (no auth).
   listActiveSsoProviders: (domain?: string) =>
@@ -5585,6 +5596,16 @@ export const api = {
    */
   // ── Marketing ─────────────────────────────────────────────────
   listMarketingCampaigns: () => request<MarketingCampaign[]>("/marketing/campaigns"),
+  /** Running campaigns, names only, for the registration desk. */
+  lookupMarketingCampaigns: () => request<MarketingCampaignOption[]>("/marketing/campaigns/lookup"),
+  getPatientAcquisition: (patientId: string) =>
+    request<PatientAcquisition | null>(`/patients/${patientId}/acquisition`),
+  /** Correct where a patient came from; audited. */
+  correctPatientAcquisition: (patientId: string, data: { campaign_id: string | null }) =>
+    request<PatientAcquisition | null>(`/patients/${patientId}/acquisition`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   createMarketingCampaign: (data: UpsertMarketingCampaignRequest) =>
     request<MarketingCampaign>("/marketing/campaigns", {
@@ -10090,6 +10111,9 @@ export const api = {
     }),
 
   // Visitor Passes
+  /** The gate: is this pass (its QR carries the pass number) valid now? */
+  scanVisitorPass: (code: string) =>
+    request<VisitorPassCheck>(`/front-office/passes/scan?code=${encodeURIComponent(code)}`),
   listVisitorPasses: (params?: { status?: string; registration_id?: string }) =>
     request<VisitorPass[]>(
       `/front-office/passes${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
@@ -13710,6 +13734,11 @@ export const api = {
   /** Public — scanned by a pharmacist who is not a user of this system. */
   verifyPrescription: (token: string) =>
     request<VerifiedPrescription>(`/public/prescriptions/verify/${token}`),
+  /** Public — the QR on a printed bill; number plus the bill's own code. */
+  verifyBill: (number: string, code: string) =>
+    request<VerifiedBill>(
+      `/public/bills/verify?n=${encodeURIComponent(number)}&c=${encodeURIComponent(code)}`,
+    ),
 
   getOpdPrescriptionPrintData: (encounterId: string) =>
     request<OpdPrescriptionPrintData>(`/print-data/opd-prescription/${encounterId}`),

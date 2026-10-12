@@ -30,4 +30,16 @@ describe("report charts", () => {
     expect(bars.series[0]?.type).toBe("bar");
     expect(rowsOption([{ name: "Dr A", status: "expired" }])).toBeNull();
   });
+
+  it("stacks each month's sources into one bar for a stacked-bar report", () => {
+    const intake = { ...report("patient-intake-by-source"), chartTypes: ["stacked bar"] };
+    const option = optionForReport(intake as ReportDefinition, empty, [
+      { month: "2026-09-01", source: "Walk-in", patients: 4 },
+      { month: "2026-09-01", source: "Diwali camp", patients: 2 },
+      { month: "2026-10-01", source: "Walk-in", patients: 5 },
+    ]) as { xAxis: { data: string[] }; series: { name: string; type: string; stack?: string }[] };
+    expect(option.xAxis.data).toEqual(["2026-09-01", "2026-10-01"]);
+    expect(option.series.map((s) => s.name).sort()).toEqual(["Diwali camp", "Walk-in"]);
+    expect(option.series.every((s) => s.type === "bar" && s.stack === "total")).toBe(true);
+  });
 });

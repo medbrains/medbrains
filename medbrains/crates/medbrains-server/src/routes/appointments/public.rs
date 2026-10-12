@@ -486,9 +486,10 @@ async fn find_or_create_patient(
 
     let (first_name, last_name) = split_public_patient_name(&body.patient_name);
 
-    sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient creation
-        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
-         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6) \
+    let patient_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient creation
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth, \
+                               registration_source) \
+         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6, 'online_portal') \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -498,8 +499,26 @@ async fn find_or_create_patient(
     .bind(&body.patient_phone)
     .bind(body.patient_dob)
     .fetch_one(&mut **tx)
-    .await
-    .map_err(Into::into)
+    .await?;
+
+    // Arrived through a campaign link: that is where this patient came from.
+    // An unknown code is ignored — a stale link must not stop a booking.
+    if let Some(code) = body.campaign_code.as_deref() {
+        let campaign =
+            medbrains_patients::acquisition::campaign_for_code(tx, tenant_id, code).await?;
+        if campaign.is_some() {
+            medbrains_patients::acquisition::record(
+                tx,
+                tenant_id,
+                patient_id,
+                campaign,
+                medbrains_patients::acquisition::CapturedVia::Link,
+                None,
+            )
+            .await?;
+        }
+    }
+    Ok(patient_id)
 }
 
 fn split_public_patient_name(name: &str) -> (String, String) {

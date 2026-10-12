@@ -56,7 +56,13 @@ export function WidgetExpandedView({ widget, data, compare, onCompareChange }: P
     );
   }
   if (widget.data_source?.type === "report") {
-    return <ReportDetail reportId={widget.data_source.report_id} title={widget.title} />;
+    return (
+      <ReportDetail
+        reportId={widget.data_source.report_id}
+        stacked={widget.data_source.stacked}
+        title={widget.title}
+      />
+    );
   }
   if (widget.widget_type === "chart") {
     const x = String(field(widget.config, "x_axis") ?? "date");
@@ -160,11 +166,25 @@ function KpiDetail({
 }
 
 /** A report widget at full size: its chart, and every row it draws from. */
-function ReportDetail({ reportId, title }: { reportId: string | undefined; title: string }) {
+function ReportDetail({
+  reportId,
+  stacked,
+  title,
+}: {
+  reportId: string | undefined;
+  stacked?: boolean;
+  title: string;
+}) {
   const { shape, rows: reportRows, isLoading, isError } = useReportWidgetData(reportId);
   return (
     <Stack gap="lg">
-      <ReportWidgetChart shape={shape} loading={isLoading} failed={isError} h={340} />
+      <ReportWidgetChart
+        shape={shape}
+        loading={isLoading}
+        failed={isError}
+        stacked={stacked}
+        h={340}
+      />
       <RowsTable
         items={reportRows}
         cols={Object.keys(reportRows[0] ?? {})}

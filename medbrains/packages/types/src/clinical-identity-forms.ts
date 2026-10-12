@@ -145,6 +145,17 @@ export interface GstInvoiceItemLine {
   unit_price: string;
   tax_percent: string;
   total_price: string;
+  generic_name: string | null;
+  /** Drug schedule ("H", "H1", "X"), for medicine lines. */
+  schedule: string | null;
+  manufacturer: string | null;
+  batch_number: string | null;
+  /** "MM/YY". */
+  expiry: string | null;
+  mrp: string | null;
+  discount_amount: string;
+  cgst_amount: string;
+  sgst_amount: string;
 }
 
 export interface GstInvoicePrintData {
@@ -159,4 +170,35 @@ export interface GstInvoicePrintData {
   hospital_address: string | null;
   items: GstInvoiceItemLine[];
   date: string;
+  /** Any line is a medicine: printed as a pharmacy bill. */
+  is_pharmacy: boolean;
+  patient_phone: string | null;
+  /** Present when a Schedule H1 or X drug is on the bill. */
+  patient_address: string | null;
+  prescriber_name: string | null;
+  prescriber_registration: string | null;
+  pharmacist_name: string | null;
+  pharmacist_registration: string | null;
+  drug_licence: string | null;
+  cgst_total: string;
+  sgst_total: string;
+  mrp_total: string | null;
+  savings: string | null;
+  paid_amount: string;
+  balance_due: string;
+  rx_valid_until: string | null;
+  refills_left: number | null;
+  schedules: string[];
+  upi_link: string | null;
+  verify_url: string | null;
+}
+
+/** What the QR on a printed bill confirms — no patient detail. */
+export interface VerifiedBill {
+  hospital_name: string;
+  invoice_number: string;
+  invoice_date: string;
+  total_amount: string;
+  paid_amount: string;
+  status: string;
 }

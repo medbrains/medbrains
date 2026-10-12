@@ -579,6 +579,8 @@ export interface CreatePatientRequest {
   registration_type?: RegistrationType;
   registration_source?: RegistrationSource;
   financial_class?: FinancialClass;
+  /** The campaign the patient came through, picked at the desk. */
+  campaign_id?: string;
   abha_number?: string;
   abha_address?: string;
   aadhaar_number?: string;
