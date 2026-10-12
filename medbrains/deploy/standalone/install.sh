@@ -136,7 +136,11 @@ install -d -o medbrains -g medbrains -m 0750 \
 chown -R medbrains:medbrains /var/lib/medbrains /var/lib/medbrains-edge /var/log/medbrains /var/www/medbrains
 
 echo "==> [3/9] Writing /etc/medbrains/env (preserving existing if present)"
+# shellcheck source=./db-roles.sh
+. "$DEPLOY_DIR/db-roles.sh"
+ENV_CREATED=0
 if [[ ! -f /etc/medbrains/env ]]; then
+    ENV_CREATED=1
     cp "$DEPLOY_DIR/env.example" /etc/medbrains/env
     sed -i "s|__DOMAIN__|$DOMAIN|g" /etc/medbrains/env
 
@@ -207,27 +211,25 @@ if [[ "$ATTACH_MODE" == "1" ]]; then
 
     sed -i "s|^PORT=.*|PORT=$APP_PORT|" /etc/medbrains/env
 
+    # The owner's URL: DATABASE_URL until the role split, then
+    # MIGRATION_DATABASE_URL (db-roles.sh re-derives the other two from it).
     # Rewritten by line, not by sed: a database password may contain any
     # character sed would read as a delimiter or a backreference.
+    OWNER_KEY="$(db_roles_owner_key /etc/medbrains/env)"
     if [[ "$ATTACH_REUSE_POSTGRES" == "1" ]]; then
         NEW_DB_URL="$ATTACH_DATABASE_URL"
     else
-        DBPW_NOW="$(grep '^DATABASE_URL=' /etc/medbrains/env | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')"
+        DBPW_NOW="$(db_url_password "$(env_value "$OWNER_KEY")")"
         NEW_DB_URL="postgres://medbrains:$DBPW_NOW@127.0.0.1:$PG_PORT/medbrains"
     fi
-    {
-        grep -v '^DATABASE_URL=' /etc/medbrains/env
-        echo "DATABASE_URL=$NEW_DB_URL"
-    } > /etc/medbrains/env.attach
-    cat /etc/medbrains/env.attach > /etc/medbrains/env
-    rm -f /etc/medbrains/env.attach
+    db_env_set "$OWNER_KEY" "$NEW_DB_URL" /etc/medbrains/env
 fi
 
 echo "==> [4/9] Bringing up postgres-17 via docker compose"
 install -m 0644 "$DEPLOY_DIR/docker-compose.prod.yml" /etc/medbrains/docker-compose.yml
 # Pull the postgres password out of /etc/medbrains/env for the
 # compose file to consume.
-DBPW="$(grep '^DATABASE_URL=' /etc/medbrains/env | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')"
+DBPW="$(db_url_password "$(env_value "$(db_roles_owner_key /etc/medbrains/env)")")"
 ICD_LOCAL_SERVICE="$(env_value MEDBRAINS_ICD_LOCAL_SERVICE)"
 ICD_API_ACCEPT_LICENSE="$(env_value ICD_API_ACCEPT_LICENSE)"
 ICD_API_PORT="$(env_value ICD_API_PORT)"
@@ -309,6 +311,21 @@ if [[ "$ATTACH_REUSE_POSTGRES" != "1" ]]; then
         fi
         sleep 1
     done
+fi
+
+# Before the server's first boot: it connects with whatever the env names.
+# A new env, or one already split, gets (or keeps) the three roles. An existing
+# single-role install is switched only on request — it changes which rows
+# every query can see, so it is a deliberate step (docs/ops/DB-ROLES.md).
+if [[ "$ENV_CREATED" == "1" || -n "$(env_value MIGRATION_DATABASE_URL)" \
+      || "${DB_ROLE_SPLIT:-0}" == "1" ]]; then
+    if ! db_roles_configure /etc/medbrains/env; then
+        echo "ERROR: database roles not configured — the server will connect as the owner,"
+        echo "       and row level security will not apply. See docs/ops/DB-ROLES.md."
+    fi
+else
+    echo "    NOTE: this install connects as the database owner; row level security does"
+    echo "          not apply. Switch with DB_ROLE_SPLIT=1 or docs/ops/DB-ROLES.md."
 fi
 
 echo "==> [5/9] Installing binaries to /usr/local/bin"

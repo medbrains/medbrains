@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# medbrains-wal-g-setup — OPT-IN continuous WAL archiving for the attach tier
+# (native Postgres on the host). Not run by install.sh; nothing changes until
+# an operator runs this with --apply. docs/ops/BACKUP-RESTORE.md, "WAL archiving".
+#
+#   sudo WALG_S3_PREFIX=s3://<bucket>/wal-g WALG_S3_SSE_KMS_ID=<key-arn> \
+#        bash medbrains-wal-g-setup            # dry run: prints the plan
+#   ... bash medbrains-wal-g-setup --apply     # installs, configures, reloads
+#
+# Both values come from `terraform output prod_ops` in envs/medbrains-in,
+# applied with company_wal_archiving = true (the IAM grant for wal-g/).
+#
+# What --apply does: installs a pinned, checksum-verified wal-g; writes
+# /etc/medbrains/walg.yaml; sets archive_mode/archive_command/archive_timeout
+# via ALTER SYSTEM; installs the daily base-backup timer; sets WAL_ARCHIVING=1
+# so medbrains-host-check watches the archiver. It does NOT restart Postgres:
+# archive_mode only takes effect on restart, which is the operator's call.
+
+set -euo pipefail
+
+APPLY=0
+[[ "${1:-}" == "--apply" ]] && APPLY=1
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# Pinned: v3.0.9, Postgres build for Ubuntu 24.04. Digests from the GitHub
+# release API (2026-10-12). Bump version and both digests together.
+WALG_VERSION="v3.0.9"
+declare -A WALG_SHA256=(
+    [aarch64]=1edd72c3387bfc3a1c19acad9daa36709dbb7cff0642f7044e175d5f8b555d64
+    [amd64]=8015836f246a978f27b31a2462eac7765312558ae5b11ac033322b555abf9e22
+)
+CONF=/etc/medbrains/walg.yaml
+BIN=/usr/local/bin/wal-g
+ARCHIVE_TIMEOUT=300 # seconds; forces a segment out at least every 5 min under load
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+[[ $EUID -eq 0 ]] || die "run as root"
+: "${WALG_S3_PREFIX:?set WALG_S3_PREFIX (terraform output prod_ops)}"
+: "${WALG_S3_SSE_KMS_ID:?set WALG_S3_SSE_KMS_ID (terraform output prod_ops)}"
+[[ "$WALG_S3_PREFIX" == s3://*/wal-g* ]] || die "WALG_S3_PREFIX must be s3://<bucket>/wal-g…"
+
+# shellcheck disable=SC1091
+. /etc/os-release
+[[ "${VERSION_ID:-}" == "24.04" ]] || die "pinned wal-g build is for Ubuntu 24.04, this is ${PRETTY_NAME:-unknown}"
+case "$(uname -m)" in
+    aarch64) ARCH=aarch64 ;;
+    x86_64) ARCH=amd64 ;;
+    *) die "unsupported arch $(uname -m)" ;;
+esac
+command -v psql >/dev/null || die "psql not found — this is for the native-Postgres attach tier"
+id postgres >/dev/null 2>&1 || die "no postgres user — this is for the native-Postgres attach tier"
+pg() { runuser -u postgres -- psql -X -q -v ON_ERROR_STOP=1 -Atc "$1"; }
+pg_major="$(pg 'SHOW server_version_num' | cut -c1-2)"
+[[ "$pg_major" -ge 13 ]] || die "Postgres $pg_major too old for this setup"
+
+PREFIX="${WALG_S3_PREFIX%/}/$(hostname)"
+ARCHIVE_CMD="$BIN --config $CONF wal-push %p"
+
+echo "plan:"
+echo "  install wal-g $WALG_VERSION ($ARCH, sha256 ${WALG_SHA256[$ARCH]:0:12}…) → $BIN"
+echo "  write $CONF (root:postgres 0640) → $PREFIX, SSE-KMS"
+echo "  ALTER SYSTEM archive_mode=on, archive_command='$ARCHIVE_CMD', archive_timeout=$ARCHIVE_TIMEOUT"
+echo "  install + enable medbrains-wal-g-backup.timer (daily base backup, delta chain ≤ 6)"
+echo "  set WAL_ARCHIVING=1 in /etc/medbrains/env (host-check watches pg_stat_archiver)"
+[[ $APPLY -eq 1 ]] || { echo "dry run — re-run with --apply"; exit 0; }
+
+tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+curl -fsSL "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${ARCH}" -o "$tmp"
+echo "${WALG_SHA256[$ARCH]}  $tmp" | sha256sum -c - >/dev/null || die "wal-g checksum mismatch — not installing"
+install -m 0755 "$tmp" "$BIN"
+
+# No secrets here: S3 access is the instance role's.
+install -d -m 0755 /etc/medbrains
+umask 027
+cat > "$CONF" <<YAML
+WALG_S3_PREFIX: "$PREFIX"
+AWS_REGION: "ap-south-1"
+WALG_S3_SSE: "aws:kms"
+WALG_S3_SSE_KMS_ID: "$WALG_S3_SSE_KMS_ID"
+WALG_COMPRESSION_METHOD: "brotli"
+WALG_DELTA_MAX_STEPS: "6"
+WALG_PREVENT_WAL_OVERWRITE: "true"
+WALG_UPLOAD_CONCURRENCY: "4"
+PGHOST: "/var/run/postgresql"
+YAML
+chown root:postgres "$CONF"; chmod 0640 "$CONF"
+
+# Prove the role can reach the prefix before Postgres depends on it: an
+# archive_command that fails makes WAL pile up in pg_wal until the disk fills.
+runuser -u postgres -- "$BIN" --config "$CONF" st ls >/dev/null \
+    || die "wal-g cannot list $PREFIX — check the instance role (company_wal_archiving = true?)"
+
+pg "ALTER SYSTEM SET archive_mode = 'on'"
+pg "ALTER SYSTEM SET archive_command = '$ARCHIVE_CMD'"
+pg "ALTER SYSTEM SET archive_timeout = '$ARCHIVE_TIMEOUT'"
+pg "SELECT pg_reload_conf()" >/dev/null
+
+install -m 0644 "$HERE/medbrains-wal-g-backup.service" "$HERE/medbrains-wal-g-backup.timer" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now medbrains-wal-g-backup.timer
+
+if grep -q '^WAL_ARCHIVING=' /etc/medbrains/env 2>/dev/null; then
+    sed -i 's|^WAL_ARCHIVING=.*|WAL_ARCHIVING=1|' /etc/medbrains/env
+else
+    echo 'WAL_ARCHIVING=1' >> /etc/medbrains/env
+fi
+
+if [[ "$(pg "SELECT pending_restart FROM pg_settings WHERE name = 'archive_mode'")" == "t" ]]; then
+    echo "==> archive_mode needs a Postgres restart. At a quiet moment:"
+    echo "      sudo systemctl restart postgresql && sudo systemctl start medbrains-wal-g-backup.service"
+    echo "    WAL is NOT archived until then."
+else
+    systemctl start medbrains-wal-g-backup.service
+fi
+echo "==> done. Check: sudo -u postgres $BIN --config $CONF backup-list"

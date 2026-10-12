@@ -212,7 +212,7 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   schema-and-tenancy:
-    name: "Schema + tenancy (TODO: 51 tables without an RLS policy)"
+    name: "Schema + tenancy"
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -221,11 +221,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      # The one to fix first. 51 tenant-bearing tables have RLS *enabled* with
-      # no policy and no FORCE, so the app — which connects as the table owner
-      # — bypasses row-level security on all of them. Not proof of a leak,
-      # because most queries filter by tenant_id themselves; it is the absence
-      # of the backstop that exists for the queries that forget.
+      # Every RLS-enabled table must carry a policy (0 gaps as of 2026-10-12;
+      # the app runs as medbrains_app, NOBYPASSRLS, migration 0981).
       - name: RLS coverage
         run: python3 scripts/check_rls.py
 

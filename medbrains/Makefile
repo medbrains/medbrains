@@ -1,4 +1,4 @@
-.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https dev-pf-setup dev-pf-remove \
        build build-backend build-frontend \
@@ -219,6 +219,11 @@ db-reset: ## Wipe database and restart fresh
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@echo "Database reset. Run 'make dev-backend' to re-run migrations + seed."
+
+dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password from .env.example
+	@bash -c '. deploy/standalone/db-roles.sh && db_roles_sql medbrains_dev medbrains_dev' \
+		| docker compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U medbrains -d medbrains
+	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
 
 db-shell: ## Open psql shell
 	docker compose exec postgres psql -U medbrains -d medbrains

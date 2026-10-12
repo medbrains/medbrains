@@ -21,8 +21,14 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let database_url =
-        std::env::var("DATABASE_URL").map_err(|_| anyhow::anyhow!("DATABASE_URL is required"))?;
+    // Sweeps every tenant, so it needs the role that crosses tenants. On the
+    // request role row level security hides every row and the sweep reports
+    // nothing to do. DATABASE_URL remains for single-role installs.
+    let database_url = std::env::var("WORKER_DATABASE_URL")
+        .ok()
+        .filter(|url| !url.trim().is_empty())
+        .or_else(|| std::env::var("DATABASE_URL").ok())
+        .ok_or_else(|| anyhow::anyhow!("WORKER_DATABASE_URL or DATABASE_URL is required"))?;
     let pool = PgPoolOptions::new()
         .max_connections(4)
         .connect(&database_url)

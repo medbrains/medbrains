@@ -35,6 +35,12 @@ variable "resource_path" {
   default     = "/api/health"
 }
 
+variable "search_string" {
+  description = "Body text the response must contain (first 5,120 bytes). Empty = status code only."
+  type        = string
+  default     = ""
+}
+
 variable "alarm_email" {
   description = "Email for down notifications. Empty = topic without subscription."
   type        = string
@@ -50,8 +56,11 @@ resource "aws_route53_health_check" "api" {
     create_before_destroy = true
   }
 
-  fqdn              = var.domain
-  type              = "HTTPS"
+  fqdn = var.domain
+  # /api/health answers 200 with "status":"degraded" when Postgres is gone,
+  # so a status-code-only check stays green through a database outage.
+  type              = var.search_string == "" ? "HTTPS" : "HTTPS_STR_MATCH"
+  search_string     = var.search_string == "" ? null : var.search_string
   port              = 443
   resource_path     = var.resource_path
   request_interval  = 30
@@ -87,7 +96,7 @@ resource "aws_sns_topic_subscription" "uptime_email" {
 resource "aws_cloudwatch_metric_alarm" "endpoint_down" {
   provider            = aws.us_east_1
   alarm_name          = "${var.name}-endpoint-down"
-  alarm_description   = "HTTPS /api/health failing from Route53 health checkers"
+  alarm_description   = "HTTPS ${var.resource_path} failing from Route53 health checkers"
   namespace           = "AWS/Route53"
   metric_name         = "HealthCheckStatus"
   statistic           = "Minimum"
