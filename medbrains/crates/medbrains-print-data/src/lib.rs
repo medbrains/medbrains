@@ -9,6 +9,7 @@ pub mod bme;
 pub mod clinical;
 pub mod consent;
 pub mod general;
+pub mod gst_invoice;
 pub mod hr;
 pub mod medicolegal;
 pub mod mrd;

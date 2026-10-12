@@ -38,6 +38,10 @@ data class MatchCandidate(val id: String, val uhid: String, val first_name: Stri
 
 
 @Serializable data class DepartmentRow(val id: String, val code: String, val name: String)
+/** A campaign the desk can say a patient came through. */
+@Serializable
+data class CampaignOption(val id: String, val name: String, val channel: String? = null)
+
 /** A camp a registration can name. */
 @Serializable
 data class CampSummary(val id: String, val name: String, val organizing_department_id: String? = null, val venue_name: String? = null, val status: String = "planned") {
@@ -97,6 +101,7 @@ class ReceptionApi(private val client: ApiClient) {
     suspend fun departments(): List<DepartmentRow> = client.get("/api/setup/departments")
     suspend fun doctors(): List<DoctorRow> = client.get("/api/setup/doctors")
     suspend fun camps(): List<CampSummary> = client.get("/api/camp/camps")
+    suspend fun campaigns(): List<CampaignOption> = client.get("/api/marketing/campaigns/lookup")
     suspend fun linkToCamp(body: CampRegistrationLink): com.medbrains.staff.camp.CampRegistered = client.post(com.medbrains.staff.camp.CampEndpoint.REGISTRATIONS, body)
     suspend fun lastVisit(patientId: String): LastVisit? = client.get("/api/opd/patients/$patientId/last-visit")
     suspend fun startVisit(body: StartVisitBody): VisitStarted = client.post("/api/opd/encounters", body)

@@ -707,7 +707,15 @@ pub async fn get_wristband_print_data(
 
     tx.commit().await?;
 
+    // The band carries the UHID itself: the bedside medication check compares
+    // the scanned code to it (BCMA), so any other payload would be refused.
+    let barcode_svg = medbrains_print::codes::code128_svg(&row.uhid, 40)
+        .map_err(|e| AppError::Internal(format!("wristband barcode: {e}")))?;
+    let qr_svg = medbrains_print::codes::qr_svg(&row.uhid)
+        .map_err(|e| AppError::Internal(format!("wristband qr: {e}")))?;
     Ok(Json(WristbandPrintData {
+        barcode_svg,
+        qr_svg,
         document_number,
         is_reprint,
         patient_name: row.patient_name,
@@ -1047,6 +1055,7 @@ struct VisitorPassRow {
     visitor_phone: String,
     visitor_id_type: Option<String>,
     visitor_id_number: Option<String>,
+    photo_url: Option<String>,
     patient_name: String,
     patient_uhid: String,
     ward_name: Option<String>,
@@ -1058,55 +1067,45 @@ struct VisitorPassRow {
     issued_by_name: Option<String>,
 }
 
+/// A visitor pass as printed: who it is for, whom they visit, until when —
+/// and a QR of the pass number, which the gate scans to check it now
+/// (`/api/front-office/passes/scan`).
 pub async fn get_visitor_pass_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorPassPrintData>, AppError> {
     require_permission(&claims, permissions::front_office::passes::LIST)?;
-    // Visitor passes name a visitor, not a patient; no patient column exists.
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
     let row = sqlx::query_as::<_, VisitorPassRow>(
-        "SELECT \
-           vp.pass_number, \
-           vp.visitor_name, \
-           vp.visitor_phone, \
-           vp.visitor_id_type, \
-           vp.visitor_id_number, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid AS patient_uhid, \
-           w.name AS ward_name, \
-           l.name AS bed_number, \
-           vp.relation, \
-           vp.valid_from, \
-           vp.valid_until, \
-           vp.created_at, \
-           u.full_name AS issued_by_name \
-         FROM visitor_passes vp \
-         JOIN patients p ON p.id = vp.patient_id AND p.tenant_id = vp.tenant_id \
-         LEFT JOIN admissions a ON a.patient_id = p.id \
-                                AND a.tenant_id = vp.tenant_id \
-                                AND a.discharged_at IS NULL \
-         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = vp.tenant_id \
-         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = vp.tenant_id \
-         LEFT JOIN users u ON u.id = vp.issued_by \
-         WHERE vp.id = $1 AND vp.tenant_id = $2",
+        "SELECT vp.pass_number, r.visitor_name, COALESCE(r.phone, '') AS visitor_phone, \
+                r.id_type::text AS visitor_id_type, r.id_number AS visitor_id_number, r.photo_url, \
+                COALESCE(p.first_name || ' ' || p.last_name, '') AS patient_name, \
+                COALESCE(p.uhid, '') AS patient_uhid, \
+                COALESCE(w.name, aw.name) AS ward_name, vp.bed_number, r.relationship AS relation, \
+                vp.valid_from, vp.valid_until, vp.created_at, u.full_name AS issued_by_name \
+           FROM visitor_passes vp \
+           JOIN visitor_registrations r ON r.id = vp.registration_id \
+           LEFT JOIN patients p ON p.id = r.patient_id \
+           LEFT JOIN wards w ON w.id = vp.ward_id \
+           LEFT JOIN wards aw ON aw.id = r.ward_id \
+           LEFT JOIN users u ON u.id = vp.issued_by \
+          WHERE vp.id = $1 AND vp.tenant_id = $2 AND vp.deleted_at IS NULL",
     )
     .bind(pass_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
-
-    // Generate QR code data (pass ID for verification)
-    let qr_data = format!("MBVISITOR:{pass_id}");
+    let qr_svg = medbrains_print::codes::qr_svg(&row.pass_number)
+        .map_err(|e| AppError::Internal(format!("pass qr: {e}")))?;
 
     Ok(Json(VisitorPassPrintData {
+        qr_code_data: row.pass_number.clone(),
+        qr_svg,
         pass_number: row.pass_number,
         visitor_name: row.visitor_name,
         visitor_phone: row.visitor_phone,
@@ -1121,8 +1120,7 @@ pub async fn get_visitor_pass_print_data(
         valid_until: row.valid_until.format("%d-%b-%Y %H:%M").to_string(),
         issued_at: row.created_at.format("%d-%b-%Y %H:%M").to_string(),
         issued_by: row.issued_by_name,
-        photo_url: None,
-        qr_code_data: qr_data,
+        photo_url: row.photo_url,
     }))
 }
 

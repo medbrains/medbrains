@@ -2603,8 +2603,8 @@ pub async fn get_invoice_print_data(
 
     // Hospital info from tenant_settings
     let hospital_gstin = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value->>'gstin' FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'billing' AND key = 'hospital_gst'",
+        "SELECT NULLIF(value #>> '{}', '') FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'gst_number' AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)

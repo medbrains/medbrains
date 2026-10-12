@@ -189,64 +189,104 @@ pub fn find_template(code: &str) -> Option<&'static SystemTemplate> {
 
 const INVOICE_GST_HTML: &str = r#"{% extends "base.html" %}
 {% block content %}
-<h2 class="brand" style="margin-bottom:2px;">TAX INVOICE</h2>
+<h2 class="brand" style="margin-bottom:2px;">{% if invoice.is_pharmacy %}PHARMACY BILL — {% endif %}TAX INVOICE</h2>
 <table style="margin-bottom:8px;"><tr>
   <td>
     <div><strong>Invoice:</strong> <span class="mono">{{ invoice.invoice_number }}</span></div>
     <div><strong>Date:</strong> {{ invoice.date }}</div>
     {% if invoice.hospital_gstin %}<div><strong>GSTIN:</strong> <span class="mono">{{ invoice.hospital_gstin }}</span></div>{% endif %}
+    {% if invoice.drug_licence %}<div><strong>Drug licence:</strong> <span class="mono">{{ invoice.drug_licence }}</span></div>{% endif %}
   </td>
   <td class="right">
     <div><strong>Patient:</strong> {{ invoice.patient_name }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ invoice.uhid }}</span></div>
+    {% if invoice.patient_phone %}<div class="muted">{{ invoice.patient_phone }}</div>{% endif %}
+    {% if invoice.patient_address %}<div class="muted">{{ invoice.patient_address }}</div>{% endif %}
   </td>
 </tr></table>
+{% if invoice.is_pharmacy and invoice.prescriber_name %}
+<div class="small" style="margin-bottom:6px;"><strong>Prescribed by:</strong> {{ invoice.prescriber_name }}{% if invoice.prescriber_registration %} · Reg. No. <span class="mono">{{ invoice.prescriber_registration }}</span>{% endif %}</div>
+{% endif %}
 <table>
   <thead><tr>
-    <th>#</th><th>Description</th><th>HSN/SAC</th>
+    <th>#</th><th>Description</th><th>HSN</th>
+    {% if invoice.is_pharmacy %}<th>Batch</th><th>Exp.</th><th class="right">MRP</th>{% endif %}
     <th class="right">Qty</th><th class="right">Rate</th>
-    <th class="right">GST %</th><th class="right">Amount</th>
+    {% if invoice.is_pharmacy %}<th class="right">Disc.</th><th class="right">CGST</th><th class="right">SGST</th>{% else %}<th class="right">GST %</th>{% endif %}
+    <th class="right">Amount</th>
   </tr></thead>
   <tbody>
   {% for item in invoice.items %}
     <tr>
       <td>{{ loop.index }}</td>
-      <td>{{ item.description }}</td>
+      <td>{{ item.description }}{% if item.schedule %} <strong>[Sch {{ item.schedule }}]</strong>{% endif %}
+        {% if item.generic_name or item.manufacturer %}<div class="muted small">{% if item.generic_name %}{{ item.generic_name }}{% endif %}{% if item.generic_name and item.manufacturer %} · {% endif %}{% if item.manufacturer %}{{ item.manufacturer }}{% endif %}</div>{% endif %}</td>
       <td class="mono">{{ item.hsn_code | default(value="9993") }}</td>
+      {% if invoice.is_pharmacy %}<td class="mono">{{ item.batch_number | default(value="—") }}</td><td class="mono">{{ item.expiry | default(value="—") }}</td><td class="right">{{ item.mrp | default(value="—") }}</td>{% endif %}
       <td class="right">{{ item.quantity }}</td>
       <td class="right">{{ item.unit_price }}</td>
-      <td class="right">{{ item.tax_percent }}</td>
+      {% if invoice.is_pharmacy %}<td class="right">{{ item.discount_amount }}</td><td class="right">{{ item.cgst_amount }}</td><td class="right">{{ item.sgst_amount }}</td>{% else %}<td class="right">{{ item.tax_percent }}</td>{% endif %}
       <td class="right">{{ item.total_price }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-<table style="margin-top:8px;"><tr><td></td><td style="width:38%;">
+<table style="margin-top:8px;"><tr>
+  <td style="vertical-align:top;">
+    {% if invoice.upi_qr_svg %}<div style="display:inline-block;text-align:center;margin-right:12px;"><div style="width:90px;">{{ invoice.upi_qr_svg | safe }}</div><div class="small">Scan to pay ₹{{ invoice.balance_due }} by UPI</div></div>{% endif %}
+    {% if invoice.verify_qr_svg %}<div style="display:inline-block;text-align:center;"><div style="width:70px;">{{ invoice.verify_qr_svg | safe }}</div><div class="small muted">Scan to verify this bill</div></div>{% endif %}
+  </td>
+  <td style="width:40%;">
   <table>
+    {% if invoice.mrp_total %}<tr><td>MRP total</td><td class="right">{{ invoice.mrp_total }}</td></tr>{% endif %}
     <tr><td>Subtotal</td><td class="right">{{ invoice.subtotal }}</td></tr>
-    <tr><td>GST</td><td class="right">{{ invoice.tax_amount }}</td></tr>
+    {% if invoice.is_pharmacy %}<tr><td>CGST</td><td class="right">{{ invoice.cgst_total }}</td></tr><tr><td>SGST</td><td class="right">{{ invoice.sgst_total }}</td></tr>
+    {% else %}<tr><td>GST</td><td class="right">{{ invoice.tax_amount }}</td></tr>{% endif %}
     <tr><td><strong>Total</strong></td><td class="right"><strong>{{ invoice.total_amount }}</strong></td></tr>
+    <tr><td>Paid</td><td class="right">{{ invoice.paid_amount }}</td></tr>
+    <tr><td><strong>Balance due</strong></td><td class="right"><strong>{{ invoice.balance_due }}</strong></td></tr>
+    {% if invoice.savings %}<tr><td colspan="2" class="right"><strong>You saved ₹{{ invoice.savings }}</strong> on MRP</td></tr>{% endif %}
   </table>
-</td></tr></table>
+  </td>
+</tr></table>
+{% if invoice.is_pharmacy %}
+<div class="small" style="margin-top:8px;">
+  {% if invoice.rx_valid_until %}<div>Prescription valid until {{ invoice.rx_valid_until }}{% if invoice.refills_left is number %} · Refills left: {{ invoice.refills_left }}{% endif %}</div>{% endif %}
+  {% for s in invoice.schedules %}
+    {% if s == "H" %}<div><strong>Schedule H:</strong> to be sold by retail on the prescription of a Registered Medical Practitioner only.</div>{% endif %}
+    {% if s == "H1" %}<div><strong>Schedule H1:</strong> it is dangerous to take this preparation except in accordance with medical advice. Not to be sold by retail without the prescription of a Registered Medical Practitioner. Prescriber and patient details are recorded.</div>{% endif %}
+    {% if s == "X" %}<div><strong>Schedule X:</strong> sold only against a prescription retained by the pharmacy; prescriber and patient details are recorded.</div>{% endif %}
+  {% endfor %}
+  <div>Check batch and expiry before use. Keep medicines out of the reach of children.</div>
+  {% if invoice.pharmacist_name %}<div style="margin-top:12px;">Dispensed by {{ invoice.pharmacist_name }}{% if invoice.pharmacist_registration %} · Pharmacist Reg. No. <span class="mono">{{ invoice.pharmacist_registration }}</span>{% endif %}</div>{% endif %}
+</div>
+{% endif %}
 <p class="muted small" style="margin-top:10px;">
-  Healthcare services are exempt under GST Notification 12/2017 where applicable.
-  This is a system-generated invoice.
+  {% if not invoice.is_pharmacy %}Healthcare services are exempt under GST Notification 12/2017 where applicable. {% endif %}This is a system-generated invoice.
 </p>
 {% endblock content %}"#;
 
 const INVOICE_GST_SAMPLE: &str = r#"{
   "invoice": {
-    "invoice_number": "INV-000123", "date": "2026-06-12",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
-    "hospital_gstin": "33AAAAA0000A1Z5",
-    "subtotal": "1,500.00", "tax_amount": "0.00", "total_amount": "1,500.00",
+    "invoice_number": "INV-000124", "date": "12-Oct-2026",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "patient_phone": "98450 12345",
+    "patient_address": "12 Main Rd, Karaikudi, 630001",
+    "hospital_gstin": "33AAAAA0000A1Z5", "drug_licence": "TN-20B-1234 / TN-21B-1235",
+    "is_pharmacy": true,
+    "prescriber_name": "Dr. A. Kapoor", "prescriber_registration": "TNMC 45678",
+    "pharmacist_name": "S. Priya", "pharmacist_registration": "TNPC 9911",
+    "subtotal": "367.00", "tax_amount": "44.04", "cgst_total": "22.02", "sgst_total": "22.02",
+    "total_amount": "411.04", "paid_amount": "0.00", "balance_due": "411.04",
+    "mrp_total": "480.00", "savings": "68.96",
+    "rx_valid_until": "11-Apr-2027", "refills_left": 2, "schedules": ["H"],
+    "upi_qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>",
+    "verify_qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>",
     "items": [
-      {"description": "OPD Consultation — General Medicine", "hsn_code": "9993", "quantity": 1, "unit_price": "500.00", "tax_percent": "0", "total_price": "500.00"},
-      {"description": "Complete Blood Count", "hsn_code": "9993", "quantity": 1, "unit_price": "350.00", "tax_percent": "0", "total_price": "350.00"},
-      {"description": "Room charges (1 day)", "hsn_code": "9993", "quantity": 1, "unit_price": "650.00", "tax_percent": "0", "total_price": "650.00"}
+      {"description": "Telmisartan 40 mg tablet", "generic_name": "Telmisartan", "schedule": "H", "manufacturer": "Glenmark", "hsn_code": "3004", "batch_number": "TL2291", "expiry": "08/27", "mrp": "240.00", "quantity": 30, "unit_price": "6.80", "discount_amount": "36.00", "cgst_amount": "12.24", "sgst_amount": "12.24", "tax_percent": "12", "total_price": "228.48"},
+      {"description": "Atorvastatin 10 mg tablet", "generic_name": "Atorvastatin", "schedule": "H", "manufacturer": "Cipla", "hsn_code": "3004", "batch_number": "AT0915", "expiry": "03/27", "mrp": "240.00", "quantity": 30, "unit_price": "5.43", "discount_amount": "36.00", "cgst_amount": "9.78", "sgst_amount": "9.78", "tax_percent": "12", "total_price": "182.56"}
     ]
   },
-  "document_number": "BIL-GST-20260612-0001"
+  "document_number": "BIL-GST-20261012-0001"
 }"#;
 
 const RECEIPT_HTML: &str = r#"{% extends "base.html" %}

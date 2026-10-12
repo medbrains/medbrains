@@ -11,6 +11,7 @@ pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_refills;
+pub mod bill_verify;
 pub mod rx_verify;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -750,6 +751,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/public/prescriptions/verify/{token}",
             get(rx_verify::verify_prescription),
         )
+        // The QR on a printed bill: insurers and patients check it is genuine.
+        .route("/api/public/bills/verify", get(bill_verify::verify_bill))
         // The hospital's own "contact us" form. Off unless the tenant turns it
         // on, and 404 either way so this cannot enumerate who runs MedBrains.
         .merge(medbrains_marketing::public_router());

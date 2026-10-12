@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod acquisition;
 pub mod contact_consent;
 mod registration_rules;
 
@@ -375,6 +376,8 @@ pub struct CreatePatientRequest {
     pub registration_type: Option<RegistrationType>,
     pub registration_source: Option<RegistrationSource>,
     pub financial_class: Option<FinancialClass>,
+    /// The campaign the patient came through, picked at the desk.
+    pub campaign_id: Option<Uuid>,
 
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
@@ -1549,6 +1552,18 @@ pub async fn create_patient(
     )
     .with_patient(patient.id);
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
+    if body.campaign_id.is_some() {
+        acquisition::record(
+            &mut tx,
+            claims.tenant_id,
+            patient.id,
+            body.campaign_id,
+            acquisition::CapturedVia::Registration,
+            Some(claims.sub),
+        )
+        .await?;
+    }
 
     // Auto-issue a registration token (skipped if the module is disabled).
     let patient_label = format!("{} {}", patient.first_name, patient.last_name);
@@ -5001,6 +5016,10 @@ pub async fn get_clinical_timeline(
 /// Patient master (registration, identifiers, addresses, allergies, consents, documents, masters) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route(
+            "/api/patients/{id}/acquisition",
+            get(acquisition::get_acquisition).put(acquisition::correct_acquisition),
+        )
         .route(
             "/api/patients",
             get(list_patients).post(create_patient),

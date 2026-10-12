@@ -98,6 +98,10 @@ export interface WristbandPrintData {
   is_critical: boolean;
   is_mlc: boolean;
   allergies: string[];
+  /** The UHID as a Code 128 barcode (SVG) — what bedside scanners read. */
+  barcode_svg: string;
+  /** The UHID as a QR code (SVG). */
+  qr_svg: string;
 }
 
 export interface OpdCertificatePrintData {

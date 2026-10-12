@@ -26,9 +26,9 @@ fun CampFullRegistrationScreen(nav: NavHostController, station: CampStation) {
     val client = LocalApiClient.current
     val api = remember { ReceptionApi(client) }
     val session = remember { ReceptionSession() }
-    val canListCamps = LocalIdentity.current?.can("camp.list") == true
+    val identity = LocalIdentity.current
     var loaded by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { session.load(api, canListCamps); loaded = true }
+    LaunchedEffect(Unit) { session.load(api) { identity?.can(it) == true }; loaded = true }
     // A camp the list did not return (the role cannot list camps) is still this camp: the station names it.
     val camp = session.camps.firstOrNull { it.id == station.camp_id } ?: CampSummary(station.camp_id, station.camp_name)
     if (loaded) RegisterPatientScreen(nav, api, session, camp)

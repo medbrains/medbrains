@@ -24,7 +24,7 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission};
 use medbrains_server_core::state::AppState;
 
-const STANDARD_EXPORTS: &[ReportExportFormat] = &[
+pub(crate) const STANDARD_EXPORTS: &[ReportExportFormat] = &[
     ReportExportFormat::Pdf,
     ReportExportFormat::Excel,
     ReportExportFormat::Csv,
@@ -57,6 +57,9 @@ pub(crate) enum ReportDataKind {
     LabTat,
     SchedulingNoShow,
     NabhIndicators,
+    CampaignAttribution,
+    IntakeBySource,
+    CampaignByDepartment,
     NotWired,
 }
 
@@ -67,7 +70,7 @@ pub(crate) struct ReportSeed {
 }
 
 #[derive(Clone)]
-struct ReportFamilySeed {
+pub(crate) struct ReportFamilySeed {
     id: &'static str,
     title: &'static str,
     eyebrow: &'static str,
@@ -362,7 +365,7 @@ fn infer_echarts_template(chart_types: &[&str], visual_kind: &str) -> EChartsTem
 }
 
 #[allow(clippy::too_many_arguments)]
-fn report(
+pub(crate) fn report(
     id: &'static str,
     title: &'static str,
     purpose: &'static str,
@@ -408,7 +411,7 @@ fn report(
     }
 }
 
-fn family(
+pub(crate) fn family(
     id: &'static str,
     title: &'static str,
     eyebrow: &'static str,
@@ -2037,6 +2040,7 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                 ),
             ],
         ),
+        crate::acquisition::family_seed(),
     ]
 }
 
@@ -2213,6 +2217,11 @@ pub async fn data(
             let Json(rows) = nabh_indicators::get_indicators(State(state), Extension(claims)).await?;
             live_response(&report_id, "nabh.indicators", vec![rows])
         }
+        ReportDataKind::CampaignAttribution
+        | ReportDataKind::IntakeBySource
+        | ReportDataKind::CampaignByDepartment => {
+            crate::acquisition::data(&state, &claims, &report_id, report.data_kind, &range).await
+        }
         ReportDataKind::NotWired => Ok(Json(ReportDataResponse {
             report_id,
             generated_at: chrono::Utc::now(),
@@ -2230,7 +2239,7 @@ pub async fn data(
     }
 }
 
-fn live_response<T: Serialize>(
+pub(crate) fn live_response<T: Serialize>(
     report_id: &str,
     source: &str,
     rows: Vec<T>,

@@ -114,6 +114,7 @@ fun RegisterPatientScreen(
         departments = session.departments.map { CatalogueOption(it.id, it.name) },
         doctors = session.doctors.map { CatalogueOption(it.id, it.full_name) },
         camps = session.camps.map { CatalogueOption(it.id, it.name) },
+        campaigns = session.campaigns.map { CatalogueOption(it.id, it.name) },
     )
 
     /** The desk's department and consultant, kept between walk-ins — and at a camp, the camp itself, as the web's camp mode starts. */

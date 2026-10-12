@@ -34,7 +34,7 @@ export interface Opt {
 export type FieldOptions =
   | { source: "none" }
   | { source: "fixed"; options: Opt[] }
-  | { source: "departments" | "doctors" | "camps" | "drug_catalogue" | "icd11" };
+  | { source: "departments" | "doctors" | "camps" | "campaigns" | "drug_catalogue" | "icd11" };
 
 export interface Cond {
   field: string;
