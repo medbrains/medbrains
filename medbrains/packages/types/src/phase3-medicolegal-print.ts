@@ -26,7 +26,7 @@ export interface AmaFormPrintData {
   relative_relationship: string | null;
   relative_signature_obtained: boolean;
   doctor_name: string | null;
-  doctor_signature_obtained: boolean;
+  doctor_signature_obtained: boolean | null;
   discharge_date: string | null;
   discharge_time: string | null;
   medications_provided: string[];
@@ -114,6 +114,9 @@ export interface WoundEntry {
   age_of_wound: string | null;
   simple_or_grievous: string;
   healing_duration_days: number | null;
+  description: string | null;
+  probable_weapon: string | null;
+  nature: string;
 }
 
 export interface WoundCertificatePrintData {
@@ -194,6 +197,7 @@ export interface AgeEstimationPrintData {
   doctor_designation: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
+  ossification_findings: string | null;
 }
 
 export interface DeathDeclarationPrintData {
@@ -237,7 +241,7 @@ export interface PoliceVisitEntry {
   officer_name: string;
   officer_rank: string;
   purpose: string;
-  statement_recorded: boolean;
+  statement_recorded: boolean | null;
 }
 
 export interface SamplePreservedEntry {
@@ -272,6 +276,7 @@ export interface MlcDocumentationPrintData {
   prognosis: string;
   permanent_disability: string | null;
   disability_percentage: string | null;
+  examination_findings: string | null;
   police_station: string | null;
   fir_number: string | null;
   court_case_number: string | null;

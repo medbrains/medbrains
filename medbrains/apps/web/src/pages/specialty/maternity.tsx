@@ -19,6 +19,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -406,7 +407,12 @@ export function MaternityPage() {
     {
       key: "band",
       label: "ID Band",
-      render: (r) => <Text size="sm">{r.id_band_number ?? "—"}</Text>,
+      render: (r) => (
+        <Group gap="xs" wrap="nowrap">
+          <Text size="sm">{r.id_band_number ?? "—"}</Text>
+          <PrintDocumentIconMenu idKind="newborn" recordId={r.id} recordLabel="infant wristband" />
+        </Group>
+      ),
     },
     {
       key: "verify",

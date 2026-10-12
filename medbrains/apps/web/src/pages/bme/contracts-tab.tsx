@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { printColumn } from "@/components/Print/printColumn";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { bmeService } from "@/services/bme.service";
@@ -234,6 +235,7 @@ export function ContractsTab() {
           </Badge>
         ),
     },
+    printColumn<BmeContract>("contract", { label: (r) => r.contract_number }),
   ];
 
   const evalColumns: Column<BmeVendorEvaluation>[] = [

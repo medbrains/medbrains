@@ -27,6 +27,7 @@ import { IconAlertTriangle, IconDroplet, IconEye, IconPlus } from "@tabler/icons
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -160,6 +161,11 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         </Text>
         <Badge tone="danger">{donor.blood_group}</Badge>
         {donor.is_deferred && <Badge tone="warning">Deferred until {donor.deferral_until}</Badge>}
+        <PrintDocumentIconMenu
+          idKind="donor"
+          recordId={donor.id}
+          recordLabel={donor.donor_number}
+        />
       </Group>
       <Table>
         <Table.Tbody>

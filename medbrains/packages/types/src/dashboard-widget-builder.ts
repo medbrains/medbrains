@@ -588,6 +588,9 @@ export interface ImplantRegistryEntry {
   id: string;
   tenant_id: string;
   catalog_item_id: string;
+  /** Joined by the list endpoint only; null on create/update responses. */
+  catalog_item_name: string | null;
+  catalog_item_code: string | null;
   batch_stock_id: string | null;
   patient_id: string;
   serial_number: string | null;
@@ -608,6 +611,9 @@ export interface EquipmentCondemnation {
   id: string;
   tenant_id: string;
   catalog_item_id: string;
+  /** Joined by the list endpoint only; null on create/update responses. */
+  catalog_item_name: string | null;
+  catalog_item_code: string | null;
   condemnation_number: string;
   status: CondemnationStatus;
   reason: string;

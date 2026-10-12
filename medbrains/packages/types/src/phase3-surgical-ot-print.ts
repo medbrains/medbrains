@@ -65,6 +65,8 @@ export interface PreopAssessmentPrintData {
   past_surgeries: string[];
   comorbidities: string[];
   airway_assessment: string | null;
+  cardiac_assessment: string | null;
+  pulmonary_assessment: string | null;
   mallampati_score: string | null;
   cardiac_clearance: boolean;
   pulmonary_clearance: boolean;
@@ -79,6 +81,7 @@ export interface PreopAssessmentPrintData {
   assessed_at: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
+  clearance_status: string | null;
 }
 
 export interface SurgicalSignIn {
@@ -239,6 +242,7 @@ export interface OperationNotesPrintData {
   dictated_at: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
+  implants: string[];
 }
 
 export interface PostopFluidOrder {
@@ -276,10 +280,12 @@ export interface PostopOrdersPrintData {
   catheter_care: string | null;
   vte_prophylaxis: string | null;
   pain_management: string | null;
+  pain_assessment: string | null;
   labs_to_order: string[];
   imaging_to_order: string[];
   notify_conditions: string[];
   special_instructions: string | null;
+  orders: string[];
   ordered_by: string | null;
   ordered_at: string | null;
   hospital_name: string;
@@ -316,7 +322,7 @@ export interface TransfusionMonitoringPrintData {
   donation_date: string | null;
   expiry_date: string | null;
   volume_ml: number | null;
-  crossmatch_compatible: boolean;
+  crossmatch_compatible: boolean | null;
   consent_obtained: boolean;
   indication: string | null;
   ordered_by: string | null;

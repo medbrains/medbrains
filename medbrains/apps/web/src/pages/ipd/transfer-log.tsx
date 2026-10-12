@@ -8,6 +8,7 @@ import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
@@ -123,6 +124,7 @@ export function TransferLogTab({ admissionId }: { admissionId: string }) {
               <Table.Th>Transferred At</Table.Th>
               <Table.Th>Reason</Table.Th>
               <Table.Th>Clinical Summary</Table.Th>
+              <Table.Th>Print</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -141,6 +143,13 @@ export function TransferLogTab({ admissionId }: { admissionId: string }) {
                   <Text size="sm" lineClamp={2}>
                     {t.clinical_summary ?? "—"}
                   </Text>
+                </Table.Td>
+                <Table.Td>
+                  <PrintDocumentIconMenu
+                    idKind="transfer_log"
+                    recordId={t.id}
+                    recordLabel="transfer summary"
+                  />
                 </Table.Td>
               </Table.Tr>
             ))}

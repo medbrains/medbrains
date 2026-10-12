@@ -24,6 +24,7 @@ export interface HistopathReportPrintData {
   gross_description: string | null;
   microscopic_description: string | null;
   diagnosis: string;
+  icd_code: string | null;
   icd_o_morphology: string | null;
   icd_o_topography: string | null;
   staging: string | null;

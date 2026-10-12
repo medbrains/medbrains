@@ -4,6 +4,7 @@ import { Card, Grid, Stack, Text, Title } from "@mantine/core";
 import type { LicenseDashboardItem } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable, PageHeader } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
 import { Badge } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
@@ -155,6 +156,17 @@ export function LicenseDashboardTab() {
             label: "Issued by",
             render: (r: LicenseDashboardItem) => (
               <Text size="sm">{r.issuing_authority ?? "---"}</Text>
+            ),
+          },
+          {
+            key: "print",
+            label: "",
+            render: (r: LicenseDashboardItem) => (
+              <PrintDocumentIconMenu
+                idKind="license"
+                recordId={r.id}
+                recordLabel={r.license_number ?? r.license_type}
+              />
             ),
           },
         ]}

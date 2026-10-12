@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { BREAKDOWN_PRIORITIES, fmtDate, priorityBadge } from "./shared";
@@ -154,6 +155,13 @@ export function BreakdownsTab() {
           </Tooltip>
         );
       },
+    },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu idKind="breakdown" recordId={r.id} recordLabel={r.description} />
+      ),
     },
   ];
 

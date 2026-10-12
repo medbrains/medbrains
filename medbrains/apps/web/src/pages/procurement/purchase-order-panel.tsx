@@ -28,6 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { procurementService } from "@/services/procurement.service";
@@ -569,6 +570,7 @@ export function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         </Group>
       ),
     },
+    printColumn<PurchaseOrder>("po", { label: (row) => row.po_number }),
   ];
 
   return (

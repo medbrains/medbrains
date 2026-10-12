@@ -986,8 +986,15 @@ pub async fn list_transfusions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let records = sqlx::query_as::<_, TransfusionRecord>(
-        "SELECT * FROM transfusion_records WHERE tenant_id = $1 \
-         ORDER BY created_at DESC LIMIT 5000",
+        // The bag number is what staff read off the unit; a component UUID
+        // names nothing at the bedside.
+        "SELECT tr.*, bc.bag_number::text AS bag_number, \
+                bc.component_type::text AS component_type \
+           FROM transfusion_records tr \
+           LEFT JOIN blood_components bc \
+             ON bc.id = tr.component_id AND bc.tenant_id = tr.tenant_id \
+          WHERE tr.tenant_id = $1 AND tr.deleted_at IS NULL \
+          ORDER BY tr.created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

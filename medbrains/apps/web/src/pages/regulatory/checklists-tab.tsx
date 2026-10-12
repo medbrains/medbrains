@@ -18,12 +18,13 @@ import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { ComplianceChecklist, CreateChecklistRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconDownload, IconPlus } from "@tabler/icons-react";
+import { IconDownload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
+import { ChecklistsHeaderActions } from "./checklists-header-actions";
 import { checklistStatusColors } from "./shared";
 
 function ChecklistListView({
@@ -368,13 +369,7 @@ export function ChecklistsTab() {
       <PageHeader
         title="Compliance Checklists"
         subtitle="Department-wise regulatory compliance assessments"
-        actions={
-          canCreate ? (
-            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-              New Checklist
-            </Button>
-          ) : undefined
-        }
+        actions={<ChecklistsHeaderActions canCreate={canCreate} onCreate={open} />}
       />
 
       <SegmentedControl

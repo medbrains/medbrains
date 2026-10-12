@@ -954,6 +954,9 @@ export interface TransfusionRecord {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  /** Joined on the list read only; null when the unit is missing. */
+  bag_number?: string | null;
+  component_type?: string | null;
 }
 
 export interface DonorListResponse {
@@ -1045,6 +1048,45 @@ export interface RecordReactionRequest {
   reaction_type: string;
   reaction_severity: TransfusionReactionSeverity;
   reaction_details?: string;
+}
+
+/** A unit hanging at the bed (`transfusions` table), not the bank's issue register. */
+export interface BedsideTransfusion {
+  id: string;
+  admission_id: string | null;
+  transfusion_date: string | null;
+  product_type: string | null;
+  bag_number: string | null;
+  blood_group: string | null;
+  rh_factor: string | null;
+  volume_ml: number | null;
+  expiry_date: string | null;
+  crossmatch_compatible: boolean | null;
+  patient_verified_by_id: string | null;
+  product_verified_by_id: string | null;
+  consent_on_file: boolean | null;
+  transfusion_start_time: string | null;
+  transfusion_end_time: string | null;
+  total_volume_infused_ml: number | null;
+  adverse_reaction: boolean;
+  reaction_type: string | null;
+}
+
+export interface StartBedsideTransfusionRequest {
+  product_type: string;
+  bag_number: string;
+  blood_group: string;
+  rh_factor?: string;
+  volume_ml?: number;
+  expiry_date: string;
+  crossmatch_compatible: boolean;
+  consent_on_file: boolean;
+  /** The second nurse who checked the patient's identity against the bag. */
+  product_verified_by_id: string;
+}
+
+export interface CompleteBedsideTransfusionRequest {
+  total_volume_infused_ml?: number;
 }
 
 export type TransfusionObservationPhase = "baseline" | "fifteen_min" | "periodic" | "completion";

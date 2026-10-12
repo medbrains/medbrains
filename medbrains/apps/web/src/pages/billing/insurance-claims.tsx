@@ -31,6 +31,7 @@ import { DataTable } from "@/components";
 import { NhcxPayerDirectory } from "@/components/Nhcx/NhcxPayerDirectory";
 import { SubmitToNhcxModal } from "@/components/Nhcx/SubmitToNhcxModal";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Button, IconButton } from "@/components/ui";
 import {
@@ -315,16 +316,24 @@ export function InsuranceClaimsTab({
     {
       key: "actions",
       label: "",
-      render: (row: InsuranceClaim) =>
-        canCreate && row.status === "initiated" ? (
-          <Button
-            tone="secondary"
-            size="compact-xs"
-            onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
-          >
-            Request Pre-Auth
-          </Button>
-        ) : null,
+      render: (row: InsuranceClaim) => (
+        <Group gap={4}>
+          <PrintDocumentIconMenu
+            idKind="claim"
+            recordId={row.id}
+            recordLabel={row.claim_number ?? row.insurance_provider}
+          />
+          {canCreate && row.status === "initiated" && (
+            <Button
+              tone="secondary"
+              size="compact-xs"
+              onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
+            >
+              Request Pre-Auth
+            </Button>
+          )}
+        </Group>
+      ),
     },
   ];
 

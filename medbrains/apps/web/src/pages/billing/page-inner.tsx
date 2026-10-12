@@ -43,6 +43,7 @@ import { DataTable, OperationalSignal, PageHeader } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import {
@@ -318,6 +319,11 @@ export function BillingPageInner() {
               <IconEye size={16} />
             </IconButton>
           </Tooltip>
+          <PrintDocumentIconMenu
+            idKind="invoice"
+            recordId={row.id}
+            recordLabel={row.invoice_number}
+          />
           {canCreate && (
             <Tooltip label="Clone">
               <IconButton

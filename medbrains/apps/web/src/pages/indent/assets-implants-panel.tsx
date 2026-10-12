@@ -27,6 +27,7 @@ import { useState } from "react";
 import { DataTable, DoctorSearchSelect } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, Button, IconButton, toast } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
@@ -48,7 +49,9 @@ function ImplantRegistryView() {
       label: "Catalog Item",
       render: (row: ImplantRegistryEntry) => (
         <Text size="sm" truncate>
-          {row.catalog_item_id}
+          {row.catalog_item_name
+            ? `${row.catalog_item_name} (${row.catalog_item_code})`
+            : "Unknown item"}
         </Text>
       ),
     },
@@ -254,7 +257,9 @@ function CondemnationsView() {
       label: "Catalog Item",
       render: (row: EquipmentCondemnation) => (
         <Text size="sm" truncate>
-          {row.catalog_item_id}
+          {row.catalog_item_name
+            ? `${row.catalog_item_name} (${row.catalog_item_code})`
+            : "Unknown item"}
         </Text>
       ),
     },
@@ -307,6 +312,7 @@ function CondemnationsView() {
           </IconButton>
         ) : null,
     },
+    printColumn<EquipmentCondemnation>("condemnation", { label: (row) => row.condemnation_number }),
   ];
 
   return (

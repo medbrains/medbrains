@@ -36,6 +36,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
@@ -210,15 +211,20 @@ export function AdvancesTab() {
       key: "actions",
       label: "",
       render: (row: PatientAdvance) => {
-        if (Number(row.balance) <= 0) return null;
+        const hasBalance = Number(row.balance) > 0;
         return (
           <Group gap={4}>
-            {canAdjust && (
+            <PrintDocumentIconMenu
+              idKind="advance"
+              recordId={row.id}
+              recordLabel={row.advance_number}
+            />
+            {hasBalance && canAdjust && (
               <Button tone="secondary" size="compact-xs" onClick={() => setAdjustId(row.id)}>
                 Adjust
               </Button>
             )}
-            {canRefund && (
+            {hasBalance && canRefund && (
               <Button tone="secondary" size="compact-xs" onClick={() => setRefundId(row.id)}>
                 Refund
               </Button>

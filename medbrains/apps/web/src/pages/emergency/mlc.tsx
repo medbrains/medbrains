@@ -27,6 +27,8 @@ import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Alert, Button, IconButton } from "@/components/ui";
 import {
   emergencyMlcBroughtByOptions,
@@ -377,6 +379,7 @@ export function MlcTab({
               </IconButton>
             </Tooltip>
           )}
+          <PrintDocumentIconMenu idKind="mlc_case" recordId={r.id} recordLabel={r.mlc_number} />
           {canUpdate && (
             <Tooltip label="Update MLC case">
               <IconButton
@@ -396,8 +399,9 @@ export function MlcTab({
 
   return (
     <Stack mt="md">
-      {canCreate && (
-        <Group justify="flex-end">
+      <Group justify="flex-end">
+        <PrintRegisterButton documentKey="mlc-register-summary" period="month" />
+        {canCreate && (
           <Button
             tone="primary"
             leftSection={<IconPlus size={16} />}
@@ -408,8 +412,8 @@ export function MlcTab({
           >
             Register MLC Case
           </Button>
-        </Group>
-      )}
+        )}
+      </Group>
       {canList ? (
         <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       ) : (

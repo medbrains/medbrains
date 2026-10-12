@@ -210,7 +210,11 @@ export function MlcDocumentationPrintPreview({ data }: { data: MlcDocumentationP
                 <Text size="sm">{visit.purpose}</Text>
                 <Text size="xs" c="dimmed">
                   Rank: {visit.officer_rank} · Statement recorded:{" "}
-                  {visit.statement_recorded ? "Yes" : "No"}
+                  {visit.statement_recorded == null
+                    ? "Not recorded"
+                    : visit.statement_recorded
+                      ? "Yes"
+                      : "No"}
                 </Text>
               </Paper>
             ))}

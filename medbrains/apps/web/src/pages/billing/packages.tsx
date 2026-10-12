@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Button, IconButton } from "@/components/ui";
 import {
   billingIntegerOrFallback,
@@ -151,23 +152,31 @@ export function PackagesTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "actions",
       label: "",
-      render: (row: BillingPackage) =>
-        canCreate ? (
-          <IconButton
-            tone="danger"
-            aria-label="Delete"
-            onClick={() =>
-              confirmDestructive({
-                title: "Delete package",
-                message: `Delete package "${row.name}"? This cannot be undone.`,
-                confirmLabel: "Delete package",
-                onConfirm: () => deleteMutation.mutate(row.id),
-              })
-            }
-          >
-            <IconTrash size={14} />
-          </IconButton>
-        ) : null,
+      render: (row: BillingPackage) => (
+        <Group gap={4}>
+          <PrintDocumentIconMenu
+            idKind="billing_package"
+            recordId={row.id}
+            recordLabel={row.name}
+          />
+          {canCreate && (
+            <IconButton
+              tone="danger"
+              aria-label="Delete"
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete package",
+                  message: `Delete package "${row.name}"? This cannot be undone.`,
+                  confirmLabel: "Delete package",
+                  onConfirm: () => deleteMutation.mutate(row.id),
+                })
+              }
+            >
+              <IconTrash size={14} />
+            </IconButton>
+          )}
+        </Group>
+      ),
     },
   ];
 

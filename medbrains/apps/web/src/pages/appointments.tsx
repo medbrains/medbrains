@@ -29,6 +29,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PageHeader } from "@/components/PageHeader";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, todayDateString } from "@/lib/date-utils";
@@ -325,6 +326,17 @@ export function AppointmentsPage() {
                 <Text size="sm" c={appt.reason ? undefined : "dimmed"} lineClamp={1}>
                   {appt.reason ?? "-"}
                 </Text>
+              ),
+            },
+            {
+              key: "print",
+              label: "Print",
+              render: (appt: AppointmentWithPatient) => (
+                <PrintDocumentIconMenu
+                  idKind="appointment"
+                  recordId={appt.id}
+                  recordLabel="appointment"
+                />
               ),
             },
             ...(canUpdate || canCancel

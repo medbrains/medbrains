@@ -26,6 +26,7 @@ export const IPD_WORKSPACE_TABS = [
   { value: "prescriptions", label: "Prescriptions", section: "Command" },
   { value: "io", label: "I/O Chart", section: "Command" },
   { value: "infusions", label: "Infusions", section: "Command" },
+  { value: "transfusions", label: "Transfusions", section: "Command" },
   { value: "nursing", label: "Nursing", section: "Command" },
   { value: "attenders", label: "Attenders", section: "Care Context" },
   { value: "clinical-docs", label: "Clinical Docs", section: "Care Context" },

@@ -25,6 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -140,6 +141,13 @@ export function WaterQualityTab() {
         ),
     },
     { key: "sample_date", label: "Sampled", render: (r) => <Text size="sm">{r.sample_date}</Text> },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu idKind="water_test" recordId={r.id} recordLabel={r.parameter_name} />
+      ),
+    },
   ];
 
   const schedCols: Column<FmsWaterSchedule>[] = [

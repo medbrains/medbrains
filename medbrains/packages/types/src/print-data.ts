@@ -235,19 +235,8 @@ export interface CreditNotePrintData {
   hospital_name: string | null;
 }
 
-export interface PackageAdditionalCharge {
-  description: string;
-  amount: number;
-  reason: string | null;
-}
-
-export interface PackageExclusion {
-  description: string;
-  amount: number;
-}
-
 export interface PackageBillPrintData {
-  bill_number: string;
+  bill_number: string | null;
   bill_date: string;
   patient_name: string;
   uhid: string;
@@ -259,17 +248,14 @@ export interface PackageBillPrintData {
   package_description: string | null;
   package_inclusions: string[];
   package_amount: number;
-  additional_charges: PackageAdditionalCharge[];
-  additional_total: number;
-  exclusions_used: PackageExclusion[];
-  exclusion_total: number;
-  gross_amount: number;
-  discount_amount: number;
-  tax_amount: number;
-  net_amount: number;
-  advance_paid: number;
-  insurance_amount: number;
-  balance_due: number;
+  gross_amount: number | null;
+  discount_amount: number | null;
+  tax_amount: number | null;
+  net_amount: number | null;
+  advance_paid: number | null;
+  total_paid: number | null;
+  insurance_amount: number | null;
+  balance_due: number | null;
   amount_in_words: string;
   doctor_name: string | null;
   department: string | null;
@@ -280,7 +266,7 @@ export interface PackageBillPrintData {
 }
 
 export interface InsuranceClaimPrintData {
-  claim_number: string;
+  claim_number: string | null;
   claim_date: string;
   claim_type: string;
   tpa_name: string | null;
@@ -299,7 +285,7 @@ export interface InsuranceClaimPrintData {
   admission_date: string | null;
   discharge_date: string | null;
   length_of_stay: number | null;
-  diagnosis: string;
+  diagnosis: string | null;
   icd_codes: string[];
   procedure_performed: string | null;
   procedure_codes: string[];
@@ -315,18 +301,18 @@ export interface InsuranceClaimPrintData {
   other_charges: number;
   total_bill_amount: number;
   pre_auth_amount: number | null;
-  claim_amount: number;
-  patient_payable: number;
+  claim_amount: number | null;
+  patient_payable: number | null;
   // Documents
   pre_auth_number: string | null;
   pre_auth_date: string | null;
-  discharge_summary_attached: boolean;
-  investigation_reports_attached: boolean;
-  bill_attached: boolean;
+  discharge_summary_attached: boolean | null;
+  investigation_reports_attached: boolean | null;
+  bill_attached: boolean | null;
   // Declaration
-  declaration_date: string;
-  patient_signature_obtained: boolean;
-  hospital_stamp: boolean;
+  declaration_date: string | null;
+  patient_signature_obtained: boolean | null;
+  hospital_stamp: boolean | null;
   hospital_name: string;
   hospital_address: string | null;
   hospital_empanelment_number: string | null;

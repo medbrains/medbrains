@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -208,6 +209,17 @@ export function WorkOrdersTab() {
             </IconButton>
           </Tooltip>
         ) : null,
+    },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu
+          idKind="fms_work_order"
+          recordId={r.id}
+          recordLabel={r.work_order_number}
+        />
+      ),
     },
   ];
 

@@ -1,8 +1,9 @@
 // Lab QcComplianceTab — split from lab.tsx (pure move).
 
-import { Stack, Tabs } from "@mantine/core";
+import { Group, Stack, Tabs } from "@mantine/core";
 import { IconClock } from "@tabler/icons-react";
 import { useState } from "react";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { CalibrationsSection } from "./calibrations";
 import { EqasSection } from "./eqas";
 import { NablDocumentsSection } from "./nabl-documents";
@@ -16,6 +17,9 @@ export function QcComplianceTab() {
   const [subTab, setSubTab] = useState("reagent-lots");
   return (
     <Stack>
+      <Group justify="flex-end">
+        <PrintRegisterButton documentKey="nabl-quality-report" period="month" />
+      </Group>
       <Tabs value={subTab} onChange={(v) => setSubTab(v ?? "reagent-lots")}>
         <Tabs.List mb="sm">
           <Tabs.Tab value="reagent-lots">Reagent Lots</Tabs.Tab>

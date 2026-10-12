@@ -61,7 +61,7 @@ export interface ResearchConsentPrintData {
   iec_approval_number: string;
   iec_approval_date: string;
   sponsor_name: string | null;
-  study_purpose: string;
+  study_purpose: string | null;
   procedures_involved: string[];
   risks_benefits: string;
   compensation: string | null;

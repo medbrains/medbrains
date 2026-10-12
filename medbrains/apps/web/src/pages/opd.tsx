@@ -30,6 +30,7 @@ import { OpdPageInner } from "./opd/page-inner";
 
 export { EncounterDetail } from "./opd/encounter-detail";
 
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import {
   protectedOpdQueueIdentity,
   queueStatusIcon,
@@ -176,14 +177,21 @@ export function OpdEncounterPage() {
               {encounter.status.replace(/_/g, " ")}
             </Badge>
           </Group>
-          <Button
-            tone="ghost"
-            size="xs"
-            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
-            onClick={() => navigate(backTo)}
-          >
-            {backLabel}
-          </Button>
+          <Group gap="xs">
+            <PrintDocumentIconMenu
+              idKind="encounter"
+              recordId={encounter.id}
+              recordLabel="visit documents"
+            />
+            <Button
+              tone="ghost"
+              size="xs"
+              leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
+              onClick={() => navigate(backTo)}
+            >
+              {backLabel}
+            </Button>
+          </Group>
         </Group>
 
         <Card withBorder p={0} style={{ flex: 1, overflow: "hidden" }}>

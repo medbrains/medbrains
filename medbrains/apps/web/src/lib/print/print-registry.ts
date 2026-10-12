@@ -1,6 +1,6 @@
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
-import { GENERATED_PRINT_DOCUMENTS } from "./print-registry.generated";
+import { GENERATED_PRINT_DOCUMENTS, type GeneratedPrintIdKind } from "./print-registry.generated";
 
 /**
  * Every document this system can print, and how to get its data.
@@ -28,8 +28,8 @@ export type PrintDocumentIdKind =
   | "order"
   | "invoice"
   | "payment"
-  /** Anything else the endpoint keys on — an incident, a claim, a contract. */
-  | "record";
+  /** Everything else, one kind per record a generated document keys on. */
+  | GeneratedPrintIdKind;
 
 export interface PrintDocumentDef {
   /** Stable key used by the single print command. */
