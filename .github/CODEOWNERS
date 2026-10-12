@@ -1,0 +1,23 @@
+# Code owners. Moved from medbrains/.github/ (GitHub reads only the repo-root
+# .github/). The old file named @medbrains/* org teams; this repo is
+# user-owned (DomnicAmalan/MedBrains), so those owners were invalid and
+# ignored. One owner today — add reviewers per section as the team grows.
+# Last matching line wins.
+
+*                                                       @DomnicAmalan
+
+# Security-sensitive: authn/authz, permissions, tenancy, audit, crypto.
+/medbrains/crates/medbrains-auth/                       @DomnicAmalan
+/medbrains/crates/medbrains-authz/                      @DomnicAmalan
+/medbrains/crates/medbrains-authz-gate/                 @DomnicAmalan
+/medbrains/crates/medbrains-mfa/                        @DomnicAmalan
+/medbrains/crates/medbrains-crypto/                     @DomnicAmalan
+/medbrains/crates/medbrains-server-core/src/middleware/ @DomnicAmalan
+/medbrains/crates/medbrains-core/src/permissions.rs     @DomnicAmalan
+/medbrains/crates/medbrains-core/src/access/            @DomnicAmalan
+/medbrains/crates/medbrains-db-migrations/              @DomnicAmalan
+
+# Infrastructure, deploy and CI.
+/.github/                                               @DomnicAmalan
+/medbrains/infra/                                       @DomnicAmalan
+/medbrains/deploy/                                      @DomnicAmalan

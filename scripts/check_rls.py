@@ -10,6 +10,8 @@ Statically parses every SQL migration under crates/medbrains-db-migrations/src/m
   - Detect SELECT apply_tenant_rls('<name>') helper calls
   - Parse migration header `RLS-Posture:` declarations
 
+Also fails when ANY table (tenant_id or not) has RLS enabled and no policy.
+
 A table is COVERED if any of:
   1. RLS enabled + at least one tenant-isolation policy referencing it
   2. apply_tenant_rls('<name>') was called
@@ -220,6 +222,13 @@ def main() -> int:
             missing.append("no policy")
         if missing:
             gaps.append((table, first_mig, "; ".join(missing)))
+
+    # RLS on with no policy at all: under `medbrains_app` (NOBYPASSRLS, see
+    # 0981) every query returns zero rows and every write fails. Holds for
+    # tables with no tenant_id too, which the loop above never looks at.
+    for table in sorted(rls_enabled - policies_on - partitions - set(ALLOWLIST)):
+        if table not in tenant_tables:
+            gaps.append((table, "-", "RLS enabled, no policy"))
 
     # Report
     print(f"Scanned {len(files)} migrations, {len(tenant_tables)} tenant_id-bearing tables.")

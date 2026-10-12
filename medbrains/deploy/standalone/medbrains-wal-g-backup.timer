@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily MedBrains WAL-G base backup (opt-in)
+
+[Timer]
+# 03:00 UTC = 08:30 IST, after the 02:30 pg_dump.
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=medbrains-wal-g-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -49,6 +49,13 @@ BACKUP_PREFIX="${BACKUP_PREFIX%/}"
 KEY="${BACKUP_PREFIX}/${HOSTNAME_TAG}/${DATE}.sql.gz"
 
 # --format=custom + --compress=9 = small, restorable via pg_restore.
+#
+# GRANTs and default privileges ARE kept (no --no-privileges). The app
+# connects as medbrains_app and the workers as medbrains_outbox_worker
+# (migrations 0981/0984); both hold only granted rights. A dump without them
+# restores a database every request is refused on, and the migrations that
+# granted them are already recorded so a reboot does not re-grant. Found by
+# the 2026-10-12 restore drill (docs/ops/BACKUP-RESTORE.md).
 # Streams straight to S3 — no /tmp staging.
 #
 # Two shapes to dump from. The dedicated host runs Postgres in our
@@ -64,7 +71,9 @@ if command -v docker >/dev/null 2>&1 && docker container inspect medbrains-postg
     }
 else
     : "${DATABASE_URL:?DATABASE_URL must be set in /etc/medbrains/env when no medbrains-postgres container exists}"
-    dump_postgres() { pg_dump "$DATABASE_URL" "$@"; }
+    # The owner: pg_dump refuses tables whose row level security would filter
+    # it, and medbrains_app is filtered by design.
+    dump_postgres() { pg_dump "${MIGRATION_DATABASE_URL:-$DATABASE_URL}" "$@"; }
 fi
 
 if [[ -n "$BACKUP_BUCKET" ]]; then
@@ -73,13 +82,37 @@ if [[ -n "$BACKUP_BUCKET" ]]; then
         --format=custom \
         --compress=9 \
         --no-owner \
-        --no-privileges \
       | aws s3 cp - "s3://${BACKUP_BUCKET}/${KEY}" \
         --expected-size 1073741824 \
         --content-type application/octet-stream \
         --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
     DEST="s3://${BACKUP_BUCKET}/${KEY}"
+
+    # Files: generated documents, uploads, the cold/archive tiers, the audit
+    # sink and the edge doc store. Postgres rows point at these objects; a
+    # database restored without them is a record of documents nobody can open.
+    #
+    # `sync`, not a nightly tarball: objects are write-once and a CT series
+    # clears 40 GB, so re-uploading the tree daily is the wrong cost. Only new
+    # or changed files go up. Nothing is ever deleted remotely (no --delete),
+    # and the bucket is versioned, so an overwrite or ransomware rewrite
+    # leaves the previous version recoverable for the lifecycle window.
+    # pgdata is excluded: a file copy of a live cluster is not a backup, the
+    # dump above is.
+    FILES_PREFIX="${BACKUP_FILES_PREFIX:-file-backups}"
+    FILES_PREFIX="${FILES_PREFIX%/}"
+    for root in ${BACKUP_FILES_ROOTS:-/var/lib/medbrains /var/lib/medbrains-edge}; do
+        [[ -d "$root" ]] || { echo "==> files: $root absent, skipping"; continue; }
+        echo "==> syncing files ${root} → s3://${BACKUP_BUCKET}/${FILES_PREFIX}/${HOSTNAME_TAG}${root}/"
+        aws s3 sync "$root" "s3://${BACKUP_BUCKET}/${FILES_PREFIX}/${HOSTNAME_TAG}${root}/" \
+            --exclude 'pgdata/*' --exclude '*.partial' \
+            --no-follow-symlinks --only-show-errors
+    done
 else
+    # No file copy on this branch. BACKUP_DIR sits on the same disk as the
+    # files, so a second copy there survives nothing the originals do not;
+    # the hospital's host backup — the premise of this tier — must cover
+    # /var/lib/medbrains directly. docs/ops/BACKUP-RESTORE.md says so.
     # Refuse to prune anywhere that is not a plain absolute path well
     # below the root. This script runs as root on a machine belonging to
     # somebody else and ends in `find -delete`; a BACKUP_DIR of "/" or
@@ -104,7 +137,6 @@ else
         --format=custom \
         --compress=9 \
         --no-owner \
-        --no-privileges \
       > "${DEST}.partial"
     mv "${DEST}.partial" "$DEST"
 

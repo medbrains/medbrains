@@ -1,0 +1,145 @@
+# Release artefacts on a version tag. Moved from medbrains/.github/workflows/
+# (never read there).
+#
+# Tags and manual runs only. At the old location the docker job had no tag
+# guard and would have pushed an image to GHCR on every push to master once
+# this went live. Production is built with cargo-zigbuild on the operator's
+# machine (CLAUDE.md) — this workflow is a GitHub release, not the deploy.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-backend:
+    name: Build backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            medbrains/target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('medbrains/**/Cargo.toml') }}
+      - run: cargo build --release -p medbrains-server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: medbrains-server
+          path: medbrains/target/release/medbrains-server
+          retention-days: 30
+
+  build-frontend:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          cache: pnpm
+          cache-dependency-path: medbrains/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@medbrains/web...
+        env:
+          NODE_ENV: production
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: medbrains/apps/web/dist
+          retention-days: 30
+
+  docker:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # The Dockerfile COPYs Cargo.lock, which is git-ignored.
+      - run: cargo generate-lockfile
+        working-directory: medbrains
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: medbrains
+          file: medbrains/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: GitHub release
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend, docker]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+      - name: Changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            { echo "## Changes since $PREV_TAG"; echo; git log --pretty=format:"- %s (%h)" "$PREV_TAG"..HEAD; } > CHANGELOG.md
+          else
+            echo "## Initial release" > CHANGELOG.md
+          fi
+      - name: Tarballs
+        working-directory: artifacts
+        run: |
+          tar -czf medbrains-server-linux-x64.tar.gz medbrains-server/
+          tar -czf medbrains-web-dist.tar.gz web-dist/
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG.md
+          files: |
+            artifacts/medbrains-server-linux-x64.tar.gz
+            artifacts/medbrains-web-dist.tar.gz
+          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
