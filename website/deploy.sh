@@ -27,6 +27,15 @@ aws s3 sync dist/ "s3://$WEBSITE_BUCKET" --delete \
   --exclude "*" --include "*.html" --include "*.xml" \
   --cache-control "public,max-age=0,must-revalidate"
 
+# S3 behind CloudFront has no directory index below the root: give each page
+# its clean address too (/pharmacy-management-software → that page's HTML).
+for page in dist/*/index.html; do
+  [ -e "$page" ] || continue
+  slug="$(basename "$(dirname "$page")")"
+  aws s3 cp "$page" "s3://$WEBSITE_BUCKET/$slug" --content-type "text/html; charset=utf-8" \
+    --cache-control "public,max-age=0,must-revalidate" --only-show-errors
+done
+
 echo "→ invalidating CloudFront $WEBSITE_DISTRIBUTION_ID"
 aws cloudfront create-invalidation --distribution-id "$WEBSITE_DISTRIBUTION_ID" --paths "/*" >/dev/null
 

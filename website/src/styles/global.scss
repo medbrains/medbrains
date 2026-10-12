@@ -1,0 +1,73 @@
+@use "mixins" as *;
+
+/* Tokens for the whole site. Colours come from the logo: Carbon blue for
+   action, the ECG dot's green for anything live. */
+:root {
+  --ink: #0b1220;
+  --ink-2: #3c4657;
+  --muted: #5d677a;
+  --paper: #ffffff;
+  --paper-2: #f3f5f9;
+  --line: #dde2ea;
+  --blue: #0f62fe;
+  --blue-deep: #0043ce;
+  --blue-tint: #e5edff;
+  --pulse: #42be65;
+  --pulse-soft: #a7f0ba;
+  --night: #060a14;
+  --night-2: #0d1526;
+  --night-line: #1f2a40;
+  --night-text: #c6cfdd;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgb(11 18 32 / 6%), 0 12px 32px rgb(11 18 32 / 10%);
+  --wrap: 1200px;
+  --display: "Archivo Expanded", "Archivo", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 17px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
+.wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+.eyebrow {
+  font-family: var(--mono); font-weight: 600; font-size: .74rem;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--blue); margin: 0 0 14px;
+}
+.section { padding: 112px 0; }
+.section-title {
+  font-family: var(--display); font-weight: 800; letter-spacing: -.025em;
+  font-size: clamp(2rem, 4.4vw, 3.4rem); line-height: 1.02; margin: 0 0 18px; max-width: 18ch;
+}
+.section-lede { font-size: 1.15rem; color: var(--muted); max-width: 58ch; margin: 0; }
+.btn {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 48px;
+  padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: .98rem;
+  text-decoration: none; border: 1.5px solid transparent; cursor: pointer;
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.btn-primary { background: var(--blue); color: #fff; box-shadow: 0 8px 24px rgb(15 98 254 / 35%); }
+.btn-primary:hover { background: var(--blue-deep); transform: translateY(-1px); }
+.btn-ghost { border-color: currentColor; background: transparent; }
+.btn-ghost:hover { background: rgb(255 255 255 / 8%); }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--pulse);
+  box-shadow: 0 0 0 0 rgb(66 190 101 / 60%); animation: ping 1.8s infinite; display: inline-block;
+}
+@keyframes ping { 70% { box-shadow: 0 0 0 10px rgb(66 190 101 / 0%); } 100% { box-shadow: 0 0 0 0 rgb(66 190 101 / 0%); } }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.in { opacity: 1; transform: none; }
+.sr-only:focus { position: fixed; top: 12px; left: 12px; z-index: 100; width: auto; height: auto; clip: auto; padding: 10px 16px; background: #fff; color: var(--ink); border-radius: 8px; }
+.sr-only:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+@include below(md) { .section { padding: 80px 0; } body { font-size: 16px; } }

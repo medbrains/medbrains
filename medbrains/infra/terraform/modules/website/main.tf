@@ -22,7 +22,7 @@ terraform {
 }
 
 locals {
-  aliases = [var.domain, "www.${var.domain}"]
+  aliases = var.include_www ? [var.domain, "www.${var.domain}"] : [var.domain]
 }
 
 # ── Origin bucket (private; only CloudFront reads it via OAC) ──
@@ -49,9 +49,17 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "site" {
 resource "aws_acm_certificate" "site" {
   provider                  = aws.us_east_1
   domain_name               = var.domain
-  subject_alternative_names = ["www.${var.domain}"]
+  subject_alternative_names = var.include_www ? ["www.${var.domain}"] : []
   validation_method         = "DNS"
   lifecycle { create_before_destroy = true }
+}
+
+# CloudFront refuses a certificate that is not yet issued: wait for the
+# caller to publish `validation_records` and pass their names back in.
+resource "aws_acm_certificate_validation" "site" {
+  provider                = aws.us_east_1
+  certificate_arn         = aws_acm_certificate.site.arn
+  validation_record_fqdns = var.validation_record_fqdns
 }
 
 # ── CloudFront ──
@@ -85,14 +93,19 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   # SPA-less static site: a missing path should 404, not 200 the index.
-  custom_error_response {
-    error_code         = 404
-    response_code      = 404
-    response_page_path = "/404.html"
+  # S3 behind OAC answers a missing key with 403 (no ListBucket), so both
+  # mean "not found" here.
+  dynamic "custom_error_response" {
+    for_each = [403, 404]
+    content {
+      error_code         = custom_error_response.value
+      response_code      = 404
+      response_page_path = "/404.html"
+    }
   }
 
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate.site.arn
+    acm_certificate_arn      = aws_acm_certificate_validation.site.certificate_arn
     ssl_support_method       = "sni-only"
     minimum_protocol_version = "TLSv1.2_2021"
   }

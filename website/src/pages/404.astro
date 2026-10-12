@@ -1,27 +1,116 @@
 ---
+import Header from "../components/Header.astro";
 import { SITE } from "../consts";
+import Base from "../layouts/Base.astro";
+
+const links = [
+  { href: "/#journey", label: "How it works" },
+  { href: "/#modules", label: "Modules" },
+  { href: "/#apps", label: "Apps" },
+  { href: "/#demo", label: "Book a demo" },
+];
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Page not found — {SITE.brand}</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <main>
-      <p class="code">404</p>
-      <h1>This page flatlined.</h1>
-      <a href="/">← Back to {SITE.brand}</a>
-    </main>
-    <style>
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b0b0c; color: #fff; text-align: center; font-family: "IBM Plex Mono", monospace; }
-      .code { color: #42be65; font-size: 1rem; letter-spacing: .3em; margin: 0 0 1rem; }
-      h1 { font-family: "Archivo Expanded", sans-serif; font-weight: 900; font-size: clamp(2rem, 6vw, 4rem); margin: 0 0 1.5rem; }
-      a { color: #42be65; text-decoration: none; border-bottom: 2px solid #42be65; }
-    </style>
-  </body>
-</html>
+<Base title={`Page not found | ${SITE.brand}`} description="This page has no pulse. Head back to MedBrains.">
+  <Header />
+  <main id="main" class="lost">
+    <div class="monitor" aria-hidden="true">
+      <div class="readout">
+        <span class="label">HR</span><span class="hr">0</span><span class="unit">bpm</span>
+        <span class="alarm">● Asystole</span>
+      </div>
+      <svg viewBox="0 0 1200 240" preserveAspectRatio="none">
+        <path class="grid" d="M0 120H1200" />
+        <path class="trace" d="M0 130 H140 L160 130 L172 70 L188 200 L204 40 L222 150 L236 130 H420 L440 130 L452 70 L468 200 L484 40 L502 150 L516 130 H700 L716 130 L726 110 L740 150 L752 130 H1200" />
+      </svg>
+      <p class="big">404</p>
+    </div>
+
+    <div class="copy">
+      <p class="eyebrow">Page not found</p>
+      <h1>This page has no pulse.</h1>
+      <p class="lede">The address may be mistyped, or the page has moved. Everything else is breathing normally.</p>
+      <p class="app">Looking for the hospital app? <a id="to-app" href={`${SITE.app}/login`}>Sign in at {new URL(SITE.app).host} →</a></p>
+      <div class="actions">
+        <a class="btn btn-primary" id="shock" href="/">Resuscitate <span aria-hidden="true">⚡</span></a>
+        <a class="btn btn-ghost" href="/#demo">Book a demo</a>
+      </div>
+      <nav aria-label="Popular pages">
+        {links.map((l) => <a href={l.href}>{l.label}</a>)}
+      </nav>
+    </div>
+  </main>
+
+  <script>
+    // Someone who opened an app path here (medbrains.in/patients/…) is
+    // sent on to the same path in the app.
+    const toApp = document.getElementById("to-app") as HTMLAnchorElement | null;
+    if (toApp && location.pathname !== "/404.html") toApp.href = new URL(location.pathname + location.search, toApp.href).href;
+
+    // Resuscitate: a shock, the rhythm comes back, then home. With reduced
+    // motion it is a plain link.
+    const shock = document.getElementById("shock") as HTMLAnchorElement | null;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    shock?.addEventListener("click", (e) => {
+      if (reduce) return;
+      e.preventDefault();
+      document.querySelector(".lost")?.classList.add("revived");
+      const hr = document.querySelector(".hr");
+      if (hr) setTimeout(() => (hr.textContent = "72"), 350);
+      setTimeout(() => (location.href = shock.href), 1300);
+    });
+  </script>
+
+  <style lang="scss">
+    @use "../styles/mixins" as *;
+
+    .lost {
+      min-height: calc(100vh - 68px); display: grid; align-content: center; gap: 48px; padding: 48px 0 80px;
+      color: #fff; background: radial-gradient(900px 500px at 50% 0%, rgb(255 77 79 / 14%), transparent 60%), var(--night);
+    }
+    .monitor {
+      position: relative; width: min(1100px, calc(100% - 48px)); margin: 0 auto; padding: 18px 22px 8px;
+      border: 1px solid var(--night-line); border-radius: 18px; background: #03060d; overflow: hidden;
+      box-shadow: inset 0 0 80px rgb(0 0 0 / 70%);
+    }
+    .readout { display: flex; align-items: baseline; gap: 10px; font-family: var(--mono); position: relative; z-index: 2; }
+    .label { color: var(--night-text); font-size: .8rem; letter-spacing: .14em; }
+    .hr { font: 900 2.4rem var(--display); color: #ff4d4f; transition: color .3s; }
+    .unit { color: var(--night-text); font-size: .8rem; }
+    .alarm { margin-left: auto; color: #ff4d4f; font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; animation: blink 1s steps(2) infinite; }
+    svg { display: block; width: 100%; height: 220px; }
+    .grid { stroke: rgb(255 255 255 / 6%); stroke-dasharray: 4 8; }
+    .trace {
+      fill: none; stroke: var(--pulse); stroke-width: 3; stroke-linejoin: round;
+      filter: drop-shadow(0 0 6px rgb(66 190 101 / 80%));
+      stroke-dasharray: 3000; stroke-dashoffset: 3000; animation: draw 3.2s ease-out forwards;
+    }
+    .big {
+      position: absolute; inset: 0; margin: 0; display: grid; place-items: center; pointer-events: none;
+      font: 900 clamp(6rem, 22vw, 16rem) var(--display); letter-spacing: -.05em; color: rgb(255 255 255 / 5%);
+    }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes blink { 50% { opacity: .25; } }
+
+    // The shock: a white flash, then a strong rhythm across the whole strip.
+    .revived {
+      .monitor { animation: flash .35s ease-out; }
+      .trace { stroke-dasharray: none; animation: none; d: path("M0 130 H80 L100 130 L112 70 L128 200 L144 40 L162 150 L176 130 H300 L320 130 L332 70 L348 200 L364 40 L382 150 L396 130 H520 L540 130 L552 70 L568 200 L584 40 L602 150 L616 130 H740 L760 130 L772 70 L788 200 L804 40 L822 150 L836 130 H960 L980 130 L992 70 L1008 200 L1024 40 L1042 150 L1056 130 H1200"); transition: d .4s ease .3s; }
+      .hr { color: var(--pulse); }
+      .alarm { visibility: hidden; }
+    }
+    @keyframes flash { 0% { background: #fff; } 100% { background: #03060d; } }
+
+    .copy { width: min(760px, calc(100% - 48px)); margin: 0 auto; text-align: center; }
+    .eyebrow { color: #ff8a8c; }
+    h1 { margin: 0 0 16px; font: 900 clamp(2.2rem, 5vw, 3.8rem) var(--display); letter-spacing: -.035em; line-height: 1.02; }
+    .lede { margin: 0 auto 32px; max-width: 46ch; color: var(--night-text); font-size: 1.1rem; }
+    .app { margin: -12px 0 28px; color: var(--night-text); }
+    .app a { color: #fff; font-weight: 600; }
+    .actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    nav { margin-top: 36px; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: .95rem; }
+    nav a { color: var(--night-text); text-decoration: none; border-bottom: 1px solid var(--night-line); padding-bottom: 2px; }
+    nav a:hover { color: #fff; border-color: var(--pulse); }
+    @include below(sm) { svg { height: 160px; } }
+  </style>
+</Base>

@@ -1,0 +1,163 @@
+---
+// A picture of the product in use: the OPD workstation, the waiting-room
+// board and the patient app. Drawn here so it stays sharp at any size;
+// every name and number is made up.
+const queue = [
+  { token: "A-021", name: "Ananya Rao", note: "Follow-up · Cardiology", state: "In room", tone: "live" },
+  { token: "A-022", name: "Vikram Shah", note: "New · Fever 3 days", state: "Vitals done", tone: "ready" },
+  { token: "P-004", name: "Meera Iyer", note: "Senior citizen · Priority", state: "Next", tone: "next" },
+  { token: "A-023", name: "Rahul Menon", note: "Lab review", state: "Waiting", tone: "wait" },
+];
+---
+
+<div class="composite" data-scroll="view" aria-label="MedBrains on a workstation, a waiting-room TV and a patient's phone" role="img">
+  <div class="window">
+    <div class="chrome">
+      <span></span><span></span><span></span>
+      <p>app.medbrains.in/opd</p>
+    </div>
+    <div class="app">
+      <aside class="sidenav">
+        <b>MB</b>
+        <i class="on"></i><i></i><i></i><i></i><i></i><i></i>
+      </aside>
+      <div class="main">
+        <div class="tiles">
+          <div class="tile"><small>OPD visits today</small><strong>142</strong><em class="up">▲ 11% vs a usual Monday</em></div>
+          <div class="tile"><small>Median wait</small><strong>14<span>min</span></strong><em class="up">▼ 6 min</em></div>
+          <div class="tile"><small>Lab within target</small><strong>96<span>%</span></strong><em>Critical values: 2 seen</em></div>
+        </div>
+        <div class="cols">
+          <div class="panel">
+            <p class="ptitle">Cardiology queue <span class="live-dot"></span></p>
+            {queue.map((q) => (
+              <div class="row">
+                <code>{q.token}</code>
+                <div><b>{q.name}</b><small>{q.note}</small></div>
+                <span class={`chip ${q.tone}`}>{q.state}</span>
+              </div>
+            ))}
+          </div>
+          <div class="panel sheet">
+            <p class="ptitle">Case sheet · Ananya Rao, 46 F</p>
+            <div class="vitals">
+              <span>BP <b>132/84</b></span><span>Pulse <b>78</b></span><span>SpO₂ <b>98%</b></span>
+            </div>
+            <p class="label">Diagnosis</p>
+            <p class="dx"><code>BA00</code> Essential hypertension</p>
+            <p class="label">Prescription</p>
+            <p class="rx">Telmisartan 40 mg · 1-0-0 · 30 days <span class="chip ready">Refill ×2</span></p>
+            <p class="rx">Atorvastatin 10 mg · 0-0-1 · 30 days</p>
+            <div class="sign">Sign &amp; send to pharmacy →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tv">
+    <p class="tvhead">Now serving</p>
+    <p class="tvtoken">A-021</p>
+    <p class="tvroom">Cardiology · Room 3</p>
+    <div class="tvnext"><span>Next</span><b>P-004</b><b>A-022</b><b>A-023</b></div>
+  </div>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <p class="pt">Medicines</p>
+    <div class="pcard">
+      <small>Refill approved</small>
+      <b>Telmisartan 40 mg</b>
+      <p>Dr. Kapoor approved your refill. Delivery today, 5–7 pm.</p>
+      <div class="pbtn">Track delivery</div>
+    </div>
+    <div class="pcard soft"><small>Next appointment</small><b>Thu, 10:30 am</b><p>Cardiology · Room 3</p></div>
+  </div>
+</div>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .composite { position: relative; max-width: 1080px; margin: 0 auto; padding-bottom: 40px; }
+  .window {
+    position: relative; z-index: 2; border-radius: 16px 16px 0 0; overflow: hidden; color: var(--ink);
+    background: #fff; border: 1px solid rgb(255 255 255 / 18%);
+    box-shadow: 0 40px 120px rgb(15 98 254 / 35%), 0 0 0 8px rgb(255 255 255 / 4%);
+    /* Unfolds flat as it scrolls up the screen: tilted back at first sight. */
+    --flat: min(1, calc(var(--p, 0) * 2.6));
+    transform: perspective(2200px) rotateX(calc((1 - var(--flat)) * 24deg)) scale(calc(.9 + var(--flat) * .1));
+    transform-origin: 50% 100%; animation: fade-in 1s ease both .2s;
+  }
+  @keyframes fade-in { from { opacity: 0; } }
+  .chrome { display: flex; align-items: center; gap: 7px; padding: 12px 16px; background: #eef1f6; border-bottom: 1px solid var(--line); }
+  .chrome span { width: 11px; height: 11px; border-radius: 50%; background: #d3d9e3; }
+  .chrome p { margin: 0 auto; font: 500 .74rem var(--mono); color: var(--muted); background: #fff; padding: 4px 40px; border-radius: 6px; }
+  .app { display: grid; grid-template-columns: 56px 1fr; min-height: 420px; font-size: .8rem; }
+  .sidenav { background: #0b1220; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 14px 0; }
+  .sidenav b { color: #fff; font: 900 .8rem var(--display); }
+  .sidenav i { width: 22px; height: 22px; border-radius: 6px; background: rgb(255 255 255 / 10%); }
+  .sidenav i.on { background: var(--blue); }
+  .main { padding: 18px; background: var(--paper-2); display: grid; gap: 14px; align-content: start; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+  .tile small, .label, .pcard small { font: 600 .62rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .tile strong { font: 800 1.7rem var(--display); letter-spacing: -.03em; }
+  .tile strong span { font-size: .9rem; margin-left: 2px; color: var(--muted); }
+  .tile em { font-style: normal; font-size: .7rem; color: var(--muted); }
+  .tile em.up { color: #198038; }
+  .cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
+  .panel { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .ptitle { margin: 0 0 8px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .row { display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #eef1f6; }
+  .row code { font: 600 .74rem var(--mono); color: var(--blue); }
+  .row b { display: block; font-weight: 600; }
+  .row small { color: var(--muted); font-size: .7rem; }
+  .chip { font: 600 .62rem var(--mono); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .chip.live { background: #defbe6; color: #0e6027; }
+  .chip.ready { background: var(--blue-tint); color: var(--blue-deep); }
+  .chip.next { background: #fff1c7; color: #8a5a00; }
+  .chip.wait { background: #eef1f6; color: var(--muted); }
+  .vitals { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .vitals span { background: var(--paper-2); border-radius: 6px; padding: 4px 8px; font-size: .7rem; color: var(--muted); }
+  .vitals b { color: var(--ink); }
+  .label { margin: 8px 0 2px; }
+  .dx, .rx { margin: 0 0 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dx code { font: 600 .7rem var(--mono); background: var(--ink); color: #fff; padding: 2px 6px; border-radius: 4px; }
+  .sign { margin-top: 10px; background: var(--blue); color: #fff; border-radius: 8px; padding: 8px 12px; font-weight: 600; text-align: center; }
+  .tv {
+    position: absolute; z-index: 3; left: -40px; bottom: 0; width: 250px; padding: 16px 18px;
+    background: #050912; border: 6px solid #1c2333; border-radius: 12px; color: #fff;
+    box-shadow: 0 30px 60px rgb(0 0 0 / 50%);
+    transform: translateY(calc(var(--p, 0) * -140px)) rotate(calc(-4deg + var(--p, 0) * 4deg));
+  }
+  .tvhead { margin: 0; font: 600 .62rem var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--pulse); }
+  .tvtoken { margin: 2px 0 0; font: 900 2.6rem var(--display); letter-spacing: -.02em; }
+  .tvroom { margin: 0 0 10px; color: var(--night-text); font-size: .8rem; }
+  .tvnext { display: flex; gap: 8px; align-items: center; font: 600 .7rem var(--mono); border-top: 1px solid var(--night-line); padding-top: 8px; }
+  .tvnext span { color: var(--night-text); margin-right: auto; }
+  .phone {
+    position: absolute; z-index: 3; right: -30px; bottom: -10px; width: 210px; padding: 26px 12px 14px;
+    background: var(--paper-2); color: var(--ink); border: 8px solid #10151f; border-radius: 34px;
+    box-shadow: 0 30px 70px rgb(0 0 0 / 55%);
+    transform: translateY(calc(var(--p, 0) * -260px)) rotate(calc(5deg - var(--p, 0) * 5deg));
+  }
+  .notch { position: absolute; top: 8px; left: 50%; translate: -50% 0; width: 64px; height: 16px; background: #10151f; border-radius: 10px; }
+  .pt { margin: 0 4px 8px; font: 800 1.05rem var(--display); }
+  .pcard { background: #fff; border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; display: grid; gap: 2px; font-size: .74rem; box-shadow: var(--shadow); }
+  .pcard small { color: #198038; }
+  .pcard.soft small { color: var(--muted); }
+  .pcard p { margin: 0; color: var(--muted); }
+  .pbtn { margin-top: 6px; background: var(--blue); color: #fff; border-radius: 999px; text-align: center; padding: 6px; font-weight: 600; }
+  @include below(xl) {
+    .tv { left: 0; width: 210px; }
+    .phone { right: 0; }
+  }
+  @include below(md) {
+    .cols { grid-template-columns: 1fr; }
+    .sheet, .tv { display: none; }
+    .tiles { grid-template-columns: 1fr 1fr; }
+    .tiles .tile:last-child { display: none; }
+    .phone { width: 170px; right: -6px; bottom: -40px; }
+    .window { transform: none; }
+  }
+</style>

@@ -1,0 +1,49 @@
+---
+import { MODULE_GROUPS } from "../data/content";
+---
+
+<section id="modules" class="rail" data-scroll="pin" aria-labelledby="rail-title">
+  <div class="sticky">
+    <div class="wrap head">
+      <p class="eyebrow">Modules</p>
+      <h2 id="rail-title" class="section-title">Switch on what you run. Add the rest as you grow.</h2>
+    </div>
+    <div class="track">
+      {MODULE_GROUPS.map((g, i) => (
+        <article class={`card c${i % 3}`}>
+          <p class="num">{String(i + 1).padStart(2, "0")} — {g.label}</p>
+          <h3>{g.blurb}</h3>
+          <ul>{g.items.map((item) => <li>{item}</li>)}</ul>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .rail { height: 340vh; background: var(--paper-2); }
+  .sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 40px; }
+  .head .section-title { max-width: 22ch; }
+  .track {
+    justify-self: start;
+    display: flex; gap: 24px; width: max-content; padding: 0 max(24px, calc((100vw - var(--wrap)) / 2 + 24px));
+    transform: translateX(calc(var(--p, 0) * (100vw - 100%)));
+  }
+  .card {
+    width: min(420px, 82vw); min-height: 440px; flex: none; border-radius: 24px; padding: 32px;
+    display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  .c1 { background: var(--night); color: #fff; border-color: var(--night); }
+  .c2 { background: linear-gradient(160deg, var(--blue), #0a3aa8); color: #fff; border-color: transparent; }
+  .num { margin: 0 0 auto; font: 600 .78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  h3 { margin: 40px 0 20px; font: 900 1.9rem var(--display); letter-spacing: -.035em; line-height: 1.05; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  li { padding: 7px 12px; border-radius: 999px; font-size: .86rem; font-weight: 500; background: rgb(127 140 160 / 14%); }
+
+  /* Reduced motion: the cards wrap into a grid you scroll past normally. */
+  :global(.still) .rail { height: auto; padding: 96px 0; }
+  :global(.still) .rail .sticky { position: static; height: auto; }
+  :global(.still) .rail .track { width: auto; flex-wrap: wrap; transform: none; }
+</style>
