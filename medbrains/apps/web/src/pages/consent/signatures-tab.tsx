@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { consentService } from "@/services/consent.service";
@@ -101,6 +102,13 @@ export function SignaturesTab({ canManage }: { canManage: boolean }) {
           <IconButton size="sm" onClick={() => setDetailSig(r)} aria-label="Search">
             <IconSearch size={14} />
           </IconButton>
+          {r.video_consent_url && (
+            <PrintDocumentIconMenu
+              idKind="consent_signature"
+              recordId={r.id}
+              recordLabel="video consent"
+            />
+          )}
           {canManage && (
             <IconButton
               tone="danger"

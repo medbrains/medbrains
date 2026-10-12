@@ -179,6 +179,7 @@ pub async fn get_gst_invoice_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
     let h = sqlx::query_as::<_, Header>(HEADER_SQL)
         .bind(invoice_id)
         .bind(claims.tenant_id)
@@ -233,6 +234,7 @@ pub async fn get_gst_invoice_print_data(
         date: h
             .issued_at
             .unwrap_or(h.created_at)
+            .with_timezone(&tz)
             .format("%d-%b-%Y")
             .to_string(),
         invoice_number: h.invoice_number,

@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, StatusDot } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -152,53 +153,54 @@ export function CrossmatchTab() {
       label: "Requested",
       render: (r: CrossmatchRequest) => new Date(r.created_at).toLocaleDateString(),
     },
-    ...(canCreate
-      ? [
-          {
-            key: "id" as const,
-            label: "Actions",
-            render: (r: CrossmatchRequest) => (
-              <Group gap={4}>
-                {r.status === "requested" && (
-                  <Button
-                    tone="secondary"
-                    size="compact-xs"
-                    onClick={() => updateMut.mutate({ id: r.id, status: "testing" })}
-                  >
-                    Start Testing
-                  </Button>
-                )}
-                {r.status === "testing" && (
-                  <>
-                    <Button
-                      tone="secondary"
-                      size="compact-xs"
-                      onClick={() =>
-                        updateMut.mutate({ id: r.id, status: "compatible", result: "compatible" })
-                      }
-                    >
-                      Compatible
-                    </Button>
-                    <Button
-                      tone="subtle-danger"
-                      size="compact-xs"
-                      onClick={() =>
-                        updateMut.mutate({
-                          id: r.id,
-                          status: "incompatible",
-                          result: "incompatible",
-                        })
-                      }
-                    >
-                      Incompatible
-                    </Button>
-                  </>
-                )}
-              </Group>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: "id" as const,
+      label: "Actions",
+      render: (r: CrossmatchRequest) => (
+        <Group gap={4}>
+          {canCreate && r.status === "requested" && (
+            <Button
+              tone="secondary"
+              size="compact-xs"
+              onClick={() => updateMut.mutate({ id: r.id, status: "testing" })}
+            >
+              Start Testing
+            </Button>
+          )}
+          {canCreate && r.status === "testing" && (
+            <>
+              <Button
+                tone="secondary"
+                size="compact-xs"
+                onClick={() =>
+                  updateMut.mutate({ id: r.id, status: "compatible", result: "compatible" })
+                }
+              >
+                Compatible
+              </Button>
+              <Button
+                tone="subtle-danger"
+                size="compact-xs"
+                onClick={() =>
+                  updateMut.mutate({
+                    id: r.id,
+                    status: "incompatible",
+                    result: "incompatible",
+                  })
+                }
+              >
+                Incompatible
+              </Button>
+            </>
+          )}
+          <PrintDocumentIconMenu
+            idKind="crossmatch_request"
+            recordId={r.id}
+            recordLabel={`crossmatch request ${r.blood_group} ${r.component_type}`}
+          />
+        </Group>
+      ),
+    },
   ];
 
   return (

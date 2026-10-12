@@ -5,7 +5,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateTransfusionRequest, TransfusionRecord } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconActivity, IconPlus } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
@@ -13,9 +13,9 @@ import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { useConsentGate } from "@/hooks/useConsentGate";
-import { TransfusionMonitorDrawer } from "@/pages/blood-bank/TransfusionMonitorDrawer";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -247,7 +247,6 @@ export function TransfusionsTab() {
   const canListTransfusions = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [reactionId, setReactionId] = useState<string | null>(null);
-  const [monitorId, setMonitorId] = useState<string | null>(null);
 
   const { data: transfusions, isLoading } = useQuery({
     queryKey: ["blood-bank", "transfusions"],
@@ -297,8 +296,11 @@ export function TransfusionsTab() {
     },
     {
       key: "component_id" as const,
-      label: "Component",
-      render: (t: TransfusionRecord) => t.component_id.slice(0, 8),
+      label: "Unit",
+      render: (t: TransfusionRecord) =>
+        t.bag_number
+          ? `${t.bag_number}${t.component_type ? ` · ${t.component_type.toUpperCase()}` : ""}`
+          : "Unknown unit",
     },
     {
       key: "patient_id" as const,
@@ -323,35 +325,26 @@ export function TransfusionsTab() {
       render: (t: TransfusionRecord) =>
         t.completed_at ? new Date(t.completed_at).toLocaleString() : "In progress",
     },
-    ...(canCreate
-      ? [
-          {
-            key: "id" as const,
-            label: "Actions",
-            render: (t: TransfusionRecord) => (
-              <Group gap={4}>
-                <Button
-                  tone="ghost"
-                  size="compact-xs"
-                  leftSection={<IconActivity size={14} />}
-                  onClick={() => setMonitorId(t.id)}
-                >
-                  Monitor
-                </Button>
-                {!t.has_reaction && (
-                  <Button
-                    tone="subtle-danger"
-                    size="compact-xs"
-                    onClick={() => setReactionId(t.id)}
-                  >
-                    Report Reaction
-                  </Button>
-                )}
-              </Group>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: "id" as const,
+      label: "Actions",
+      render: (t: TransfusionRecord) => (
+        <Group gap={4}>
+          {canCreate && !t.has_reaction && (
+            <Button tone="subtle-danger" size="compact-xs" onClick={() => setReactionId(t.id)}>
+              Report Reaction
+            </Button>
+          )}
+          {/* The reaction form is only meaningful once a reaction is recorded. */}
+          <PrintDocumentIconMenu
+            idKind="transfusion_record"
+            recordId={t.id}
+            recordLabel="transfusion"
+            exclude={t.has_reaction ? [] : ["transfusion-reaction"]}
+          />
+        </Group>
+      ),
+    },
   ];
 
   return (
@@ -398,8 +391,6 @@ export function TransfusionsTab() {
           />
         )}
       </Drawer>
-
-      <TransfusionMonitorDrawer transfusionId={monitorId} onClose={() => setMonitorId(null)} />
     </Stack>
   );
 }

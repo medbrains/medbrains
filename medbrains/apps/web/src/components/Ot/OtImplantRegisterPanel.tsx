@@ -3,7 +3,7 @@ import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { type ImplantRegistryEntry, type OtBooking, P, type StoreCatalog } from "@medbrains/types";
+import { type ImplantRegistryEntry, type OtBooking, P } from "@medbrains/types";
 import { IconPlus, IconTool } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -49,7 +49,6 @@ export function OtImplantRegisterPanel({ booking }: { booking: OtBooking }) {
     enabled: canView,
   });
 
-  const catalogById = new Map<string, StoreCatalog>(catalog.map((c) => [c.id, c]));
   const options = catalog
     .filter((c) => c.is_implant && c.is_active)
     .map((c) => ({ value: c.id, label: c.name }));
@@ -87,7 +86,7 @@ export function OtImplantRegisterPanel({ booking }: { booking: OtBooking }) {
 
   const submit = handleSubmit((values) => addMutation.mutate(values));
   const itemName = (e: ImplantRegistryEntry) =>
-    catalogById.get(e.catalog_item_id)?.name ?? e.catalog_item_id;
+    e.catalog_item_name ? `${e.catalog_item_name} (${e.catalog_item_code})` : "Unknown item";
 
   return (
     <Box id="ot-implants">

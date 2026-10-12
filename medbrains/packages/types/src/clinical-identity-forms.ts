@@ -25,63 +25,41 @@ export interface AppointmentSlipPrintData {
   hospital_logo_url: string | null;
 }
 
-export interface DataCategory {
-  category: string;
-  description: string;
-  is_sensitive: boolean;
-}
-
-export interface ProcessingPurpose {
-  purpose: string;
-  legal_basis: string;
-}
-
-export interface DataSharingEntity {
-  entity_type: string;
-  entity_name: string | null;
-  purpose: string;
-}
-
-export interface GrievanceOfficer {
-  name: string;
-  email: string;
-  phone: string | null;
-}
-
 export interface DpdpConsentPrintData {
-  consent_number: string;
   consent_date: string;
   patient_name: string;
   uhid: string;
-  guardian_name: string | null;
-  data_categories: DataCategory[];
-  processing_purposes: ProcessingPurpose[];
-  data_sharing: DataSharingEntity[];
-  retention_period: string;
-  patient_rights: string[];
-  grievance_officer: GrievanceOfficer;
-  consent_given: boolean;
+  consented_by: string;
+  consented_by_relation: string | null;
+  /** The consent template the patient was shown, when one was used. */
+  consent_form: string | null;
+  consent_version: string | null;
+  /** granted, denied, withdrawn or pending. */
+  consent_status: string;
   consent_method: string;
   witness_name: string | null;
+  valid_until: string | null;
+  withdrawn_at: string | null;
+  withdrawal_reason: string | null;
+  patient_rights: string[];
   hospital_name: string;
-  hospital_dpo_contact: string | null;
 }
 
 export interface VideoConsentPrintData {
-  consent_number: string;
+  consent_number: string | null;
   consent_date: string;
   patient_name: string;
   uhid: string;
   consent_type: string;
   procedure_name: string | null;
   video_reference_id: string;
-  video_duration_seconds: number;
+  video_duration_seconds: number | null;
   video_recorded_at: string;
   qr_code_to_video: string;
   video_url: string;
-  video_verified: boolean;
-  patient_visible_in_video: boolean;
-  verbal_consent_given: boolean;
+  video_verified: boolean | null;
+  patient_visible_in_video: boolean | null;
+  verbal_consent_given: boolean | null;
   witness_name: string | null;
   witness_relationship: string | null;
   recording_staff: string;
@@ -127,14 +105,14 @@ export interface RestraintDocumentationPrintData {
   physician_assessment: string;
   nursing_monitoring: RestraintMonitoring[];
   patient_condition_on_release: string | null;
-  family_notified: boolean;
+  family_notified: boolean | null;
   family_notification_datetime: string | null;
-  patient_rights_explained: boolean;
-  consent_obtained: boolean;
+  patient_rights_explained: boolean | null;
+  consent_obtained: boolean | null;
   consent_from: string | null;
-  review_by_psychiatrist: boolean;
+  review_by_psychiatrist: boolean | null;
   psychiatrist_name: string | null;
-  mhca_compliance_verified: boolean;
+  mhca_compliance_verified: boolean | null;
   hospital_name: string;
 }
 

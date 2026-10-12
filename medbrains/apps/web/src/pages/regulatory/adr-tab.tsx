@@ -15,6 +15,7 @@ import { IconPlus, IconSend } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 
@@ -201,6 +202,7 @@ export function AdrTab() {
               ),
           },
           { key: "date", label: "Date", render: (r) => <Text size="sm">{r.reaction_date}</Text> },
+          printColumn<AdrReport>("adr_report", { label: (r) => r.report_number }),
         ]}
       />
 
@@ -270,6 +272,9 @@ export function AdrTab() {
               ),
           },
           { key: "date", label: "Date", render: (r) => <Text size="sm">{r.event_date}</Text> },
+          printColumn<MateriovigilanceReport>("materiovigilance", {
+            label: (r) => r.report_number,
+          }),
         ]}
       />
 
@@ -442,7 +447,3 @@ export function AdrTab() {
     </Stack>
   );
 }
-
-// ══════════════════════════════════════════════════════════
-//  PCPNDT Forms Tab
-// ══════════════════════════════════════════════════════════

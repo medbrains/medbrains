@@ -28,6 +28,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { VisitorPassPrintModal } from "@/components/FrontOffice/VisitorPassPrintModal";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Button, IconButton } from "@/components/ui";
 import type {
   FrontOfficeVisitorFormInput,
@@ -254,16 +255,19 @@ export function VisitorManagementTab({
       <div>
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Visitor Registrations</Text>
-          {canCreate && (
-            <Button
-              tone="primary"
-              size="xs"
-              leftSection={<IconPlus size={14} />}
-              onClick={visitorDrawerHandlers.open}
-            >
-              Register Visitor
-            </Button>
-          )}
+          <Group gap="xs">
+            <PrintRegisterButton documentKey="visitor-register" period="date" />
+            {canCreate && (
+              <Button
+                tone="primary"
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={visitorDrawerHandlers.open}
+              >
+                Register Visitor
+              </Button>
+            )}
+          </Group>
         </Group>
         <DataTable
           columns={visitorColumns}

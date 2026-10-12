@@ -17,22 +17,25 @@ use axum::extract::{Path, State};
 use axum::routing::get;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    DispensingLabelPrintData, DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
-    GrnPrintData, IndentFormPrintData, IndentItem, IssueItem, MaterialIssueVoucherPrintData,
-    NdpsBalance, NdpsRegisterPrintData, NdpsTransaction, PartReplaced, PmChecklistItem,
-    PmChecklistPrintData, PoItem, PurchaseOrderPrintData, RepairHistoryEntry,
-    StockTransferNotePrintData, TransferItem, WorkOrderMaterial, WorkOrderPrintData,
+    DispensingLabelPrintData, DrugExpiryAlertPrintData, EquipmentCondemnationPrintData,
+    ExpiryDrugItem, GrnItem, GrnPrintData, IndentFormPrintData, IndentItem, IssueItem,
+    MaterialIssueVoucherPrintData, NdpsBalance, NdpsRegisterPrintData, NdpsTransaction,
+    PmChecklistItem, PmChecklistPrintData, PoItem, PurchaseOrderPrintData,
+    StockTransferNotePrintData, TransferItem, WorkOrderPrintData,
 };
 use uuid::Uuid;
 
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
+use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
-
 // ══════════════════════════════════════════════════════════
-// Indent Form
+// Indent Form — `indent_requisitions.id`
 // ══════════════════════════════════════════════════════════
 
 pub async fn get_indent_form_print_data(
@@ -46,55 +49,58 @@ pub async fn get_indent_form_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query indent header
     let indent = sqlx::query_as::<_, IndentHeaderRow>(
         r"
         SELECT
-            i.indent_number,
-            i.indent_date::TEXT as indent_date,
-            i.indent_type,
-            i.priority,
-            d.name as requesting_department,
-            s.name as requesting_store,
-            u.full_name as requested_by,
-            i.estimated_value,
-            i.justification,
-            ua.full_name as approved_by,
-            i.approved_at::TEXT as approved_at,
-            i.status,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM indents i
-        JOIN departments d ON i.department_id = d.id
-        LEFT JOIN stores s ON i.store_id = s.id
-        JOIN users u ON i.requested_by = u.id
-        LEFT JOIN users ua ON i.approved_by = ua.id
-        JOIN tenants t ON i.tenant_id = t.id
-        WHERE i.id = $1
+            ir.indent_number,
+            ir.created_at::date::text AS indent_date,
+            ir.indent_type,
+            ir.priority,
+            d.name AS requesting_department,
+            u.full_name AS requested_by,
+            ir.total_amount::float8 AS estimated_value,
+            ir.notes AS justification,
+            ua.full_name AS approved_by,
+            ir.approved_at::text AS approved_at,
+            ir.status,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM indent_requisitions ir
+        JOIN departments d ON d.id = ir.department_id
+        JOIN users u ON u.id = ir.requested_by
+        LEFT JOIN users ua ON ua.id = ir.approved_by
+        JOIN tenants t ON t.id = ir.tenant_id
+        WHERE ir.id = $1 AND ir.deleted_at IS NULL
         ",
     )
     .bind(indent_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query indent items
+    // `quantity_approved` defaults to 0 before approval; printing that on an
+    // unapproved indent would read as "approved: nil", so it is only shown
+    // once the indent carries an approval.
     let items = sqlx::query_as::<_, IndentItemRow>(
         r"
         SELECT
-            ic.item_code,
-            ic.item_name,
-            ic.specification,
-            ic.unit,
-            ii.quantity_requested,
-            ii.quantity_approved,
-            ii.current_stock,
-            ii.remarks
+            COALESCE(sc.code, '') AS item_code,
+            ii.item_name,
+            COALESCE(sc.unit, '') AS unit,
+            ii.quantity_requested::float8 AS quantity_requested,
+            CASE WHEN ir.approved_at IS NOT NULL THEN ii.quantity_approved::float8 END
+                AS quantity_approved,
+            sc.current_stock::float8 AS current_stock,
+            ii.notes AS remarks
         FROM indent_items ii
-        JOIN inventory_catalog ic ON ii.item_id = ic.id
-        WHERE ii.indent_id = $1
-        ORDER BY ii.line_number
+        JOIN indent_requisitions ir ON ir.id = ii.requisition_id
+        LEFT JOIN store_catalog sc ON sc.id = ii.catalog_item_id
+        WHERE ii.requisition_id = $1 AND ii.deleted_at IS NULL
+        ORDER BY ii.created_at, ii.id
+        LIMIT 500
         ",
     )
     .bind(indent_id)
@@ -106,7 +112,8 @@ pub async fn get_indent_form_print_data(
         .map(|r| IndentItem {
             item_code: r.item_code,
             item_name: r.item_name,
-            specification: r.specification,
+            // ponytail: specification not recorded on indent lines yet
+            specification: None,
             unit: r.unit,
             quantity_requested: r.quantity_requested,
             quantity_approved: r.quantity_approved,
@@ -123,7 +130,8 @@ pub async fn get_indent_form_print_data(
         indent_type: indent.indent_type,
         priority: indent.priority,
         requesting_department: indent.requesting_department,
-        requesting_store: indent.requesting_store,
+        // ponytail: an indent names a department, not a store — nothing records one
+        requesting_store: None,
         requested_by: indent.requested_by,
         items: indent_items,
         total_items,
@@ -144,7 +152,6 @@ struct IndentHeaderRow {
     indent_type: String,
     priority: String,
     requesting_department: String,
-    requesting_store: Option<String>,
     requested_by: String,
     estimated_value: Option<f64>,
     justification: Option<String>,
@@ -159,7 +166,6 @@ struct IndentHeaderRow {
 struct IndentItemRow {
     item_code: String,
     item_name: String,
-    specification: Option<String>,
     unit: String,
     quantity_requested: f64,
     quantity_approved: Option<f64>,
@@ -168,7 +174,7 @@ struct IndentItemRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Purchase Order
+// Purchase Order — `purchase_orders.id`
 // ══════════════════════════════════════════════════════════
 
 pub async fn get_purchase_order_print_data(
@@ -182,63 +188,79 @@ pub async fn get_purchase_order_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query PO header
+    // The hospital's GSTIN and billing address live in `tenant_settings`
+    // (billing/gst_number, billing/bill_address) — the same source the GST
+    // invoice prints from — with the tenant's own address as the fallback.
     let po = sqlx::query_as::<_, PoHeaderRow>(
         r"
         SELECT
             po.po_number,
-            po.po_date::TEXT as po_date,
-            v.name as vendor_name,
-            v.address as vendor_address,
-            v.gstin as vendor_gstin,
-            v.contact_phone as vendor_contact,
-            po.delivery_address,
-            po.delivery_date::TEXT as delivery_date,
+            COALESCE(po.po_date, po.order_date)::text AS po_date,
+            v.name AS vendor_name,
+            COALESCE(
+                NULLIF(v.address, ''),
+                NULLIF(concat_ws(', ', NULLIF(v.address_line1, ''), NULLIF(v.address_line2, ''),
+                                 NULLIF(v.city, ''), NULLIF(v.state, ''), NULLIF(v.pincode, '')), '')
+            ) AS vendor_address,
+            v.gst_number AS vendor_gstin,
+            v.phone AS vendor_contact,
+            COALESCE(NULLIF(concat_ws(', ', sl.name, NULLIF(sl.address, '')), ''), '')
+                AS delivery_address,
+            po.expected_delivery::text AS delivery_date,
             po.payment_terms,
-            po.subtotal,
-            po.discount_percentage,
-            po.discount_amount,
-            po.tax_amount,
-            po.freight_charges,
-            po.total_amount,
-            po.terms_and_conditions,
-            up.full_name as prepared_by,
-            ua.full_name as approved_by,
-            t.name as hospital_name,
-            t.address as hospital_address,
-            t.gstin as hospital_gstin,
-            t.logo_url as hospital_logo_url
+            po.delivery_terms,
+            po.subtotal::float8 AS subtotal,
+            po.discount_amount::float8 AS discount_amount,
+            po.tax_amount::float8 AS tax_amount,
+            po.total_amount::float8 AS total_amount,
+            up.full_name AS prepared_by,
+            ua.full_name AS approved_by,
+            t.name AS hospital_name,
+            COALESCE(
+                NULLIF(addr.value #>> '{}', ''),
+                NULLIF(concat_ws(', ', NULLIF(t.address_line1, ''), NULLIF(t.address_line2, ''),
+                                 NULLIF(t.city, ''), NULLIF(t.pincode, '')), '')
+            ) AS hospital_address,
+            NULLIF(gst.value #>> '{}', '') AS hospital_gstin,
+            t.logo_url AS hospital_logo_url
         FROM purchase_orders po
-        JOIN vendors v ON po.vendor_id = v.id
-        LEFT JOIN users up ON po.prepared_by = up.id
-        LEFT JOIN users ua ON po.approved_by = ua.id
-        JOIN tenants t ON po.tenant_id = t.id
-        WHERE po.id = $1
+        JOIN vendors v ON v.id = po.vendor_id
+        LEFT JOIN store_locations sl ON sl.id = po.store_location_id
+        LEFT JOIN users up ON up.id = po.created_by
+        LEFT JOIN users ua ON ua.id = po.approved_by
+        JOIN tenants t ON t.id = po.tenant_id
+        LEFT JOIN tenant_settings gst ON gst.tenant_id = po.tenant_id AND gst.category = 'billing'
+             AND gst.key = 'gst_number' AND gst.deleted_at IS NULL
+        LEFT JOIN tenant_settings addr ON addr.tenant_id = po.tenant_id AND addr.category = 'billing'
+             AND addr.key = 'bill_address' AND addr.deleted_at IS NULL
+        WHERE po.id = $1 AND po.deleted_at IS NULL
         ",
     )
     .bind(po_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query PO items
     let items = sqlx::query_as::<_, PoItemRow>(
         r"
         SELECT
-            ic.item_code,
-            ic.item_name,
-            ic.specification,
-            ic.hsn_code,
-            ic.unit,
-            poi.quantity,
-            poi.unit_price,
-            poi.tax_rate,
-            poi.amount
+            COALESCE(poi.item_code, sc.code, pc.code, '') AS item_code,
+            poi.item_name,
+            COALESCE(sc.hsn_code, pc.hsn_code) AS hsn_code,
+            poi.unit,
+            poi.quantity_ordered::float8 AS quantity,
+            poi.unit_price::float8 AS unit_price,
+            poi.tax_percent::float8 AS tax_rate,
+            poi.total_amount::float8 AS amount
         FROM purchase_order_items poi
-        JOIN inventory_catalog ic ON poi.item_id = ic.id
-        WHERE poi.po_id = $1
-        ORDER BY poi.line_number
+        LEFT JOIN store_catalog sc ON sc.id = poi.catalog_item_id
+        LEFT JOIN pharmacy_catalog pc ON pc.id = poi.pharmacy_catalog_id
+        WHERE poi.po_id = $1 AND poi.deleted_at IS NULL
+        ORDER BY poi.created_at, poi.id
+        LIMIT 500
         ",
     )
     .bind(po_id)
@@ -250,7 +272,8 @@ pub async fn get_purchase_order_print_data(
         .map(|r| PoItem {
             item_code: r.item_code,
             item_name: r.item_name,
-            specification: r.specification,
+            // ponytail: specification not recorded on PO lines yet
+            specification: None,
             hsn_code: r.hsn_code,
             unit: r.unit,
             quantity: r.quantity,
@@ -259,11 +282,6 @@ pub async fn get_purchase_order_print_data(
             amount: r.amount,
         })
         .collect();
-
-    let terms: Vec<String> = po
-        .terms_and_conditions
-        .map(|t| serde_json::from_value(t).unwrap_or_default())
-        .unwrap_or_default();
 
     let amount_in_words = amount_to_words(po.total_amount);
 
@@ -279,13 +297,15 @@ pub async fn get_purchase_order_print_data(
         payment_terms: po.payment_terms,
         items: po_items,
         subtotal: po.subtotal,
-        discount_percentage: po.discount_percentage,
+        // ponytail: PO header keeps only a discount amount; freight not recorded anywhere yet
+        discount_percentage: None,
         discount_amount: po.discount_amount,
         tax_amount: po.tax_amount,
-        freight_charges: po.freight_charges,
+        freight_charges: None,
         total_amount: po.total_amount,
         amount_in_words,
-        terms_and_conditions: terms,
+        // The PO's delivery terms are the only term it records.
+        terms_and_conditions: po.delivery_terms.into_iter().collect(),
         prepared_by: po.prepared_by,
         approved_by: po.approved_by,
         hospital_name: po.hospital_name,
@@ -306,13 +326,11 @@ struct PoHeaderRow {
     delivery_address: String,
     delivery_date: Option<String>,
     payment_terms: Option<String>,
+    delivery_terms: Option<String>,
     subtotal: f64,
-    discount_percentage: Option<f64>,
     discount_amount: f64,
     tax_amount: f64,
-    freight_charges: f64,
     total_amount: f64,
-    terms_and_conditions: Option<serde_json::Value>,
     prepared_by: Option<String>,
     approved_by: Option<String>,
     hospital_name: String,
@@ -325,7 +343,6 @@ struct PoHeaderRow {
 struct PoItemRow {
     item_code: String,
     item_name: String,
-    specification: Option<String>,
     hsn_code: Option<String>,
     unit: String,
     quantity: f64,
@@ -335,7 +352,7 @@ struct PoItemRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Goods Receipt Note (GRN)
+// Goods Receipt Note (GRN) — `goods_receipt_notes.id`
 // ══════════════════════════════════════════════════════════
 
 pub async fn get_grn_print_data(
@@ -349,62 +366,65 @@ pub async fn get_grn_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query GRN header
+    // "Quality check done" is the GRN's recorded inspection (`inspected_at`),
+    // never assumed.
     let grn = sqlx::query_as::<_, GrnHeaderRow>(
         r"
         SELECT
             g.grn_number,
-            g.grn_date::TEXT as grn_date,
+            g.receipt_date::text AS grn_date,
             po.po_number,
-            po.po_date::TEXT as po_date,
-            v.name as vendor_name,
-            g.vendor_invoice_number,
-            g.vendor_invoice_date::TEXT as vendor_invoice_date,
-            g.challan_number,
-            s.name as receiving_store,
-            g.quality_check_done,
-            g.quality_remarks,
-            u.full_name as received_by,
-            uv.full_name as verified_by,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM goods_receipts g
-        LEFT JOIN purchase_orders po ON g.po_id = po.id
-        JOIN vendors v ON g.vendor_id = v.id
-        JOIN stores s ON g.store_id = s.id
-        JOIN users u ON g.received_by = u.id
-        LEFT JOIN users uv ON g.verified_by = uv.id
-        JOIN tenants t ON g.tenant_id = t.id
-        WHERE g.id = $1
+            COALESCE(po.po_date, po.order_date)::text AS po_date,
+            v.name AS vendor_name,
+            g.invoice_number AS vendor_invoice_number,
+            g.invoice_date::text AS vendor_invoice_date,
+            COALESCE(sl.name, '') AS receiving_store,
+            g.inspected_at IS NOT NULL AS quality_check_done,
+            g.notes AS quality_remarks,
+            u.full_name AS received_by,
+            ui.full_name AS verified_by,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM goods_receipt_notes g
+        LEFT JOIN purchase_orders po ON po.id = g.po_id
+        JOIN vendors v ON v.id = g.vendor_id
+        LEFT JOIN store_locations sl ON sl.id = g.store_location_id
+        JOIN users u ON u.id = g.received_by
+        LEFT JOIN users ui ON ui.id = g.inspected_by
+        JOIN tenants t ON t.id = g.tenant_id
+        WHERE g.id = $1 AND g.deleted_at IS NULL
         ",
     )
     .bind(grn_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query GRN items
     let items = sqlx::query_as::<_, GrnItemRow>(
         r"
         SELECT
-            ic.item_code,
-            ic.item_name,
+            COALESCE(sc.code, poi.item_code, '') AS item_code,
+            gi.item_name,
             gi.batch_number,
-            gi.expiry_date::TEXT as expiry_date,
-            gi.manufacturing_date::TEXT as manufacturing_date,
-            ic.unit,
-            gi.quantity_ordered,
-            gi.quantity_received,
-            gi.quantity_accepted,
-            gi.quantity_rejected,
+            gi.expiry_date::text AS expiry_date,
+            gi.manufacture_date::text AS manufacturing_date,
+            COALESCE(poi.unit, sc.unit, '') AS unit,
+            poi.quantity_ordered::float8 AS quantity_ordered,
+            gi.quantity_received::float8 AS quantity_received,
+            gi.quantity_accepted::float8 AS quantity_accepted,
+            gi.quantity_rejected::float8 AS quantity_rejected,
             gi.rejection_reason,
-            gi.unit_price,
-            gi.amount
-        FROM goods_receipt_items gi
-        JOIN inventory_catalog ic ON gi.item_id = ic.id
-        WHERE gi.grn_id = $1
-        ORDER BY gi.line_number
+            gi.unit_price::float8 AS unit_price,
+            gi.total_amount::float8 AS amount
+        FROM grn_items gi
+        LEFT JOIN purchase_order_items poi ON poi.id = gi.po_item_id
+        LEFT JOIN store_catalog sc ON sc.id = gi.catalog_item_id
+        WHERE gi.grn_id = $1 AND gi.deleted_at IS NULL
+        ORDER BY gi.created_at, gi.id
+        LIMIT 500
         ",
     )
     .bind(grn_id)
@@ -420,6 +440,7 @@ pub async fn get_grn_print_data(
             expiry_date: r.expiry_date,
             manufacturing_date: r.manufacturing_date,
             unit: r.unit,
+            // A GRN line with no PO line has no ordered quantity.
             quantity_ordered: r.quantity_ordered,
             quantity_received: r.quantity_received,
             quantity_accepted: r.quantity_accepted,
@@ -442,7 +463,8 @@ pub async fn get_grn_print_data(
         vendor_name: grn.vendor_name,
         vendor_invoice_number: grn.vendor_invoice_number,
         vendor_invoice_date: grn.vendor_invoice_date,
-        challan_number: grn.challan_number,
+        // ponytail: delivery challan number not recorded anywhere yet
+        challan_number: None,
         receiving_store: grn.receiving_store,
         items: grn_items,
         total_items,
@@ -466,7 +488,6 @@ struct GrnHeaderRow {
     vendor_name: String,
     vendor_invoice_number: Option<String>,
     vendor_invoice_date: Option<String>,
-    challan_number: Option<String>,
     receiving_store: String,
     quality_check_done: bool,
     quality_remarks: Option<String>,
@@ -484,7 +505,7 @@ struct GrnItemRow {
     expiry_date: Option<String>,
     manufacturing_date: Option<String>,
     unit: String,
-    quantity_ordered: f64,
+    quantity_ordered: Option<f64>,
     quantity_received: f64,
     quantity_accepted: f64,
     quantity_rejected: f64,
@@ -494,13 +515,16 @@ struct GrnItemRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Material Issue Voucher
+// Material Issue Voucher — `indent_requisitions.id`
 // ══════════════════════════════════════════════════════════
 
+/// The store issues against an indent: `indent_items.quantity_issued` plus an
+/// `issue` row in `store_stock_movements` (reference_type `indent`) per line.
+/// There is no separate voucher table, so the indent *is* the voucher.
 pub async fn get_material_issue_voucher_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(voucher_id): Path<Uuid>,
+    Path(indent_id): Path<Uuid>,
 ) -> Result<axum::Json<MaterialIssueVoucherPrintData>, AppError> {
     require_permission(&claims, permissions::indent::LIST)?;
 
@@ -508,60 +532,62 @@ pub async fn get_material_issue_voucher_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query voucher header
+    // Only an indent the store has actually issued against has a voucher.
     let voucher = sqlx::query_as::<_, IssueVoucherHeaderRow>(
         r"
         SELECT
-            iv.voucher_number,
-            iv.voucher_date::TEXT as voucher_date,
-            iv.issue_type,
-            s.name as issuing_store,
-            d.name as receiving_department,
-            cc.name as receiving_cost_center,
-            ur.full_name as requested_by,
-            iv.purpose,
-            ui.full_name as issued_by,
-            urcv.name as received_by,
-            iv.received_at::TEXT as received_at,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM material_issue_vouchers iv
-        JOIN stores s ON iv.store_id = s.id
-        JOIN departments d ON iv.department_id = d.id
-        LEFT JOIN cost_centers cc ON iv.cost_center_id = cc.id
-        JOIN users ur ON iv.requested_by = ur.id
-        JOIN users ui ON iv.issued_by = ui.id
-        LEFT JOIN users urcv ON iv.received_by = urcv.id
-        JOIN tenants t ON iv.tenant_id = t.id
-        WHERE iv.id = $1
+            ir.indent_number AS voucher_number,
+            last_issue.created_at::date::text AS voucher_date,
+            ir.indent_type AS issue_type,
+            d.name AS receiving_department,
+            ur.full_name AS requested_by,
+            ui.full_name AS issued_by,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM indent_requisitions ir
+        JOIN departments d ON d.id = ir.department_id
+        JOIN users ur ON ur.id = ir.requested_by
+        JOIN tenants t ON t.id = ir.tenant_id
+        LEFT JOIN LATERAL (
+            SELECT m.created_at, m.created_by
+            FROM store_stock_movements m
+            WHERE m.reference_type = 'indent' AND m.reference_id = ir.id
+              AND m.movement_type = 'issue' AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC
+            LIMIT 1
+        ) last_issue ON true
+        LEFT JOIN users ui ON ui.id = last_issue.created_by
+        WHERE ir.id = $1 AND ir.deleted_at IS NULL
+          AND ir.status IN ('issued', 'partially_issued')
         ",
     )
-    .bind(voucher_id)
+    .bind(indent_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query issue items
     let items = sqlx::query_as::<_, IssueItemRow>(
         r"
         SELECT
-            ic.item_code,
-            ic.item_name,
-            ii.batch_number,
-            ii.expiry_date::TEXT as expiry_date,
-            ic.unit,
-            ii.quantity_requested,
-            ii.quantity_issued,
-            ii.unit_price,
-            ii.amount
-        FROM material_issue_items ii
-        JOIN inventory_catalog ic ON ii.item_id = ic.id
-        WHERE ii.voucher_id = $1
-        ORDER BY ii.line_number
+            COALESCE(sc.code, '') AS item_code,
+            ii.item_name,
+            COALESCE(sc.unit, '') AS unit,
+            ii.quantity_requested::float8 AS quantity_requested,
+            ii.quantity_issued::float8 AS quantity_issued,
+            ii.unit_price::float8 AS unit_price,
+            (ii.quantity_issued * ii.unit_price)::float8 AS amount
+        FROM indent_items ii
+        LEFT JOIN store_catalog sc ON sc.id = ii.catalog_item_id
+        WHERE ii.requisition_id = $1 AND ii.deleted_at IS NULL
+          AND ii.quantity_issued > 0
+        ORDER BY ii.created_at, ii.id
+        LIMIT 500
         ",
     )
-    .bind(voucher_id)
+    .bind(indent_id)
     .fetch_all(&mut *conn)
     .await?;
 
@@ -570,8 +596,9 @@ pub async fn get_material_issue_voucher_print_data(
         .map(|r| IssueItem {
             item_code: r.item_code,
             item_name: r.item_name,
-            batch_number: r.batch_number,
-            expiry_date: r.expiry_date,
+            // ponytail: indent issue records no batch — batch/expiry not recorded yet
+            batch_number: None,
+            expiry_date: None,
             unit: r.unit,
             quantity_requested: r.quantity_requested,
             quantity_issued: r.quantity_issued,
@@ -585,19 +612,20 @@ pub async fn get_material_issue_voucher_print_data(
 
     Ok(axum::Json(MaterialIssueVoucherPrintData {
         voucher_number: voucher.voucher_number,
-        voucher_date: voucher.voucher_date,
+        voucher_date: voucher.voucher_date.unwrap_or_default(),
         issue_type: voucher.issue_type,
-        issuing_store: voucher.issuing_store,
+        // ponytail: issuing store, cost centre, purpose, receipt not recorded on an issue yet
+        issuing_store: None,
         receiving_department: voucher.receiving_department,
-        receiving_cost_center: voucher.receiving_cost_center,
+        receiving_cost_center: None,
         requested_by: voucher.requested_by,
         items: issue_items,
         total_items,
         total_value,
-        purpose: voucher.purpose,
-        issued_by: voucher.issued_by,
-        received_by: voucher.received_by,
-        received_at: voucher.received_at,
+        purpose: None,
+        issued_by: voucher.issued_by.unwrap_or_default(),
+        received_by: None,
+        received_at: None,
         hospital_name: voucher.hospital_name,
         hospital_logo_url: voucher.hospital_logo_url,
     }))
@@ -606,16 +634,11 @@ pub async fn get_material_issue_voucher_print_data(
 #[derive(Debug, sqlx::FromRow)]
 struct IssueVoucherHeaderRow {
     voucher_number: String,
-    voucher_date: String,
+    voucher_date: Option<String>,
     issue_type: String,
-    issuing_store: String,
     receiving_department: String,
-    receiving_cost_center: Option<String>,
     requested_by: String,
-    purpose: Option<String>,
-    issued_by: String,
-    received_by: Option<String>,
-    received_at: Option<String>,
+    issued_by: Option<String>,
     hospital_name: String,
     hospital_logo_url: Option<String>,
 }
@@ -624,8 +647,6 @@ struct IssueVoucherHeaderRow {
 struct IssueItemRow {
     item_code: String,
     item_name: String,
-    batch_number: Option<String>,
-    expiry_date: Option<String>,
     unit: String,
     quantity_requested: f64,
     quantity_issued: f64,
@@ -634,101 +655,136 @@ struct IssueItemRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Stock Transfer Note
+// Stock Transfer Note — `pharmacy_transfer_requests.id`
 // ══════════════════════════════════════════════════════════
 
+/// Field-level restrictions the pharmacy transfer API applies to the same lines.
+const PRICE_FIELD: &str = "pharmacy.pricing.unit_price";
+const BATCH_FIELD: &str = "pharmacy.batches.batch_number";
+
+/// The only store-to-store transfer the product writes is the pharmacy one.
+/// Lines are the dispatched lines once dispatched (batch, expiry, unit cost),
+/// else the requested lines.
 pub async fn get_stock_transfer_note_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(transfer_id): Path<Uuid>,
 ) -> Result<axum::Json<StockTransferNotePrintData>, AppError> {
-    // No read-only stock permission exists, so this requires the manage one.
-    // Stricter than ideal, and the right way to be wrong here.
-    require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
+    // The same gate the pharmacy transfer list uses.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::LIST,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let is_open = |field: &str| {
+        !matches!(
+            restricted.get(field),
+            Some(FieldAccessLevel::Mask | FieldAccessLevel::Hidden)
+        )
+    };
+    let (show_price, show_batch) = (is_open(PRICE_FIELD), is_open(BATCH_FIELD));
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query transfer header
     let transfer = sqlx::query_as::<_, TransferHeaderRow>(
         r"
         SELECT
-            st.transfer_number,
-            st.transfer_date::TEXT as transfer_date,
-            sf.name as from_store,
-            sto.name as to_store,
-            st.transfer_type,
-            st.reason,
-            ui.full_name as initiated_by,
-            ud.name as dispatched_by,
-            st.dispatched_at::TEXT as dispatched_at,
-            ur.full_name as received_by,
-            st.received_at::TEXT as received_at,
-            st.status,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM stock_transfers st
-        JOIN stores sf ON st.from_store_id = sf.id
-        JOIN stores sto ON st.to_store_id = sto.id
-        JOIN users ui ON st.initiated_by = ui.id
-        LEFT JOIN users ud ON st.dispatched_by = ud.id
-        LEFT JOIN users ur ON st.received_by = ur.id
-        JOIN tenants t ON st.tenant_id = t.id
-        WHERE st.id = $1
+            r.id::text AS transfer_number,
+            r.created_at::date::text AS transfer_date,
+            sf.name AS from_store,
+            sto.name AS to_store,
+            r.notes AS reason,
+            ui.full_name AS initiated_by,
+            ud.full_name AS dispatched_by,
+            r.dispatched_at::text AS dispatched_at,
+            ur.full_name AS received_by,
+            r.received_at::text AS received_at,
+            r.status,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM pharmacy_transfer_requests r
+        JOIN store_locations sf ON sf.id = r.from_location_id
+        JOIN store_locations sto ON sto.id = r.to_location_id
+        JOIN users ui ON ui.id = r.requested_by
+        LEFT JOIN users ud ON ud.id = r.dispatched_by
+        LEFT JOIN users ur ON ur.id = r.received_by
+        JOIN tenants t ON t.id = r.tenant_id
+        WHERE r.id = $1 AND r.deleted_at IS NULL
         ",
     )
     .bind(transfer_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query transfer items
     let items = sqlx::query_as::<_, TransferItemRow>(
         r"
         SELECT
-            ic.item_code,
-            ic.item_name,
-            sti.batch_number,
-            sti.expiry_date::TEXT as expiry_date,
-            ic.unit,
-            sti.quantity,
-            sti.unit_price,
-            sti.amount
-        FROM stock_transfer_items sti
-        JOIN inventory_catalog ic ON sti.item_id = ic.id
-        WHERE sti.transfer_id = $1
-        ORDER BY sti.line_number
+            COALESCE(pc.code, '') AS item_code,
+            COALESCE(pc.name, '') AS item_name,
+            l->>'batch_number' AS batch_number,
+            l->>'expiry_date' AS expiry_date,
+            COALESCE(pc.unit, '') AS unit,
+            (l->>'quantity')::float8 AS quantity,
+            (l->>'unit_cost')::float8 AS unit_price
+        FROM pharmacy_transfer_requests r
+        CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_array_length(r.dispatched_lines) > 0
+                 THEN r.dispatched_lines ELSE r.items END
+        ) WITH ORDINALITY AS x(l, n)
+        LEFT JOIN pharmacy_catalog pc ON pc.id = (l->>'catalog_item_id')::uuid
+        WHERE r.id = $1 AND r.deleted_at IS NULL
+        ORDER BY n
+        LIMIT 500
         ",
     )
     .bind(transfer_id)
     .fetch_all(&mut *conn)
     .await?;
 
+    // No recorded (or a restricted) unit cost prints blank, not 0. The note's
+    // total sums only the priced lines.
     let transfer_items: Vec<TransferItem> = items
         .into_iter()
-        .map(|r| TransferItem {
-            item_code: r.item_code,
-            item_name: r.item_name,
-            batch_number: r.batch_number,
-            expiry_date: r.expiry_date,
-            unit: r.unit,
-            quantity: r.quantity,
-            unit_price: r.unit_price,
-            amount: r.amount,
+        .map(|r| {
+            let unit_price = r.unit_price.filter(|_| show_price);
+            TransferItem {
+                item_code: r.item_code,
+                item_name: r.item_name,
+                batch_number: r.batch_number.filter(|_| show_batch),
+                expiry_date: r.expiry_date,
+                unit: r.unit,
+                quantity: r.quantity,
+                unit_price,
+                amount: unit_price.map(|p| r.quantity * p),
+            }
         })
         .collect();
 
     let total_items = i32::try_from(transfer_items.len()).unwrap_or(0);
-    let total_value: f64 = transfer_items.iter().map(|i| i.amount).sum();
+    let total_value: f64 = transfer_items.iter().filter_map(|i| i.amount).sum();
 
     Ok(axum::Json(StockTransferNotePrintData {
         transfer_number: transfer.transfer_number,
         transfer_date: transfer.transfer_date,
         from_store: transfer.from_store,
         to_store: transfer.to_store,
-        transfer_type: transfer.transfer_type,
+        // ponytail: transfer type not recorded on a pharmacy transfer
+        transfer_type: None,
         items: transfer_items,
         total_items,
         total_value,
@@ -750,7 +806,6 @@ struct TransferHeaderRow {
     transfer_date: String,
     from_store: String,
     to_store: String,
-    transfer_type: String,
     reason: Option<String>,
     initiated_by: String,
     dispatched_by: Option<String>,
@@ -770,13 +825,32 @@ struct TransferItemRow {
     expiry_date: Option<String>,
     unit: String,
     quantity: f64,
-    unit_price: f64,
-    amount: f64,
+    unit_price: Option<f64>,
 }
 
 // ══════════════════════════════════════════════════════════
-// NDPS Controlled Substance Register
+// NDPS Controlled Substance Register — period `YYYY-MM`
 // ══════════════════════════════════════════════════════════
+
+/// Running balance of each NDPS drug as of `months` after the start of the
+/// period: the `balance_after` of its last register entry before that instant.
+/// `months = 0` is the opening balance, `months = 1` the closing balance.
+const NDPS_BALANCE_SQL: &str = r"
+    SELECT drug_name, schedule, unit, quantity FROM (
+        SELECT DISTINCT ON (r.catalog_item_id)
+            COALESCE(pc.inn_name, pc.generic_name, pc.name) AS drug_name,
+            COALESCE(pc.drug_schedule, '') AS schedule,
+            COALESCE(pc.unit, '') AS unit,
+            r.balance_after::float8 AS quantity
+        FROM pharmacy_ndps_register r
+        JOIN pharmacy_catalog pc ON pc.id = r.catalog_item_id
+        WHERE r.deleted_at IS NULL
+          AND r.created_at < to_date($1, 'YYYY-MM') + make_interval(months => $2)
+        ORDER BY r.catalog_item_id, r.created_at DESC, r.id DESC
+    ) b
+    ORDER BY drug_name
+    LIMIT 1000
+";
 
 pub async fn get_ndps_register_print_data(
     State(state): State<AppState>,
@@ -787,122 +861,90 @@ pub async fn get_ndps_register_print_data(
     // 1985. Printing it is a controlled-substance disclosure.
     require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
 
-    // A tenant-scoped connection rather than the bare pool: every table below
-    // is row-level secured, and a pool query carries no tenant, so under
-    // enforcement this prints an empty form. A blank statutory register is
-    // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-
-    // Parse period (YYYY-MM format)
-    let parts: Vec<&str> = period.split('-').collect();
-    if parts.len() != 2 {
+    // Validate before it reaches `to_date`, which would answer a bad month
+    // with a 500 instead of a 400.
+    if period.len() != 7
+        || chrono::NaiveDate::parse_from_str(&format!("{period}-01"), "%Y-%m-%d").is_err()
+    {
         return Err(AppError::BadRequest(
             "Invalid period format. Use YYYY-MM".to_string(),
         ));
     }
 
-    // Query store and license info (first NDPS-licensed store)
-    let store = sqlx::query_as::<_, NdpsStoreRow>(
-        r"
-        SELECT
-            s.name as store_name,
-            s.ndps_license_number as license_number,
-            s.ndps_license_valid_until::TEXT as license_valid_until,
-            u.full_name as register_maintained_by,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM stores s
-        JOIN tenants t ON s.tenant_id = t.id
-        LEFT JOIN users u ON s.ndps_register_officer = u.id
-        WHERE s.is_ndps_store = true
-        LIMIT 1
-        ",
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+
+    let hospital = sqlx::query_as::<_, HospitalRow>(
+        "SELECT name AS hospital_name, logo_url AS hospital_logo_url FROM tenants WHERE id = $1",
     )
+    .bind(claims.tenant_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    // Query opening balance (beginning of period)
-    let opening_balance = sqlx::query_as::<_, NdpsBalanceRow>(
-        r"
-        SELECT
-            dc.generic_name as drug_name,
-            dc.drug_schedule as schedule,
-            nb.batch_number,
-            dc.dispensing_unit as unit,
-            nb.opening_quantity as quantity
-        FROM ndps_balances nb
-        JOIN drug_catalog dc ON nb.drug_id = dc.id
-        WHERE nb.period = $1 AND nb.balance_type = 'opening'
-        ORDER BY dc.generic_name
-        ",
-    )
-    .bind(&period)
-    .fetch_all(&mut *conn)
-    .await?;
+    let opening_balance = sqlx::query_as::<_, NdpsBalanceRow>(NDPS_BALANCE_SQL)
+        .bind(&period)
+        .bind(0_i32)
+        .fetch_all(&mut *conn)
+        .await?;
 
-    // Query transactions for the period
+    // The prescriber is the doctor on the prescription the entry dispensed
+    // against; the witness is the second signatory recorded on the entry.
     let transactions = sqlx::query_as::<_, NdpsTransactionRow>(
         r"
         SELECT
-            nt.transaction_date::TEXT as transaction_date,
-            dc.generic_name as drug_name,
-            nt.batch_number,
-            nt.transaction_type,
-            nt.quantity,
-            nt.balance_after,
-            (p.first_name || ' ' || p.last_name) as patient_name,
-            p.uhid as patient_uhid,
-            u.full_name as prescribing_doctor,
-            nt.witness_name,
-            nt.reference_number
-        FROM ndps_transactions nt
-        JOIN drug_catalog dc ON nt.drug_id = dc.id
-        LEFT JOIN patients p ON nt.patient_id = p.id
-        LEFT JOIN users u ON nt.prescribing_doctor_id = u.id
-        WHERE nt.period = $1
-        ORDER BY nt.transaction_date, nt.created_at
+            r.created_at::text AS transaction_date,
+            COALESCE(pc.inn_name, pc.generic_name, pc.name) AS drug_name,
+            r.action::text AS transaction_type,
+            r.quantity::float8 AS quantity,
+            r.balance_after::float8 AS balance_after,
+            NULLIF(trim(concat_ws(' ', p.first_name, p.last_name)), '') AS patient_name,
+            p.uhid AS patient_uhid,
+            ud.full_name AS prescribing_doctor,
+            uw.full_name AS witness_name,
+            concat_ws(' / ', r.register_number, r.page_number) AS reference_number
+        FROM pharmacy_ndps_register r
+        JOIN pharmacy_catalog pc ON pc.id = r.catalog_item_id
+        LEFT JOIN patients p ON p.id = r.patient_id
+        LEFT JOIN prescriptions rx ON rx.id = r.prescription_id
+        LEFT JOIN users ud ON ud.id = rx.doctor_id
+        LEFT JOIN users uw ON uw.id = r.witnessed_by
+        WHERE r.deleted_at IS NULL
+          AND r.created_at >= to_date($1, 'YYYY-MM')
+          AND r.created_at < to_date($1, 'YYYY-MM') + interval '1 month'
+        ORDER BY r.created_at, r.id
+        LIMIT 5000
         ",
     )
     .bind(&period)
     .fetch_all(&mut *conn)
     .await?;
 
-    // Query closing balance (end of period)
-    let closing_balance = sqlx::query_as::<_, NdpsBalanceRow>(
-        r"
-        SELECT
-            dc.generic_name as drug_name,
-            dc.drug_schedule as schedule,
-            nb.batch_number,
-            dc.dispensing_unit as unit,
-            nb.closing_quantity as quantity
-        FROM ndps_balances nb
-        JOIN drug_catalog dc ON nb.drug_id = dc.id
-        WHERE nb.period = $1 AND nb.balance_type = 'closing'
-        ORDER BY dc.generic_name
-        ",
-    )
-    .bind(&period)
-    .fetch_all(&mut *conn)
-    .await?;
+    let closing_balance = sqlx::query_as::<_, NdpsBalanceRow>(NDPS_BALANCE_SQL)
+        .bind(&period)
+        .bind(1_i32)
+        .fetch_all(&mut *conn)
+        .await?;
 
-    let opening: Vec<NdpsBalance> = opening_balance
-        .into_iter()
-        .map(|r| NdpsBalance {
-            drug_name: r.drug_name,
-            schedule: r.schedule,
-            batch_number: r.batch_number,
-            unit: r.unit,
-            quantity: r.quantity,
-        })
-        .collect();
+    // ponytail: the register is kept per drug, not per batch — batch_number not recorded yet
+    let to_balance = |r: NdpsBalanceRow| NdpsBalance {
+        drug_name: r.drug_name,
+        schedule: r.schedule,
+        batch_number: None,
+        unit: r.unit,
+        quantity: r.quantity,
+    };
 
     let txns: Vec<NdpsTransaction> = transactions
         .into_iter()
         .map(|r| NdpsTransaction {
             transaction_date: r.transaction_date,
             drug_name: r.drug_name,
-            batch_number: r.batch_number,
+            batch_number: None,
             transaction_type: r.transaction_type,
             quantity: r.quantity,
             balance_after: r.balance_after,
@@ -914,41 +956,30 @@ pub async fn get_ndps_register_print_data(
         })
         .collect();
 
-    let closing: Vec<NdpsBalance> = closing_balance
-        .into_iter()
-        .map(|r| NdpsBalance {
-            drug_name: r.drug_name,
-            schedule: r.schedule,
-            batch_number: r.batch_number,
-            unit: r.unit,
-            quantity: r.quantity,
-        })
-        .collect();
-
     Ok(axum::Json(NdpsRegisterPrintData {
         report_period: period,
-        report_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
-        store_name: store.store_name,
-        license_number: store.license_number.unwrap_or_default(),
-        license_valid_until: store.license_valid_until.unwrap_or_default(),
-        opening_balance: opening,
+        report_date: chrono::Utc::now()
+            .with_timezone(&tz)
+            .format("%Y-%m-%d")
+            .to_string(),
+        // ponytail: NDPS store, licence and register officer not recorded anywhere yet
+        store_name: None,
+        license_number: None,
+        license_valid_until: None,
+        opening_balance: opening_balance.into_iter().map(to_balance).collect(),
         transactions: txns,
-        closing_balance: closing,
+        closing_balance: closing_balance.into_iter().map(to_balance).collect(),
         physical_verification_date: None,
         discrepancies: vec![],
-        register_maintained_by: store.register_maintained_by.unwrap_or_default(),
+        register_maintained_by: None,
         verified_by: None,
-        hospital_name: store.hospital_name,
-        hospital_logo_url: store.hospital_logo_url,
+        hospital_name: hospital.hospital_name,
+        hospital_logo_url: hospital.hospital_logo_url,
     }))
 }
 
 #[derive(Debug, sqlx::FromRow)]
-struct NdpsStoreRow {
-    store_name: String,
-    license_number: Option<String>,
-    license_valid_until: Option<String>,
-    register_maintained_by: Option<String>,
+struct HospitalRow {
     hospital_name: String,
     hospital_logo_url: Option<String>,
 }
@@ -957,7 +988,6 @@ struct NdpsStoreRow {
 struct NdpsBalanceRow {
     drug_name: String,
     schedule: String,
-    batch_number: String,
     unit: String,
     quantity: f64,
 }
@@ -966,7 +996,6 @@ struct NdpsBalanceRow {
 struct NdpsTransactionRow {
     transaction_date: String,
     drug_name: String,
-    batch_number: String,
     transaction_type: String,
     quantity: f64,
     balance_after: f64,
@@ -978,8 +1007,35 @@ struct NdpsTransactionRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Drug Expiry Alert List
+// Drug Expiry Alert List — `store_locations.id`
 // ══════════════════════════════════════════════════════════
+
+/// Pharmacy batches with stock at one store whose days-to-expiry fall in
+/// `[$2, $3]`. Value uses the batch purchase rate, else the catalogue cost.
+const EXPIRY_BATCHES_SQL: &str = r"
+    SELECT
+        pc.code AS item_code,
+        COALESCE(pc.inn_name, pc.generic_name, pc.name) AS drug_name,
+        pb.batch_number,
+        pb.expiry_date::text AS expiry_date,
+        (pb.expiry_date - CURRENT_DATE) AS days_to_expiry,
+        pb.quantity_on_hand::float8 AS quantity,
+        COALESCE(pc.unit, '') AS unit,
+        COALESCE(pb.purchase_rate, pc.cost_price, pc.purchase_price)::float8 AS unit_price,
+        pc.manufacturer,
+        v.name AS supplier,
+        sl.name AS location
+    FROM pharmacy_batches pb
+    JOIN pharmacy_catalog pc ON pc.id = pb.catalog_item_id
+    JOIN store_locations sl ON sl.id = pb.store_location_id
+    LEFT JOIN vendors v ON v.id = pb.vendor_id
+    WHERE pb.store_location_id = $1
+      AND pb.deleted_at IS NULL
+      AND pb.quantity_on_hand > 0
+      AND (pb.expiry_date - CURRENT_DATE) BETWEEN $2 AND $3
+    ORDER BY pb.expiry_date, pb.batch_number
+    LIMIT 1000
+";
 
 pub async fn get_drug_expiry_alert_print_data(
     State(state): State<AppState>,
@@ -992,129 +1048,53 @@ pub async fn get_drug_expiry_alert_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query store info
     let store = sqlx::query_as::<_, StoreInfoRow>(
         r"
         SELECT
-            s.name as store_name,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM stores s
-        JOIN tenants t ON s.tenant_id = t.id
-        WHERE s.id = $1
+            sl.name AS store_name,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM store_locations sl
+        JOIN tenants t ON t.id = sl.tenant_id
+        WHERE sl.id = $1 AND sl.deleted_at IS NULL
         ",
     )
     .bind(store_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    let alert_threshold_days = 90; // Default 90 days
+    let alert_threshold_days: i32 = 90;
 
-    // Query expired drugs
-    let expired = sqlx::query_as::<_, ExpiryDrugRow>(
-        r"
-        SELECT
-            dc.item_code,
-            dc.generic_name as drug_name,
-            sb.batch_number,
-            sb.expiry_date::TEXT as expiry_date,
-            (sb.expiry_date - CURRENT_DATE)::INT as days_to_expiry,
-            sb.quantity,
-            dc.dispensing_unit as unit,
-            sb.unit_price,
-            (sb.quantity * sb.unit_price) as total_value,
-            dc.manufacturer,
-            v.name as supplier,
-            s.name as location
-        FROM stock_batches sb
-        JOIN drug_catalog dc ON sb.item_id = dc.id
-        JOIN stores s ON sb.store_id = s.id
-        LEFT JOIN vendors v ON sb.supplier_id = v.id
-        WHERE sb.store_id = $1
-          AND sb.expiry_date < CURRENT_DATE
-          AND sb.quantity > 0
-        ORDER BY sb.expiry_date
-        ",
-    )
-    .bind(store_id)
-    .fetch_all(&mut *conn)
-    .await?;
+    let expired = sqlx::query_as::<_, ExpiryDrugRow>(EXPIRY_BATCHES_SQL)
+        .bind(store_id)
+        .bind(i32::MIN)
+        .bind(-1_i32)
+        .fetch_all(&mut *conn)
+        .await?;
 
-    // Query expiring soon
-    let expiring_soon = sqlx::query_as::<_, ExpiryDrugRow>(
-        r"
-        SELECT
-            dc.item_code,
-            dc.generic_name as drug_name,
-            sb.batch_number,
-            sb.expiry_date::TEXT as expiry_date,
-            (sb.expiry_date - CURRENT_DATE)::INT as days_to_expiry,
-            sb.quantity,
-            dc.dispensing_unit as unit,
-            sb.unit_price,
-            (sb.quantity * sb.unit_price) as total_value,
-            dc.manufacturer,
-            v.name as supplier,
-            s.name as location
-        FROM stock_batches sb
-        JOIN drug_catalog dc ON sb.item_id = dc.id
-        JOIN stores s ON sb.store_id = s.id
-        LEFT JOIN vendors v ON sb.supplier_id = v.id
-        WHERE sb.store_id = $1
-          AND sb.expiry_date >= CURRENT_DATE
-          AND sb.expiry_date <= CURRENT_DATE + $2
-          AND sb.quantity > 0
-        ORDER BY sb.expiry_date
-        ",
-    )
-    .bind(store_id)
-    .bind(alert_threshold_days)
-    .fetch_all(&mut *conn)
-    .await?;
+    let expiring_soon = sqlx::query_as::<_, ExpiryDrugRow>(EXPIRY_BATCHES_SQL)
+        .bind(store_id)
+        .bind(0_i32)
+        .bind(alert_threshold_days)
+        .fetch_all(&mut *conn)
+        .await?;
 
-    let expired_drugs: Vec<ExpiryDrugItem> = expired
-        .into_iter()
-        .map(|r| ExpiryDrugItem {
-            item_code: r.item_code,
-            drug_name: r.drug_name,
-            batch_number: r.batch_number,
-            expiry_date: r.expiry_date,
-            days_to_expiry: r.days_to_expiry,
-            quantity: r.quantity,
-            unit: r.unit,
-            unit_price: r.unit_price,
-            total_value: r.total_value,
-            manufacturer: r.manufacturer,
-            supplier: r.supplier,
-            location: r.location,
-        })
-        .collect();
+    let expired_drugs: Vec<ExpiryDrugItem> = expired.into_iter().map(expiry_item).collect();
+    let expiring: Vec<ExpiryDrugItem> = expiring_soon.into_iter().map(expiry_item).collect();
 
-    let expiring: Vec<ExpiryDrugItem> = expiring_soon
-        .into_iter()
-        .map(|r| ExpiryDrugItem {
-            item_code: r.item_code,
-            drug_name: r.drug_name,
-            batch_number: r.batch_number,
-            expiry_date: r.expiry_date,
-            days_to_expiry: r.days_to_expiry,
-            quantity: r.quantity,
-            unit: r.unit,
-            unit_price: r.unit_price,
-            total_value: r.total_value,
-            manufacturer: r.manufacturer,
-            supplier: r.supplier,
-            location: r.location,
-        })
-        .collect();
-
-    let total_expired_value: f64 = expired_drugs.iter().map(|d| d.total_value).sum();
-    let total_expiring_value: f64 = expiring.iter().map(|d| d.total_value).sum();
+    // Totals sum only the batches that carry a price.
+    let total_expired_value: f64 = expired_drugs.iter().filter_map(|d| d.total_value).sum();
+    let total_expiring_value: f64 = expiring.iter().filter_map(|d| d.total_value).sum();
 
     Ok(axum::Json(DrugExpiryAlertPrintData {
-        report_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
+        report_date: chrono::Utc::now()
+            .with_timezone(&tz)
+            .format("%Y-%m-%d")
+            .to_string(),
         store_name: store.store_name,
         alert_threshold_days,
         expired_drugs,
@@ -1125,6 +1105,25 @@ pub async fn get_drug_expiry_alert_print_data(
         hospital_name: store.hospital_name,
         hospital_logo_url: store.hospital_logo_url,
     }))
+}
+
+/// A batch with no purchase rate or catalogue cost prints its value blank.
+fn expiry_item(r: ExpiryDrugRow) -> ExpiryDrugItem {
+    let unit_price = r.unit_price;
+    ExpiryDrugItem {
+        item_code: r.item_code,
+        drug_name: r.drug_name,
+        batch_number: r.batch_number,
+        expiry_date: r.expiry_date,
+        days_to_expiry: r.days_to_expiry,
+        quantity: r.quantity,
+        unit: r.unit,
+        unit_price,
+        total_value: unit_price.map(|p| r.quantity * p),
+        manufacturer: r.manufacturer,
+        supplier: r.supplier,
+        location: r.location,
+    }
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -1143,17 +1142,18 @@ struct ExpiryDrugRow {
     days_to_expiry: i32,
     quantity: f64,
     unit: String,
-    unit_price: f64,
-    total_value: f64,
+    unit_price: Option<f64>,
     manufacturer: Option<String>,
     supplier: Option<String>,
     location: String,
 }
 
 // ══════════════════════════════════════════════════════════
-// Equipment Condemnation Form
+// Equipment Condemnation Form — `equipment_condemnations.id`
 // ══════════════════════════════════════════════════════════
 
+/// A condemnation names a `store_catalog` item, not a `bme_equipment` asset,
+/// so the asset fields (serial, make, location …) have nothing to read.
 pub async fn get_equipment_condemnation_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1165,79 +1165,65 @@ pub async fn get_equipment_condemnation_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query condemnation record
     let cond = sqlx::query_as::<_, CondemnationRow>(
         r"
         SELECT
             ec.condemnation_number,
-            ec.condemnation_date::TEXT as condemnation_date,
-            e.name as equipment_name,
-            e.equipment_code,
-            e.serial_number,
-            e.make,
-            e.model,
-            l.name as location,
-            d.name as department,
-            e.purchase_date::TEXT as purchase_date,
-            e.purchase_value,
-            e.current_book_value,
-            ec.reason_for_condemnation,
-            ec.condition_assessment,
-            ec.inspection_findings,
-            ec.repair_history,
-            ec.total_repair_cost,
-            ec.disposal_recommendation,
-            ec.estimated_salvage_value,
-            ui.full_name as inspected_by,
-            ur.full_name as recommended_by,
-            ua.full_name as approved_by,
-            ec.approval_date::TEXT as approval_date,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
+            ec.created_at::date::text AS condemnation_date,
+            sc.name AS equipment_name,
+            sc.code AS equipment_code,
+            ec.purchase_value::float8 AS purchase_value,
+            ec.current_value::float8 AS current_book_value,
+            ec.reason AS reason_for_condemnation,
+            ec.committee_remarks,
+            ec.disposal_method,
+            ui.full_name AS initiated_by,
+            ua.full_name AS approved_by,
+            ec.approved_at::text AS approval_date,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
         FROM equipment_condemnations ec
-        JOIN equipment e ON ec.equipment_id = e.id
-        LEFT JOIN locations l ON e.location_id = l.id
-        JOIN departments d ON e.department_id = d.id
-        JOIN users ui ON ec.inspected_by = ui.id
-        JOIN users ur ON ec.recommended_by = ur.id
-        LEFT JOIN users ua ON ec.approved_by = ua.id
-        JOIN tenants t ON ec.tenant_id = t.id
-        WHERE ec.id = $1
+        JOIN store_catalog sc ON sc.id = ec.catalog_item_id
+        JOIN users ui ON ui.id = ec.initiated_by
+        LEFT JOIN users ua ON ua.id = ec.approved_by
+        JOIN tenants t ON t.id = ec.tenant_id
+        WHERE ec.id = $1 AND ec.deleted_at IS NULL
         ",
     )
     .bind(condemnation_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    let repair_history: Vec<RepairHistoryEntry> = cond
-        .repair_history
-        .map(|h| serde_json::from_value(h).unwrap_or_default())
-        .unwrap_or_default();
-
     Ok(axum::Json(EquipmentCondemnationPrintData {
         condemnation_number: cond.condemnation_number,
         condemnation_date: cond.condemnation_date,
         equipment_name: cond.equipment_name,
         equipment_code: cond.equipment_code,
-        serial_number: cond.serial_number,
-        make: cond.make,
-        model: cond.model,
-        location: cond.location.unwrap_or_default(),
-        department: cond.department,
-        purchase_date: cond.purchase_date,
-        purchase_value: cond.purchase_value,
-        current_book_value: cond.current_book_value,
+        // ponytail: asset identity, location, condition, inspection, repair history
+        // not recorded on a condemnation yet
+        serial_number: None,
+        make: None,
+        model: None,
+        location: None,
+        department: None,
+        purchase_date: None,
+        purchase_value: Some(cond.purchase_value),
+        current_book_value: Some(cond.current_book_value),
         reason_for_condemnation: cond.reason_for_condemnation,
-        condition_assessment: cond.condition_assessment,
-        inspection_findings: cond.inspection_findings,
-        repair_history,
-        total_repair_cost: cond.total_repair_cost,
-        disposal_recommendation: cond.disposal_recommendation,
-        estimated_salvage_value: cond.estimated_salvage_value,
-        inspected_by: cond.inspected_by,
-        recommended_by: cond.recommended_by,
+        condition_assessment: None,
+        // The condemnation committee's remarks are its inspection finding.
+        inspection_findings: cond.committee_remarks.unwrap_or_default(),
+        repair_history: vec![],
+        total_repair_cost: None,
+        disposal_recommendation: cond.disposal_method.unwrap_or_default(),
+        estimated_salvage_value: None,
+        inspected_by: None,
+        // The person who initiated the condemnation is the one recommending it.
+        recommended_by: cond.initiated_by,
         approved_by: cond.approved_by,
         approval_date: cond.approval_date,
         hospital_name: cond.hospital_name,
@@ -1251,23 +1237,12 @@ struct CondemnationRow {
     condemnation_date: String,
     equipment_name: String,
     equipment_code: String,
-    serial_number: Option<String>,
-    make: Option<String>,
-    model: Option<String>,
-    location: Option<String>,
-    department: String,
-    purchase_date: Option<String>,
-    purchase_value: Option<f64>,
-    current_book_value: Option<f64>,
+    purchase_value: f64,
+    current_book_value: f64,
     reason_for_condemnation: String,
-    condition_assessment: String,
-    inspection_findings: String,
-    repair_history: Option<serde_json::Value>,
-    total_repair_cost: f64,
-    disposal_recommendation: String,
-    estimated_salvage_value: Option<f64>,
-    inspected_by: String,
-    recommended_by: String,
+    committee_remarks: Option<String>,
+    disposal_method: Option<String>,
+    initiated_by: String,
     approved_by: Option<String>,
     approval_date: Option<String>,
     hospital_name: String,
@@ -1275,7 +1250,7 @@ struct CondemnationRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Work Order Form
+// Work Order Form — `fms_work_orders.id`
 // ══════════════════════════════════════════════════════════
 
 pub async fn get_work_order_print_data(
@@ -1289,73 +1264,63 @@ pub async fn get_work_order_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query work order
     let wo = sqlx::query_as::<_, WorkOrderRow>(
         r"
         SELECT
             wo.work_order_number,
-            wo.work_order_date::TEXT as work_order_date,
-            wo.work_type,
+            wo.requested_at::date::text AS work_order_date,
+            wo.category AS work_type,
             wo.priority,
-            ur.full_name as requested_by,
-            d.name as requesting_department,
-            l.name as location,
+            ur.full_name AS requested_by,
+            d.name AS requesting_department,
+            l.name AS location,
             wo.description,
-            e.name as equipment_involved,
-            e.equipment_code,
-            wo.estimated_hours,
-            wo.estimated_cost,
-            wo.materials_required,
-            ua.full_name as assigned_to,
-            wo.assigned_team,
-            wo.scheduled_date::TEXT as scheduled_date,
-            wo.completion_date::TEXT as completion_date,
-            wo.actual_hours,
-            wo.actual_cost,
-            wo.work_done,
-            wo.status,
-            uv.full_name as verified_by,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM work_orders wo
-        JOIN users ur ON wo.requested_by = ur.id
-        JOIN departments d ON wo.department_id = d.id
-        LEFT JOIN locations l ON wo.location_id = l.id
-        LEFT JOIN equipment e ON wo.equipment_id = e.id
-        LEFT JOIN users ua ON wo.assigned_to = ua.id
-        LEFT JOIN users uv ON wo.verified_by = uv.id
-        JOIN tenants t ON wo.tenant_id = t.id
-        WHERE wo.id = $1
+            ua.full_name AS assigned_to,
+            wo.completed_at::text AS completion_date,
+            (EXTRACT(EPOCH FROM (wo.completed_at - wo.started_at)) / 3600)::float8
+                AS actual_hours,
+            wo.total_cost::float8 AS actual_cost,
+            wo.actions_taken AS work_done,
+            wo.status::text AS status,
+            uv.full_name AS verified_by,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM fms_work_orders wo
+        LEFT JOIN users ur ON ur.id = wo.requested_by
+        LEFT JOIN departments d ON d.id = wo.department_id
+        LEFT JOIN locations l ON l.id = wo.location_id
+        LEFT JOIN users ua ON ua.id = wo.assigned_to
+        LEFT JOIN users uv ON uv.id = wo.sign_off_by
+        JOIN tenants t ON t.id = wo.tenant_id
+        WHERE wo.id = $1 AND wo.deleted_at IS NULL
         ",
     )
     .bind(work_order_id)
     .fetch_one(&mut *conn)
     .await?;
 
-    let materials: Vec<WorkOrderMaterial> = wo
-        .materials_required
-        .map(|m| serde_json::from_value(m).unwrap_or_default())
-        .unwrap_or_default();
-
     Ok(axum::Json(WorkOrderPrintData {
         work_order_number: wo.work_order_number,
         work_order_date: wo.work_order_date,
-        work_type: wo.work_type,
+        work_type: wo.work_type.unwrap_or_default(),
         priority: wo.priority,
-        requested_by: wo.requested_by,
-        requesting_department: wo.requesting_department,
+        requested_by: wo.requested_by.unwrap_or_default(),
+        requesting_department: wo.requesting_department.unwrap_or_default(),
         location: wo.location.unwrap_or_default(),
         description: wo.description,
-        equipment_involved: wo.equipment_involved,
-        equipment_code: wo.equipment_code,
-        estimated_hours: wo.estimated_hours,
-        estimated_cost: wo.estimated_cost,
-        materials_required: materials,
+        // ponytail: equipment, estimates, materials, team, schedule not recorded on an FMS order
+        equipment_involved: None,
+        equipment_code: None,
+        estimated_hours: None,
+        estimated_cost: None,
+        materials_required: vec![],
         assigned_to: wo.assigned_to,
-        assigned_team: wo.assigned_team,
-        scheduled_date: wo.scheduled_date,
+        assigned_team: None,
+        scheduled_date: None,
         completion_date: wo.completion_date,
         actual_hours: wo.actual_hours,
         actual_cost: wo.actual_cost,
@@ -1371,20 +1336,13 @@ pub async fn get_work_order_print_data(
 struct WorkOrderRow {
     work_order_number: String,
     work_order_date: String,
-    work_type: String,
+    work_type: Option<String>,
     priority: String,
-    requested_by: String,
-    requesting_department: String,
+    requested_by: Option<String>,
+    requesting_department: Option<String>,
     location: Option<String>,
     description: String,
-    equipment_involved: Option<String>,
-    equipment_code: Option<String>,
-    estimated_hours: Option<f64>,
-    estimated_cost: Option<f64>,
-    materials_required: Option<serde_json::Value>,
     assigned_to: Option<String>,
-    assigned_team: Option<String>,
-    scheduled_date: Option<String>,
     completion_date: Option<String>,
     actual_hours: Option<f64>,
     actual_cost: Option<f64>,
@@ -1396,13 +1354,13 @@ struct WorkOrderRow {
 }
 
 // ══════════════════════════════════════════════════════════
-// Preventive Maintenance Checklist
+// Preventive Maintenance Checklist — `bme_work_orders.id` (preventive)
 // ══════════════════════════════════════════════════════════
 
 pub async fn get_pm_checklist_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(pm_id): Path<Uuid>,
+    Path(work_order_id): Path<Uuid>,
 ) -> Result<axum::Json<PmChecklistPrintData>, AppError> {
     require_permission(&claims, permissions::bme::pm::LIST)?;
 
@@ -1410,86 +1368,78 @@ pub async fn get_pm_checklist_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
-    // Query PM record
+    // "Last PM" is the previous completed preventive work order on the same
+    // machine — not the schedule's `last_completed_date`, which this very
+    // order overwrites when it closes.
     let pm = sqlx::query_as::<_, PmRow>(
         r"
         SELECT
-            pm.pm_number,
-            pm.pm_date::TEXT as pm_date,
-            e.name as equipment_name,
-            e.equipment_code,
+            w.work_order_number AS pm_number,
+            COALESCE(w.completed_at::date, w.scheduled_date)::text AS pm_date,
+            e.name AS equipment_name,
+            COALESCE(e.asset_tag, '') AS equipment_code,
             e.serial_number,
-            l.name as location,
-            d.name as department,
-            pm.last_pm_date::TEXT as last_pm_date,
-            pm.pm_frequency,
-            pm.checklist_items,
-            pm.overall_condition,
-            pm.issues_found,
-            pm.corrective_actions,
-            pm.parts_replaced,
-            pm.next_pm_due::TEXT as next_pm_due,
-            up.full_name as performed_by,
-            uv.full_name as verified_by,
-            uda.full_name as department_head_acknowledgment,
-            t.name as hospital_name,
-            t.logo_url as hospital_logo_url
-        FROM preventive_maintenance pm
-        JOIN equipment e ON pm.equipment_id = e.id
-        LEFT JOIN locations l ON e.location_id = l.id
-        JOIN departments d ON e.department_id = d.id
-        JOIN users up ON pm.performed_by = up.id
-        LEFT JOIN users uv ON pm.verified_by = uv.id
-        LEFT JOIN users uda ON pm.acknowledged_by = uda.id
-        JOIN tenants t ON pm.tenant_id = t.id
-        WHERE pm.id = $1
+            e.location_description AS location,
+            d.name AS department,
+            (SELECT max(p.completed_at)::date::text
+               FROM bme_work_orders p
+              WHERE p.equipment_id = w.equipment_id AND p.order_type = 'preventive'
+                AND p.id <> w.id AND p.deleted_at IS NULL
+                AND p.completed_at < COALESCE(w.completed_at, now())) AS last_pm_date,
+            s.frequency::text AS pm_frequency,
+            w.checklist_results,
+            w.findings,
+            w.actions_taken,
+            s.next_due_date::text AS next_pm_due,
+            ut.full_name AS performed_by,
+            us.full_name AS verified_by,
+            t.name AS hospital_name,
+            t.logo_url AS hospital_logo_url
+        FROM bme_work_orders w
+        JOIN bme_equipment e ON e.id = w.equipment_id
+        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN bme_pm_schedules s ON s.id = w.pm_schedule_id AND s.deleted_at IS NULL
+        LEFT JOIN users ut ON ut.id = w.technician_sign_off_by
+        LEFT JOIN users us ON us.id = w.supervisor_sign_off_by
+        JOIN tenants t ON t.id = w.tenant_id
+        WHERE w.id = $1 AND w.order_type = 'preventive' AND w.deleted_at IS NULL
         ",
     )
-    .bind(pm_id)
+    .bind(work_order_id)
     .fetch_one(&mut *conn)
     .await?;
 
     let checklist_items: Vec<PmChecklistItem> = pm
-        .checklist_items
+        .checklist_results
         .map(|c| serde_json::from_value(c).unwrap_or_default())
         .unwrap_or_default();
 
-    let issues_found: Vec<String> = pm
-        .issues_found
-        .map(|i| serde_json::from_value(i).unwrap_or_default())
-        .unwrap_or_default();
-
-    let corrective_actions: Vec<String> = pm
-        .corrective_actions
-        .map(|c| serde_json::from_value(c).unwrap_or_default())
-        .unwrap_or_default();
-
-    let parts_replaced: Vec<PartReplaced> = pm
-        .parts_replaced
-        .map(|p| serde_json::from_value(p).unwrap_or_default())
-        .unwrap_or_default();
+    let non_blank = |s: Option<String>| s.filter(|v| !v.trim().is_empty());
 
     Ok(axum::Json(PmChecklistPrintData {
         pm_number: pm.pm_number,
-        pm_date: pm.pm_date,
+        pm_date: pm.pm_date.unwrap_or_default(),
         equipment_name: pm.equipment_name,
         equipment_code: pm.equipment_code,
         serial_number: pm.serial_number,
         location: pm.location.unwrap_or_default(),
-        department: pm.department,
+        department: pm.department.unwrap_or_default(),
         last_pm_date: pm.last_pm_date,
-        pm_frequency: pm.pm_frequency,
+        pm_frequency: pm.pm_frequency.unwrap_or_default(),
         checklist_items,
-        overall_condition: pm.overall_condition,
-        issues_found,
-        corrective_actions,
-        parts_replaced,
+        // ponytail: overall condition, parts replaced, dept-head ack not recorded yet
+        overall_condition: None,
+        issues_found: non_blank(pm.findings).into_iter().collect(),
+        corrective_actions: non_blank(pm.actions_taken).into_iter().collect(),
+        parts_replaced: vec![],
         next_pm_due: pm.next_pm_due,
-        performed_by: pm.performed_by,
+        performed_by: pm.performed_by.unwrap_or_default(),
         verified_by: pm.verified_by,
-        department_head_acknowledgment: pm.department_head_acknowledgment,
+        department_head_acknowledgment: None,
         hospital_name: pm.hospital_name,
         hospital_logo_url: pm.hospital_logo_url,
     }))
@@ -1498,23 +1448,20 @@ pub async fn get_pm_checklist_print_data(
 #[derive(Debug, sqlx::FromRow)]
 struct PmRow {
     pm_number: String,
-    pm_date: String,
+    pm_date: Option<String>,
     equipment_name: String,
     equipment_code: String,
     serial_number: Option<String>,
     location: Option<String>,
-    department: String,
+    department: Option<String>,
     last_pm_date: Option<String>,
-    pm_frequency: String,
-    checklist_items: Option<serde_json::Value>,
-    overall_condition: String,
-    issues_found: Option<serde_json::Value>,
-    corrective_actions: Option<serde_json::Value>,
-    parts_replaced: Option<serde_json::Value>,
+    pm_frequency: Option<String>,
+    checklist_results: Option<serde_json::Value>,
+    findings: Option<String>,
+    actions_taken: Option<String>,
     next_pm_due: Option<String>,
-    performed_by: String,
+    performed_by: Option<String>,
     verified_by: Option<String>,
-    department_head_acknowledgment: Option<String>,
     hospital_name: String,
     hospital_logo_url: Option<String>,
 }
@@ -1630,7 +1577,6 @@ fn two_digit_to_words(n: i64, ones: &[&str], tens: &[&str]) -> String {
         }
     }
 }
-
 
 // ── Dispensing label ─────────────────────────────────────
 
@@ -1748,6 +1694,7 @@ pub async fn get_dispensing_label_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as!(
         DispensingLabelRow,
@@ -1835,10 +1782,12 @@ pub async fn get_dispensing_label_print_data(
         storage_conditions: row.storage_conditions,
         schedule_warning: schedule_warning(row.drug_schedule.as_deref()),
         black_box_warning: row.black_box_warning,
-        is_controlled: row.is_controlled.unwrap_or(false),
-        dispensed_on: row
-            .dispensed_at
-            .map_or_else(String::new, |d| d.format("%d-%b-%Y %H:%M").to_string()),
+        // Unknown is printed as unknown: a label must never call a controlled
+        // drug uncontrolled because the catalogue flag is missing.
+        is_controlled: row.is_controlled,
+        dispensed_on: row.dispensed_at.map_or_else(String::new, |d| {
+            d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()
+        }),
         dispensed_by: row.dispensed_by,
         prescriber_name: row.prescriber_name,
     }))
@@ -1855,12 +1804,9 @@ pub fn router() -> axum::Router<AppState> {
             "/api/print-data/purchase-order/{po_id}",
             get(get_purchase_order_print_data),
         )
+        .route("/api/print-data/grn/{grn_id}", get(get_grn_print_data))
         .route(
-            "/api/print-data/grn/{grn_id}",
-            get(get_grn_print_data),
-        )
-        .route(
-            "/api/print-data/material-issue-voucher/{voucher_id}",
+            "/api/print-data/material-issue-voucher/{indent_id}",
             get(get_material_issue_voucher_print_data),
         )
         .route(
@@ -1888,9 +1834,10 @@ pub fn router() -> axum::Router<AppState> {
             get(get_work_order_print_data),
         )
         .route(
-            "/api/print-data/pm-checklist/{pm_id}",
+            "/api/print-data/pm-checklist/{work_order_id}",
             get(get_pm_checklist_print_data),
-        )}
+        )
+}
 
 #[cfg(test)]
 mod dispensing_label_tests {
@@ -1901,8 +1848,16 @@ mod dispensing_label_tests {
         // "H" on a box means nothing to the person holding it.
         let h = schedule_warning(Some("H")).expect("schedule H has wording");
         assert!(h.contains("prescription of a registered medical practitioner"));
-        assert!(schedule_warning(Some("Schedule H1")).expect("H1").contains("antimicrobial"));
-        assert!(schedule_warning(Some("X")).expect("X").contains("two years"));
+        assert!(
+            schedule_warning(Some("Schedule H1"))
+                .expect("H1")
+                .contains("antimicrobial")
+        );
+        assert!(
+            schedule_warning(Some("X"))
+                .expect("X")
+                .contains("two years")
+        );
     }
 
     #[test]
@@ -1915,11 +1870,19 @@ mod dispensing_label_tests {
     #[test]
     fn directions_join_what_exists_and_stay_empty_when_nothing_does() {
         assert_eq!(
-            directions_line(Some("1 tablet"), Some("twice daily"), Some("oral"), Some("after food")),
+            directions_line(
+                Some("1 tablet"),
+                Some("twice daily"),
+                Some("oral"),
+                Some("after food")
+            ),
             Some("1 tablet · twice daily · oral · after food".to_owned())
         );
         // A prescription with only a frequency still says something useful.
-        assert_eq!(directions_line(None, Some("twice daily"), None, None), Some("twice daily".to_owned()));
+        assert_eq!(
+            directions_line(None, Some("twice daily"), None, None),
+            Some("twice daily".to_owned())
+        );
         // Nothing at all prints nothing, rather than "None" at a patient.
         assert_eq!(directions_line(None, None, None, None), None);
         assert_eq!(directions_line(Some("  "), None, None, None), None);

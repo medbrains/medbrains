@@ -67,6 +67,7 @@ import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
 import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import { emergencyMlcPoliceSentViaOptions, emergencyOptionalText } from "@/forms/emergency.form";
@@ -855,6 +856,7 @@ export function MlcCaseDetail({
                 </Menu.Dropdown>
               </Menu>
             )}
+            <PrintDocumentIconMenu idKind="mlc_case" recordId={mlcCase.id} recordLabel="MLC case" />
             {canReprintMlcPacket && (
               <Button
                 tone="secondary"
@@ -1061,9 +1063,16 @@ export function MlcCaseDetail({
               {ageEstDocs.map((doc) => {
                 return (
                   <Card key={doc.id} withBorder p="sm">
-                    <Text size="xs" c="dimmed" mb="xs">
-                      {new Date(doc.created_at).toLocaleString()}
-                    </Text>
+                    <Group justify="space-between" mb="xs">
+                      <Text size="xs" c="dimmed">
+                        {new Date(doc.created_at).toLocaleString()}
+                      </Text>
+                      <PrintDocumentIconMenu
+                        idKind="mlc_document"
+                        recordId={doc.id}
+                        recordLabel="age estimation report"
+                      />
+                    </Group>
                     <Text size="sm">
                       <Text span fw={600}>
                         Ossification:

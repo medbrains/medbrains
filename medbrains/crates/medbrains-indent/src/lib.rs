@@ -2318,8 +2318,11 @@ pub async fn list_implant_registry(
 
     let rows = if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, ImplantRegistryEntry>(
-            "SELECT * FROM implant_registry WHERE tenant_id = $1 AND patient_id = $2 \
-             ORDER BY implant_date DESC LIMIT 5000",
+            "SELECT ir.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM implant_registry ir \
+             LEFT JOIN store_catalog sc ON sc.id = ir.catalog_item_id \
+             WHERE ir.tenant_id = $1 AND ir.patient_id = $2 \
+             ORDER BY ir.implant_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(patient_id)
@@ -2327,8 +2330,11 @@ pub async fn list_implant_registry(
         .await?
     } else {
         sqlx::query_as::<_, ImplantRegistryEntry>(
-            "SELECT * FROM implant_registry WHERE tenant_id = $1 \
-             ORDER BY implant_date DESC LIMIT 200",
+            "SELECT ir.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM implant_registry ir \
+             LEFT JOIN store_catalog sc ON sc.id = ir.catalog_item_id \
+             WHERE ir.tenant_id = $1 \
+             ORDER BY ir.implant_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -2480,9 +2486,11 @@ pub async fn list_condemnations(
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, EquipmentCondemnation>(
-            "SELECT * FROM equipment_condemnations \
-             WHERE tenant_id = $1 AND status = $2::condemnation_status \
-             ORDER BY created_at DESC LIMIT 5000",
+            "SELECT ec.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM equipment_condemnations ec \
+             LEFT JOIN store_catalog sc ON sc.id = ec.catalog_item_id \
+             WHERE ec.tenant_id = $1 AND ec.status = $2::condemnation_status \
+             ORDER BY ec.created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -2490,8 +2498,11 @@ pub async fn list_condemnations(
         .await?
     } else {
         sqlx::query_as::<_, EquipmentCondemnation>(
-            "SELECT * FROM equipment_condemnations WHERE tenant_id = $1 \
-             ORDER BY created_at DESC LIMIT 5000",
+            "SELECT ec.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM equipment_condemnations ec \
+             LEFT JOIN store_catalog sc ON sc.id = ec.catalog_item_id \
+             WHERE ec.tenant_id = $1 \
+             ORDER BY ec.created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)

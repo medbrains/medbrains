@@ -3133,15 +3133,15 @@ export interface LeaveApplicationPrintData {
   application_date: string;
   employee_name: string;
   employee_id: string;
-  department: string;
-  designation: string;
+  department: string | null;
+  designation: string | null;
   leave_type: string;
   leave_from: string;
   leave_to: string;
   total_days: number;
   reason: string;
-  leave_balance_before: number;
-  leave_balance_after: number;
+  leave_balance_before: number | null;
+  leave_balance_after: number | null;
   relieving_officer: string | null;
   contact_during_leave: string | null;
   approver_name: string | null;
@@ -3189,23 +3189,23 @@ export interface StaffAttendanceReportPrintData {
 }
 
 export interface TrainingCertificatePrintData {
-  certificate_number: string;
+  certificate_number: string | null;
   certificate_date: string;
   employee_name: string;
   employee_id: string;
-  designation: string;
-  department: string;
+  designation: string | null;
+  department: string | null;
   training_title: string;
-  training_type: string;
+  training_type: string | null;
   training_date: string;
-  training_duration: string;
+  training_duration: string | null;
   trainer_name: string | null;
   trainer_organization: string | null;
   topics_covered: string[];
   score: number | null;
   grade: string | null;
   certificate_valid_until: string | null;
-  issued_by: string;
+  issued_by: string | null;
   qr_verification_url: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
@@ -3213,7 +3213,7 @@ export interface TrainingCertificatePrintData {
 
 export interface CredentialDetail {
   credential_type: string;
-  credential_name: string;
+  credential_name: string | null;
   issuing_authority: string;
   credential_number: string;
   issue_date: string | null;
@@ -3245,6 +3245,7 @@ export interface VisitorEntry {
   purpose: string;
   visiting_department: string | null;
   visiting_person: string | null;
+  ward: string | null;
   patient_name: string | null;
   patient_uhid: string | null;
   in_time: string;
@@ -3254,7 +3255,7 @@ export interface VisitorEntry {
 
 export interface VisitorRegisterPrintData {
   register_date: string;
-  location: string;
+  location: string | null;
   entries: VisitorEntry[];
   total_visitors: number;
   hospital_name: string;
@@ -3493,6 +3494,7 @@ export interface IncidentReportPrintData {
   rca_required: boolean;
   hospital_name: string;
   hospital_logo_url: string | null;
+  title: string;
 }
 
 export interface RcaTeamMember {
@@ -3608,6 +3610,7 @@ export interface CapaFormPrintData {
   closure_date: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
+  action_plan: string | null;
 }
 
 export interface SuspectedDrug {
@@ -3704,7 +3707,7 @@ export interface TransfusionReactionPrintData {
   vital_signs_at_reaction: string | null;
   immediate_actions: string[];
   treatment_given: string | null;
-  transfusion_stopped: boolean;
+  transfusion_stopped: boolean | null;
   unit_returned: boolean;
   samples_collected: string[];
   lab_investigations: string[];
@@ -3723,6 +3726,7 @@ export interface TransfusionReactionPrintData {
   submission_date: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
+  reaction_details: string | null;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4118,12 +4122,12 @@ export interface MedicalGasSystem {
 }
 
 export interface CylinderStorage {
-  total_capacity: number;
+  total_capacity: number | null;
   oxygen_cylinders: number;
   nitrous_oxide_cylinders: number;
   co2_cylinders: number;
   other_cylinders: number;
-  storage_compliant: boolean;
+  storage_compliant: boolean | null;
 }
 
 export interface SafetyInspection {
@@ -4145,14 +4149,14 @@ export interface DrugLicenseReportPrintData {
   hospital_name: string;
   drug_license_number: string;
   license_type: string;
-  valid_from: string;
-  valid_until: string;
+  valid_from: string | null;
+  valid_until: string | null;
   licensing_authority: string;
   registered_pharmacist: string | null;
   registration_number: string | null;
   authorized_categories: string[];
   controlled_substance_license: string | null;
-  storage_conditions_compliant: boolean;
+  storage_conditions_compliant: boolean | null;
   inspection_history: DrugInspection[];
   current_stock_summary: DrugStockCategory[];
   expiry_alerts: ExpiryAlert[];
@@ -4214,16 +4218,13 @@ export interface PcpndtPersonnel {
 export interface PcpndtProcedure {
   procedure_type: string;
   total_count: number;
-  male_fetus: number;
-  female_fetus: number;
-  indeterminate: number;
 }
 
 export interface FormFCompliance {
   total_forms: number;
   complete_forms: number;
   incomplete_forms: number;
-  compliance_percentage: number;
+  compliance_percentage: number | null;
 }
 
 export interface PcpndtInspection {
@@ -4243,8 +4244,8 @@ export interface BirthRegisterPrintData {
   total_births: number;
   male_births: number;
   female_births: number;
-  live_births: number;
-  still_births: number;
+  live_births: number | null;
+  still_births: number | null;
   prepared_by: string | null;
   verified_by: string | null;
   hospital_logo_url: string | null;
@@ -4256,10 +4257,10 @@ export interface BirthRegisterEntry {
   date_of_birth: string;
   time_of_birth: string;
   gender: string;
-  birth_weight_grams: number;
+  birth_weight_grams: number | null;
   birth_type: string;
   mother_name: string;
-  mother_age: number;
+  mother_age: number | null;
   father_name: string;
   address: string;
   delivery_type: string;
@@ -4304,7 +4305,7 @@ export interface MlcRegisterSummaryPrintData {
   entries: MlcRegisterSummaryEntry[];
   total_cases: number;
   by_case_type: MlcCaseTypeCount[];
-  by_outcome: MlcOutcomeCount[];
+  by_status: MlcStatusCount[];
   pending_cases: number;
   prepared_by: string | null;
   hospital_logo_url: string | null;
@@ -4316,10 +4317,10 @@ export interface MlcRegisterSummaryEntry {
   registration_date: string;
   patient_name: string;
   age_gender: string;
-  case_type: string;
-  police_station: string;
+  case_type: string | null;
+  police_station: string | null;
   fir_number: string | null;
-  outcome: string;
+  outcome: string | null;
   current_status: string;
 }
 
@@ -4328,8 +4329,8 @@ export interface MlcCaseTypeCount {
   count: number;
 }
 
-export interface MlcOutcomeCount {
-  outcome: string;
+export interface MlcStatusCount {
+  status: string;
   count: number;
 }
 
@@ -4340,7 +4341,7 @@ export interface AebasAttendanceReportPrintData {
   aebas_unit_code: string | null;
   department_summary: DepartmentAttendance[];
   total_employees: number;
-  average_attendance_percentage: number;
+  average_attendance_percentage: number | null;
   total_working_days: number;
   holidays: number;
   prepared_by: string | null;
@@ -4353,7 +4354,7 @@ export interface DepartmentAttendance {
   average_present: number;
   average_absent: number;
   average_leave: number;
-  attendance_percentage: number;
+  attendance_percentage: number | null;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4405,7 +4406,7 @@ export interface PurchaseOrderPrintData {
   discount_percentage: number | null;
   discount_amount: number;
   tax_amount: number;
-  freight_charges: number;
+  freight_charges: number | null;
   total_amount: number;
   amount_in_words: string;
   terms_and_conditions: string[];
@@ -4471,7 +4472,7 @@ export interface MaterialIssueVoucherPrintData {
   voucher_number: string;
   voucher_date: string;
   issue_type: string;
-  issuing_store: string;
+  issuing_store: string | null;
   receiving_department: string;
   receiving_cost_center: string | null;
   requested_by: string;
@@ -4503,7 +4504,7 @@ export interface StockTransferNotePrintData {
   transfer_date: string;
   from_store: string;
   to_store: string;
-  transfer_type: string;
+  transfer_type: string | null;
   items: TransferItem[];
   total_items: number;
   total_value: number;
@@ -4525,22 +4526,22 @@ export interface TransferItem {
   expiry_date: string | null;
   unit: string;
   quantity: number;
-  unit_price: number;
-  amount: number;
+  unit_price: number | null;
+  amount: number | null;
 }
 
 export interface NdpsRegisterPrintData {
   report_period: string;
   report_date: string;
-  store_name: string;
-  license_number: string;
-  license_valid_until: string;
+  store_name: string | null;
+  license_number: string | null;
+  license_valid_until: string | null;
   opening_balance: NdpsBalance[];
   transactions: NdpsTransaction[];
   closing_balance: NdpsBalance[];
   physical_verification_date: string | null;
   discrepancies: string[];
-  register_maintained_by: string;
+  register_maintained_by: string | null;
   verified_by: string | null;
   hospital_name: string;
   hospital_logo_url: string | null;
@@ -4549,7 +4550,7 @@ export interface NdpsRegisterPrintData {
 export interface NdpsBalance {
   drug_name: string;
   schedule: string;
-  batch_number: string;
+  batch_number: string | null;
   unit: string;
   quantity: number;
 }
@@ -4557,7 +4558,7 @@ export interface NdpsBalance {
 export interface NdpsTransaction {
   transaction_date: string;
   drug_name: string;
-  batch_number: string;
+  batch_number: string | null;
   transaction_type: string;
   quantity: number;
   balance_after: number;
@@ -4587,7 +4588,7 @@ export interface DispensingLabelPrintData {
   storage_conditions: string | null;
   schedule_warning: string | null;
   black_box_warning: string | null;
-  is_controlled: boolean;
+  is_controlled: boolean | null;
   dispensed_on: string;
   dispensed_by: string | null;
   prescriber_name: string | null;
@@ -4614,8 +4615,8 @@ export interface ExpiryDrugItem {
   days_to_expiry: number;
   quantity: number;
   unit: string;
-  unit_price: number;
-  total_value: number;
+  unit_price: number | null;
+  total_value: number | null;
   manufacturer: string | null;
   supplier: string | null;
   location: string;
@@ -4629,19 +4630,19 @@ export interface EquipmentCondemnationPrintData {
   serial_number: string | null;
   make: string | null;
   model: string | null;
-  location: string;
-  department: string;
+  location: string | null;
+  department: string | null;
   purchase_date: string | null;
   purchase_value: number | null;
   current_book_value: number | null;
   reason_for_condemnation: string;
-  condition_assessment: string;
+  condition_assessment: string | null;
   inspection_findings: string;
   repair_history: RepairHistoryEntry[];
-  total_repair_cost: number;
+  total_repair_cost: number | null;
   disposal_recommendation: string;
   estimated_salvage_value: number | null;
-  inspected_by: string;
+  inspected_by: string | null;
   recommended_by: string;
   approved_by: string | null;
   approval_date: string | null;
@@ -4702,7 +4703,7 @@ export interface PmChecklistPrintData {
   last_pm_date: string | null;
   pm_frequency: string;
   checklist_items: PmChecklistItem[];
-  overall_condition: string;
+  overall_condition: string | null;
   issues_found: string[];
   corrective_actions: string[];
   parts_replaced: PartReplaced[];
@@ -5051,47 +5052,19 @@ export interface InternRotationSchedulePrintData {
   college_name: string;
 }
 
-export interface PgCaseEntry {
-  diagnosis: string;
-  presenting_complaints: string;
-  examination_findings: string;
-  investigations: string;
-  treatment_given: string;
-  learning_points: string;
-  case_outcome: string;
-}
-
-export interface PgProcedureEntry {
-  procedure_name: string;
-  indication: string;
-  technique: string;
-  complications: string | null;
-  assisted_or_performed: string;
-  count_this_rotation: number;
-  cumulative_count: number;
-}
-
-export interface PgAcademicEntry {
-  activity_type: string;
-  topic: string;
-  duration_minutes: number;
-  feedback_received: string | null;
-}
-
 export interface PgLogbookEntryPrintData {
   entry_id: string;
   entry_date: string;
-  resident_name: string;
-  resident_registration: string;
-  course: string;
-  department: string;
-  year_of_training: number;
   entry_type: string;
-  case_details: PgCaseEntry | null;
-  procedure_details: PgProcedureEntry | null;
-  academic_activity: PgAcademicEntry | null;
-  supervisor_name: string;
-  supervisor_remarks: string | null;
+  title: string;
+  description: string | null;
+  diagnosis_codes: string[];
+  procedure_codes: string[];
+  resident_name: string;
+  resident_registration: string | null;
+  department: string | null;
+  patient_uhid: string | null;
+  supervisor_name: string | null;
   verified: boolean;
   verification_date: string | null;
   college_name: string;
@@ -5548,32 +5521,18 @@ export interface HospitalRegistration {
 
 export interface HospitalBrandingPrintData {
   hospital_name: string;
-  hospital_tagline: string | null;
-  logo_url: string;
-  logo_position: string;
-  logo_size: string;
-  secondary_logo_url: string | null;
-  header_style: string;
-  header_background_color: string | null;
-  header_text_color: string | null;
-  footer_style: string;
-  address_line_1: string;
+  logo_url: string | null;
+  address_line_1: string | null;
   address_line_2: string | null;
-  city: string;
-  state: string;
-  pincode: string;
-  phone_numbers: string[];
-  email: string;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  phone: string | null;
+  email: string | null;
   website: string | null;
-  registration_numbers: HospitalRegistration[];
-  accreditations: string[];
-  iso_certifications: string[];
-  nabh_accredited: boolean;
+  accreditation: string | null;
   nabl_accredited: boolean;
-  jci_accredited: boolean;
-  watermark_text: string | null;
-  watermark_opacity: number;
-  footer_disclaimer: string | null;
+  registration_numbers: HospitalRegistration[];
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

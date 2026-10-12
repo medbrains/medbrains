@@ -9,8 +9,10 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
+import { EmployeeTrainingRecords } from "./employee-training-records";
 import { statusBadgeTone } from "./shared";
 
 export function EmployeeDetailDrawer({
@@ -31,6 +33,7 @@ export function EmployeeDetailDrawer({
   // licence and registration history is not the same read as their leave.
   const canListCredentials = useHasPermission(P.HR.CREDENTIALS_LIST);
   const canListLeave = useHasPermission(P.HR.LEAVE_LIST);
+  const canListTraining = useHasPermission(P.HR.TRAINING.LIST);
   const { data: employee } = useQuery({
     queryKey: ["hr-employee", employeeId],
     queryFn: () => hrService.getEmployee(employeeId),
@@ -87,11 +90,16 @@ export function EmployeeDetailDrawer({
       position="right"
       size="lg"
     >
+      <Group gap="md" mb="md">
+        <PrintDocumentMenu idKind="employee" recordId={employee?.id} />
+        <PrintDocumentMenu idKind="user" recordId={employee?.user_id} />
+      </Group>
       <Tabs value={subTab} onChange={setSubTab}>
         <Tabs.List mb="md">
           <Tabs.Tab value="info">Info</Tabs.Tab>
           <Tabs.Tab value="credentials">Credentials</Tabs.Tab>
           <Tabs.Tab value="leave-balances">Leave Balances</Tabs.Tab>
+          {canListTraining && <Tabs.Tab value="training">Training</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="info">
@@ -328,6 +336,15 @@ export function EmployeeDetailDrawer({
             ]}
           />
         </Tabs.Panel>
+
+        {canListTraining && (
+          <Tabs.Panel value="training">
+            <EmployeeTrainingRecords
+              employeeId={employeeId}
+              enabled={opened && subTab === "training"}
+            />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </Drawer>
   );

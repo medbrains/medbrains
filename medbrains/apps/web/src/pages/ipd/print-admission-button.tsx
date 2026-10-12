@@ -7,6 +7,7 @@ import { IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useProtectedFieldAccess } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import {
@@ -18,6 +19,13 @@ import {
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./shared";
 
 const IPD_ADMISSION_PRINT_COPIES = PRINT_COPY_PACKETS.ipdAdmission;
+const ADMISSION_RAIL_CONSENTS = [
+  "consent.general",
+  "consent.blood",
+  "consent.dnr",
+  "consent.ama",
+  "consent.teaching",
+] as const;
 
 export function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   const printRef = useRef<HTMLDivElement | null>(null);
@@ -72,14 +80,23 @@ export function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 
   if (!printing) {
     return (
-      <Button
-        tone="secondary"
-        size="xs"
-        leftSection={<IconPrinter size={14} />}
-        onClick={() => setPrinting(true)}
-      >
-        Print Slip
-      </Button>
+      <Group gap="xs" wrap="nowrap">
+        <Button
+          tone="secondary"
+          size="xs"
+          leftSection={<IconPrinter size={14} />}
+          onClick={() => setPrinting(true)}
+        >
+          Print Slip
+        </Button>
+        {/* Every other admission document; the consents print from the action rail. */}
+        <PrintDocumentIconMenu
+          idKind="admission"
+          recordId={admissionId}
+          recordLabel="admission documents"
+          exclude={ADMISSION_RAIL_CONSENTS}
+        />
+      </Group>
     );
   }
 

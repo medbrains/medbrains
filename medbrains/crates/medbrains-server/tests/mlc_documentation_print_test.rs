@@ -71,8 +71,9 @@ async fn the_packet_prints_the_intimation_and_documents_the_case_recorded() {
     assert_eq!(visits.len(), 1, "{packet}");
     assert_eq!(visits[0]["officer_name"], "S. Kumar");
     assert_eq!(
-        visits[0]["statement_recorded"], false,
-        "receipt not yet confirmed"
+        visits[0]["statement_recorded"],
+        Value::Null,
+        "an intimation receipt is not a recorded statement"
     );
     assert_eq!(
         packet["certificates_issued"],

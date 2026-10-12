@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 
@@ -186,7 +187,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
                       <IconButton
                         tone="success"
                         onClick={() => actionMut.mutate({ id: r.id, action: "approve" })}
-                        aria-label="Confirm"
+                        aria-label="Approve leave"
                       >
                         <IconCheck size={16} />
                       </IconButton>
@@ -195,7 +196,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
                       <IconButton
                         tone="danger"
                         onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
-                        aria-label="Close"
+                        aria-label="Reject leave"
                       >
                         <IconX size={16} />
                       </IconButton>
@@ -204,7 +205,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
                 )}
                 {(r.status === "draft" || r.status === "pending_hod") && (
                   <Tooltip label="Cancel">
-                    <IconButton onClick={() => cancelMut.mutate(r.id)} aria-label="Close">
+                    <IconButton onClick={() => cancelMut.mutate(r.id)} aria-label="Cancel leave">
                       <IconX size={16} />
                     </IconButton>
                   </Tooltip>
@@ -212,6 +213,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
               </Group>
             ),
           },
+          printColumn<LeaveRequest>("leave_request"),
         ]}
       />
 

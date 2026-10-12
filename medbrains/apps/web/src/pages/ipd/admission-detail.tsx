@@ -38,6 +38,7 @@ import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizar
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "@/components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "@/components/Ipd/WristbandPrintModal";
+import { BedsideTransfusionsPanel } from "@/components/Nurse/BedsideTransfusionsPanel";
 import { InfusionsPanel } from "@/components/Nurse/InfusionsPanel";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
@@ -622,6 +623,9 @@ export function AdmissionDetail({
             </Tabs.Panel>
             <Tabs.Panel value="infusions" pt="md">
               <InfusionsPanel admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="transfusions" pt="md">
+              <BedsideTransfusionsPanel admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="nursing" pt="md">
               <NursingTab admissionId={admissionId} />

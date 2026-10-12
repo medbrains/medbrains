@@ -10,6 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Button, toast } from "@/components/ui";
 import { procurementService } from "@/services/procurement.service";
 import { optionalText } from "./shared";
@@ -114,6 +115,13 @@ export function StoreLocationPanel({ canManage }: { canManage: boolean }) {
       ),
     },
     { key: "address", label: "Address", render: (row: StoreLocation) => row.address ?? "-" },
+    {
+      key: "id",
+      label: "Print",
+      render: (row: StoreLocation) => (
+        <PrintDocumentIconMenu idKind="store" recordId={row.id} recordLabel={row.name} />
+      ),
+    },
   ];
 
   return (

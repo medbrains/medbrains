@@ -26,7 +26,7 @@ export interface AmcContractPrintData {
   equipment_covered: EquipmentCoverage[];
   contract_start: string;
   contract_end: string;
-  contract_value: number;
+  contract_value: number | null;
   payment_terms: string | null;
   response_time_sla: string | null;
   resolution_time_sla: string | null;
@@ -47,9 +47,9 @@ export interface CalibrationParameter {
 }
 
 export interface CalibrationCertificatePrintData {
-  certificate_number: string;
-  calibration_date: string;
-  next_calibration_due: string;
+  certificate_number: string | null;
+  calibration_date: string | null;
+  next_calibration_due: string | null;
   equipment_name: string;
   equipment_id: string;
   serial_number: string | null;
@@ -75,7 +75,7 @@ export interface ReplacedPart {
 }
 
 export interface EquipmentBreakdownReportPrintData {
-  report_number: string;
+  report_number: string | null;
   report_date: string;
   equipment_name: string;
   equipment_id: string;
@@ -90,7 +90,7 @@ export interface EquipmentBreakdownReportPrintData {
   root_cause: string | null;
   repair_action: string | null;
   parts_replaced: ReplacedPart[];
-  downtime_hours: number;
+  downtime_hours: number | null;
   repair_cost: number | null;
   repaired_by: string | null;
   repair_completed_at: string | null;
@@ -147,7 +147,7 @@ export interface EquipmentHistoryCardPrintData {
 export interface MgpsReading {
   time: string;
   gas_type: string;
-  line_pressure: number;
+  line_pressure: number | null;
   purity_percent: number | null;
   flow_rate: number | null;
   alarm_status: string;
@@ -178,15 +178,15 @@ export interface CylinderBank {
 
 export interface MgpsDailyLogPrintData {
   log_date: string;
-  shift: string;
+  shift: string | null;
   operator_name: string;
   readings: MgpsReading[];
-  consumption: MgpsConsumption;
+  consumption: MgpsConsumption | null;
   incidents: MgpsIncident[];
   cylinder_status: CylinderBank[];
   manifold_status: string;
   remarks: string | null;
-  supervisor_verified: boolean;
+  supervisor_verified: boolean | null;
   supervisor_name: string | null;
   hospital_name: string;
 }
@@ -212,7 +212,7 @@ export interface WaterQualityTestPrintData {
   sample_id: string;
   sample_location: string;
   sample_type: string;
-  collected_by: string;
+  collected_by: string | null;
   tested_by: string;
   test_parameters: WaterTestParameter[];
   overall_result: string;
@@ -232,17 +232,17 @@ export interface RunEvent {
 }
 
 export interface FuelStatus {
-  opening_level: number;
-  closing_level: number;
-  fuel_added: number;
-  fuel_consumed: number;
+  opening_level: number | null;
+  closing_level: number | null;
+  fuel_added: number | null;
+  fuel_consumed: number | null;
 }
 
 export interface BatteryStatus {
-  voltage: number;
-  current: number;
-  charge_percent: number;
-  health_status: string;
+  voltage: number | null;
+  current: number | null;
+  charge_percent: number | null;
+  health_status: string | null;
 }
 
 export interface DgUpsParameters {
@@ -251,7 +251,7 @@ export interface DgUpsParameters {
   voltage_b: number | null;
   frequency: number | null;
   load_kw: number | null;
-  runtime_hours: number;
+  runtime_hours: number | null;
 }
 
 export interface DgUpsRunLogPrintData {
@@ -274,53 +274,53 @@ export interface FireExtinguisherCheck {
   extinguisher_type: string;
   capacity: string;
   expiry_date: string;
-  pressure_ok: boolean;
-  seal_intact: boolean;
-  accessible: boolean;
-  signage_ok: boolean;
+  pressure_ok: boolean | null;
+  seal_intact: boolean | null;
+  accessible: boolean | null;
+  signage_ok: boolean | null;
   status: string;
 }
 
 export interface FireAlarmCheck {
   zone: string;
-  panel_ok: boolean;
-  detectors_ok: boolean;
-  sounders_ok: boolean;
-  battery_ok: boolean;
+  panel_ok: boolean | null;
+  detectors_ok: boolean | null;
+  sounders_ok: boolean | null;
+  battery_ok: boolean | null;
   last_tested: string | null;
   status: string;
 }
 
 export interface FireHydrantCheck {
   location: string;
-  water_flow_ok: boolean;
+  water_flow_ok: boolean | null;
   hose_condition: string;
-  nozzle_ok: boolean;
-  valve_operational: boolean;
+  nozzle_ok: boolean | null;
+  valve_operational: boolean | null;
   status: string;
 }
 
 export interface EmergencyExitCheck {
   location: string;
-  signage_illuminated: boolean;
-  path_clear: boolean;
-  door_operational: boolean;
-  panic_bar_ok: boolean;
+  signage_illuminated: boolean | null;
+  path_clear: boolean | null;
+  door_operational: boolean | null;
+  panic_bar_ok: boolean | null;
   status: string;
 }
 
 export interface SprinklerCheck {
   zones_inspected: number;
-  heads_ok: boolean;
-  valve_ok: boolean;
-  pressure_ok: boolean;
+  heads_ok: boolean | null;
+  valve_ok: boolean | null;
+  pressure_ok: boolean | null;
   last_flow_test: string | null;
   status: string;
 }
 
 export interface FireEquipmentInspectionPrintData {
   inspection_date: string;
-  inspection_number: string;
+  inspection_number: string | null;
   inspector_name: string;
   inspector_designation: string;
   area_inspected: string;
@@ -333,7 +333,7 @@ export interface FireEquipmentInspectionPrintData {
   deficiencies_found: string[];
   corrective_actions: string[];
   next_inspection_due: string;
-  supervisor_verified: boolean;
+  supervisor_verified: boolean | null;
   hospital_name: string;
 }
 
@@ -365,7 +365,7 @@ export interface MateriovigilanceReportPrintData {
 
 export interface DrillObservation {
   observation: string;
-  category: string;
+  category: string | null;
   action_required: string | null;
 }
 
@@ -377,15 +377,15 @@ export interface FirstResponder {
 }
 
 export interface FireMockDrillReportPrintData {
-  drill_number: string;
+  drill_number: string | null;
   drill_date: string;
   drill_time: string;
   drill_type: string;
   scenario: string;
   area_covered: string;
-  participants_count: number;
-  evacuation_time_minutes: number;
-  target_time_minutes: number;
+  participants_count: number | null;
+  evacuation_time_minutes: number | null;
+  target_time_minutes: number | null;
   observations: DrillObservation[];
   equipment_used: string[];
   first_responders: FirstResponder[];

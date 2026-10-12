@@ -10,6 +10,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, StatusDot } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Button, IconButton } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { ipdService } from "@/services/ipd.service";
@@ -72,14 +73,21 @@ export function AdmissionsTab() {
       label: "Actions",
       requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
       render: (row: AdmissionRow) => (
-        <Tooltip label="View details">
-          <IconButton
-            onClick={() => navigate(`/ipd/admissions/${row.id}`)}
-            aria-label={`Open admission ${row.id}`}
-          >
-            <IconEye size={16} />
-          </IconButton>
-        </Tooltip>
+        <Group gap="xs" wrap="nowrap">
+          <Tooltip label="View details">
+            <IconButton
+              onClick={() => navigate(`/ipd/admissions/${row.id}`)}
+              aria-label={`Open admission ${row.id}`}
+            >
+              <IconEye size={16} />
+            </IconButton>
+          </Tooltip>
+          <PrintDocumentIconMenu
+            idKind="admission"
+            recordId={row.id}
+            recordLabel={`admission of ${new Date(row.admitted_at).toLocaleDateString()}`}
+          />
+        </Group>
       ),
     },
   ] satisfies Column<AdmissionRow>[];

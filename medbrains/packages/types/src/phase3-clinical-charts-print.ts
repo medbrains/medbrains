@@ -179,7 +179,7 @@ export interface TransfusionRequisitionPrintData {
   indication: string | null;
   product_requested: string;
   units_requested: number;
-  urgency: string;
+  urgency: string | null;
   hemoglobin_level: number | null;
   platelet_count: number | null;
   inr: number | null;

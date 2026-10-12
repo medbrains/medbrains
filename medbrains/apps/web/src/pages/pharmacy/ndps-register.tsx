@@ -14,6 +14,7 @@ import { Controller, useForm } from "react-hook-form";
 import type { DataTableFilter } from "@/components";
 import { DataTable, useClinicalEmit } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import type { BadgeTone } from "@/components/ui";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { formIntegerOrFallback, ndpsActionOptions } from "@/forms/pharmacy.form";
@@ -200,8 +201,8 @@ export function NdpsRegisterTab() {
           ))}
         </Group>
       )}
-      {canManage && (
-        <Group>
+      <Group>
+        {canManage && (
           <Button
             size="xs"
             tone="primary"
@@ -210,8 +211,9 @@ export function NdpsRegisterTab() {
           >
             Manual Entry
           </Button>
-        </Group>
-      )}
+        )}
+        <PrintRegisterButton documentKey="ndps-register" period="month" />
+      </Group>
       {formOpened && (
         <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateNdpsEntry)}>
           <Controller
