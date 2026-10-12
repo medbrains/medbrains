@@ -28,6 +28,12 @@ class Api private constructor(private var token: String?) {
     }
 
     fun obj(method: String, path: String, body: Any? = null): JSONObject = runCatching { JSONObject(call(method, path, body).second) }.getOrDefault(JSONObject())
+    /** Ids of the deliveries the server holds as delivered. */
+    fun delivered(): Set<String> {
+        val rows = obj("GET", "/api/pharmacy/deliveries?status=delivered").optJSONArray("deliveries") ?: return emptySet()
+        return (0 until rows.length()).map { rows.getJSONObject(it).optString("id") }.toSet()
+    }
+
     fun list(path: String): List<JSONObject> {
         val text = call("GET", path).second
         val arr = runCatching { JSONArray(text) }.getOrNull() ?: runCatching {
