@@ -6,6 +6,7 @@ import type { Patient, PatientAllergy } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ContactConsentCard } from "@/components/Patient/ContactConsentCard";
+import { PatientAcquisitionCard } from "@/components/Patient/PatientAcquisitionCard";
 import { Badge } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { age, formatDate, InfoRow } from "./shared";
@@ -69,6 +70,7 @@ export function OverviewTab({ patient }: { patient: Patient }) {
         </Card>
 
         <ContactConsentCard patient={patient} />
+        <PatientAcquisitionCard patient={patient} />
 
         <Card withBorder>
           <Title order={5} mb="sm">

@@ -110,9 +110,13 @@ function bespokeOption(
 
 /**
  * A chart of any report's rows (see `reportSeries`): dates make a line,
- * categories bars, the axis from zero. Null when the rows hold no number.
+ * categories bars, the axis from zero; `stacked` draws each period's groups
+ * as one stacked bar. Null when the rows hold no number.
  */
-export function rowsOption(rows: Record<string, unknown>[]): EChartsCoreOption | null {
+export function rowsOption(
+  rows: Record<string, unknown>[],
+  stacked = false,
+): EChartsCoreOption | null {
   const shape = reportSeries(rows);
   if (!shape) return null;
   return {
@@ -123,7 +127,8 @@ export function rowsOption(rows: Record<string, unknown>[]): EChartsCoreOption |
     yAxis: { type: "value", min: 0 },
     series: shape.series.map((s) => ({
       name: s.name,
-      type: shape.isTrend ? "line" : "bar",
+      type: shape.isTrend && !stacked ? "line" : "bar",
+      ...(stacked ? { stack: "total" } : {}),
       connectNulls: true,
       data: s.values,
     })),
@@ -139,5 +144,5 @@ export function optionForReport(
   const bespoke = bespokeOption(report, runtimeData);
   if (bespoke) return bespoke;
   if (!rows || rows.length === 0) return null;
-  return rowsOption(rows as Record<string, unknown>[]);
+  return rowsOption(rows as Record<string, unknown>[], templateForReport(report) === "bar_stack");
 }

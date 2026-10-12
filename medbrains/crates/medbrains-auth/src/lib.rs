@@ -25,6 +25,7 @@ use medbrains_server_core::{
 };
 
 mod hospital;
+mod sign_in_options;
 
 // ── Login ───────────────────────────────────────────────────
 
@@ -241,7 +242,8 @@ async fn password_login_blocked(
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled'",
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut *conn)
@@ -254,7 +256,8 @@ async fn password_login_blocked(
     // Passwords disabled — allow only the break-glass admin through.
     let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username'",
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(db)
@@ -1548,6 +1551,7 @@ pub fn router() -> axum::Router<AppState> {
             post(confirm_password_reset),
         )
         .route("/api/auth/refresh", post(refresh_token))
+        .route("/api/auth/sign-in-options", get(sign_in_options::sign_in_options))
 }
 
 /// Protected auth routes — require `Extension<Claims>` from `auth_middleware`,

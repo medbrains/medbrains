@@ -126,6 +126,8 @@ export interface WidgetDataSource {
   type: "module_query" | "api" | "static" | "sql_count" | "report";
   /** For `report`: the report whose chart this widget is. */
   report_id?: string;
+  /** For `report`: drawn as stacked bars. */
+  stacked?: boolean;
   module?: string;
   query?: string;
   params?: Record<string, unknown>;
@@ -840,7 +842,7 @@ export interface ConsignmentUsageRequest {
 //  OPD Module
 // ══════════════════════════════════════════════════════════
 
-export type EncounterType = "opd" | "ipd" | "emergency";
+export type EncounterType = "opd" | "ipd" | "emergency" | "home_health";
 export type EncounterStatus = "open" | "in_progress" | "completed" | "cancelled";
 export type QueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 

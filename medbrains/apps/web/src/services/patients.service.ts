@@ -17,5 +17,9 @@ export const patientsService = {
   listDepartments: () => api.listDepartments(),
   listDoctors: () => api.listDoctors(),
   listCamps: (params?: ListCampsInput) => api.listCamps(params),
+  lookupMarketingCampaigns: () => api.lookupMarketingCampaigns(),
+  getPatientAcquisition: (patientId: string) => api.getPatientAcquisition(patientId),
+  correctPatientAcquisition: (...args: Parameters<typeof api.correctPatientAcquisition>) =>
+    api.correctPatientAcquisition(...args),
   listFacilities: () => api.listFacilities(),
 };

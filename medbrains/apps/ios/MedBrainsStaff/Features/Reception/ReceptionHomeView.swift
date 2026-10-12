@@ -33,6 +33,8 @@ final class ReceptionSession {
     var doctors: [DoctorRow] = []
     /// Camps a registration can name, for a desk allowed to list them.
     var camps: [CampSummary] = []
+    /// Running campaigns a registration can name, for a desk allowed to pick one.
+    var campaigns: [CampaignOption] = []
 
     func departmentName(_ id: String?) -> String? { departments.first { $0.id == id }?.name }
     func doctorName(_ id: String?) -> String? { doctors.first { $0.id == id }?.fullName }
@@ -114,6 +116,7 @@ struct ReceptionHomeView: View {
             let loaded = await d
             session.departments = loaded ?? []
             if auth.identity?.can("camp.list") ?? false { session.camps = ((try? await api.camps()) ?? []).filter(\.isOpen) }
+            if auth.identity?.can("marketing.campaigns.lookup") ?? false { session.campaigns = (try? await api.campaigns()) ?? [] }
             session.departmentsFailed = loaded == nil
             session.doctors = await r ?? []
             if auth.identity?.can("opd.queue.list") ?? false, let dept = session.departmentId {

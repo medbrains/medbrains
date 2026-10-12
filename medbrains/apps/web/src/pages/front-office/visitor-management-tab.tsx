@@ -15,11 +15,19 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { VisitorLog, VisitorPass, VisitorRegistration } from "@medbrains/types";
-import { IconCheck, IconClock, IconPlus, IconQrcode, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconClock,
+  IconPlus,
+  IconPrinter,
+  IconQrcode,
+  IconX,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
+import { VisitorPassPrintModal } from "@/components/FrontOffice/VisitorPassPrintModal";
 import { Button, IconButton } from "@/components/ui";
 import type {
   FrontOfficeVisitorFormInput,
@@ -54,6 +62,7 @@ export function VisitorManagementTab({
   const [visitorDrawer, visitorDrawerHandlers] = useDisclosure(false);
   const [passDrawer, passDrawerHandlers] = useDisclosure(false);
   const [selectedRegistration, setSelectedRegistration] = useState<string | null>(null);
+  const [printPassId, setPrintPassId] = useState<string | null>(null);
 
   const visitorForm = useForm<FrontOfficeVisitorFormInput>({
     resolver: zodResolver(frontOfficeVisitorFormSchema),
@@ -197,6 +206,11 @@ export function VisitorManagementTab({
       label: "",
       render: (r: VisitorPass) => (
         <Group gap="xs">
+          <Tooltip label="Print pass">
+            <IconButton onClick={() => setPrintPassId(r.id)} aria-label="Print pass">
+              <IconPrinter size={16} />
+            </IconButton>
+          </Tooltip>
           {r.status === "active" && canManagePasses && (
             <>
               <Tooltip label="Check In">
@@ -235,6 +249,7 @@ export function VisitorManagementTab({
 
   return (
     <Stack gap="lg">
+      <VisitorPassPrintModal passId={printPassId} onClose={() => setPrintPassId(null)} />
       {/* Visitors */}
       <div>
         <Group justify="space-between" mb="sm">

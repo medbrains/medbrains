@@ -17,11 +17,13 @@ interface Props {
   shape: ReportSeries | null;
   loading: boolean;
   failed: boolean;
+  /** Each period's groups as one stacked bar. */
+  stacked?: boolean;
   h?: number;
 }
 
 /** A report's chart in a dashboard widget: the reports page's reading, drawn small. */
-export function ReportWidgetChart({ shape, loading, failed, h = 200 }: Props) {
+export function ReportWidgetChart({ shape, loading, failed, stacked, h = 200 }: Props) {
   if (loading) {
     return (
       <Group justify="center" py="md">
@@ -59,6 +61,7 @@ export function ReportWidgetChart({ shape, loading, failed, h = 200 }: Props) {
     gridAxis: "x" as const,
     yAxisProps: { domain: [0, "auto"] as [number, string] },
   };
+  if (stacked) return <BarChart {...common} type="stacked" />;
   return shape.isTrend ? (
     <LineChart {...common} curveType="linear" connectNulls />
   ) : (

@@ -1,6 +1,7 @@
 import { api } from "@medbrains/api";
 
 export const billingService = {
+  verifyBill: (...args: Parameters<typeof api.verifyBill>) => api.verifyBill(...args),
   listInvoices: (...args: Parameters<typeof api.listInvoices>) => api.listInvoices(...args),
   cloneInvoice: (...args: Parameters<typeof api.cloneInvoice>) => api.cloneInvoice(...args),
   createInvoice: (...args: Parameters<typeof api.createInvoice>) => api.createInvoice(...args),

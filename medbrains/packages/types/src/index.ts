@@ -1734,6 +1734,25 @@ export interface VisitorRegistration {
   updated_at: string;
 }
 
+/** A visitor pass checked at the gate (`/front-office/passes/scan`). */
+export interface VisitorPassCheck {
+  /** Lets the holder in now. */
+  valid: boolean;
+  /** Why not: "revoked", "expired" or "not_yet_valid". */
+  reason: string | null;
+  pass_number: string;
+  visitor_name: string;
+  relationship: string | null;
+  category: string;
+  id_type: string | null;
+  id_number: string | null;
+  photo_url: string | null;
+  ward_name: string | null;
+  bed_number: string | null;
+  valid_until: string;
+  revoked_reason: string | null;
+}
+
 export interface VisitorPass {
   id: string;
   tenant_id: string;
@@ -3317,6 +3336,8 @@ export interface VisitorPassPrintData {
   issued_by: string | null;
   photo_url: string | null;
   qr_code_data: string;
+  /** `qr_code_data` (the pass number) drawn as a QR code (SVG). */
+  qr_svg: string;
 }
 
 // ── Clinical Print Data (Phase 2) ───────────────────────

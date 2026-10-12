@@ -120,6 +120,28 @@ class ReceptionJourneyTest {
         check(seesText(api.list("/api/setup/departments").first { it.optString("id") == dept }.optString("name"))) { "the desk's department survived the next walk-in" }
     }
 
+    /** The campaign that brought a walk-in is picked at the desk and recorded against the patient. */
+    @Test
+    fun theCampaignThatBroughtThePatientIsRecorded() {
+        val name = "Knee camp ${Api.RUN}${++serial}"
+        val campaign = api.obj("POST", "/api/marketing/campaigns", org.json.JSONObject(mapOf("name" to name, "channel" to "print", "source" to "newspaper")))
+        val campaignId = campaign.getString("id")
+        // The desk loads campaigns as it opens: reopen it to see the new one.
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(15_000) { has("module-home-reception") }
+        val phone = freshPhone()
+        openRegister()
+        fillPerson("Camp", "Walkin${Api.RUN}", phone)
+        compose.onNodeWithTag("field-campaign_id").performScrollTo()
+        with(Session) { compose.choose("field-campaign_id", campaignId, name) }
+        submitRegistration()
+        compose.waitUntil(15_000) { has("registered-uhid") }
+        val id = checkNotNull(patientByPhone(phone)) { "the record exists" }.getString("id")
+        val acquisition = api.obj("GET", "/api/patients/$id/acquisition")
+        check(acquisition.optString("campaign_id") == campaignId) { "the campaign is recorded against the patient: $acquisition" }
+        check(acquisition.optString("captured_via") == "registration")
+    }
+
     /** A returning patient registered at another desk: reached the other way: the desk types them in fresh and the duplicate check offers the record that already exists. Find reaches them too now (`patients.find`), but the desk that does not think to search must still be caught here. */
     @Test
     fun aReturningPatientFromAnotherDeskIsReachedThroughTheDuplicateCheck() {

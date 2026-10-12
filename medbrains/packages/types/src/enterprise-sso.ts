@@ -63,6 +63,16 @@ export interface SsoPublicProvider {
   protocol: "oidc" | "saml";
 }
 
+/** How one hospital lets its staff sign in — asked before signing in. */
+export interface SignInOptions {
+  code: string;
+  name: string;
+  /** Username and password are accepted. */
+  password: boolean;
+  /** That hospital's own identity providers ("Sign in with Microsoft"). */
+  providers: SsoPublicProvider[];
+}
+
 export interface CreateSsoGroupMappingRequest {
   idp_group: string;
   role_code?: string;

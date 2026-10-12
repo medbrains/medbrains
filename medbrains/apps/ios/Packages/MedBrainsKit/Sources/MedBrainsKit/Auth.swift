@@ -96,6 +96,8 @@ public final class AuthStore {
 
     private let secrets: SecretStore
     private let client: ApiClient
+    /// For lookups made before anyone signs in (`lookUpHospital`).
+    var apiClient: ApiClient { client }
     private static let identityKey = "medbrains.identity"
     private static let hospitalCodeKey = "medbrains.hospital_code"
 
@@ -156,7 +158,8 @@ public final class AuthStore {
             await client.setUnauthorizedHandler { [weak self] in await self?.signOut() }
             return true
         } catch let error as ApiError {
-            lastError = error.status == 401 ? (code.isEmpty ? "Wrong username or password." : "Wrong username, password or hospital code.") : error.message
+            // The hospital was confirmed before this step: a refusal is the credentials.
+            lastError = error.status == 401 ? "Wrong username or password." : error.message
         } catch let error as SecretStoreError {
             lastError = "Could not keep you signed in on this device (Keychain \(error.status))."
         } catch is DecodingError {
@@ -165,6 +168,14 @@ public final class AuthStore {
             lastError = "Could not reach the hospital server."
         }
         return false
+    }
+
+    /// "Change hospital": the next sign-in starts from the code again.
+    public func forgetHospital() {
+        UserDefaults.standard.removeObject(forKey: Self.hospitalCodeKey)
+        rememberedHospitalCode = ""
+        needsHospital = false
+        lastError = nil
     }
 
     /// Adopt a session issued by another sign-in path — the patient portal's

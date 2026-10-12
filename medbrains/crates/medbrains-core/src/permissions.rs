@@ -61,6 +61,14 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod acquisition {
+        /// Correct where a patient came from.
+        ///
+        /// Set or change the campaign a registered patient is attributed to;
+        /// every change is audited.
+        pub const UPDATE: &str = "patients.acquisition.update";
+    }
+
     pub mod allergies {
         /// Mark a recorded allergy as wrong.
         ///
@@ -1394,6 +1402,12 @@ pub mod marketing {
         pub const VIEW: &str = "marketing.campaigns.view";
         /// Create and edit campaigns.
         pub const MANAGE: &str = "marketing.campaigns.manage";
+        /// Pick a campaign when registering.
+        ///
+        /// The active campaigns' names and codes only — enough for the desk
+        /// to record where a new patient heard of the hospital, without
+        /// spend or results.
+        pub const LOOKUP: &str = "marketing.campaigns.lookup";
     }
 
     pub mod consent {
@@ -1549,6 +1563,11 @@ pub mod front_office {
     pub mod passes {
         pub const LIST: &str = "front_office.passes.list";
         pub const MANAGE: &str = "front_office.passes.manage";
+        /// Check a visitor pass at the gate.
+        ///
+        /// Scan a pass's QR to see whether it is valid now, who it was issued
+        /// to and which ward it opens. Read-only: it cannot issue or revoke.
+        pub const VERIFY: &str = "front_office.passes.verify";
     }
 
     pub mod queue {

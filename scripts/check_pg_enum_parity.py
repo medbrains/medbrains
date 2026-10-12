@@ -31,7 +31,13 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MIGRATIONS = REPO_ROOT / "medbrains" / "crates" / "medbrains-db" / "src" / "migrations"
+MIGRATIONS = REPO_ROOT / "medbrains" / "crates" / "medbrains-db-migrations" / "src" / "migrations"
+ROLES = REPO_ROOT / "medbrains" / "crates" / "medbrains-core" / "src" / "access" / "roles.rs"
+
+
+def built_in_roles() -> set[str]:
+    """Every BuiltInRole code: each one is stored in users.role, a user_role."""
+    return set(re.findall(r'code: "([a-z_]+)"', ROLES.read_text()))
 CRATES = REPO_ROOT / "medbrains" / "crates"
 TS_TYPES = REPO_ROOT / "medbrains" / "packages" / "types" / "src"
 
@@ -191,6 +197,13 @@ def main() -> int:
             + (f"; not accepted: {extra}" if extra else " (missing values only)")
         )
     failures.extend(ts_new)
+
+    # A built-in role the admin can pick but users.role cannot hold fails
+    # only when someone creates that user (marketing_executive and
+    # display_device did, until 1060).
+    unstorable = sorted(built_in_roles() - pg.get("user_role", set()))
+    print(f"built-in roles checked against user_role: {len(built_in_roles())} | missing: {len(unstorable)}")
+    failures.extend(f"user_role has no value for built-in role {r!r} — add it in a migration" for r in unstorable)
 
     if failures:
         print(f"\n=== {len(failures)} RUST ENUM THAT POSTGRES WILL REJECT ===")

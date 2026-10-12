@@ -52,13 +52,28 @@ pub(crate) async fn build_context(
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let context = match template_code {
         "invoice_gst" => {
-            let Json(data) = medbrains_print_data::billing::get_gst_invoice_print_data(
+            let Json(data) = medbrains_print_data::gst_invoice::get_gst_invoice_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
             )
             .await?;
-            serde_json::json!({ "invoice": data })
+            // The bill's two links print as QR codes: pay the balance by
+            // UPI, and check the bill is genuine.
+            let qr = |link: &Option<String>| -> Result<Option<String>, AppError> {
+                link.as_deref()
+                    .map(|l| codes::qr_svg(l).map_err(|e| AppError::Internal(format!("bill qr: {e}"))))
+                    .transpose()
+            };
+            let upi_qr_svg = qr(&data.upi_link)?;
+            let verify_qr_svg = qr(&data.verify_url)?;
+            let mut invoice =
+                serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
+            if let Some(obj) = invoice.as_object_mut() {
+                obj.insert("upi_qr_svg".to_owned(), serde_json::json!(upi_qr_svg));
+                obj.insert("verify_qr_svg".to_owned(), serde_json::json!(verify_qr_svg));
+            }
+            serde_json::json!({ "invoice": invoice })
         }
         "payment_receipt" => {
             let Json(data) = medbrains_print_data::billing::get_receipt_print_data(
@@ -185,16 +200,8 @@ pub(crate) async fn build_context(
                 }),
             )
             .await?;
-            let barcode_svg = codes::code128_svg(&data.uhid, 40)
-                .map_err(|e| AppError::Internal(format!("wristband barcode: {e}")))?;
-            let qr_svg = codes::qr_svg(&format!("mb:admission:{source_id}"))
-                .map_err(|e| AppError::Internal(format!("wristband qr: {e}")))?;
-            let mut band =
-                serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
-            if let Some(obj) = band.as_object_mut() {
-                obj.insert("barcode_svg".to_owned(), serde_json::json!(barcode_svg));
-                obj.insert("qr_svg".to_owned(), serde_json::json!(qr_svg));
-            }
+            // The data already carries the UHID barcode and QR (BCMA reads them).
+            let band = serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
             serde_json::json!({ "band": band })
         }
         "queue_token_slip" => {

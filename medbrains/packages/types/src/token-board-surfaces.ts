@@ -841,6 +841,8 @@ export interface PublicBookingRequest {
   reason?: string;
   /** Required only when the tenant turns on booking OTP. */
   otp?: string;
+  /** The campaign code the booking link carried (`?c=DIWALI25`). */
+  campaign_code?: string;
 }
 
 export interface PublicBookingResponse {

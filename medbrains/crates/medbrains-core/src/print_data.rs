@@ -122,6 +122,11 @@ pub struct WristbandPrintData {
     pub is_critical: bool,
     pub is_mlc: bool,
     pub allergies: Vec<String>,
+    /// The UHID as a Code 128 barcode (SVG) — what bedside scanners read
+    /// and what the medication check compares against.
+    pub barcode_svg: String,
+    /// The UHID as a QR code (SVG), for phones and 2D scanners.
+    pub qr_svg: String,
 }
 
 // ── OPD Certificates / Consents ─────────────────────────
@@ -294,32 +299,8 @@ pub struct EstimateItemLine {
     pub total_price: String,
 }
 
-// ── GST Invoice ──────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GstInvoicePrintData {
-    pub invoice_number: String,
-    pub patient_name: String,
-    pub uhid: String,
-    pub subtotal: String,
-    pub tax_amount: String,
-    pub total_amount: String,
-    pub hospital_gstin: Option<String>,
-    pub hospital_name: Option<String>,
-    pub hospital_address: Option<String>,
-    pub items: Vec<GstInvoiceItemLine>,
-    pub date: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct GstInvoiceItemLine {
-    pub description: String,
-    pub hsn_code: Option<String>,
-    pub quantity: i32,
-    pub unit_price: String,
-    pub tax_percent: String,
-    pub total_price: String,
-}
+// ── GST Invoice (and the pharmacy bill it becomes) ──────────
+pub use crate::gst_invoice_print::{GstInvoiceItemLine, GstInvoicePrintData};
 
 // ── Consent Forms ───────────────────────────────────────
 
@@ -406,7 +387,10 @@ pub struct VisitorPassPrintData {
     pub issued_at: String,
     pub issued_by: Option<String>,
     pub photo_url: Option<String>,
+    /// The pass number: what the gate scans.
     pub qr_code_data: String,
+    /// `qr_code_data` drawn as a QR code (SVG).
+    pub qr_svg: String,
 }
 
 // ── MRD Forms ───────────────────────────────────────────

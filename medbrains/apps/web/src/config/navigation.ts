@@ -81,6 +81,7 @@ import {
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { createElement } from "react";
+import { REPORT_READERS } from "@/pages/reports/report-readers";
 
 // ── Types ──
 
@@ -962,6 +963,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "front_office.visitors.manage",
           "front_office.passes.list",
           "front_office.passes.manage",
+          "front_office.passes.verify",
           "front_office.queue.list",
           "front_office.queue.manage",
           "front_office.enquiry.list",
@@ -1178,7 +1180,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "reports",
         path: "/reports",
         icon: "IconReport",
-        requiredPermission: "analytics.view",
+        requiredPermissions: REPORT_READERS,
       },
       {
         i18nKey: "audit",

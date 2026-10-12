@@ -120,6 +120,7 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/campaigns",
             get(campaigns::list_campaigns).post(campaigns::create_campaign),
         )
+        .route("/api/marketing/campaigns/lookup", get(campaigns::lookup_campaigns))
         .route(
             "/api/marketing/campaigns/{id}",
             put(campaigns::update_campaign),

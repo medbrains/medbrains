@@ -617,6 +617,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Receptionist",
         description: "Front desk — registration, OPD visits, billing",
         permissions: &[
+            permissions::front_office::passes::VERIFY,
+            permissions::marketing::campaigns::LOOKUP,
+            permissions::patients::acquisition::UPDATE,
             permissions::pharmacy::catalog::LOOKUP,
             permissions::terminology::SEARCH,
             permissions::camp::LIST,
@@ -1364,6 +1367,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Security Guard",
         description: "Visitor passes, incident reports, CCTV, access logs",
         permissions: &[
+            permissions::front_office::passes::VERIFY,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::security::access::LIST,
@@ -1501,6 +1505,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Marketing Executive",
         description: "Campaigns, enquiry sources and funnel reporting — no clinical access",
         permissions: &[
+            permissions::marketing::campaigns::LOOKUP,
             permissions::dashboard::VIEW,
             // Campaign attribution needs the enquiry list to be meaningful:
             // "which campaign produced revenue" is unanswerable from campaign
@@ -1533,6 +1538,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            permissions::front_office::passes::VERIFY,
+            permissions::marketing::campaigns::LOOKUP,
+            permissions::patients::acquisition::UPDATE,
             // Marketing / enquiry desk — the tele-calling and front-desk seat.
             // Enquiry only: these codes never reach the clinical record.
             permissions::marketing::contacts::LIST,

@@ -11,7 +11,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { usePermissionStore } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import { IconFileAnalytics, IconSearch, IconX } from "@tabler/icons-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -20,6 +19,7 @@ import { PageHeader } from "@/components";
 import { ReportDetailPanel } from "@/components/Reports/ReportDetailPanel";
 import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { REPORT_READERS } from "@/pages/reports/report-readers";
 import { reportsService } from "@/services/reports.service";
 import { ReportFamilyPanel } from "./reports/report-family-panel";
 import {
@@ -74,7 +74,7 @@ function reportReadinessFilter(value: string | null): ReportReadiness | "all" {
 }
 
 export function ReportsPage() {
-  useRequirePermission(P.ANALYTICS.VIEW);
+  useRequirePermission(REPORT_READERS);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(null);
   const [detailOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
@@ -98,7 +98,7 @@ export function ReportsPage() {
   const { data: reportCatalog } = useQuery({
     queryKey: ["reports", "catalog"],
     queryFn: () => reportsService.getReportCatalog(),
-    enabled: hasPermission(P.ANALYTICS.VIEW),
+    enabled: REPORT_READERS.some((permission) => hasPermission(permission)),
   });
   const reportFamilies = useMemo(() => catalogToReportFamilies(reportCatalog), [reportCatalog]);
   const activeFamily =

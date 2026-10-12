@@ -1,7 +1,5 @@
 package com.medbrains.staff
 
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -10,7 +8,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,7 +18,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Sign-in and session on the device: a wrong password is refused in words
+ * Sign-in and session on the device: sign-in starts with the hospital; a
+ * wrong password is refused in words
  * with the username kept; a nurse provisioned this run lands on Nurse and
  * sees only her modules; sign-out ends the session; an account deactivated
  * server-side is signed out on its next request.
@@ -42,46 +40,45 @@ class SignInJourneyTest {
         compose.onNodeWithTag("signIn").performClick()
     }
 
-    private fun setHospitalCode(code: String) {
+    private fun chooseHospital(code: String) {
+        compose.waitUntil(10_000) { has("hospitalCode") }
         compose.onNodeWithTag("hospitalCode").performTextClearance()
-        if (code.isNotEmpty()) compose.onNodeWithTag("hospitalCode").performTextInput(code)
+        compose.onNodeWithTag("hospitalCode").performTextInput(code)
+        compose.onNodeWithTag("continue").performClick()
     }
 
     private fun signOut() {
         compose.onNodeWithContentDescription("Account").performClick()
         compose.onNodeWithText("Sign out").performClick()
-        compose.waitUntil(10_000) { has("username") }
+        compose.waitUntil(10_000) { has("username") || has("hospitalCode") }
     }
 
     /**
-     * Staff of more than one hospital name theirs; the code that signed in is
-     * kept for next time, a wrong one is refused in words, and clearing it
-     * forgets it.
+     * The hospital comes first: a code no hospital uses is refused before
+     * anything else is asked, the right one names the hospital, the code that
+     * signed in is kept so sign-out returns to that hospital's form, and
+     * "Change hospital" goes back to the start.
      */
     @Test
-    fun theHospitalCodeSignsInIsRememberedAndCanBeForgotten() {
+    fun signInStartsWithTheHospitalAndRemembersIt() {
         val nurse = api.provision("nurse")
         try {
             with(Session) { compose.ensureSignedOut() }
-            compose.onNodeWithTag("enterHospitalCode").performClick()
-            setHospitalCode("NO-SUCH-HOSPITAL")
-            type(nurse.username, nurse.password)
-            compose.waitUntil(10_000) { seesText("Wrong username, password or hospital code.") }
+            compose.onNodeWithTag("changeHospital").performClick()
+            chooseHospital("NO-SUCH-HOSPITAL")
+            compose.waitUntil(10_000) { seesText("No hospital uses the code \"NO-SUCH-HOSPITAL\". Check it with your IT desk.") }
+            check(!has("username")) { "nothing else is asked before the hospital" }
 
-            // The refusal shows a beat before the form is live again; then Go on
-            // the keyboard, as on a phone (the open keyboard covers the button).
-            compose.waitUntil(5_000) { compose.onNodeWithTag("signIn").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Disabled) == null }
-            setHospitalCode("default")
-            compose.onNodeWithTag("hospitalCode").performImeAction()
-            compose.waitUntil(15_000) { has("module-home-nurse") }
-            signOut()
-            check(seesText("default")) { "kept for next time" }
-
-            setHospitalCode("")
+            chooseHospital(Session.HOSPITAL_CODE)
+            compose.waitUntil(10_000) { has("username") }
+            check(!seesText("Start with your hospital.")) { "the hospital is named" }
             type(nurse.username, nurse.password)
             compose.waitUntil(15_000) { has("module-home-nurse") }
             signOut()
-            check(has("enterHospitalCode")) { "a cleared code is forgotten" }
+            compose.waitUntil(10_000) { has("changeHospital") }
+
+            compose.onNodeWithTag("changeHospital").performClick()
+            compose.waitUntil(5_000) { has("hospitalCode") }
         } finally { api.retire(nurse) }
     }
 
@@ -109,7 +106,7 @@ class SignInJourneyTest {
             check(!has("module-billing"))
             compose.onNodeWithContentDescription("Account").performClick()
             compose.onNodeWithText("Sign out").performClick()
-            compose.waitUntil(10_000) { has("username") }
+            compose.waitUntil(10_000) { has("username") || has("hospitalCode") }
         } finally { api.retire(nurse) }
     }
 
@@ -122,6 +119,6 @@ class SignInJourneyTest {
         api.retire(nurse) // deactivated while the app holds a token
         // The next request answers 401 — the flash poll may make it before the tap does.
         if (has("module-action-calls")) runCatching { compose.onNodeWithTag("module-action-calls").performClick() }
-        compose.waitUntil(15_000) { has("username") }
+        compose.waitUntil(15_000) { has("username") || has("hospitalCode") }
     }
 }
