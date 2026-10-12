@@ -71,7 +71,7 @@ pub async fn list_requisitions(
             FROM indents i \
             LEFT JOIN departments d ON d.id = i.department_id \
             LEFT JOIN users u ON u.id = i.requested_by \
-            WHERE i.tenant_id = $1 \
+            WHERE i.tenant_id = $1 AND i.deleted_at IS NULL \
             UNION ALL \
             SELECT m.id, 'asset_request'::text AS kind, \
                    CASE m.source_type WHEN 'bme_equipment' \

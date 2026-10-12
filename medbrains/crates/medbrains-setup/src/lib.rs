@@ -5838,6 +5838,7 @@ pub async fn list_visible_screens(
     Extension(claims): Extension<Claims>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<VisibleScreen>>, AppError> {
+    // allow-soft-deleted: reads the signed-in caller's own role, not a list of users.
     // Scoped: these masters are row-level secured, and the policy admits this
     // hospital's rows plus the shared ones. Read off the bare pool it admits
     // neither, and a clinical master list that comes back empty reads as a

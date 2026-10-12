@@ -1203,6 +1203,9 @@ pub async fn list_queue(
     let mut conditions = vec![
         "q.tenant_id = $1".to_owned(),
         "q.queue_date = $2".to_owned(),
+        // A deleted visit leaves the waiting room.
+        "q.deleted_at IS NULL".to_owned(),
+        "e.deleted_at IS NULL".to_owned(),
     ];
     let mut bind_idx: usize = 4;
 
@@ -3911,7 +3914,7 @@ pub async fn list_patient_referrals(
          LEFT JOIN departments td ON td.id = r.to_department_id \
          LEFT JOIN users fu ON fu.id = r.from_doctor_id \
          LEFT JOIN users tu ON tu.id = r.to_doctor_id \
-         WHERE r.patient_id = $1 AND r.tenant_id = $2 \
+         WHERE r.patient_id = $1 AND r.tenant_id = $2 AND r.deleted_at IS NULL \
          ORDER BY r.created_at DESC LIMIT 5000",
         caller = referral_caller_columns(3, 4, 5),
     ))
@@ -6461,7 +6464,7 @@ pub async fn list_verbal_orders(
                 tn.full_name AS transcribed_by_name, \
                 COALESCE(NULLIF(p.notes, ''), CONCAT(( \
                     SELECT COUNT(*) FROM prescription_items pi \
-                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
+                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id AND pi.deleted_at IS NULL \
                 ), ' medication(s)')) AS summary, \
                 sr.signed_at AS countersigned_at, \
                 sr.signer_user_id AS countersigned_by, \
@@ -6479,7 +6482,7 @@ pub async fn list_verbal_orders(
          LEFT JOIN users tn ON tn.id = p.transcribed_by \
          LEFT JOIN signed_records sr ON sr.id = p.signed_record_id \
          LEFT JOIN users cs ON cs.id = sr.signer_user_id \
-         WHERE p.tenant_id = $1 AND p.order_mode <> 'written' \
+         WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND p.order_mode <> 'written' \
          ORDER BY p.is_signed ASC, p.countersign_due_at ASC NULLS LAST \
          LIMIT 500",
     )
