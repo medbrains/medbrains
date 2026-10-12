@@ -1085,7 +1085,8 @@ pub async fn list_patients(
         .await?;
 
     // Build dynamic WHERE conditions
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    // A deleted patient is gone from search and lists; the record stays for audit.
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     // Inject the visible-id filter as a UUID array if not bypass.
@@ -1255,6 +1256,7 @@ pub async fn list_patients(
              FROM invoices \
              WHERE tenant_id = $1 \
                AND patient_id = ANY($2::uuid[]) \
+               AND deleted_at IS NULL \
                AND status::text NOT IN ('cancelled', 'void', 'refunded') \
              GROUP BY patient_id",
         )
@@ -3629,15 +3631,15 @@ pub async fn list_patient_visits(
             u.full_name AS doctor_name,
             d.name AS department_name,
             c.chief_complaint,
-            (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id) AS diagnosis_count,
-            (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id) AS prescription_count,
-            (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id) AS lab_order_count,
+            (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id AND dg.deleted_at IS NULL) AS diagnosis_count,
+            (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id AND p.deleted_at IS NULL) AS prescription_count,
+            (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.deleted_at IS NULL) AS lab_order_count,
             e.created_at
          FROM encounters e
          LEFT JOIN users u ON u.id = e.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
-         LEFT JOIN consultations c ON c.encounter_id = e.id
-         WHERE e.patient_id = $1
+         LEFT JOIN consultations c ON c.encounter_id = e.id AND c.deleted_at IS NULL
+         WHERE e.patient_id = $1 AND e.deleted_at IS NULL
          ORDER BY e.encounter_date DESC, e.created_at DESC",
         patient_id,
     )
@@ -3694,7 +3696,7 @@ pub async fn list_patient_consultations(
          JOIN encounters e ON e.id = c.encounter_id AND e.tenant_id = c.tenant_id
          LEFT JOIN users u ON u.id = c.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
-         WHERE e.patient_id = $1 AND c.tenant_id = $2
+         WHERE e.patient_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL AND e.deleted_at IS NULL
          ORDER BY e.encounter_date DESC, c.updated_at DESC LIMIT 5000",
     )
     .bind(patient_id)
@@ -3773,7 +3775,7 @@ pub async fn list_patient_lab_orders(
             lo.status,
             lo.priority::text AS priority,
             u.full_name AS ordered_by_name,
-            (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id) AS result_count,
+            (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id AND lr.deleted_at IS NULL) AS result_count,
             lo.collected_at,
             lo.verified_at,
             COALESCE(lo.expected_tat_minutes, (tc.tat_hours * 60)::int)
@@ -3785,7 +3787,7 @@ pub async fn list_patient_lab_orders(
          FROM lab_orders lo
          LEFT JOIN lab_test_catalog tc ON tc.id = lo.test_id
          LEFT JOIN users u ON u.id = lo.ordered_by
-         WHERE lo.patient_id = $1
+         WHERE lo.patient_id = $1 AND lo.deleted_at IS NULL
          ORDER BY lo.created_at DESC",
         patient_id,
     )
@@ -3897,7 +3899,7 @@ pub async fn list_patient_appointments(
          FROM appointments a
          LEFT JOIN users u ON u.id = a.doctor_id
          LEFT JOIN departments d ON d.id = a.department_id
-         WHERE a.patient_id = $1
+         WHERE a.patient_id = $1 AND a.deleted_at IS NULL
          ORDER BY a.appointment_date DESC, a.slot_start DESC",
         patient_id,
     )

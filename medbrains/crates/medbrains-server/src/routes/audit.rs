@@ -64,6 +64,7 @@ pub async fn list_audit_log(
     Extension(claims): Extension<Claims>,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<Vec<AuditLogSummary>>, AppError> {
+    // allow-soft-deleted: the audit log keeps every entry, including those by people deleted since.
     require_permission(&claims, permissions::audit::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -273,6 +274,7 @@ pub async fn list_access_log(
     Extension(claims): Extension<Claims>,
     Query(params): Query<AccessLogQuery>,
 ) -> Result<Json<Vec<AccessLogEntry>>, AppError> {
+    // allow-soft-deleted: the access log keeps every entry, including those by or about people deleted since.
     require_permission(&claims, permissions::audit::ACCESS_VIEW)?;
 
     let mut tx = state.db.begin().await?;

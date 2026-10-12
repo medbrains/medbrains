@@ -7365,12 +7365,14 @@ pub async fn list_available_beds(
          LEFT JOIN locations parent_l ON parent_l.id = l.parent_id AND parent_l.tenant_id = bs.tenant_id \
          LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
          WHERE bs.tenant_id = $1 \
+           AND bs.deleted_at IS NULL AND l.deleted_at IS NULL \
            AND bs.admission_id IS NULL \
            AND bs.status = 'vacant_clean'::bed_status \
            AND ($2::uuid IS NULL OR bs.ward_id = $2) \
            AND NOT EXISTS ( \
              SELECT 1 FROM bed_reservations br \
              WHERE br.bed_id = bs.location_id AND br.tenant_id = bs.tenant_id \
+               AND br.deleted_at IS NULL \
                AND br.status IN ('active', 'confirmed') \
                AND br.reserved_until > NOW() \
            ) \

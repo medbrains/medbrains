@@ -393,6 +393,7 @@ pub async fn list_break_glass(
     Extension(claims): Extension<Claims>,
     Query(params): Query<BreakGlassQuery>,
 ) -> Result<Json<Vec<BreakGlassEventSummary>>, AppError> {
+    // allow-soft-deleted: an audit trail keeps every break-glass event, including people deleted since.
     require_permission(&claims, permissions::audit::REVIEW)?;
     // Oversight: the break-glass register is the record of who declared an
     // emergency and reached what. Narrowing it to the reviewer's own care team
@@ -640,6 +641,7 @@ pub async fn list_access_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<AccessAlert>>, AppError> {
+    // allow-soft-deleted: an audit trail keeps every alert, including those about people deleted since.
     require_permission(&claims, permissions::audit::ACCESS_VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -710,12 +712,12 @@ pub async fn list_disposals(
     let rows = sqlx::query_as::<_, StockDisposalSummary>(
         "SELECT d.id, d.request_number, s.name AS store_name, d.disposal_type, d.status,
          u.full_name AS requested_by_name, d.total_value,
-         (SELECT COUNT(*) FROM stock_disposal_items WHERE disposal_id = d.id) AS item_count,
+         (SELECT COUNT(*) FROM stock_disposal_items WHERE disposal_id = d.id AND deleted_at IS NULL) AS item_count,
          d.created_at
          FROM stock_disposal_requests d
          LEFT JOIN stores s ON s.id = d.store_id
          LEFT JOIN users u ON u.id = d.requested_by
-         WHERE ($1::uuid IS NULL OR d.store_id = $1)
+         WHERE d.deleted_at IS NULL AND ($1::uuid IS NULL OR d.store_id = $1)
          AND ($2::text IS NULL OR d.disposal_type = $2)
          AND ($3::text IS NULL OR d.status::text = $3)
          AND ($4::timestamptz IS NULL OR d.created_at >= $4::timestamptz)
@@ -2274,6 +2276,7 @@ pub async fn list_doctor_incentive_assignments(
          FROM doctor_incentive_assignments a
          JOIN users u ON u.id = a.doctor_id
          JOIN incentive_plans p ON p.id = a.plan_id
+         WHERE a.deleted_at IS NULL
          ORDER BY a.effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
@@ -2329,6 +2332,7 @@ pub async fn list_incentive_calculations(
         "SELECT c.*, u.full_name AS doctor_name
          FROM incentive_calculations c
          JOIN users u ON u.id = c.doctor_id
+         WHERE c.deleted_at IS NULL
          ORDER BY c.period_start DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)

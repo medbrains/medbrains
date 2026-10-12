@@ -462,7 +462,7 @@ fn generate_token() -> String {
     // ambiguous chars). Easy to render in a QR; no /+= padding noise.
     let raw = Uuid::new_v4().simple().to_string();
     let extra = Uuid::new_v4().simple().to_string();
-    format!("{}{}", &raw, &extra[..8])
+    format!("{}{}", raw, &extra[..8])
 }
 
 pub(crate) fn sha256_hex(input: &[u8]) -> String {

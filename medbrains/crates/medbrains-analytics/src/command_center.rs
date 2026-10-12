@@ -310,7 +310,7 @@ pub async fn list_thresholds(
            t.metric_code, t.warning_threshold, t.critical_threshold, t.is_active \
          FROM department_alert_thresholds t \
          JOIN departments d ON d.id = t.department_id \
-         WHERE t.tenant_id = $1 \
+         WHERE t.tenant_id = $1 AND t.deleted_at IS NULL AND d.deleted_at IS NULL \
          ORDER BY d.name, t.metric_code LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -411,10 +411,10 @@ pub async fn list_pending_discharges(
            a.expected_discharge_date, \
            EXTRACT(DAY FROM now() - a.admitted_at)::int4 AS days_admitted, \
            COALESCE((SELECT COUNT(*) FROM lab_orders lo \
-             WHERE lo.tenant_id = $1 AND lo.encounter_id = a.encounter_id \
+             WHERE lo.tenant_id = $1 AND lo.encounter_id = a.encounter_id AND lo.deleted_at IS NULL \
              AND lo.status::text NOT IN ('completed','cancelled')), 0) AS pending_labs, \
            COALESCE((SELECT COUNT(*) FROM invoices inv \
-             WHERE inv.tenant_id = $1 AND inv.admission_id = a.id \
+             WHERE inv.tenant_id = $1 AND inv.admission_id = a.id AND inv.deleted_at IS NULL \
              AND inv.status::text = 'draft') > 0, false) AS pending_billing, \
            COALESCE(a.discharge_summary IS NOT NULL, false) AS summary_draft, \
            0::int8 AS checklist_pending \
@@ -427,7 +427,7 @@ pub async fn list_pending_discharges(
          LEFT JOIN locations loc ON loc.id = a.bed_id \
          LEFT JOIN locations w ON w.id = loc.parent_id \
          LEFT JOIN users u ON u.id = a.attending_doctor_id \
-         WHERE a.tenant_id = $1 AND a.status::text = 'admitted' \
+         WHERE a.tenant_id = $1 AND a.deleted_at IS NULL AND a.status::text = 'admitted' \
            AND (a.expected_discharge_date IS NOT NULL \
                 AND a.expected_discharge_date <= CURRENT_DATE + INTERVAL '48 hours') \
          ORDER BY a.expected_discharge_date NULLS LAST \
@@ -592,7 +592,7 @@ pub async fn list_transport_requests(
          LEFT JOIN locations tl ON tl.id = tr.to_location_id \
          LEFT JOIN users ru ON ru.id = tr.requested_by \
          LEFT JOIN users au ON au.id = tr.assigned_to \
-         WHERE tr.tenant_id = $1 \
+         WHERE tr.tenant_id = $1 AND tr.deleted_at IS NULL \
          ORDER BY tr.requested_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
