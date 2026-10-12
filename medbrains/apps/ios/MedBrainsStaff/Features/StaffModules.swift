@@ -13,6 +13,7 @@ enum StaffModules {
         AppModule(id: "nurse", displayName: "Nurse", symbol: "cross.case", requiredPermissions: ["nurse.dashboard.view"], appCodes: ["Mobile-Nurse"]) { AnyView(NurseHomeView()) },
         AppModule(id: "reception", displayName: "Reception", symbol: "person.badge.clock", requiredPermissions: ["front_office.queue.list"], appCodes: ["Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"]) { AnyView(ReceptionHomeView()) },
         module("pharmacy", "Pharmacy", "pills", ["pharmacy.prescriptions.list"], apps: ["Mobile-Pharmacist"], phase: 5),
+        AppModule(id: "deliveries", displayName: "Deliveries", symbol: "shippingbox", requiredPermissions: ["pharmacy.deliveries.view", "pharmacy.deliveries.complete"], appCodes: ["Mobile-Pharmacist"]) { AnyView(DeliveriesHomeView()) },
         module("lab", "Lab", "testtube.2", ["lab.orders.list"], apps: ["Mobile-LabTech", "Mobile-Phlebo"], phase: 5),
         module("blood-bank", "Blood Bank", "drop", ["blood_bank.inventory.list"], apps: ["Mobile-LabTech", "Mobile-Nurse", "Mobile-Doctor"], phase: 5),
         module("billing", "Billing", "indianrupeesign.circle", ["billing.invoices.list"], apps: ["Mobile-Admin", "Desktop-Workstation"], phase: 5),
