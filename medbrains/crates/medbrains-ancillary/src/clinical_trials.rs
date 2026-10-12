@@ -346,7 +346,7 @@ pub async fn list_trial_consents(
         "SELECT {CONSENT_COLS} FROM consent_records cr \
          LEFT JOIN patients p ON p.id = cr.patient_id \
          LEFT JOIN consent_templates ct ON ct.id = cr.template_id \
-         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 ORDER BY cr.created_at DESC LIMIT 500"
+         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 AND cr.deleted_at IS NULL ORDER BY cr.created_at DESC LIMIT 500"
     ))
     .bind(claims.tenant_id)
     .bind(id)

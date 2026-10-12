@@ -6462,7 +6462,7 @@ pub async fn list_staff_options(
          FROM employees e \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN designations des ON des.id = e.designation_id AND des.tenant_id = e.tenant_id \
-         WHERE e.tenant_id = $1 \
+         WHERE e.tenant_id = $1 AND e.deleted_at IS NULL \
            AND e.status = 'active'::employee_status \
            AND ($2::uuid IS NULL OR e.department_id = $2) \
            AND ( \

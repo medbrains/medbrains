@@ -290,7 +290,7 @@ pub async fn list_retro_entries(
          FROM retrospective_entries re \
          JOIN users u ON u.id = re.entered_by \
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
-         WHERE ($1::text IS NULL OR re.status::text = $1) \
+         WHERE re.deleted_at IS NULL AND ($1::text IS NULL OR re.status::text = $1) \
            AND ($2::text IS NULL OR re.source_table = $2) \
          ORDER BY re.created_at DESC LIMIT 5000",
     )

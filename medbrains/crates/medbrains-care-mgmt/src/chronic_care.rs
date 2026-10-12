@@ -585,7 +585,8 @@ pub async fn list_enrollments(
          JOIN patients p ON p.id = ce.patient_id \
          JOIN chronic_programs cp ON cp.id = ce.program_id \
          LEFT JOIN users u ON u.id = ce.primary_doctor_id \
-         WHERE ($1::text IS NULL OR cp.program_type::text = $1) \
+         WHERE ce.deleted_at IS NULL \
+           AND ($1::text IS NULL OR cp.program_type::text = $1) \
          AND ($2::text IS NULL OR ce.status::text = $2) \
          AND ($3::uuid IS NULL OR ce.primary_doctor_id = $3) \
          AND ($4::text IS NULL OR (p.first_name || ' ' || p.last_name) ILIKE '%' || $4 || '%' OR p.uhid ILIKE '%' || $4 || '%') \
@@ -1047,7 +1048,7 @@ pub async fn list_adherence(
          ar.drug_name, u.full_name AS recorded_by_name, ar.notes, ar.created_at \
          FROM adherence_records ar \
          JOIN users u ON u.id = ar.recorded_by \
-         WHERE ar.enrollment_id = $1 \
+         WHERE ar.enrollment_id = $1 AND ar.deleted_at IS NULL \
          AND ($2::text IS NULL OR ar.event_type::text = $2) \
          AND ($3::date IS NULL OR ar.event_date >= $3) \
          AND ($4::date IS NULL OR ar.event_date <= $4) \
