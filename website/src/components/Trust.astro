@@ -1,0 +1,38 @@
+---
+import { TRUST } from "../data/content";
+---
+
+<section id="trust" class="section trust" aria-labelledby="trust-title">
+  <div class="wrap">
+    <p class="eyebrow">Compliance &amp; security</p>
+    <h2 id="trust-title" class="section-title">The rules are in the screens, not in a binder.</h2>
+    <p class="section-lede">An auditor asks how you know. MedBrains shows them — every rule enforced where the work happens, every access on record.</p>
+    <div class="grid">
+      {TRUST.map((t) => (
+        <article class="item reveal">
+          <span class="mark" aria-hidden="true"></span>
+          <h3>{t.title}</h3>
+          <p>{t.body}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .trust {
+    color: #fff;
+    background: radial-gradient(900px 500px at 100% 0%, rgb(15 98 254 / 28%), transparent 60%), var(--night);
+  }
+  .trust .eyebrow { color: var(--pulse); }
+  .trust .section-lede { color: var(--night-text); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 56px; background: var(--night-line); border: 1px solid var(--night-line); border-radius: 20px; overflow: hidden; }
+  .item { background: var(--night); padding: 32px 28px; }
+  .mark { display: block; width: 36px; height: 3px; background: linear-gradient(90deg, var(--blue), var(--pulse)); margin-bottom: 20px; }
+  h3 { font: 800 1.2rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+  p { margin: 0; color: var(--night-text); font-size: .96rem; }
+  @include below(lg) { .grid { grid-template-columns: 1fr 1fr; } }
+  @include below(sm) { .grid { grid-template-columns: 1fr; } }
+</style>

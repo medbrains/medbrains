@@ -1,0 +1,20 @@
+---
+import { WHATSAPP } from "../consts";
+
+const href = `https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent(WHATSAPP.prefilledText)}`;
+---
+
+<a class="wa" href={href} target="_blank" rel="noopener" aria-label="Chat with us on WhatsApp">
+  <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1s-.5-.1-.7.1-.8 1-1 1.2-.4.2-.7.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5v-.5L9 5.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3A2.8 2.8 0 0 0 6.3 8c0 1.2.9 2.4 1 2.6s1.7 2.7 4.2 3.8a14 14 0 0 0 1.4.5 3.4 3.4 0 0 0 1.5.1c.5-.1 1.7-.7 1.9-1.4s.2-1.1.2-1.2zM12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.3A10 10 0 1 0 12 2z"/></svg>
+</a>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .wa {
+    position: fixed; right: 20px; bottom: 20px; z-index: 60; width: 56px; height: 56px; border-radius: 50%;
+    display: grid; place-items: center; background: #25d366; color: #fff;
+    box-shadow: 0 10px 30px rgb(37 211 102 / 45%); transition: transform .2s ease;
+  }
+  .wa:hover { transform: scale(1.06); }
+</style>

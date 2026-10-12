@@ -1,0 +1,115 @@
+---
+import { SURFACES } from "../data/content";
+---
+
+<section id="apps" class="section apps" aria-labelledby="apps-title">
+  <div class="wrap">
+    <p class="eyebrow">Apps</p>
+    <h2 id="apps-title" class="section-title">On every screen in the building — and in every pocket.</h2>
+    <div class="cards" data-scroll="view">
+      {SURFACES.map((s, i) => (
+        <article class={`card c${i}`}>
+          <span class="kicker">{s.kicker}</span>
+          <h3>{s.title}</h3>
+          <p>{s.body}</p>
+          <div class="shot" aria-hidden="true">
+            {i === 0 && (
+              <div class="web">
+                <div class="bar"><i></i><i></i><i></i></div>
+                <div class="tiles"><b>142<small>OPD today</small></b><b>14m<small>Median wait</small></b></div>
+                <div class="chart">{[40, 62, 48, 75, 58, 88, 70].map((h) => <span style={`height:${h}%`}></span>)}</div>
+              </div>
+            )}
+            {i === 1 && (
+              <div class="phone">
+                <small>Ward B · Rounds</small>
+                <div class="item due"><b>Bed 7 · Telmisartan</b><span>Due 08:00 · Give</span></div>
+                <div class="item"><b>Bed 12 · Vitals</b><span>BP 128/82 · Done</span></div>
+                <div class="item"><b>Bed 3 · Insulin</b><span>Due 08:30</span></div>
+              </div>
+            )}
+            {i === 2 && (
+              <div class="phone light">
+                <small>Medicines</small>
+                <div class="item ok"><b>Refill approved</b><span>Telmisartan 40 mg</span></div>
+                <div class="item"><b>Results ready</b><span>Lipid profile</span></div>
+                <div class="pill">Track delivery</div>
+              </div>
+            )}
+            {i === 3 && (
+              <div class="tv">
+                <small>Now serving</small>
+                <b>A-021</b>
+                <span>Room 3 · Next P-004</span>
+              </div>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 48px; }
+
+  .card {
+    position: relative; overflow: hidden; display: flex; flex-direction: column;
+    border-radius: 22px; padding: 28px 24px 0; min-height: 520px;
+    background: var(--night-2); color: #fff; border: 1px solid var(--night-line);
+    transition: border-color .25s ease;
+    // Each card rises at its own speed: depth as the section scrolls by.
+    transform: translateY(calc((.5 - var(--p, .5)) * var(--depth)));
+    &:hover { border-color: var(--blue); }
+
+    p { margin: 0; color: var(--night-text); font-size: .95rem; }
+  }
+  .c0 { --depth: 60px; }
+  .c1 { --depth: 160px; }
+  .c2 { --depth: 110px; }
+  .c3 { --depth: 200px; }
+
+  .kicker { font: 600 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--pulse); }
+  h3 { font: 800 1.3rem var(--display); letter-spacing: -.02em; margin: 12px 0 8px; }
+
+  .shot { margin-top: auto; padding-top: 28px; display: flex; justify-content: center; }
+
+  .web {
+    width: 100%; background: #fff; border-radius: 12px 12px 0 0; padding: 0 12px 14px; color: var(--ink);
+    .bar { display: flex; gap: 5px; padding: 10px 0; i { width: 7px; height: 7px; border-radius: 50%; background: #d3d9e3; } }
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    b { display: grid; font: 800 1.3rem var(--display); background: var(--paper-2); border-radius: 8px; padding: 8px 10px; }
+    small { font: 600 .55rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .chart { display: flex; align-items: flex-end; gap: 6px; height: 70px; margin-top: 10px; }
+    .chart span { flex: 1; border-radius: 4px 4px 0 0; background: linear-gradient(var(--blue), #6ea0ff); }
+  }
+
+  .phone {
+    width: 78%; min-height: 200px; padding: 18px 12px 12px; border: 6px solid #263045; border-bottom: 0;
+    border-radius: 26px 26px 0 0; background: #0b1220; display: grid; gap: 8px; align-content: start;
+    small { font: 600 .6rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--pulse); }
+    .item { display: grid; gap: 1px; padding: 8px 10px; border-radius: 10px; background: rgb(255 255 255 / 6%); font-size: .72rem; }
+    .item span { color: var(--night-text); font-size: .66rem; }
+    .due { background: rgb(15 98 254 / 30%); }
+    &.light {
+      background: var(--paper-2); color: var(--ink);
+      small { color: var(--blue); }
+      .item { background: #fff; span { color: var(--muted); } }
+      .ok b { color: #198038; }
+    }
+    .pill { background: var(--blue); color: #fff; border-radius: 999px; text-align: center; padding: 6px; font-size: .7rem; font-weight: 600; }
+  }
+
+  .tv {
+    width: 100%; margin-bottom: 28px; padding: 18px; text-align: center; display: grid; gap: 2px;
+    background: #050912; border: 6px solid #263045; border-radius: 10px;
+    small { font: 600 .6rem var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--pulse); }
+    b { font: 900 2.6rem var(--display); letter-spacing: -.02em; }
+    span { color: var(--night-text); font-size: .74rem; }
+  }
+
+  @include below(xl) { .cards { grid-template-columns: 1fr 1fr; } }
+  @include below(sm) { .cards { grid-template-columns: 1fr; } .card { min-height: 0; } }
+</style>
