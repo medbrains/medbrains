@@ -1,0 +1,36 @@
+---
+import { FAQ } from "../data/content";
+---
+
+<section id="faq" class="section faq" aria-labelledby="faq-title">
+  <div class="wrap narrow">
+    <p class="eyebrow">FAQ</p>
+    <h2 id="faq-title" class="section-title">Questions hospitals ask us.</h2>
+    {FAQ.map((f) => (
+      <details>
+        <summary>{f.q}</summary>
+        <p>{f.a}</p>
+      </details>
+    ))}
+  </div>
+</section>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .narrow { max-width: 860px; }
+  details { border-bottom: 1px solid var(--line); }
+  details:first-of-type { margin-top: 40px; border-top: 1px solid var(--line); }
+  summary {
+    list-style: none; cursor: pointer; padding: 24px 48px 24px 0; position: relative;
+    font: 700 1.15rem var(--sans);
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "+"; position: absolute; right: 8px; top: 50%; translate: 0 -50%;
+    width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--paper-2); font-size: 1.2rem; transition: rotate .2s ease;
+  }
+  details[open] summary::after { rotate: 45deg; background: var(--blue); color: #fff; }
+  details p { margin: 0 0 24px; color: var(--ink-2); max-width: 66ch; }
+</style>

@@ -1,0 +1,46 @@
+---
+import { SITE } from "../consts";
+---
+
+<header class="header">
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label={`${SITE.brand} home`}>
+      <img src="/logo/medbrains-mark.svg" alt="" width="32" height="32" />
+      <span>{SITE.brand}</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="/#journey">How it works</a>
+      <a href="/#modules">Modules</a>
+      <a href="/#apps">Apps</a>
+      <a href="/#trust">Compliance</a>
+      <a href="/#faq">FAQ</a>
+    </nav>
+    <a class="signin" href={`${SITE.app}/login`}>Sign in</a>
+    <a class="btn btn-primary cta" href="/#demo">Book a demo</a>
+  </div>
+</header>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgb(6 10 20 / 90%); backdrop-filter: saturate(160%) blur(14px);
+    border-bottom: 1px solid rgb(255 255 255 / 8%); color: #fff;
+  }
+  .bar { display: flex; align-items: center; gap: 32px; height: 68px; }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px; text-decoration: none;
+    font-family: var(--display); font-weight: 900; font-size: 1.2rem; letter-spacing: -.02em;
+  }
+  nav { display: flex; gap: 28px; margin-left: auto; font-size: .94rem; }
+  nav a { text-decoration: none; color: var(--night-text); }
+  nav a:hover { color: #fff; }
+  .signin { color: #fff; text-decoration: none; font-size: .94rem; font-weight: 600; }
+  .signin:hover { color: var(--pulse); }
+  .cta { min-height: 40px; padding: 0 18px; font-size: .9rem; box-shadow: none; }
+  @include below(lg) {
+    nav { display: none; }
+    .signin { margin-left: auto; }
+  }
+</style>

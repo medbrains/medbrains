@@ -1,0 +1,123 @@
+---
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import { SITE } from "../consts";
+import { MODULE_PAGES, type ModulePage } from "../data/modules";
+import Base from "../layouts/Base.astro";
+
+export function getStaticPaths() {
+  return MODULE_PAGES.map((page) => ({ params: { slug: page.slug }, props: { page } }));
+}
+
+const { page } = Astro.props as { page: ModulePage };
+const url = new URL(`/${page.slug}`, Astro.site).href;
+const related = page.related
+  .map((slug) => MODULE_PAGES.find((p) => p.slug === slug))
+  .filter((p): p is ModulePage => Boolean(p));
+const schema = [
+  {
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: SITE.brand, item: new URL("/", Astro.site).href },
+      { "@type": "ListItem", position: 2, name: page.eyebrow, item: url },
+    ],
+  },
+  {
+    "@type": "FAQPage",
+    mainEntity: page.faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  },
+];
+---
+
+<Base title={page.title} description={page.description} schema={schema}>
+  <Header />
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <nav class="crumbs" aria-label="Breadcrumb"><a href="/">{SITE.brand}</a> / <span>{page.eyebrow}</span></nav>
+        <p class="eyebrow">{page.eyebrow}</p>
+        <h1>{page.h1}</h1>
+        <p class="lede">{page.intro}</p>
+        <a class="btn btn-primary" href="/#demo">Book a demo <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <h2 class="section-title">What it does</h2>
+        <div class="grid">
+          {page.features.map((f) => (
+            <article class="feature reveal">
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq">
+      <div class="wrap narrow">
+        <h2 class="section-title">Questions</h2>
+        {page.faq.map((f) => (
+          <details>
+            <summary>{f.q}</summary>
+            <p>{f.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    {related.length > 0 && (
+      <section class="section related">
+        <div class="wrap">
+          <h2 class="section-title">Also in MedBrains</h2>
+          <div class="links">
+            {related.map((r) => (
+              <a href={`/${r.slug}`}><strong>{r.eyebrow}</strong><span>{r.h1}</span></a>
+            ))}
+          </div>
+        </div>
+      </section>
+    )}
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .hero {
+    color: #fff; padding: 72px 0 88px;
+    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
+    .eyebrow { color: var(--pulse); }
+    h1 { font: 900 clamp(2.2rem, 5vw, 4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; max-width: 20ch; }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0 0 32px; }
+  }
+  .crumbs {
+    margin-bottom: 28px; font-size: .88rem; color: var(--night-text);
+    a { color: #fff; }
+  }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 40px; }
+  .feature {
+    padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow);
+    h3 { font: 800 1.2rem var(--display); letter-spacing: -.02em; margin: 0 0 8px; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+  .faq { background: var(--paper-2); }
+  .narrow { max-width: 860px; }
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; padding: 20px 0; font-weight: 700; font-size: 1.08rem; }
+  details p { margin: 0 0 20px; color: var(--ink-2); }
+  .links {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 32px;
+    a { display: grid; gap: 6px; padding: 22px; border-radius: 16px; border: 1px solid var(--line); text-decoration: none; transition: border-color .2s ease; }
+    a:hover { border-color: var(--blue); }
+    strong { font: 600 .74rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--blue); }
+    span { font-weight: 600; }
+  }
+  @include below(lg) { .grid, .links { grid-template-columns: 1fr 1fr; } }
+  @include below(sm) { .grid, .links { grid-template-columns: 1fr; } }
+</style>
