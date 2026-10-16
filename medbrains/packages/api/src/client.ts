@@ -938,6 +938,7 @@ import type {
   // Documents
   DocumentTemplate,
   DocumentTemplateVersion,
+  DomainOwnership,
   DomainStatus,
   // Blood Bank
   DonorListResponse,
@@ -15464,6 +15465,9 @@ export const api = {
     }),
   getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
   getDomainStatus: () => request<DomainStatus>("/admin/domain-status"),
+  getDomainOwnership: () => request<DomainOwnership>("/admin/domain-ownership"),
+  verifyDomainOwnership: () =>
+    request<DomainOwnership>("/admin/domain-ownership/verify", { method: "POST", body: "{}" }),
   provisionMailDomain: (domain: string) =>
     request<ProvisionDomainResponse>("/admin/mail/provision-domain", {
       method: "POST",
