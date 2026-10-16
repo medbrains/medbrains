@@ -20,7 +20,19 @@ const ACTION_OPTIONS = [
   { value: "create", label: "Create" },
   { value: "update", label: "Update" },
   { value: "delete", label: "Delete" },
+  { value: "denied", label: "Refused (403)" },
+  { value: "login_failed", label: "Failed sign-in" },
+  { value: "login_failed_unknown_account", label: "Sign-in, no such account" },
+  { value: "account_locked", label: "Account locked" },
 ];
+
+/** Security events read as warnings whatever the generic status colour says. */
+const SECURITY_ACTIONS = new Set([
+  "denied",
+  "login_failed",
+  "login_failed_unknown_account",
+  "account_locked",
+]);
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   success: "success",
@@ -40,6 +52,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 function statusTone(status: string): BadgeTone {
+  if (SECURITY_ACTIONS.has(status)) return "danger";
   return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
 }
 
@@ -209,6 +222,7 @@ export function AuditLogTab() {
       <Group gap="sm" wrap="wrap">
         <Select
           placeholder="Module"
+          aria-label="Module"
           data={modules?.map((m) => ({ value: m, label: m })) ?? []}
           value={module}
           onChange={setModule}
@@ -218,6 +232,7 @@ export function AuditLogTab() {
         />
         <Select
           placeholder="Entity Type"
+          aria-label="Entity type"
           data={entityTypes?.map((e) => ({ value: e, label: e })) ?? []}
           value={entityType}
           onChange={setEntityType}
@@ -227,12 +242,13 @@ export function AuditLogTab() {
         />
         <Select
           placeholder="Action"
+          aria-label="Action"
           data={ACTION_OPTIONS}
           value={action}
           onChange={setAction}
           clearable
           size="sm"
-          w={130}
+          w={200}
         />
         <DateInput
           placeholder="From date"
