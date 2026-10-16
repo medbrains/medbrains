@@ -15,6 +15,8 @@ export interface WalkIn {
   /** The consulting doctor, as the desk picks them. */
   consultant?: string;
   whatsappConsent?: boolean;
+  /** The DPDP notice: the language it is shown in, and the purposes agreed (by label text). */
+  privacy?: { language: string; purposes: string[] };
 }
 
 export class RegistrationDesk {
@@ -53,6 +55,12 @@ export class RegistrationDesk {
 
     await expect(page.getByTestId("switch-whatsapp_opt_in")).toBeVisible();
     if (patient.whatsappConsent) await page.getByTestId("switch-whatsapp_opt_in").check();
+    if (patient.privacy) {
+      const notice = page.getByTestId("dpdp-notice");
+      await notice.getByText(patient.privacy.language, { exact: true }).click();
+      for (const purpose of patient.privacy.purposes) await notice.getByLabel(purpose).check();
+      await notice.getByLabel("I have shown this notice to the patient in the language chosen").check();
+    }
     for (let step = 0; step < 3; step += 1) await this.next();
 
     // The review is read back to the patient: names, never record ids.

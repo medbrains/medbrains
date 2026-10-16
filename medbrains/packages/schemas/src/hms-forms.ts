@@ -1614,6 +1614,13 @@ export const patientRegistrationFormSchema = z
     attendant_passes_count: optionalNonNegativeIntegerString,
     create_opd_visit: z.boolean().optional(),
     open_opd_after_registration: z.boolean().optional(),
+    // DPDP Act 2023: the notice shown, its language, and the purposes agreed.
+    privacy_notice_given: z.boolean().optional(),
+    privacy_language: z.enum(["en", "hi", "ta"]).optional(),
+    privacy_purposes: z
+      .array(z.enum(["abdm_linking", "insurance_claims", "health_reminders", "research"]))
+      .optional(),
+    privacy_guardian: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     // The shared registration rules (registration-rules.ts), which the
@@ -1621,6 +1628,14 @@ export const patientRegistrationFormSchema = z
     for (const problem of registrationProblems(registrationCatalogue, registrationDraftOf(value))) {
       const path = FORM_FIELD_OF[problem.field] ?? problem.field;
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: problem.message });
+    }
+    // Consent asked without the notice is not consent (s.5).
+    if ((value.privacy_purposes?.length ?? 0) > 0 && !value.privacy_notice_given) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["privacy_notice_given"],
+        message: "Show the patient the privacy notice before recording what they agreed to",
+      });
     }
   });
 
