@@ -302,7 +302,7 @@ pub async fn dashboard(
         .collect();
 
     // Department-wise checklist scores
-    let dept_rows: Vec<(Uuid, String, f64, i64)> = sqlx::query_as(
+    let dept_rows: Vec<(Option<Uuid>, String, f64, i64)> = sqlx::query_as(
         "SELECT cl.department_id, COALESCE(d.name, 'Organization-wide'), \
                 COALESCE(AVG(cl.compliance_score), 0)::float8, COUNT(*) \
          FROM compliance_checklists cl \
@@ -422,7 +422,7 @@ pub async fn dashboard_gaps(
 
     let gap_rows: Vec<GapRow> = sqlx::query_as(
         "SELECT cl.id, cl.name, cl.department_id, d.name AS department_name, \
-                cl.accreditation_body::text, cl.non_compliant_items \
+                cl.accreditation_body::text, cl.non_compliant_items::int8 \
          FROM compliance_checklists cl \
          LEFT JOIN departments d ON d.id = cl.department_id \
          WHERE cl.tenant_id = $1 AND cl.non_compliant_items > 0 \
@@ -475,7 +475,7 @@ pub async fn list_checklists(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM compliance_checklists WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM compliance_checklists WHERE deleted_at IS NULL AND tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.department_id.is_some() {
@@ -765,7 +765,7 @@ pub async fn list_adr_reports(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM adr_reports WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM adr_reports WHERE deleted_at IS NULL AND tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.status.is_some() {
@@ -1001,7 +1001,7 @@ pub async fn list_mv_reports(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, MateriovigilanceReport>(
             "SELECT * FROM materiovigilance_reports \
-             WHERE tenant_id = $1 AND status::text = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND status::text = $2 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1011,7 +1011,7 @@ pub async fn list_mv_reports(
     } else {
         sqlx::query_as::<_, MateriovigilanceReport>(
             "SELECT * FROM materiovigilance_reports \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1406,7 +1406,7 @@ pub async fn list_calendar(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM compliance_calendar WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM compliance_calendar WHERE deleted_at IS NULL AND tenant_id = $1");
     let mut param_idx = 2u32;
 
     if params.status.is_some() {
@@ -1758,7 +1758,7 @@ pub async fn list_submissions(
         (Some(status), Some(dept)) => {
             sqlx::query_as::<_, ComplianceCalendarEvent>(
                 "SELECT * FROM compliance_calendar \
-                 WHERE tenant_id = $1 AND event_type = 'submission' \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 AND event_type = 'submission' \
                  AND status = $2 AND department_id = $3 \
                  ORDER BY due_date DESC LIMIT 200",
             )
@@ -1771,7 +1771,7 @@ pub async fn list_submissions(
         (Some(status), None) => {
             sqlx::query_as::<_, ComplianceCalendarEvent>(
                 "SELECT * FROM compliance_calendar \
-                 WHERE tenant_id = $1 AND event_type = 'submission' \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 AND event_type = 'submission' \
                  AND status = $2 \
                  ORDER BY due_date DESC LIMIT 200",
             )
@@ -1783,7 +1783,7 @@ pub async fn list_submissions(
         (None, Some(dept)) => {
             sqlx::query_as::<_, ComplianceCalendarEvent>(
                 "SELECT * FROM compliance_calendar \
-                 WHERE tenant_id = $1 AND event_type = 'submission' \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 AND event_type = 'submission' \
                  AND department_id = $2 \
                  ORDER BY due_date DESC LIMIT 200",
             )
@@ -1795,7 +1795,7 @@ pub async fn list_submissions(
         (None, None) => {
             sqlx::query_as::<_, ComplianceCalendarEvent>(
                 "SELECT * FROM compliance_calendar \
-                 WHERE tenant_id = $1 AND event_type = 'submission' \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 AND event_type = 'submission' \
                  ORDER BY due_date DESC LIMIT 200",
             )
             .bind(claims.tenant_id)
@@ -1859,7 +1859,7 @@ pub async fn list_mock_surveys(
         (Some(dept), Some(status)) => {
             sqlx::query_as::<_, ComplianceChecklist>(
                 "SELECT * FROM compliance_checklists \
-                 WHERE tenant_id = $1 \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 \
                  AND (name ILIKE '%mock%survey%' OR description ILIKE '%mock%survey%') \
                  AND department_id = $2 AND overall_status::text = $3 \
                  ORDER BY assessment_period_start DESC LIMIT 200",
@@ -1873,7 +1873,7 @@ pub async fn list_mock_surveys(
         (Some(dept), None) => {
             sqlx::query_as::<_, ComplianceChecklist>(
                 "SELECT * FROM compliance_checklists \
-                 WHERE tenant_id = $1 \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 \
                  AND (name ILIKE '%mock%survey%' OR description ILIKE '%mock%survey%') \
                  AND department_id = $2 \
                  ORDER BY assessment_period_start DESC LIMIT 200",
@@ -1886,7 +1886,7 @@ pub async fn list_mock_surveys(
         (None, Some(status)) => {
             sqlx::query_as::<_, ComplianceChecklist>(
                 "SELECT * FROM compliance_checklists \
-                 WHERE tenant_id = $1 \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 \
                  AND (name ILIKE '%mock%survey%' OR description ILIKE '%mock%survey%') \
                  AND overall_status::text = $2 \
                  ORDER BY assessment_period_start DESC LIMIT 200",
@@ -1899,7 +1899,7 @@ pub async fn list_mock_surveys(
         (None, None) => {
             sqlx::query_as::<_, ComplianceChecklist>(
                 "SELECT * FROM compliance_checklists \
-                 WHERE tenant_id = $1 \
+                 WHERE deleted_at IS NULL AND tenant_id = $1 \
                  AND (name ILIKE '%mock%survey%' OR description ILIKE '%mock%survey%') \
                  ORDER BY assessment_period_start DESC LIMIT 200",
             )

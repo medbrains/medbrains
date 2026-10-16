@@ -193,7 +193,7 @@ pub async fn list_cath_procedures(
 
     let rows = sqlx::query_as::<_, CathProcedure>(
         "SELECT * FROM cath_procedures \
-         WHERE ($1::text IS NULL OR status = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status = $1) \
          AND ($2::text IS NULL OR procedure_type::text = $2) \
          AND ($3::bool IS NULL OR is_stemi = $3) \
          AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
@@ -358,7 +358,7 @@ pub async fn list_hemodynamics(
         .await?;
 
     let rows = sqlx::query_as::<_, CathHemodynamic>(
-        "SELECT * FROM cath_hemodynamics WHERE procedure_id = $1 ORDER BY recorded_at LIMIT 5000",
+        "SELECT * FROM cath_hemodynamics WHERE deleted_at IS NULL AND procedure_id = $1 ORDER BY recorded_at LIMIT 5000",
     )
     .bind(procedure_id)
     .fetch_all(&mut *tx)
@@ -435,7 +435,7 @@ pub async fn list_cath_devices(
         .await?;
 
     let rows = sqlx::query_as::<_, CathDevice>(
-        "SELECT * FROM cath_devices WHERE procedure_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM cath_devices WHERE deleted_at IS NULL AND procedure_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(procedure_id)
     .fetch_all(&mut *tx)
@@ -513,7 +513,7 @@ pub async fn list_stemi_timeline(
         .await?;
 
     let rows = sqlx::query_as::<_, CathStemiTimeline>(
-        "SELECT * FROM cath_stemi_timeline WHERE procedure_id = $1 ORDER BY event_time LIMIT 5000",
+        "SELECT * FROM cath_stemi_timeline WHERE deleted_at IS NULL AND procedure_id = $1 ORDER BY event_time LIMIT 5000",
     )
     .bind(procedure_id)
     .fetch_all(&mut *tx)
@@ -606,7 +606,7 @@ pub async fn list_post_monitoring(
         .await?;
 
     let rows = sqlx::query_as::<_, CathPostMonitoring>(
-        "SELECT * FROM cath_post_monitoring WHERE procedure_id = $1 ORDER BY monitored_at LIMIT 5000",
+        "SELECT * FROM cath_post_monitoring WHERE deleted_at IS NULL AND procedure_id = $1 ORDER BY monitored_at LIMIT 5000",
     )
     .bind(procedure_id)
     .fetch_all(&mut *tx)
@@ -688,7 +688,7 @@ pub async fn list_endoscopy_procedures(
 
     let rows = sqlx::query_as::<_, EndoscopyProcedure>(
         "SELECT * FROM endoscopy_procedures \
-         WHERE ($1::text IS NULL OR status = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status = $1) \
          AND ($2::text IS NULL OR procedure_type = $2) \
          AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
          ORDER BY created_at DESC LIMIT 200",
@@ -827,7 +827,7 @@ pub async fn list_scopes(
 
     let rows = sqlx::query_as::<_, EndoscopyScope>(
         "SELECT * FROM endoscopy_scopes \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR scope_type = $2) \
          ORDER BY serial_number LIMIT 5000",
     )
@@ -929,7 +929,7 @@ pub async fn list_reprocessing(
         .await?;
 
     let rows = sqlx::query_as::<_, EndoscopyReprocessing>(
-        "SELECT * FROM endoscopy_reprocessing ORDER BY reprocessed_at DESC LIMIT 200",
+        "SELECT * FROM endoscopy_reprocessing WHERE deleted_at IS NULL ORDER BY reprocessed_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1022,7 +1022,7 @@ pub async fn list_biopsy_specimens(
         .await?;
 
     let rows = sqlx::query_as::<_, EndoscopyBiopsySpecimen>(
-        "SELECT * FROM endoscopy_biopsy_specimens WHERE procedure_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM endoscopy_biopsy_specimens WHERE deleted_at IS NULL AND procedure_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(procedure_id)
     .fetch_all(&mut *tx)

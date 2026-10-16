@@ -377,6 +377,7 @@ pub async fn list_modules(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<String>>, AppError> {
     require_permission(&claims, permissions::audit::VIEW)?;
+    // allow-soft-deleted: audit filter options must cover every audit entry ever written
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -399,6 +400,7 @@ pub async fn list_entity_types(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<String>>, AppError> {
     require_permission(&claims, permissions::audit::VIEW)?;
+    // allow-soft-deleted: audit filter options must cover every audit entry ever written
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -158,7 +158,7 @@ pub async fn list_instruments(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdInstrument>(
-        "SELECT * FROM cssd_instruments ORDER BY name LIMIT 5000",
+        "SELECT * FROM cssd_instruments WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -248,7 +248,7 @@ pub async fn list_sets(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdInstrumentSet>(
-        "SELECT * FROM cssd_instrument_sets ORDER BY set_name LIMIT 5000",
+        "SELECT * FROM cssd_instrument_sets WHERE deleted_at IS NULL ORDER BY set_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -333,7 +333,7 @@ pub async fn list_sterilizers(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdSterilizer>(
-        "SELECT * FROM cssd_sterilizers ORDER BY name LIMIT 5000",
+        "SELECT * FROM cssd_sterilizers WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -424,7 +424,7 @@ pub async fn list_loads(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdSterilizationLoad>(
-        "SELECT * FROM cssd_sterilization_loads ORDER BY created_at DESC LIMIT 200",
+        "SELECT * FROM cssd_sterilization_loads WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -608,7 +608,7 @@ pub async fn list_indicators(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdIndicatorResult>(
-        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(load_id)
     .fetch_all(&mut *tx)
@@ -663,7 +663,7 @@ pub async fn list_issuances(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdIssuance>(
-        "SELECT * FROM cssd_issuances ORDER BY issued_at DESC LIMIT 200",
+        "SELECT * FROM cssd_issuances WHERE deleted_at IS NULL ORDER BY issued_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -820,7 +820,7 @@ pub async fn list_maintenance_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdMaintenanceLog>(
-        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 ORDER BY performed_at DESC LIMIT 5000",
+        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 AND deleted_at IS NULL ORDER BY performed_at DESC LIMIT 5000",
     )
     .bind(sterilizer_id)
     .fetch_all(&mut *tx)

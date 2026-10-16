@@ -229,7 +229,7 @@ pub async fn list_courses(
     let search = q.search.map(|s| format!("%{s}%"));
     let courses = sqlx::query_as::<_, LmsCourse>(
         "SELECT * FROM lms_courses
-         WHERE ($1::text IS NULL OR title ILIKE $1 OR code ILIKE $1)
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR title ILIKE $1 OR code ILIKE $1)
            AND ($2::text IS NULL OR category = $2)
            AND ($3::bool IS NULL OR is_mandatory = $3)
          ORDER BY title LIMIT 5000",
@@ -524,7 +524,7 @@ pub async fn list_quizzes(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let quizzes = sqlx::query_as::<_, LmsQuiz>(
-        "SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM lms_quizzes WHERE deleted_at IS NULL AND course_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(course_id)
     .fetch_all(&mut *tx)
@@ -715,8 +715,8 @@ pub async fn list_enrollments(
                 c.category, c.is_mandatory, e.status, e.progress_percentage,
                 e.due_date, e.assigned_at, e.completed_at
          FROM lms_enrollments e
-         JOIN lms_courses c ON c.id = e.course_id
-         WHERE ($1::uuid IS NULL OR e.user_id = $1)
+         JOIN lms_courses c ON c.id = e.course_id AND c.deleted_at IS NULL
+         WHERE e.deleted_at IS NULL AND ($1::uuid IS NULL OR e.user_id = $1)
            AND ($2::uuid IS NULL OR e.course_id = $2)
            AND ($3::text IS NULL OR e.status::text = $3)
          ORDER BY e.assigned_at DESC LIMIT 5000",
@@ -1337,7 +1337,7 @@ pub async fn list_certificates(
 
     let certs = sqlx::query_as::<_, LmsCertificate>(
         "SELECT * FROM lms_certificates
-         WHERE ($1::uuid IS NULL OR user_id = $1)
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR user_id = $1)
            AND ($2::uuid IS NULL OR course_id = $2)
          ORDER BY issued_at DESC LIMIT 5000",
     )

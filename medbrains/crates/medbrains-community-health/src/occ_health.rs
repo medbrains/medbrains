@@ -205,7 +205,7 @@ pub async fn list_screenings(
     let rows = if let Some(emp_id) = params.employee_id {
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
-             WHERE tenant_id = $1 AND employee_id = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND employee_id = $2 \
              ORDER BY screening_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -215,7 +215,7 @@ pub async fn list_screenings(
     } else if let Some(ref stype) = params.screening_type {
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
-             WHERE tenant_id = $1 AND screening_type = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND screening_type = $2 \
              ORDER BY screening_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -225,7 +225,7 @@ pub async fn list_screenings(
     } else {
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY screening_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -285,7 +285,7 @@ pub async fn list_due_screenings(
 
     let rows = sqlx::query_as::<_, OccHealthScreening>(
         "SELECT * FROM occ_health_screenings \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
          AND next_due_date <= CURRENT_DATE + interval '30 days' \
          ORDER BY next_due_date ASC LIMIT 5000",
     )
@@ -377,7 +377,7 @@ pub async fn list_drug_screens(
     let rows = if let Some(emp_id) = params.employee_id {
         sqlx::query_as::<_, OccHealthDrugScreen>(
             "SELECT * FROM occ_health_drug_screens \
-             WHERE tenant_id = $1 AND employee_id = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND employee_id = $2 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -387,7 +387,7 @@ pub async fn list_drug_screens(
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, OccHealthDrugScreen>(
             "SELECT * FROM occ_health_drug_screens \
-             WHERE tenant_id = $1 AND status = $2::drug_screen_status \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND status = $2::drug_screen_status \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -397,7 +397,7 @@ pub async fn list_drug_screens(
     } else {
         sqlx::query_as::<_, OccHealthDrugScreen>(
             "SELECT * FROM occ_health_drug_screens \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -498,7 +498,7 @@ pub async fn list_vaccinations(
     let rows = if let Some(emp_id) = params.employee_id {
         sqlx::query_as::<_, OccHealthVaccination>(
             "SELECT * FROM occ_health_vaccinations \
-             WHERE tenant_id = $1 AND employee_id = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND employee_id = $2 \
              ORDER BY administered_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -508,7 +508,7 @@ pub async fn list_vaccinations(
     } else if let Some(ref vname) = params.vaccine_name {
         sqlx::query_as::<_, OccHealthVaccination>(
             "SELECT * FROM occ_health_vaccinations \
-             WHERE tenant_id = $1 AND vaccine_name = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND vaccine_name = $2 \
              ORDER BY administered_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -518,7 +518,7 @@ pub async fn list_vaccinations(
     } else {
         sqlx::query_as::<_, OccHealthVaccination>(
             "SELECT * FROM occ_health_vaccinations \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY administered_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -665,7 +665,7 @@ pub async fn list_injuries(
     let rows = if let Some(emp_id) = params.employee_id {
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
-             WHERE tenant_id = $1 AND employee_id = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND employee_id = $2 \
              ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -675,7 +675,7 @@ pub async fn list_injuries(
     } else if let Some(ref rtw) = params.rtw_status {
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
-             WHERE tenant_id = $1 AND rtw_status = $2::rtw_clearance_status \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND rtw_status = $2::rtw_clearance_status \
              ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -685,7 +685,7 @@ pub async fn list_injuries(
     } else if let Some(osha) = params.is_osha_recordable {
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
-             WHERE tenant_id = $1 AND is_osha_recordable = $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND is_osha_recordable = $2 \
              ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -695,7 +695,7 @@ pub async fn list_injuries(
     } else {
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY injury_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -871,7 +871,8 @@ pub async fn list_hazards(
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT s.* FROM occ_health_screenings s \
              JOIN employees e ON e.id = s.employee_id AND e.tenant_id = s.tenant_id \
-             WHERE s.tenant_id = $1 \
+                 AND e.deleted_at IS NULL \
+             WHERE s.deleted_at IS NULL AND s.tenant_id = $1 \
              AND s.screening_type = 'hazard_assessment' \
              AND e.department_id = $2 \
              ORDER BY s.screening_date DESC LIMIT 5000",
@@ -883,7 +884,7 @@ pub async fn list_hazards(
     } else {
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              AND screening_type = 'hazard_assessment' \
              ORDER BY screening_date DESC LIMIT 200",
         )

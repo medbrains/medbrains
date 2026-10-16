@@ -525,6 +525,7 @@ pub async fn list_encounters(
     let mut conditions = vec![
         "tenant_id = $1".to_owned(),
         "encounter_type = 'opd'".to_owned(),
+        "deleted_at IS NULL".to_owned(),
     ];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
@@ -1801,7 +1802,7 @@ pub async fn list_vitals(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vital>(
-        "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -2424,7 +2425,7 @@ pub async fn list_prescriptions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let prescriptions = sqlx::query_as::<_, Prescription>(
-        "SELECT * FROM prescriptions WHERE encounter_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM prescriptions WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -2441,7 +2442,7 @@ pub async fn list_prescriptions(
         sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
              WHERE prescription_id = ANY($1) AND tenant_id = $2 \
-               AND item_status = 'active' \
+               AND item_status = 'active' AND deleted_at IS NULL \
              ORDER BY prescription_id, created_at LIMIT 5000",
         )
         .bind(&prescription_ids)
@@ -3663,7 +3664,7 @@ pub async fn list_certificates(
 
     let rows = sqlx::query_as::<_, MedicalCertificate>(
         "SELECT * FROM medical_certificates \
-         WHERE patient_id = $1 AND tenant_id = $2 AND is_void = false \
+         WHERE patient_id = $1 AND tenant_id = $2 AND is_void = false AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
@@ -3877,7 +3878,7 @@ pub async fn list_patient_vitals_history(
          v.recorded_at \
          FROM vitals v \
          JOIN encounters e ON e.id = v.encounter_id \
-         WHERE e.patient_id = $1 \
+         WHERE e.patient_id = $1 AND v.deleted_at IS NULL AND e.deleted_at IS NULL \
          ORDER BY v.recorded_at ASC \
          LIMIT 200",
     )
@@ -4207,7 +4208,7 @@ pub async fn list_procedure_orders(
          po.notes, po.findings, po.created_at \
          FROM procedure_orders po \
          JOIN procedure_catalog pc ON pc.id = po.procedure_id \
-         WHERE po.encounter_id = $1 AND po.tenant_id = $2 \
+         WHERE po.encounter_id = $1 AND po.tenant_id = $2 AND po.deleted_at IS NULL \
          ORDER BY po.created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -5062,7 +5063,7 @@ pub async fn list_reminders(
 
     let rows = sqlx::query_as::<_, PatientReminder>(
         "SELECT * FROM patient_reminders \
-         WHERE tenant_id = $1 AND doctor_id = $2 \
+         WHERE tenant_id = $1 AND doctor_id = $2 AND deleted_at IS NULL \
            AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
            AND ($4::text IS NULL OR status = $4) \
            AND ($5::date IS NULL OR reminder_date >= $5) \
@@ -5230,7 +5231,7 @@ pub async fn list_feedback(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PatientFeedback>(
-        "SELECT * FROM patient_feedback WHERE tenant_id = $1 AND patient_id = $2 \
+        "SELECT * FROM patient_feedback WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
          ORDER BY submitted_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5334,7 +5335,7 @@ pub async fn list_consents(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ProcedureConsent>(
-        "SELECT * FROM procedure_consents WHERE tenant_id = $1 AND patient_id = $2 \
+        "SELECT * FROM procedure_consents WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5850,7 +5851,7 @@ pub async fn list_appointment_group(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM appointments \
-         WHERE tenant_id = $1 AND appointment_group_id = $2 LIMIT 1",
+         WHERE tenant_id = $1 AND appointment_group_id = $2 AND deleted_at IS NULL LIMIT 1",
     )
     .bind(claims.tenant_id)
     .bind(group_id)
@@ -5869,7 +5870,7 @@ pub async fn list_appointment_group(
 
     let rows = sqlx::query_as::<_, Appointment>(
         "SELECT * FROM appointments \
-         WHERE tenant_id = $1 AND appointment_group_id = $2 \
+         WHERE tenant_id = $1 AND appointment_group_id = $2 AND deleted_at IS NULL \
          ORDER BY slot_start LIMIT 5000",
     )
     .bind(claims.tenant_id)

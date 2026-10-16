@@ -191,7 +191,7 @@ pub async fn list_predictions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM noshow_prediction_scores WHERE tenant_id = $1 AND deleted_at IS NULL");
     let mut param_idx = 2u32;
 
     if params.patient_id.is_some() {
@@ -362,7 +362,7 @@ pub async fn list_waitlist(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut sql = String::from("SELECT * FROM scheduling_waitlist WHERE tenant_id = $1");
+    let mut sql = String::from("SELECT * FROM scheduling_waitlist WHERE tenant_id = $1 AND deleted_at IS NULL");
     let mut param_idx = 2u32;
 
     if params.doctor_id.is_some() {

@@ -317,7 +317,7 @@ pub async fn list_rehab_plans(
 
     let rows = sqlx::query_as::<_, RehabPlan>(
         "SELECT * FROM rehab_plans \
-         WHERE ($1::text IS NULL OR discipline::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR discipline::text = $1) \
          AND ($2::text IS NULL OR status = $2) \
          AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
          ORDER BY created_at DESC LIMIT 200",
@@ -395,7 +395,7 @@ pub async fn list_rehab_sessions(
         .await?;
 
     let rows = sqlx::query_as::<_, RehabSession>(
-        "SELECT * FROM rehab_sessions WHERE plan_id = $1 ORDER BY session_number LIMIT 5000",
+        "SELECT * FROM rehab_sessions WHERE deleted_at IS NULL AND plan_id = $1 ORDER BY session_number LIMIT 5000",
     )
     .bind(plan_id)
     .fetch_all(&mut *tx)
@@ -478,7 +478,7 @@ pub async fn list_audiology_tests(
 
     let rows = sqlx::query_as::<_, AudiologyTest>(
         "SELECT * FROM audiology_tests \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY test_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -557,7 +557,7 @@ pub async fn list_psychometric_tests(
 
     let rows = sqlx::query_as::<_, PsychometricTest>(
         "SELECT * FROM psychometric_tests \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY test_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -633,7 +633,7 @@ pub async fn list_dnr_orders(
 
     let rows = sqlx::query_as::<_, DnrOrder>(
         "SELECT * FROM dnr_orders \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY created_at DESC LIMIT 200",
     )
@@ -778,7 +778,7 @@ pub async fn list_pain_assessments(
 
     let rows = sqlx::query_as::<_, PainAssessment>(
         "SELECT * FROM pain_assessments \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY assessed_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -863,7 +863,7 @@ pub async fn list_mortuary_records(
 
     let rows = sqlx::query_as::<_, MortuaryRecord>(
         "SELECT * FROM mortuary_records \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::bool IS NULL OR is_mlc = $2) \
          ORDER BY created_at DESC LIMIT 200",
     )
@@ -1021,7 +1021,7 @@ pub async fn list_nuclear_sources(
         .await?;
 
     let rows = sqlx::query_as::<_, NuclearMedSource>(
-        "SELECT * FROM nuclear_med_sources ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM nuclear_med_sources WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1095,7 +1095,7 @@ pub async fn list_nuclear_administrations(
 
     let rows = sqlx::query_as::<_, NuclearMedAdministration>(
         "SELECT * FROM nuclear_med_administrations \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY administered_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1201,7 +1201,7 @@ pub async fn list_specialty_templates(
 
     let rows = sqlx::query_as::<_, SpecialtyTemplate>(
         "SELECT * FROM specialty_templates \
-         WHERE ($1::text IS NULL OR specialty = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR specialty = $1) \
          ORDER BY specialty, template_name LIMIT 5000",
     )
     .bind(&params.specialty)
@@ -1273,7 +1273,7 @@ pub async fn list_specialty_records(
 
     let rows = sqlx::query_as::<_, SpecialtyRecord>(
         "SELECT * FROM specialty_records \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY recorded_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1351,7 +1351,7 @@ pub async fn list_dialysis_sessions(
 
     let rows = sqlx::query_as::<_, DialysisSession>(
         "SELECT * FROM dialysis_sessions \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY session_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1525,7 +1525,7 @@ pub async fn list_chemo_protocols(
 
     let rows = sqlx::query_as::<_, ChemoProtocol>(
         "SELECT * FROM chemo_protocols \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          AND ($2::text IS NULL OR status = $2) \
          ORDER BY cycle_date DESC LIMIT 200",
     )

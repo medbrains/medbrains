@@ -1317,7 +1317,7 @@ pub async fn list_admissions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["a.tenant_id = $1".to_owned()];
+    let mut conditions = vec!["a.tenant_id = $1".to_owned(), "a.deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -1391,8 +1391,8 @@ pub async fn list_admissions(
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM admissions a \
-         JOIN encounters e ON e.id = a.encounter_id \
-         JOIN patients p ON p.id = a.patient_id \
+         JOIN encounters e ON e.id = a.encounter_id AND e.deleted_at IS NULL \
+         JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL \
          WHERE {where_clause}"
     );
     // The ReBAC scope is the first condition after the tenant ($2), so its
@@ -1420,8 +1420,8 @@ pub async fn list_admissions(
                w.name AS ward_name, a.ward_id, a.admission_number, \
                a.is_fall_risk, a.is_pressure_injury_risk \
          FROM admissions a \
-         JOIN encounters e ON e.id = a.encounter_id \
-         JOIN patients p ON p.id = a.patient_id \
+         JOIN encounters e ON e.id = a.encounter_id AND e.deleted_at IS NULL \
+         JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id \
          WHERE {where_clause} \
          ORDER BY a.admitted_at DESC \
@@ -2376,7 +2376,7 @@ pub async fn list_nursing_tasks(
 
     let tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
@@ -2562,7 +2562,7 @@ pub async fn list_progress_notes(
 
     let notes = sqlx::query_as::<_, IpdProgressNote>(
         "SELECT * FROM ipd_progress_notes \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY note_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -2598,7 +2598,7 @@ pub async fn list_assessments(
 
     let rows = sqlx::query_as::<_, IpdClinicalAssessment>(
         "SELECT * FROM ipd_clinical_assessments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -2711,7 +2711,7 @@ pub async fn list_mar(
 
     let sql = format!(
         "SELECT m.*, {} AS is_cytotoxic FROM ipd_medication_administration m \
-         WHERE m.admission_id = $1 AND m.tenant_id = $2 \
+         WHERE m.admission_id = $1 AND m.tenant_id = $2 AND m.deleted_at IS NULL \
          ORDER BY m.scheduled_at ASC LIMIT 5000",
         nursing_safety::IS_CHEMO_DOSE_SQL
     );
@@ -3032,8 +3032,10 @@ pub async fn list_mar_due_now(
                 m.is_high_alert, {} AS is_cytotoxic, m.batch_number, m.batch_expiry \
          FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
+              AND a.deleted_at IS NULL \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = m.tenant_id \
-         WHERE m.tenant_id = $1 AND m.status = 'scheduled'::mar_status \
+              AND p.deleted_at IS NULL \
+         WHERE m.tenant_id = $1 AND m.status = 'scheduled'::mar_status AND m.deleted_at IS NULL \
            AND m.scheduled_at <= now() + make_interval(mins => $2::int) \
            AND ($3::uuid IS NULL OR a.ward_id = $3) \
            AND ($4::uuid IS NULL OR a.patient_id = $4) \
@@ -3075,7 +3077,8 @@ pub async fn list_mar_for_patient(
     let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT m.* FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
-         WHERE m.tenant_id = $1 AND a.patient_id = $2 \
+              AND a.deleted_at IS NULL \
+         WHERE m.tenant_id = $1 AND a.patient_id = $2 AND m.deleted_at IS NULL \
          ORDER BY m.scheduled_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
@@ -3334,7 +3337,7 @@ pub async fn list_intake_output(
 
     let rows = sqlx::query_as::<_, IpdIntakeOutput>(
         "SELECT * FROM ipd_intake_output \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -3501,7 +3504,7 @@ pub async fn list_infusions(
 
     let rows = sqlx::query_as::<_, IvFluidOrder>(
         "SELECT * FROM iv_fluid_orders \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 500",
     )
     .bind(id)
@@ -3727,7 +3730,7 @@ pub async fn list_nursing_assessments(
 
     let rows = sqlx::query_as::<_, IpdNursingAssessment>(
         "SELECT * FROM ipd_nursing_assessments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -3877,7 +3880,7 @@ pub async fn list_care_plans(
 
     let rows = sqlx::query_as::<_, IpdCarePlan>(
         "SELECT * FROM ipd_care_plans \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY initiated_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -4013,7 +4016,7 @@ pub async fn list_handovers(
 
     let rows = sqlx::query_as::<_, IpdHandoverReport>(
         "SELECT * FROM ipd_handover_reports \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY handover_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -4136,7 +4139,7 @@ pub async fn list_discharge_checklist(
 
     let rows = sqlx::query_as::<_, IpdDischargeChecklist>(
         "SELECT * FROM ipd_discharge_checklists \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY sort_order ASC LIMIT 5000",
     )
     .bind(id)
@@ -5925,7 +5928,7 @@ pub async fn list_ip_types(
 
     let rows = sqlx::query_as::<_, IpTypeConfiguration>(
         "SELECT * FROM ip_type_configurations \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY ip_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -6069,7 +6072,7 @@ pub async fn list_admission_checklist(
 
     let rows = sqlx::query_as::<_, AdmissionChecklist>(
         "SELECT * FROM admission_checklists \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY sort_order, created_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -6196,7 +6199,7 @@ pub async fn list_bed_reservations(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut idx = 2u32;
 
     if params.status.is_some() {
@@ -6328,7 +6331,7 @@ pub async fn list_bed_reservations_for_bed(
 
     let rows = sqlx::query_as::<_, BedReservation>(
         "SELECT * FROM bed_reservations \
-         WHERE bed_id = $1 AND tenant_id = $2 \
+         WHERE bed_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
            AND status IN ('active', 'confirmed') \
          ORDER BY reserved_from LIMIT 5000",
     )
@@ -6359,7 +6362,7 @@ pub async fn list_bed_turnaround(
     let rows = if let (Some(from), Some(to)) = (params.from, params.to) {
         sqlx::query_as::<_, BedTurnaroundLog>(
             "SELECT * FROM bed_turnaround_log \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
                AND vacated_at >= $2::date::timestamptz \
                AND vacated_at < ($3::date + 1)::timestamptz \
              ORDER BY vacated_at DESC LIMIT 5000",
@@ -6372,7 +6375,7 @@ pub async fn list_bed_turnaround(
     } else {
         sqlx::query_as::<_, BedTurnaroundLog>(
             "SELECT * FROM bed_turnaround_log \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY vacated_at DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -6478,7 +6481,7 @@ pub async fn list_clinical_docs(
     let rows = if let Some(ref doc_type) = params.doc_type {
         sqlx::query_as::<_, IpdClinicalDocumentation>(
             "SELECT * FROM ipd_clinical_documentations \
-             WHERE admission_id = $1 AND tenant_id = $2 \
+             WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
                AND doc_type = $3::ipd_clinical_doc_type \
              ORDER BY recorded_at DESC LIMIT 5000",
         )
@@ -6490,7 +6493,7 @@ pub async fn list_clinical_docs(
     } else {
         sqlx::query_as::<_, IpdClinicalDocumentation>(
             "SELECT * FROM ipd_clinical_documentations \
-             WHERE admission_id = $1 AND tenant_id = $2 \
+             WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
              ORDER BY recorded_at DESC LIMIT 5000",
         )
         .bind(admission_id)
@@ -6669,10 +6672,11 @@ pub async fn list_restraint_checks(
 
     let rows = sqlx::query_as::<_, RestraintMonitoringLog>(
         "SELECT * FROM restraint_monitoring_logs \
-         WHERE clinical_doc_id = $1 AND tenant_id = $2 \
+         WHERE clinical_doc_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
            AND EXISTS ( \
              SELECT 1 FROM ipd_clinical_documentations d \
              WHERE d.id = $1 AND d.tenant_id = $2 AND d.admission_id = $3 \
+               AND d.deleted_at IS NULL \
            ) \
          ORDER BY check_time DESC LIMIT 5000",
     )
@@ -6756,7 +6760,7 @@ pub async fn list_transfers(
 
     let rows = sqlx::query_as::<_, IpdTransferLog>(
         "SELECT * FROM ipd_transfer_logs \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY transferred_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -7044,7 +7048,7 @@ pub async fn list_birth_records(
 
     let rows = sqlx::query_as::<_, IpdBirthRecord>(
         "SELECT * FROM ipd_birth_records \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY date_of_birth, time_of_birth LIMIT 5000",
     )
     .bind(admission_id)

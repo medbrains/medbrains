@@ -155,7 +155,7 @@ pub async fn list_registrations(
 
     let rows = sqlx::query_as::<_, MaternityRegistration>(
         "SELECT * FROM maternity_registrations \
-         WHERE ($1::text IS NULL OR risk_category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR risk_category::text = $1) \
          AND ($2::bool IS NULL OR is_high_risk = $2) \
          AND ($3::text IS NULL OR status = $3) \
          ORDER BY created_at DESC LIMIT 200",
@@ -394,7 +394,7 @@ pub async fn list_labor_records(
         .await?;
 
     let rows = sqlx::query_as::<_, LaborRecord>(
-        "SELECT * FROM labor_records WHERE registration_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM labor_records WHERE registration_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)
@@ -549,7 +549,7 @@ pub async fn list_newborns(
         .await?;
 
     let rows = sqlx::query_as::<_, NewbornRecord>(
-        "SELECT * FROM newborn_records WHERE labor_id = $1 ORDER BY birth_date LIMIT 5000",
+        "SELECT * FROM newborn_records WHERE labor_id = $1 AND deleted_at IS NULL ORDER BY birth_date LIMIT 5000",
     )
     .bind(labor_id)
     .fetch_all(&mut *tx)
@@ -782,7 +782,7 @@ pub async fn list_postnatal(
         .await?;
 
     let rows = sqlx::query_as::<_, PostnatalRecord>(
-        "SELECT * FROM postnatal_records WHERE registration_id = $1 \
+        "SELECT * FROM postnatal_records WHERE registration_id = $1 AND deleted_at IS NULL \
          ORDER BY day_postpartum LIMIT 5000",
     )
     .bind(registration_id)

@@ -235,7 +235,7 @@ pub async fn list_cleaning_schedules(
 
     let rows = if let Some(area_type) = params.area_type {
         sqlx::query_as::<_, CleaningSchedule>(
-            "SELECT * FROM cleaning_schedules WHERE area_type::text = $1 \
+            "SELECT * FROM cleaning_schedules WHERE area_type::text = $1 AND deleted_at IS NULL \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(area_type)
@@ -243,7 +243,7 @@ pub async fn list_cleaning_schedules(
         .await?
     } else {
         sqlx::query_as::<_, CleaningSchedule>(
-            "SELECT * FROM cleaning_schedules ORDER BY created_at DESC LIMIT 5000",
+            "SELECT * FROM cleaning_schedules WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -526,7 +526,8 @@ pub async fn list_turnarounds(
 
     let rows = sqlx::query_as::<_, RoomTurnaround>(
         "SELECT * FROM room_turnarounds \
-         WHERE ($1::date IS NULL OR discharge_at::date >= $1::date) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR discharge_at::date >= $1::date) \
            AND ($2::date IS NULL OR discharge_at::date <= $2::date) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -622,7 +623,7 @@ pub async fn list_pest_control_schedules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlSchedule>(
-        "SELECT * FROM pest_control_schedules ORDER BY next_due ASC NULLS LAST LIMIT 5000",
+        "SELECT * FROM pest_control_schedules WHERE deleted_at IS NULL ORDER BY next_due ASC NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -713,7 +714,7 @@ pub async fn list_pest_control_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlLog>(
-        "SELECT * FROM pest_control_logs ORDER BY treatment_date DESC LIMIT 5000",
+        "SELECT * FROM pest_control_logs WHERE deleted_at IS NULL ORDER BY treatment_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -773,7 +774,8 @@ pub async fn list_linen_items(
 
     let rows = sqlx::query_as::<_, LinenItem>(
         "SELECT * FROM linen_items \
-         WHERE ($1::text IS NULL OR current_status::text = $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::text IS NULL OR current_status::text = $1) \
            AND ($2::text IS NULL OR item_type = $2) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -862,7 +864,7 @@ pub async fn list_linen_movements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenMovement>(
-        "SELECT * FROM linen_movements ORDER BY movement_date DESC LIMIT 5000",
+        "SELECT * FROM linen_movements WHERE deleted_at IS NULL ORDER BY movement_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -921,7 +923,7 @@ pub async fn list_laundry_batches(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LaundryBatch>(
-        "SELECT * FROM laundry_batches ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM laundry_batches WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1008,7 +1010,7 @@ pub async fn list_par_levels(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenParLevel>(
-        "SELECT * FROM linen_par_levels ORDER BY item_type, ward_id LIMIT 5000",
+        "SELECT * FROM linen_par_levels WHERE deleted_at IS NULL ORDER BY item_type, ward_id LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1064,7 +1066,7 @@ pub async fn list_condemnations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenCondemnation>(
-        "SELECT * FROM linen_condemnations ORDER BY condemned_date DESC LIMIT 5000",
+        "SELECT * FROM linen_condemnations WHERE deleted_at IS NULL ORDER BY condemned_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

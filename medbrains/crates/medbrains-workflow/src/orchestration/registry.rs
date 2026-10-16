@@ -20,7 +20,7 @@ pub async fn list_events(
                 "SELECT id, module, entity, action, event_code, description, \
                         payload_schema, is_system, phase, is_blocking, category, created_at \
                  FROM event_registry \
-                 WHERE module = $1 \
+                 WHERE module = $1 AND deleted_at IS NULL \
                  ORDER BY module, entity, action",
             )
             .bind(module)
@@ -32,6 +32,7 @@ pub async fn list_events(
                 "SELECT id, module, entity, action, event_code, description, \
                         payload_schema, is_system, phase, is_blocking, category, created_at \
                  FROM event_registry \
+                 WHERE deleted_at IS NULL \
                  ORDER BY module, entity, action",
             )
             .fetch_all(pool)

@@ -346,7 +346,7 @@ pub async fn list_gas_readings(
 
     let rows = sqlx::query_as::<_, FmsGasReading>(
         "SELECT * FROM fms_gas_readings \
-         WHERE ($1::text IS NULL OR gas_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR gas_type::text = $1) \
          AND ($2::text IS NULL OR source_type::text = $2) \
          AND ($3::uuid IS NULL OR location_id = $3) \
          ORDER BY reading_at DESC LIMIT 200",
@@ -422,7 +422,7 @@ pub async fn list_gas_compliance(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsGasCompliance>(
-        "SELECT * FROM fms_gas_compliance ORDER BY gas_type, facility_id LIMIT 5000",
+        "SELECT * FROM fms_gas_compliance WHERE deleted_at IS NULL ORDER BY gas_type, facility_id LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -530,7 +530,7 @@ pub async fn list_fire_equipment(
 
     let rows = sqlx::query_as::<_, FmsFireEquipment>(
         "SELECT * FROM fms_fire_equipment \
-         WHERE ($1::text IS NULL OR equipment_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR equipment_type::text = $1) \
          AND ($2::uuid IS NULL OR location_id = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
          ORDER BY name LIMIT 5000",
@@ -651,7 +651,7 @@ pub async fn list_fire_inspections(
 
     let rows = sqlx::query_as::<_, FmsFireInspection>(
         "SELECT * FROM fms_fire_inspections \
-         WHERE ($1::uuid IS NULL OR equipment_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR equipment_id = $1) \
          ORDER BY inspection_date DESC LIMIT 200",
     )
     .bind(params.equipment_id)
@@ -709,7 +709,7 @@ pub async fn list_fire_drills(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsFireDrill>(
-        "SELECT * FROM fms_fire_drills ORDER BY drill_date DESC LIMIT 100",
+        "SELECT * FROM fms_fire_drills WHERE deleted_at IS NULL ORDER BY drill_date DESC LIMIT 100",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -780,7 +780,7 @@ pub async fn list_fire_noc(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsFireNoc>(
-        "SELECT * FROM fms_fire_noc ORDER BY valid_to DESC NULLS LAST LIMIT 5000",
+        "SELECT * FROM fms_fire_noc WHERE deleted_at IS NULL ORDER BY valid_to DESC NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -878,7 +878,7 @@ pub async fn list_water_tests(
 
     let rows = sqlx::query_as::<_, FmsWaterTest>(
         "SELECT * FROM fms_water_tests \
-         WHERE ($1::text IS NULL OR source_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR source_type::text = $1) \
          AND ($2::text IS NULL OR test_type::text = $2) \
          ORDER BY sample_date DESC LIMIT 200",
     )
@@ -948,7 +948,7 @@ pub async fn list_water_schedules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsWaterSchedule>(
-        "SELECT * FROM fms_water_schedules ORDER BY next_due_date NULLS LAST LIMIT 5000",
+        "SELECT * FROM fms_water_schedules WHERE deleted_at IS NULL ORDER BY next_due_date NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1038,7 +1038,7 @@ pub async fn list_energy_readings(
 
     let rows = sqlx::query_as::<_, FmsEnergyReading>(
         "SELECT * FROM fms_energy_readings \
-         WHERE ($1::text IS NULL OR source_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR source_type::text = $1) \
          AND ($2::uuid IS NULL OR location_id = $2) \
          ORDER BY reading_at DESC LIMIT 200",
     )
@@ -1117,7 +1117,7 @@ pub async fn list_work_orders(
 
     let rows = sqlx::query_as::<_, FmsWorkOrder>(
         "SELECT * FROM fms_work_orders \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR priority = $2) \
          AND ($3::uuid IS NULL OR department_id = $3) \
          AND ($4::text IS NULL OR category = $4) \

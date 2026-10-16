@@ -286,7 +286,7 @@ pub async fn list_templates(
 
     let rows = sqlx::query_as::<_, DocumentTemplate>(
         "SELECT * FROM document_templates \
-         WHERE ($1::text IS NULL OR category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR category::text = $1) \
          AND ($2::text IS NULL OR module_code = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
          ORDER BY category, name \
@@ -522,7 +522,7 @@ pub async fn list_template_versions(
 
     let rows = sqlx::query_as::<_, DocumentTemplateVersion>(
         "SELECT * FROM document_template_versions \
-         WHERE template_id = $1 \
+         WHERE deleted_at IS NULL AND template_id = $1 \
          ORDER BY version_number DESC \
          LIMIT 100",
     )
@@ -819,7 +819,7 @@ pub async fn list_outputs(
 
     let rows = sqlx::query_as::<_, DocumentOutput>(
         "SELECT * FROM document_outputs \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR patient_id = $1) \
          AND ($2::text IS NULL OR module_code = $2) \
          AND ($3::text IS NULL OR category::text = $3) \
          AND ($4::text IS NULL OR status::text = $4) \
@@ -947,7 +947,7 @@ pub async fn list_patient_outputs(
 
     let rows = sqlx::query_as::<_, DocumentOutput>(
         "SELECT * FROM document_outputs \
-         WHERE patient_id = $1 \
+         WHERE deleted_at IS NULL AND patient_id = $1 \
          ORDER BY created_at DESC \
          LIMIT 500",
     )
@@ -1139,7 +1139,7 @@ pub async fn list_review_schedule(
     let rows = if params.overdue.unwrap_or(false) {
         sqlx::query_as::<_, DocumentFormReviewSchedule>(
             "SELECT * FROM document_form_review_schedule \
-             WHERE next_review_due IS NOT NULL \
+             WHERE deleted_at IS NULL AND next_review_due IS NOT NULL \
              AND next_review_due <= CURRENT_DATE \
              ORDER BY next_review_due ASC \
              LIMIT 200",
@@ -1148,7 +1148,7 @@ pub async fn list_review_schedule(
         .await?
     } else {
         sqlx::query_as::<_, DocumentFormReviewSchedule>(
-            "SELECT * FROM document_form_review_schedule \
+            "SELECT * FROM document_form_review_schedule WHERE deleted_at IS NULL \
              ORDER BY next_review_due ASC NULLS LAST \
              LIMIT 200",
         )
@@ -1315,7 +1315,7 @@ pub async fn list_print_jobs(
         "SELECT id, tenant_id, document_output_id, printer_id, status, copies, priority, \
          department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at \
          FROM print_jobs \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
          ORDER BY created_at DESC \
          LIMIT 100",
     )

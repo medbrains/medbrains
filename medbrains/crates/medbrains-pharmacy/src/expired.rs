@@ -40,7 +40,8 @@ pub(crate) async fn list_expired(
          c.is_controlled \
          FROM pharmacy_batches b \
          JOIN pharmacy_catalog c ON c.id = b.catalog_item_id AND c.tenant_id = b.tenant_id \
-         WHERE b.tenant_id = $1 AND b.quantity_on_hand > 0 AND b.expiry_date < CURRENT_DATE \
+         WHERE b.tenant_id = $1 AND b.deleted_at IS NULL AND c.deleted_at IS NULL \
+         AND b.quantity_on_hand > 0 AND b.expiry_date < CURRENT_DATE \
          ORDER BY b.expiry_date ASC LIMIT $2",
     )
     .bind(claims.tenant_id)

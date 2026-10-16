@@ -986,7 +986,7 @@ pub async fn list_tat_records(
          t.start_time, t.end_time, t.elapsed_minutes, t.benchmark_minutes, t.status
          FROM tat_records t
          LEFT JOIN patients p ON p.id = t.patient_id
-         WHERE ($1::text IS NULL OR t.category::text = $1)
+         WHERE t.deleted_at IS NULL AND ($1::text IS NULL OR t.category::text = $1)
          AND ($2::text IS NULL OR t.status = $2)
          AND ($3::uuid IS NULL OR t.department_id = $3)
          AND ($4::timestamptz IS NULL OR t.created_at >= $4::timestamptz)
@@ -1169,7 +1169,7 @@ pub async fn list_migrations(
 
     let rows = sqlx::query_as::<_, DataMigration>(
         "SELECT * FROM data_migrations
-         WHERE ($1::text IS NULL OR direction::text = $1)
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR direction::text = $1)
          AND ($2::text IS NULL OR entity_type = $2)
          AND ($3::text IS NULL OR status::text = $3)
          ORDER BY created_at DESC
@@ -1340,7 +1340,7 @@ pub async fn list_digest_history(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, EodDigestHistory>(
-        "SELECT * FROM eod_digest_history WHERE user_id = $1 ORDER BY digest_date DESC LIMIT 30",
+        "SELECT * FROM eod_digest_history WHERE user_id = $1 AND deleted_at IS NULL ORDER BY digest_date DESC LIMIT 30",
     )
     .bind(claims.sub)
     .fetch_all(&mut *tx)
@@ -1422,7 +1422,7 @@ pub async fn list_dq_issues(
 
     let rows = sqlx::query_as::<_, DataQualityIssue>(
         "SELECT * FROM data_quality_issues
-         WHERE ($1::text IS NULL OR category::text = $1)
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR category::text = $1)
          AND ($2::text IS NULL OR entity_type = $2)
          AND ($3::text IS NULL OR severity = $3)
          AND ($4::boolean IS NULL OR is_resolved = $4)
@@ -1566,7 +1566,7 @@ pub async fn list_vulnerabilities(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vulnerability>(
-        "SELECT * FROM vulnerabilities ORDER BY discovered_at DESC LIMIT 200",
+        "SELECT * FROM vulnerabilities WHERE deleted_at IS NULL ORDER BY discovered_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1658,7 +1658,7 @@ pub async fn list_compliance_requirements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ComplianceRequirement>(
-        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code LIMIT 5000",
+        "SELECT * FROM compliance_requirements WHERE deleted_at IS NULL ORDER BY framework, requirement_code LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1773,7 +1773,7 @@ pub async fn list_backups(
 
     let rows = sqlx::query_as::<_, BackupHistory>(
         "SELECT * FROM backup_history
-         WHERE tenant_id IS NULL OR tenant_id = $1
+         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL
          ORDER BY created_at DESC
          LIMIT 100",
     )
@@ -1800,7 +1800,7 @@ pub async fn list_incentive_plans(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IncentivePlan>(
-        "SELECT * FROM incentive_plans ORDER BY effective_from DESC LIMIT 5000",
+        "SELECT * FROM incentive_plans WHERE deleted_at IS NULL ORDER BY effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

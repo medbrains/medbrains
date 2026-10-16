@@ -373,7 +373,7 @@ pub async fn list_equipment(
 
     let rows = if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, BmeEquipment>(
-            "SELECT * FROM bme_equipment WHERE department_id = $1 \
+            "SELECT * FROM bme_equipment WHERE deleted_at IS NULL AND department_id = $1 \
              ORDER BY name LIMIT 5000",
         )
         .bind(dept_id)
@@ -381,7 +381,7 @@ pub async fn list_equipment(
         .await?
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeEquipment>(
-            "SELECT * FROM bme_equipment WHERE status::text = $1 \
+            "SELECT * FROM bme_equipment WHERE deleted_at IS NULL AND status::text = $1 \
              ORDER BY name LIMIT 5000",
         )
         .bind(status)
@@ -389,14 +389,14 @@ pub async fn list_equipment(
         .await?
     } else if let Some(risk) = params.risk_category {
         sqlx::query_as::<_, BmeEquipment>(
-            "SELECT * FROM bme_equipment WHERE risk_category::text = $1 \
+            "SELECT * FROM bme_equipment WHERE deleted_at IS NULL AND risk_category::text = $1 \
              ORDER BY name LIMIT 5000",
         )
         .bind(risk)
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment ORDER BY name LIMIT 500")
+        sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment WHERE deleted_at IS NULL ORDER BY name LIMIT 500")
             .fetch_all(&mut *tx)
             .await?
     };
@@ -587,7 +587,7 @@ pub async fn list_pm_schedules(
 
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmePmSchedule>(
-            "SELECT * FROM bme_pm_schedules WHERE equipment_id = $1 \
+            "SELECT * FROM bme_pm_schedules WHERE deleted_at IS NULL AND equipment_id = $1 \
              ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(equip_id)
@@ -595,7 +595,7 @@ pub async fn list_pm_schedules(
         .await?
     } else {
         sqlx::query_as::<_, BmePmSchedule>(
-            "SELECT * FROM bme_pm_schedules WHERE is_active = COALESCE($1, true) \
+            "SELECT * FROM bme_pm_schedules WHERE deleted_at IS NULL AND is_active = COALESCE($1, true) \
              ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(params.is_active)
@@ -689,7 +689,7 @@ pub async fn list_work_orders(
 
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeWorkOrder>(
-            "SELECT * FROM bme_work_orders WHERE equipment_id = $1 \
+            "SELECT * FROM bme_work_orders WHERE deleted_at IS NULL AND equipment_id = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(equip_id)
@@ -697,7 +697,7 @@ pub async fn list_work_orders(
         .await?
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeWorkOrder>(
-            "SELECT * FROM bme_work_orders WHERE status::text = $1 \
+            "SELECT * FROM bme_work_orders WHERE deleted_at IS NULL AND status::text = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(status)
@@ -705,7 +705,7 @@ pub async fn list_work_orders(
         .await?
     } else if let Some(order_type) = params.order_type {
         sqlx::query_as::<_, BmeWorkOrder>(
-            "SELECT * FROM bme_work_orders WHERE order_type::text = $1 \
+            "SELECT * FROM bme_work_orders WHERE deleted_at IS NULL AND order_type::text = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(order_type)
@@ -713,7 +713,7 @@ pub async fn list_work_orders(
         .await?
     } else {
         sqlx::query_as::<_, BmeWorkOrder>(
-            "SELECT * FROM bme_work_orders ORDER BY created_at DESC LIMIT 300",
+            "SELECT * FROM bme_work_orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 300",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -875,7 +875,7 @@ pub async fn list_calibrations(
 
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeCalibration>(
-            "SELECT * FROM bme_calibrations WHERE equipment_id = $1 \
+            "SELECT * FROM bme_calibrations WHERE deleted_at IS NULL AND equipment_id = $1 \
              ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(equip_id)
@@ -883,7 +883,7 @@ pub async fn list_calibrations(
         .await?
     } else if let Some(status) = params.calibration_status {
         sqlx::query_as::<_, BmeCalibration>(
-            "SELECT * FROM bme_calibrations WHERE calibration_status::text = $1 \
+            "SELECT * FROM bme_calibrations WHERE deleted_at IS NULL AND calibration_status::text = $1 \
              ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(status)
@@ -891,7 +891,7 @@ pub async fn list_calibrations(
         .await?
     } else {
         sqlx::query_as::<_, BmeCalibration>(
-            "SELECT * FROM bme_calibrations ORDER BY next_due_date NULLS LAST LIMIT 500",
+            "SELECT * FROM bme_calibrations WHERE deleted_at IS NULL ORDER BY next_due_date NULLS LAST LIMIT 500",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -1074,7 +1074,7 @@ pub async fn list_contracts(
 
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeContract>(
-            "SELECT * FROM bme_contracts WHERE equipment_id = $1 \
+            "SELECT * FROM bme_contracts WHERE deleted_at IS NULL AND equipment_id = $1 \
              ORDER BY end_date LIMIT 5000",
         )
         .bind(equip_id)
@@ -1082,7 +1082,7 @@ pub async fn list_contracts(
         .await?
     } else if let Some(ct) = params.contract_type {
         sqlx::query_as::<_, BmeContract>(
-            "SELECT * FROM bme_contracts WHERE contract_type::text = $1 \
+            "SELECT * FROM bme_contracts WHERE deleted_at IS NULL AND contract_type::text = $1 \
              ORDER BY end_date LIMIT 5000",
         )
         .bind(ct)
@@ -1091,7 +1091,7 @@ pub async fn list_contracts(
     } else {
         sqlx::query_as::<_, BmeContract>(
             "SELECT * FROM bme_contracts \
-             WHERE is_active = COALESCE($1, true) \
+             WHERE deleted_at IS NULL AND is_active = COALESCE($1, true) \
              ORDER BY end_date LIMIT 500",
         )
         .bind(params.is_active)
@@ -1215,7 +1215,7 @@ pub async fn list_breakdowns(
 
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeBreakdown>(
-            "SELECT * FROM bme_breakdowns WHERE equipment_id = $1 \
+            "SELECT * FROM bme_breakdowns WHERE deleted_at IS NULL AND equipment_id = $1 \
              ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(equip_id)
@@ -1223,7 +1223,7 @@ pub async fn list_breakdowns(
         .await?
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeBreakdown>(
-            "SELECT * FROM bme_breakdowns WHERE status::text = $1 \
+            "SELECT * FROM bme_breakdowns WHERE deleted_at IS NULL AND status::text = $1 \
              ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(status)
@@ -1231,7 +1231,7 @@ pub async fn list_breakdowns(
         .await?
     } else if let Some(priority) = params.priority {
         sqlx::query_as::<_, BmeBreakdown>(
-            "SELECT * FROM bme_breakdowns WHERE priority::text = $1 \
+            "SELECT * FROM bme_breakdowns WHERE deleted_at IS NULL AND priority::text = $1 \
              ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(priority)
@@ -1239,7 +1239,7 @@ pub async fn list_breakdowns(
         .await?
     } else {
         sqlx::query_as::<_, BmeBreakdown>(
-            "SELECT * FROM bme_breakdowns ORDER BY reported_at DESC LIMIT 300",
+            "SELECT * FROM bme_breakdowns WHERE deleted_at IS NULL ORDER BY reported_at DESC LIMIT 300",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -1360,7 +1360,7 @@ pub async fn list_vendor_evaluations(
 
     let rows = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, BmeVendorEvaluation>(
-            "SELECT * FROM bme_vendor_evaluations WHERE vendor_id = $1 \
+            "SELECT * FROM bme_vendor_evaluations WHERE deleted_at IS NULL AND vendor_id = $1 \
              ORDER BY evaluation_date DESC LIMIT 5000",
         )
         .bind(vendor_id)
@@ -1368,7 +1368,7 @@ pub async fn list_vendor_evaluations(
         .await?
     } else {
         sqlx::query_as::<_, BmeVendorEvaluation>(
-            "SELECT * FROM bme_vendor_evaluations ORDER BY evaluation_date DESC LIMIT 200",
+            "SELECT * FROM bme_vendor_evaluations WHERE deleted_at IS NULL ORDER BY evaluation_date DESC LIMIT 200",
         )
         .fetch_all(&mut *tx)
         .await?

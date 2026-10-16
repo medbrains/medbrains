@@ -642,7 +642,7 @@ pub async fn list_visits(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErVisit>(
         "SELECT * FROM er_visits
-         WHERE tenant_id = $1
+         WHERE deleted_at IS NULL AND tenant_id = $1
            AND ($2::uuid IS NULL OR patient_id = $2)
          ORDER BY arrival_time DESC
          LIMIT 200",
@@ -1025,7 +1025,7 @@ pub async fn list_triage(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErTriageAssessment>(
-        "SELECT * FROM er_triage_assessments WHERE er_visit_id = $1 AND tenant_id = $2 ORDER BY assessed_at DESC LIMIT 5000",
+        "SELECT * FROM er_triage_assessments WHERE deleted_at IS NULL AND er_visit_id = $1 AND tenant_id = $2 ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(visit_id)
     .bind(claims.tenant_id)
@@ -1164,7 +1164,7 @@ pub async fn list_resuscitation_logs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErResuscitationLog>(
-        "SELECT * FROM er_resuscitation_logs WHERE er_visit_id = $1 AND tenant_id = $2 ORDER BY timestamp ASC",
+        "SELECT * FROM er_resuscitation_logs WHERE deleted_at IS NULL AND er_visit_id = $1 AND tenant_id = $2 ORDER BY timestamp ASC",
     )
     .bind(visit_id)
     .bind(claims.tenant_id)
@@ -1317,7 +1317,7 @@ pub async fn list_code_activations(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErCodeActivation>(
-        "SELECT * FROM er_code_activations WHERE tenant_id = $1 ORDER BY activated_at DESC LIMIT 100",
+        "SELECT * FROM er_code_activations WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY activated_at DESC LIMIT 100",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1571,7 +1571,7 @@ pub async fn list_mlc_cases(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcCase>(
-        "SELECT * FROM mlc_cases WHERE tenant_id = $1 ORDER BY registered_at DESC LIMIT 200",
+        "SELECT * FROM mlc_cases WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY registered_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2002,7 +2002,7 @@ pub async fn list_mlc_documents(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcDocument>(
-        "SELECT * FROM mlc_documents WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM mlc_documents WHERE deleted_at IS NULL AND mlc_case_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(mlc_id)
     .bind(claims.tenant_id)
@@ -2340,7 +2340,7 @@ pub async fn list_mass_casualty_events(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MassCasualtyEvent>(
-        "SELECT * FROM mass_casualty_events WHERE tenant_id = $1 ORDER BY activated_at DESC LIMIT 50",
+        "SELECT * FROM mass_casualty_events WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY activated_at DESC LIMIT 50",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

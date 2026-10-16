@@ -148,7 +148,7 @@ function DashboardOverview({
           </Text>
           <DataTable
             data={departmentScores}
-            rowKey={(r) => r.department_id}
+            rowKey={(r) => r.department_id ?? "hospital"}
             loading={false}
             columns={[
               {

@@ -86,7 +86,7 @@ pub async fn list_corporates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CorporateClient>(
-        "SELECT * FROM corporate_clients WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM corporate_clients WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -363,13 +363,13 @@ pub async fn list_write_offs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1")
+        sqlx::query_scalar("SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL")
             .bind(claims.tenant_id)
             .fetch_one(&mut *tx)
             .await?;
 
     let rows = sqlx::query_as::<_, BadDebtWriteOff>(
-        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 \
+        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
@@ -642,7 +642,7 @@ pub async fn list_credit_patients(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CreditPatient>(
-        "SELECT * FROM credit_patients WHERE tenant_id = $1 \
+        "SELECT * FROM credit_patients WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR status::text = $2) \
          ORDER BY updated_at DESC LIMIT 5000",
     )

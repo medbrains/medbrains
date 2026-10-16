@@ -428,7 +428,7 @@ pub async fn list_executions(
 
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM integration_executions \
-         WHERE pipeline_id = $1 AND tenant_id = $2",
+         WHERE pipeline_id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(pipeline_id)
     .bind(claims.tenant_id)
@@ -437,7 +437,7 @@ pub async fn list_executions(
 
     let executions = sqlx::query_as::<_, IntegrationExecution>(
         "SELECT * FROM integration_executions \
-         WHERE pipeline_id = $1 AND tenant_id = $2 \
+         WHERE pipeline_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC \
          LIMIT $3 OFFSET $4",
     )
@@ -495,7 +495,7 @@ pub async fn list_node_templates(
 
     let templates = sqlx::query_as::<_, IntegrationNodeTemplate>(
         "SELECT * FROM integration_node_templates \
-         WHERE tenant_id IS NULL OR tenant_id = $1 \
+         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL \
          ORDER BY category, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -564,6 +564,7 @@ pub async fn list_default_pipelines(
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'default_pipelines' AND key = 'disabled' \
+         AND deleted_at IS NULL \
          LIMIT 1",
     )
     .bind(claims.tenant_id)

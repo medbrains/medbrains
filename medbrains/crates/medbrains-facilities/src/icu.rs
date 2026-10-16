@@ -142,7 +142,7 @@ pub async fn list_flowsheets(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IcuFlowsheet>(
-        "SELECT * FROM icu_flowsheets WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_flowsheets WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -214,7 +214,7 @@ pub async fn list_ventilator_records(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IcuVentilatorRecord>(
-        "SELECT * FROM icu_ventilator_records WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_ventilator_records WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -286,7 +286,7 @@ pub async fn list_scores(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IcuScore>(
-        "SELECT * FROM icu_scores WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_scores WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY scored_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -349,7 +349,7 @@ pub async fn list_devices(
     require_admission_access(&state, &claims, admission_id).await?;
 
     let rows = sqlx::query_as::<_, IcuDevice>(
-        "SELECT * FROM icu_devices WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_devices WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY inserted_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -441,7 +441,7 @@ pub async fn list_bundle_checks(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let admission_id: Uuid = sqlx::query_scalar(
-        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
+        "SELECT admission_id FROM icu_devices WHERE deleted_at IS NULL AND id = $1 AND tenant_id = $2",
     )
     .bind(device_id)
     .bind(claims.tenant_id)
@@ -451,7 +451,7 @@ pub async fn list_bundle_checks(
     require_admission_access(&state, &claims, admission_id).await?;
 
     let rows = sqlx::query_as::<_, IcuBundleCheck>(
-        "SELECT * FROM icu_bundle_checks WHERE device_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_bundle_checks WHERE deleted_at IS NULL AND device_id = $1 AND tenant_id = $2 \
          ORDER BY checked_at DESC LIMIT 5000",
     )
     .bind(device_id)
@@ -520,7 +520,7 @@ pub async fn list_nutrition(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IcuNutrition>(
-        "SELECT * FROM icu_nutrition WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_nutrition WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -584,7 +584,7 @@ pub async fn list_neonatal_records(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IcuNeonatalRecord>(
-        "SELECT * FROM icu_neonatal_records WHERE admission_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM icu_neonatal_records WHERE deleted_at IS NULL AND admission_id = $1 AND tenant_id = $2 \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)

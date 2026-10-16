@@ -479,6 +479,8 @@ pub async fn list_home_visits(
     Extension(claims): Extension<Claims>,
     Query(q): Query<HomeVisitQuery>,
 ) -> Result<Json<Vec<HomeVisit>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_permission(&claims, permissions::home_health::LIST)?;
     // Unscoped this listed every home visit in the tenant — who is being
     // visited at home, and when somebody is alone in their house. Dual-mode

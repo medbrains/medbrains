@@ -105,6 +105,7 @@ pub async fn list_registrations(
     let rows = sqlx::query_as::<_, HfrRegistration>(
         "SELECT id, status, nha_facility_id, error_message, submitted_at, updated_at \
          FROM abdm_hfr_registrations \
+         WHERE deleted_at IS NULL \
          ORDER BY submitted_at DESC \
          LIMIT 50",
     )

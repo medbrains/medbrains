@@ -206,7 +206,8 @@ export interface AccreditationScore {
 }
 
 export interface DepartmentComplianceScore {
-  department_id: string;
+  /** Null for checklists that cover the whole hospital. */
+  department_id: string | null;
   department_name: string;
   avg_score: number;
   checklist_count: number;

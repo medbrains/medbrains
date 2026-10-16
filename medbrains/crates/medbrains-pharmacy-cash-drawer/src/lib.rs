@@ -254,7 +254,7 @@ pub async fn list_drawers(
 
     let rows = sqlx::query_as::<_, CashDrawer>(
         "SELECT * FROM pharmacy_cash_drawers \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR cashier_user_id = $3) \
            AND ($4::uuid IS NULL OR pharmacy_location_id = $4) \

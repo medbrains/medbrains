@@ -119,7 +119,7 @@ pub async fn list_restraint_for_order(
 
     let rows = sqlx::query_as::<_, RestraintEvent>(
         "SELECT * FROM restraint_monitoring_events \
-         WHERE tenant_id = $1 AND restraint_order_id = $2 \
+         WHERE tenant_id = $1 AND restraint_order_id = $2 AND deleted_at IS NULL \
          ORDER BY monitored_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -235,7 +235,7 @@ pub async fn list_wounds_for_encounter(
 
     let rows = sqlx::query_as::<_, WoundAssessment>(
         "SELECT * FROM wound_assessments \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 100",
     )
     .bind(claims.tenant_id)

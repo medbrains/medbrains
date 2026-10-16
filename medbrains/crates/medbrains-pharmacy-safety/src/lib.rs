@@ -182,7 +182,7 @@ pub async fn list_recalls(
 
     let rows = sqlx::query_as::<_, PharmacyDrugRecall>(
         "SELECT * FROM pharmacy_drug_recalls \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -347,7 +347,7 @@ pub async fn list_destructions(
 
     let rows = sqlx::query_as::<_, PharmacyDestructionLog>(
         "SELECT * FROM pharmacy_destruction_log \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY destruction_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -450,6 +450,9 @@ pub async fn list_substitutes(
          JOIN pharmacy_catalog generic ON ps.generic_drug_id = generic.id \
          WHERE (ps.brand_drug_id = $1 OR ps.generic_drug_id = $1) \
            AND ps.tenant_id = $2 \
+           AND ps.deleted_at IS NULL \
+           AND brand.deleted_at IS NULL \
+           AND generic.deleted_at IS NULL \
          ORDER BY ps.created_at DESC LIMIT 5000",
     )
     .bind(drug_id)
@@ -529,7 +532,7 @@ pub async fn list_kits(
 
     let rows = sqlx::query_as::<_, PharmacyEmergencyKit>(
         "SELECT * FROM pharmacy_emergency_kits \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY next_check_due ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
