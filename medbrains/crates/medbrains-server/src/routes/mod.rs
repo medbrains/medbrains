@@ -10,6 +10,7 @@ pub mod debug;
 pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
+pub mod portal_privacy;
 pub mod portal_refills;
 pub mod bill_verify;
 pub mod rx_verify;
@@ -773,6 +774,12 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/portal/prescriptions/{id}/refill-request",
             post(portal_refills::portal_request_refill),
+        )
+        .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
+        .route("/api/portal/dpdp-consent", put(portal_privacy::portal_set_consent))
+        .route(
+            "/api/portal/privacy-requests",
+            post(portal_privacy::portal_create_request),
         )
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 

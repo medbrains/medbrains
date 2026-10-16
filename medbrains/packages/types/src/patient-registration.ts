@@ -680,6 +680,21 @@ export interface PatientDataSummary {
   insurers: string[];
 }
 
+/** The patient's own privacy page in the portal. */
+export interface PortalPrivacy {
+  consent: PatientDpdpConsent;
+  requests: PrivacyRequest[];
+  held: PatientDataSummary;
+}
+
+export interface PortalPrivacyRequestInput {
+  request_type: PrivacyRequestType;
+  details: string;
+  nominee_name?: string;
+  nominee_relation?: string;
+  nominee_contact?: string;
+}
+
 export interface PatientDpdpConsent {
   notice_version: string;
   purposes: DpdpPurpose[];

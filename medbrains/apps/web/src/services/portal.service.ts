@@ -19,4 +19,9 @@ export const portalService = {
   getPortalRefills: (token: string) => api.getPortalRefills(token),
   requestPortalRefill: (...args: Parameters<typeof api.requestPortalRefill>) =>
     api.requestPortalRefill(...args),
+  getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
+  setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
+    api.setPortalDpdpConsent(...args),
+  createPortalPrivacyRequest: (...args: Parameters<typeof api.createPortalPrivacyRequest>) =>
+    api.createPortalPrivacyRequest(...args),
 };

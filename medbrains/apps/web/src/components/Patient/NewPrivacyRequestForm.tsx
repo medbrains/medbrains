@@ -30,6 +30,8 @@ interface NewPrivacyRequestFormProps {
   saving: boolean;
   error: Error | null;
   onSubmit: (data: CreatePrivacyRequest) => void;
+  /** The patient files it themselves: no "how it reached us". */
+  byPatient?: boolean;
 }
 
 export function NewPrivacyRequestForm({
@@ -37,6 +39,7 @@ export function NewPrivacyRequestForm({
   saving,
   error,
   onSubmit,
+  byPatient = false,
 }: NewPrivacyRequestFormProps) {
   const { control, handleSubmit } = useForm<Values>({
     resolver: zodResolver(schema),
@@ -72,32 +75,34 @@ export function NewPrivacyRequestForm({
         name="request_type"
         render={({ field }) => (
           <Select
-            label="The patient asks to"
+            label={byPatient ? "I want to" : "The patient asks to"}
             data={PRIVACY_REQUEST_TYPES}
             allowDeselect={false}
             {...field}
           />
         )}
       />
-      <Controller
-        control={control}
-        name="received_via"
-        render={({ field }) => (
-          <Select
-            label="How it reached us"
-            data={PRIVACY_CHANNELS}
-            allowDeselect={false}
-            {...field}
-          />
-        )}
-      />
+      {!byPatient && (
+        <Controller
+          control={control}
+          name="received_via"
+          render={({ field }) => (
+            <Select
+              label="How it reached us"
+              data={PRIVACY_CHANNELS}
+              allowDeselect={false}
+              {...field}
+            />
+          )}
+        />
+      )}
       <Controller
         control={control}
         name="details"
         render={({ field, fieldState }) => (
           <Textarea
             {...field}
-            label="In their words"
+            label={byPatient ? "Tell us more" : "In their words"}
             withAsterisk
             autosize
             minRows={2}
@@ -133,7 +138,7 @@ export function NewPrivacyRequestForm({
       )}
       {error && <Alert tone="danger">{error.message}</Alert>}
       <Button tone="primary" type="submit" loading={saving}>
-        Record request
+        {byPatient ? "Send request" : "Record request"}
       </Button>
     </Stack>
   );
