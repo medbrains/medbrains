@@ -2003,6 +2003,7 @@ import type {
   UpdateCaseReferralRequest,
   UpdateComplianceRequest as UpdateCertInComplianceRequest,
   UpdateChargeMasterRequest,
+  UpdateChecklistItemRequest,
   UpdateChecklistRequest,
   UpdateCleaningScheduleRequest,
   UpdateClinicalCorpusEntryRequest,
@@ -11735,10 +11736,15 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
 
-  updateChecklistItem: (checklistId: string, itemId: string, data: Record<string, unknown>) =>
+  updateChecklistItem: (checklistId: string, itemId: string, data: UpdateChecklistItemRequest) =>
     request<ComplianceChecklistItem>(`/regulatory/checklists/${checklistId}/items/${itemId}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    }),
+
+  deleteChecklistItem: (checklistId: string, itemId: string) =>
+    request<{ removed: string }>(`/regulatory/checklists/${checklistId}/items/${itemId}`, {
+      method: "DELETE",
     }),
 
   // ADR Reports
@@ -13141,7 +13147,7 @@ export const api = {
   // ══════════════════════════════════════════════════════════
 
   autoPopulateChecklist: (checklistId: string, data?: AutoPopulateRequest) =>
-    request<{ updated: number }>(`/regulatory/checklists/${checklistId}/auto-populate`, {
+    request<{ items_auto_populated: number }>(`/regulatory/checklists/${checklistId}/auto-populate`, {
       method: "POST",
       body: JSON.stringify(data ?? {}),
     }),
