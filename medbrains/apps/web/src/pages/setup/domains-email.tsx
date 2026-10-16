@@ -20,6 +20,7 @@ import {
   Table,
 } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { DomainOwnershipCard } from "./domain-ownership-card";
 
 const mailboxSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -182,6 +183,8 @@ export function DomainsEmailPage() {
         title="Domains & Email"
         subtitle="Your hospital's custom domain and the mail server that sends verification, invites and notifications."
       />
+
+      <DomainOwnershipCard />
 
       <Card withBorder padding="lg">
         <Group justify="space-between" mb="xs">

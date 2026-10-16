@@ -5437,6 +5437,16 @@ export interface DomainRecordStatus {
   detail: string;
 }
 
+/** Proof the hospital controls its custom domain: a DNS TXT record. */
+export interface DomainOwnership {
+  domain: string;
+  /** Where the TXT record goes, e.g. `_medbrains-verify.hms.hospital.com`. */
+  record_name: string;
+  /** What the TXT record must say. */
+  token: string;
+  verified_at: string | null;
+}
+
 export interface DomainStatus {
   domain: string;
   records: DomainRecordStatus[];
