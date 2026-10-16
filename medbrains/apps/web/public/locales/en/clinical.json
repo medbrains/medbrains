@@ -241,7 +241,8 @@
       "billing": {
         "invoiceCreated": "billing invoice created",
         "invoiceFinalized": "billing invoice finalized",
-        "paymentReceived": "billing payment received"
+        "paymentReceived": "billing payment received",
+        "claimApproved": "Insurance claim approved"
       },
       "blood": {
         "transfusionReactionReported": "blood transfusion reaction reported"
@@ -297,7 +298,8 @@
         "followupScheduled": "OPD follow-up scheduled",
         "prescriptionUpdated": "OPD prescription updated",
         "queueCalled": "OPD queue called",
-        "vitalsRecorded": "OPD vitals recorded"
+        "vitalsRecorded": "OPD vitals recorded",
+        "prescriptionExpiring": "Prescription about to expire"
       },
       "order": {
         "cancelled": "order cancelled",
@@ -315,7 +317,8 @@
         "ndpsMovementCreated": "pharmacy NDPS movement created",
         "orderDispensed": "pharmacy order dispensed",
         "prescriptionReviewed": "pharmacy prescription reviewed",
-        "stockMovementCreated": "pharmacy stock movement created"
+        "stockMovementCreated": "pharmacy stock movement created",
+        "stockLow": "Drug fell to its reorder level"
       },
       "quality": {
         "incidentReported": "quality incident reported"
