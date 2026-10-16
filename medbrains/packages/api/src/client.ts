@@ -2293,52 +2293,54 @@ export {
 
 // Import for internal use
 import {
-  TypeAssertionError,
-  validateApiArrayResponse,
-  validateApiResponse,
+  describeShapeDrift,
+  invoiceDetailResponseSchema,
+  invoiceListResponseSchema,
+  labOrderDetailResponseSchema,
+  labOrderListResponseSchema,
+  labResultListResponseSchema,
+  paymentListResponseSchema,
+  pharmacyOrderDetailResponseSchema,
+  pharmacyOrderListResponseSchema,
 } from "@medbrains/schemas";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // VALIDATED REQUEST - Runtime type checking for API responses
 // ══════════════════════════════════════════════════════════════════════════════
 
+let strictResponses = false;
+
 /**
- * Makes an API request and validates the response with a type guard.
- * Throws TypeAssertionError if validation fails.
+ * Development builds throw on a response that departs from its schema, so
+ * drift is found at the desk that caused it; production logs it and renders,
+ * because refusing a bill over an extra decimal place helps nobody.
  */
-export async function validatedRequest<T>(
+export function setStrictResponseValidation(strict: boolean): void {
+  strictResponses = strict;
+}
+
+export class ResponseShapeError extends Error {
+  constructor(endpoint: string, drift: string) {
+    super(`${endpoint} returned an unexpected shape — ${drift}`);
+    this.name = "ResponseShapeError";
+  }
+}
+
+/** `request`, then a check of the response against `schema`. */
+async function checkedRequest<T>(
+  schema: Parameters<typeof describeShapeDrift>[0],
   path: string,
-  guard: (value: unknown) => value is T,
   init?: RequestInit,
 ): Promise<T> {
-  const data = await request<unknown>(path, init);
-  return validateApiResponse(data, guard, path);
-}
-
-/**
- * Makes an API request expecting an array and validates each item.
- */
-export async function validatedArrayRequest<T>(
-  path: string,
-  itemGuard: (value: unknown) => value is T,
-  init?: RequestInit,
-): Promise<T[]> {
-  const data = await request<unknown>(path, init);
-  return validateApiArrayResponse(data, itemGuard, path);
-}
-
-/**
- * Validates data before sending to API (for create/update payloads).
- * Throws TypeAssertionError if validation fails.
- */
-export function validatePayload<T>(
-  data: unknown,
-  guard: (value: unknown) => value is T,
-  context: string,
-): asserts data is T {
-  if (!guard(data)) {
-    throw new TypeAssertionError(context, data, "payload validation");
+  const data = await request<T>(path, init);
+  const drift = describeShapeDrift(schema, data);
+  if (drift) {
+    // The query string can carry a patient's name; the route is enough.
+    const endpoint = path.split("?")[0] ?? path;
+    if (strictResponses) throw new ResponseShapeError(endpoint, drift);
+    console.error(new ResponseShapeError(endpoint, drift).message);
   }
+  return data;
 }
 
 // CSRF token — set on login/refresh, sent as X-CSRF-Token header on mutations.
@@ -4969,14 +4971,15 @@ export const api = {
 
   listInvoices: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<InvoiceListResponse>(`/billing/invoices${qs}`);
+    return checkedRequest<InvoiceListResponse>(invoiceListResponseSchema, `/billing/invoices${qs}`);
   },
   createInvoice: (data: CreateInvoiceRequest) =>
     request<Invoice>("/billing/invoices", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getInvoice: (id: string) => request<InvoiceDetailResponse>(`/billing/invoices/${id}`),
+  getInvoice: (id: string) =>
+    checkedRequest<InvoiceDetailResponse>(invoiceDetailResponseSchema, `/billing/invoices/${id}`),
   updateInvoice: (id: string, data: { notes?: string }) =>
     request<Invoice>(`/billing/invoices/${id}`, {
       method: "PUT",
@@ -5006,7 +5009,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listPayments: (invoiceId: string) =>
-    request<Payment[]>(`/billing/invoices/${invoiceId}/payments`),
+    checkedRequest<Payment[]>(paymentListResponseSchema, `/billing/invoices/${invoiceId}/payments`),
   listChargeMaster: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<ChargeMaster[]>(`/billing/charge-master${qs}`);
@@ -5565,14 +5568,15 @@ export const api = {
 
   listLabOrders: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<LabOrderListResponse>(`/lab/orders${qs}`);
+    return checkedRequest<LabOrderListResponse>(labOrderListResponseSchema, `/lab/orders${qs}`);
   },
   createLabOrder: (data: CreateLabOrderRequest) =>
     request<LabOrder>("/lab/orders", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getLabOrder: (id: string) => request<LabOrderDetailResponse>(`/lab/orders/${id}`),
+  getLabOrder: (id: string) =>
+    checkedRequest<LabOrderDetailResponse>(labOrderDetailResponseSchema, `/lab/orders/${id}`),
   collectSample: (id: string, data: CollectSampleRequest) =>
     request<LabOrder>(`/lab/orders/${id}/collect`, { method: "PUT", body: JSON.stringify(data) }),
   startProcessing: (id: string) =>
@@ -5586,7 +5590,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listLabResults: (orderId: string) => request<LabResult[]>(`/lab/orders/${orderId}/results`),
+  listLabResults: (orderId: string) =>
+    checkedRequest<LabResult[]>(labResultListResponseSchema, `/lab/orders/${orderId}/results`),
   listLabCatalog: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<LabTestCatalog[]>(`/lab/catalog${qs}`);
@@ -6306,14 +6311,21 @@ export const api = {
 
   listPharmacyOrders: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<PharmacyOrderListResponse>(`/pharmacy/orders${qs}`);
+    return checkedRequest<PharmacyOrderListResponse>(
+      pharmacyOrderListResponseSchema,
+      `/pharmacy/orders${qs}`,
+    );
   },
   createPharmacyOrder: (data: CreatePharmacyOrderRequest) =>
     request<PharmacyOrderDetailResponse>("/pharmacy/orders", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getPharmacyOrder: (id: string) => request<PharmacyOrderDetailResponse>(`/pharmacy/orders/${id}`),
+  getPharmacyOrder: (id: string) =>
+    checkedRequest<PharmacyOrderDetailResponse>(
+      pharmacyOrderDetailResponseSchema,
+      `/pharmacy/orders/${id}`,
+    ),
   updatePharmacyOrderItem: (
     orderId: string,
     itemId: string,
