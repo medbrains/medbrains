@@ -64,9 +64,10 @@ variable "grafana_admin_password" {
 }
 
 variable "log_retention_days" {
+  # DPDP Rules 2025 r.6 keeps logs of personal-data processing for a year.
   description = "CloudWatch Logs retention before Firehose archive."
   type        = number
-  default     = 30
+  default     = 365
 }
 
 # ── Locals ────────────────────────────────────────────────────────────
