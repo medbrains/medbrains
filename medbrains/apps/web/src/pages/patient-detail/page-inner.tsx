@@ -2,6 +2,7 @@
 
 import { Card, Grid, Group, Loader, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { ApiError } from "@medbrains/api";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CampRegistration,
@@ -52,8 +53,10 @@ import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSe
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientUnavailable } from "@/components/Patient/PatientUnavailable";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
+import { QueryError } from "@/components/QueryError";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Badge, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
@@ -137,7 +140,12 @@ export function PatientDetailPageInner() {
     navigate(patientDetailWorkspaceTabRoute(patientId, activeDetailTab), { replace: true });
   }
 
-  const { data: patient, isLoading } = useQuery({
+  const {
+    data: patient,
+    isLoading,
+    error: patientError,
+    refetch: refetchPatient,
+  } = useQuery({
     queryKey: ["patient", patientId],
     queryFn: () => patientDetailService.getPatient(patientId),
     enabled: patientId.length > 0,
@@ -199,6 +207,14 @@ export function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
 
+  // A refusal is answered as "not found" so it is not an existence oracle;
+  // either way this user cannot open it here. Any other failure is an outage.
+  if (patientError instanceof ApiError && [403, 404].includes(patientError.status)) {
+    return <PatientUnavailable patientId={patientId} />;
+  }
+  if (patientError) {
+    return <QueryError error={patientError} onRetry={() => void refetchPatient()} />;
+  }
   if (isLoading || !patient) {
     return (
       <Stack align="center" py="xl">

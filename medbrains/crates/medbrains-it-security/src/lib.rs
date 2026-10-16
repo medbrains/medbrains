@@ -21,6 +21,8 @@
 //! The sensitive-patient list then becomes a way to learn which patients carry
 //! a restricted diagnosis, which is the thing it exists to hide.
 
+mod break_glass_notify;
+
 use axum::routing::{delete, get, patch, post};
 use axum::{
     Extension, Json,
@@ -239,6 +241,8 @@ async fn break_glass_access_rollup(
 pub async fn start_break_glass(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    client_ip: Option<Extension<medbrains_server_core::middleware::client_ip::ClientIp>>,
+    headers: axum::http::HeaderMap,
     jar: axum_extra::extract::CookieJar,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
@@ -305,6 +309,32 @@ pub async fn start_break_glass(
         grant_reason,
     )
     .execute(&mut *tx)
+    .await?;
+
+    // Where it came from, for the review.
+    let mut row = row;
+    row.ip_address = client_ip.map(|Extension(ip)| ip.as_str());
+    row.user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    sqlx::query("UPDATE break_glass_events SET ip_address = $2, user_agent = $3 WHERE id = $1")
+        .bind(id)
+        .bind(&row.ip_address)
+        .bind(&row.user_agent)
+        .execute(&mut *tx)
+        .await?;
+    break_glass_notify::notify(
+        &mut tx,
+        &break_glass_notify::BreakGlassStarted {
+            event_id: id,
+            tenant_id: claims.tenant_id,
+            user_id: claims.sub,
+            user_department_ids: &claims.department_ids,
+            patient_id: start.patient_id,
+            reason: &start.reason,
+        },
+    )
     .await?;
 
     tx.commit().await?;
@@ -2225,9 +2255,13 @@ mod authz_coverage_tests {
             //
             // Checked longest-first so `require_permission` cannot claim a
             // match inside `require_any_permission` if these ever converge.
-            let gated = ["require_any_permission", "require_permission", "require_step_up"]
-                .iter()
-                .any(|form| part.contains(form));
+            let gated = [
+                "require_any_permission",
+                "require_permission",
+                "require_step_up",
+            ]
+            .iter()
+            .any(|form| part.contains(form));
             if !gated {
                 ungated.push(name);
             }
