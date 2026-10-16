@@ -1511,6 +1511,8 @@ import type {
   PatientContactConsents,
   PatientDataSummary,
   PatientDpdpConsent,
+  PortalPrivacy,
+  PortalPrivacyRequestInput,
   PatientContext,
   PatientDiagnosisRow,
   PatientDocument,
@@ -16825,6 +16827,19 @@ export const api = {
     request<PortalAppointment[]>("/portal/appointments", portalAuth(token)),
   getPortalRefills: (token: string) =>
     request<PortalRefill[]>("/portal/refills", portalAuth(token)),
+  getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
+  setPortalDpdpConsent: (token: string, data: DpdpConsentInput) =>
+    request<PatientDpdpConsent>("/portal/dpdp-consent", {
+      ...portalAuth(token),
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  createPortalPrivacyRequest: (token: string, data: PortalPrivacyRequestInput) =>
+    request<PrivacyRequest>("/portal/privacy-requests", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   requestPortalRefill: (token: string, prescriptionId: string, data: { note?: string }) =>
     request<PortalRefillRequest>(`/portal/prescriptions/${prescriptionId}/refill-request`, {
       ...portalAuth(token),
