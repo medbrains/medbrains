@@ -5,6 +5,7 @@
 //! and joins them on graceful shutdown.
 
 pub mod appointment_reminders;
+pub mod access_alert_scan;
 pub mod breach_deadline_escalation;
 pub mod bridge_pusher;
 pub mod calibration_lock;

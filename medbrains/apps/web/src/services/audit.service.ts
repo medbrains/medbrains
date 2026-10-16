@@ -13,6 +13,8 @@ export const auditService = {
   getEntityTimeline: api.getEntityTimeline,
   getUserActivity: api.getUserActivity,
   startBreakGlass: api.startBreakGlass,
+  listAccessAlerts: api.listAccessAlerts,
+  acknowledgeAccessAlert: api.acknowledgeAccessAlert,
   listBreakGlass: api.listBreakGlass,
   getBreakGlass: api.getBreakGlass,
   reviewBreakGlass: api.reviewBreakGlass,
