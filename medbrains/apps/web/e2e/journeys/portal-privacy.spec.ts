@@ -4,6 +4,7 @@
  * the hospital holds about them, and asks for their data to be corrected —
  * the request reaches the privacy officer's register, due in 90 days.
  */
+import { readFileSync } from "node:fs";
 import { api } from "../helpers/api";
 import { createPatientApi } from "../helpers/journey-steps";
 import { latestPortalCode } from "../helpers/patient-sms";
@@ -39,6 +40,16 @@ test("a patient sets their privacy choices and makes a request from the portal",
   expect(saved.history[0]).toMatchObject({ purposes: ["health_reminders"], source: "portal", notice_language: "ta" });
 
   await expect(portal.getByTestId("portal-held")).toContainText("What the hospital holds about you");
+
+  // Their record, as a file another hospital can read.
+  const [file] = await Promise.all([
+    portal.waitForEvent("download"),
+    portal.getByRole("button", { name: "Download my data" }).click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("my-health-record.json");
+  const bundle = JSON.parse(readFileSync((await file.path()) ?? "", "utf8"));
+  expect(bundle).toMatchObject({ resourceType: "Bundle", type: "collection" });
+  expect(JSON.stringify(bundle)).toContain(patient.id);
 
   const requests = portal.getByTestId("portal-requests");
   await requests.getByRole("button", { name: "Make a request" }).click();

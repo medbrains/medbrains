@@ -13,6 +13,8 @@
 //! Read-only for now. Write (POST `Bundle` transaction) is a follow-up
 //! once we add ABDM/NHCX outbound and validation.
 
+pub mod export;
+
 use axum::routing::get;
 use axum::{
     Extension, Json,

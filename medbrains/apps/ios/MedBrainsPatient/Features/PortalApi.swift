@@ -165,6 +165,8 @@ struct PortalApi: Sendable {
     }
     func entitlements() async throws -> PortalEntitlements { try await client.request(.get, "/api/portal/entitlements") }
     func privacy() async throws -> PortalPrivacy { try await client.request(.get, "/api/portal/privacy") }
+    /// The patient's own record as a FHIR R4 bundle, as the server sent it.
+    func exportRecord() async throws -> Data { try await client.download("/api/portal/privacy/export") }
     /// The patient's own change of mind — a new decision on the ledger.
     func setConsent(_ choice: DpdpConsentChoice) async throws -> PatientDpdpConsent {
         try await client.request(.put, "/api/portal/dpdp-consent", body: choice)

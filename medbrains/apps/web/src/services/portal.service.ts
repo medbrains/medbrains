@@ -20,6 +20,7 @@ export const portalService = {
   requestPortalRefill: (...args: Parameters<typeof api.requestPortalRefill>) =>
     api.requestPortalRefill(...args),
   getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
+  getPortalExport: (token: string) => api.getPortalExport(token),
   setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
     api.setPortalDpdpConsent(...args),
   createPortalPrivacyRequest: (...args: Parameters<typeof api.createPortalPrivacyRequest>) =>

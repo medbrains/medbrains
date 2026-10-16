@@ -776,6 +776,7 @@ pub fn build_router(state: AppState) -> Router {
             post(portal_refills::portal_request_refill),
         )
         .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
+        .route("/api/portal/privacy/export", get(portal_privacy::portal_export))
         .route("/api/portal/dpdp-consent", put(portal_privacy::portal_set_consent))
         .route(
             "/api/portal/privacy-requests",
