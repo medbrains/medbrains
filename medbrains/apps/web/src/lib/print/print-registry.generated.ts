@@ -54,6 +54,7 @@ export type GeneratedPrintIdKind =
   | "package_subscription"
   | "pass"
   | "patient"
+  | "pcpndt_form_f"
   | "period"
   | "pharmacy_order_item"
   | "po"
@@ -565,6 +566,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "patient",
     permission: "patients.view",
     fetch: (id) => api.getPatientCardPrintData(id),
+  },
+  {
+    key: "pcpndt-form-f",
+    label: "PCPNDT form F",
+    idKind: "pcpndt_form_f",
+    permission: "regulatory.pcpndt.list",
+    fetch: (id) => api.getPcpndtFormFPrintData(id),
   },
   {
     key: "pcpndt-report",

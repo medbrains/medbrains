@@ -3093,6 +3093,64 @@ pub struct ExpiryAlert {
     pub days_to_expiry: i32,
 }
 
+/// PC-PNDT Form F — the statutory record of one ultrasonography of a pregnant
+/// woman (Rule 9(4)). The sex of the fetus is never recorded, so it is not here.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PcpndtFormFPrintData {
+    pub form_number: String,
+    pub clinic: FormFClinic,
+    pub woman: FormFWoman,
+    pub referral: FormFReferral,
+    pub procedure: FormFProcedure,
+    pub declarations: FormFDeclarations,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FormFClinic {
+    pub name: String,
+    pub address: String,
+    pub pcpndt_registration_number: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFWoman {
+    pub name: String,
+    pub uhid: String,
+    pub age_years: Option<i32>,
+    pub husband_or_father: Option<String>,
+    pub address: Option<String>,
+    pub phone: Option<String>,
+    pub living_sons: Option<i32>,
+    pub living_daughters: Option<i32>,
+    pub last_menstrual_period: Option<String>,
+    pub weeks_of_pregnancy: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFReferral {
+    pub self_referred: bool,
+    pub referred_by: Option<String>,
+    pub referring_doctor_registration: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFProcedure {
+    pub procedure: String,
+    pub indication: Option<String>,
+    pub performed_by: Option<String>,
+    pub performing_doctor_registration: Option<String>,
+    pub performed_on: String,
+    pub result: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FormFDeclarations {
+    pub woman: String,
+    pub woman_declared_at: Option<String>,
+    pub doctor: String,
+    pub doctor_declared_at: Option<String>,
+}
+
 /// PCPNDT Compliance Report
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PcpndtReportPrintData {

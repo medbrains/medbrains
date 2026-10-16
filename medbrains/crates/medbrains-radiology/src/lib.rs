@@ -24,6 +24,7 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::state::AppState;
 
 pub mod exams;
+pub mod form_f;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -408,6 +409,8 @@ pub struct CreateOrderRequest {
     pub notes: Option<String>,
     pub contrast_required: Option<bool>,
     pub pregnancy_checked: Option<bool>,
+    /// She is pregnant: an ultrasound then needs a PC-PNDT Form F.
+    pub patient_pregnant: Option<bool>,
     pub allergy_flagged: Option<bool>,
     /// The catalogue exam; must belong to `modality_id`. Body part and
     /// contrast default from it when the request leaves them empty.
@@ -445,6 +448,8 @@ pub struct CreateModalityRequest {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
+    pub is_ultrasound: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -452,6 +457,7 @@ pub struct UpdateModalityRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
+    pub is_ultrasound: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -710,10 +716,10 @@ pub async fn create_order_in_tx_with_options(
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
           body_part, clinical_indication, priority, status, \
           scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy, \
-          body_part_code, body_part_laterality, exam_id) \
+          body_part_code, body_part_laterality, exam_id, patient_pregnant) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::radiology_priority, \
                  'ordered'::radiology_order_status, \
-                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16, $17) \
+                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -733,8 +739,11 @@ pub async fn create_order_in_tx_with_options(
     .bind(&body_part_code)
     .bind(body.body_part_laterality.map(medbrains_core::body_site::Laterality::as_str))
     .bind(body.exam_id)
+    .bind(body.patient_pregnant.unwrap_or(false))
     .fetch_one(&mut **tx)
     .await?;
+
+    form_f::open_if_required(tx, claims.tenant_id, order.id, claims.sub).await?;
 
     if options.auto_bill {
         best_effort_auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
@@ -1343,6 +1352,18 @@ pub async fn verify_report(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // PC-PNDT: no report of an ultrasound of a pregnant woman without her Form F.
+    let order_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT order_id FROM radiology_reports WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(order_id) = order_id {
+        form_f::require_complete(&mut tx, claims.tenant_id, order_id).await?;
+    }
+
     let report = sqlx::query_as::<_, RadiologyReport>(
         "UPDATE radiology_reports SET \
          status = 'final'::radiology_report_status, \
@@ -1492,13 +1513,14 @@ pub async fn create_modality(
         .await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
-        "INSERT INTO radiology_modalities (tenant_id, code, name, description) \
-         VALUES ($1, $2, $3, $4) RETURNING *",
+        "INSERT INTO radiology_modalities (tenant_id, code, name, description, is_ultrasound) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false)) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
     .bind(&body.name)
     .bind(&body.description)
+    .bind(body.is_ultrasound)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1529,6 +1551,7 @@ pub async fn update_modality(
          name = COALESCE($1, name), \
          description = COALESCE($2, description), \
          is_active = COALESCE($3, is_active), \
+         is_ultrasound = COALESCE($6, is_ultrasound), \
          updated_at = now() \
          WHERE id = $4 AND tenant_id = $5 \
          RETURNING *",
@@ -1538,6 +1561,7 @@ pub async fn update_modality(
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(body.is_ultrasound)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

@@ -13,6 +13,7 @@ pub mod gst_invoice;
 pub mod hr;
 pub mod medicolegal;
 pub mod mrd;
+pub mod pcpndt_form_f;
 pub mod quality;
 pub mod regulatory;
 pub mod surgical;

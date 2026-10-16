@@ -93,21 +93,20 @@ pub async fn seed_canonical_fixtures_for_tenant(
 /// Insert DEFAULT tenant + `super_admin` user + built-in roles + operational
 /// master data if they don't already exist.
 pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    // Check if default tenant exists
-    let tenant_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE code = 'DEFAULT')")
-            .fetch_one(pool)
+    // The first hospital is created only on an empty database, and found by
+    // age afterwards — never by its code. Keyed on `code = 'DEFAULT'`, renaming
+    // a live hospital's code (so staff can type something meaningful at sign-in)
+    // made the next start seed a second hospital and a second super admin.
+    let existing: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
+            .fetch_optional(pool)
             .await?;
 
     let tenant_id: uuid::Uuid;
 
-    if tenant_exists {
-        tracing::debug!("Default tenant already exists, skipping tenant seed");
-        let tid: Option<uuid::Uuid> =
-            sqlx::query_scalar("SELECT id FROM tenants WHERE code = 'DEFAULT'")
-                .fetch_optional(pool)
-                .await?;
-        tenant_id = tid.ok_or("DEFAULT tenant row missing after EXISTS check")?;
+    if let Some(id) = existing {
+        tracing::debug!(%id, "a hospital already exists, skipping tenant seed");
+        tenant_id = id;
     } else {
         tracing::info!("Seeding default tenant and super_admin user");
 

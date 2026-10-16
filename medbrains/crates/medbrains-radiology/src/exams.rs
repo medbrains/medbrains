@@ -61,6 +61,8 @@ pub struct ExamInput {
     pub charge_code: Option<String>,
     pub preparation: Option<String>,
     pub is_active: Option<bool>,
+    /// A scan of a pregnancy: ordering it opens a PC-PNDT Form F.
+    pub pcpndt_applicable: Option<bool>,
 }
 
 // Ranked like the lab test search: exact code / short name, prefix, word
@@ -143,8 +145,8 @@ pub async fn create_exam(
     let exam = sqlx::query_as::<_, RadiologyExam>(
         "INSERT INTO radiology_exams \
          (tenant_id, modality_id, code, name, body_part, body_part_code, laterality_required, \
-          contrast, synonyms, charge_code, preparation) \
-         SELECT $1, m.id, $3, $4, $5, $6, COALESCE($7, false), $8, $9, $10, $11 \
+          contrast, synonyms, charge_code, preparation, pcpndt_applicable) \
+         SELECT $1, m.id, $3, $4, $5, $6, COALESCE($7, false), $8, $9, $10, $11, COALESCE($12, false) \
          FROM radiology_modalities m \
          WHERE m.id = $2 AND m.tenant_id = $1 AND m.deleted_at IS NULL \
          RETURNING *",
@@ -160,6 +162,7 @@ pub async fn create_exam(
     .bind(clean_synonyms(body.synonyms.as_deref()))
     .bind(trimmed(body.charge_code.as_deref()).map(str::to_uppercase))
     .bind(trimmed(body.preparation.as_deref()))
+    .bind(body.pcpndt_applicable)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::BadRequest("That modality is not on file.".to_owned()))?;
@@ -190,7 +193,8 @@ pub async fn update_exam(
          synonyms = COALESCE($9, synonyms), \
          charge_code = COALESCE($10, charge_code), \
          preparation = COALESCE($11, preparation), \
-         is_active = COALESCE($12, is_active) \
+         is_active = COALESCE($12, is_active), \
+         pcpndt_applicable = COALESCE($13, pcpndt_applicable) \
          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          RETURNING *",
     )
@@ -206,6 +210,7 @@ pub async fn update_exam(
     .bind(body.charge_code.as_deref().map(|c| c.trim().to_uppercase()))
     .bind(body.preparation.as_deref().map(str::trim))
     .bind(body.is_active)
+    .bind(body.pcpndt_applicable)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

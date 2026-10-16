@@ -335,6 +335,7 @@ import type {
   CompileRustResult,
   CompleteBedsideTransfusionRequest,
   CompletenessCheck,
+  CompletePcpndtFormRequest,
   CompleteReferralRequest,
   CompleteTatRecordRequest,
   ComplianceCalendarEvent,
@@ -1537,6 +1538,7 @@ import type {
   PayrollRun,
   Payslip,
   PcpndtForm,
+  PcpndtFormFPrintData,
   PcpndtQuarterlySummary,
   PcpndtReportPrintData,
   PeerRosterDoc,
@@ -11784,9 +11786,10 @@ export const api = {
     }),
 
   // PCPNDT Forms
-  listPcpndtForms: (params?: { status?: string }) => {
+  listPcpndtForms: (params?: { status?: string; radiology_order_id?: string }) => {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
+    if (params?.radiology_order_id) sp.set("radiology_order_id", params.radiology_order_id);
     const qs = sp.toString();
     return request<PcpndtForm[]>(`/regulatory/pcpndt-forms${qs ? `?${qs}` : ""}`);
   },
@@ -11798,6 +11801,12 @@ export const api = {
     }),
 
   getPcpndtForm: (id: string) => request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`),
+
+  completePcpndtForm: (id: string, data: CompletePcpndtFormRequest) =>
+    request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}/complete`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   updatePcpndtForm: (id: string, data: UpdatePcpndtRequest) =>
     request<PcpndtForm>(`/regulatory/pcpndt-forms/${id}`, {
@@ -13990,6 +13999,8 @@ export const api = {
   getDrugLicenseReportPrintData: (licenseId: string) =>
     request<DrugLicenseReportPrintData>(`/print-data/drug-license-report/${licenseId}`),
 
+  getPcpndtFormFPrintData: (id: string) =>
+    request<PcpndtFormFPrintData>(`/print-data/pcpndt-form-f/${id}`),
   getPcpndtReportPrintData: (period: string) =>
     request<PcpndtReportPrintData>(`/print-data/pcpndt-report/${period}`),
 

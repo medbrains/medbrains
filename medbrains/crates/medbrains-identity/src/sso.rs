@@ -150,7 +150,7 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
             .filter(|r| !BYPASS_ROLES.contains(&r.as_str())),
     );
 
-    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants WHERE code = 'DEFAULT'")
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants ORDER BY created_at, id LIMIT 1")
         .fetch_one(&state.db)
         .await?;
     let mut tx = state.db.begin().await?;
