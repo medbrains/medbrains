@@ -44,6 +44,7 @@ import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivity
 import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
 import { StepUpGate } from "@/components/StepUpGate";
@@ -681,6 +682,7 @@ export function AppLayout() {
           A prop, because Mantine's own shell padding outranks a class. */}
       <AppShell.Main pb="calc(var(--mantine-spacing-xl) * 4)">
         <VerifyEmailBanner />
+        <PageQueryErrorBanner />
         {breadcrumbItems.length > 0 && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb
