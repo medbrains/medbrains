@@ -65,6 +65,9 @@ targets:
     platform: iOS
     sources:
       - path: MedBrainsPatient
+      # Shared with the web: one DPDP privacy notice for every surface.
+      - path: ../../packages/privacy/dpdp-notice.json
+        buildPhase: resources
     dependencies:
       - package: MedBrainsCore
       - package: MedBrainsKit

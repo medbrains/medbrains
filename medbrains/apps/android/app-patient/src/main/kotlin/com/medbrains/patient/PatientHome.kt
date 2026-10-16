@@ -100,11 +100,7 @@ fun PatientHome(auth: AuthStore) {
                 composable("prescriptions") { MedicinesScreen(portal) }
                 composable("bills") { BillsScreen(portal) }
                 composable("bands") { BandsScreen() }
-                composable("consent") {
-                    TilesScreen("consent", "Consent", "Consent", "View, grant, or revoke consent for any of your records.", listOf(
-                        "Active consents" to "What you've granted, to whom, for how long.", "Revoke a consent" to "Stop a previously granted access.",
-                        "Access audit" to "Who saw what, when.", "Export my data" to "DPDP right to portability.", "Delete my account" to "DPDP right to erasure (with safety holds)."))
-                }
+                composable("consent") { PrivacyScreen(portal) }
                 composable("family-share") {
                     TilesScreen("family-share", "Family", "Family share", "Link family, share specific records, set expiry.", listOf(
                         "Link a family member" to "Parent, spouse, child or caregiver.", "Share a record" to "Choose what they can see, and until when.", "Manage sharing" to "Stop or extend a share."))
@@ -124,7 +120,7 @@ fun HospitalTab(open: (String) -> Unit) {
         Entry("lab-reports", "Results", "Released by the laboratory.", Icons.Filled.Science),
         Entry("prescriptions", "Medicines", "What was prescribed, and how to take it.", Icons.Filled.Medication),
         Entry("bills", "Bills", "Invoices, payments and receipts.", Icons.Filled.AccountBalanceWallet),
-        Entry("consent", "Consent", "View, grant, or revoke consent for your records.", Icons.Filled.VerifiedUser),
+        Entry("consent", "Privacy", "What you agree to, what we hold, and your requests.", Icons.Filled.VerifiedUser),
         Entry("family-share", "Family share", "Link family, share specific records, set expiry.", Icons.Filled.Groups),
     )
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("tab-hospital")) {
