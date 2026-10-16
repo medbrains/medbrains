@@ -19,6 +19,7 @@
 pub mod breach;
 pub mod code_pink;
 pub mod incident_timeline;
+pub mod processors;
 
 use axum::routing::{get, post, put};
 use axum::{
@@ -1175,6 +1176,11 @@ pub fn router() -> axum::Router<AppState> {
             "/api/security/incidents/{id}",
             get(get_incident).put(update_incident),
         )
+        .route(
+            "/api/data-processors",
+            get(processors::list_processors).post(processors::create_processor),
+        )
+        .route("/api/data-processors/{id}", put(processors::update_processor))
         .route(
             "/api/security/incidents/{id}/breach",
             put(breach::assess_breach),

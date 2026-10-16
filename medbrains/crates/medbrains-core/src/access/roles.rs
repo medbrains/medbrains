@@ -1134,6 +1134,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::audit::EXPORT,
             permissions::audit::ACCESS_VIEW,
             permissions::audit::REVIEW,
+            permissions::audit::processors::LIST,
+            permissions::audit::processors::MANAGE,
             permissions::patients::privacy_requests::LIST,
             permissions::patients::privacy_requests::CREATE,
             permissions::patients::privacy_requests::DECIDE,
