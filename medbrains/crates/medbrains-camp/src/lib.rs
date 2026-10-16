@@ -5677,7 +5677,7 @@ pub async fn upsert_remote_setup(
           $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, COALESCE($26, 'draft'), \
           CASE WHEN COALESCE($26, 'draft') IN ('ready', 'closed') THEN $27::uuid ELSE NULL END, \
           CASE WHEN COALESCE($26, 'draft') IN ('ready', 'closed') THEN now() ELSE NULL END) \
-         ON CONFLICT (tenant_id, camp_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, camp_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
           village_name = COALESCE(EXCLUDED.village_name, camp_remote_setups.village_name), \
           block_name = COALESCE(EXCLUDED.block_name, camp_remote_setups.block_name), \
           district_name = COALESCE(EXCLUDED.district_name, camp_remote_setups.district_name), \

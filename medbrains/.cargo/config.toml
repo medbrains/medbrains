@@ -1,2 +1,10 @@
 [env]
 SQLX_OFFLINE = "true"
+
+# Resolve dependency features once for the whole workspace, whatever subset a
+# command builds. Without this every `-p a -p b` selection (and every session
+# sharing CARGO_TARGET_DIR) picked a different feature mix, so tokio, sqlx and
+# friends were rebuilt from scratch per run — 139 tokio variants in the target
+# dir, a 3-hour unit-test step.
+[resolver]
+feature-unification = "workspace"

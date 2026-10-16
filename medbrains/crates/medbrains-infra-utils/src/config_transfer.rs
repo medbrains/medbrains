@@ -205,7 +205,7 @@ pub async fn import_config(
                     "INSERT INTO document_templates \
                        (tenant_id, code, name, module_code, body_layout, created_by) \
                      VALUES ($1, $2, $3, $4, $5, $6) \
-                     ON CONFLICT (tenant_id, code) DO UPDATE SET \
+                     ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                        body_layout = EXCLUDED.body_layout, \
                        version = document_templates.version + 1, \
                        is_active = true, updated_at = now()",

@@ -16,7 +16,7 @@ pub async fn next_sequence(
         "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
          VALUES ($1, $2, $3, 1, $4) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET current_val = sequences.current_val + 1, updated_at = now() \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, current_val = sequences.current_val + 1, updated_at = now() \
          RETURNING current_val, prefix, pad_width",
     )
     .bind(tenant_id)

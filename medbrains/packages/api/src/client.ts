@@ -23,10 +23,10 @@ import type {
   AddBbReadingRequest,
   AddCampCounterRequest,
   AddCampTeamMemberRequest,
-  AddCertInUpdateRequest,
   AddCssdLoadItemRequest,
   AddDiscountRequest,
   AddDocumentSignatureRequest,
+  AddIncidentNoteRequest,
   AddIngestionItemInput,
   AddInvoiceItemRequest,
   AddMarketingSuppressionRequest,
@@ -105,6 +105,7 @@ import type {
   ApproveRejectRequest,
   ApproveWriteOffRequest,
   ArrangeDeliveryRequest,
+  AssessBreachRequest,
   AssetCategory,
   AssetClassification,
   AssetMovement,
@@ -267,8 +268,6 @@ import type {
   CathProcedure,
   CathStemiTimeline,
   CensusWardRow,
-  CertInIncident,
-  CertInIncidentUpdate,
   Cha2ds2VascRequest,
   Cha2ds2VascResult,
   ChargeMaster,
@@ -374,6 +373,7 @@ import type {
   CorporateClient,
   CorporateEnrollment,
   CoSignatureRequest,
+  CounterPatient,
   CourseWithModules,
   CoverageAssignment,
   CpotRequest,
@@ -512,6 +512,7 @@ import type {
   CreateDietOrderRequest,
   CreateDietTemplateRequest,
   CreateDigestSubscriptionRequest,
+  CreateDirectLabOrderRequest,
   CreateDischargeBarrierRequest,
   CreateDischargeMedsRequest,
   CreateDischargeSummaryRequest,
@@ -812,8 +813,11 @@ import type {
   CssdInstrument,
   CssdInstrumentSet,
   CssdIssuance,
+  CssdLoadIssuance,
   CssdLoadItem,
+  CssdLoadRecallResponse,
   CssdMaintenanceLog,
+  CssdPack,
   CssdSetItem,
   CssdSterilizationLoad,
   // CSSD
@@ -886,6 +890,7 @@ import type {
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
+  DirectLabOrderResponse,
   DisabilityAccommodationPlanPrintData,
   DischargeBarrier,
   DischargeChecklistPrintData,
@@ -1223,6 +1228,7 @@ import type {
   LabReference,
   LabReferralDoctor,
   LabReferralPayout,
+  LabReportDeliveryConfig,
   LabReportDispatch,
   LabReportFullPrintData,
   LabReportPrintData,
@@ -1254,6 +1260,7 @@ import type {
   ListCampAssetCandidatesParams,
   ListMrdCaseSheetPacketsParams,
   ListQueueTokensQuery,
+  LiveStewardshipRequest,
   LmsCertificate,
   LmsComplianceRow,
   LmsCourse,
@@ -1304,6 +1311,7 @@ import type {
   MarketingSuppression,
   MarketingTouchpoint,
   MarkIncentivePaidRequest,
+  MarListRow,
   MarPrintData,
   MassCasualtyEvent,
   MasterItem,
@@ -1442,6 +1450,7 @@ import type {
   OsmolarGapResult,
   OtAnesthesiaRecord,
   OtBooking,
+  OtBookingConsents,
   OtBookingListResponse,
   OtCaseRecord,
   OtPostopHandoff,
@@ -1504,6 +1513,8 @@ import type {
   PatientTransfer,
   PatientTransferDisplay,
   PatientVisitRow,
+  PayInstallmentRequest,
+  PayInstallmentResponse,
   Payment,
   PaymentGatewayTransaction,
   PaymentInstallment,
@@ -1579,6 +1590,7 @@ import type {
   PortalRefillRequest,
   PortalSession,
   PosDaySummary,
+  PosPricesResponse,
   PosSaleRequest,
   PosSaleResponse,
   PostnatalRecord,
@@ -1667,6 +1679,10 @@ import type {
   RadiationSession,
   RadiologyAppointment,
   RadiologyDicomStudy,
+  RadiologyExam,
+  RadiologyExamInput,
+  RadiologyExamListItem,
+  RadiologyExamListParams,
   RadiologyModality,
   RadiologyOrder,
   RadiologyOrderDetailResponse,
@@ -1696,12 +1712,15 @@ import type {
   RecordCssdIndicatorRequest,
   RecordDeviceDaysRequest,
   RecordDoseRequest,
+  RecordIncidentNoticeRequest,
   RecordIndicatorValueRequest,
   RecordMarketingConsentRequest,
   RecordPaymentRequest,
   RecordReactionRequest,
   RecordScoreRequest,
+  RecordSecurityTagEventRequest,
   RecordTransfusionObservationRequest,
+  RecordTtiRequest,
   ReferralStep,
   ReferralWithNames,
   Refund,
@@ -1725,7 +1744,6 @@ import type {
   RepeatRow,
   ReportCatalogResponse,
   ReportDataResponse,
-  ReportToCertInRequest,
   Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -1782,11 +1800,14 @@ import type {
   SecureTenantSettingRow,
   SecurityAccessCard,
   SecurityAccessLog,
+  SecurityBandMatchResult,
   SecurityCamera,
   SecurityCodeDebrief,
   SecurityIncident,
+  SecurityIncidentUpdate,
   SecurityPatientTag,
   SecurityTagAlert,
+  SecurityTagEventResult,
   // Security
   SecurityZone,
   SeedModuleMastersRequest,
@@ -1799,6 +1820,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SetDonorDeferralRequest,
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
@@ -1870,6 +1892,7 @@ import type {
   TaxCategoryRow,
   TdsDeduction,
   TeachingConsentPrintData,
+  TeamLeaveResponse,
   TeleChatMessage,
   TeleConfig,
   TeleConsultation,
@@ -1912,6 +1935,7 @@ import type {
   TrialRandomization,
   TrialVisit,
   TriggerPipelineRequest,
+  TtiPanel,
   TtiReport,
   TurnaroundStatsRow,
   TvAnnouncement,
@@ -2106,6 +2130,10 @@ import type {
   UpdateVulnerabilityRequest,
   UpdateWaitlistRequest,
   UpdateWardRequest,
+  UpiCollectRequest,
+  UpiCollectResponse,
+  UpiDeepLinkRequest,
+  UpiDeepLinkResponse,
   UpiQrResponse,
   UpsertAssetClassificationRequest,
   UpsertBlogInput,
@@ -2145,6 +2173,7 @@ import type {
   VerifyPaymentRequest,
   VerifyRequest,
   VerifyResponse,
+  VerifySecurityBandMatchRequest,
   VideoConsentPrintData,
   // Front Office & Reception
   VisitingHours,
@@ -4507,6 +4536,9 @@ export const api = {
   // ── Patient Prescription History ───────────────────────
   listPatientPrescriptions: (patientId: string) =>
     request<PrescriptionHistoryItem[]>(`/opd/patients/${patientId}/prescriptions`),
+  /** The patient's pending or approved, unexpired antimicrobial stewardship requests. */
+  listLiveStewardshipRequests: (patientId: string) =>
+    request<LiveStewardshipRequest[]>(`/opd/patients/${patientId}/stewardship-requests`),
 
   // ── Patient Diagnoses (cross-encounter) ────────────────
   listPatientDiagnoses: (patientId: string) =>
@@ -5203,9 +5235,10 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getInstallment: (id: string) => request<PaymentInstallment>(`/billing/installments/${id}`),
-  payInstallmentItem: (installmentId: string, itemId: string) =>
-    request<PaymentInstallmentItem>(`/billing/installments/${installmentId}/items/${itemId}/pay`, {
+  payInstallmentItem: (installmentId: string, itemId: string, data: PayInstallmentRequest) =>
+    request<PayInstallmentResponse>(`/billing/installments/${installmentId}/items/${itemId}/pay`, {
       method: "POST",
+      body: JSON.stringify(data),
     }),
   waiveInstallmentItem: (installmentId: string, itemId: string) =>
     request<PaymentInstallmentItem>(
@@ -5490,6 +5523,15 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<LabTestCatalog[]>(`/lab/catalog${qs}`);
   },
+  /**
+   * A walk-in at the lab counter: opens the lab visit, records the referral,
+   * places every test and raises the bill in one step.
+   */
+  createDirectLabOrder: (data: CreateDirectLabOrderRequest) =>
+    request<DirectLabOrderResponse>("/lab/direct-orders", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createLabCatalogEntry: (data: CreateLabCatalogRequest) =>
     request<LabTestCatalog>("/lab/catalog", {
       method: "POST",
@@ -6139,6 +6181,28 @@ export const api = {
 
   listRadiologyModalities: () => request<RadiologyModality[]>("/radiology/modalities"),
 
+  listRadiologyExams: (params?: RadiologyExamListParams) => {
+    const sp = new URLSearchParams();
+    if (params?.modality_id) sp.set("modality_id", params.modality_id);
+    if (params?.search) sp.set("search", params.search);
+    if (params?.limit) sp.set("limit", String(params.limit));
+    if (params?.include_inactive) sp.set("include_inactive", "true");
+    const qs = sp.toString();
+    return request<RadiologyExamListItem[]>(`/radiology/exams${qs ? `?${qs}` : ""}`);
+  },
+  createRadiologyExam: (data: RadiologyExamInput) =>
+    request<RadiologyExam>("/radiology/exams", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateRadiologyExam: (id: string, data: RadiologyExamInput) =>
+    request<RadiologyExam>(`/radiology/exams/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteRadiologyExam: (id: string) =>
+    request<{ deleted: boolean }>(`/radiology/exams/${id}`, { method: "DELETE" }),
+
   createRadiologyModality: (data: CreateModalityRequest) =>
     request<RadiologyModality>("/radiology/modalities", {
       method: "POST",
@@ -6203,6 +6267,8 @@ export const api = {
       allergy_override_reason?: string;
       ndps_override_reason?: string;
       unpaid_override_reason?: string;
+      /** Clinical reason for dispensing past a blocking safety finding. */
+      safety_override_reason?: string;
     },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
@@ -6444,6 +6510,13 @@ export const api = {
     const q = qs.toString();
     return request<PharmacyPosSale[]>(`/pharmacy/pos/sales${q ? `?${q}` : ""}`);
   },
+  getPosSale: (saleId: string) => request<PharmacyPosSale>(`/pharmacy/pos/sales/${saleId}`),
+  getPosPrices: (catalogItemIds: string[]) =>
+    request<PosPricesResponse>(
+      `/pharmacy/pos/prices?ids=${encodeURIComponent(catalogItemIds.join(","))}`,
+    ),
+  searchCounterPatients: (q: string) =>
+    request<CounterPatient[]>(`/pharmacy/patients/search?q=${encodeURIComponent(q)}`),
   listPosSaleItems: (saleId: string) =>
     request<PharmacyPosSaleItem[]>(`/pharmacy/pos/sales/${saleId}/items`),
   getPosDaySummary: () => request<PosDaySummary>("/pharmacy/pos/day-summary"),
@@ -6544,8 +6617,12 @@ export const api = {
   },
   getFulfilmentPickList: (orderId: string) =>
     request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
-  claimFulfilmentOrder: (orderId: string) =>
-    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, { method: "POST" }),
+  /** Claim for picking. A reason is needed only to override a medication safety block. */
+  claimFulfilmentOrder: (orderId: string, data?: { safety_override_reason?: string }) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, {
+      method: "POST",
+      ...(data ? { body: JSON.stringify(data) } : {}),
+    }),
   packFulfilmentOrder: (orderId: string) =>
     request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/pack`, { method: "POST" }),
   verifyFulfilmentLine: (orderId: string, data: VerifyLineRequest) =>
@@ -6763,8 +6840,7 @@ export const api = {
     }),
 
   // MAR (Medication Administration Record)
-  listMar: (admissionId: string) =>
-    request<IpdMedicationAdministration[]>(`/ipd/admissions/${admissionId}/mar`),
+  listMar: (admissionId: string) => request<MarListRow[]>(`/ipd/admissions/${admissionId}/mar`),
   createMar: (admissionId: string, data: CreateMarRequest) =>
     request<IpdMedicationAdministration>(`/ipd/admissions/${admissionId}/mar`, {
       method: "POST",
@@ -7486,6 +7562,23 @@ export const api = {
     return request<OtBookingListResponse>(`/ot/bookings${qs}`);
   },
   getOtBooking: (id: string) => request<OtBooking>(`/ot/bookings/${id}`),
+  getOtBookingConsents: (bookingId: string) =>
+    request<OtBookingConsents>(`/ot/bookings/${bookingId}/consents`),
+  linkOtBookingConsent: (bookingId: string, consentId: string) =>
+    request<OtBookingConsents>(`/ot/bookings/${bookingId}/consents`, {
+      method: "POST",
+      body: JSON.stringify({ consent_id: consentId }),
+    }),
+  unlinkOtBookingConsent: (bookingId: string, consentId: string, reason: string) =>
+    request<OtBookingConsents>(`/ot/bookings/${bookingId}/consents/${consentId}/unlink`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  certifyOtEmergencyConsent: (bookingId: string, reason?: string) =>
+    request<OtBookingConsents>(`/ot/bookings/${bookingId}/emergency-consent`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   createOtBooking: (data: CreateOtBookingRequest) =>
     request<OtBooking>("/ot/bookings", { method: "POST", body: JSON.stringify(data) }),
   updateOtBooking: (id: string, data: UpdateOtBookingRequest) =>
@@ -7625,6 +7718,18 @@ export const api = {
   updateDonation: (donationId: string, data: UpdateDonationRequest) =>
     request<BloodDonation>(`/blood-bank/donations/${donationId}`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  setDonorDeferral: (donorId: string, data: SetDonorDeferralRequest) =>
+    request<BloodDonor>(`/blood-bank/donors/${donorId}/deferral`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listTtiResults: (donationId: string) =>
+    request<TtiPanel>(`/blood-bank/donations/${donationId}/tti`),
+  recordTtiResults: (donationId: string, data: RecordTtiRequest) =>
+    request<TtiPanel>(`/blood-bank/donations/${donationId}/tti`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
   listBloodComponents: (params?: Record<string, string>) => {
@@ -8544,7 +8649,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCssdLoadItems: (loadId: string) => request<CssdLoadItem[]>(`/cssd/loads/${loadId}/items`),
+  listCssdLoadItems: (loadId: string) => request<CssdPack[]>(`/cssd/loads/${loadId}/items`),
+  listCssdLoadIssuances: (loadId: string) =>
+    request<CssdLoadIssuance[]>(`/cssd/loads/${loadId}/issuances`),
+  recallCssdLoad: (loadId: string, reason: string) =>
+    request<CssdLoadRecallResponse>(`/cssd/loads/${loadId}/recall`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   addCssdLoadItem: (loadId: string, data: AddCssdLoadItemRequest) =>
     request<CssdLoadItem>(`/cssd/loads/${loadId}/items`, {
       method: "POST",
@@ -9880,6 +9992,20 @@ export const api = {
       method: "PUT",
     }),
 
+  // Leave — self-service (the caller's own employee record)
+  listMyLeaveRequests: () => request<LeaveRequest[]>("/hr/me/leaves"),
+
+  createMyLeaveRequest: (data: Omit<CreateLeaveRequestInput, "employee_id">) =>
+    request<LeaveRequest>("/hr/me/leaves", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listMyLeaveBalances: () => request<LeaveBalance[]>("/hr/me/leave-balances"),
+
+  /** Leave of the departments the caller heads — the head's approval queue. */
+  listMyTeamLeaves: () => request<TeamLeaveResponse>("/hr/me/team-leaves"),
+
   // On-Call
   listOnCall: (params?: { department_id?: string; schedule_date?: string }) => {
     const qs = new URLSearchParams();
@@ -10623,17 +10749,17 @@ export const api = {
     if (params?.status) sp.set("status", params.status);
     if (params?.category) sp.set("category", params.category);
     const qs = sp.toString();
-    return request<SecurityIncident[]>(`/security-incidents${qs ? `?${qs}` : ""}`);
+    return request<SecurityIncident[]>(`/security/incidents${qs ? `?${qs}` : ""}`);
   },
-  getSecurityIncident: (id: string) => request<SecurityIncident>(`/security-incidents/${id}`),
+  getSecurityIncident: (id: string) => request<SecurityIncident>(`/security/incidents/${id}`),
   createSecurityIncident: (body: CreateSecurityIncidentRequest) =>
-    request<SecurityIncident>("/security-incidents", {
+    request<SecurityIncident>("/security/incidents", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   updateSecurityIncident: (id: string, body: UpdateSecurityIncidentRequest) =>
-    request<SecurityIncident>(`/security-incidents/${id}`, {
-      method: "PATCH",
+    request<SecurityIncident>(`/security/incidents/${id}`, {
+      method: "PUT",
       body: JSON.stringify(body),
     }),
 
@@ -10671,6 +10797,16 @@ export const api = {
   resolveSecurityTagAlert: (id: string, body: ResolveSecurityTagAlertRequest) =>
     request<SecurityTagAlert>(`/security/tag-alerts/${id}/resolve`, {
       method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  verifySecurityBandMatch: (body: VerifySecurityBandMatchRequest) =>
+    request<SecurityBandMatchResult>("/security/patient-tags/verify-match", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  recordSecurityTagEvent: (body: RecordSecurityTagEventRequest) =>
+    request<SecurityTagEventResult>("/security/tag-events", {
+      method: "POST",
       body: JSON.stringify(body),
     }),
 
@@ -13510,6 +13646,8 @@ export const api = {
   getCreditNotePrintData: (id: string) =>
     request<CreditNotePrintData>(`/print-data/credit-note/${id}`),
 
+  getPharmacyBillPrintData: (invoiceId: string) =>
+    request<GstInvoicePrintData>(`/print-data/pharmacy-bill/${invoiceId}`),
   getGstInvoicePrintData: (invoiceId: string) =>
     request<GstInvoicePrintData>(`/print-data/gst-invoice/${invoiceId}`),
 
@@ -14802,17 +14940,23 @@ export const api = {
   // IT SECURITY: CERT-IN COMPLIANCE
   // ══════════════════════════════════════════════════════════════
 
-  reportToCertIn: (id: string, data: ReportToCertInRequest) =>
-    request<CertInIncident>(`/security-incidents/${id}/cert-in`, {
+  assessIncidentBreach: (id: string, data: AssessBreachRequest) =>
+    request<SecurityIncident>(`/security/incidents/${id}/breach`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  recordIncidentNotice: (id: string, data: RecordIncidentNoticeRequest) =>
+    request<SecurityIncident>(`/security/incidents/${id}/notices`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   getIncidentUpdates: (id: string) =>
-    request<CertInIncidentUpdate[]>(`/security-incidents/${id}/updates`),
+    request<SecurityIncidentUpdate[]>(`/security/incidents/${id}/updates`),
 
-  addIncidentUpdate: (id: string, data: AddCertInUpdateRequest) =>
-    request<CertInIncidentUpdate>(`/security-incidents/${id}/updates`, {
+  addIncidentUpdate: (id: string, data: AddIncidentNoteRequest) =>
+    request<SecurityIncidentUpdate>(`/security/incidents/${id}/updates`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -15369,6 +15513,16 @@ export const api = {
     }),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  requestUpiCollect: (data: UpiCollectRequest) =>
+    request<UpiCollectResponse>("/payments/upi-collect", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  createUpiDeepLink: (data: UpiDeepLinkRequest) =>
+    request<UpiDeepLinkResponse>("/payments/upi-deep-link", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -16362,9 +16516,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getLabReportDeliveryConfig: () => request<unknown>("/lab/report-delivery-config"),
-  updateLabReportDeliveryConfig: (data: Record<string, unknown>) =>
-    request<unknown>("/lab/report-delivery-config", {
+  getLabReportDeliveryConfig: () => request<LabReportDeliveryConfig>("/lab/report-delivery-config"),
+  updateLabReportDeliveryConfig: (data: LabReportDeliveryConfig) =>
+    request<LabReportDeliveryConfig>("/lab/report-delivery-config", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -16419,18 +16573,6 @@ export const api = {
   downloadRadiologyPackage: (id: string) => request<unknown>(`/radiology/download-package/${id}`),
   getProcurementVendorLedger: (vendorId: string) =>
     request<unknown>(`/procurement/vendors/${vendorId}/ledger`),
-  listSecurityIncidentsV2: () => request<unknown>("/security/incidents"),
-  createSecurityIncidentV2: (data: Record<string, unknown>) =>
-    request<unknown>("/security/incidents", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  getSecurityIncidentV2: (id: string) => request<unknown>(`/security/incidents/${id}`),
-  updateSecurityIncidentV2: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/security/incidents/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
   getSystemStateAdmin: () => request<unknown>("/admin/system_state"),
   updateSystemStateAdmin: (data: Record<string, unknown>) =>
     request<unknown>("/admin/system_state", {

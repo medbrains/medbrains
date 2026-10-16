@@ -1,6 +1,6 @@
 // IPD PrintAdmissionButton — split from ipd.tsx (pure move).
 
-import { Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { AdmissionPrintData } from "@medbrains/types";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
@@ -150,6 +150,14 @@ export function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
               </Text>
               <Text className="value">{printData.gender ?? "—"}</Text>
             </div>
+            <Box>
+              <Text size="xs" c="dimmed" className="label">
+                IP No.
+              </Text>
+              <Text className="value" ff="monospace">
+                {printData.admission_number ?? "—"}
+              </Text>
+            </Box>
             <div>
               <Text size="xs" c="dimmed" className="label">
                 Admission Date

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1014 permissions, one per constant in the Rust source. */
+/** 1041 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -435,6 +435,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "lab",
   },
   {
+    code: "lab.orders.direct",
+    label: "Register a walk-in lab order",
+    description: "For a patient who comes to the laboratory without a doctor's order in this hospital — self-referred, or carrying an outside prescription. Opens the lab visit, records who referred them (a hospital doctor, an outside doctor, or self) and raises the bill, in one step at the lab counter.",
+    module: "lab",
+  },
+  {
     code: "lab.catalog.manage",
     label: "Edit the laboratory test catalogue and panels",
     description: "Covers reference ranges, critical values, LOINC codes and turnaround times. Master data, held by the laboratory manager rather than by everyone who can order a test.",
@@ -522,6 +528,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "lab.samples.manage",
     label: "Manage Samples",
     description: "Manage home collections, sample archive, and collection centers",
+    module: "lab",
+  },
+  {
+    code: "lab.samples.collect",
+    label: "Collect a sample for a lab order",
+    description: "Drawing blood is the phlebotomist's or the ward nurse's job, and it was gated on `lab.results.create` — so the only way to let a nurse record a draw was to let her type results in too. This is the draw alone: positive patient identification and the tube's barcode, nothing that touches a result.",
+    module: "lab",
+  },
+  {
+    code: "lab.report_delivery.manage",
+    label: "Configure how lab reports reach patients",
+    description: "Turns SMS, WhatsApp and email delivery on or off and sets the default channel for the whole hospital. It was gated on `lab.orders.list`, so anyone who could see the order list could start sending patients' reports over a new channel.",
     module: "lab",
   },
   {
@@ -754,15 +772,45 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "pharmacy",
   },
   {
+    code: "pharmacy.returns.override_window",
+    label: "Take a counter return after the return window",
+    description: "A sale older than the hospital's return window (15 days unless set) is locked for return and refund. This takes it back anyway, with a reason recorded against the credit note.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.returns.controlled",
+    label: "Take back a controlled or Schedule X drug",
+    description: "NDPS and Schedule X medicines are not returnable at the counter. The pharmacist-in-charge may accept one with a recorded reason.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.day_close.view",
+    label: "See a counter's business day and Z-report",
+    description: "Totals by tender, counted against expected cash, for any counter day, open or closed.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.day_close.close",
+    label: "Close a counter's business day",
+    description: "Count the cash, explain any variance and lock the day: no sale, return or void is dated to it afterwards. Only a cashier who worked that counter that day.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.day_close.reopen",
+    label: "Reopen a closed counter day",
+    description: "Unlocks a closed day for correction, with a reason that is audited. Also closes a counter day the closer did not work.",
+    module: "pharmacy",
+  },
+  {
     code: "pharmacy.formulary.approve",
-    label: "Approve Formulary",
-    description: "Approve formulary exceptions and additions",
+    label: "Dispense a non-formulary medicine",
+    description: "Lets a pharmacist approve or dispense a medicine that is not on the hospital formulary, with a recorded reason that is audited.",
     module: "pharmacy",
   },
   {
     code: "pharmacy.stewardship.approve",
-    label: "Approve Stewardship",
-    description: "Approve restricted antibiotic and antimicrobial stewardship decisions",
+    label: "Dispense a Reserve antibiotic before approval",
+    description: "Lets a pharmacist approve or dispense an AWaRe Reserve antibiotic whose stewardship request is not yet approved — e.g. a first dose in sepsis — with a recorded reason that is audited.",
     module: "pharmacy",
   },
   {
@@ -808,6 +856,24 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "pharmacy",
   },
   {
+    code: "pharmacy.pos.discount_approve",
+    label: "Approve a counter discount above the limit",
+    description: "A counter sale discounted beyond the hospital's configured limit needs a reason and an approver who holds this. The approval is recorded against the sale.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.patients.search",
+    label: "Find a patient at the pharmacy counter",
+    description: "Name, UHID or phone to a patient's name, age and sex — enough to link a counter sale to the right person and nothing more of the record.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.bills.print",
+    label: "Print a pharmacy GST bill",
+    description: "The tax invoice for a counter sale posted to a registered patient, without access to the rest of billing.",
+    module: "pharmacy",
+  },
+  {
     code: "pharmacy.pricing.manage",
     label: "Manage Pricing",
     description: "Set drug pricing tiers",
@@ -821,8 +887,8 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   {
     code: "pharmacy.safety.override",
-    label: "Override Safety",
-    description: "Override drug safety warnings",
+    label: "Override a medication safety block",
+    description: "Lets a pharmacist proceed past a documented drug allergy, a serious drug-drug interaction or another medication safety block, with a recorded clinical reason that is audited.",
     module: "pharmacy",
   },
   {
@@ -866,6 +932,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.catalog.manage",
     label: "Manage Billing Catalog",
     description: "Manage charge master, billing packages, and rate plans",
+    module: "billing",
+  },
+  {
+    code: "billing.exchange_rates.manage",
+    label: "Set currency exchange rates",
+    description: "A rate decides what a foreign-currency patient is billed in rupees, so setting one is tariff work, kept apart from reading reports. Reading the rates only needs `billing.invoices.list`.",
     module: "billing",
   },
   {
@@ -1494,6 +1566,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Track OT consumable usage per surgery",
     module: "ot",
   },
+  {
+    code: "ot.consent.emergency_override",
+    label: "Certify emergency implied consent for surgery",
+    description: "For an emergency booking only, when the patient cannot consent and no relative can be reached in time. Two different doctors must each certify, in their own session after re-entering their password, with a reason. Recorded, audited, and printed on the operation notes.",
+    module: "ot",
+  },
   // radiology
   {
     code: "radiology.orders.list",
@@ -1535,6 +1613,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "radiology.modalities.manage",
     label: "Manage Modalities",
     description: "Manage imaging modality masters",
+    module: "radiology",
+  },
+  {
+    code: "radiology.exams.manage",
+    label: "Edit the radiology exam catalogue",
+    description: "Which exams each modality performs, their body part, contrast and the charge code they are billed under. Master data, held by the radiology department rather than by everyone who orders.",
     module: "radiology",
   },
   // icu
@@ -1970,6 +2054,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "blood_bank",
   },
   {
+    code: "blood_bank.donors.defer",
+    label: "Defer or reinstate a blood donor",
+    description: "Sets a temporary deferral with an end date, a permanent one, or lifts it, always with a reason and an audit row. A donor deferred for a reactive TTI result cannot be reinstated here.",
+    module: "blood_bank",
+  },
+  {
     code: "blood_bank.inventory.list",
     label: "View Blood Inventory",
     description: "View blood component inventory",
@@ -2003,6 +2093,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "blood_bank.transfusion.create",
     label: "Record Transfusion",
     description: "Record blood transfusions and reactions",
+    module: "blood_bank",
+  },
+  {
+    code: "blood_bank.transfusion.emergency_release",
+    label: "Emergency Release Transfusion",
+    description: "Release uncrossmatched O-negative in an emergency. Issues a red-cell unit with no compatible crossmatch for the patient, which every other issue is refused. Only an O-negative unit, only with a written reason, and every use is written to the audit log.",
+    module: "blood_bank",
+  },
+  {
+    code: "blood_bank.tti.view",
+    label: "View donor TTI screening results",
+    description: "The per-marker HIV, HBsAg, HCV, syphilis and malaria results of a donation. A donor's infection status, so not part of inventory read.",
+    module: "blood_bank",
+  },
+  {
+    code: "blood_bank.tti.record",
+    label: "Record donor TTI screening results",
+    description: "Enters the per-marker screening result for a donation. A reactive result quarantines the donation's units and defers the donor, and cannot later be changed.",
     module: "blood_bank",
   },
   // display
@@ -2166,6 +2274,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "cssd",
   },
   {
+    code: "cssd.sterilization.recall",
+    label: "Recall a sterilisation load or an issued pack",
+    description: "Recalling a load bars every pack of it from issue and flags every pack already issued from it so it can be fetched back from the ward or theatre — the response to a failed biological indicator. A single issued pack can be recalled too. Always with a reason; audited.",
+    module: "cssd",
+  },
+  {
     code: "cssd.issuance.list",
     label: "View CSSD Issuances",
     description: "View sterile pack issuances",
@@ -2278,6 +2392,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "emergency.mlc.reprint",
     label: "Reprint MLC Packet",
     description: "Reprint medico-legal case packets with a reason and duplicate watermark",
+    module: "emergency",
+  },
+  {
+    code: "emergency.mlc.amend",
+    label: "Amend a certified or closed MLC",
+    description: "Changes what a medico-legal case records after the opinion is given, while it is in court, or once it is closed. MLC records are legal evidence: every amendment needs a written reason and is written to the audit trail with the old and new values.",
     module: "emergency",
   },
   {
@@ -2457,6 +2577,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "housekeeping",
   },
   {
+    code: "housekeeping.tasks.perform",
+    label: "Start and complete your own cleaning tasks",
+    description: "The housekeeper's right. Starting an unassigned task claims it; completing needs the task to be assigned to you. Verifying, rejecting and reassigning stay with `housekeeping.cleaning.manage`, which before this was the only way to mark any task done.",
+    module: "housekeeping",
+  },
+  {
     code: "housekeeping.turnaround.list",
     label: "View Turnarounds",
     description: "View room turnaround records",
@@ -2593,6 +2719,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "hr.leave.approve",
     label: "Approve Leave",
     description: "Approve or reject leave requests",
+    module: "hr",
+  },
+  {
+    code: "hr.leave.manage",
+    label: "File and view leave for any employee",
+    description: "HR's reach. Without it a caller files leave only for themselves and sees only their own leave and, as a department head, their department's. Nobody approves their own leave, with or without it.",
     module: "hr",
   },
   {
@@ -3256,6 +3388,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "front_office",
   },
   {
+    code: "front_office.visitor_logs.record",
+    label: "Record a visitor entering or leaving",
+    description: "The gate guard's right: check a valid pass in and out. Issuing and revoking passes stay with `front_office.passes.manage`, which until this was the only way to log a visitor's entry at all.",
+    module: "front_office",
+  },
+  {
     code: "front_office.queue.list",
     label: "View Queue Dashboard",
     description: "View queue stats and priority rules",
@@ -3560,6 +3698,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "facilities",
   },
   {
+    code: "facilities.work_orders.perform",
+    label: "Work on and complete work orders assigned to you",
+    description: "The technician's right: move your own work order to in progress, on hold or completed and record findings, actions and costs. Assigning, reassigning, choosing a vendor and cancelling stay with `facilities.work_orders.manage`.",
+    module: "facilities",
+  },
+  {
     code: "facilities.compliance.list",
     label: "View Compliance",
     description: "View PESO and regulatory compliance records",
@@ -3621,6 +3765,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "security",
   },
   {
+    code: "security.breach.manage",
+    label: "Assess breaches and record regulatory notices",
+    description: "Marks an incident as CERT-In reportable or as a DPDP personal-data breach, sets when it was noticed (which starts the 6-hour CERT-In and 72-hour Board clocks), and records the CERT-In report, the Board intimation and detailed report, and the notice to affected Data Principals. The incident response plan gives these to the DPO / incident commander, so no built-in role holds it.",
+    module: "security",
+  },
+  {
     code: "security.patient_safety.list",
     label: "View Patient Tags",
     description: "View patient safety tags and alerts",
@@ -3630,6 +3780,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "security.patient_safety.manage",
     label: "Manage Patient Tags",
     description: "Activate/deactivate tags and resolve alerts",
+    module: "security",
+  },
+  {
+    code: "security.patient_safety.verify_match",
+    label: "Verify a mother–baby ID band match",
+    description: "Scanning both bands before a baby is handed to its mother, taken out of the nursery or discharged. A mismatch is refused, raised as a tag alert and audited. Held by nurses and security, who do the handover, without the right to create or retire tags.",
+    module: "security",
+  },
+  {
+    code: "security.patient_safety.report_event",
+    label: "Report an infant or wander tag event",
+    description: "A tag leaving its zone, a cut or tampered band. An infant tag leaving its zone or tampered with raises Code Pink at once. Used by the tag reader's machine identity and by staff who find a cut band.",
     module: "security",
   },
   {
@@ -6586,6 +6748,10 @@ export const P = {
       EXPORT: "billing.erp.export",
     },
     ERP_EXPORT: "billing.erp.export",
+    EXCHANGE_RATES: {
+      MANAGE: "billing.exchange_rates.manage",
+    },
+    EXCHANGE_RATES_MANAGE: "billing.exchange_rates.manage",
     GST_RETURNS: {
       LIST: "billing.gst_returns.list",
       MANAGE: "billing.gst_returns.manage",
@@ -6650,9 +6816,11 @@ export const P = {
     CROSSMATCH_LIST: "blood_bank.crossmatch.list",
     DONORS: {
       CREATE: "blood_bank.donors.create",
+      DEFER: "blood_bank.donors.defer",
       LIST: "blood_bank.donors.list",
     },
     DONORS_CREATE: "blood_bank.donors.create",
+    DONORS_DEFER: "blood_bank.donors.defer",
     DONORS_LIST: "blood_bank.donors.list",
     INVENTORY: {
       LIST: "blood_bank.inventory.list",
@@ -6662,10 +6830,18 @@ export const P = {
     INVENTORY_MANAGE: "blood_bank.inventory.manage",
     TRANSFUSION: {
       CREATE: "blood_bank.transfusion.create",
+      EMERGENCY_RELEASE: "blood_bank.transfusion.emergency_release",
       LIST: "blood_bank.transfusion.list",
     },
     TRANSFUSION_CREATE: "blood_bank.transfusion.create",
+    TRANSFUSION_EMERGENCY_RELEASE: "blood_bank.transfusion.emergency_release",
     TRANSFUSION_LIST: "blood_bank.transfusion.list",
+    TTI: {
+      RECORD: "blood_bank.tti.record",
+      VIEW: "blood_bank.tti.view",
+    },
+    TTI_RECORD: "blood_bank.tti.record",
+    TTI_VIEW: "blood_bank.tti.view",
   },
   BME: {
     BREAKDOWNS: {
@@ -6979,9 +7155,11 @@ export const P = {
     STERILIZATION: {
       CREATE: "cssd.sterilization.create",
       LIST: "cssd.sterilization.list",
+      RECALL: "cssd.sterilization.recall",
     },
     STERILIZATION_CREATE: "cssd.sterilization.create",
     STERILIZATION_LIST: "cssd.sterilization.list",
+    STERILIZATION_RECALL: "cssd.sterilization.recall",
   },
   DASHBOARD: {
     VIEW: "dashboard.view",
@@ -7142,12 +7320,14 @@ export const P = {
     MASS_CASUALTY_LIST: "emergency.mass_casualty.list",
     MASS_CASUALTY_UPDATE: "emergency.mass_casualty.update",
     MLC: {
+      AMEND: "emergency.mlc.amend",
       CREATE: "emergency.mlc.create",
       LIST: "emergency.mlc.list",
       PRINT: "emergency.mlc.print",
       REPRINT: "emergency.mlc.reprint",
       UPDATE: "emergency.mlc.update",
     },
+    MLC_AMEND: "emergency.mlc.amend",
     MLC_CREATE: "emergency.mlc.create",
     MLC_DOCUMENTS: {
       AGE_ESTIMATION_CREATE: "emergency.mlc_documents.age_estimation.create",
@@ -7241,10 +7421,12 @@ export const P = {
       CREATE: "facilities.work_orders.create",
       LIST: "facilities.work_orders.list",
       MANAGE: "facilities.work_orders.manage",
+      PERFORM: "facilities.work_orders.perform",
     },
     WORK_ORDERS_CREATE: "facilities.work_orders.create",
     WORK_ORDERS_LIST: "facilities.work_orders.list",
     WORK_ORDERS_MANAGE: "facilities.work_orders.manage",
+    WORK_ORDERS_PERFORM: "facilities.work_orders.perform",
   },
   FRONT_OFFICE: {
     ENQUIRY: {
@@ -7285,6 +7467,10 @@ export const P = {
     VISITORS_CREATE: "front_office.visitors.create",
     VISITORS_LIST: "front_office.visitors.list",
     VISITORS_MANAGE: "front_office.visitors.manage",
+    VISITOR_LOGS: {
+      RECORD: "front_office.visitor_logs.record",
+    },
+    VISITOR_LOGS_RECORD: "front_office.visitor_logs.record",
   },
   HOME_HEALTH: {
     LIST: "home_health.list",
@@ -7319,6 +7505,10 @@ export const P = {
     },
     PEST_CONTROL_LIST: "housekeeping.pest_control.list",
     PEST_CONTROL_MANAGE: "housekeeping.pest_control.manage",
+    TASKS: {
+      PERFORM: "housekeeping.tasks.perform",
+    },
+    TASKS_PERFORM: "housekeeping.tasks.perform",
     TURNAROUND: {
       LIST: "housekeeping.turnaround.list",
       MANAGE: "housekeeping.turnaround.manage",
@@ -7355,10 +7545,12 @@ export const P = {
       APPROVE: "hr.leave.approve",
       CREATE: "hr.leave.create",
       LIST: "hr.leave.list",
+      MANAGE: "hr.leave.manage",
     },
     LEAVE_APPROVE: "hr.leave.approve",
     LEAVE_CREATE: "hr.leave.create",
     LEAVE_LIST: "hr.leave.list",
+    LEAVE_MANAGE: "hr.leave.manage",
     ON_CALL: {
       LIST: "hr.on_call.list",
       MANAGE: "hr.on_call.manage",
@@ -7702,10 +7894,12 @@ export const P = {
     DISPATCH_MANAGE: "lab.dispatch.manage",
     ORDERS: {
       CREATE: "lab.orders.create",
+      DIRECT: "lab.orders.direct",
       LIST: "lab.orders.list",
       VIEW: "lab.orders.view",
     },
     ORDERS_CREATE: "lab.orders.create",
+    ORDERS_DIRECT: "lab.orders.direct",
     ORDERS_LIST: "lab.orders.list",
     ORDERS_VIEW: "lab.orders.view",
     OUTSOURCED: {
@@ -7732,6 +7926,10 @@ export const P = {
       VIEW: "lab.reports.view",
     },
     REPORTS_VIEW: "lab.reports.view",
+    REPORT_DELIVERY: {
+      MANAGE: "lab.report_delivery.manage",
+    },
+    REPORT_DELIVERY_MANAGE: "lab.report_delivery.manage",
     RESULTS: {
       AMEND: "lab.results.amend",
       CREATE: "lab.results.create",
@@ -7743,9 +7941,11 @@ export const P = {
     RESULTS_UPDATE: "lab.results.update",
     RESULTS_VERIFY: "lab.results.verify",
     SAMPLES: {
+      COLLECT: "lab.samples.collect",
       LIST: "lab.samples.list",
       MANAGE: "lab.samples.manage",
     },
+    SAMPLES_COLLECT: "lab.samples.collect",
     SAMPLES_LIST: "lab.samples.list",
     SAMPLES_MANAGE: "lab.samples.manage",
     SPECIALIZED: {
@@ -8223,6 +8423,10 @@ export const P = {
     },
     CASE_RECORDS_CREATE: "ot.case_records.create",
     CASE_RECORDS_LIST: "ot.case_records.list",
+    CONSENT: {
+      EMERGENCY_OVERRIDE: "ot.consent.emergency_override",
+    },
+    CONSENT_EMERGENCY_OVERRIDE: "ot.consent.emergency_override",
     CONSUMABLES: {
       MANAGE: "ot.consumables.manage",
     },
@@ -8299,10 +8503,22 @@ export const P = {
       VIEW: "pharmacy.analytics.view",
     },
     ANALYTICS_VIEW: "pharmacy.analytics.view",
+    BILLS: {
+      PRINT: "pharmacy.bills.print",
+    },
+    BILLS_PRINT: "pharmacy.bills.print",
     CATALOG: {
       LOOKUP: "pharmacy.catalog.lookup",
     },
     CATALOG_LOOKUP: "pharmacy.catalog.lookup",
+    DAY_CLOSE: {
+      CLOSE: "pharmacy.day_close.close",
+      REOPEN: "pharmacy.day_close.reopen",
+      VIEW: "pharmacy.day_close.view",
+    },
+    DAY_CLOSE_CLOSE: "pharmacy.day_close.close",
+    DAY_CLOSE_REOPEN: "pharmacy.day_close.reopen",
+    DAY_CLOSE_VIEW: "pharmacy.day_close.view",
     DELIVERIES: {
       ARRANGE: "pharmacy.deliveries.arrange",
       COMPLETE: "pharmacy.deliveries.complete",
@@ -8343,14 +8559,20 @@ export const P = {
     },
     NDPS_LIST: "pharmacy.ndps.list",
     NDPS_MANAGE: "pharmacy.ndps.manage",
+    PATIENTS: {
+      SEARCH: "pharmacy.patients.search",
+    },
+    PATIENTS_SEARCH: "pharmacy.patients.search",
     POS: {
       CANCEL: "pharmacy.pos.cancel",
       CREATE: "pharmacy.pos.create",
+      DISCOUNT_APPROVE: "pharmacy.pos.discount_approve",
       RETURN: "pharmacy.pos.return",
       VIEW: "pharmacy.pos.view",
     },
     POS_CANCEL: "pharmacy.pos.cancel",
     POS_CREATE: "pharmacy.pos.create",
+    POS_DISCOUNT_APPROVE: "pharmacy.pos.discount_approve",
     POS_RETURN: "pharmacy.pos.return",
     POS_VIEW: "pharmacy.pos.view",
     PRESCRIPTIONS: {
@@ -8369,17 +8591,21 @@ export const P = {
     RECONCILIATION_MANAGE: "pharmacy.reconciliation.manage",
     RETURNS: {
       APPROVE: "pharmacy.returns.approve",
+      CONTROLLED: "pharmacy.returns.controlled",
       DESTROY: "pharmacy.returns.destroy",
       LIST: "pharmacy.returns.list",
       MANAGE: "pharmacy.returns.manage",
+      OVERRIDE_WINDOW: "pharmacy.returns.override_window",
       REJECT: "pharmacy.returns.reject",
       REQUEST: "pharmacy.returns.request",
       RESTOCK: "pharmacy.returns.restock",
     },
     RETURNS_APPROVE: "pharmacy.returns.approve",
+    RETURNS_CONTROLLED: "pharmacy.returns.controlled",
     RETURNS_DESTROY: "pharmacy.returns.destroy",
     RETURNS_LIST: "pharmacy.returns.list",
     RETURNS_MANAGE: "pharmacy.returns.manage",
+    RETURNS_OVERRIDE_WINDOW: "pharmacy.returns.override_window",
     RETURNS_REJECT: "pharmacy.returns.reject",
     RETURNS_REQUEST: "pharmacy.returns.request",
     RETURNS_RESTOCK: "pharmacy.returns.restock",
@@ -8644,6 +8870,10 @@ export const P = {
     TRANSFUSION_REACTIONS_UPDATE: "quality.transfusion_reactions.update",
   },
   RADIOLOGY: {
+    EXAMS: {
+      MANAGE: "radiology.exams.manage",
+    },
+    EXAMS_MANAGE: "radiology.exams.manage",
     MODALITIES: {
       MANAGE: "radiology.modalities.manage",
     },
@@ -8745,6 +8975,10 @@ export const P = {
     },
     ACCESS_LIST: "security.access.list",
     ACCESS_MANAGE: "security.access.manage",
+    BREACH: {
+      MANAGE: "security.breach.manage",
+    },
+    BREACH_MANAGE: "security.breach.manage",
     CCTV: {
       LIST: "security.cctv.list",
       MANAGE: "security.cctv.manage",
@@ -8768,9 +9002,13 @@ export const P = {
     PATIENT_SAFETY: {
       LIST: "security.patient_safety.list",
       MANAGE: "security.patient_safety.manage",
+      REPORT_EVENT: "security.patient_safety.report_event",
+      VERIFY_MATCH: "security.patient_safety.verify_match",
     },
     PATIENT_SAFETY_LIST: "security.patient_safety.list",
     PATIENT_SAFETY_MANAGE: "security.patient_safety.manage",
+    PATIENT_SAFETY_REPORT_EVENT: "security.patient_safety.report_event",
+    PATIENT_SAFETY_VERIFY_MATCH: "security.patient_safety.verify_match",
   },
   SPECIALTY: {
     CATH_LAB: {
@@ -9268,6 +9506,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MASS_CASUALTY.CREATE,
       P.EMERGENCY.MASS_CASUALTY.LIST,
       P.EMERGENCY.MASS_CASUALTY.UPDATE,
+      P.EMERGENCY.MLC.AMEND,
       P.EMERGENCY.MLC.CREATE,
       P.EMERGENCY.MLC.LIST,
       P.EMERGENCY.MLC.PRINT,
@@ -9289,6 +9528,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.VISITS.UPDATE,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
+      P.HR.LEAVE.APPROVE,
       P.ICU.DEVICES.LIST,
       P.ICU.DEVICES.MANAGE,
       P.ICU.FLOWSHEETS.CREATE,
@@ -9402,6 +9642,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OT.ANESTHESIA.LIST,
       P.OT.CASE_RECORDS.CREATE,
       P.OT.CASE_RECORDS.LIST,
+      P.OT.CONSENT.EMERGENCY_OVERRIDE,
       P.OT.CONSUMABLES.MANAGE,
       P.OT.POSTOP.CREATE,
       P.OT.POSTOP.LIST,
@@ -9560,6 +9801,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.VISITS.LIST,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
+      P.HR.LEAVE.APPROVE,
       P.ICU.DEVICES.LIST,
       P.ICU.DEVICES.MANAGE,
       P.ICU.FLOWSHEETS.CREATE,
@@ -9613,6 +9855,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.ORDERS.VIEW,
       P.LAB.PHLEBOTOMY.LIST,
       P.LAB.REPORTS.VIEW,
+      P.LAB.SAMPLES.COLLECT,
       P.LMS.CERTIFICATES.LIST,
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
@@ -9669,6 +9912,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.ADR.LIST,
       P.REGULATORY.DASHBOARD.VIEW,
       P.RETROSPECTIVE.CREATE,
+      P.SECURITY.PATIENT_SAFETY.REPORT_EVENT,
+      P.SECURITY.PATIENT_SAFETY.VERIFY_MATCH,
       P.SPECIALTY.CATH_LAB.DEVICES.MANAGE,
       P.SPECIALTY.CATH_LAB.MONITORING.LIST,
       P.SPECIALTY.CATH_LAB.PROCEDURES.LIST,
@@ -9815,6 +10060,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.DISPATCH.LIST,
       P.LAB.DISPATCH.MANAGE,
       P.LAB.ORDERS.CREATE,
+      P.LAB.ORDERS.DIRECT,
       P.LAB.ORDERS.LIST,
       P.LAB.ORDERS.VIEW,
       P.LAB.OUTSOURCED.LIST,
@@ -9829,6 +10075,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LAB.RESULTS.CREATE,
       P.LAB.RESULTS.UPDATE,
       P.LAB.RESULTS.VERIFY,
+      P.LAB.SAMPLES.COLLECT,
       P.LAB.SAMPLES.LIST,
       P.LAB.SAMPLES.MANAGE,
       P.LAB.SPECIALIZED.LIST,
@@ -9836,6 +10083,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.PATIENTS.CREATE,
+      P.PATIENTS.FIND,
       P.PATIENTS.VIEW,
     ],
   },
@@ -9860,6 +10109,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
+      P.PHARMACY.BILLS.PRINT,
+      P.PHARMACY.DAY_CLOSE.CLOSE,
+      P.PHARMACY.DAY_CLOSE.VIEW,
       P.PHARMACY.DELIVERIES.ARRANGE,
       P.PHARMACY.DELIVERIES.COMPLETE,
       P.PHARMACY.DELIVERIES.VIEW,
@@ -9875,6 +10127,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.FULFILMENT.VERIFY,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.NDPS.MANAGE,
+      P.PHARMACY.PATIENTS.SEARCH,
       P.PHARMACY.POS.CANCEL,
       P.PHARMACY.POS.CREATE,
       P.PHARMACY.POS.RETURN,
@@ -9951,6 +10204,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.DAY_CLOSE.CREATE,
       P.BILLING.DAY_CLOSE.VERIFY,
       P.BILLING.ERP.EXPORT,
+      P.BILLING.EXCHANGE_RATES.MANAGE,
       P.BILLING.GST_RETURNS.LIST,
       P.BILLING.GST_RETURNS.MANAGE,
       P.BILLING.INVOICES.CANCEL,
@@ -10019,6 +10273,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HOUSEKEEPING.LAUNDRY.LIST,
       P.HOUSEKEEPING.LINEN.CREATE,
       P.HOUSEKEEPING.LINEN.LIST,
+      P.HOUSEKEEPING.TASKS.PERFORM,
       P.HOUSEKEEPING.TURNAROUND.LIST,
       P.HOUSEKEEPING.TURNAROUND.MANAGE,
       P.LMS.CERTIFICATES.LIST,
@@ -10096,6 +10351,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HR.LEAVE.APPROVE,
       P.HR.LEAVE.CREATE,
       P.HR.LEAVE.LIST,
+      P.HR.LEAVE.MANAGE,
       P.HR.ON_CALL.LIST,
       P.HR.ON_CALL.MANAGE,
       P.HR.ROSTER.LIST,
@@ -10381,6 +10637,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DASHBOARD.VIEW,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.VERIFY,
+      P.FRONT_OFFICE.VISITOR_LOGS.RECORD,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.SECURITY.ACCESS.LIST,
       P.SECURITY.ACCESS.MANAGE,
@@ -10392,6 +10649,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.INCIDENTS.UPDATE,
       P.SECURITY.PATIENT_SAFETY.LIST,
       P.SECURITY.PATIENT_SAFETY.MANAGE,
+      P.SECURITY.PATIENT_SAFETY.REPORT_EVENT,
+      P.SECURITY.PATIENT_SAFETY.VERIFY_MATCH,
     ],
   },
   biomed_engineer: {
@@ -10425,6 +10684,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DEVICES.TEST,
       P.DEVICES.UPDATE,
       P.DEVICES.VIEW,
+      P.FACILITIES.WORK_ORDERS.LIST,
+      P.FACILITIES.WORK_ORDERS.PERFORM,
     ],
   },
   ambulance_driver: {
@@ -10449,6 +10710,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.PATIENTS.FIND,
+      P.RADIOLOGY.EXAMS.MANAGE,
       P.RADIOLOGY.MODALITIES.MANAGE,
       P.RADIOLOGY.ORDERS.CANCEL,
       P.RADIOLOGY.ORDERS.CREATE,
@@ -10472,6 +10735,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CSSD.SETS.MANAGE,
       P.CSSD.STERILIZATION.CREATE,
       P.CSSD.STERILIZATION.LIST,
+      P.CSSD.STERILIZATION.RECALL,
       P.DASHBOARD.VIEW,
     ],
   },
@@ -10482,11 +10746,15 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BLOOD_BANK.CROSSMATCH.CREATE,
       P.BLOOD_BANK.CROSSMATCH.LIST,
       P.BLOOD_BANK.DONORS.CREATE,
+      P.BLOOD_BANK.DONORS.DEFER,
       P.BLOOD_BANK.DONORS.LIST,
       P.BLOOD_BANK.INVENTORY.LIST,
       P.BLOOD_BANK.INVENTORY.MANAGE,
       P.BLOOD_BANK.TRANSFUSION.CREATE,
+      P.BLOOD_BANK.TRANSFUSION.EMERGENCY_RELEASE,
       P.BLOOD_BANK.TRANSFUSION.LIST,
+      P.BLOOD_BANK.TTI.RECORD,
+      P.BLOOD_BANK.TTI.VIEW,
       P.DASHBOARD.VIEW,
     ],
   },
@@ -10561,6 +10829,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Infection Control Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.CSSD.ISSUANCE.LIST,
+      P.CSSD.STERILIZATION.LIST,
+      P.CSSD.STERILIZATION.RECALL,
       P.DASHBOARD.VIEW,
       P.INFECTION_CONTROL.BIOWASTE.CREATE,
       P.INFECTION_CONTROL.BIOWASTE.LIST,
@@ -10638,7 +10909,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HR.EMPLOYEES.CREATE,
       P.HR.EMPLOYEES.LIST,
       P.HR.EMPLOYEES.UPDATE,
+      P.HR.LEAVE.APPROVE,
+      P.HR.LEAVE.CREATE,
       P.HR.LEAVE.LIST,
+      P.HR.LEAVE.MANAGE,
       P.HR.PAYROLL.RUNS.CREATE,
       P.HR.PAYROLL.RUNS.LIST,
       P.HR.PAYROLL.STRUCTURES.LIST,

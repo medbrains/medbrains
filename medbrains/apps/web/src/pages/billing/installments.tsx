@@ -25,6 +25,7 @@ import { DataTable } from "@/components";
 import { Badge, Button, IconButton, toast } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { billingService } from "@/services/billing.service";
+import { InstallmentPayModal } from "./installment-pay-modal";
 
 const statusTone = (s: string): BadgeTone => {
   switch (s) {
@@ -51,6 +52,7 @@ const statusTone = (s: string): BadgeTone => {
 
 export function InstallmentsTab() {
   const canCreate = useHasPermission(P.BILLING.INVOICES_UPDATE);
+  const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export function InstallmentsTab() {
 
   const { data: viewPlan, isLoading: viewLoading } = useQuery({
     queryKey: ["billing", "installments", viewId],
-    queryFn: () => billingService.getInstallment(viewId!),
+    queryFn: () => billingService.getInstallment(viewId ?? ""),
     enabled: !!viewId,
   });
 
@@ -88,16 +90,14 @@ export function InstallmentsTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const payMutation = useMutation({
-    mutationFn: ({ installmentId, itemId }: { installmentId: string; itemId: string }) =>
-      billingService.payInstallmentItem(installmentId, itemId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
-      if (viewId) queryClient.invalidateQueries({ queryKey: ["billing", "installments", viewId] });
-      toast.success("Installment marked as paid");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  const [payTarget, setPayTarget] = useState<{
+    installmentId: string;
+    itemId: string;
+    amount: number;
+  } | null>(null);
+  const refreshPlans = () => {
+    queryClient.invalidateQueries({ queryKey: ["billing", "installments"] });
+  };
 
   const waiveMutation = useMutation({
     mutationFn: ({ installmentId, itemId }: { installmentId: string; itemId: string }) =>
@@ -188,26 +188,36 @@ export function InstallmentsTab() {
       render: (row: PaymentInstallmentItem) =>
         row.status === "pending" && viewId ? (
           <Group gap={4}>
-            <Tooltip label="Mark paid">
-              <IconButton
-                size="sm"
-                tone="success"
-                aria-label="Mark paid"
-                onClick={() => payMutation.mutate({ installmentId: viewId, itemId: row.id })}
-              >
-                <IconCheck size={14} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip label="Waive">
-              <IconButton
-                size="sm"
-                tone="danger"
-                aria-label="Waive"
-                onClick={() => waiveMutation.mutate({ installmentId: viewId, itemId: row.id })}
-              >
-                <IconForbid size={14} />
-              </IconButton>
-            </Tooltip>
+            {canPay && (
+              <Tooltip label="Take payment">
+                <IconButton
+                  size="sm"
+                  tone="success"
+                  aria-label="Take payment"
+                  onClick={() =>
+                    setPayTarget({
+                      installmentId: viewId,
+                      itemId: row.id,
+                      amount: row.amount + row.penalty_amount,
+                    })
+                  }
+                >
+                  <IconCheck size={14} />
+                </IconButton>
+              </Tooltip>
+            )}
+            {canCreate && (
+              <Tooltip label="Waive">
+                <IconButton
+                  size="sm"
+                  tone="danger"
+                  aria-label="Waive"
+                  onClick={() => waiveMutation.mutate({ installmentId: viewId, itemId: row.id })}
+                >
+                  <IconForbid size={14} />
+                </IconButton>
+              </Tooltip>
+            )}
           </Group>
         ) : null,
     },
@@ -317,6 +327,11 @@ export function InstallmentsTab() {
           </Stack>
         ) : null}
       </Drawer>
+      <InstallmentPayModal
+        target={payTarget}
+        onClose={() => setPayTarget(null)}
+        onPaid={refreshPlans}
+      />
     </Stack>
   );
 }

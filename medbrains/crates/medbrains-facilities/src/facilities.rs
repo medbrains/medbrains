@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -400,8 +402,7 @@ pub async fn create_gas_reading(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_nabh::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
-        .await?;
+    medbrains_nabh::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -759,8 +760,7 @@ pub async fn create_fire_drill(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_nabh::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
-        .await?;
+    medbrains_nabh::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1202,10 +1202,25 @@ pub async fn update_work_order_status(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateWorkOrderStatusRequest>,
 ) -> Result<Json<FmsWorkOrder>, AppError> {
-    require_permission(&claims, permissions::facilities::work_orders::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::facilities::work_orders::MANAGE,
+            permissions::facilities::work_orders::PERFORM,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let manages = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::facilities::work_orders::MANAGE);
+    if !manages {
+        require_own_work_order(&mut tx, &claims, id, &body).await?;
+    }
 
     let row = sqlx::query_as::<_, FmsWorkOrder>(
         "UPDATE fms_work_orders SET \
@@ -1230,7 +1245,7 @@ pub async fn update_work_order_status(
                          + COALESCE($10, labor_cost, 0) \
                       ELSE total_cost END, \
          notes = COALESCE($12, notes) \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(&body.status)
@@ -1249,6 +1264,43 @@ pub async fn update_work_order_status(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// A technician's limits: only a work order assigned to them, only moving it
+/// through the work (in progress, on hold, completed), and never reassigning it
+/// or choosing a vendor.
+async fn require_own_work_order(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    id: Uuid,
+    body: &UpdateWorkOrderStatusRequest,
+) -> Result<(), AppError> {
+    if !matches!(
+        body.status.as_str(),
+        "in_progress" | "on_hold" | "completed"
+    ) || body.assigned_to.is_some()
+        || body.vendor_id.is_some()
+    {
+        return Err(AppError::ForbiddenReason(
+            "You can start, pause or complete your work order. Ask the facilities manager to assign, cancel or bring in a vendor."
+                .into(),
+        ));
+    }
+    let assignee: Option<Uuid> = sqlx::query_scalar(
+        "SELECT assigned_to FROM fms_work_orders WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if assignee == Some(claims.sub) {
+        Ok(())
+    } else {
+        Err(AppError::ForbiddenReason(
+            "This work order is not assigned to you. Ask the facilities manager to assign it."
+                .into(),
+        ))
+    }
 }
 
 // ══════════════════════════════════════════════════════════

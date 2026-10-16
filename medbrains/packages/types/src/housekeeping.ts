@@ -47,6 +47,10 @@ export interface CleaningTask {
   area_type: CleaningAreaType;
   task_date: string;
   assigned_to?: string;
+  /** Resolved name when `assigned_to` is an employee or user id (list only). */
+  assigned_to_name?: string | null;
+  /** The caller is the assignee (list only; the server re-checks on change). */
+  assigned_to_me?: boolean;
   status: CleaningTaskStatusType;
   started_at?: string;
   completed_at?: string;

@@ -358,6 +358,13 @@ ACCEPTED_WITHOUT_PERMISSION = {
     "POST /api/hr/my-shift/resume": "own shift only",
     "POST /api/hr/my-shift/end": "own shift only",
     "POST /api/hr/my-shift/acknowledge-fatigue": "own shift only",
+    # Leave self-service (2026-10-12): employee resolved from claims.sub; a body
+    # employee_id is ignored. Cancel checks the leave's owner is the caller
+    # unless they hold hr.leave.manage.
+    "GET /api/hr/me/leaves": "own leave (employee resolved from claims.sub)",
+    "POST /api/hr/me/leaves": "own leave only, body employee_id ignored",
+    "GET /api/hr/me/leave-balances": "own balances (employee resolved from claims.sub)",
+    "PUT /api/hr/leaves/{id}/cancel": "owner of the leave, or hr.leave.manage",
 
     # Self-service across the rest of the app. Verified 2026-08-14: each binds
     # `claims.sub` into the WHERE — spot-checked mfa/enroll (`WHERE id = $1`

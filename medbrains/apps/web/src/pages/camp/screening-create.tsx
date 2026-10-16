@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CampScreeningFormInput } from "@medbrains/schemas";
-import { campScreeningFormSchema } from "@medbrains/schemas";
+import { campScreeningFormSchema, isBloodPressureValid } from "@medbrains/schemas";
 import type {
   CampRegistration,
   CreateCampScreeningRequest,
@@ -194,6 +194,14 @@ function CampScreeningCreatePageInner() {
   });
 
   const handleCreateScreening = (values: CampScreeningFormInput) => {
+    if (!isBloodPressureValid(screeningVitals.systolic_bp, screeningVitals.diastolic_bp)) {
+      notifications.show({
+        title: t("screenings.form.vitals"),
+        message: "Blood pressure needs both numbers, systolic (high) above diastolic (low).",
+        color: "danger",
+      });
+      return;
+    }
     const heightCm = screeningVitals.height_cm ?? campOptionalNumber(values.height_cm);
     const weightKg = screeningVitals.weight_kg ?? campOptionalNumber(values.weight_kg);
     const enteredBmi = campOptionalNumber(values.bmi);

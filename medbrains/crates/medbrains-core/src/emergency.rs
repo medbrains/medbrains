@@ -1,9 +1,13 @@
 //! Emergency module domain types.
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+
+use crate::form::FieldAccessLevel;
 
 // ── Enums ────────────────────────────────────────────────
 
@@ -180,10 +184,79 @@ pub struct MlcCase {
     pub is_pocso: bool,
     pub is_death_case: bool,
     pub cause_of_death: Option<String>,
+    // What the MLC register and the wound certificate print.
+    pub examining_doctor_id: Option<Uuid>,
+    pub examined_at: Option<DateTime<Utc>>,
+    pub date_time_of_incident: Option<DateTime<Utc>>,
+    pub place_of_incident: Option<String>,
+    pub weapon_used: Option<String>,
+    pub police_officer_name: Option<String>,
+    pub police_officer_rank: Option<String>,
+    pub police_dd_number: Option<String>,
+    pub condition_on_arrival: Option<String>,
+    pub treatment_given: Option<String>,
+    pub samples_handed_to: Option<String>,
+    pub patient_condition_at_discharge: Option<String>,
     pub registered_by: Option<Uuid>,
     pub registered_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Field-access keys for the MLC examination record (classed in
+/// `medbrains-authz/src/field_class.rs`). One key per group, as an admin
+/// would grant them: the police officer (name, rank, DD number), the
+/// incident (time, place, weapon), and the clinical course (condition on
+/// arrival, treatment, samples, condition at discharge).
+pub const MLC_POLICE_OFFICER_FIELD: &str = "emergency.mlc.police_officer";
+pub const MLC_INCIDENT_DETAILS_FIELD: &str = "emergency.mlc.incident_details";
+pub const MLC_CLINICAL_COURSE_FIELD: &str = "emergency.mlc.clinical_course";
+
+fn redact_texts(level: FieldAccessLevel, fields: &mut [&mut Option<String>]) {
+    for field in fields.iter_mut() {
+        match level {
+            FieldAccessLevel::Hidden => **field = None,
+            FieldAccessLevel::Mask => {
+                **field = field.take().map(|v| crate::privacy::mask_free_text(&v));
+            }
+            FieldAccessLevel::Edit | FieldAccessLevel::View => {}
+        }
+    }
+}
+
+impl MlcCase {
+    /// Withhold or mask the examination-record groups the caller may not see.
+    /// Shared by every surface that returns an `MlcCase` (emergency, IPD), so
+    /// the same record is redacted the same way everywhere.
+    pub fn redact_record_fields(&mut self, restricted: &HashMap<String, FieldAccessLevel>) {
+        let level = |key: &str| restricted.get(key).copied().unwrap_or_default();
+        redact_texts(
+            level(MLC_POLICE_OFFICER_FIELD),
+            &mut [
+                &mut self.police_officer_name,
+                &mut self.police_officer_rank,
+                &mut self.police_dd_number,
+            ],
+        );
+        let incident = level(MLC_INCIDENT_DETAILS_FIELD);
+        if matches!(incident, FieldAccessLevel::Hidden | FieldAccessLevel::Mask) {
+            // A masked timestamp still dates the incident; withhold it.
+            self.date_time_of_incident = None;
+        }
+        redact_texts(
+            incident,
+            &mut [&mut self.place_of_incident, &mut self.weapon_used],
+        );
+        redact_texts(
+            level(MLC_CLINICAL_COURSE_FIELD),
+            &mut [
+                &mut self.condition_on_arrival,
+                &mut self.treatment_given,
+                &mut self.samples_handed_to,
+                &mut self.patient_condition_at_discharge,
+            ],
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -222,6 +295,12 @@ pub struct MlcPoliceIntimation {
     pub sent_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Outbound SMS/email for this intimation, from the outbox:
+    /// `[{channel, to, status, last_error, sent_at}]`. Empty means nothing
+    /// was sent — no police contact was configured.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub delivery: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

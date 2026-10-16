@@ -1,6 +1,9 @@
 import { api } from "@medbrains/api";
 
 export const labService = {
+  getLabReportDeliveryConfig: () => api.getLabReportDeliveryConfig(),
+  updateLabReportDeliveryConfig: (...args: Parameters<typeof api.updateLabReportDeliveryConfig>) =>
+    api.updateLabReportDeliveryConfig(...args),
   getLabReportFullPrintData: (...args: Parameters<typeof api.getLabReportFullPrintData>) =>
     api.getLabReportFullPrintData(...args),
   listLabOrders: (...args: Parameters<typeof api.listLabOrders>) => api.listLabOrders(...args),
@@ -36,6 +39,8 @@ export const labService = {
   getOrderCrossmatch: (...args: Parameters<typeof api.getOrderCrossmatch>) =>
     api.getOrderCrossmatch(...args),
   listLabCatalog: (...args: Parameters<typeof api.listLabCatalog>) => api.listLabCatalog(...args),
+  createDirectLabOrder: (...args: Parameters<typeof api.createDirectLabOrder>) =>
+    api.createDirectLabOrder(...args),
   importLabCatalog: (...args: Parameters<typeof api.importLabCatalog>) =>
     api.importLabCatalog(...args),
   createLabCatalogEntry: (...args: Parameters<typeof api.createLabCatalogEntry>) =>

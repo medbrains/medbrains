@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, FormModal, OperationalSignal } from "@/components";
+import { SafetyFindingsPanel, useSafetyGate } from "@/components/Pharmacy/SafetyFindingsPanel";
 import { Alert, Badge, Button, IconButton, Input, toast } from "@/components/ui";
 import { optionalFormText } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
@@ -72,6 +73,7 @@ export function RxQueueTab({
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [reviewOpened, { open: openReview, close: closeReview }] = useDisclosure(false);
+  const [safetyReason, setSafetyReason] = useState("");
   const patientIdFilter = searchParams.get("patient_id")?.trim() || null;
   const rxQueueIdFilter = searchParams.get("rx_queue_id")?.trim() || null;
   const selectedId = localSelectedId ?? rxQueueIdFilter;
@@ -155,12 +157,14 @@ export function RxQueueTab({
       notes?: string;
       rejection_reason?: string;
       items?: PharmacyRxReviewItemInput[];
+      safety_override_reason?: string;
     }) =>
       pharmacyService.reviewPrescription(data.id, {
         action: data.action,
         notes: data.notes,
         rejection_reason: data.rejection_reason,
         items: data.items,
+        safety_override_reason: data.safety_override_reason,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
@@ -170,6 +174,7 @@ export function RxQueueTab({
       closeReview();
       setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
+      setSafetyReason("");
       toast.success(
         reviewAction === "approved"
           ? t("notify.pharmacyOrderAndBillingIndentCreated")
@@ -179,7 +184,11 @@ export function RxQueueTab({
     },
   });
 
-  const { data: reviewDetail, isLoading: reviewDetailLoading } = useQuery({
+  const {
+    data: reviewDetail,
+    isLoading: reviewDetailLoading,
+    isError: reviewDetailFailed,
+  } = useQuery({
     queryKey: ["pharmacy-rx-detail", selectedId],
     queryFn: () => {
       if (!selectedId) throw new Error(t("rxQueue.noPrescriptionSelected"));
@@ -187,11 +196,19 @@ export function RxQueueTab({
     },
     enabled: reviewOpened && reviewAction === "approved" && Boolean(selectedId),
   });
+  // Approval is held by the server's medication safety check; the modal shows
+  // what it found and takes an override reason only from those who may give one.
+  const safety = useSafetyGate(reviewDetail?.safety?.findings, {
+    loading: reviewDetailLoading,
+    failed: reviewDetailFailed,
+    reason: safetyReason,
+  });
 
   function closeReviewModal() {
     closeReview();
     setActiveRxQueueId(null);
     resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
+    setSafetyReason("");
   }
 
   function handleOpenReview(id: string, action: PharmacyRxReviewAction) {
@@ -224,6 +241,8 @@ export function RxQueueTab({
       rejection_reason:
         values.action === "rejected" ? optionalFormText(values.rejection_reason) : undefined,
       items: itemsForApproval,
+      safety_override_reason:
+        values.action === "approved" && safety.needsReason ? safetyReason.trim() : undefined,
     });
   }
 
@@ -522,6 +541,7 @@ export function RxQueueTab({
         submitDisabled={
           needsPriceOverrideReason ||
           unmappedLines.length > 0 ||
+          (reviewAction === "approved" && !safety.canProceed) ||
           Boolean(reviewErrors.items?.message)
         }
       >
@@ -554,6 +574,13 @@ export function RxQueueTab({
                 error={fieldState.error?.message}
               />
             )}
+          />
+        )}
+        {reviewAction === "approved" && (
+          <SafetyFindingsPanel
+            state={safety}
+            reason={safetyReason}
+            onReasonChange={setSafetyReason}
           />
         )}
         {reviewAction === "approved" && (

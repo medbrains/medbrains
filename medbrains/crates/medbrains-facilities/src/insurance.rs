@@ -218,7 +218,7 @@ async fn generate_number(
         "INSERT INTO sequences (tenant_id, seq_type, current_val) \
          VALUES ($1, $2, 1) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET current_val = sequences.current_val + 1 \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, current_val = sequences.current_val + 1 \
          RETURNING current_val",
     )
     .bind(tenant_id)

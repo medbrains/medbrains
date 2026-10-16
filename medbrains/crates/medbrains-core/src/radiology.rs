@@ -69,6 +69,32 @@ pub struct RadiologyOrder {
     pub pregnancy_checked: bool,
     pub allergy_flagged: bool,
     pub cancellation_reason: Option<String>,
+    /// The catalogue exam ordered; `None` for orders placed by modality alone.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub exam_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// One orderable imaging exam ("CT Brain Plain") under one modality.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RadiologyExam {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub modality_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub body_part: Option<String>,
+    pub body_part_code: Option<String>,
+    pub laterality_required: bool,
+    /// `none`, `with`, `without` or `with_and_without`.
+    pub contrast: String,
+    pub synonyms: Vec<String>,
+    /// The `charge_master` code this exam is billed under.
+    pub charge_code: Option<String>,
+    pub preparation: Option<String>,
+    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

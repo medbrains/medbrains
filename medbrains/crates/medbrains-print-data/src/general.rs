@@ -140,12 +140,14 @@ pub async fn get_lab_report_print_data(
            tc.sample_type, \
            lo.collected_at, \
            lo.verified_at, \
-           doc.full_name AS referring_doctor, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
            verifier.full_name AS pathologist_name \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
          LEFT JOIN users doc ON doc.id = lo.ordered_by \
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
          LEFT JOIN users verifier ON verifier.id = lo.verified_by \
          WHERE lo.id = $1 AND lo.tenant_id = $2",
     )
@@ -445,7 +447,7 @@ pub async fn get_histopath_report_print_data(
            lo.collected_at, \
            lo.received_at, \
            hr.reported_at, \
-           doc.full_name AS referring_doctor, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
            COALESCE(hr.clinical_history, lo.clinical_history) AS clinical_history, \
            hr.gross_description, \
            hr.microscopy_findings AS microscopic_description, \
@@ -468,6 +470,8 @@ pub async fn get_histopath_report_print_data(
            ORDER BY h.reported_at DESC NULLS LAST, h.created_at DESC LIMIT 1 \
          ) hr ON true \
          LEFT JOIN users doc ON doc.id = lo.ordered_by \
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
          LEFT JOIN users pathol ON pathol.id = hr.pathologist_id \
          WHERE lo.id = $1 AND lo.tenant_id = $2 AND lo.deleted_at IS NULL",
     )

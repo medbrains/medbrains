@@ -52,11 +52,14 @@ export function SyncKeyBadge({ nodeId }: { nodeId: string | undefined }) {
 interface SyncKeyModalProps {
   device: { id: string; label: string } | null;
   nodeId: string | undefined;
-  canManage: boolean;
+  /** `devices.pairing.token.create` — admitting a device is enrolment. */
+  canBind: boolean;
+  /** `devices.pairing.paired.revoke` — what the server checks on revoke. */
+  canRevoke: boolean;
   onClose: () => void;
 }
 
-export function SyncKeyModal({ device, nodeId, canManage, onClose }: SyncKeyModalProps) {
+export function SyncKeyModal({ device, nodeId, canBind, canRevoke, onClose }: SyncKeyModalProps) {
   const queryClient = useQueryClient();
   const { control, handleSubmit, reset, formState } = useForm<SyncKeyForm>({
     resolver: zodResolver(syncKeySchema),
@@ -100,7 +103,7 @@ export function SyncKeyModal({ device, nodeId, canManage, onClose }: SyncKeyModa
               Appliances and other devices refuse it as soon as they next refresh their roster. A
               device that is offline may keep syncing peer-to-peer until then.
             </Alert>
-            {canManage && (
+            {canRevoke && (
               <Button
                 tone="danger-ghost"
                 loading={revoke.isPending}
@@ -133,7 +136,7 @@ export function SyncKeyModal({ device, nodeId, canManage, onClose }: SyncKeyModa
                     />
                   )}
                 />
-                {canManage ? (
+                {canBind ? (
                   <Button type="submit" tone="primary" loading={bind.isPending}>
                     Bind sync key
                   </Button>

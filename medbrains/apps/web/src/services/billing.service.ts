@@ -1,6 +1,10 @@
 import { api } from "@medbrains/api";
 
 export const billingService = {
+  listExchangeRates: (...args: Parameters<typeof api.listExchangeRates>) =>
+    api.listExchangeRates(...args),
+  createExchangeRate: (...args: Parameters<typeof api.createExchangeRate>) =>
+    api.createExchangeRate(...args),
   verifyBill: (...args: Parameters<typeof api.verifyBill>) => api.verifyBill(...args),
   listInvoices: (...args: Parameters<typeof api.listInvoices>) => api.listInvoices(...args),
   cloneInvoice: (...args: Parameters<typeof api.cloneInvoice>) => api.cloneInvoice(...args),

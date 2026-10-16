@@ -290,6 +290,11 @@ export function InsuranceClaimsTab({
       ),
     },
     {
+      key: "total_bill_amount",
+      label: "Bill",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.total_bill_amount}</Text>,
+    },
+    {
       key: "pre_auth_amount",
       label: "Pre-Auth",
       sortable: true,
@@ -312,6 +317,16 @@ export function InsuranceClaimsTab({
       render: (row: InsuranceClaim) => (
         <Text size="sm">{row.settled_amount ? `₹${row.settled_amount}` : "—"}</Text>
       ),
+    },
+    {
+      key: "deductions",
+      label: "Deductions",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.deductions}</Text>,
+    },
+    {
+      key: "patient_payable",
+      label: "Patient pays",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.patient_payable}</Text>,
     },
     {
       key: "actions",

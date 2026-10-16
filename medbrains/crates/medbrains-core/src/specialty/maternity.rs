@@ -73,6 +73,8 @@ pub struct AncVisit {
     pub hemoglobin: Option<rust_decimal::Decimal>,
     pub urine_protein: Option<String>,
     pub urine_sugar: Option<String>,
+    /// `none` / `pedal` / `generalised`; NULL on visits recorded before it was asked.
+    pub oedema: Option<String>,
     pub pcpndt_form_f_filed: bool,
     pub pcpndt_form_f_number: Option<String>,
     pub ultrasound_done: bool,

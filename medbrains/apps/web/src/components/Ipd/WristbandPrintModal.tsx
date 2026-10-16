@@ -7,7 +7,7 @@
 // help nursing locate the patient quickly. Critical / MLC / allergy
 // indicators surface as inline glyphs the moment the band is read.
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Badge, Button, Group, Modal, Stack, Textarea } from "@mantine/core";
+import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IpdWristbandReprintFormInput } from "@medbrains/schemas";
@@ -155,6 +155,11 @@ export function WristbandPrintModal({
                   <div className="uhid" style={{ fontSize: "9pt", letterSpacing: "0.5mm" }}>
                     {printData.uhid}
                   </div>
+                  {printData.admission_number && (
+                    <Text span fz="7pt">
+                      {printData.admission_number}
+                    </Text>
+                  )}
                 </div>
                 {/* The UHID as a QR: phones and 2D scanners read it at the bedside. */}
                 <Image

@@ -633,7 +633,7 @@ pub async fn settle_credit_note(
                 "INSERT INTO credit_patients \
                  (tenant_id, patient_id, current_balance, notes) \
                  VALUES ($1, $2, $3, $4) \
-                 ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+                 ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                  current_balance = credit_patients.current_balance + $3",
             )
             .bind(claims.tenant_id)

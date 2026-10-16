@@ -7,14 +7,15 @@ import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { BmeCalibration, CreateBmeCalibrationRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconClock, IconPlus } from "@tabler/icons-react";
+import { IconAlertTriangle, IconClock, IconLock, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Tooltip } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
+import { RecalibrateDrawer } from "./recalibrate-drawer";
 import { daysUntil, fmtDate, PM_FREQUENCIES } from "./shared";
 
 const CALIBRATION_STATUSES = [
@@ -45,10 +46,16 @@ export function CalibrationTab() {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<CreateBmeCalibrationRequest>({ equipment_id: "" });
+  const [recalibrating, setRecalibrating] = useState<BmeCalibration | null>(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["bme-calibrations"],
     queryFn: () => bmeService.listBmeCalibrations(),
+  });
+
+  const stats = useQuery({
+    queryKey: ["bme-stats"],
+    queryFn: () => bmeService.getBmeStats(),
   });
 
   const { data: equipment = [] } = useQuery({
@@ -64,6 +71,7 @@ export function CalibrationTab() {
     mutationFn: (body: CreateBmeCalibrationRequest) => bmeService.createBmeCalibration(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-calibrations"] });
+      void qc.invalidateQueries({ queryKey: ["bme-stats"] });
       close();
       notifications.show({ message: "Calibration recorded" });
     },
@@ -145,14 +153,38 @@ export function CalibrationTab() {
     },
     {
       key: "locked",
-      label: "Locked",
+      label: "Patient use",
       render: (r) =>
         r.is_locked ? (
-          <Badge tone="danger" size="sm">
-            Locked
-          </Badge>
-        ) : null,
+          <Group gap="xs" wrap="nowrap">
+            <Badge tone="danger" size="sm" leftSection={<IconLock size={12} />}>
+              Locked
+            </Badge>
+            <Text size="xs">{r.locked_reason ?? "Locked by biomedical engineering"}</Text>
+          </Group>
+        ) : (
+          <Text size="sm">Released</Text>
+        ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "recalibrate" as const,
+            label: "",
+            render: (r: BmeCalibration) => (
+              <Tooltip label="Record calibration">
+                <IconButton
+                  tone="default"
+                  aria-label="Record calibration"
+                  onClick={() => setRecalibrating(r)}
+                >
+                  <IconClock size={16} />
+                </IconButton>
+              </Tooltip>
+            ),
+          },
+        ]
+      : []),
     {
       key: "print",
       label: "",
@@ -168,6 +200,22 @@ export function CalibrationTab() {
 
   return (
     <Stack>
+      {stats.isError && (
+        <Alert tone="danger" title="Calibration locks could not be checked">
+          Do not assume equipment is released — reload before using it on patients.
+        </Alert>
+      )}
+      {(stats.data?.calibration_locked ?? 0) > 0 && (
+        <Alert
+          tone="danger"
+          title="Equipment locked out of patient use"
+          icon={<IconLock size={20} />}
+        >
+          {stats.data?.calibration_locked} item(s) are past calibration or out of tolerance.
+          Analysers among them cannot report patient results until a passing calibration is
+          recorded.
+        </Alert>
+      )}
       {calibrationAlerts.length > 0 && (
         <Alert
           tone={calibrationAlerts.some((a) => a.daysLeft < 0) ? "danger" : "warning"}
@@ -213,6 +261,14 @@ export function CalibrationTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
+
+      <RecalibrateDrawer
+        calibration={recalibrating}
+        equipmentName={
+          equipment.find((e) => e.id === recalibrating?.equipment_id)?.name ?? "equipment"
+        }
+        onClose={() => setRecalibrating(null)}
+      />
 
       <Drawer opened={opened} onClose={close} title="Record Calibration" position="right" size="xl">
         <Stack>

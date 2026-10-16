@@ -27,6 +27,10 @@ struct AdministerDoseView: View {
             VStack(alignment: .leading, spacing: 0) {
                 CarbonPageHeader(eyebrow: "Administer", title: dose.drugName, subtitle: "\(dose.dose) · \(dose.route) · \(admission.patientName) · UHID \(admission.uhid)") {
                     if dose.isHighAlert { CarbonTag("high alert", tone: .highAlert) }
+                    if dose.isCytotoxic == true { CarbonTag("chemotherapy", tone: .danger) }
+                }
+                if dose.isCytotoxic == true {
+                    CarbonNotification(kind: .warning, title: "Chemotherapy", message: "Only a nurse with an HR-verified chemotherapy certification can give this dose.").padding(.horizontal, 16)
                 }
                 if let failure {
                     CarbonNotification(kind: .error, title: "The check could not be completed", message: failure).padding(.horizontal, 16)
@@ -113,8 +117,12 @@ private struct RecordAdministration: View {
     let onDone: () -> Void
     @State private var onDuty = Remote<[WardOnDutyRow]>()
     @State private var witnessId: String?
+    @State private var prnReason = ""
     @State private var busy = false
     @State private var failure: String?
+    @FocusState private var prnFocused: Bool
+
+    private var prnReasonMissing: Bool { dose.isPrn && prnReason.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
         let me = auth.identity?.userId ?? ""
@@ -141,10 +149,16 @@ private struct RecordAdministration: View {
                     .labelsHidden()
                 }
             }
+            if dose.isPrn {
+                CarbonField("Why is this as-needed dose being given?", isFocused: prnFocused) {
+                    TextField("e.g. pain score 7", text: $prnReason, axis: .vertical).lineLimit(2...4).focused($prnFocused)
+                        .accessibilityIdentifier("dose-prn-reason")
+                }
+            }
             if let failure { CarbonNotification(kind: .error, title: "The dose could not be recorded", message: failure) }
             Button("Give now") { Task { await give() } }
                 .buttonStyle(.carbonPrimary)
-                .disabled(busy || !bcmaCanRecordGiven(isHighAlert: dose.isHighAlert, witnessId: witnessId))
+                .disabled(busy || prnReasonMissing || !bcmaCanRecordGiven(isHighAlert: dose.isHighAlert, witnessId: witnessId))
                 .accessibilityLabel("Record \(dose.drugName) as given")
                 .accessibilityIdentifier("bcma-give-now")
         }
@@ -161,7 +175,12 @@ private struct RecordAdministration: View {
         defer { busy = false }
         failure = nil
         do {
-            _ = try await NurseApi(client: client).updateMar(admission.id, dose.id, UpdateMarPayload(status: "given", administeredAt: ServerTime.format(Date()), witnessedBy: dose.isHighAlert ? witnessId : nil))
+            _ = try await NurseApi(client: client).updateMar(admission.id, dose.id, UpdateMarPayload(
+                status: "given",
+                administeredAt: ServerTime.format(Date()),
+                witnessedBy: dose.isHighAlert ? witnessId : nil,
+                prnReason: dose.isPrn ? prnReason.trimmingCharacters(in: .whitespaces) : nil
+            ))
             onDone()
         } catch {
             failure = (error as? ApiError)?.message ?? "Could not reach the hospital server."

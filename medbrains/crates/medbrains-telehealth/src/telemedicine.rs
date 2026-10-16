@@ -717,7 +717,7 @@ pub async fn update_tele_config(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ($1, 'telemedicine', 'video_base', $2) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, \
                  updated_at = now()",
         )
         .bind(claims.tenant_id)
@@ -729,7 +729,7 @@ pub async fn update_tele_config(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ($1, 'telemedicine', 'default_provider', $2) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, \
                  updated_at = now()",
         )
         .bind(claims.tenant_id)
@@ -789,8 +789,8 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
     if has("suicidal_ideation") {
         flag("self_harm_risk", "suicidal ideation reported");
     }
-    if num("systolic").is_some_and(|v| v > 180.0) {
-        flag("hypertensive_urgency", "systolic BP > 180 mmHg");
+    if num("systolic").is_some_and(|v| v > 180.0) || num("diastolic").is_some_and(|v| v > 120.0) {
+        flag("hypertensive_urgency", "BP > 180/120 mmHg");
     }
 
     // Acuity: any red flag → emergent, except hypertensive urgency in isolation → urgent.
@@ -964,6 +964,14 @@ mod triage_tests {
     fn hypertensive_urgency_alone_is_urgent() {
         let o = run_triage(&syms(&["headache"]), Some(4), &serde_json::json!({ "systolic": 190 }));
         assert_eq!(o.acuity, "urgent");
+    }
+
+    #[test]
+    fn diastolic_alone_flags_hypertensive_urgency() {
+        let v = serde_json::json!({ "systolic": 170, "diastolic": 125 });
+        let o = run_triage(&syms(&["headache"]), Some(4), &v);
+        assert_eq!(o.acuity, "urgent");
+        assert!(o.red_flags.contains(&"hypertensive_urgency".to_owned()));
     }
 
     #[test]

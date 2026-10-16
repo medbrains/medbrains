@@ -1,19 +1,21 @@
 // IPD AdmissionsTab — split from ipd.tsx (pure move).
 
 import { Group, Select, Stack, Text, Tooltip } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { AdmissionRow } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
-import { IconEye, IconPlus } from "@tabler/icons-react";
+import { IconEye, IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, StatusDot } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Input } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { ipdService } from "@/services/ipd.service";
+import { AdmissionRiskBadges } from "./admission-risk-badges";
 
 export function AdmissionsTab() {
   const canCreate = useHasPermission(P.IPD.ADMISSIONS_CREATE);
@@ -21,9 +23,12 @@ export function AdmissionsTab() {
 
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch] = useDebouncedValue(search.trim(), 300);
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
+  if (debouncedSearch) params.search = debouncedSearch;
 
   const { data, isLoading } = useQuery({
     queryKey: ["admissions", params],
@@ -31,6 +36,15 @@ export function AdmissionsTab() {
   });
 
   const columns = [
+    {
+      key: "admission_number",
+      label: "IP no.",
+      render: (row: AdmissionRow) => (
+        <Text size="sm" ff="monospace">
+          {row.admission_number ?? "—"}
+        </Text>
+      ),
+    },
     {
       key: "patient_name",
       label: "Patient",
@@ -46,6 +60,10 @@ export function AdmissionsTab() {
           <Text size="xs" c="dimmed">
             {row.uhid}
           </Text>
+          <AdmissionRiskBadges
+            isFallRisk={row.is_fall_risk}
+            isPressureInjuryRisk={row.is_pressure_injury_risk}
+          />
         </Stack>
       ),
     },
@@ -95,20 +113,33 @@ export function AdmissionsTab() {
   return (
     <>
       <Group mb="md" justify="space-between">
-        <Select
-          placeholder="Status"
-          data={[
-            { value: "admitted", label: "Admitted" },
-            { value: "transferred", label: "Transferred" },
-            { value: "discharged", label: "Discharged" },
-            { value: "absconded", label: "Absconded" },
-            { value: "deceased", label: "Deceased" },
-          ]}
-          value={filterStatus}
-          onChange={setFilterStatus}
-          clearable
-          w={180}
-        />
+        <Group gap="sm">
+          <Input
+            placeholder="IP no. or UHID"
+            aria-label="Search admissions by IP number or UHID"
+            leftSection={<IconSearch size={16} />}
+            value={search}
+            onChange={(e) => {
+              setSearch(e.currentTarget.value);
+              setPage(1);
+            }}
+            w={220}
+          />
+          <Select
+            placeholder="Status"
+            data={[
+              { value: "admitted", label: "Admitted" },
+              { value: "transferred", label: "Transferred" },
+              { value: "discharged", label: "Discharged" },
+              { value: "absconded", label: "Absconded" },
+              { value: "deceased", label: "Deceased" },
+            ]}
+            value={filterStatus}
+            onChange={setFilterStatus}
+            clearable
+            w={180}
+          />
+        </Group>
         {canCreate && (
           <Button
             tone="primary"

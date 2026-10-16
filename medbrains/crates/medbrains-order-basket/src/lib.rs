@@ -79,6 +79,9 @@ pub struct BasketLabItem {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BasketRadiologyItem {
     pub modality_id: Uuid,
+    /// The catalogue exam, when one was picked.
+    #[serde(default)]
+    pub exam_id: Option<Uuid>,
     pub body_part: Option<String>,
     pub body_part_code: Option<String>,
     pub body_part_laterality: Option<medbrains_core::body_site::Laterality>,
@@ -529,12 +532,21 @@ pub async fn preview_cost(
                 }
             }
             BasketItem::Radiology(it) => {
+                // Priced the way billing will charge it: the exam's charge
+                // code, else `RAD-<modality code>`, looked up in charge_master.
                 let row: Option<(String, Option<Decimal>)> = sqlx::query_as(
-                    "SELECT name, COALESCE(base_price, 0) FROM radiology_modalities \
-                     WHERE id = $1 AND tenant_id = $2",
+                    "SELECT COALESCE(re.name, rm.name), cm.base_price \
+                     FROM radiology_modalities rm \
+                     LEFT JOIN radiology_exams re \
+                       ON re.id = $3 AND re.tenant_id = rm.tenant_id AND re.deleted_at IS NULL \
+                     LEFT JOIN charge_master cm ON cm.tenant_id = rm.tenant_id \
+                       AND cm.code = COALESCE(re.charge_code, 'RAD-' || rm.code) \
+                       AND cm.deleted_at IS NULL AND cm.is_active \
+                     WHERE rm.id = $1 AND rm.tenant_id = $2",
                 )
                 .bind(it.modality_id)
                 .bind(claims.tenant_id)
+                .bind(it.exam_id)
                 .fetch_optional(&mut *tx)
                 .await?;
                 let (label, price) =
@@ -547,7 +559,7 @@ pub async fn preview_cost(
                     unit_price,
                     quantity: Decimal::ONE,
                     line_total: unit_price,
-                    source: "radiology_modalities",
+                    source: "charge_master",
                 }
             }
             BasketItem::Procedure(_) => PreviewCostLine {
@@ -1058,6 +1070,7 @@ async fn dispatch_item(
                 contrast_required: it.contrast_required,
                 pregnancy_checked: it.pregnancy_checked,
                 allergy_flagged: it.allergy_flagged,
+                exam_id: it.exam_id,
                 is_dummy: None,
             };
             let order = medbrains_radiology::create_order_in_tx_with_options(
@@ -1170,11 +1183,37 @@ async fn create_prescription_from_basket_drug_in_tx(
     .bind(&item.drug_name)
     .bind(&item.dose)
     .bind(&item.frequency)
-    .bind(duration)
+    .bind(&duration)
     .bind(&item.route)
     .bind(instructions.as_deref())
     .bind(item.drug_id)
     .execute(&mut **tx)
+    .await?;
+
+    // The same stewardship and formulary rules as OPD prescribing: a Reserve
+    // antibiotic raises a stewardship request and a non-formulary medicine is
+    // justified — both from the line's indication — or the basket is refused.
+    let line = medbrains_opd::PrescriptionItemInput {
+        drug_name: item.drug_name.clone(),
+        dosage: item.dose.clone(),
+        frequency: item.frequency.clone(),
+        duration: duration.clone(),
+        route: Some(item.route.clone()),
+        instructions: instructions.clone(),
+        catalog_item_id: Some(item.drug_id),
+    };
+    medbrains_opd::rx_policy::enforce_rx_policy(
+        tx,
+        claims,
+        &medbrains_opd::rx_policy::RxPolicy {
+            patient_id: *patient_id,
+            doctor_id: claims.sub,
+            prescription_id,
+            items: std::slice::from_ref(&line),
+            stewardship_indication: item.indication.as_deref(),
+            non_formulary_reason: item.indication.as_deref(),
+        },
+    )
     .await?;
 
     sqlx::query(

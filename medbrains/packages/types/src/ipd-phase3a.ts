@@ -59,6 +59,8 @@ export interface BillingSummaryResponse {
 export interface AdmissionPrintData {
   patient_name: string;
   uhid: string;
+  /** IP number of the admission. */
+  admission_number: string | null;
   age: number | null;
   gender: string | null;
   admission_date: string;

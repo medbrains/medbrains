@@ -11,15 +11,20 @@ import type { CreateCssdIssuanceRequest, CssdIssuance } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconArrowBack, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, TextArea } from "@/components/ui";
 import { cssdOptionalText } from "@/forms/cssd.form";
 import { cssdService } from "@/services/cssd.service";
+import { PackPicker } from "./PackPicker";
 
 export function IssuanceTab() {
   const canCreate = useHasPermission(P.CSSD.ISSUANCE_CREATE);
+  const canRecall = useHasPermission(P.CSSD.STERILIZATION_RECALL);
+  const [recalling, setRecalling] = useState<CssdIssuance | null>(null);
+  const [recallReason, setRecallReason] = useState("");
   // Issuing a set is not reading the issuance log — an empty log reads as
   // "nothing was issued to theatre".
   const canListIssuance = useHasPermission(P.CSSD.ISSUANCE_LIST);
@@ -35,6 +40,8 @@ export function IssuanceTab() {
   const issuanceForm = useForm<CssdIssuanceFormInput>({
     resolver: zodResolver(cssdIssuanceFormSchema),
     defaultValues: {
+      load_id: "",
+      load_item_id: "",
       issued_to_department: "",
       issued_to_patient_id: "",
       notes: "",
@@ -54,10 +61,15 @@ export function IssuanceTab() {
       close();
       reset();
     },
+    // The server refuses expired, failed-indicator, unreleased and recalled
+    // packs; its message says which and what to do.
+    onError: (error: Error) =>
+      notifications.show({ title: "Pack not issued", message: error.message, color: "danger" }),
   });
 
   const submitIssuance = (values: CssdIssuanceFormInput) => {
     createMut.mutate({
+      load_item_id: values.load_item_id,
       issued_to_department: values.issued_to_department.trim(),
       issued_to_patient_id: cssdOptionalText(values.issued_to_patient_id),
       notes: cssdOptionalText(values.notes),
@@ -78,7 +90,11 @@ export function IssuanceTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack recalled", message: "", color: "orange" });
+      setRecalling(null);
+      setRecallReason("");
     },
+    onError: (error: Error) =>
+      notifications.show({ title: "Recall failed", message: error.message, color: "danger" }),
   });
 
   const columns = [
@@ -112,26 +128,22 @@ export function IssuanceTab() {
       render: (i: CssdIssuance) => (
         <Group gap="xs">
           {canCreate && !i.returned_at && !i.is_recalled && (
-            <>
-              <Tooltip label="Return">
-                <IconButton
-                  tone="primary"
-                  onClick={() => returnMut.mutate(i.id)}
-                  aria-label="Arrow Back"
-                >
-                  <IconArrowBack size={16} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip label="Recall">
-                <IconButton
-                  tone="danger"
-                  onClick={() => recallMut.mutate({ id: i.id, reason: "Quality concern" })}
-                  aria-label="Warning"
-                >
-                  <IconAlertTriangle size={16} />
-                </IconButton>
-              </Tooltip>
-            </>
+            <Tooltip label="Return">
+              <IconButton
+                tone="primary"
+                onClick={() => returnMut.mutate(i.id)}
+                aria-label="Return pack"
+              >
+                <IconArrowBack size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {canRecall && !i.is_recalled && (
+            <Tooltip label="Recall">
+              <IconButton tone="danger" onClick={() => setRecalling(i)} aria-label="Recall pack">
+                <IconAlertTriangle size={16} />
+              </IconButton>
+            </Tooltip>
           )}
         </Group>
       ),
@@ -156,8 +168,28 @@ export function IssuanceTab() {
         emptyTitle="No issuances"
       />
 
-      <Drawer opened={opened} onClose={close} title="Issue Sterile Pack" position="right" size="sm">
+      <Drawer opened={opened} onClose={close} title="Issue Sterile Pack" position="right" size="md">
         <Stack component="form" onSubmit={handleSubmit(submitIssuance)}>
+          <Controller
+            name="load_id"
+            control={control}
+            render={({ field: loadField }) => (
+              <Controller
+                name="load_item_id"
+                control={control}
+                render={({ field: packField }) => (
+                  <PackPicker
+                    loadId={loadField.value}
+                    packId={packField.value}
+                    onLoadChange={loadField.onChange}
+                    onPackChange={packField.onChange}
+                    loadError={errors.load_id?.message}
+                    packError={errors.load_item_id?.message}
+                  />
+                )}
+              />
+            )}
+          />
           <Controller
             name="issued_to_department"
             control={control}
@@ -198,6 +230,30 @@ export function IssuanceTab() {
           </Button>
         </Stack>
       </Drawer>
+      <Modal
+        opened={recalling !== null}
+        onClose={() => setRecalling(null)}
+        title={`Recall pack issued to ${recalling?.issued_to_department ?? ""}`}
+      >
+        <Stack gap="sm">
+          <TextArea
+            label="Reason for recall"
+            required
+            value={recallReason}
+            onChange={(e) => setRecallReason(e.currentTarget.value)}
+          />
+          <Button
+            tone="danger"
+            disabled={recallReason.trim().length === 0}
+            loading={recallMut.isPending}
+            onClick={() =>
+              recalling && recallMut.mutate({ id: recalling.id, reason: recallReason.trim() })
+            }
+          >
+            Recall pack
+          </Button>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

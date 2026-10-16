@@ -661,7 +661,7 @@ async fn on_opd_encounter_created(
 /// through; a bare ten-digit number is an Indian mobile.
 // ponytail: India dialling code assumed for bare numbers; per-tenant
 // country when a second country onboards.
-fn e164(raw: &str) -> Option<String> {
+pub fn e164(raw: &str) -> Option<String> {
     let digits: String = raw.chars().filter(char::is_ascii_digit).collect();
     if raw.trim_start().starts_with('+') {
         return (10..=15)

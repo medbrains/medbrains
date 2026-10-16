@@ -126,7 +126,7 @@ pub async fn import_period_summary(
         "INSERT INTO aebas_period_summary \
          (tenant_id, period, total_employees, average_attendance_percentage, total_working_days, holidays) \
          VALUES ($1, $2, $3, $4, $5, $6) \
-         ON CONFLICT (tenant_id, period) DO UPDATE SET \
+         ON CONFLICT (tenant_id, period) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
          total_employees = EXCLUDED.total_employees, \
          average_attendance_percentage = EXCLUDED.average_attendance_percentage, \
          total_working_days = EXCLUDED.total_working_days, \

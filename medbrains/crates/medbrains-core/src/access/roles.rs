@@ -31,6 +31,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // A department head decides the first step of their staff's leave;
+            // the handler checks `departments.head_employee_id`, so a doctor
+            // who heads nothing approves nothing.
+            permissions::hr::leave::APPROVE,
             permissions::clinical_notes::COSIGN,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::PRINT,
@@ -111,6 +115,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::emergency::mlc::LIST,
             permissions::emergency::mlc::CREATE,
             permissions::emergency::mlc::UPDATE,
+            // The examining doctor corrects their own certified record —
+            // reason required, audited.
+            permissions::emergency::mlc::AMEND,
             permissions::emergency::mlc::PRINT,
             permissions::emergency::mlc::REPRINT,
             permissions::emergency::mlc_injuries::CREATE,
@@ -322,6 +329,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ot::preferences::LIST,
             permissions::ot::preferences::MANAGE,
             permissions::ot::reports::VIEW,
+            permissions::ot::consent::EMERGENCY_OVERRIDE,
             permissions::ot::safety_checklist::CREATE,
             permissions::patients::allergies::VERIFY,
             permissions::patients::notes::EDIT,
@@ -363,6 +371,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            // A nursing head approves her own department's leave; the department-head
+            // check in medbrains-hr limits this to the departments she heads.
+            permissions::hr::leave::APPROVE,
+            // Nurses hand babies to mothers and find cut bands (Code Pink).
+            permissions::security::patient_safety::VERIFY_MATCH,
+            permissions::security::patient_safety::REPORT_EVENT,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
@@ -391,6 +405,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::emergency::codes::CREATE,
             permissions::emergency::mass_casualty::LIST,
             permissions::lab::phlebotomy::LIST,
+            // Ward nurses draw samples; collection no longer rides on result entry.
+            permissions::lab::samples::COLLECT,
             // Cross-module read for safe nursing care:
             // MAR cross-check, lab/imaging review, vitals from labs.
             permissions::lab::orders::LIST,
@@ -715,6 +731,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::orders::LIST,
             permissions::lab::orders::VIEW,
             permissions::lab::orders::CREATE,
+            // The lab counter takes walk-ins: finds a returning patient by
+            // UHID or phone, registers a new one, and books their tests
+            // without a doctor's order in this hospital. Decided 2026-10-13.
+            permissions::patients::FIND,
+            permissions::patients::CREATE,
+            permissions::lab::orders::DIRECT,
             permissions::lab::results::CREATE,
             permissions::lab::results::UPDATE,
             // The single lab role releases as well as enters; the four-eyes
@@ -736,6 +758,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Phase 3
             permissions::lab::samples::LIST,
             permissions::lab::samples::MANAGE,
+            permissions::lab::samples::COLLECT,
             permissions::lab::dispatch::LIST,
             permissions::lab::specialized::LIST,
             permissions::lab::b2b::LIST,
@@ -803,6 +826,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::pos::VIEW,
             permissions::pharmacy::pos::CANCEL,
             permissions::pharmacy::pos::RETURN,
+            permissions::pharmacy::patients::SEARCH,
+            permissions::pharmacy::bills::PRINT,
+            permissions::pharmacy::day_close::VIEW,
+            permissions::pharmacy::day_close::CLOSE,
             permissions::pharmacy::pricing::MANAGE,
             permissions::pharmacy::safety::VIEW,
             permissions::pharmacy::safety::OVERRIDE,
@@ -865,6 +892,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::invoices::UPDATE,
             permissions::billing::invoices::CANCEL,
             permissions::billing::catalog::MANAGE,
+            permissions::billing::exchange_rates::MANAGE,
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::receipts::PRINT,
@@ -953,6 +981,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::dashboard::VIEW,
             permissions::housekeeping::cleaning::LIST,
             permissions::housekeeping::cleaning::CREATE,
+            permissions::housekeeping::tasks::PERFORM,
             permissions::housekeeping::turnaround::LIST,
             permissions::housekeeping::turnaround::MANAGE,
             permissions::housekeeping::linen::LIST,
@@ -1009,6 +1038,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::leave::LIST,
             permissions::hr::leave::CREATE,
             permissions::hr::leave::APPROVE,
+            permissions::hr::leave::MANAGE,
             permissions::hr::roster::LIST,
             permissions::hr::roster::MANAGE,
             permissions::hr::on_call::LIST,
@@ -1368,6 +1398,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Visitor passes, incident reports, CCTV, access logs",
         permissions: &[
             permissions::front_office::passes::VERIFY,
+            permissions::front_office::visitor_logs::RECORD,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::security::access::LIST,
@@ -1384,6 +1415,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::security::debriefs::CREATE,
             permissions::security::incidents::UPDATE,
             permissions::security::patient_safety::MANAGE,
+            // Code Pink: band match at handover, and tag events (exit, tamper).
+            permissions::security::patient_safety::VERIFY_MATCH,
+            permissions::security::patient_safety::REPORT_EVENT,
         ],
     },
     BuiltInRole {
@@ -1401,6 +1435,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::bme::calibration::LIST,
             permissions::bme::calibration::MANAGE,
             permissions::bme::contracts::LIST,
+            // Maintenance work assigned to them; assigning stays with the facilities manager.
+            permissions::facilities::work_orders::LIST,
+            permissions::facilities::work_orders::PERFORM,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::assets::ISSUE,
@@ -1454,6 +1491,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::LIST,
             permissions::radiology::orders::VIEW,
             permissions::radiology::modalities::MANAGE,
+            permissions::radiology::exams::MANAGE,
+            // Finds the patient on the requisition by UHID or phone.
+            permissions::patients::FIND,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::radiology::orders::CANCEL,
@@ -1475,6 +1515,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::cssd::sets::MANAGE,
             permissions::cssd::sterilization::LIST,
             permissions::cssd::sterilization::CREATE,
+            // Recalling a load only takes packs out of use; the technician who reads
+            // the failed indicator must be able to act on it at once.
+            permissions::cssd::sterilization::RECALL,
             permissions::cssd::issuance::LIST,
             permissions::cssd::issuance::CREATE,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
@@ -1498,6 +1541,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::blood_bank::crossmatch::CREATE,
             permissions::blood_bank::transfusion::LIST,
             permissions::blood_bank::transfusion::CREATE,
+            // The bank screens every donation (D&C Part XII-B) and is who
+            // issues O-negative to a bleeding patient before a crossmatch.
+            permissions::blood_bank::donors::DEFER,
+            permissions::blood_bank::tti::VIEW,
+            permissions::blood_bank::tti::RECORD,
+            permissions::blood_bank::transfusion::EMERGENCY_RELEASE,
         ],
     },
     BuiltInRole {
@@ -1610,6 +1659,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::infection_control::outbreak::CREATE,
             permissions::infection_control::outbreak::LIST,
             permissions::infection_control::outbreak::UPDATE,
+            // A failed sterilisation indicator is an infection-control event: the officer
+            // must see the loads, where their packs went, and be able to recall them.
+            permissions::cssd::sterilization::LIST,
+            permissions::cssd::issuance::LIST,
+            permissions::cssd::sterilization::RECALL,
         ],
     },
     BuiltInRole {
@@ -1686,6 +1740,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::attendance::LIST,
             permissions::hr::attendance::MANAGE,
             permissions::hr::leave::LIST,
+            permissions::hr::leave::CREATE,
+            permissions::hr::leave::APPROVE,
+            permissions::hr::leave::MANAGE,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::hr::payroll::runs::CREATE,

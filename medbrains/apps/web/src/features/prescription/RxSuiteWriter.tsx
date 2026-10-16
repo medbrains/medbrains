@@ -26,7 +26,8 @@ import { RxRefillTerms } from "./RxRefillTerms";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
 import { NO_REFILLS, type RefillTerms, refillRequest } from "./rxRefills";
-import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
+import { stewardshipCovers } from "./rxStewardship";
+import { type SafetyAnswers, type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
 import { useLastPrescription } from "./useLastPrescription";
 
 interface Props {
@@ -140,6 +141,15 @@ export function RxSuiteWriter({
     },
   });
 
+  // Reserve antibiotics this patient already has a live stewardship request
+  // for need no new indication. If this cannot be read, the writer asks anyway.
+  const { data: liveStewardship = [] } = useQuery({
+    queryKey: ["live-stewardship-requests", patientId],
+    queryFn: () => clinicalSupportService.listLiveStewardshipRequests(patientId ?? ""),
+    enabled: canUpdate && Boolean(patientId),
+    staleTime: 60_000,
+  });
+
   const formulary = useMemo<FormularyDrug[]>(() => catalogToFormulary(catalog), [catalog]);
   const formularyById = useMemo(
     () => Object.fromEntries(formulary.map((d) => [d.id, d])),
@@ -212,7 +222,14 @@ export function RxSuiteWriter({
 
   const doSave = (
     items: RxItem[],
-    overrides?: { dose?: string; allergy?: string; interaction?: string; duplicate?: string },
+    overrides?: {
+      dose?: string;
+      allergy?: string;
+      interaction?: string;
+      duplicate?: string;
+      nonFormulary?: string;
+      indication?: string;
+    },
   ) => {
     onSave({
       items: rxItemsToInput(items),
@@ -220,6 +237,8 @@ export function RxSuiteWriter({
       ...(overrides?.allergy ? { allergy_override_reason: overrides.allergy } : {}),
       ...(overrides?.interaction ? { interaction_override_reason: overrides.interaction } : {}),
       ...(overrides?.duplicate ? { duplicate_override_reason: overrides.duplicate } : {}),
+      ...(overrides?.nonFormulary ? { non_formulary_reason: overrides.nonFormulary } : {}),
+      ...(overrides?.indication ? { stewardship_indication: overrides.indication } : {}),
       ...(askRefills ? refillRequest(refillable(refillTerms, items), today) : {}),
       ...(isVerbal
         ? {
@@ -253,6 +272,21 @@ export function RxSuiteWriter({
       const drug = formularyById[it.id];
       const hit = drug ? maxDoseExceeded(it, drug) : null;
       if (hit) issues.push({ kind: "dose", name: it.name, detail: hit.totalLabel });
+      // Antimicrobial stewardship and the formulary: the server holds both.
+      if (drug?.aware === "Reserve" && !stewardshipCovers(drug, liveStewardship)) {
+        issues.push({
+          kind: "reserve_antibiotic",
+          name: it.name,
+          detail: "Last-resort antibiotic — dispensed once a stewardship request is approved",
+        });
+      }
+      if (drug?.nonFormulary) {
+        issues.push({
+          kind: "non_formulary",
+          name: it.name,
+          detail: "Not on the hospital formulary",
+        });
+      }
     }
     // Serious drug-drug interactions come from the live safety service; the
     // server re-checks them independently at save as a backstop.
@@ -306,13 +340,16 @@ export function RxSuiteWriter({
     doSave(items);
   };
 
-  const confirmOverride = (reason: string) => {
+  const confirmOverride = ({ reason, indication }: SafetyAnswers) => {
     if (pendingItems) {
+      const has = (kind: SafetyIssue["kind"]) => overrideIssues.some((i) => i.kind === kind);
       doSave(pendingItems, {
-        dose: overrideIssues.some((i) => i.kind === "dose") ? reason : undefined,
-        allergy: overrideIssues.some((i) => i.kind === "allergy") ? reason : undefined,
-        interaction: overrideIssues.some((i) => i.kind === "interaction") ? reason : undefined,
-        duplicate: overrideIssues.some((i) => i.kind === "duplicate") ? reason : undefined,
+        dose: has("dose") ? reason : undefined,
+        allergy: has("allergy") ? reason : undefined,
+        interaction: has("interaction") ? reason : undefined,
+        duplicate: has("duplicate") ? reason : undefined,
+        nonFormulary: has("non_formulary") ? reason : undefined,
+        indication: has("reserve_antibiotic") ? indication : undefined,
       });
     }
     setPendingItems(null);

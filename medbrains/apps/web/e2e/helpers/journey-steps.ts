@@ -1748,6 +1748,8 @@ export async function createDonor(ctx: AuthContext, bloodGroup: string): Promise
     first_name: "E2E",
     last_name: `Donor${ts}`,
     blood_group: bloodGroup,
+    gender: "male",
+    date_of_birth: "1990-01-01",
   });
 }
 
@@ -1755,6 +1757,38 @@ export async function createDonation(ctx: AuthContext, donorId: string): Promise
   return api(ctx, "POST", `/api/blood-bank/donors/${donorId}/donations`, {
     bag_number: `E2E-BAG-${Date.now().toString(36)}`,
     volume_ml: 450,
+    // Measured at the couch: the server refuses a collection without them.
+    weight_kg: 60,
+    hemoglobin_g_dl: 13.5,
+    systolic_bp: 120,
+    diastolic_bp: 80,
+    pulse: 72,
+  });
+}
+
+/** All five statutory TTI markers non-reactive — nothing is released otherwise. */
+export async function screenDonationNonReactive(ctx: AuthContext, donationId: string): Promise<void> {
+  await api(ctx, "POST", `/api/blood-bank/donations/${donationId}/tti`, {
+    results: ["hiv", "hbsag", "hcv", "syphilis", "malaria"].map((marker) => ({
+      marker,
+      result: "non_reactive",
+    })),
+  });
+}
+
+/** A compatible crossmatch for this patient and unit — red cells are issued on nothing less. */
+export async function crossmatchCompatible(
+  ctx: AuthContext,
+  args: { patientId: string; componentId: string; bloodGroup: string },
+): Promise<void> {
+  const xm = await api<{ id: string }>(ctx, "POST", "/api/blood-bank/crossmatch", {
+    patient_id: args.patientId,
+    blood_group: args.bloodGroup,
+  });
+  await api(ctx, "PUT", `/api/blood-bank/crossmatch/${xm.id}`, {
+    status: "compatible",
+    result: "compatible",
+    component_id: args.componentId,
   });
 }
 

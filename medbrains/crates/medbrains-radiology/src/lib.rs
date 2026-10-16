@@ -18,8 +18,12 @@ use uuid::Uuid;
 use axum::routing::{get,post,put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
+
+pub mod exams;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -405,6 +409,10 @@ pub struct CreateOrderRequest {
     pub contrast_required: Option<bool>,
     pub pregnancy_checked: Option<bool>,
     pub allergy_flagged: Option<bool>,
+    /// The catalogue exam; must belong to `modality_id`. Body part and
+    /// contrast default from it when the request leaves them empty.
+    #[serde(default)]
+    pub exam_id: Option<Uuid>,
     /// Internal training / simulator flag. See OPD CreateEncounterRequest.
     #[serde(default)]
     pub is_dummy: Option<bool>,
@@ -662,7 +670,18 @@ pub async fn create_order_in_tx_with_options(
     options: CreateOrderOptions,
 ) -> Result<RadiologyOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
-    let contrast = body.contrast_required.unwrap_or(false);
+    let exam = exam_defaults(tx, claims.tenant_id, body).await?;
+    let contrast = body
+        .contrast_required
+        .unwrap_or_else(|| exam.as_ref().is_some_and(|e| e.contrast_given));
+    let body_part = body
+        .body_part
+        .clone()
+        .or_else(|| exam.as_ref().and_then(|e| e.body_part.clone()));
+    let body_part_code = body
+        .body_part_code
+        .clone()
+        .or_else(|| exam.as_ref().and_then(|e| e.body_part_code.clone()));
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
     let allergy = body.allergy_flagged.unwrap_or(false);
 
@@ -691,10 +710,10 @@ pub async fn create_order_in_tx_with_options(
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
           body_part, clinical_indication, priority, status, \
           scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy, \
-          body_part_code, body_part_laterality) \
+          body_part_code, body_part_laterality, exam_id) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::radiology_priority, \
                  'ordered'::radiology_order_status, \
-                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16) \
+                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16, $17) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -702,7 +721,7 @@ pub async fn create_order_in_tx_with_options(
     .bind(body.encounter_id)
     .bind(body.modality_id)
     .bind(claims.sub)
-    .bind(&body.body_part)
+    .bind(&body_part)
     .bind(&body.clinical_indication)
     .bind(priority)
     .bind(&body.scheduled_at)
@@ -711,8 +730,9 @@ pub async fn create_order_in_tx_with_options(
     .bind(pregnancy)
     .bind(allergy)
     .bind(is_dummy)
-    .bind(&body.body_part_code)
+    .bind(&body_part_code)
     .bind(body.body_part_laterality.map(medbrains_core::body_site::Laterality::as_str))
+    .bind(body.exam_id)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -721,6 +741,47 @@ pub async fn create_order_in_tx_with_options(
     }
 
     Ok(order)
+}
+
+/// What an ordered exam fills in when the request leaves it empty.
+struct ExamDefaults {
+    body_part: Option<String>,
+    body_part_code: Option<String>,
+    contrast_given: bool,
+}
+
+/// Checks the exam is orderable and belongs to the ordered modality.
+async fn exam_defaults(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &CreateOrderRequest,
+) -> Result<Option<ExamDefaults>, AppError> {
+    let Some(exam_id) = body.exam_id else {
+        return Ok(None);
+    };
+    let row: Option<(Uuid, Option<String>, Option<String>, String)> = sqlx::query_as(
+        "SELECT modality_id, body_part, body_part_code, contrast FROM radiology_exams \
+         WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
+    )
+    .bind(exam_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((modality_id, body_part, body_part_code, contrast)) = row else {
+        return Err(AppError::BadRequest(
+            "That exam is retired or not in the catalogue.".to_owned(),
+        ));
+    };
+    if modality_id != body.modality_id {
+        return Err(AppError::BadRequest(
+            "That exam is not done on the chosen modality.".to_owned(),
+        ));
+    }
+    Ok(Some(ExamDefaults {
+        body_part,
+        body_part_code,
+        contrast_given: matches!(contrast.as_str(), "with" | "with_and_without"),
+    }))
 }
 
 async fn best_effort_auto_bill_radiology_order_in_tx(
@@ -775,23 +836,23 @@ async fn auto_bill_radiology_order_in_tx(
         name: String,
     }
 
+    // The exam's own charge code when it has one, else `RAD-<modality>`.
     let modality = sqlx::query_as::<_, ModalityBillingInfo>(
-        "SELECT code, name FROM radiology_modalities \
-         WHERE id = $1 AND tenant_id = $2",
+        "SELECT COALESCE(re.charge_code, 'RAD-' || rm.code) AS code, \
+                COALESCE(re.name, rm.name) AS name \
+         FROM radiology_modalities rm \
+         LEFT JOIN radiology_exams re ON re.id = $3 AND re.tenant_id = rm.tenant_id \
+         WHERE rm.id = $1 AND rm.tenant_id = $2",
     )
     .bind(order.modality_id)
     .bind(claims.tenant_id)
+    .bind(order.exam_id)
     .fetch_optional(&mut **tx)
     .await?;
 
     let (charge_code, description) = modality.map_or_else(
         || ("RAD-EXAM".to_owned(), None),
-        |m| {
-            (
-                format!("RAD-{}", m.code),
-                Some(format!("Radiology - {}", m.name)),
-            )
-        },
+        |m| (m.code, Some(format!("Radiology - {}", m.name))),
     );
 
     medbrains_server_services::billing::auto_charge(
@@ -1381,7 +1442,16 @@ pub async fn list_modalities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyModality>>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Ordering an exam means picking its modality: a doctor holds
+    // `orders.create` without `orders.list`, and got an empty picker.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::radiology::orders::LIST,
+            permissions::radiology::orders::CREATE,
+            permissions::radiology::modalities::MANAGE,
+        ],
+    )?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2048,7 +2118,7 @@ pub async fn update_pacs_config(
     sqlx::query(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
          VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
-         ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
+         ON CONFLICT (tenant_id,category,key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value=$2,updated_at=now()",
     )
     .bind(claims.tenant_id)
     .bind(&body)
@@ -2340,6 +2410,11 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/radiology/critical-alerts/{id}/acknowledge",
             put(acknowledge_critical_alert),
+        )
+        .route("/api/radiology/exams", get(exams::list_exams).post(exams::create_exam))
+        .route(
+            "/api/radiology/exams/{id}",
+            put(exams::update_exam).delete(exams::delete_exam),
         )
         .route(
             "/api/radiology/modalities",

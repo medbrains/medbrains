@@ -28,6 +28,8 @@ export type PrintDocumentIdKind =
   | "order"
   | "invoice"
   | "payment"
+  /** A pharmacy counter sale (`pharmacy_pos_sales.id`). */
+  | "pos_sale"
   /** Everything else, one kind per record a generated document keys on. */
   | GeneratedPrintIdKind;
 
@@ -126,7 +128,65 @@ export const PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     permission: P.IPD.ADMISSIONS_VIEW,
     fetch: (id) => api.getTeachingConsentPrintData(id),
   },
+  {
+    key: "gst-invoice",
+    label: "GST bill",
+    idKind: "invoice",
+    // The handler also requires patients.view, which every role holding
+    // billing.invoices.view is granted.
+    permission: P.BILLING.INVOICES_VIEW,
+    fetch: (id) => api.getGstInvoicePrintData(id),
+  },
+  {
+    key: "pharmacy-bill",
+    label: "Pharmacy GST bill",
+    idKind: "invoice",
+    // Literal until the permission catalogue is regenerated from Rust.
+    permission: P.PHARMACY.BILLS_PRINT,
+    fetch: (id) => api.getPharmacyBillPrintData(id),
+  },
+  {
+    key: "pharmacy-pos-receipt",
+    label: "Counter receipt",
+    idKind: "pos_sale",
+    permission: P.PHARMACY.POS_VIEW,
+    fetch: fetchPosReceipt,
+  },
 ];
+
+/**
+ * A counter sale's receipt. A walk-in sale has no billing invoice, so the GST
+ * bill cannot serve; this reads the sale and its lines.
+ */
+async function fetchPosReceipt(saleId: string) {
+  const [sale, items] = await Promise.all([api.getPosSale(saleId), api.listPosSaleItems(saleId)]);
+  const mrpTotal = items.reduce((sum, item) => sum + Number(item.mrp) * item.quantity, 0);
+  const savings = mrpTotal - Number(sale.total_amount);
+  return {
+    receipt_number: sale.receipt_number ?? sale.sale_number,
+    date: new Date(sale.created_at).toLocaleString(),
+    customer: sale.patient_name ?? "Walk-in",
+    payment_mode: sale.payment_mode,
+    payment_reference: sale.payment_reference ?? null,
+    mrp_total: mrpTotal.toFixed(2),
+    discount: sale.discount_amount,
+    gst_included: sale.gst_amount,
+    total: sale.total_amount,
+    you_saved: savings > 0.005 ? savings.toFixed(2) : null,
+    amount_received: sale.amount_received,
+    change_due: sale.change_due,
+    items: items.map((item) => ({
+      medicine: item.drug_name,
+      batch: item.batch_number ?? null,
+      hsn: item.hsn_code ?? null,
+      quantity: item.quantity,
+      mrp: item.mrp,
+      price: item.selling_price,
+      gst_percent: item.gst_rate,
+      line_total: item.line_total,
+    })),
+  };
+}
 
 /**
  * Every printable document: the eleven consents written by hand above, plus

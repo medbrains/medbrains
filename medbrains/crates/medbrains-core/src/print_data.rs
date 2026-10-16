@@ -111,6 +111,8 @@ pub struct WristbandPrintData {
     pub is_reprint: bool,
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub date_of_birth: Option<String>,
@@ -240,6 +242,8 @@ pub struct ErDischargeSummaryPrintData {
 pub struct DischargeSummaryPrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -680,6 +684,8 @@ pub struct IpdFinalBillPrintData {
     pub invoice_date: String,
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -716,6 +722,8 @@ pub struct BillCategoryTotal {
 pub struct NoDuesCertificatePrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -796,6 +804,8 @@ pub struct CashlessClaimPrintData {
     pub claim_date: String,
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission the claim is for.
+    pub admission_number: Option<String>,
     pub policy_number: Option<String>,
     pub insurance_company: String,
     pub tpa_name: Option<String>,
@@ -1144,6 +1154,8 @@ pub struct StatOrder {
 pub struct TransferSummaryPrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub transfer_date: String,
@@ -1424,6 +1436,9 @@ pub struct OperationNotesPrintData {
     pub surgery_date: String,
     pub procedure_name: String,
     pub procedure_code: Option<String>,
+    /// What the operation went ahead on: the linked written consent and/or
+    /// the two-doctor emergency certification.
+    pub consent_basis: String,
     pub indication: String,
     pub surgeon_name: String,
     pub assistant_surgeons: Vec<String>,
@@ -2774,6 +2789,8 @@ pub struct InsuranceClaimPrintData {
     // Patient Information
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission the claim is for.
+    pub admission_number: Option<String>,
     pub age_display: String,
     pub gender: String,
     pub relation_to_primary: Option<String>,

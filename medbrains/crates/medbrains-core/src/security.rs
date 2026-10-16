@@ -168,6 +168,54 @@ pub struct SecurityIncident {
     pub assigned_to: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // ── Breach register (migration 1069) ──
+    /// When the incident was noticed — the start of every reporting clock.
+    pub discovered_at: Option<DateTime<Utc>>,
+    /// A CERT-In Annexure I incident: report within 6 hours of noticing.
+    pub is_cert_in_reportable: bool,
+    /// A DPDP personal-data breach: Board without delay, detailed report in
+    /// 72 hours, and a notice to each affected Data Principal.
+    pub is_personal_data_breach: bool,
+    pub breach_data_categories: Vec<String>,
+    pub principals_affected_estimate: Option<i32>,
+    pub cert_in_reported: bool,
+    pub cert_in_report_date: Option<DateTime<Utc>>,
+    pub cert_in_reference: Option<String>,
+    pub board_intimated_at: Option<DateTime<Utc>>,
+    pub board_report_sent_at: Option<DateTime<Utc>>,
+    pub board_reference: Option<String>,
+    pub principals_notified_at: Option<DateTime<Utc>>,
+    pub principals_notified_count: Option<i32>,
+    /// `discovered_at` + 6 h, when CERT-In reportable. Filled by [`Self::with_deadlines`].
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub cert_in_due_at: Option<DateTime<Utc>>,
+    /// `discovered_at` + 72 h, when a personal-data breach. Filled by [`Self::with_deadlines`].
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub board_due_at: Option<DateTime<Utc>>,
+}
+
+/// CERT-In Directions 2022, direction (ii): report within 6 hours of noticing.
+pub const CERT_IN_REPORT_HOURS: i64 = 6;
+/// DPDP Rules 2025, rule 7(2): detailed report to the Board within 72 hours.
+pub const BOARD_REPORT_HOURS: i64 = 72;
+
+impl SecurityIncident {
+    /// Computes the reporting deadlines from `discovered_at` — one rule for
+    /// the screen, the API and the escalation pass.
+    #[must_use]
+    pub fn with_deadlines(mut self) -> Self {
+        let discovered = self.discovered_at;
+        let due = |hours: i64, applies: bool| {
+            discovered
+                .filter(|_| applies)
+                .map(|at| at + chrono::Duration::hours(hours))
+        };
+        self.cert_in_due_at = due(CERT_IN_REPORT_HOURS, self.is_cert_in_reportable);
+        self.board_due_at = due(BOARD_REPORT_HOURS, self.is_personal_data_breach);
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 777;
+pub const PERMISSION_COUNT: usize = 779;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -223,6 +223,14 @@ pub mod lab {
         pub const LIST: &str = "lab.orders.list";
         pub const VIEW: &str = "lab.orders.view";
         pub const CREATE: &str = "lab.orders.create";
+        /// Register a walk-in lab order.
+        ///
+        /// For a patient who comes to the laboratory without a doctor's
+        /// order in this hospital — self-referred, or carrying an outside
+        /// prescription. Opens the lab visit, records who referred them
+        /// (a hospital doctor, an outside doctor, or self) and raises the
+        /// bill, in one step at the lab counter.
+        pub const DIRECT: &str = "lab.orders.direct";
     }
 
     /// The test catalogue: which tests exist, and what they mean.
@@ -293,6 +301,24 @@ pub mod lab {
     pub mod samples {
         pub const LIST: &str = "lab.samples.list";
         pub const MANAGE: &str = "lab.samples.manage";
+        /// Collect a sample for a lab order.
+        ///
+        /// Drawing blood is the phlebotomist's or the ward nurse's job, and it
+        /// was gated on `lab.results.create` — so the only way to let a nurse
+        /// record a draw was to let her type results in too. This is the
+        /// draw alone: positive patient identification and the tube's barcode,
+        /// nothing that touches a result.
+        pub const COLLECT: &str = "lab.samples.collect";
+    }
+
+    pub mod report_delivery {
+        /// Configure how lab reports reach patients.
+        ///
+        /// Turns SMS, WhatsApp and email delivery on or off and sets the
+        /// default channel for the whole hospital. It was gated on
+        /// `lab.orders.list`, so anyone who could see the order list could
+        /// start sending patients' reports over a new channel.
+        pub const MANAGE: &str = "lab.report_delivery.manage";
     }
 
     pub mod dispatch {
@@ -405,13 +431,52 @@ pub mod pharmacy {
         pub const DESTROY: &str = "pharmacy.returns.destroy";
         pub const REJECT: &str = "pharmacy.returns.reject";
         pub const MANAGE: &str = "pharmacy.returns.manage";
+        /// Take a counter return after the return window.
+        ///
+        /// A sale older than the hospital's return window (15 days unless set)
+        /// is locked for return and refund. This takes it back anyway, with a
+        /// reason recorded against the credit note.
+        pub const OVERRIDE_WINDOW: &str = "pharmacy.returns.override_window";
+        /// Take back a controlled or Schedule X drug.
+        ///
+        /// NDPS and Schedule X medicines are not returnable at the counter.
+        /// The pharmacist-in-charge may accept one with a recorded reason.
+        pub const CONTROLLED: &str = "pharmacy.returns.controlled";
+    }
+
+    pub mod day_close {
+        /// See a counter's business day and Z-report.
+        ///
+        /// Totals by tender, counted against expected cash, for any counter
+        /// day, open or closed.
+        pub const VIEW: &str = "pharmacy.day_close.view";
+        /// Close a counter's business day.
+        ///
+        /// Count the cash, explain any variance and lock the day: no sale,
+        /// return or void is dated to it afterwards. Only a cashier who worked
+        /// that counter that day.
+        pub const CLOSE: &str = "pharmacy.day_close.close";
+        /// Reopen a closed counter day.
+        ///
+        /// Unlocks a closed day for correction, with a reason that is audited.
+        /// Also closes a counter day the closer did not work.
+        pub const REOPEN: &str = "pharmacy.day_close.reopen";
     }
 
     pub mod formulary {
+        /// Dispense a non-formulary medicine.
+        ///
+        /// Lets a pharmacist approve or dispense a medicine that is not on the
+        /// hospital formulary, with a recorded reason that is audited.
         pub const APPROVE: &str = "pharmacy.formulary.approve";
     }
 
     pub mod stewardship {
+        /// Dispense a Reserve antibiotic before approval.
+        ///
+        /// Lets a pharmacist approve or dispense an AWaRe Reserve antibiotic
+        /// whose stewardship request is not yet approved — e.g. a first dose in
+        /// sepsis — with a recorded reason that is audited.
         pub const APPROVE: &str = "pharmacy.stewardship.approve";
     }
 
@@ -429,6 +494,29 @@ pub mod pharmacy {
         pub const VIEW: &str = "pharmacy.pos.view";
         pub const CANCEL: &str = "pharmacy.pos.cancel";
         pub const RETURN: &str = "pharmacy.pos.return";
+        /// Approve a counter discount above the limit.
+        ///
+        /// A counter sale discounted beyond the hospital's configured limit
+        /// needs a reason and an approver who holds this. The approval is
+        /// recorded against the sale.
+        pub const DISCOUNT_APPROVE: &str = "pharmacy.pos.discount_approve";
+    }
+
+    pub mod patients {
+        /// Find a patient at the pharmacy counter.
+        ///
+        /// Name, UHID or phone to a patient's name, age and sex — enough to
+        /// link a counter sale to the right person and nothing more of the
+        /// record.
+        pub const SEARCH: &str = "pharmacy.patients.search";
+    }
+
+    pub mod bills {
+        /// Print a pharmacy GST bill.
+        ///
+        /// The tax invoice for a counter sale posted to a registered patient,
+        /// without access to the rest of billing.
+        pub const PRINT: &str = "pharmacy.bills.print";
     }
 
     pub mod pricing {
@@ -437,6 +525,11 @@ pub mod pharmacy {
 
     pub mod safety {
         pub const VIEW: &str = "pharmacy.safety.view";
+        /// Override a medication safety block.
+        ///
+        /// Lets a pharmacist proceed past a documented drug allergy, a serious
+        /// drug-drug interaction or another medication safety block, with a
+        /// recorded clinical reason that is audited.
         pub const OVERRIDE: &str = "pharmacy.safety.override";
     }
 
@@ -456,6 +549,15 @@ pub mod billing {
 
     pub mod catalog {
         pub const MANAGE: &str = "billing.catalog.manage";
+    }
+
+    pub mod exchange_rates {
+        /// Set currency exchange rates.
+        ///
+        /// A rate decides what a foreign-currency patient is billed in rupees,
+        /// so setting one is tariff work, kept apart from reading reports.
+        /// Reading the rates only needs `billing.invoices.list`.
+        pub const MANAGE: &str = "billing.exchange_rates.manage";
     }
 
     pub mod payments {
@@ -718,6 +820,16 @@ pub mod ot {
     pub mod consumables {
         pub const MANAGE: &str = "ot.consumables.manage";
     }
+
+    pub mod consent {
+        /// Certify emergency implied consent for surgery.
+        ///
+        /// For an emergency booking only, when the patient cannot consent and no
+        /// relative can be reached in time. Two different doctors must each
+        /// certify, in their own session after re-entering their password, with
+        /// a reason. Recorded, audited, and printed on the operation notes.
+        pub const EMERGENCY_OVERRIDE: &str = "ot.consent.emergency_override";
+    }
 }
 
 pub mod radiology {
@@ -735,6 +847,16 @@ pub mod radiology {
 
     pub mod modalities {
         pub const MANAGE: &str = "radiology.modalities.manage";
+    }
+
+    /// The exams each modality performs ("CT Brain Plain", "USG Abdomen").
+    pub mod exams {
+        /// Edit the radiology exam catalogue.
+        ///
+        /// Which exams each modality performs, their body part, contrast
+        /// and the charge code they are billed under. Master data, held by
+        /// the radiology department rather than by everyone who orders.
+        pub const MANAGE: &str = "radiology.exams.manage";
     }
 }
 
@@ -903,6 +1025,12 @@ pub mod blood_bank {
     pub mod donors {
         pub const LIST: &str = "blood_bank.donors.list";
         pub const CREATE: &str = "blood_bank.donors.create";
+        /// Defer or reinstate a blood donor.
+        ///
+        /// Sets a temporary deferral with an end date, a permanent one, or
+        /// lifts it, always with a reason and an audit row. A donor deferred
+        /// for a reactive TTI result cannot be reinstated here.
+        pub const DEFER: &str = "blood_bank.donors.defer";
     }
 
     pub mod inventory {
@@ -918,6 +1046,26 @@ pub mod blood_bank {
     pub mod transfusion {
         pub const LIST: &str = "blood_bank.transfusion.list";
         pub const CREATE: &str = "blood_bank.transfusion.create";
+        /// Release uncrossmatched O-negative in an emergency.
+        ///
+        /// Issues a red-cell unit with no compatible crossmatch for the patient,
+        /// which every other issue is refused. Only an O-negative unit, only with
+        /// a written reason, and every use is written to the audit log.
+        pub const EMERGENCY_RELEASE: &str = "blood_bank.transfusion.emergency_release";
+    }
+
+    pub mod tti {
+        /// View donor TTI screening results.
+        ///
+        /// The per-marker HIV, HBsAg, HCV, syphilis and malaria results of a
+        /// donation. A donor's infection status, so not part of inventory read.
+        pub const VIEW: &str = "blood_bank.tti.view";
+        /// Record donor TTI screening results.
+        ///
+        /// Enters the per-marker screening result for a donation. A reactive
+        /// result quarantines the donation's units and defers the donor, and
+        /// cannot later be changed.
+        pub const RECORD: &str = "blood_bank.tti.record";
     }
 }
 
@@ -1021,6 +1169,13 @@ pub mod cssd {
     pub mod sterilization {
         pub const LIST: &str = "cssd.sterilization.list";
         pub const CREATE: &str = "cssd.sterilization.create";
+        /// Recall a sterilisation load or an issued pack.
+        ///
+        /// Recalling a load bars every pack of it from issue and flags every
+        /// pack already issued from it so it can be fetched back from the ward
+        /// or theatre — the response to a failed biological indicator. A single
+        /// issued pack can be recalled too. Always with a reason; audited.
+        pub const RECALL: &str = "cssd.sterilization.recall";
     }
 
     pub mod issuance {
@@ -1063,6 +1218,13 @@ pub mod emergency {
         pub const UPDATE: &str = "emergency.mlc.update";
         pub const PRINT: &str = "emergency.mlc.print";
         pub const REPRINT: &str = "emergency.mlc.reprint";
+        /// Amend a certified or closed MLC.
+        ///
+        /// Changes what a medico-legal case records after the opinion is
+        /// given, while it is in court, or once it is closed. MLC records are
+        /// legal evidence: every amendment needs a written reason and is
+        /// written to the audit trail with the old and new values.
+        pub const AMEND: &str = "emergency.mlc.amend";
     }
 
     pub mod mlc_injuries {
@@ -1138,6 +1300,16 @@ pub mod housekeeping {
         pub const MANAGE: &str = "housekeeping.cleaning.manage";
     }
 
+    pub mod tasks {
+        /// Start and complete your own cleaning tasks.
+        ///
+        /// The housekeeper's right. Starting an unassigned task claims it;
+        /// completing needs the task to be assigned to you. Verifying,
+        /// rejecting and reassigning stay with `housekeeping.cleaning.manage`,
+        /// which before this was the only way to mark any task done.
+        pub const PERFORM: &str = "housekeeping.tasks.perform";
+    }
+
     pub mod turnaround {
         pub const LIST: &str = "housekeeping.turnaround.list";
         pub const MANAGE: &str = "housekeeping.turnaround.manage";
@@ -1191,6 +1363,12 @@ pub mod hr {
         pub const LIST: &str = "hr.leave.list";
         pub const CREATE: &str = "hr.leave.create";
         pub const APPROVE: &str = "hr.leave.approve";
+        /// File and view leave for any employee.
+        ///
+        /// HR's reach. Without it a caller files leave only for themselves and
+        /// sees only their own leave and, as a department head, their
+        /// department's. Nobody approves their own leave, with or without it.
+        pub const MANAGE: &str = "hr.leave.manage";
     }
 
     pub mod roster {
@@ -1570,6 +1748,15 @@ pub mod front_office {
         pub const VERIFY: &str = "front_office.passes.verify";
     }
 
+    pub mod visitor_logs {
+        /// Record a visitor entering or leaving.
+        ///
+        /// The gate guard's right: check a valid pass in and out. Issuing and
+        /// revoking passes stay with `front_office.passes.manage`, which until
+        /// this was the only way to log a visitor's entry at all.
+        pub const RECORD: &str = "front_office.visitor_logs.record";
+    }
+
     pub mod queue {
         pub const LIST: &str = "front_office.queue.list";
         pub const MANAGE: &str = "front_office.queue.manage";
@@ -1698,6 +1885,13 @@ pub mod facilities {
         pub const LIST: &str = "facilities.work_orders.list";
         pub const CREATE: &str = "facilities.work_orders.create";
         pub const MANAGE: &str = "facilities.work_orders.manage";
+        /// Work on and complete work orders assigned to you.
+        ///
+        /// The technician's right: move your own work order to in progress,
+        /// on hold or completed and record findings, actions and costs.
+        /// Assigning, reassigning, choosing a vendor and cancelling stay with
+        /// `facilities.work_orders.manage`.
+        pub const PERFORM: &str = "facilities.work_orders.perform";
     }
 
     pub mod compliance {
@@ -1727,9 +1921,35 @@ pub mod security {
         pub const UPDATE: &str = "security.incidents.update";
     }
 
+    pub mod breach {
+        /// Assess breaches and record regulatory notices.
+        ///
+        /// Marks an incident as CERT-In reportable or as a DPDP personal-data
+        /// breach, sets when it was noticed (which starts the 6-hour CERT-In
+        /// and 72-hour Board clocks), and records the CERT-In report, the
+        /// Board intimation and detailed report, and the notice to affected
+        /// Data Principals. The incident response plan gives these to the
+        /// DPO / incident commander, so no built-in role holds it.
+        pub const MANAGE: &str = "security.breach.manage";
+    }
+
     pub mod patient_safety {
         pub const LIST: &str = "security.patient_safety.list";
         pub const MANAGE: &str = "security.patient_safety.manage";
+        /// Verify a mother–baby ID band match.
+        ///
+        /// Scanning both bands before a baby is handed to its mother, taken
+        /// out of the nursery or discharged. A mismatch is refused, raised as
+        /// a tag alert and audited. Held by nurses and security, who do the
+        /// handover, without the right to create or retire tags.
+        pub const VERIFY_MATCH: &str = "security.patient_safety.verify_match";
+        /// Report an infant or wander tag event.
+        ///
+        /// A tag leaving its zone, a cut or tampered band. An infant tag
+        /// leaving its zone or tampered with raises Code Pink at once. Used
+        /// by the tag reader's machine identity and by staff who find a cut
+        /// band.
+        pub const REPORT_EVENT: &str = "security.patient_safety.report_event";
     }
 
     pub mod debriefs {

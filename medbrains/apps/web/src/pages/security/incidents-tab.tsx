@@ -19,17 +19,20 @@ import { securityIncidentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { SecurityIncident, UpdateSecurityIncidentRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPencil, IconPlus } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconShieldExclamation } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   defaultSecurityIncidentFormValues,
   securityIncidentFormToRequest,
 } from "@/forms/security.form";
 import { securityService } from "@/services/security.service";
+import { incidentClocks } from "./breach-clock";
+import { BreachDrawer } from "./breach-drawer";
 
 const INCIDENT_SEVERITIES = [
   { value: "low", label: "Low" },
@@ -45,6 +48,8 @@ const INCIDENT_CATEGORIES = [
   { value: "property_damage", label: "Property Damage" },
   { value: "policy_violation", label: "Policy Violation" },
   { value: "elopement", label: "Elopement" },
+  { value: "cyber", label: "Cyber / IT security" },
+  { value: "data_breach", label: "Personal data breach" },
   { value: "other", label: "Other" },
 ];
 
@@ -65,12 +70,24 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
 export function IncidentsTab() {
   const canCreate = useHasPermission(P.SECURITY.INCIDENTS_CREATE);
   const canUpdate = useHasPermission(P.SECURITY.INCIDENTS_UPDATE);
+  // Reads gate the query: the page is reachable on security.access.list.
+  const canList = useHasPermission(P.SECURITY.INCIDENTS_LIST);
   const qc = useQueryClient();
 
-  const { data: incidents = [], isLoading } = useQuery({
+  const {
+    data: incidents = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["sec-incidents"],
     queryFn: () => securityService.listSecurityIncidents(),
+    enabled: canList,
+    // Keeps the reporting countdowns current without a ticking effect.
+    refetchInterval: 60_000,
   });
+  const [breachFor, setBreachFor] = useState<string | null>(null);
+  const breachIncident = incidents.find((i) => i.id === breachFor) ?? null;
   const { data: zones = [] } = useQuery({
     queryKey: ["sec-zones"],
     queryFn: () => securityService.listSecurityZones(),
@@ -150,6 +167,31 @@ export function IncidentsTab() {
       render: (r) => <Text size="sm">{new Date(r.occurred_at).toLocaleString()}</Text>,
     },
     {
+      key: "reporting",
+      label: "Reporting",
+      render: (r) => {
+        const clocks = incidentClocks(r, Date.now());
+        return (
+          <Group gap={4}>
+            {clocks.map((c) => (
+              <Badge key={c.label} tone={c.tone} size="sm">
+                {c.label}: {c.text}
+              </Badge>
+            ))}
+            <Tooltip label="Breach register">
+              <IconButton
+                tone="default"
+                onClick={() => setBreachFor(r.id)}
+                aria-label={`Breach register for ${r.incident_number}`}
+              >
+                <IconShieldExclamation size={16} />
+              </IconButton>
+            </Tooltip>
+          </Group>
+        );
+      },
+    },
+    {
       key: "police_notified",
       label: "Police",
       render: (r) =>
@@ -200,7 +242,14 @@ export function IncidentsTab() {
           </Button>
         </Group>
       )}
-      <DataTable columns={columns} data={incidents} loading={isLoading} rowKey={(r) => r.id} />
+      {isError ? (
+        <Alert tone="danger" title="Incidents could not be loaded">
+          {error?.message}
+        </Alert>
+      ) : (
+        <DataTable columns={columns} data={incidents} loading={isLoading} rowKey={(r) => r.id} />
+      )}
+      <BreachDrawer incident={breachIncident} onClose={() => setBreachFor(null)} />
 
       <Drawer
         opened={opened}

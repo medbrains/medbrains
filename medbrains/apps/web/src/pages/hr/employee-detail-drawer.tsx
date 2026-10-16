@@ -50,6 +50,18 @@ export function EmployeeDetailDrawer({
     enabled: opened && canListLeave,
   });
 
+  // Verification against the original — chemotherapy administration, for one,
+  // is honoured at the bedside only once verified.
+  const verifyCred = useMutation({
+    mutationFn: (credentialId: string) =>
+      hrService.updateCredential(employeeId, credentialId, { verify: true }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-credentials", employeeId] });
+      toast.success("Credential verified");
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not verify" }),
+  });
+
   // ── Add credential ──
   const [credOpen, { open: openCred, close: closeCred }] = useDisclosure(false);
   const [credForm, setCredForm] = useState({
@@ -225,6 +237,29 @@ export function EmployeeDetailDrawer({
                   </Badge>
                 ),
               },
+              {
+                key: "verified",
+                label: "Verified",
+                render: (r: EmployeeCredential) =>
+                  r.verified_at ? (
+                    <Badge tone="success" size="sm">
+                      Verified {new Date(r.verified_at).toLocaleDateString()}
+                    </Badge>
+                  ) : canManageCredentials ? (
+                    <Button
+                      tone="secondary"
+                      size="xs"
+                      loading={verifyCred.isPending && verifyCred.variables === r.id}
+                      onClick={() => verifyCred.mutate(r.id)}
+                    >
+                      Verify
+                    </Button>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      Not verified
+                    </Text>
+                  ),
+              },
             ]}
           />
           {/* Add Credential sub-drawer */}
@@ -253,6 +288,10 @@ export function EmployeeDetailDrawer({
                   { value: "fire_safety", label: "Fire Safety" },
                   { value: "radiation_safety", label: "Radiation Safety" },
                   { value: "nabh_orientation", label: "NABH Orientation" },
+                  {
+                    value: "chemotherapy_administration",
+                    label: "Chemotherapy administration",
+                  },
                 ]}
               />
               <TextInput

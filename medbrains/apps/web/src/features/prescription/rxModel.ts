@@ -81,6 +81,8 @@ export interface FormularyDrug {
   atc?: string;
   /** WHO AWaRe antibiotic class (antibiotics only). */
   aware?: AwareClass;
+  /** Off the hospital formulary — needs a prescriber reason, and formulary approval to dispense. */
+  nonFormulary?: boolean;
   /** Look-alike-sound-alike — tall-man + confirm step. */
   lasa?: boolean;
   // ── stock + dose-safety (non-blocking hints / CDS) ──
@@ -106,8 +108,8 @@ export interface PrescribingCaution {
 
 /**
  * Drug-intrinsic cautions for the current order: WHO AWaRe antibiotic
- * stewardship (Reserve / Watch) and boxed safety warnings. Advisory only —
- * never blocks prescribing.
+ * stewardship (Reserve / Watch) and boxed safety warnings. Advisory here; a
+ * Reserve antibiotic's stewardship request is asked for on save.
  */
 export function prescribingCautions(drugs: FormularyDrug[]): PrescribingCaution[] {
   const out: PrescribingCaution[] = [];
@@ -117,7 +119,7 @@ export function prescribingCautions(drugs: FormularyDrug[]): PrescribingCaution[
         name: d.name,
         kind: "aware-reserve",
         label: "AWaRe Reserve",
-        detail: `${d.name} — last-resort antibiotic; restrict to confirmed multidrug-resistant infections`,
+        detail: `${d.name} — last-resort antibiotic; restrict to confirmed multidrug-resistant infections. Needs an approved stewardship request before the pharmacy dispenses`,
         serious: true,
       });
     } else if (d.aware === "Watch") {

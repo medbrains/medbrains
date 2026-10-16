@@ -1099,7 +1099,7 @@ pub async fn setup(
         sqlx::query(
             "INSERT INTO module_config (tenant_id, code, name, description, status) \
              VALUES ($1, $2, $3, $4, $5::module_status) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET status = EXCLUDED.status",
+             ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, status = EXCLUDED.status",
         )
         .bind(claims.tenant_id)
         .bind(code)
@@ -1117,7 +1117,7 @@ pub async fn setup(
              ($1, 'UHID', $2, 0, $3), \
              ($1, 'INVOICE', $4, 0, $5) \
              ON CONFLICT (tenant_id, seq_type) \
-             DO UPDATE SET prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width",
+             DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width",
         )
         .bind(claims.tenant_id)
         .bind(&seq.uhid_prefix)
@@ -1138,7 +1138,7 @@ pub async fn setup(
                 "INSERT INTO tenant_settings (tenant_id, category, key, value) \
                  VALUES ($1, 'branding', $2, to_jsonb($3::text)) \
                  ON CONFLICT (tenant_id, category, key) \
-                 DO UPDATE SET value = EXCLUDED.value",
+                 DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
             )
             .bind(claims.tenant_id)
             .bind(key)
@@ -1153,7 +1153,7 @@ pub async fn setup(
                     "INSERT INTO tenant_settings (tenant_id, category, key, value) \
                      VALUES ($1, 'branding', 'logo_url', to_jsonb($2::text)) \
                      ON CONFLICT (tenant_id, category, key) \
-                     DO UPDATE SET value = EXCLUDED.value",
+                     DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
                 )
                 .bind(claims.tenant_id)
                 .bind(logo_url)
@@ -1170,7 +1170,7 @@ pub async fn setup(
                 "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
                  VALUES ($1, $2, $3, 0, $4) \
                  ON CONFLICT (tenant_id, seq_type) \
-                 DO UPDATE SET prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width",
+                 DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width",
             )
             .bind(claims.tenant_id)
             .bind(&seq.seq_type)

@@ -18,6 +18,7 @@ import type { MlcCaseFormInput, MlcCaseUpdateFormInput } from "@medbrains/schema
 import { mlcCaseFormSchema, mlcCaseUpdateFormSchema } from "@medbrains/schemas";
 import { useFieldAccess } from "@medbrains/stores";
 import type { CreateMlcCaseRequest, MlcCase, UpdateMlcCaseRequest } from "@medbrains/types";
+import { ValidationError } from "@medbrains/utils";
 import { IconFileText, IconGavel, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -38,6 +39,7 @@ import {
 } from "@/forms/emergency.form";
 import { emergencyService } from "@/services/emergency.service";
 import { MlcCaseDetail } from "./mlc-case-detail";
+import { PoliceContactSettings } from "./police-contact-settings";
 import {
   canEditSensitiveField,
   canViewSensitiveField,
@@ -179,7 +181,14 @@ export function MlcTab({
       notifications.show({ title: "MLC Updated", message: "MLC case details updated" });
     },
     onError: (e: Error) =>
-      notifications.show({ title: "MLC update blocked", message: e.message, color: "red" }),
+      notifications.show({
+        title: "MLC update blocked",
+        message:
+          e instanceof ValidationError
+            ? Object.values(e.fields).flat().join(" ") || e.message
+            : e.message,
+        color: "red",
+      }),
   });
 
   const mlcStatusColor = (s: string) => {
@@ -414,6 +423,7 @@ export function MlcTab({
           </Button>
         )}
       </Group>
+      <PoliceContactSettings />
       {canList ? (
         <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       ) : (

@@ -84,7 +84,7 @@ pub async fn get_progress_note_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -207,7 +207,7 @@ pub async fn get_nursing_assessment_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -350,7 +350,7 @@ pub async fn get_mar_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -491,7 +491,7 @@ pub async fn get_vitals_chart_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -603,7 +603,7 @@ pub async fn get_io_chart_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -963,7 +963,7 @@ pub async fn get_fluid_balance_chart_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -1089,7 +1089,7 @@ pub async fn get_pain_assessment_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -1212,7 +1212,7 @@ pub async fn get_fall_risk_assessment_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           COALESCE(e.encounter_number, '') AS admission_number, \
+           COALESCE(a.admission_number, '') AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            COALESCE(fr.history_of_falling, 0) AS history_of_falling, \
@@ -1335,7 +1335,7 @@ pub async fn get_pressure_ulcer_risk_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           COALESCE(e.encounter_number, '') AS admission_number, \
+           COALESCE(a.admission_number, '') AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            pr.assessed_at, \
@@ -1469,7 +1469,7 @@ pub async fn get_gcs_chart_print_data(
            l.name AS bed_number, \
            w.name AS ward_name, \
            a.provisional_diagnosis AS diagnosis, \
-           e.encounter_number AS admission_number \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
            AND p.deleted_at IS NULL \
@@ -1597,7 +1597,7 @@ pub async fn get_transfusion_requisition_print_data(
            NULLIF(upper(split_part(cr.blood_group::text, '_', 1)), 'UNKNOWN') AS blood_group, \
            CASE WHEN cr.blood_group::text LIKE '%_positive' THEN 'Positive' \
                 WHEN cr.blood_group::text LIKE '%_negative' THEN 'Negative' END AS rh_factor, \
-           e.encounter_number AS admission_number, \
+           a.admission_number AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            COALESCE(cr.clinical_indication, '') AS clinical_indication, \
@@ -1618,7 +1618,8 @@ pub async fn get_transfusion_requisition_print_data(
          JOIN patients p ON p.id = cr.patient_id AND p.tenant_id = cr.tenant_id \
            AND p.deleted_at IS NULL \
          LEFT JOIN LATERAL ( \
-           SELECT ad.id, ad.encounter_id, ad.ward_id, ad.bed_id, ad.provisional_diagnosis \
+           SELECT ad.id, ad.encounter_id, ad.ward_id, ad.bed_id, ad.provisional_diagnosis, \
+                  ad.admission_number \
            FROM admissions ad \
            WHERE ad.patient_id = cr.patient_id AND ad.tenant_id = cr.tenant_id \
              AND ad.deleted_at IS NULL AND ad.admitted_at <= cr.created_at \

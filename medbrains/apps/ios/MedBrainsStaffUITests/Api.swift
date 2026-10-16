@@ -133,12 +133,17 @@ final class Api {
     /// The group every seeded transfusion uses: O-positive donor and patient, compatible by rule.
     static let seedBloodGroup = "o_positive"
 
-    /// A unit on the blood bank's record, released for issue — the server
-    /// refuses to hang a bag it has no record of.
+    /// The five statutory TTI markers, all non-reactive: nothing is released otherwise.
+    static let ttiMarkers = ["hiv", "hbsag", "hcv", "syphilis", "malaria"]
+
+    /// A unit on the blood bank's record, screened and released for issue —
+    /// the server refuses to hang a bag it has no record of.
     func bloodUnit(bag: String) -> String? {
-        guard let donor = obj("POST", "/api/blood-bank/donors", ["donor_number": "E2E-D-\(bag)", "first_name": "E2E", "last_name": "Donor", "blood_group": Self.seedBloodGroup])["id"] as? String,
-              let donation = obj("POST", "/api/blood-bank/donors/\(donor)/donations", ["bag_number": "E2E-DON-\(bag)", "volume_ml": 450])["id"] as? String,
-              let unit = obj("POST", "/api/blood-bank/components", ["donation_id": donation, "component_type": "prbc", "bag_number": bag, "blood_group": Self.seedBloodGroup, "volume_ml": 350, "expiry_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 86_400))])["id"] as? String
+        guard let donor = obj("POST", "/api/blood-bank/donors", ["donor_number": "E2E-D-\(bag)", "first_name": "E2E", "last_name": "Donor", "blood_group": Self.seedBloodGroup, "gender": "male", "date_of_birth": "1990-01-01"])["id"] as? String,
+              let donation = obj("POST", "/api/blood-bank/donors/\(donor)/donations", ["bag_number": "E2E-DON-\(bag)", "volume_ml": 450, "weight_kg": 60, "hemoglobin_g_dl": 13.5, "systolic_bp": 120, "diastolic_bp": 80, "pulse": 72])["id"] as? String
+        else { return nil }
+        call("POST", "/api/blood-bank/donations/\(donation)/tti", ["results": Self.ttiMarkers.map { ["marker": $0, "result": "non_reactive"] }])
+        guard let unit = obj("POST", "/api/blood-bank/components", ["donation_id": donation, "component_type": "prbc", "bag_number": bag, "blood_group": Self.seedBloodGroup, "volume_ml": 350, "expiry_at": ISO8601DateFormatter().string(from: Date().addingTimeInterval(30 * 86_400))])["id"] as? String
         else { return nil }
         call("PUT", "/api/blood-bank/components/\(unit)/status", ["status": "available"])
         return unit
@@ -147,11 +152,22 @@ final class Api {
     /// Group and hold: no transfusion without the patient's group on record.
     func recordBloodGroup(patientId: String) { call("PUT", "/api/patients/\(patientId)", ["blood_group": Self.seedBloodGroup]) }
 
+    /// The bank's side: a compatible crossmatch for this patient and unit, then
+    /// the issue — a bag is hung only once the bank has issued it to the patient.
+    func issueUnit(_ unit: String, to patientId: String, secondNurseId: String) -> Bool {
+        guard let me = obj("GET", "/api/auth/me")["id"] as? String,
+              let xm = obj("POST", "/api/blood-bank/crossmatch", ["patient_id": patientId, "blood_group": Self.seedBloodGroup])["id"] as? String
+        else { return false }
+        call("PUT", "/api/blood-bank/crossmatch/\(xm)", ["status": "compatible", "result": "compatible", "component_id": unit])
+        return call("POST", "/api/blood-bank/transfusions", ["patient_id": patientId, "component_id": unit, "patient_verified_by": me, "product_verified_by": secondNurseId]).0 == 200
+    }
+
     func transfusion(_ a: Admission, secondNurseId: String) -> String? {
         let bag = "BAG-\(Self.runId)"
-        guard bloodUnit(bag: bag) != nil else { return nil }
+        guard let unit = bloodUnit(bag: bag) else { return nil }
         recordBloodGroup(patientId: a.patientId)
-        return obj("POST", "/api/ipd/admissions/\(a.id)/transfusions", ["product_type": "PRBC", "bag_number": bag, "blood_group": "O", "rh_factor": "positive", "volume_ml": 350, "expiry_date": "2027-01-01", "crossmatch_compatible": true, "consent_on_file": true, "product_verified_by_id": secondNurseId])["id"] as? String
+        guard issueUnit(unit, to: a.patientId, secondNurseId: secondNurseId) else { return nil }
+        return obj("POST", "/api/ipd/admissions/\(a.id)/transfusions", ["product_type": "PRBC", "bag_number": bag, "blood_group": "O", "rh_factor": "positive", "volume_ml": 350, "expiry_date": "2027-01-01", "crossmatch_compatible": true, "consent_on_file": true, "product_verified_by_id": secondNurseId, "wristband_uhid": a.uhid])["id"] as? String
     }
 
     /// A waiting OPD token registered against `doctorId` as attending.

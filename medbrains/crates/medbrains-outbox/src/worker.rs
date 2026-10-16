@@ -289,9 +289,13 @@ async fn dispatch_one(
     };
 
     match handler.handle(&ctx, &payload).await {
-        Ok(_result) => {
-            mark_sent(&pool, event_id).await;
-        }
+        Ok(result) => match unconfigured_reason(&result) {
+            // The handler had no provider to send through and stubbed. Recording
+            // that as `sent` told every screen a message was delivered when
+            // nobody was messaged.
+            Some(reason) => mark_skipped_unconfigured(&pool, event_id, &reason).await,
+            None => mark_sent(&pool, event_id).await,
+        },
         Err(HandlerError::Permanent(msg)) => {
             mark_dlq(&pool, event_id, attempts, &format!("permanent: {msg}")).await;
         }
@@ -303,6 +307,35 @@ async fn dispatch_one(
             }
         }
     }
+}
+
+/// A handler that stubbed for want of a provider says so in its result
+/// (`{"stub": true, "provider": .., "reason": ..}`). Returns why, or `None`
+/// for a real send.
+fn unconfigured_reason(result: &Value) -> Option<String> {
+    if result.get("stub").and_then(Value::as_bool) != Some(true) {
+        return None;
+    }
+    let field = |key: &str| result.get(key).and_then(Value::as_str);
+    Some(format!(
+        "not configured: {} ({})",
+        field("provider").unwrap_or("provider"),
+        field("reason").unwrap_or("stub"),
+    ))
+}
+
+async fn mark_skipped_unconfigured(pool: &PgPool, event_id: Uuid, reason: &str) {
+    let _ = sqlx::query(
+        "UPDATE outbox_events \
+            SET status = 'skipped_unconfigured', last_error = $2, \
+                claimed_at = NULL, claimed_by = NULL \
+          WHERE id = $1",
+    )
+    .bind(event_id)
+    .bind(reason)
+    .execute(pool)
+    .await
+    .map_err(|e| tracing::error!(error = %e, "mark_skipped_unconfigured failed"));
 }
 
 async fn mark_sent(pool: &PgPool, event_id: Uuid) {
@@ -447,6 +480,24 @@ mod shutdown_channel_tests {
         assert_eq!(
             outcome.expect("loop span instead of exiting on a closed channel"),
             "exited"
+        );
+    }
+}
+
+#[cfg(test)]
+mod unconfigured_tests {
+    use super::unconfigured_reason;
+    use serde_json::json;
+
+    #[test]
+    fn a_stubbed_send_is_not_a_sent_one() {
+        assert!(unconfigured_reason(&json!({ "sid": "SM123" })).is_none());
+        assert_eq!(
+            unconfigured_reason(
+                &json!({ "provider": "twilio", "stub": true, "reason": "creds_unset" })
+            )
+            .as_deref(),
+            Some("not configured: twilio (creds_unset)")
         );
     }
 }

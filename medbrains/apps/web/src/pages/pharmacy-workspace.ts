@@ -4,9 +4,12 @@ import type {
   PharmacyOrderDetailResponse,
 } from "@medbrains/types";
 
+/** The patient journey an order belongs to; none for a walk-in counter sale. */
 export function pharmacyOrderJourneyContext(
   detail: PharmacyOrderDetailResponse,
-): ClinicalJourneyContext {
+): ClinicalJourneyContext | null {
+  const patientId = detail.order.patient_id;
+  if (!patientId) return null;
   const completedEvents: ClinicalEventName[] = ["order.created"];
   if (detail.billing_invoice_id) {
     completedEvents.push("billing.invoice.created");
@@ -16,7 +19,7 @@ export function pharmacyOrderJourneyContext(
   }
 
   return {
-    patientId: detail.order.patient_id,
+    patientId,
     activeEncounterId: detail.order.encounter_id,
     activeAdmissionId: detail.admission_id,
     activeAdmissionStatus: detail.admission_id ? "admitted" : null,

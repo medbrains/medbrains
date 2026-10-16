@@ -14,7 +14,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable } from "@/components";
+import { BloodPressureField, DataTable } from "@/components";
 import { Button } from "@/components/ui";
 import { DEFAULT_ICU_FLOWSHEET_FORM_VALUES, toCreateIcuFlowsheetRequest } from "@/forms/icu.form";
 import { icuService } from "@/services/icu.service";
@@ -417,32 +417,12 @@ export function FlowsheetsTab({ admissionId }: { admissionId: string }) {
               )}
             />
           </Group>
-          <Group grow>
-            <Controller
-              control={control}
-              name="systolic_bp"
-              render={({ field }) => (
-                <NumberInput
-                  label="Systolic BP"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.systolic_bp?.message}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="diastolic_bp"
-              render={({ field }) => (
-                <NumberInput
-                  label="Diastolic BP"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.diastolic_bp?.message}
-                />
-              )}
-            />
-          </Group>
+          <BloodPressureField
+            control={control}
+            systolicName="systolic_bp"
+            diastolicName="diastolic_bp"
+            emptyValue=""
+          />
           <Group grow>
             <Controller
               control={control}

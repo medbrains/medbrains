@@ -52,6 +52,15 @@ const emptyMassCasualtyEventUpdateForm: MassCasualtyEventUpdateFormInput = {
   notes: "",
 };
 
+/** What the server recorded it sent on activation — never a client claim. */
+function alertsSentText(event: MassCasualtyEvent): string {
+  const sent = event.notifications_sent;
+  if (!sent) return "No alerts recorded";
+  const inApp = Number(sent.in_app_alerts ?? 0);
+  const sms = Number(sent.sms_queued ?? 0);
+  return `${inApp} in-app, ${sms} SMS queued`;
+}
+
 export function MassCasualtyTab({
   canView,
   canCreate,
@@ -93,10 +102,12 @@ export function MassCasualtyTab({
   });
   const mutation = useMutation({
     mutationFn: (d: CreateMassCasualtyEventRequest) => emergencyService.createMassCasualtyEvent(d),
-    onSuccess: () => {
+    onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["mass-casualty"] });
       close();
-      toast.error("Mass casualty event activated", { title: "Code Yellow" });
+      toast.error(`Mass casualty event activated. ${alertsSentText(row)}`, {
+        title: "Code Yellow",
+      });
     },
   });
   const updateMutation = useMutation({
@@ -230,6 +241,7 @@ export function MassCasualtyTab({
       render: (r: MassCasualtyEvent) => r.actual_casualties ?? "---",
     },
     { key: "location", label: "Location", render: (r: MassCasualtyEvent) => r.location ?? "---" },
+    { key: "alerts", label: "Alerts sent", render: (r: MassCasualtyEvent) => alertsSentText(r) },
     ...(canUpdate || canClose
       ? [
           {

@@ -27,12 +27,14 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { Badge, Button, IconButton } from "@/components/ui";
 import {
   orderSetItemTypeOptions,
   orderSetOptionalInteger,
   orderSetOptionalText,
 } from "@/forms/order-sets.form";
+import { labPriorityOptions } from "@/forms/orderBasket.form";
 import { orderSetsService } from "@/services/order-sets.service";
 import { statusColorTone } from "./shared";
 
@@ -41,6 +43,7 @@ const emptyItemForm: OrderSetItemFormInput = {
   sort_order: 0,
   is_mandatory: false,
   default_selected: true,
+  lab_test_id: "",
   lab_priority: "",
   lab_notes: "",
   drug_name: "",
@@ -125,6 +128,7 @@ export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         sort_order: orderSetOptionalInteger(values.sort_order),
         is_mandatory: values.is_mandatory,
         default_selected: values.default_selected,
+        lab_test_id: values.item_type === "lab" ? values.lab_test_id : undefined,
         lab_priority: orderSetOptionalText(values.lab_priority),
         lab_notes: orderSetOptionalText(values.lab_notes),
         drug_name: orderSetOptionalText(values.drug_name),
@@ -334,13 +338,27 @@ export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
           {selectedItemType === "lab" && (
             <>
               <Controller
+                name="lab_test_id"
+                control={control}
+                render={({ field }) => (
+                  <LabTestSearchSelect
+                    value={field.value}
+                    onChange={(id) => field.onChange(id)}
+                    error={errors.lab_test_id?.message}
+                    required
+                  />
+                )}
+              />
+              <Controller
                 name="lab_priority"
                 control={control}
                 render={({ field }) => (
-                  <TextInput
-                    label="Lab Priority"
-                    placeholder="routine / urgent / stat"
-                    {...field}
+                  <Select
+                    label="Lab priority"
+                    data={labPriorityOptions}
+                    value={field.value || null}
+                    onChange={(value) => field.onChange(value ?? "")}
+                    clearable
                   />
                 )}
               />

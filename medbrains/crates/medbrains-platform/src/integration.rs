@@ -732,7 +732,7 @@ pub async fn set_default_pipeline_enabled(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'default_pipelines', 'disabled', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
     )
     .bind(claims.tenant_id)
     .bind(serde_json::json!(disabled))

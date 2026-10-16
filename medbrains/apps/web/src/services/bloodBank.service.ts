@@ -8,6 +8,11 @@ export const bloodBankService = {
   listDonations: (...args: Parameters<typeof api.listDonations>) => api.listDonations(...args),
   createDonation: (...args: Parameters<typeof api.createDonation>) => api.createDonation(...args),
   updateDonation: (...args: Parameters<typeof api.updateDonation>) => api.updateDonation(...args),
+  setDonorDeferral: (...args: Parameters<typeof api.setDonorDeferral>) =>
+    api.setDonorDeferral(...args),
+  listTtiResults: (...args: Parameters<typeof api.listTtiResults>) => api.listTtiResults(...args),
+  recordTtiResults: (...args: Parameters<typeof api.recordTtiResults>) =>
+    api.recordTtiResults(...args),
   listBloodComponents: (...args: Parameters<typeof api.listBloodComponents>) =>
     api.listBloodComponents(...args),
   createBloodComponent: (...args: Parameters<typeof api.createBloodComponent>) =>

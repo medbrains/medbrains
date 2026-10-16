@@ -11,6 +11,14 @@ Without it Postgres refuses the statement at run time — and a boot seed that
 does so stops the server from starting. The compiler cannot see this; this
 does.
 
+It also checks the other half of the same trap (``--`` revival): an upsert
+whose key is a full (not live-rows-only) key on a soft-deletable table can
+conflict with a soft-deleted row. `DO UPDATE SET value = …` then writes the
+new value into a row that stays deleted — the save "succeeds" and every reader
+that honours soft-delete still sees nothing. Such an upsert must reset
+`deleted_at` (`deleted_at = NULL, deleted_by = NULL, delete_reason = NULL`),
+or carry `// upsert-keeps-deleted: <reason>` within the statement's lines.
+
 Keys are read from the migrations in order: a partial unique index makes a key
 partial, a full unique index or constraint on the same columns (not later
 dropped) satisfies a bare ON CONFLICT, and DROP INDEX / DROP CONSTRAINT
@@ -79,6 +87,51 @@ def rust_files(paths: list[str]):
             yield from (os.path.join(dirpath, f) for f in files if f.endswith(".rs"))
 
 
+DO_UPDATE = re.compile(r"DO\s+UPDATE\s+SET\b", re.I)
+KEEPS_DELETED = "upsert-keeps-deleted:"
+
+
+def soft_deletable_tables() -> set[str]:
+    """Tables under `soft_delete_guardrail()` — a DELETE leaves a row behind."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from check_soft_delete_filter import guarded_tables  # noqa: E402
+
+    return guarded_tables()
+
+
+def revival_violations(paths: list[str]) -> list[str]:
+    soft = soft_deletable_tables()
+    found = []
+    for path in rust_files(paths):
+        with open(path, encoding="utf-8") as fh:
+            src = fh.read()
+        for m in INSERT.finditer(src):
+            table = m.group(1).lower()
+            if table not in soft:
+                continue
+            nxt = INSERT.search(src, m.end())
+            end = nxt.start() if nxt else len(src)
+            segment = src[m.end() : end][:3000]
+            c = CONFLICT.search(segment)
+            if not c or c.group(2):  # no upsert, or live-rows-only key
+                continue
+            # The statement ends at the closing quote of the SQL literal.
+            stmt_end = segment.find('"', c.end())
+            stmt = segment[: stmt_end if stmt_end != -1 else len(segment)]
+            if not DO_UPDATE.search(stmt) or "deleted_at" in stmt[c.end():]:
+                continue
+            if KEEPS_DELETED in segment:
+                continue
+            line = src.count("\n", 0, m.start()) + 1
+            rel = os.path.relpath(path, ROOT)
+            found.append(
+                f"{rel}:{line}: INSERT INTO {table} … ON CONFLICT ({c.group(1)}) DO UPDATE "
+                "can hit a soft-deleted row and leave it deleted; add "
+                "`deleted_at = NULL, deleted_by = NULL, delete_reason = NULL` to the SET"
+            )
+    return found
+
+
 def violations(paths: list[str]) -> list[str]:
     keys = partial_keys()
     found = []
@@ -102,10 +155,14 @@ def violations(paths: list[str]) -> list[str]:
 
 def main() -> int:
     found = violations(sys.argv[1:])
-    for v in found:
+    revived = revival_violations(sys.argv[1:])
+    for v in found + revived:
         print(v)
     if found:
         print(f"check-partial-upserts: {len(found)} upsert(s) would fail at run time")
+    if revived:
+        print(f"check-partial-upserts: {len(revived)} upsert(s) can update a soft-deleted row")
+    if found or revived:
         return 1
     print("check-partial-upserts: OK")
     return 0

@@ -19,8 +19,11 @@ data class AdmissionRow(
     val ward_id: String? = null,
     val status: String,
     val admitted_at: String,
+    /** IP number, e.g. IP-000123. */
+    val admission_number: String? = null,
 ) {
-    val bedLine: String get() = "UHID $uhid" + (bed_label?.let { " · BED $it" } ?: "")
+    val bedLine: String get() =
+        (admission_number?.let { "$it · " } ?: "") + "UHID $uhid" + (bed_label?.let { " · BED $it" } ?: "")
 }
 
 @Serializable private data class AdmissionList(val admissions: List<AdmissionRow>)
@@ -39,7 +42,24 @@ data class MarRow(
     val is_high_alert: Boolean = false,
     val barcode_verified: Boolean = false,
     val hold_reason: String? = null,
-)
+    /** Chemotherapy — the server gives it only to a nurse with a verified certification. */
+    val is_cytotoxic: Boolean = false,
+) {
+    /** As-needed orders: each dose given must say why (the server refuses it otherwise). */
+    val isPrn: Boolean get() = MarFrequency.isPrn(frequency)
+}
+
+/** Mirrors `is_prn_frequency` in crates/medbrains-ipd, which enforces it. */
+object MarFrequency {
+    private val PRN_EXACT = setOf("prn", "sos")
+    private const val PRN_PREFIX = "prn "
+    private const val AS_NEEDED = "as needed"
+
+    fun isPrn(frequency: String?): Boolean {
+        val f = frequency.orEmpty().trim().lowercase()
+        return f in PRN_EXACT || f.startsWith(PRN_PREFIX) || f.contains(AS_NEEDED)
+    }
+}
 
 @Serializable
 data class UpdateMarPayload(
@@ -48,6 +68,7 @@ data class UpdateMarPayload(
     val witnessed_by: String? = null,
     val hold_reason: String? = null,
     val refused_reason: String? = null,
+    val prn_reason: String? = null,
 )
 
 @Serializable data class BarcodeVerifyResult(val verified: Boolean, val right_patient: Boolean, val right_drug: Boolean, val reason: String? = null)

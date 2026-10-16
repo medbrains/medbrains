@@ -83,22 +83,29 @@ const ITEMS_SQL: &str = "SELECT ii.description, COALESCE(ii.hsn_sac_code, pc.hsn
        COALESCE(pc.inn_name, pc.generic_name) AS generic_name, pc.drug_schedule AS schedule, \
        pc.manufacturer, COALESCE(ii.batch_number, pb.batch_number) AS batch_number, \
        to_char(COALESCE(ii.expiry_date, pb.expiry_date), 'MM/YY') AS expiry, \
-       pc.mrp::text AS mrp, COALESCE(ii.discount_amount, 0)::text AS discount_amount, \
+       COALESCE(psi.mrp, pc.mrp)::text AS mrp, \
+       COALESCE(ii.discount_amount, 0)::text AS discount_amount, \
        COALESCE(ii.cgst_amount, 0)::text AS cgst_amount, COALESCE(ii.sgst_amount, 0)::text AS sgst_amount \
      FROM invoice_items ii \
      LEFT JOIN pharmacy_batches pb ON pb.id = ii.pharmacy_batch_id \
-     LEFT JOIN pharmacy_catalog pc ON pc.id = pb.catalog_item_id \
+     LEFT JOIN pharmacy_pos_sale_items psi ON psi.id = ii.source_id \
+          AND ii.source_module = 'pharmacy_pos' AND psi.tenant_id = ii.tenant_id \
+     LEFT JOIN pharmacy_catalog pc ON pc.id = COALESCE(pb.catalog_item_id, psi.catalog_item_id) \
      WHERE ii.invoice_id = $1 AND ii.tenant_id = $2 AND ii.deleted_at IS NULL \
      ORDER BY ii.created_at LIMIT 5000";
 
 /// From the medicine lines: who prescribed and dispensed, the prescription's
 /// validity and refills, and MRP against what was billed.
 const PHARMACY_SQL: &str = "WITH lines AS ( \
-       SELECT ii.ordering_doctor_id, ii.pharmacy_order_id, ii.quantity, ii.total_price, pc.mrp \
+       SELECT ii.ordering_doctor_id, ii.pharmacy_order_id, ii.quantity, ii.total_price, \
+              COALESCE(psi.mrp, pc.mrp) AS mrp \
          FROM invoice_items ii \
-         JOIN pharmacy_batches pb ON pb.id = ii.pharmacy_batch_id \
-         LEFT JOIN pharmacy_catalog pc ON pc.id = pb.catalog_item_id \
-        WHERE ii.invoice_id = $1 AND ii.tenant_id = $2 AND ii.deleted_at IS NULL), \
+         LEFT JOIN pharmacy_batches pb ON pb.id = ii.pharmacy_batch_id \
+         LEFT JOIN pharmacy_pos_sale_items psi ON psi.id = ii.source_id \
+              AND ii.source_module = 'pharmacy_pos' AND psi.tenant_id = ii.tenant_id \
+         LEFT JOIN pharmacy_catalog pc ON pc.id = COALESCE(pb.catalog_item_id, psi.catalog_item_id) \
+        WHERE ii.invoice_id = $1 AND ii.tenant_id = $2 AND ii.deleted_at IS NULL \
+          AND (pb.id IS NOT NULL OR psi.id IS NOT NULL)), \
      ord AS (SELECT po.* FROM pharmacy_orders po \
               WHERE po.id = (SELECT pharmacy_order_id FROM lines WHERE pharmacy_order_id IS NOT NULL LIMIT 1)) \
      SELECT doc.full_name AS prescriber_name, \
@@ -179,6 +186,41 @@ pub async fn get_gst_invoice_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    gst_invoice_print_data_in_tx(tx, &claims, invoice_id).await
+}
+
+/// `GET /api/print-data/pharmacy-bill/{invoice_id}` — the same tax invoice for
+/// a counter sale, printed by the pharmacy without billing's invoice access.
+/// Only an invoice the counter posted: anything else is not found.
+pub async fn get_pharmacy_bill_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(invoice_id): Path<Uuid>,
+) -> Result<Json<GstInvoicePrintData>, AppError> {
+    require_permission(&claims, permissions::pharmacy::bills::PRINT)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let is_counter_bill: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM invoice_items ii \
+                         WHERE ii.tenant_id = $1 AND ii.invoice_id = $2 \
+                           AND ii.source_module = 'pharmacy_pos' AND ii.deleted_at IS NULL)",
+    )
+    .bind(claims.tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !is_counter_bill {
+        return Err(AppError::NotFound);
+    }
+    gst_invoice_print_data_in_tx(tx, &claims, invoice_id).await
+}
+
+async fn gst_invoice_print_data_in_tx(
+    mut tx: Transaction<'static, Postgres>,
+    claims: &Claims,
+    invoice_id: Uuid,
+) -> Result<Json<GstInvoicePrintData>, AppError> {
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
     let h = sqlx::query_as::<_, Header>(HEADER_SQL)
         .bind(invoice_id)

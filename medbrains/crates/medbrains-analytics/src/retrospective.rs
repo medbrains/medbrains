@@ -135,7 +135,7 @@ pub async fn update_retro_settings(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ((current_setting('app.tenant_id'))::uuid, 'retrospective', 'max_backdate_hours', $1) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value"
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value"
         )
         .bind(&val)
         .execute(&mut *tx)
@@ -147,7 +147,7 @@ pub async fn update_retro_settings(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ((current_setting('app.tenant_id'))::uuid, 'retrospective', 'requires_approval', $1) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value"
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value"
         )
         .bind(&val)
         .execute(&mut *tx)

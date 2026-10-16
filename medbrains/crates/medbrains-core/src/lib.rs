@@ -106,6 +106,7 @@ pub mod security;
 pub mod sequence;
 pub mod simulator;
 pub mod specialty;
+pub mod synonyms;
 pub mod telemedicine;
 pub mod tenant;
 pub mod topology;

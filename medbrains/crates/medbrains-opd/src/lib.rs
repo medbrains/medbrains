@@ -8,6 +8,7 @@ use std::{
 
 pub mod last_visit;
 pub mod referral_lifecycle;
+pub mod rx_policy;
 pub mod rx_terms;
 pub mod transfer;
 
@@ -246,7 +247,6 @@ pub struct CreateVitalRequest {
     pub notes: Option<String>,
 }
 
-
 #[derive(Debug, Deserialize)]
 pub struct CreateDiagnosisRequest {
     pub icd_code: Option<String>,
@@ -321,12 +321,22 @@ pub struct CreatePrescriptionRequest {
     pub repeat_interval_days: Option<i32>,
     /// Last day the prescription may be dispensed or refilled against.
     pub valid_until: Option<NaiveDate>,
+    /// Clinical indication for an AWaRe Reserve antibiotic. Required when a
+    /// Reserve line has no live stewardship request; raises one (pending).
+    pub stewardship_indication: Option<String>,
+    /// Prescriber's reason for a non-formulary medicine. Required when a line
+    /// is non-formulary; filed to audit.
+    pub non_formulary_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePrescriptionRequest {
     pub notes: Option<String>,
     pub items: Vec<PrescriptionItemInput>,
+    /// As on create: the indication for a Reserve antibiotic without a request.
+    pub stewardship_indication: Option<String>,
+    /// As on create: the reason for a non-formulary medicine.
+    pub non_formulary_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -432,7 +442,8 @@ pub async fn get_registration_policy(
     require_permission(&claims, permissions::opd::queue::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let require_opd_registration = medbrains_server_services::mrd_lock::mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
+    let require_opd_registration =
+        medbrains_server_services::mrd_lock::mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(OpdRegistrationPolicy {
         require_opd_registration,
@@ -457,7 +468,7 @@ pub async fn update_registration_policy(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'mrd', 'require_opd_registration', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
     )
     .bind(claims.tenant_id)
     .bind(serde_json::Value::Bool(body.require_opd_registration))
@@ -1917,7 +1928,6 @@ fn should_mask_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> 
     opd_soap_note_access(restricted) == FieldAccessLevel::Mask
 }
 
-
 fn filter_consultation_response(
     mut row: Consultation,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -2771,7 +2781,11 @@ pub async fn create_prescription(
         interval_days: body.repeat_interval_days,
         valid_until: body.valid_until,
     };
-    let catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    let catalog_ids: Vec<Uuid> = body
+        .items
+        .iter()
+        .filter_map(|i| i.catalog_item_id)
+        .collect();
     rx_terms::check_refill_terms(&mut tx, &claims, terms, &catalog_ids, is_verbal).await?;
 
     let rx = sqlx::query_as::<_, Prescription>(
@@ -2930,6 +2944,25 @@ pub async fn create_prescription(
         .fetch_one(&mut *tx)
         .await?;
         items.push(pi);
+    }
+
+    // Antimicrobial stewardship + formulary (NABH AMS / DTC): a Reserve
+    // antibiotic raises a stewardship request, a non-formulary medicine is
+    // justified — or the prescription is not saved.
+    if let Some(pid) = rx_patient_id {
+        rx_policy::enforce_rx_policy(
+            &mut tx,
+            &claims,
+            &rx_policy::RxPolicy {
+                patient_id: pid,
+                doctor_id,
+                prescription_id: rx.id,
+                items: &body.items,
+                stewardship_indication: body.stewardship_indication.as_deref(),
+                non_formulary_reason: body.non_formulary_reason.as_deref(),
+            },
+        )
+        .await?;
     }
 
     // Auto-forward to pharmacy Rx queue
@@ -3170,6 +3203,31 @@ pub async fn update_prescription(
         .fetch_one(&mut *tx)
         .await?;
         items.push(pi);
+    }
+
+    // An edit is held to the same stewardship and formulary rules as a new
+    // prescription — otherwise editing would be the way round them.
+    let patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(rx.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(patient_id) = patient_id {
+        rx_policy::enforce_rx_policy(
+            &mut tx,
+            &claims,
+            &rx_policy::RxPolicy {
+                patient_id,
+                doctor_id: rx.doctor_id,
+                prescription_id: id,
+                items: &body.items,
+                stewardship_indication: body.stewardship_indication.as_deref(),
+                non_formulary_reason: body.non_formulary_reason.as_deref(),
+            },
+        )
+        .await?;
     }
 
     let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) =
@@ -4939,7 +4997,7 @@ pub async fn generate_doctor_docket(
             AND (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), po.created_at))::date = $3 AND po.status = 'completed') \
          FROM encounters e \
          WHERE e.tenant_id = $1 AND e.doctor_id = $2 AND e.encounter_date = $3 \
-         ON CONFLICT (tenant_id, doctor_id, docket_date) DO UPDATE SET \
+         ON CONFLICT (tenant_id, doctor_id, docket_date) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            total_patients = EXCLUDED.total_patients, \
            new_patients = EXCLUDED.new_patients, \
            follow_ups = EXCLUDED.follow_ups, \
@@ -5250,6 +5308,9 @@ pub struct CreateConsentRequest {
     pub consented_by_relation: Option<String>,
     pub witness_name: Option<String>,
     pub witness_designation: Option<String>,
+    /// The OT booking this surgical/anaesthesia consent is taken for. It then
+    /// covers that operation without a separate link step on the OT screen.
+    pub ot_booking_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -5308,14 +5369,24 @@ pub async fn create_consent(
         body.encounter_id,
     )
     .await?;
+    if let Some(booking_id) = body.ot_booking_id {
+        ensure_open_ot_booking_for(
+            &mut tx,
+            &claims.tenant_id,
+            booking_id,
+            body.patient_id,
+            consent_type,
+        )
+        .await?;
+    }
 
     let row = sqlx::query_as::<_, ProcedureConsent>(
         "INSERT INTO procedure_consents \
          (tenant_id, patient_id, encounter_id, procedure_order_id, procedure_name, \
           consent_type, risks_explained, alternatives_explained, benefits_explained, \
           patient_questions, consented_by_name, consented_by_relation, \
-          witness_name, witness_designation, doctor_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
+          witness_name, witness_designation, doctor_id, ot_booking_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -5333,11 +5404,48 @@ pub async fn create_consent(
     .bind(&body.witness_name)
     .bind(&body.witness_designation)
     .bind(claims.sub)
+    .bind(body.ot_booking_id)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// A consent may be taken for an OT booking only when it is a surgical,
+/// procedure or anaesthesia consent, for that booking's patient, and the
+/// booking has not started or closed.
+async fn ensure_open_ot_booking_for(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    booking_id: Uuid,
+    patient_id: Uuid,
+    consent_type: &str,
+) -> Result<(), AppError> {
+    if !matches!(consent_type, "surgery" | "procedure" | "anesthesia") {
+        return Err(AppError::BadRequest(
+            "Only a surgical, procedure or anaesthesia consent can be taken for an operation."
+                .to_owned(),
+        ));
+    }
+    let status: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT patient_id, status::text FROM ot_bookings \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(booking_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    match status {
+        Some((pid, _)) if pid != patient_id => Err(AppError::BadRequest(
+            "That operation is booked for a different patient.".to_owned(),
+        )),
+        Some((_, st)) if matches!(st.as_str(), "in_progress" | "completed" | "cancelled") => Err(
+            AppError::Conflict("That operation has already started or is closed.".to_owned()),
+        ),
+        Some(_) => Ok(()),
+        None => Err(AppError::NotFound),
+    }
 }
 
 pub async fn sign_consent(
@@ -6564,6 +6672,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/opd/patients/{id}/prescriptions",
             get(list_patient_prescriptions),
+        )
+        .route(
+            "/api/opd/patients/{id}/stewardship-requests",
+            get(rx_policy::list_live_stewardship_requests),
         )
         .route(
             "/api/opd/patients/{id}/diagnoses",

@@ -22,10 +22,12 @@ import {
   createDonor,
   createPatientWithBloodGroup,
   createTransfusion,
+  crossmatchCompatible,
   listBloodComponents,
   listQualityIncidents,
   type QualityIncidentLite,
   recordTransfusionReaction,
+  screenDonationNonReactive,
   setBloodComponentStatus,
 } from "../helpers/journey-steps";
 
@@ -35,6 +37,7 @@ const BG = "o_positive";
 async function donationWithTwoUnits(admin: Awaited<ReturnType<typeof getAuthContextFromCookies>>) {
   const donor = await createDonor(admin, BG);
   const donation = await createDonation(admin, donor.id);
+  await screenDonationNonReactive(admin, donation.id);
   const units = [];
   for (let i = 0; i < 2; i++) {
     const c = await createBloodComponent(admin, { donationId: donation.id, bloodGroup: BG, componentType: "prbc" });
@@ -58,6 +61,11 @@ test.describe("A transfusion reaction holds the donation's other units and reach
     const other = await donationWithTwoUnits(admin);
     const patient = await createPatientWithBloodGroup(admin, BG);
 
+    await crossmatchCompatible(admin, {
+      patientId: patient.id,
+      componentId: a.units[0] ?? "",
+      bloodGroup: BG,
+    });
     const transfusion = await createTransfusion(admin, {
       patientId: patient.id,
       componentId: a.units[0] ?? "",
@@ -87,6 +95,11 @@ test.describe("A transfusion reaction holds the donation's other units and reach
 
     // Fatal is a sentinel event.
     const patient2 = await createPatientWithBloodGroup(admin, BG);
+    await crossmatchCompatible(admin, {
+      patientId: patient2.id,
+      componentId: other.units[0] ?? "",
+      bloodGroup: BG,
+    });
     const t2 = await createTransfusion(admin, {
       patientId: patient2.id,
       componentId: other.units[0] ?? "",

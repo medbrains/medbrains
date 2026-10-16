@@ -122,7 +122,7 @@ pub async fn update_ai_settings(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'ai', 'config', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
         claims.tenant_id,
         &value,
     )
@@ -249,7 +249,7 @@ pub async fn update_email_settings(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'email', 'config', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
         claims.tenant_id,
         &value,
     )

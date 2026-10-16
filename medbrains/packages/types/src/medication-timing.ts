@@ -65,11 +65,27 @@ export interface CreatePrescriptionRequest {
   repeat_interval_days?: number;
   /** Last day the prescription may be dispensed or refilled (YYYY-MM-DD). */
   valid_until?: string;
+  /** Indication for an AWaRe Reserve antibiotic — raises a stewardship request. */
+  stewardship_indication?: string;
+  /** Reason for prescribing a non-formulary medicine. */
+  non_formulary_reason?: string;
+}
+
+/** A stewardship request that still counts for prescribing: pending or approved, unexpired. */
+export interface LiveStewardshipRequest {
+  id: string;
+  antibiotic_name: string;
+  request_status: "pending" | "approved";
+  auto_stop_date: string | null;
 }
 
 export interface UpdatePrescriptionRequest {
   notes?: string;
   items: PrescriptionItemInput[];
+  /** As on create: indication for a Reserve antibiotic without a stewardship request. */
+  stewardship_indication?: string;
+  /** As on create: reason for a non-formulary medicine. */
+  non_formulary_reason?: string;
 }
 
 export interface PrescriptionWithItems {
@@ -488,6 +504,8 @@ export interface CreateConsentRequest {
   consented_by_relation?: string;
   witness_name?: string;
   witness_designation?: string;
+  /** The OT booking a surgical/anaesthesia consent is taken for. */
+  ot_booking_id?: string;
 }
 
 export interface RevokeProcedureConsentRequest {
@@ -1204,6 +1222,15 @@ export interface InsuranceClaim {
   nhcx_recipient_code: string | null;
   nhcx_response_payload: unknown | null;
   nhcx_response_at: string | null;
+  admission_id: string | null;
+  insurance_id: string | null;
+  claim_amount: string | null;
+  /** The claimed invoice's total. */
+  total_bill_amount: string;
+  /** Bill total less the approved amount — what the payer will not pay. */
+  deductions: string;
+  /** Bill total less the payer's share less what the patient already paid. */
+  patient_payable: string;
   created_at: string;
   updated_at: string;
 }
@@ -2074,6 +2101,8 @@ export interface LabTestCatalog {
   fasting_required: boolean;
   /** null means unspecified, not zero. */
   fasting_hours: number | null;
+  /** Short names searched by ("LFT", "hemogram"). */
+  synonyms: string[];
   created_at: string;
   updated_at: string;
 }
@@ -2097,6 +2126,8 @@ export interface LabOrderListResponse {
 
 export interface CollectSampleRequest {
   patient_identifier: string;
+  /** The label on the tube — what every analyzer match keys on. */
+  sample_barcode?: string;
 }
 
 export interface CreateLabOrderRequest {
@@ -2157,6 +2188,7 @@ export interface CreateLabCatalogRequest {
   container?: string;
   fasting_required?: boolean;
   fasting_hours?: number;
+  synonyms?: string[];
 }
 
 export interface UpdateLabCatalogRequest {
@@ -2181,6 +2213,7 @@ export interface UpdateLabCatalogRequest {
   container?: string;
   fasting_required?: boolean;
   fasting_hours?: number;
+  synonyms?: string[];
 }
 
 // Lab Panels / Profiles
@@ -3056,6 +3089,58 @@ export interface RadiologyModality {
   updated_at: string;
 }
 
+export type RadiologyContrast = "none" | "with" | "without" | "with_and_without";
+
+/** One orderable imaging exam ("CT Brain Plain") under one modality. */
+export interface RadiologyExam {
+  id: string;
+  tenant_id: string;
+  modality_id: string;
+  code: string;
+  name: string;
+  body_part: string | null;
+  body_part_code: string | null;
+  laterality_required: boolean;
+  contrast: RadiologyContrast;
+  synonyms: string[];
+  /** charge_master code; null means billing uses RAD-<modality code>. */
+  charge_code: string | null;
+  preparation: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RadiologyExamListItem extends RadiologyExam {
+  modality_code: string;
+  modality_name: string;
+  /** Price of billing_code in the charge master; null when unpriced. */
+  price: string | null;
+  /** The charge code billing uses for this exam. */
+  billing_code: string;
+}
+
+export interface RadiologyExamInput {
+  modality_id?: string;
+  code?: string;
+  name?: string;
+  body_part?: string;
+  body_part_code?: string;
+  laterality_required?: boolean;
+  contrast?: RadiologyContrast;
+  synonyms?: string[];
+  charge_code?: string;
+  preparation?: string;
+  is_active?: boolean;
+}
+
+export interface RadiologyExamListParams {
+  modality_id?: string;
+  search?: string;
+  limit?: number;
+  include_inactive?: boolean;
+}
+
 export interface RadiologyOrder {
   id: string;
   tenant_id: string;
@@ -3078,6 +3163,7 @@ export interface RadiologyOrder {
   cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
+  exam_id?: string | null;
 }
 
 export interface RadiologyReport {
@@ -3137,6 +3223,8 @@ export interface CreateRadiologyOrderRequest {
   contrast_required?: boolean;
   pregnancy_checked?: boolean;
   allergy_flagged?: boolean;
+  /** Catalogue exam; must belong to modality_id. */
+  exam_id?: string;
 }
 
 export interface RadiologyOrderDetailResponse {
@@ -3266,9 +3354,6 @@ export interface StockListItem extends PharmacyCatalog {
 export interface ComplianceSettings {
   enforce_drug_scheduling: boolean;
   enforce_ndps_tracking: boolean;
-  enforce_formulary: boolean;
-  enforce_drug_interactions: boolean;
-  enforce_antibiotic_stewardship: boolean;
   enforce_lasa_warnings: boolean;
   enforce_max_dose_check: boolean;
   enforce_batch_tracking: boolean;
@@ -3296,7 +3381,8 @@ export interface PharmacyOrder {
   id: string;
   tenant_id: string;
   prescription_id: string | null;
-  patient_id: string;
+  /** Null for a walk-in counter sale. */
+  patient_id: string | null;
   encounter_id: string | null;
   ordered_by: string;
   status: PharmacyOrderStatus;
@@ -3521,6 +3607,35 @@ export interface LabReferralDoctor {
   hospital_name: string | null;
   commission_pct: number | null;
   is_active: boolean;
+  registration_no: string | null;
+}
+
+/** Who sent a walk-in patient to the lab. */
+export type DirectLabReferral =
+  | { kind: "internal"; doctor_id: string }
+  | {
+      kind: "external";
+      referral_doctor_id?: string;
+      name?: string;
+      registration_no?: string;
+      phone?: string;
+    }
+  | { kind: "self" };
+
+export interface CreateDirectLabOrderRequest {
+  patient_id: string;
+  test_ids: string[];
+  priority?: LabPriority;
+  clinical_history?: string;
+  referral: DirectLabReferral;
+}
+
+export interface DirectLabOrderResponse {
+  encounter_id: string;
+  orders: LabOrder[];
+  /** Draft invoice the tests were charged to. */
+  invoice_id: string | null;
+  total: string;
 }
 
 /** One settled or pending commission period. */

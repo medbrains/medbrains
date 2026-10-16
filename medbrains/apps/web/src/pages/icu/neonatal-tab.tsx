@@ -30,6 +30,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
 import { DEFAULT_ICU_NEONATAL_FORM_VALUES, toCreateIcuNeonatalRequest } from "@/forms/icu.form";
 import { icuService } from "@/services/icu.service";
+import { MotherBabyMatchPanel } from "../security/mother-baby-match-panel";
 
 function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] }) {
   const bilirubinData = useMemo(() => {
@@ -227,6 +228,8 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
 
 export function NeonatalTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.ICU.NEONATAL_CREATE);
+  // Generated into P by the coordinator; literal until then.
+  const canVerifyMatch = useHasPermission(P.SECURITY.PATIENT_SAFETY_VERIFY_MATCH);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
@@ -303,6 +306,7 @@ export function NeonatalTab({ admissionId }: { admissionId: string }) {
 
   return (
     <Stack>
+      {canVerifyMatch && <MotherBabyMatchPanel />}
       <Group justify="flex-end">
         {canCreate && admissionId && (
           <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>

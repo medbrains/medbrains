@@ -98,6 +98,10 @@ fun AdministerDoseScreen(nav: NavHostController, api: NurseApi, admission: Admis
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-administer-dose")) {
         CarbonPageHeader("Administer", dose.drug_name, "${dose.dose} · ${dose.route} · ${admission.patient_name} · UHID ${admission.uhid}") {
             if (dose.is_high_alert) CarbonTag("high alert", CarbonTone.HighAlert)
+            if (dose.is_cytotoxic) CarbonTag("chemotherapy", CarbonTone.Danger)
+        }
+        if (dose.is_cytotoxic) {
+            CarbonNotification(NotificationKind.Warning, "Chemotherapy", "Only a nurse with an HR-verified chemotherapy certification can give this dose.", Modifier.padding(horizontal = 16.dp))
         }
         failure?.let { CarbonNotification(NotificationKind.Error, "The check could not be completed", it, Modifier.padding(horizontal = 16.dp)) }
         when (val s = step) {
@@ -130,9 +134,11 @@ private fun RecordAdministration(api: NurseApi, admission: AdmissionRow, dose: M
     val duty by onDuty.state.collectAsState()
     val witnesses = bcmaEligibleWitnesses(duty.value.orEmpty().map { WitnessCandidate(it.nurse_user_id, it.nurse_name, it.is_charge) }, me)
     var witnessId by remember { mutableStateOf<String?>(null) }
+    var prnReason by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val prnReasonMissing = dose.isPrn && prnReason.isBlank()
 
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Right patient, right drug", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -150,12 +156,20 @@ private fun RecordAdministration(api: NurseApi, admission: AdmissionRow, dose: M
                 }
             }
         }
+        if (dose.isPrn) {
+            CarbonTextField(prnReason, { prnReason = it }, "Why is this as-needed dose being given?", modifier = Modifier.testTag("dose-prn-reason"))
+        }
         failure?.let { CarbonNotification(NotificationKind.Error, "The dose could not be recorded", it) }
-        CarbonPrimaryButton("Give now", enabled = !busy && bcmaCanRecordGiven(dose.is_high_alert, witnessId), modifier = Modifier.testTag("bcma-give-now").semantics { contentDescription = "Record ${dose.drug_name} as given" }, onClick = {
+        CarbonPrimaryButton("Give now", enabled = !busy && !prnReasonMissing && bcmaCanRecordGiven(dose.is_high_alert, witnessId), modifier = Modifier.testTag("bcma-give-now").semantics { contentDescription = "Record ${dose.drug_name} as given" }, onClick = {
             scope.launch {
                 busy = true; failure = null
                 try {
-                    api.updateMar(admission.id, dose.id, UpdateMarPayload(status = "given", administered_at = ServerTime.format(Instant.now()), witnessed_by = if (dose.is_high_alert) witnessId else null))
+                    api.updateMar(admission.id, dose.id, UpdateMarPayload(
+                        status = "given",
+                        administered_at = ServerTime.format(Instant.now()),
+                        witnessed_by = if (dose.is_high_alert) witnessId else null,
+                        prn_reason = if (dose.isPrn) prnReason.trim() else null,
+                    ))
                     onDone()
                 } catch (e: Exception) { failure = (e as? ApiError)?.message ?: "Could not reach the hospital server." } finally { busy = false }
             }

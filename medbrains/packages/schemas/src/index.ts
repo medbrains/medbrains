@@ -1,8 +1,9 @@
 import { z } from "zod";
 
+// primitives.ts is re-exported through guards.ts
+export * from "./blood-pressure.js";
 export { buildFormSchema, evaluateCondition } from "./dynamic-form.js";
 export * from "./form-primitives.js";
-// primitives.ts is re-exported through guards.ts
 export * from "./guards.js";
 export * from "./hms-forms.js";
 export * from "./onboarding.js";

@@ -262,7 +262,8 @@ export function PairedDevicesPage() {
       <SyncKeyModal
         device={syncKeyFor}
         nodeId={syncKeyFor ? nodeIdByDevice.get(syncKeyFor.id) : undefined}
-        canManage={canMintToken}
+        canBind={canMintToken}
+        canRevoke={canRevoke}
         onClose={() => setSyncKeyFor(null)}
       />
 

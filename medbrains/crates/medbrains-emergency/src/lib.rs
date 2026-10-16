@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod alerts;
 pub mod mlc_injuries;
+pub mod mlc_record;
 
 use axum::{
     Extension, Json,
@@ -148,6 +150,8 @@ pub struct CreateMlcCaseRequest {
     pub examination_findings: Option<String>,
     pub is_pocso: Option<bool>,
     pub is_death_case: Option<bool>,
+    #[serde(flatten)]
+    pub record: mlc_record::MlcRecordFields,
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,6 +163,10 @@ pub struct UpdateMlcCaseRequest {
     pub examination_findings: Option<String>,
     pub medical_opinion: Option<String>,
     pub cause_of_death: Option<String>,
+    #[serde(flatten)]
+    pub record: mlc_record::MlcRecordFields,
+    /// Required when the case is certified (opinion given, in court, closed).
+    pub amendment_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -369,6 +377,7 @@ fn filter_mlc_case_response(
     } else if mlc_field_is_masked(restricted, MLC_CAUSE_OF_DEATH_FIELD) {
         row.cause_of_death = row.cause_of_death.map(|value| mask_free_text(&value));
     }
+    row.redact_record_fields(restricted);
 
     row
 }
@@ -422,7 +431,6 @@ pub struct UpdateMassCasualtyEventRequest {
     pub actual_casualties: Option<i32>,
     pub triage_summary: Option<serde_json::Value>,
     pub resources_deployed: Option<serde_json::Value>,
-    pub notifications_sent: Option<serde_json::Value>,
     pub notes: Option<String>,
 }
 
@@ -558,9 +566,6 @@ async fn auto_create_mlc_case_for_visit(
     case_type: &str,
     history_of_incident: Option<&str>,
 ) -> Result<(), AppError> {
-    let suffix = er_visit_id.to_string().chars().take(8).collect::<String>();
-    let mlc_number = format!("MLC-{}-{suffix}", Utc::now().format("%Y%m%d%H%M%S"));
-
     let created_mlc_case = sqlx::query_as::<_, (Uuid, String)>(
         "INSERT INTO mlc_cases
          (tenant_id, er_visit_id, patient_id, mlc_number, case_type,
@@ -574,7 +579,8 @@ async fn auto_create_mlc_case_for_visit(
     .bind(tenant_id)
     .bind(er_visit_id)
     .bind(patient_id)
-    .bind(&mlc_number)
+    // NULL: the MLC_NUMBER sequence trigger allocates the number (1067).
+    .bind(None::<String>)
     .bind(case_type)
     .bind(history_of_incident)
     .bind(registered_by)
@@ -582,6 +588,7 @@ async fn auto_create_mlc_case_for_visit(
     .await?;
 
     if let Some((mlc_case_id, created_mlc_number)) = created_mlc_case {
+        alerts::notify_mlc_registered(tx, *tenant_id, mlc_case_id, &created_mlc_number).await?;
         let event = ClinicalEventEnvelope::new(
             *tenant_id,
             ClinicalEventName::MlcCreated,
@@ -1410,7 +1417,7 @@ pub async fn create_code_activation(
         sqlx::query(
             "INSERT INTO access_group_members (group_id, user_id, tenant_id, added_by, expires_at) \
              VALUES ($1, $2, $3, $4, $5) \
-             ON CONFLICT (group_id, user_id) DO UPDATE SET \
+             ON CONFLICT (group_id, user_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                expires_at = GREATEST(access_group_members.expires_at, EXCLUDED.expires_at), \
                added_by = EXCLUDED.added_by",
         )
@@ -1642,9 +1649,15 @@ pub async fn create_mlc_case(
         ],
         &restricted_fields,
     )?;
+    let record = body.record.normalized();
+    reject_restricted_mlc_field_writes(&record.restricted_writes(), &restricted_fields)?;
+    let now = Utc::now();
+    record.validate_times(None, None, now, now)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     ensure_patient_belongs_to_tenant(&mut tx, claims.tenant_id, body.patient_id).await?;
+    mlc_record::ensure_examining_doctor(&mut tx, claims.tenant_id, record.examining_doctor_id)
+        .await?;
 
     if let Some(er_visit_id) = body.er_visit_id {
         ensure_er_visit_matches_patient(&mut tx, claims.tenant_id, er_visit_id, body.patient_id)
@@ -1668,19 +1681,22 @@ pub async fn create_mlc_case(
             .await?;
     }
 
-    let mlc_number = format!("MLC-{}", Utc::now().format("%Y%m%d%H%M%S"));
-
     let row = sqlx::query_as::<_, MlcCase>(
         "INSERT INTO mlc_cases (tenant_id, er_visit_id, patient_id, mlc_number, case_type, fir_number, police_station,
             brought_by, informant_name, informant_relation, informant_contact, history_of_incident,
-            examination_findings, is_pocso, is_death_case, registered_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16)
+            examination_findings, is_pocso, is_death_case, registered_by,
+            examining_doctor_id, examined_at, date_time_of_incident, place_of_incident, weapon_used,
+            police_officer_name, police_officer_rank, police_dd_number, condition_on_arrival,
+            treatment_given, samples_handed_to, patient_condition_at_discharge)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14, false), COALESCE($15, false), $16,
+            $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.er_visit_id)
     .bind(body.patient_id)
-    .bind(&mlc_number)
+    // NULL: the MLC_NUMBER sequence trigger allocates the number (1067).
+    .bind(None::<String>)
     .bind(body.case_type)
     .bind(body.fir_number)
     .bind(body.police_station)
@@ -1693,8 +1709,21 @@ pub async fn create_mlc_case(
     .bind(body.is_pocso)
     .bind(body.is_death_case)
     .bind(claims.sub)
+    .bind(record.examining_doctor_id)
+    .bind(record.examined_at)
+    .bind(record.date_time_of_incident)
+    .bind(record.place_of_incident)
+    .bind(record.weapon_used)
+    .bind(record.police_officer_name)
+    .bind(record.police_officer_rank)
+    .bind(record.police_dd_number)
+    .bind(record.condition_on_arrival)
+    .bind(record.treatment_given)
+    .bind(record.samples_handed_to)
+    .bind(record.patient_condition_at_discharge)
     .fetch_one(&mut *tx)
     .await?;
+    alerts::notify_mlc_registered(&mut tx, claims.tenant_id, row.id, &row.mlc_number).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::MlcCreated,
@@ -1787,34 +1816,87 @@ pub async fn update_mlc_case(
         ],
         &restricted_fields,
     )?;
+    let record = body.record.normalized();
+    reject_restricted_mlc_field_writes(&record.restricted_writes(), &restricted_fields)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // Locked for the rest of the transaction: the amendment check compares
+    // against exactly the row this update replaces.
+    let current = sqlx::query_as::<_, MlcCase>(
+        "SELECT * FROM mlc_cases WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    record.validate_times(
+        current.date_time_of_incident,
+        current.examined_at,
+        current.registered_at,
+        Utc::now(),
+    )?;
+    mlc_record::ensure_examining_doctor(&mut tx, claims.tenant_id, record.examining_doctor_id)
+        .await?;
+    let mut changes = mlc_record::MlcChanges::default();
+    changes.status(&current.status, body.status.as_deref());
+    changes.text(
+        "case_type",
+        current.case_type.as_deref(),
+        body.case_type.as_deref(),
+    );
+    changes.text(
+        "fir_number",
+        current.fir_number.as_deref(),
+        body.fir_number.as_deref(),
+    );
+    changes.text(
+        "police_station",
+        current.police_station.as_deref(),
+        body.police_station.as_deref(),
+    );
+    changes.text(
+        "examination_findings",
+        current.examination_findings.as_deref(),
+        body.examination_findings.as_deref(),
+    );
+    changes.text(
+        "medical_opinion",
+        current.medical_opinion.as_deref(),
+        body.medical_opinion.as_deref(),
+    );
+    changes.text(
+        "cause_of_death",
+        current.cause_of_death.as_deref(),
+        body.cause_of_death.as_deref(),
+    );
+    changes.record(&current, &record);
+    mlc_record::enforce_amendment(
+        &mut tx,
+        &claims,
+        &current,
+        changes,
+        body.amendment_reason.as_deref(),
+    )
+    .await?;
 
     // Medico-legal safeguard: an MLC case must not be closed until the police have been informed.
     // Require a recorded police intimation (or an FIR number, set now or already on file) before the
     // status may move to 'closed' — closing a medico-legal case without police intimation is improper.
     if body.status.as_deref() == Some("closed") {
         let intimation_exists = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM mlc_police_intimations WHERE mlc_case_id = $1)",
+            "SELECT EXISTS(SELECT 1 FROM mlc_police_intimations \
+              WHERE mlc_case_id = $1 AND deleted_at IS NULL)",
         )
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
-        let fir_now = body
-            .fir_number
-            .as_deref()
-            .map(str::trim)
-            .is_some_and(|s| !s.is_empty());
-        let fir_on_file = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT fir_number FROM mlc_cases WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .flatten()
-        .is_some_and(|s| !s.trim().is_empty());
-        if !intimation_exists && !fir_now && !fir_on_file {
+        let has_fir = |fir: Option<&str>| fir.map(str::trim).is_some_and(|s| !s.is_empty());
+        if !intimation_exists
+            && !has_fir(body.fir_number.as_deref())
+            && !has_fir(current.fir_number.as_deref())
+        {
             return Err(AppError::Conflict(
                 "Cannot close this MLC case — record a police intimation or FIR number first. \
                  The police must be informed for every medico-legal case."
@@ -1831,7 +1913,19 @@ pub async fn update_mlc_case(
             police_station = COALESCE($6, police_station),
             examination_findings = COALESCE($7, examination_findings),
             medical_opinion = COALESCE($8, medical_opinion),
-            cause_of_death = COALESCE($9, cause_of_death)
+            cause_of_death = COALESCE($9, cause_of_death),
+            examining_doctor_id = COALESCE($10, examining_doctor_id),
+            examined_at = COALESCE($11, examined_at),
+            date_time_of_incident = COALESCE($12, date_time_of_incident),
+            place_of_incident = COALESCE($13, place_of_incident),
+            weapon_used = COALESCE($14, weapon_used),
+            police_officer_name = COALESCE($15, police_officer_name),
+            police_officer_rank = COALESCE($16, police_officer_rank),
+            police_dd_number = COALESCE($17, police_dd_number),
+            condition_on_arrival = COALESCE($18, condition_on_arrival),
+            treatment_given = COALESCE($19, treatment_given),
+            samples_handed_to = COALESCE($20, samples_handed_to),
+            patient_condition_at_discharge = COALESCE($21, patient_condition_at_discharge)
          WHERE id = $1 AND tenant_id = $2
          RETURNING *",
     )
@@ -1844,6 +1938,18 @@ pub async fn update_mlc_case(
     .bind(body.examination_findings)
     .bind(body.medical_opinion)
     .bind(body.cause_of_death)
+    .bind(record.examining_doctor_id)
+    .bind(record.examined_at)
+    .bind(record.date_time_of_incident)
+    .bind(record.place_of_incident)
+    .bind(record.weapon_used)
+    .bind(record.police_officer_name)
+    .bind(record.police_officer_rank)
+    .bind(record.police_dd_number)
+    .bind(record.condition_on_arrival)
+    .bind(record.treatment_given)
+    .bind(record.samples_handed_to)
+    .bind(record.patient_condition_at_discharge)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -2026,9 +2132,11 @@ pub async fn list_police_intimations(
     .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, MlcPoliceIntimation>(
-        "SELECT * FROM mlc_police_intimations WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC LIMIT 5000",
-    )
+    let rows = sqlx::query_as::<_, MlcPoliceIntimation>(&format!(
+        "{} WHERE i.mlc_case_id = $1 AND i.tenant_id = $2 AND i.deleted_at IS NULL \
+         ORDER BY i.sent_at DESC LIMIT 5000",
+        alerts::INTIMATION_WITH_DELIVERY
+    ))
     .bind(mlc_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2092,8 +2200,6 @@ pub async fn create_police_intimation(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let intimation_number = format!("PI-{}", Utc::now().format("%Y%m%d%H%M%S"));
-
     let row = sqlx::query_as::<_, MlcPoliceIntimation>(
         "INSERT INTO mlc_police_intimations (tenant_id, mlc_case_id, intimation_number, police_station,
             officer_name, officer_designation, officer_contact, sent_via, notes, sent_by)
@@ -2102,7 +2208,8 @@ pub async fn create_police_intimation(
     )
     .bind(claims.tenant_id)
     .bind(mlc_id)
-    .bind(&intimation_number)
+    // NULL: the MLC_POLICE_INTIMATION sequence trigger allocates it (1067).
+    .bind(None::<String>)
     .bind(police_station)
     .bind(body.officer_name)
     .bind(body.officer_designation)
@@ -2112,6 +2219,11 @@ pub async fn create_police_intimation(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    // The intimation is a statutory duty, not a note: it goes to the police
+    // contact by SMS/email in this transaction, and the row reads back what
+    // the outbox did with it.
+    alerts::queue_police_intimation(&mut tx, claims.tenant_id, &row).await?;
+    let row = alerts::load_intimation(&mut tx, claims.tenant_id, row.id).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyMlcPoliceIntimationCreated,
@@ -2195,6 +2307,7 @@ pub async fn confirm_police_receipt(
     .ok_or_else(|| {
         AppError::BadRequest("Police receipt already confirmed or intimation not found".to_owned())
     })?;
+    let row = alerts::load_intimation(&mut tx, claims.tenant_id, row.id).await?;
     tx.commit().await?;
     Ok(Json(filter_mlc_police_intimation_response(
         row,
@@ -2264,6 +2377,7 @@ pub async fn create_mass_casualty_event(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    let row = alerts::alert_mass_casualty(&mut tx, &row).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2299,12 +2413,11 @@ pub async fn update_mass_casualty_event(
         "UPDATE mass_casualty_events SET
             status = COALESCE($3::mass_casualty_status, status),
             deactivated_at = CASE WHEN $3 = 'deactivated' THEN now() ELSE deactivated_at END,
-            deactivated_by = CASE WHEN $3 = 'deactivated' THEN $9 ELSE deactivated_by END,
+            deactivated_by = CASE WHEN $3 = 'deactivated' THEN $8 ELSE deactivated_by END,
             actual_casualties = COALESCE($4, actual_casualties),
             triage_summary = COALESCE($5, triage_summary),
             resources_deployed = COALESCE($6, resources_deployed),
-            notifications_sent = COALESCE($7, notifications_sent),
-            notes = COALESCE($8, notes)
+            notes = COALESCE($7, notes)
          WHERE id = $1 AND tenant_id = $2
          RETURNING *",
     )
@@ -2314,7 +2427,6 @@ pub async fn update_mass_casualty_event(
     .bind(body.actual_casualties)
     .bind(body.triage_summary)
     .bind(body.resources_deployed)
-    .bind(body.notifications_sent)
     .bind(body.notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)

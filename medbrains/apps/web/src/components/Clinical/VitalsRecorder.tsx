@@ -1,5 +1,6 @@
 import {
   Badge,
+  Box,
   Button,
   Group,
   NumberInput,
@@ -9,17 +10,16 @@ import {
   Textarea,
   ThemeIcon,
 } from "@mantine/core";
+import { isBloodPressureValid, isHypertensiveCrisis } from "@medbrains/schemas";
 import { useLocaleConfig } from "@medbrains/stores";
 import type { CreateVitalRequest, TenantSettingsRow } from "@medbrains/types";
 import {
-  IconDeviceHeartMonitor,
   IconDroplet,
   IconHeartRateMonitor,
   IconLungs,
   IconRuler2,
   IconScale,
   IconTemperature,
-  IconWind,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -32,7 +32,9 @@ import {
   heightToCm,
   weightToKg,
 } from "@/lib/vital-units";
+import { bloodPressureSeverity } from "@/pages/opd/vitals-thresholds";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
+import { BloodPressureInput } from "./BloodPressureInput";
 import styles from "./vitals-recorder.module.scss";
 
 type RangeLevel = "normal" | "borderline" | "critical";
@@ -96,6 +98,12 @@ function getBmiCategory(bmi: number): { labelKey: string; color: string } {
   return { labelKey: "vitals.obese", color: "danger" };
 }
 
+function bloodPressureLevel(systolic?: number, diastolic?: number): RangeLevel | null {
+  if (systolic === undefined || diastolic === undefined) return null;
+  if (isHypertensiveCrisis(systolic, diastolic)) return "critical";
+  return bloodPressureSeverity(systolic, diastolic) === "normal" ? "normal" : "borderline";
+}
+
 function computeMap(systolic: number | undefined, diastolic: number | undefined): number | null {
   if (!systolic || !diastolic) return null;
   return Math.round((systolic + 2 * diastolic) / 3);
@@ -124,6 +132,7 @@ export function VitalsRecorder({
   const localeConfig = useLocaleConfig();
   const [values, setValues] = useState<VitalValues>({});
   const [notes, setNotes] = useState("");
+  const [showBpErrors, setShowBpErrors] = useState(false);
 
   // Load hospital-configurable vital fields (if customized in settings)
   const { data: clinicalSettings = [] } = useQuery<TenantSettingsRow[]>({
@@ -193,28 +202,6 @@ export function VitalsRecorder({
         ranges: { normal: [12, 20], borderline: [10, 25], critical: [0, 60] },
       },
       {
-        key: "systolic_bp",
-        labelKey: "vitals.systolicBp",
-        unit: "mmHg",
-        icon: <IconDeviceHeartMonitor size={18} />,
-        min: 40,
-        max: 300,
-        step: 1,
-        precision: 0,
-        ranges: { normal: [90, 120], borderline: [80, 140], critical: [0, 300] },
-      },
-      {
-        key: "diastolic_bp",
-        labelKey: "vitals.diastolicBp",
-        unit: "mmHg",
-        icon: <IconWind size={18} />,
-        min: 20,
-        max: 200,
-        step: 1,
-        precision: 0,
-        ranges: { normal: [60, 80], borderline: [50, 90], critical: [0, 200] },
-      },
-      {
         key: "weight",
         labelKey: "vitals.weight",
         unit: weightCfg.unit,
@@ -251,6 +238,10 @@ export function VitalsRecorder({
   const filteredVitalConfigs = enabledVitals
     ? vitalConfigs.filter((v) => enabledVitals.has(v.key))
     : vitalConfigs;
+
+  const showBp =
+    !enabledVitals || enabledVitals.has("systolic_bp") || enabledVitals.has("diastolic_bp");
+  const bpLevel = bloodPressureLevel(values.systolic_bp, values.diastolic_bp);
 
   // BMI calculation — convert display values to metric for computation
   const bmiValues = useMemo(() => {
@@ -294,13 +285,17 @@ export function VitalsRecorder({
     return req;
   };
 
-  const handleChange = (key: string, val: string | number) => {
-    const num = typeof val === "string" ? (val === "" ? undefined : Number(val)) : val;
+  const updateValues = (patch: VitalValues) => {
     setValues((prev) => {
-      const next = { ...prev, [key]: num };
+      const next = { ...prev, ...patch };
       onChange?.(toRequest(next, notes));
       return next;
     });
+  };
+
+  const handleChange = (key: string, val: string | number) => {
+    const num = typeof val === "string" ? (val === "" ? undefined : Number(val)) : val;
+    updateValues({ [key]: num });
   };
 
   const handleNotesChange = (value: string) => {
@@ -309,6 +304,10 @@ export function VitalsRecorder({
   };
 
   const handleSubmit = () => {
+    if (!isBloodPressureValid(values.systolic_bp, values.diastolic_bp)) {
+      setShowBpErrors(true);
+      return;
+    }
     onSubmit?.(toRequest(values, notes));
   };
 
@@ -322,6 +321,23 @@ export function VitalsRecorder({
         icon={<IconHeartRateMonitor size={20} />}
       />
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
+        {showBp && (
+          <Box className={`${styles.vitalCard} ${styles.bpCard}`} data-level={bpLevel}>
+            <BloodPressureInput
+              label={t("vitals.bloodPressure", "Blood pressure")}
+              value={{ systolic: values.systolic_bp, diastolic: values.diastolic_bp }}
+              onChange={(bp) =>
+                updateValues({ systolic_bp: bp.systolic, diastolic_bp: bp.diastolic })
+              }
+              showErrors={showBpErrors}
+            />
+            {bpLevel === "critical" && (
+              <Badge size="xs" color="danger" variant="light" mt={4}>
+                {t("vitals.hypertensiveCrisis", "Hypertensive crisis")}
+              </Badge>
+            )}
+          </Box>
+        )}
         {filteredVitalConfigs.map((config) => {
           const val = values[config.key];
           const level = getRangeLevel(config, val);

@@ -758,6 +758,7 @@ struct IpdFinalBillRow {
     uhid: String,
     age: Option<f64>,
     gender: String,
+    admission_number: Option<String>,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
     discharge_date: Option<chrono::DateTime<chrono::Utc>>,
     bed_number: Option<String>,
@@ -802,6 +803,7 @@ pub async fn get_ipd_final_bill_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
+           adm.admission_number, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
            bl.name AS bed_number, \
@@ -910,6 +912,7 @@ pub async fn get_ipd_final_bill_print_data(
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
     Ok(Json(IpdFinalBillPrintData {
+        admission_number: row.admission_number,
         invoice_number: row.invoice_number,
         invoice_date: date,
         patient_name: row.patient_name,
@@ -959,6 +962,7 @@ pub async fn get_ipd_final_bill_print_data(
 struct ConsolidatedBillHeaderRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -990,6 +994,7 @@ pub async fn get_admission_consolidated_bill_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           adm.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
@@ -1119,6 +1124,7 @@ pub async fn get_admission_consolidated_bill_print_data(
         invoice_date: date,
         patient_name: header.patient_name,
         uhid: header.uhid,
+        admission_number: header.admission_number,
         age: age_str,
         gender: header.gender,
         admission_date: header
@@ -1157,6 +1163,7 @@ pub async fn get_admission_consolidated_bill_print_data(
 struct NoDuesRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -1189,6 +1196,7 @@ pub async fn get_no_dues_certificate_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           adm.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
@@ -1221,6 +1229,7 @@ pub async fn get_no_dues_certificate_print_data(
     Ok(Json(NoDuesCertificatePrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} Y", a as i32)),
         gender: row.gender,
         admission_date: row
@@ -1563,6 +1572,7 @@ struct CashlessClaimRow {
     created_at: chrono::DateTime<chrono::Utc>,
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     policy_number: Option<String>,
     insurance_company: String,
     tpa_name: Option<String>,
@@ -1597,14 +1607,15 @@ pub async fn get_cashless_claim_print_data(
         .await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
-    // The claim create path writes neither `admission_id` nor `insurance_id`:
-    // the stay comes from the claimed invoice, the payer from the claim itself.
+    // The claim's money and its stay are recorded on the claim itself
+    // (migration 1068 keeps them true as the payer answers and the patient pays).
     let row = sqlx::query_as::<_, CashlessClaimRow>(
         "SELECT \
            cl.claim_number, \
            cl.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           adm.admission_number, \
            cl.policy_number, \
            cl.insurance_provider AS insurance_company, \
            cl.tpa_name, \
@@ -1612,7 +1623,7 @@ pub async fn get_cashless_claim_print_data(
            adm.discharged_at AS discharge_date, \
            COALESCE(adm.final_diagnosis, adm.primary_diagnosis, adm.provisional_diagnosis) \
              AS diagnosis, \
-           inv.total_amount::text AS total_bill_amount, \
+           cl.total_bill_amount::text AS total_bill_amount, \
            cl.approved_amount::text AS approved_amount, \
            cl.deductions::text AS deductions, \
            cl.patient_payable::text AS patient_payable, \
@@ -1620,8 +1631,7 @@ pub async fn get_cashless_claim_print_data(
            u.full_name AS treating_doctor \
          FROM insurance_claims cl \
          JOIN patients p ON p.id = cl.patient_id AND p.tenant_id = cl.tenant_id \
-         JOIN invoices inv ON inv.id = cl.invoice_id AND inv.tenant_id = cl.tenant_id \
-         LEFT JOIN admissions adm ON adm.id = COALESCE(cl.admission_id, inv.admission_id) \
+         LEFT JOIN admissions adm ON adm.id = cl.admission_id \
            AND adm.tenant_id = cl.tenant_id AND adm.deleted_at IS NULL \
          LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, adm.admitting_doctor) \
          WHERE cl.id = $1 AND cl.tenant_id = $2 AND cl.deleted_at IS NULL",
@@ -1654,6 +1664,7 @@ pub async fn get_cashless_claim_print_data(
             .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         policy_number: row.policy_number,
         insurance_company: row.insurance_company,
         tpa_name: row.tpa_name,
@@ -2140,6 +2151,7 @@ struct InsuranceClaimRow {
     member_id: Option<String>,
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     relation_to_primary: Option<String>,
@@ -2182,9 +2194,7 @@ pub async fn get_insurance_claim_print_data(
         .await?;
     let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
-    // The claim create path writes neither `admission_id` nor `insurance_id`,
-    // so the stay comes from the claimed invoice and the policy holder from the
-    // patient's policy row with the claimed policy number.
+    // The claim records its own stay, policy and money (migration 1068).
     let row = sqlx::query_as::<_, InsuranceClaimRow>(
         "SELECT \
            ic.claim_number, \
@@ -2196,6 +2206,7 @@ pub async fn get_insurance_claim_print_data(
            ic.member_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            pol.policy_holder_relation AS relation_to_primary, \
@@ -2206,9 +2217,9 @@ pub async fn get_insurance_claim_print_data(
            COALESCE(a.final_diagnosis, a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis, \
            doc.full_name AS treating_doctor, \
            d.name AS department_name, \
-           inv.total_amount::float8 AS total_bill_amount, \
+           ic.total_bill_amount::float8 AS total_bill_amount, \
            ic.pre_auth_amount::float8 AS pre_auth_amount, \
-           ic.claim_amount::float8 AS claim_amount, \
+           COALESCE(ic.claim_amount, ic.total_bill_amount)::float8 AS claim_amount, \
            ic.patient_payable::float8 AS patient_payable, \
            pa.auth_number AS pre_auth_number, \
            pa.responded_at AS pre_auth_date, \
@@ -2218,22 +2229,19 @@ pub async fn get_insurance_claim_print_data(
            t.logo_url AS hospital_logo_url \
          FROM insurance_claims ic \
          JOIN patients p ON p.id = ic.patient_id AND p.tenant_id = ic.tenant_id \
-         JOIN invoices inv ON inv.id = ic.invoice_id AND inv.tenant_id = ic.tenant_id \
          JOIN tenants t ON t.id = ic.tenant_id \
          LEFT JOIN LATERAL ( \
            SELECT pi.policy_holder_relation, pi.policy_holder_name \
            FROM patient_insurance pi \
-           WHERE pi.tenant_id = ic.tenant_id AND pi.deleted_at IS NULL \
-             AND (pi.id = ic.insurance_id \
-                  OR (pi.patient_id = ic.patient_id AND pi.policy_number = ic.policy_number)) \
-           ORDER BY (pi.id = ic.insurance_id) DESC NULLS LAST LIMIT 1) pol ON true \
+           WHERE pi.id = ic.insurance_id AND pi.tenant_id = ic.tenant_id \
+             AND pi.deleted_at IS NULL) pol ON true \
          LEFT JOIN LATERAL ( \
            SELECT r.auth_number, r.responded_at FROM prior_auth_requests r \
            WHERE r.tenant_id = ic.tenant_id AND r.deleted_at IS NULL \
              AND r.auth_number IS NOT NULL \
              AND (r.insurance_claim_id = ic.id OR r.invoice_id = ic.invoice_id) \
            ORDER BY r.responded_at DESC NULLS LAST LIMIT 1) pa ON true \
-         LEFT JOIN admissions a ON a.id = COALESCE(ic.admission_id, inv.admission_id) \
+         LEFT JOIN admissions a ON a.id = ic.admission_id \
            AND a.tenant_id = ic.tenant_id AND a.deleted_at IS NULL \
          LEFT JOIN users doc ON doc.id = COALESCE(a.attending_doctor_id, a.admitting_doctor) \
          LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = ic.tenant_id \
@@ -2293,6 +2301,7 @@ pub async fn get_insurance_claim_print_data(
         member_id: row.member_id,
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age_display,
         gender: row.gender,
         relation_to_primary: row.relation_to_primary,
@@ -2367,6 +2376,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/gst-invoice/{invoice_id}",
             get(crate::gst_invoice::get_gst_invoice_print_data),
+        )
+        .route(
+            "/api/print-data/pharmacy-bill/{invoice_id}",
+            get(crate::gst_invoice::get_pharmacy_bill_print_data),
         )
         .route(
             "/api/print-data/opd-bill/{invoice_id}",

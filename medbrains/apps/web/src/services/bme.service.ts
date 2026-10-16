@@ -22,6 +22,8 @@ export const bmeService = {
     api.listBmeCalibrations(...args),
   createBmeCalibration: (...args: Parameters<typeof api.createBmeCalibration>) =>
     api.createBmeCalibration(...args),
+  updateBmeCalibration: (...args: Parameters<typeof api.updateBmeCalibration>) =>
+    api.updateBmeCalibration(...args),
   listBmeContracts: (...args: Parameters<typeof api.listBmeContracts>) =>
     api.listBmeContracts(...args),
   listBmeVendorEvaluations: (...args: Parameters<typeof api.listBmeVendorEvaluations>) =>
