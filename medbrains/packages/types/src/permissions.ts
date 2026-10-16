@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1051 permissions, one per constant in the Rust source. */
+/** 1055 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2002,6 +2002,31 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Convert Camp Follow-up",
     description: "Mark a camp follow-up as converted to a central patient or OPD pathway",
     module: "camp",
+  },
+  // forms
+  {
+    code: "forms.templates.list",
+    label: "See the hospital's forms",
+    description: "The list of forms the hospital has built or customised, with each one's drafts and published versions.",
+    module: "forms",
+  },
+  {
+    code: "forms.templates.manage",
+    label: "Build and edit form drafts",
+    description: "Create a form, change its draft, and retire it. A draft is never what staff fill in; only a published version is.",
+    module: "forms",
+  },
+  {
+    code: "forms.templates.publish",
+    label: "Publish a form version",
+    description: "Makes the current draft the version staff fill in from now on. A published version never changes, so every record keeps the exact questions it was answered against.",
+    module: "forms",
+  },
+  {
+    code: "forms.definitions.read",
+    label: "Load the live version of a form",
+    description: "Needed by anyone who fills in a configurable form, such as a procedure consent. It reveals the questions, never any answers.",
+    module: "forms",
   },
   // consent
   {
@@ -7508,6 +7533,20 @@ export const P = {
     WORK_ORDERS_MANAGE: "facilities.work_orders.manage",
     WORK_ORDERS_PERFORM: "facilities.work_orders.perform",
   },
+  FORMS: {
+    DEFINITIONS: {
+      READ: "forms.definitions.read",
+    },
+    DEFINITIONS_READ: "forms.definitions.read",
+    TEMPLATES: {
+      LIST: "forms.templates.list",
+      MANAGE: "forms.templates.manage",
+      PUBLISH: "forms.templates.publish",
+    },
+    TEMPLATES_LIST: "forms.templates.list",
+    TEMPLATES_MANAGE: "forms.templates.manage",
+    TEMPLATES_PUBLISH: "forms.templates.publish",
+  },
   FRONT_OFFICE: {
     ENQUIRY: {
       CREATE: "front_office.enquiry.create",
@@ -9617,6 +9656,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.LIST,
       P.EMERGENCY.VISITS.UPDATE,
+      P.FORMS.DEFINITIONS.READ,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
       P.HR.LEAVE.APPROVE,
@@ -9890,6 +9930,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.TRIAGE.LIST,
       P.EMERGENCY.VISITS.CREATE,
       P.EMERGENCY.VISITS.LIST,
+      P.FORMS.DEFINITIONS.READ,
       P.HOME_HEALTH.LIST,
       P.HOME_HEALTH.MANAGE,
       P.HR.LEAVE.APPROVE,

@@ -47,6 +47,7 @@ medbrains-communications = { path = "../medbrains-communications" }
 medbrains-devices = { path = "../medbrains-devices" }
 medbrains-specialty-interventional = { path = "../medbrains-specialty-interventional" }
 medbrains-consent = { path = "../medbrains-consent" }
+medbrains-forms = { path = "../medbrains-forms" }
 medbrains-security = { path = "../medbrains-security" }
 medbrains-pharmacy-finance = { path = "../medbrains-pharmacy-finance" }
 medbrains-pharmacy-fulfilment = { path = "../medbrains-pharmacy-fulfilment" }

@@ -55,6 +55,7 @@ pub mod facilities_mgmt;
 pub mod facility;
 pub mod fatigue;
 pub mod form;
+pub mod form_template;
 pub mod front_office;
 pub mod geo;
 pub mod gst_invoice_print;

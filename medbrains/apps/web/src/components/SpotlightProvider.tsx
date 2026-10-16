@@ -51,6 +51,7 @@ const NAV_DESCRIPTIONS: Record<string, string> = {
   "/admin/roles": "Manage roles",
   "/admin/settings": "System configuration",
   "/admin/integration-hub": "Pipelines, sidecars, and execution history",
+  "/admin/forms": "Build and publish the hospital's own forms",
 };
 
 /** Build navigation entries from nav config. */
