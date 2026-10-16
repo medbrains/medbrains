@@ -1429,6 +1429,7 @@ import type {
   OnboardingProgress,
   OnboardingSetupRequest,
   OnboardingStatusResponse,
+  OnboardingWorkbook,
   OnCallSchedule,
   // Phase 2 Print Data - Billing
   OpdBillPrintData,
@@ -2222,6 +2223,8 @@ import type {
   WidgetDataResponse,
   WidgetTemplate,
   WidgetViewFilter,
+  WorkbookImportResult,
+  WorkbookSheets,
   WorklistToken,
   WorkOrderPrintData,
   WoundCertificatePrintData,
