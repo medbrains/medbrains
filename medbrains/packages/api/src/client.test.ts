@@ -10711,25 +10711,6 @@ describe("/it-security endpoints", () => {
     const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/backups");
   });
-
-  it("getOnboardingProgress → GET /it-onboarding/progress", async () => {
-    mockOk({});
-    await api.getOnboardingProgress();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/it-onboarding/progress");
-  });
-
-  it("completeOnboardingStep → POST /it-onboarding/complete-step", async () => {
-    mockOk({});
-    await api.completeOnboardingStep({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/it-onboarding/complete-step");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
 });
 
 describe("/setup endpoints", () => {

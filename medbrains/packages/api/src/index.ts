@@ -5,8 +5,10 @@ export {
   clearNativeAuthTokens,
   configureNativeAuth,
   nullOn404,
+  ResponseShapeError,
   setCsrfToken,
   setNativeAuthSession,
   setStepUpHandler,
+  setStrictResponseValidation,
 } from "./client.js";
 export { getApiBase, setApiBase } from "./config.js";
