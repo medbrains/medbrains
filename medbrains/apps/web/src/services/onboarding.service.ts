@@ -4,6 +4,7 @@ export const onboardingService = {
   onboardingStatus: (...args: Parameters<typeof api.onboardingStatus>) =>
     api.onboardingStatus(...args),
   onboardingInit: (...args: Parameters<typeof api.onboardingInit>) => api.onboardingInit(...args),
+  getTrialSizing: (...args: Parameters<typeof api.getTrialSizing>) => api.getTrialSizing(...args),
   onboardingSetup: (...args: Parameters<typeof api.onboardingSetup>) =>
     api.onboardingSetup(...args),
   importDepartments: (...args: Parameters<typeof api.importDepartments>) =>

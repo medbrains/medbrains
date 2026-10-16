@@ -460,6 +460,7 @@ const PairedDevicesPage = lazy(() =>
   import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
 );
 
+const TrialPage = lazy(() => import("./pages/trial/index").then((m) => ({ default: m.TrialPage })));
 const AccessDeniedPage = lazy(() =>
   import("./pages/errors/access-denied").then((m) => ({ default: m.AccessDeniedPage })),
 );
@@ -481,6 +482,8 @@ export function App() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            {/* A hospital starts its own trial — only the trial server takes it. */}
+            <Route path="/trial" element={<TrialPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />

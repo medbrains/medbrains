@@ -113,7 +113,10 @@ export function LoginPage() {
           )}
 
           {isTauriDesktopRuntime() && <DesktopConnection />}
-          <LoginFooter needsSetup={onboarding?.needs_setup === true} />
+          <LoginFooter
+            needsSetup={onboarding?.needs_setup === true}
+            trialOpen={onboarding?.trial_open === true}
+          />
         </Box>
       </main>
     </Box>
@@ -176,13 +179,18 @@ function HospitalSignIn({
   );
 }
 
-function LoginFooter({ needsSetup }: { needsSetup: boolean }) {
+function LoginFooter({ needsSetup, trialOpen }: { needsSetup: boolean; trialOpen: boolean }) {
   const [devOpened, dev] = useDisclosure(false);
   return (
     <Box className={classes.footer}>
       {needsSetup && (
         <Box className={classes.onboardingLink}>
           New installation? <Link to="/onboarding">Set up now &rarr;</Link>
+        </Box>
+      )}
+      {trialOpen && (
+        <Box className={classes.onboardingLink}>
+          New to MedBrains? <Link to="/trial">Start a free trial &rarr;</Link>
         </Box>
       )}
       {/* The seeded admin's password, for local development only. */}
