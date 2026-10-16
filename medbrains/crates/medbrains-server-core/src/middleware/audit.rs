@@ -35,6 +35,9 @@ use crate::{
 ///      to dedupe with the trigger-side emission.
 ///   3. After the handler returns, if status is 2xx, spawn a task to
 ///      insert an `audit_log` row via `AuditLogger::log_http`.
+///   4. A 403 is audited on every route and method, read or write: a refused
+///      request is what probing looks like, and NABH IMS / DPDP Rule 6 want
+///      the attempt on record, not only the successes.
 pub async fn audit_layer(
     State(state): State<AppState>,
     mut request: Request,
@@ -56,9 +59,7 @@ pub async fn audit_layer(
     let is_phi_list =
         method == Method::GET && !is_detail_read && path_is_phi_list(request.uri().path());
 
-    if !is_state_change && !is_detail_read && !is_phi_list {
-        return next.run(request).await;
-    }
+    let audit_success = is_state_change || is_detail_read || is_phi_list;
 
     let correlation_id = Uuid::new_v4();
     request
@@ -79,9 +80,10 @@ pub async fn audit_layer(
     let response = next.run(request).await;
     let status = response.status();
 
-    // Only audit successful state changes. 4xx/5xx are noise; auth
-    // emits its own entries for failed-login etc.
-    if !status.is_success() {
+    // Successes on audited routes, and refusals anywhere. Other 4xx/5xx are
+    // noise; auth writes its own entries for failed logins.
+    let denied = status == axum::http::StatusCode::FORBIDDEN;
+    if !denied && !(audit_success && status.is_success()) {
         return response;
     }
 
@@ -102,7 +104,9 @@ pub async fn audit_layer(
             Some(claims.sub)
         },
         correlation_id,
-        action: if is_phi_list {
+        action: if denied {
+            "denied".to_owned()
+        } else if is_phi_list {
             "list".to_owned()
         } else {
             derive_action(&method_str, &path)
