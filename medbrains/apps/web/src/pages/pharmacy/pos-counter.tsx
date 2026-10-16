@@ -5,7 +5,6 @@ import {
   Box,
   Card,
   Group,
-  Loader,
   Modal,
   NumberInput,
   Stack,
@@ -16,15 +15,10 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type { PharmacyPosReturnFormInput, PharmacyPosSaleFormInput } from "@medbrains/schemas";
-import { pharmacyPosReturnFormSchema, pharmacyPosSaleFormSchema } from "@medbrains/schemas";
+import type { PharmacyPosSaleFormInput } from "@medbrains/schemas";
+import { pharmacyPosSaleFormSchema } from "@medbrains/schemas";
 import { useFieldAccess, useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import type {
-  PharmacyCatalog,
-  PharmacyPosSale,
-  PharmacyPosSaleItem,
-  PosTenderInput,
-} from "@medbrains/types";
+import type { PharmacyCatalog, PharmacyPosSale, PosTenderInput } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconAlertTriangle, IconCash, IconReceipt, IconX } from "@tabler/icons-react";
@@ -53,18 +47,16 @@ import { CounterDrawer, useActiveCashDrawer } from "./counter-drawer";
 import { CounterPatientSelect } from "./counter-patient-select";
 import { CounterSettings } from "./counter-settings";
 import { isPrescriptionOnly, offMrpPercent, posCheckoutBlocker, posTotals } from "./pos-checkout";
+import { PosReturnModal } from "./pos-return-modal";
+import { ReceiptReturnLookup } from "./receipt-return-lookup";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
   PharmacyPatientCell,
-  posReturnLinePrice,
-  posReturnLineQuantity,
-  posSaleItemReturnableQuantity,
   posSaleLinePrice,
   posSaleLineQuantity,
   posSalePayloadPatientId,
   renderPharmacySensitiveCurrency,
-  renderPharmacySensitiveValue,
   sharedColorBadgeTone,
   statusColors,
 } from "./shared";
@@ -136,15 +128,12 @@ export function PosCounterTab({
   const canPrintPharmacyBill = useHasPermission(PERM_PHARMACY_BILL_PRINT);
   const [paymentOpened, { open: openPayment, close: closePayment }] = useDisclosure(false);
   const [saleToCancel, setSaleToCancel] = useState<PharmacyPosSale | null>(null);
-  const [saleToReturn, setSaleToReturn] = useState<PharmacyPosSale | null>(null);
+  const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelOpened, { open: openCancelModal, close: closeCancelModal }] = useDisclosure(false);
-  const [returnOpened, { open: openReturnModal, close: closeReturnModal }] = useDisclosure(false);
-  const [returnItemsLoading, setReturnItemsLoading] = useState(false);
   const walkInNameAccess = useFieldAccess("pharmacy.pos.patient_name");
   const walkInPhoneAccess = useFieldAccess("pharmacy.pos.patient_phone");
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
-  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const canViewWalkInName = canViewPharmacyField(walkInNameAccess);
   const canViewWalkInPhone = canViewPharmacyField(walkInPhoneAccess);
   const canEditWalkInName = canEditPharmacyField(walkInNameAccess);
@@ -175,26 +164,6 @@ export function PosCounterTab({
     control,
     name: "items",
   });
-  const posReturnDefaults: PharmacyPosReturnFormInput = {
-    reason: "",
-    items: [],
-  };
-  const {
-    control: returnControl,
-    reset: resetReturnForm,
-    handleSubmit: handleReturnSubmit,
-    watch: watchReturn,
-    setError: setReturnError,
-    formState: { errors: returnErrors },
-  } = useForm<PharmacyPosReturnFormInput>({
-    resolver: zodResolver(pharmacyPosReturnFormSchema),
-    defaultValues: posReturnDefaults,
-  });
-  const { fields: returnFields } = useFieldArray({
-    control: returnControl,
-    name: "items",
-  });
-
   const cart = watch("items");
   const discountPercent = watch("discount_percent");
   const registeredPatientId = watch("patient_id");
@@ -293,34 +262,6 @@ export function PosCounterTab({
     onError: () => {
       toast.error("The sale may already be cancelled, refunded, or locked by finance controls", {
         title: "Unable to cancel sale",
-      });
-    },
-  });
-
-  const returnItemsMutation = useMutation({
-    mutationFn: ({
-      saleId,
-      data,
-    }: {
-      saleId: string;
-      data: {
-        items: Array<{ item_id: string; return_qty: number; reason?: string }>;
-        reason?: string;
-      };
-    }) => pharmacyService.returnPosItems(saleId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
-      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      closeReturnSale();
-      toast.success("Partial return, stock reversal, and POS refund entry were recorded", {
-        title: "Items returned",
-      });
-    },
-    onError: () => {
-      toast.error("The sale may already be refunded, cancelled, or locked by finance controls", {
-        title: "Unable to return items",
       });
     },
   });
@@ -474,91 +415,6 @@ export function PosCounterTab({
     setCancelReason("");
   }
 
-  async function openReturnSale(row: PharmacyPosSale) {
-    setSaleToReturn(row);
-    resetReturnForm(posReturnDefaults);
-    openReturnModal();
-    setReturnItemsLoading(true);
-    try {
-      const items = await queryClient.fetchQuery<PharmacyPosSaleItem[]>({
-        queryKey: ["pharmacy-pos-sale-items", row.id],
-        queryFn: () => pharmacyService.listPosSaleItems(row.id),
-      });
-      resetReturnForm({
-        reason: "",
-        items: items
-          .filter((item) => posSaleItemReturnableQuantity(item) > 0)
-          .map((item) => ({
-            item_id: item.id,
-            drug_name: item.drug_name,
-            batch_number: item.batch_number ?? "",
-            max_qty: posSaleItemReturnableQuantity(item),
-            return_qty: 0,
-            unit_price: Number(item.selling_price ?? 0),
-          })),
-      });
-    } catch {
-      toast.error("Check POS return permission and try again", {
-        title: "Unable to load sale items",
-      });
-    } finally {
-      setReturnItemsLoading(false);
-    }
-  }
-
-  function closeReturnSale() {
-    closeReturnModal();
-    setSaleToReturn(null);
-    resetReturnForm(posReturnDefaults);
-    setReturnItemsLoading(false);
-  }
-
-  function submitReturnItems(values: PharmacyPosReturnFormInput) {
-    if (!saleToReturn) return;
-    const selectedItems = values.items
-      .map((item) => ({
-        item,
-        returnQty: posReturnLineQuantity(item),
-      }))
-      .filter(({ returnQty }) => returnQty > 0);
-
-    if (selectedItems.length === 0) {
-      setReturnError("items", { message: "Select at least one medicine to return" });
-      return;
-    }
-
-    const invalidIndex = selectedItems.findIndex(
-      ({ item, returnQty }) => returnQty > formIntegerOrFallback(item.max_qty, 0),
-    );
-    if (invalidIndex >= 0) {
-      const invalidItem = selectedItems[invalidIndex]?.item;
-      const formIndex = values.items.findIndex((item) => item.item_id === invalidItem?.item_id);
-      if (formIndex >= 0) {
-        setReturnError(`items.${formIndex}.return_qty` as const, {
-          message: "Return quantity cannot exceed remaining sale quantity",
-        });
-      }
-      return;
-    }
-
-    returnItemsMutation.mutate({
-      saleId: saleToReturn.id,
-      data: {
-        reason: values.reason.trim(),
-        items: selectedItems.map(({ item, returnQty }) => ({
-          item_id: item.item_id,
-          return_qty: returnQty,
-        })),
-      },
-    });
-  }
-
-  const returnItems = watchReturn("items");
-  const returnRefundTotal = returnItems.reduce(
-    (sum, item) => sum + posReturnLineQuantity(item) * posReturnLinePrice(item),
-    0,
-  );
-
   const saleColumns = [
     {
       key: "sale_number",
@@ -693,7 +549,7 @@ export function PosCounterTab({
                   size="sm"
                   tone="default"
                   onClick={() => {
-                    void openReturnSale(row);
+                    setReturnSaleId(row.id);
                   }}
                   aria-label="Return POS sale items"
                 >
@@ -1120,6 +976,7 @@ export function PosCounterTab({
 
       {canView || canCancel || canReturn ? (
         <>
+          {canReturn && <ReceiptReturnLookup onFound={setReturnSaleId} />}
           <Text fw={600} mt="md">
             {canView ? "Today's Sales" : "Today's sales available for POS actions"}
           </Text>
@@ -1143,142 +1000,7 @@ export function PosCounterTab({
           </Text>
         </Card>
       )}
-      <Modal
-        opened={returnOpened}
-        onClose={closeReturnSale}
-        title="Return POS sale items"
-        size="lg"
-      >
-        <Stack component="form" onSubmit={handleReturnSubmit(submitReturnItems)}>
-          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
-            Return only the medicines actually coming back to pharmacy. This posts a partial POS
-            refund and restores stock for the selected quantities.
-          </Alert>
-          {saleToReturn && (
-            <Group justify="space-between">
-              <Stack gap={0}>
-                <Text size="sm" fw={600}>
-                  {saleToReturn.sale_number}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {new Date(saleToReturn.created_at).toLocaleString()}
-                </Text>
-              </Stack>
-              <Text size="sm" fw={700}>
-                {renderPharmacySensitiveCurrency(priceAccess, saleToReturn.total_amount)}
-              </Text>
-            </Group>
-          )}
-
-          {returnItemsLoading ? (
-            <Group gap="xs">
-              <Loader size="sm" />
-              <Text size="sm" c="dimmed">
-                Loading sale items...
-              </Text>
-            </Group>
-          ) : returnFields.length > 0 ? (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Medicine</Table.Th>
-                  <Table.Th>Batch</Table.Th>
-                  <Table.Th>Remaining</Table.Th>
-                  <Table.Th>Return</Table.Th>
-                  <Table.Th>Refund</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {returnFields.map((field, index) => {
-                  const item = returnItems[index];
-                  if (!item) return null;
-                  const returnQty = posReturnLineQuantity(item);
-                  const refund = returnQty * posReturnLinePrice(item);
-                  return (
-                    <Table.Tr key={field.id}>
-                      <Table.Td>
-                        <Text size="sm" fw={600}>
-                          {item.drug_name}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">
-                          {renderPharmacySensitiveValue(batchNumberAccess, item.batch_number)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge>{formIntegerOrFallback(item.max_qty, 0)}</Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Controller
-                          control={returnControl}
-                          name={`items.${index}.return_qty` as const}
-                          render={({ field: qtyField }) => (
-                            <NumberInput
-                              size="xs"
-                              min={0}
-                              max={formIntegerOrFallback(item.max_qty, 0)}
-                              value={qtyField.value}
-                              onChange={qtyField.onChange}
-                              error={returnErrors.items?.[index]?.return_qty?.message}
-                              w={100}
-                            />
-                          )}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600}>
-                          {renderPharmacySensitiveCurrency(priceAccess, refund)}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
-          ) : (
-            <Alert tone="neutral">No returnable items remain on this sale.</Alert>
-          )}
-          {returnErrors.items?.message && (
-            <Text size="xs" c="danger">
-              {returnErrors.items.message}
-            </Text>
-          )}
-          <Controller
-            control={returnControl}
-            name="reason"
-            render={({ field, fieldState }) => (
-              <Textarea
-                label="Return reason"
-                required
-                minRows={3}
-                placeholder="Patient returned medicine, wrong item, damaged strip..."
-                error={fieldState.error?.message}
-                {...field}
-              />
-            )}
-          />
-          <Group justify="space-between">
-            <Text fw={700}>
-              Refund: {renderPharmacySensitiveCurrency(priceAccess, returnRefundTotal)}
-            </Text>
-            <Group>
-              <Button tone="secondary" onClick={closeReturnSale}>
-                Keep sale
-              </Button>
-              <Button
-                tone="primary"
-                type="submit"
-                loading={returnItemsMutation.isPending}
-                disabled={returnItemsLoading || returnFields.length === 0}
-                leftSection={<IconReceipt size={14} />}
-              >
-                Return selected items
-              </Button>
-            </Group>
-          </Group>
-        </Stack>
-      </Modal>
+      <PosReturnModal saleId={returnSaleId} onClose={() => setReturnSaleId(null)} />
       <Modal opened={cancelOpened} onClose={closeCancelSale} title="Cancel POS sale" centered>
         <Stack>
           <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>

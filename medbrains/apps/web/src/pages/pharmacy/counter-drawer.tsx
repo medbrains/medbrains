@@ -17,6 +17,7 @@ import { OpenDrawerModal } from "@/pages/pharmacy-finance/open-drawer-modal";
 import type { CashDrawerRow } from "@/pages/pharmacy-finance/shared";
 import { financeAmountText } from "@/pages/pharmacy-finance/shared";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
+import { UnclosedDayNotice } from "./unclosed-day-notice";
 
 const ACTIVE_DRAWER_KEY = ["cash-drawer", "active"] as const;
 
@@ -51,6 +52,7 @@ export function CounterDrawer() {
 
   return (
     <>
+      {drawer && <UnclosedDayNotice locationId={drawer.pharmacy_location_id} />}
       {drawer ? (
         <Group justify="space-between" data-testid="counter-drawer">
           <Text size="sm">

@@ -1,5 +1,8 @@
 //! In-app notification centre — per-user, tenant-scoped feed with read state.
 
+mod holders;
+pub use holders::notify_permission_holders;
+
 use axum::{
     Extension, Json,
     extract::{

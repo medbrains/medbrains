@@ -126,6 +126,8 @@ export const pharmacyService = {
   cancelPharmacyPosSale: (...args: Parameters<typeof api.cancelPharmacyPosSale>) =>
     api.cancelPharmacyPosSale(...args),
   returnPosItems: (...args: Parameters<typeof api.returnPosItems>) => api.returnPosItems(...args),
+  getPosReturnable: (saleId: string) => api.getPosReturnable(saleId),
+  lookupPosReceipt: (number: string) => api.lookupPosReceipt(number),
   listPharmacyCreditNotes: (...args: Parameters<typeof api.listPharmacyCreditNotes>) =>
     api.listPharmacyCreditNotes(...args),
   approvePharmacyCreditNote: (...args: Parameters<typeof api.approvePharmacyCreditNote>) =>

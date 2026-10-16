@@ -1835,50 +1835,6 @@ export const pharmacyPosSaleFormSchema = z.object({
   items: z.array(pharmacyPosSaleItemFormSchema).min(1, "Add at least one medicine"),
 });
 
-export const pharmacyPosReturnItemFormSchema = z.object({
-  item_id: requiredTrimmed("Sale item is required"),
-  drug_name: requiredTrimmed("Drug name is required"),
-  batch_number: z.string(),
-  max_qty: nonNegativeNumber("Returnable quantity cannot be negative"),
-  return_qty: optionalNonNegativeIntegerNumber("Return quantity must be a whole number"),
-  unit_price: nonNegativeNumber("Unit price cannot be negative"),
-});
-
-export const pharmacyPosReturnFormSchema = z
-  .object({
-    reason: requiredTrimmed("Return reason is required", 255).refine(
-      (value) => value.trim().length >= 3,
-      "Enter at least 3 characters",
-    ),
-    items: z.array(pharmacyPosReturnItemFormSchema),
-  })
-  .superRefine((value, ctx) => {
-    let hasReturn = false;
-
-    value.items.forEach((item, index) => {
-      const returnQty = Number(item.return_qty || 0);
-      const maxQty = Number(item.max_qty || 0);
-      if (returnQty > 0) {
-        hasReturn = true;
-      }
-      if (returnQty > maxQty) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["items", index, "return_qty"],
-          message: "Return quantity cannot exceed remaining sale quantity",
-        });
-      }
-    });
-
-    if (!hasReturn) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["items"],
-        message: "Select at least one medicine to return",
-      });
-    }
-  });
-
 export const pharmacyRxReviewActionFormSchema = z.enum(["approved", "rejected", "on_hold"]);
 export const pharmacyRxReviewActionValues = pharmacyRxReviewActionFormSchema.options;
 
@@ -5463,7 +5419,6 @@ export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentM
 export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
 export type PharmacyTransferFormInput = z.infer<typeof pharmacyTransferFormSchema>;
 export type PharmacyTransferItemFormInput = z.infer<typeof pharmacyTransferItemFormSchema>;
-export type PharmacyPosReturnFormInput = z.infer<typeof pharmacyPosReturnFormSchema>;
 export type PharmacyCashDrawerOpenFormInput = z.infer<typeof pharmacyCashDrawerOpenFormSchema>;
 export type PharmacyCashDrawerCloseFormInput = z.infer<typeof pharmacyCashDrawerCloseFormSchema>;
 export type PharmacyRxReviewFormInput = z.infer<typeof pharmacyRxReviewFormSchema>;

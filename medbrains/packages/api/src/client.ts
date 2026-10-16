@@ -298,6 +298,7 @@ import type {
   ClinicalProtocol,
   ClinicalScoreRow,
   ClinicalTrial,
+  CloseDayRequest,
   CmeCertificatePrintData,
   CmsAuthor,
   // CMS & Blog
@@ -373,6 +374,7 @@ import type {
   CorporateClient,
   CorporateEnrollment,
   CoSignatureRequest,
+  CounterDay,
   CounterPatient,
   CourseWithModules,
   CoverageAssignment,
@@ -844,9 +846,11 @@ import type {
   DataQualityIssue,
   DataQualityQuery,
   DataQualityRule,
+  DayCloseRow,
   // Billing Phase 2b
   DayEndClose,
   DayReconciliation,
+  DayReport,
   DeactivateCodeRequest,
   DeadStockRow,
   DeathCertificatePrintData,
@@ -1761,7 +1765,10 @@ import type {
   // Retrospective
   RetrospectiveEntry,
   RetrospectiveSettings,
+  Returnable,
   ReturnCampAssetRequest,
+  ReturnPosItemsRequest,
+  ReturnResult,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
   ReviewBreakGlassRequest,
@@ -6652,17 +6659,17 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  returnPosItems: (
-    saleId: string,
-    data: {
-      items: Array<{ item_id: string; return_qty: number; reason?: string }>;
-      reason?: string;
-    },
-  ) =>
-    request<Record<string, unknown>>(`/pharmacy/pos/sales/${saleId}/return-items`, {
+  returnPosItems: (saleId: string, data: ReturnPosItemsRequest) =>
+    request<ReturnResult>(`/pharmacy/pos/sales/${saleId}/return-items`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  getPosReturnable: (saleId: string) =>
+    request<Returnable>(`/pharmacy/pos/sales/${saleId}/returnable`),
+  lookupPosReceipt: (number: string) =>
+    request<PharmacyPosSale>(`/pharmacy/pos/receipt-lookup?${new URLSearchParams({ number })}`),
+  getCounterCreditNote: (id: string) =>
+    request<Record<string, unknown>>(`/pharmacy/pos/credit-notes/${id}`),
 
   // ── Pharmacy Drug Recalls ─────────────────────────────
   listPharmacyRecalls: (params?: Record<string, string>) => {
@@ -16048,6 +16055,18 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getMyActiveCashDrawer: () => request<unknown | null>("/pharmacy/cash-drawers/me/active"),
+
+  // Day close
+  listCounterDays: () => request<CounterDay[]>("/pharmacy/day-close"),
+  getDayCloseReport: (params: { pharmacy_location_id: string; business_date: string }) =>
+    request<DayReport>(`/pharmacy/day-close/report?${new URLSearchParams(params)}`),
+  closeCounterDay: (data: CloseDayRequest) =>
+    request<DayCloseRow>("/pharmacy/day-close", { method: "POST", body: JSON.stringify(data) }),
+  reopenCounterDay: (id: string, data: { reason: string }) =>
+    request<DayCloseRow>(`/pharmacy/day-close/${id}/reopen`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Petty cash
   listPettyCash: (params?: { status?: string; cash_drawer_id?: string; limit?: number }) => {

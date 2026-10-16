@@ -1151,6 +1151,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::prescriptions::VIEW,
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
+            permissions::pharmacy::day_close::VIEW,
+            permissions::admin::access_requests::LIST,
             permissions::ipd::admissions::LIST,
             permissions::ipd::admissions::VIEW,
             // MRD (read-only for audit)
@@ -1851,6 +1853,15 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::dashboard::VIEW,
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::COMPLETE,
+        ],
+    },
+    BuiltInRole {
+        code: "staff",
+        name: "Staff (awaiting role)",
+        description: "A new sign-in whose role an administrator has not yet assigned: dashboard only",
+        permissions: &[
+            permissions::admin::settings::READ,
+            permissions::dashboard::VIEW,
         ],
     },
 ];

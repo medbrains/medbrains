@@ -88,7 +88,10 @@ test.beforeAll(async ({ request }) => {
   });
   expect(resp.status(), "fetch roles").toBe(200);
   const roles: Array<{ code: string; permissions: string[] }> = await resp.json();
-  ROLE_PERMS = new Map(roles.map((r) => [r.code, new Set(r.permissions)]));
+  // A custom role saved with no permission list has `permissions: {}`.
+  ROLE_PERMS = new Map(
+    roles.map((r) => [r.code, new Set(Array.isArray(r.permissions) ? r.permissions : [])]),
+  );
 });
 
 function roleHolding(perms: string[]): string | undefined {
@@ -143,14 +146,19 @@ test.describe(`Screens by role (${GATED.length} gated, ${UNGATED.length} ungated
       expect(pageErrors, "no uncaught error on the screen").toEqual([]);
     });
 
-    test(`${screen.path} redirects a role lacking ${screen.permissions[0]}`, async ({ page }) => {
+    test(`${screen.path} refuses a role lacking ${screen.permissions[0]}`, async ({ page }) => {
       const role = roleLacking(screen.permissions);
       test.skip(!role, `every non-bypass role holds ${screen.permissions.join(" | ")}`);
       await signInAs(page, role ?? "");
       await page.goto(screen.path);
-      // The gate sends the user to the dashboard. Landing anywhere else is
-      // a screen offered to someone the server will refuse.
-      await expect(page).toHaveURL(/\/dashboard(?:[?#].*)?$/, { timeout: 15_000 });
+      // The gate shows the access-denied screen naming what was needed.
+      // Landing anywhere else is a screen offered to someone the server
+      // will refuse — or a refusal the user cannot read.
+      await expect(page).toHaveURL(/\/forbidden(?:[?#].*)?$/, { timeout: 15_000 });
+      await expect(
+        page.getByRole("heading", { name: "You don't have access to this page" }),
+      ).toBeVisible();
+      await expect(page.getByText(screen.permissions[0] ?? "", { exact: true })).toBeVisible();
     });
   }
 

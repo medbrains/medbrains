@@ -460,6 +460,13 @@ const PairedDevicesPage = lazy(() =>
   import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
 );
 
+const AccessDeniedPage = lazy(() =>
+  import("./pages/errors/access-denied").then((m) => ({ default: m.AccessDeniedPage })),
+);
+const NotFoundPage = lazy(() =>
+  import("./pages/errors/not-found").then((m) => ({ default: m.NotFoundPage })),
+);
+
 export function App() {
   return (
     <BrowserRouter>
@@ -517,6 +524,9 @@ export function App() {
               }
             >
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="forbidden" element={<AccessDeniedPage />} />
+              {/* Inside the shell, after every real route: an unknown address. */}
+              <Route path="*" element={<NotFoundPage />} />
               <Route path="setup" element={<SetupCenterPage />} />
               <Route path="setup/deployment" element={<DeploymentCostPage />} />
               <Route path="setup/infrastructure" element={<InfrastructurePage />} />
