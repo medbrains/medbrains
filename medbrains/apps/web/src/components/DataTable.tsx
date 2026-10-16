@@ -13,6 +13,7 @@ import { usePermissionStore } from "@medbrains/stores";
 import { IconDownload } from "@tabler/icons-react";
 import { useCallback, useMemo, useState } from "react";
 import { Checkbox, IconButton, Input } from "@/components/ui";
+import { useFailedQueries } from "@/hooks/useFailedQueries";
 import {
   type AdvancedFilterState,
   applyAdvancedFilter,
@@ -35,6 +36,7 @@ import type {
 } from "./data-table-types";
 import { EmptyState } from "./EmptyState";
 import { PermissionedFieldValue } from "./PermissionedFieldValue";
+import { QueryError } from "./QueryError";
 import { useDataTableFilter } from "./use-data-table-filter";
 import { useDataTableState } from "./use-data-table-state";
 import { useDataTableVirtual } from "./use-data-table-virtual";
@@ -158,6 +160,8 @@ export function DataTable<T>({
   columns,
   data,
   loading,
+  error,
+  onRetry,
   total,
   emptyIcon,
   emptyTitle = "No data found",
@@ -196,6 +200,7 @@ export function DataTable<T>({
   filters,
   advancedFilter,
 }: DataTableProps<T>) {
+  const pageFailures = useFailedQueries();
   const hasAllPermissions = usePermissionStore((state) => state.hasAllPermissions);
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
@@ -410,6 +415,18 @@ export function DataTable<T>({
   // `emptyTitle` rendered an empty grid and swallowed its own message —
   // 126 of the 150 `emptyTitle` values in this app, across 97 files, never
   // reached a screen. The default title exists precisely to be shown.
+  const loadError = error ?? pageFailures.error;
+  if (sortedData.length === 0 && loadError) {
+    return (
+      <Card padding={0} className={styles.card}>
+        {headerToolbar}
+        <Box py="xl" px="md">
+          <QueryError error={loadError} onRetry={error ? onRetry : pageFailures.retry} />
+        </Box>
+      </Card>
+    );
+  }
+
   if (sortedData.length === 0) {
     return (
       <Card padding={0} className={styles.card}>
