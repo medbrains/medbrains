@@ -14,6 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use medbrains_core::billing::{InsuranceClaim, Invoice, InvoiceStatus, TpaRateCard};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -289,10 +290,11 @@ pub async fn update_insurance_claim(
         invoice_total: Decimal,
         approved_amount: Option<Decimal>,
         settled_amount: Option<Decimal>,
+        status: String,
     }
 
     let gate = sqlx::query_as::<_, ClaimSettleGate>(
-        "SELECT i.total_amount AS invoice_total, ic.approved_amount, ic.settled_amount \
+        "SELECT i.total_amount AS invoice_total, ic.approved_amount, ic.settled_amount, ic.status \
          FROM insurance_claims ic \
          JOIN invoices i ON i.id = ic.invoice_id AND i.tenant_id = ic.tenant_id \
          WHERE ic.id = $1 AND ic.tenant_id = $2",
@@ -375,6 +377,19 @@ pub async fn update_insurance_claim(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // The patient hears about an approval once, on the change into it.
+    if claim.status == "claim_approved" && gate.status != "claim_approved" {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BillingClaimApproved,
+            claim.id,
+            claims.sub,
+            serde_json::json!({ "claim_id": claim.id, "patient_id": claim.patient_id }),
+        )
+        .with_patient(claim.patient_id);
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
 
     tx.commit().await?;
     Ok(Json(claim))

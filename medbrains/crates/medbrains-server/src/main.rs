@@ -649,6 +649,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
     medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
+    medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
@@ -804,6 +805,16 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // from the start, but with no handler it fell to the user-pipeline
     // fallback and was never sent.
     registry.register(twilio::SmsSendHandler::new("sms.token_called"));
+    // Notices from medbrains-workflow::orchestration::notice_pipelines.
+    registry.register(twilio::SmsSendHandler::new("sms.radiology_report_ready"));
+    registry.register(twilio::SmsSendHandler::new("sms.claim_approved"));
+    registry.register(twilio::SmsSendHandler::new("sms.prescription_expiring"));
+    registry.register(email_stub::SmtpSendHandler::new("email.radiology_report"));
+    registry.register(email_stub::SmtpSendHandler::new("email.low_stock"));
+    registry.register(email_stub::SmtpSendHandler::new("email.incident_escalation"));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.radiology_report_ready",
+    ));
     // The statutory MLC police intimation and the Code Yellow page
     // (medbrains-emergency::alerts). Unregistered, the fallback would mark
     // them sent without sending anything.

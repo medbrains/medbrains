@@ -46,6 +46,9 @@ export type ClinicalEventName =
   | "opd.encounter.completed"
   | "opd.followup.scheduled"
   | "opd.prescription.updated"
+  | "opd.prescription.expiring"
+  | "billing.claim.approved"
+  | "pharmacy.stock.low"
   | "opd.certificate.created"
   | "opd.consent.signed"
   | "camp.started"
@@ -137,6 +140,9 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "opd.encounter.completed": ["encounter_id", "patient_id"],
   "opd.followup.scheduled": ["appointment_id", "patient_id"],
   "opd.prescription.updated": ["prescription_id", "encounter_id", "patient_id"],
+  "opd.prescription.expiring": ["prescription_id", "patient_id", "valid_until"],
+  "billing.claim.approved": ["claim_id", "patient_id"],
+  "pharmacy.stock.low": ["catalog_item_id", "on_hand", "reorder_level"],
   "opd.certificate.created": ["certificate_id", "patient_id"],
   "opd.consent.signed": ["consent_id", "patient_id"],
   "camp.started": ["camp_id"],
