@@ -13,14 +13,18 @@
 //! `verify_abdm_signature()` and is feature-gated until production
 //! credentials land.
 
-use axum::{Json, body::Bytes, extract::State, http::HeaderMap};
+use axum::{Extension, Json, body::Bytes, extract::State, http::HeaderMap};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
 use super::signature::{SignatureMode, verify_signature};
-use crate::{error::AppError, state::AppState};
+use crate::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
+use medbrains_core::permissions;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CallbackAck {
@@ -92,9 +96,6 @@ pub async fn receive_callback(
 /// is fine — gateway throughput per tenant is in claims/sec, not
 /// chat/sec, and the index on the column makes it ~sub-ms.
 ///
-/// The dev override `x-medbrains-tenant-id` header is preserved so
-/// local smoke tests don't need a real HFR registration. It only
-/// activates when the recipient code is missing or unknown.
 async fn resolve_tenant_from_recipient(
     state: &AppState,
     headers: &HeaderMap,
@@ -120,26 +121,24 @@ async fn resolve_tenant_from_recipient(
         );
     }
 
-    headers
-        .get("x-medbrains-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| Uuid::parse_str(s).ok())
-        .ok_or_else(|| {
-            AppError::BadRequest(
-                "no tenant for x-hcx-recipient-code; set abdm_hcx_sender_code on the tenant first"
-                    .into(),
-            )
-        })
+    // No fallback: a header naming a tenant is the caller choosing whose
+    // record a callback lands in. Set `abdm_hcx_sender_code` on the tenant.
+    Err(AppError::BadRequest(
+        "no tenant for x-hcx-recipient-code; set abdm_hcx_sender_code on the tenant first".into(),
+    ))
 }
 
 /// Pending callbacks an on-prem server can pull. Returns the oldest
-/// 50 unforwarded rows for the caller's tenant. The on-prem server
+/// 50 unforwarded rows for the caller's own tenant — from the token, never
+/// from the request, so no hospital can read another's. The on-prem server
 /// PUTs `/abdm/gateway/callbacks/{id}/ack` to mark them forwarded.
 pub async fn list_pending_callbacks(
     State(state): State<AppState>,
-    axum::extract::Query(q): axum::extract::Query<TenantQuery>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingCallback>>, AppError> {
+    require_permission(&claims, permissions::abdm::relay::PULL)?;
     let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, PendingCallback>(
         "SELECT id, tenant_id, received_at, correlation_id, callback_type, payload \
          FROM abdm_gateway_callbacks \
@@ -147,16 +146,11 @@ pub async fn list_pending_callbacks(
          ORDER BY received_at \
          LIMIT 50",
     )
-    .bind(q.tenant_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: Uuid,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -169,25 +163,32 @@ pub struct PendingCallback {
     pub payload: Value,
 }
 
+/// Marks one of the caller's own tenant's callbacks forwarded. Another
+/// tenant's id answers 404, the same as no such callback.
 pub async fn ack_callback(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     axum::extract::Path(id): axum::extract::Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::abdm::relay::PULL)?;
     let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let updated = sqlx::query(
         "UPDATE abdm_gateway_callbacks \
             SET forwarded_at = now(), forward_attempts = forward_attempts + 1 \
-          WHERE id = $1 AND forwarded_at IS NULL",
+          WHERE id = $1 AND tenant_id = $2 AND forwarded_at IS NULL",
     )
     .bind(id)
+    .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
     if updated.rows_affected() == 0 {
         // Already-acked stays an idempotent `acked: 0`; only an absent row is a 404.
-        let exists: bool = sqlx::query_scalar!( // allow-raw-sql: relay-scoped like the UPDATE above
-            "SELECT EXISTS(SELECT 1 FROM abdm_gateway_callbacks WHERE id = $1) AS \"exists!\"",
-            id,
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM abdm_gateway_callbacks WHERE id = $1 AND tenant_id = $2)",
         )
+        .bind(id)
+        .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
         if !exists {

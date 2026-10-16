@@ -3211,6 +3211,15 @@ pub mod pharmacy_finance {
 /// access, because the codes never reached the catalogue the admin UI renders.
 /// The frontend guarded on the same literal, so the control was hidden too.
 pub mod abdm {
+    pub mod relay {
+        /// Pull and acknowledge ABDM gateway callbacks.
+        ///
+        /// For the hospital's on-premises server, which collects the ABDM
+        /// gateway's callbacks for its own facility and marks each one
+        /// received. Callbacks carry patient health data, so only this
+        /// hospital's own, never another's.
+        pub const PULL: &str = "abdm.relay.pull";
+    }
     pub mod abha {
         /// View a patient's ABHA health ID.
         pub const VIEW: &str = "abdm.abha.view";
