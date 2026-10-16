@@ -3,7 +3,6 @@ import { Divider, Progress, Select, Stack, Text, TextInput, Title } from "@manti
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { onboardingInitSchema } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
-import type { HospitalType } from "@medbrains/types";
 import { applyServerErrors } from "@medbrains/utils";
 import { IconBuildingHospital, IconLock, IconMail, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
@@ -11,6 +10,7 @@ import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, Button } from "@/components/ui";
+import { EDITIONS } from "@/lib/editions";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -19,17 +19,6 @@ interface Props {
   onBack: () => void;
   draftRef: MutableRefObject<Partial<OnboardingInitInput>>;
 }
-
-const hospitalTypes: { value: HospitalType; label: string }[] = [
-  { value: "medical_college", label: "Medical College & Hospital" },
-  { value: "multi_specialty", label: "Multi-Specialty Hospital" },
-  { value: "district_hospital", label: "District Hospital" },
-  { value: "community_health", label: "Community Health Center" },
-  { value: "primary_health", label: "Primary Health Center" },
-  { value: "standalone_clinic", label: "Standalone Clinic" },
-  { value: "eye_hospital", label: "Eye Hospital" },
-  { value: "dental_college", label: "Dental College" },
-];
 
 function getPasswordStrength(password: string): number {
   let score = 0;
@@ -177,7 +166,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
                 <Select
                   label="Hospital Type"
                   withAsterisk
-                  data={hospitalTypes}
+                  data={EDITIONS}
                   value={field.value}
                   onChange={(v) => field.onChange(v ?? "medical_college")}
                   error={form.formState.errors.hospital_type?.message}

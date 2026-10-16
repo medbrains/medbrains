@@ -6,24 +6,13 @@ import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, Select } from "@/components/ui";
+import { EDITIONS } from "@/lib/editions";
 import { sessionService } from "@/services/session.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // Core modules that cannot be disabled by the user.
 // These are fundamental to the system and must always remain enabled.
 const CORE_MODULE_CODES = new Set(["registration", "billing"]);
-
-// Deployment editions (hospital_type) — each seeds a preset module bundle.
-const EDITIONS = [
-  { value: "standalone_clinic", label: "Small Clinic" },
-  { value: "eye_hospital", label: "Eye Hospital" },
-  { value: "dental_college", label: "Dental" },
-  { value: "multi_specialty", label: "Multi-Specialty" },
-  { value: "district_hospital", label: "District / Government (free)" },
-  { value: "community_health", label: "Community Health" },
-  { value: "primary_health", label: "Primary Health" },
-  { value: "medical_college", label: "Medical College" },
-];
 
 function isCoreModule(mod: ModuleConfig): boolean {
   return CORE_MODULE_CODES.has(mod.code);

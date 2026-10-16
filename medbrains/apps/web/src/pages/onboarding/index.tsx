@@ -4,7 +4,7 @@ import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
 import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 import { Alert, Badge, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 
@@ -132,6 +132,11 @@ export function OnboardingPage() {
 
   // A server that already runs its hospital takes no new registrations; a
   // signed-in admin may still finish their own setup.
+  // The trial server: sign-ups go through the short trial page.
+  if (status?.trial_open && !status.needs_setup && !user) {
+    return <Navigate to="/trial" replace />;
+  }
+
   if (status && !status.needs_setup && !user) {
     return (
       <div className={classes.wizardContainer}>
