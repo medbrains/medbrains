@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
+import { refineBloodPressure } from "@medbrains/schemas";
 import { useHasAnyPermission } from "@medbrains/stores";
 import type { TransfusionObservation } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { BloodPressureField } from "@/components";
 import {
   Alert,
   Badge,
@@ -32,16 +34,18 @@ const PHASE_LABEL: Record<string, string> = {
   completion: "Completion",
 };
 
-const observationSchema = z.object({
-  phase: z.enum(["baseline", "fifteen_min", "periodic", "completion"]),
-  temperature_c: z.number().min(30).max(45).optional(),
-  pulse: z.number().int().min(0).max(300).optional(),
-  systolic_bp: z.number().int().min(0).max(300).optional(),
-  diastolic_bp: z.number().int().min(0).max(200).optional(),
-  respiratory_rate: z.number().int().min(0).max(80).optional(),
-  adverse_signs: z.boolean(),
-  notes: z.string().optional(),
-});
+const observationSchema = z
+  .object({
+    phase: z.enum(["baseline", "fifteen_min", "periodic", "completion"]),
+    temperature_c: z.number().min(30).max(45).optional(),
+    pulse: z.number().int().min(0).max(300).optional(),
+    systolic_bp: z.number().optional(),
+    diastolic_bp: z.number().optional(),
+    respiratory_rate: z.number().int().min(0).max(80).optional(),
+    adverse_signs: z.boolean(),
+    notes: z.string().optional(),
+  })
+  .superRefine(refineBloodPressure("systolic_bp", "diastolic_bp"));
 type ObservationForm = z.infer<typeof observationSchema>;
 
 function vitalsSummary(o: TransfusionObservation): string {
@@ -229,33 +233,13 @@ export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
                 )}
               />
             </Group>
+            <BloodPressureField
+              control={control}
+              systolicName="systolic_bp"
+              diastolicName="diastolic_bp"
+              emptyValue={undefined}
+            />
             <Group grow>
-              <Controller
-                name="systolic_bp"
-                control={control}
-                render={({ field }) => (
-                  <NumberField
-                    label="Systolic BP"
-                    value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                    min={0}
-                    max={300}
-                  />
-                )}
-              />
-              <Controller
-                name="diastolic_bp"
-                control={control}
-                render={({ field }) => (
-                  <NumberField
-                    label="Diastolic BP"
-                    value={field.value ?? ""}
-                    onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                    min={0}
-                    max={200}
-                  />
-                )}
-              />
               <Controller
                 name="respiratory_rate"
                 control={control}

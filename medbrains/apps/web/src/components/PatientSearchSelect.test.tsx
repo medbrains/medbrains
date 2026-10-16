@@ -66,4 +66,19 @@ describe("PatientSearchSelect", () => {
     expect(findPatients).not.toHaveBeenCalled();
     expect(listPatients).not.toHaveBeenCalled();
   });
+
+  it("shows a failed lookup as a fault, never as 'no patient found'", async () => {
+    const { ApiError } = await import("@medbrains/api");
+    const input = setup(["patients.find"]);
+    findPatients.mockRejectedValueOnce(new ApiError("forbidden", 403));
+    await userEvent.type(input, "ACM");
+    expect(await screen.findByText(/don.t have access/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no patient in the hospital/i)).not.toBeInTheDocument();
+  });
+
+  it("says the caller lacks access instead of answering every search with nothing", async () => {
+    const input = setup([]);
+    await userEvent.type(input, "ACM");
+    expect(await screen.findByText(/ask an administrator for patients\.find/i)).toBeInTheDocument();
+  });
 });

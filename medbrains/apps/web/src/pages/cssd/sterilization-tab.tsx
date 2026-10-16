@@ -196,9 +196,12 @@ export function SterilizationTab() {
     {
       key: "status" as const,
       label: "Status",
-      render: (l: CssdSterilizationLoad) => (
-        <Badge tone={statusBadgeTone(l.status)}>{l.status}</Badge>
-      ),
+      render: (l: CssdSterilizationLoad) =>
+        l.recalled_at ? (
+          <Badge tone="danger">recalled</Badge>
+        ) : (
+          <Badge tone={statusBadgeTone(l.status)}>{l.status}</Badge>
+        ),
     },
     {
       key: "is_flash" as const,
@@ -283,8 +286,7 @@ export function SterilizationTab() {
       />
 
       <LoadContentsDrawer
-        loadId={contentsLoad?.id ?? null}
-        loadNumber={contentsLoad?.load_number ?? null}
+        load={contentsLoad}
         opened={contentsLoad !== null}
         onClose={() => setContentsLoad(null)}
       />

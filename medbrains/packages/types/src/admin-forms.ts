@@ -216,6 +216,27 @@ export const FIELD_ACCESS_FIELDS = [
   ),
   systemField(
     "emergency",
+    "mlc.police_officer",
+    "MLC police officer",
+    "text",
+    "Investigating officer name, rank and DD number",
+  ),
+  systemField(
+    "emergency",
+    "mlc.incident_details",
+    "MLC incident details",
+    "textarea",
+    "Incident time, place and weapon",
+  ),
+  systemField(
+    "emergency",
+    "mlc.clinical_course",
+    "MLC clinical course",
+    "textarea",
+    "Condition on arrival, treatment, samples and condition at discharge",
+  ),
+  systemField(
+    "emergency",
     "mlc.pocso_report",
     "POCSO report content",
     "textarea",

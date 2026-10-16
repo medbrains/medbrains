@@ -128,7 +128,7 @@ export function RxPrint({
           <Box className="rxp-doc">
             <b>{data?.doctor_name ?? "—"}</b>
             {data?.doctor_qualification ?? ""}
-            {data?.doctor_registration ? ` · Reg. ${data.doctor_registration}` : ""}
+            {data?.doctor_registration_number ? ` · Reg. ${data.doctor_registration_number}` : ""}
             {data?.department ? <Box>{data.department}</Box> : null}
           </Box>
         </Box>
@@ -137,16 +137,16 @@ export function RxPrint({
           <Box>
             <span>Patient</span> <b>{data?.patient_name ?? patientName}</b>
             {data?.gender ? ` · ${data.gender}` : ""}
-            {data?.age ? ` · ${data.age}` : ""}
+            {data?.age_display ? ` · ${data.age_display}` : ""}
           </Box>
           <Box>
             <span>UHID</span> <b>{data?.uhid ?? uhid}</b> · {date}
           </Box>
         </Box>
 
-        {data?.diagnosis && data.diagnosis.length > 0 && (
+        {data?.diagnosis && (
           <Box className="rxp-dx">
-            <b>Diagnosis:</b> {data.diagnosis.join(", ")}
+            <b>Diagnosis:</b> {data.diagnosis}
           </Box>
         )}
 

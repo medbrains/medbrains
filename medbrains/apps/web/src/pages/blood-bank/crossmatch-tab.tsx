@@ -4,7 +4,7 @@ import { Drawer, Group, NumberInput, Select, Stack, Textarea } from "@mantine/co
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateCrossmatchRequestBody, CrossmatchRequest } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { BLOOD_GROUP_OPTIONS, bloodGroupLabel, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -42,7 +42,7 @@ function CreateCrossmatchForm({
       <Select
         label="Blood Group"
         required
-        data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+        data={BLOOD_GROUP_OPTIONS}
         value={bloodGroup}
         onChange={setBloodGroup}
       />
@@ -128,7 +128,9 @@ export function CrossmatchTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (r: CrossmatchRequest) => <Badge tone="danger">{r.blood_group}</Badge>,
+      render: (r: CrossmatchRequest) => (
+        <Badge tone="danger">{bloodGroupLabel(r.blood_group)}</Badge>
+      ),
     },
     {
       key: "component_type" as const,
@@ -196,7 +198,7 @@ export function CrossmatchTab() {
           <PrintDocumentIconMenu
             idKind="crossmatch_request"
             recordId={r.id}
-            recordLabel={`crossmatch request ${r.blood_group} ${r.component_type}`}
+            recordLabel={`crossmatch request ${bloodGroupLabel(r.blood_group)} ${r.component_type}`}
           />
         </Group>
       ),

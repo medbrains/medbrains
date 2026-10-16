@@ -47,6 +47,7 @@ pub enum CredentialType {
     FireSafety,
     RadiationSafety,
     NabhOrientation,
+    ChemotherapyAdministration,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

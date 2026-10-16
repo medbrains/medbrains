@@ -29,15 +29,44 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
+import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { paymentsService } from "@/services/payments.service";
+import {
+  type PaymentSplitMode,
+  type PaymentSplitPart,
+  PaymentSplitParts,
+} from "./PaymentSplitParts";
+import { UpiCollectPanel } from "./UpiCollectPanel";
 import { VirtualAccountPanel } from "./VirtualAccountPanel";
 
 declare global {
   interface Window {
     Razorpay: new (options: Record<string, unknown>) => { open: () => void };
   }
+}
+
+export type PaymentModalMode = PaymentFormInput["mode"];
+
+const DEFAULT_MODES: readonly PaymentModalMode[] = ["online", "upi_qr", "cash"];
+
+const MODE_OPTIONS: { value: PaymentModalMode; label: ReactNode }[] = [
+  { value: "online", label: <ModeLabel icon={<IconCreditCard size={14} />} text="Online" /> },
+  { value: "upi_qr", label: <ModeLabel icon={<IconQrcode size={14} />} text="UPI" /> },
+  { value: "cash", label: <ModeLabel icon={<IconCash size={14} />} text="Cash" /> },
+  { value: "card", label: <ModeLabel icon={<IconCreditCard size={14} />} text="Card" /> },
+];
+
+function ModeLabel({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <Group gap={4} justify="center" wrap="nowrap">
+      {icon}
+      <Text span size="sm">
+        {text}
+      </Text>
+    </Group>
+  );
 }
 
 interface PaymentModalProps {
@@ -48,28 +77,54 @@ interface PaymentModalProps {
   invoiceId?: string;
   posSaleId?: string;
   patientName?: string;
+  /** Tenders offered, first is the default. A counter sale that has not been
+   *  posted yet offers only manual tenders — a gateway order needs a record. */
+  modes?: readonly PaymentModalMode[];
+  /** The permission the caller's settlement call enforces. Billing records an
+   *  invoice payment; the pharmacy counter posts a POS sale. */
+  collectPermission?: string;
+  /** Offer part payments before the last tender (the pharmacy counter). */
+  splitModes?: readonly PaymentSplitMode[];
   onSuccess: (paymentId: string, settlement: PaymentModalSettlement) => void;
 }
 
 export interface PaymentModalSettlement {
   source: "gateway" | "manual";
-  mode: "cash" | "upi";
+  mode: "cash" | "upi" | "card" | "credit";
+  /** This tender's amount: what was due after any parts. */
   amount: number;
   reference_number?: string;
+  /** Cash handed over, when it was cash; change due is this less `amount`. */
+  tendered?: number;
+  /** Part payments taken before this tender. */
+  parts?: PaymentSplitPart[];
 }
 
 export function PaymentModal({
   opened,
   onClose,
-  amount,
+  amount: billAmount,
   amountAccess = "edit",
   invoiceId,
   posSaleId,
   patientName,
-  onSuccess,
+  modes = DEFAULT_MODES,
+  collectPermission = P.BILLING.PAYMENTS_CREATE,
+  splitModes,
+  onSuccess: onSettled,
 }: PaymentModalProps) {
+  const [parts, setParts] = useState<PaymentSplitPart[]>([]);
+  // Everything below collects what is still due once the parts are taken.
+  const amount = Math.max(
+    0,
+    Math.round((billAmount - parts.reduce((sum, p) => sum + p.amount, 0)) * 100) / 100,
+  );
+  const onSuccess = (paymentId: string, settlement: PaymentModalSettlement) =>
+    onSettled(paymentId, parts.length > 0 ? { ...settlement, parts } : settlement);
   const [qrData, setQrData] = useState<UpiQrResponse | null>(null);
-  const canCreatePayment = useHasPermission(P.BILLING.PAYMENTS_CREATE);
+  const canCollect = useHasPermission(collectPermission);
+  // Gateway orders and generated QR codes are billing endpoints.
+  const canUseGateway = useHasPermission(P.BILLING.PAYMENTS_CREATE);
 
   // Surface which online provider settles gateway/UPI here + sandbox warning.
   const { data: providersResp } = useQuery({
@@ -83,16 +138,21 @@ export function PaymentModal({
     [providersResp],
   );
   const isSandbox = activeProvider?.mode === "sandbox" || activeProvider?.mode === "test";
-  const paymentSchema = useMemo(() => createPaymentFormSchema(amount), [amount]);
+  // With parts, what is due moves; the cash check below follows it instead.
+  const paymentSchema = useMemo(
+    () => createPaymentFormSchema(splitModes ? 0 : billAmount),
+    [billAmount, splitModes],
+  );
   const {
     control,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<PaymentFormInput>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      mode: "online",
+      mode: modes[0] ?? "cash",
       cashReceived: amount,
       utrReference: "",
     },
@@ -107,9 +167,9 @@ export function PaymentModal({
   const changeDueLabel = paymentAmountText(amountAccess, changeDue);
   const showAmountInAction = amountAccess === "edit" || amountAccess === "view";
   const canCollectAmount = amountAccess === "edit";
-  const paymentBlocked = !canCreatePayment || !canCollectAmount;
-  const paymentBlockedMessage = !canCreatePayment
-    ? "Payment collection requires billing payment permission."
+  const paymentBlocked = !canCollect || !canCollectAmount;
+  const paymentBlockedMessage = !canCollect
+    ? "Your role cannot collect this payment."
     : "Payment collection requires editable billing amount access.";
 
   const notifyPaymentBlocked = useCallback(() => {
@@ -130,10 +190,10 @@ export function PaymentModal({
     onSuccess: (data: CreatePaymentOrderResponse) => {
       openRazorpayCheckout(data);
     },
-    onError: () => {
+    onError: (error: Error) => {
       notifications.show({
         title: "Payment Error",
-        message: "Failed to create payment order",
+        message: error.message || "Failed to create payment order",
         color: "red",
       });
     },
@@ -275,6 +335,22 @@ export function PaymentModal({
       source: "manual",
       mode: "cash",
       amount,
+      tendered: received,
+    });
+    onClose();
+  });
+
+  const handleCardConfirm = handleSubmit((values) => {
+    if (paymentBlocked) {
+      notifyPaymentBlocked();
+      return;
+    }
+    const reference = values.utrReference.trim();
+    onSuccess(`card:${reference}`, {
+      source: "manual",
+      mode: "card",
+      amount,
+      reference_number: reference,
     });
     onClose();
   });
@@ -348,164 +424,249 @@ export function PaymentModal({
           </Alert>
         )}
 
-        <Controller
-          control={control}
-          name="mode"
-          render={({ field }) => (
-            <SegmentedControl
-              value={field.value}
-              onChange={field.onChange}
-              fullWidth
-              data={[
-                {
-                  value: "online",
-                  label: (
-                    <Group gap={4} justify="center">
-                      <IconCreditCard size={14} />
-                      <span>Online</span>
-                    </Group>
-                  ),
-                },
-                {
-                  value: "upi_qr",
-                  label: (
-                    <Group gap={4} justify="center">
-                      <IconQrcode size={14} />
-                      <span>UPI QR</span>
-                    </Group>
-                  ),
-                },
-                {
-                  value: "cash",
-                  label: (
-                    <Group gap={4} justify="center">
-                      <IconCash size={14} />
-                      <span>Cash</span>
-                    </Group>
-                  ),
-                },
-              ]}
-            />
-          )}
-        />
-
-        {mode === "online" && (
-          <Stack gap="sm">
-            <Alert variant="light" color="primary" icon={<IconCreditCard size={16} />}>
-              Pay securely via UPI, Credit/Debit Card, Net Banking, or Wallet through Razorpay.
-            </Alert>
-            <Button
-              fullWidth
-              size="md"
-              loading={isProcessing}
-              disabled={paymentBlocked}
-              onClick={startOnlinePayment}
-              leftSection={<IconCreditCard size={18} />}
-            >
-              {showAmountInAction ? `Pay ${amountLabel} Online` : "Pay Online"}
-            </Button>
-          </Stack>
+        {splitModes && (
+          <PaymentSplitParts
+            parts={parts}
+            due={amount}
+            modes={splitModes}
+            disabled={paymentBlocked}
+            formatAmount={(value) => paymentAmountText(amountAccess, value)}
+            onAdd={(part) => {
+              const next = [...parts, part];
+              setParts(next);
+              const due = billAmount - next.reduce((sum, p) => sum + p.amount, 0);
+              setValue("cashReceived", Math.max(0, Math.round(due * 100) / 100));
+            }}
+            onRemove={(index) => setParts(parts.filter((_, i) => i !== index))}
+          />
         )}
 
-        {mode === "upi_qr" && (
-          <Stack gap="sm">
-            {!qrData ? (
-              <Button
-                fullWidth
-                variant="light"
-                loading={upiQrMutation.isPending}
-                disabled={paymentBlocked}
-                onClick={generateUpiQr}
-                leftSection={<IconQrcode size={18} />}
-              >
-                Generate UPI QR Code
-              </Button>
-            ) : (
-              <Stack gap="sm" align="center">
-                <Badge size="lg" variant="light" color="green">
-                  {showAmountInAction
-                    ? `Scan to Pay ${paymentAmountText(amountAccess, qrData.amount)}`
-                    : "Scan to Pay"}
-                </Badge>
-                <QrCodeDisplay value={qrData.upi_uri} />
-                <Text size="xs" c="dimmed">
-                  VPA: {qrData.vpa}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Ref: {qrData.transaction_ref}
-                </Text>
-                <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
-                  After patient pays, enter the UTR/reference number below to confirm.
+        {amount <= 0 && parts.length > 0 ? (
+          <Button
+            fullWidth
+            size="md"
+            disabled={paymentBlocked}
+            leftSection={<IconCheck size={18} />}
+            onClick={() => {
+              const last = parts[parts.length - 1];
+              onSuccess("split", {
+                source: "manual",
+                mode: last?.mode ?? "card",
+                amount: 0,
+              });
+              onClose();
+            }}
+          >
+            Complete payment
+          </Button>
+        ) : (
+          <>
+            <Controller
+              control={control}
+              name="mode"
+              render={({ field }) => (
+                <SegmentedControl
+                  value={field.value}
+                  onChange={field.onChange}
+                  fullWidth
+                  data={MODE_OPTIONS.filter((option) => modes.includes(option.value))}
+                />
+              )}
+            />
+
+            {mode === "online" && (
+              <Stack gap="sm">
+                <Alert variant="light" color="primary" icon={<IconCreditCard size={16} />}>
+                  Pay securely via UPI, Credit/Debit Card, Net Banking, or Wallet through Razorpay.
                 </Alert>
+                <Button
+                  fullWidth
+                  size="md"
+                  loading={isProcessing}
+                  disabled={paymentBlocked}
+                  onClick={startOnlinePayment}
+                  leftSection={<IconCreditCard size={18} />}
+                >
+                  {showAmountInAction ? `Pay ${amountLabel} Online` : "Pay Online"}
+                </Button>
+              </Stack>
+            )}
+
+            {mode === "upi_qr" && (
+              <Stack gap="sm">
+                {canUseGateway && !qrData && (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="light"
+                      loading={upiQrMutation.isPending}
+                      disabled={paymentBlocked}
+                      onClick={generateUpiQr}
+                      leftSection={<IconQrcode size={18} />}
+                    >
+                      Generate UPI QR Code
+                    </Button>
+                    {activeProvider?.supports_upi_collect && (
+                      <UpiCollectPanel
+                        providerLabel={activeProvider.label}
+                        amount={amount}
+                        invoiceId={invoiceId}
+                        posSaleId={posSaleId}
+                        disabled={paymentBlocked}
+                        onCaptured={(txn) => {
+                          onSuccess(txn.id, {
+                            source: "gateway",
+                            mode: "upi",
+                            amount,
+                            reference_number: txn.gateway_payment_id ?? txn.id,
+                          });
+                          onClose();
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+                {qrData && (
+                  <Stack gap="sm" align="center">
+                    <Badge size="lg" variant="light" color="green">
+                      {showAmountInAction
+                        ? `Scan to Pay ${paymentAmountText(amountAccess, qrData.amount)}`
+                        : "Scan to Pay"}
+                    </Badge>
+                    <QrCodeDisplay value={qrData.upi_uri} />
+                    <Text size="xs" c="dimmed">
+                      VPA: {qrData.vpa}
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Ref: {qrData.transaction_ref}
+                    </Text>
+                  </Stack>
+                )}
+                {(qrData || !canUseGateway) && (
+                  <>
+                    <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
+                      {qrData
+                        ? "After the patient pays, enter the UTR/reference number below to confirm."
+                        : "The customer pays the counter UPI QR. Enter the UTR from their app to confirm."}
+                    </Alert>
+                    <Controller
+                      control={control}
+                      name="utrReference"
+                      render={({ field }) => (
+                        <TextInput
+                          label="UTR / Reference Number"
+                          placeholder="Enter UTR after payment"
+                          value={field.value}
+                          onChange={field.onChange}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") void handleUpiConfirm();
+                          }}
+                          error={errors.utrReference?.message}
+                          disabled={paymentBlocked}
+                          required
+                          data-autofocus
+                          w="100%"
+                        />
+                      )}
+                    />
+                    <Button
+                      fullWidth
+                      onClick={() => void handleUpiConfirm()}
+                      disabled={paymentBlocked}
+                      leftSection={<IconCheck size={18} />}
+                    >
+                      Confirm Payment Received
+                    </Button>
+                  </>
+                )}
+              </Stack>
+            )}
+
+            {mode === "cash" && (
+              <Stack gap="sm">
+                <Controller
+                  control={control}
+                  name="cashReceived"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Cash Received"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.cashReceived?.message}
+                      min={0}
+                      decimalScale={2}
+                      prefix="₹"
+                      size="md"
+                      disabled={paymentBlocked}
+                      data-autofocus
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void handleCashPayment();
+                      }}
+                    />
+                  )}
+                />
+                {cashReceived >= amount && (
+                  <Group justify="space-between">
+                    <Text size="sm" c="dimmed">
+                      Change Due
+                    </Text>
+                    <Text fw={600} c="green" size="lg">
+                      {changeDueLabel}
+                    </Text>
+                  </Group>
+                )}
+                {cashReceived < amount && (
+                  <Text size="sm" c="dimmed">
+                    Short by {paymentAmountText(amountAccess, amount - cashReceived)} — enter the
+                    cash handed over.
+                  </Text>
+                )}
+                <Button
+                  fullWidth
+                  size="md"
+                  onClick={() => void handleCashPayment()}
+                  disabled={paymentBlocked || cashReceived < amount}
+                  leftSection={<IconCash size={18} />}
+                  color="green"
+                >
+                  Record Cash Payment
+                </Button>
+              </Stack>
+            )}
+
+            {mode === "card" && (
+              <Stack gap="sm">
                 <Controller
                   control={control}
                   name="utrReference"
                   render={({ field }) => (
                     <TextInput
-                      label="UTR / Reference Number"
-                      placeholder="Enter UTR after payment"
+                      label="Card approval code"
+                      description="From the card machine slip"
                       value={field.value}
                       onChange={field.onChange}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void handleCardConfirm();
+                      }}
                       error={errors.utrReference?.message}
                       disabled={paymentBlocked}
                       required
-                      w="100%"
+                      data-autofocus
                     />
                   )}
                 />
                 <Button
                   fullWidth
-                  onClick={() => void handleUpiConfirm()}
+                  size="md"
+                  onClick={() => void handleCardConfirm()}
                   disabled={paymentBlocked}
-                  leftSection={<IconCheck size={18} />}
+                  leftSection={<IconCreditCard size={18} />}
                 >
-                  Confirm Payment Received
+                  Confirm Card Payment
                 </Button>
               </Stack>
             )}
-          </Stack>
-        )}
-
-        {mode === "cash" && (
-          <Stack gap="sm">
-            <Controller
-              control={control}
-              name="cashReceived"
-              render={({ field }) => (
-                <NumberInput
-                  label="Cash Received"
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.cashReceived?.message}
-                  min={0}
-                  decimalScale={2}
-                  prefix="₹"
-                  size="md"
-                  disabled={paymentBlocked}
-                />
-              )}
-            />
-            {cashReceived >= amount && (
-              <Group justify="space-between">
-                <Text size="sm" c="dimmed">
-                  Change Due
-                </Text>
-                <Text fw={600} c="green" size="lg">
-                  {changeDueLabel}
-                </Text>
-              </Group>
-            )}
-            <Button
-              fullWidth
-              size="md"
-              onClick={() => void handleCashPayment()}
-              disabled={paymentBlocked || cashReceived < amount}
-              leftSection={<IconCash size={18} />}
-              color="green"
-            >
-              Record Cash Payment
-            </Button>
-          </Stack>
+          </>
         )}
 
         {invoiceId && !paymentBlocked && (

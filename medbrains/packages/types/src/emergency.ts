@@ -231,6 +231,18 @@ export interface MlcCase {
   is_pocso: boolean;
   is_death_case: boolean;
   cause_of_death: string | null;
+  examining_doctor_id: string | null;
+  examined_at: string | null;
+  date_time_of_incident: string | null;
+  place_of_incident: string | null;
+  weapon_used: string | null;
+  police_officer_name: string | null;
+  police_officer_rank: string | null;
+  police_dd_number: string | null;
+  condition_on_arrival: string | null;
+  treatment_given: string | null;
+  samples_handed_to: string | null;
+  patient_condition_at_discharge: string | null;
   registered_by: string | null;
   registered_at: string;
   created_at: string;
@@ -271,6 +283,17 @@ export interface MlcPoliceIntimation {
   sent_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Outbound SMS/email read back from the outbox; empty = nothing sent. */
+  delivery: MlcIntimationDelivery[] | null;
+}
+
+export interface MlcIntimationDelivery {
+  channel: "sms" | "email";
+  to: string | null;
+  /** `not_configured`: no SMS/email provider is set up — nothing was sent. */
+  status: "queued" | "sent" | "failed" | "not_configured";
+  last_error: string | null;
+  sent_at: string | null;
 }
 
 export interface MassCasualtyEvent {

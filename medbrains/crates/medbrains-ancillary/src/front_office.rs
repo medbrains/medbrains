@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -498,25 +500,38 @@ pub async fn list_visitor_logs(
     Ok(Json(rows))
 }
 
+/// Who may log a visitor in or out: the desk that issues passes, and the
+/// gate guard who only records entry and exit.
+const VISITOR_LOG_RECORDERS: &[&str] = &[
+    permissions::front_office::passes::MANAGE,
+    permissions::front_office::visitor_logs::RECORD,
+];
+
 pub async fn check_in_visitor(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorLog>, AppError> {
-    require_permission(&claims, permissions::front_office::passes::MANAGE)?;
+    require_any_permission(&claims, VISITOR_LOG_RECORDERS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Verify pass exists before insert to avoid 23503 FK error.
-    let pass_exists: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM visitor_passes WHERE id = $1 AND tenant_id = $2")
-            .bind(pass_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-    if pass_exists.is_none() {
-        return Err(AppError::NotFound);
+    // The pass must let the holder in now — the same rule the gate scan shows.
+    let valid_now: bool = sqlx::query_scalar(
+        "SELECT status::text = 'active' AND now() BETWEEN valid_from AND valid_until \
+         FROM visitor_passes WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(pass_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !valid_now {
+        return Err(AppError::Conflict(
+            "This pass is revoked, expired or not valid yet. Send the visitor to the front desk."
+                .into(),
+        ));
     }
 
     let row = sqlx::query_as::<_, VisitorLog>(
@@ -538,7 +553,7 @@ pub async fn check_out_visitor(
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorLog>, AppError> {
-    require_permission(&claims, permissions::front_office::passes::MANAGE)?;
+    require_any_permission(&claims, VISITOR_LOG_RECORDERS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -893,7 +908,9 @@ pub async fn visitor_analytics(
     let to = q.to.unwrap_or(today);
     let from = q.from.unwrap_or(to - chrono::Days::new(29));
     if from > to {
-        return Err(AppError::BadRequest("'from' must be on or before 'to'".into()));
+        return Err(AppError::BadRequest(
+            "'from' must be on or before 'to'".into(),
+        ));
     }
 
     let totals = sqlx::query!(

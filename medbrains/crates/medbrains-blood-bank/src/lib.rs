@@ -1,6 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod bedside_transfusion;
+pub mod deferral;
+pub mod donor_eligibility;
+pub mod issue_gates;
+pub mod tti;
 
 use axum::{
     Extension, Json,
@@ -18,7 +22,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -66,6 +70,17 @@ pub struct CreateDonationRequest {
     pub volume_ml: i32,
     pub camp_name: Option<String>,
     pub notes: Option<String>,
+    /// Measured at the couch before this collection; required by the
+    /// eligibility check (NBTC / D&C Rules).
+    pub weight_kg: Option<f64>,
+    pub hemoglobin_g_dl: Option<f64>,
+    /// Pre-apheresis platelet count, ×10⁹/L; required for apheresis.
+    pub platelet_count: Option<f64>,
+    /// Donor vitals at the couch; required, and held to the D&C limits.
+    pub systolic_bp: Option<i32>,
+    pub diastolic_bp: Option<i32>,
+    pub pulse: Option<i32>,
+    pub temperature_c: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,6 +137,11 @@ pub struct CreateTransfusionRequest {
     /// The two independent bedside verifiers (NABH/AABB two-person check).
     pub patient_verified_by: Uuid,
     pub product_verified_by: Uuid,
+    /// Issue an O-negative red-cell unit with no crossmatch, in a
+    /// life-threatening emergency. Needs `blood_bank.transfusion.emergency_release`.
+    #[serde(default)]
+    pub emergency_release: bool,
+    pub emergency_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -316,11 +336,38 @@ pub async fn create_donation(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Deferral, age, weight, Hb, platelets, intervals and caps, before a needle goes in.
+    let donor =
+        donor_eligibility::load_donor_eligibility(&mut tx, claims.tenant_id, donor_id).await?;
+    let collection = donor_eligibility::Collection {
+        donation_type: dtype,
+        volume_ml: body.volume_ml,
+        weight_kg: body.weight_kg,
+        hemoglobin_g_dl: body.hemoglobin_g_dl,
+        platelet_count: body.platelet_count,
+        systolic_bp: body.systolic_bp,
+        diastolic_bp: body.diastolic_bp,
+        pulse: body.pulse,
+        temperature_c: body.temperature_c,
+    };
+    if let Some(refusal) = donor_eligibility::donation_refusal(&donor, &collection) {
+        drop(tx);
+        return Err(issue_gates::audited(
+            &state,
+            &claims,
+            "blood_bank.donation_refused",
+            Some(donor_id),
+            AppError::Conflict(refusal),
+        )
+        .await);
+    }
+
     let donation = sqlx::query_as::<_, BloodDonation>(
         "INSERT INTO blood_donations \
          (tenant_id, donor_id, bag_number, donation_type, volume_ml, \
-          collected_by, camp_name, notes) \
-         VALUES ($1, $2, $3, $4::donation_type, $5, $6, $7, $8) \
+          collected_by, camp_name, notes, weight_kg, hemoglobin_g_dl, platelet_count, \
+          systolic_bp, diastolic_bp, pulse, temperature_c) \
+         VALUES ($1, $2, $3, $4::donation_type, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -331,6 +378,13 @@ pub async fn create_donation(
     .bind(claims.sub)
     .bind(&body.camp_name)
     .bind(&body.notes)
+    .bind(body.weight_kg)
+    .bind(body.hemoglobin_g_dl)
+    .bind(body.platelet_count)
+    .bind(body.systolic_bp)
+    .bind(body.diastolic_bp)
+    .bind(body.pulse)
+    .bind(body.temperature_c)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -507,9 +561,37 @@ pub async fn create_component(
     .fetch_one(&mut *tx)
     .await?;
 
+    // A unit split from an already-screened donation carries its screening:
+    // reactive means it starts in quarantine.
+    let results = sqlx::query_as::<_, (String, String)>(
+        "SELECT marker, result FROM blood_tti_results \
+          WHERE tenant_id = $1 AND donation_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.donation_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tti::sync_components(
+        &mut tx,
+        claims.tenant_id,
+        body.donation_id,
+        &tti::tti_clearance(&results),
+    )
+    .await?;
+    let component = sqlx::query_as::<_, BloodComponent>(
+        "SELECT * FROM blood_components WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(component.id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(component))
 }
+
+/// Statuses from which a unit can be issued to a patient.
+const RELEASED_STATUSES: [&str; 4] = ["available", "reserved", "crossmatched", "issued"];
 
 pub async fn update_component_status(
     State(state): State<AppState>,
@@ -530,8 +612,9 @@ pub async fn update_component_status(
 
     // A used / removed blood unit must never re-enter inventory (double-issue / traceability hole).
     // 'transfused' and 'discarded' are terminal; an 'expired' unit may only be disposed ('discarded').
-    let current = sqlx::query_scalar::<_, String>(
-        "SELECT status::text FROM blood_components WHERE id = $1 AND tenant_id = $2",
+    let (current, donation_id) = sqlx::query_as::<_, (String, Uuid)>(
+        "SELECT status::text, donation_id FROM blood_components \
+          WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -539,6 +622,22 @@ pub async fn update_component_status(
     .await?
     .ok_or(AppError::NotFound)?;
     let new_status = body.status.as_str();
+    // Released stock is stock that can reach a patient: only a donation
+    // screened non-reactive on all five markers gets there.
+    if RELEASED_STATUSES.contains(&new_status) {
+        let tti_gate = tti::require_tti_cleared(&mut tx, claims.tenant_id, donation_id).await;
+        if let Err(e) = tti_gate {
+            drop(tx);
+            return Err(issue_gates::audited(
+                &state,
+                &claims,
+                "blood_bank.release_refused",
+                Some(id),
+                e,
+            )
+            .await);
+        }
+    }
     let blocked = match current.as_str() {
         "transfused" | "discarded" => new_status != current,
         "expired" => new_status != "expired" && new_status != "discarded",
@@ -619,7 +718,9 @@ pub async fn list_crossmatch_requests(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(medbrains_server_core::pagination::Paginated::new(requests, total, &p)))
+    Ok(Json(medbrains_server_core::pagination::Paginated::new(
+        requests, total, &p,
+    )))
 }
 
 pub async fn create_crossmatch_request(
@@ -716,6 +817,14 @@ pub async fn create_transfusion(
     Json(body): Json<CreateTransfusionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    // The override is a permission, not a flag: asking for it without
+    // holding it is refused before anything else is read.
+    if body.emergency_release {
+        require_permission(
+            &claims,
+            permissions::blood_bank::transfusion::EMERGENCY_RELEASE,
+        )?;
+    }
     // Recording a transfusion against a patient who is not yours is a
     // clinical record written on a stranger.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
@@ -749,16 +858,22 @@ pub async fn create_transfusion(
     .fetch_one(&mut *tx)
     .await?;
 
-    let (component_blood_group, component_expiry, component_status): (
-        Option<String>,
-        DateTime<Utc>,
-        String,
-    ) = sqlx::query_as(
+    #[allow(clippy::items_after_statements)]
+    #[derive(sqlx::FromRow)]
+    struct UnitRow {
+        blood_group: Option<String>,
+        expiry_at: DateTime<Utc>,
+        status: String,
+        donation_id: Uuid,
+        component_type: String,
+    }
+    let unit = sqlx::query_as::<_, UnitRow>(
         // FOR UPDATE serializes concurrent transfusions of the SAME unit: the row stays locked
         // until this tx commits (marking it 'transfused'), so a racing transfusion then reads
         // 'transfused' and is rejected by the status gate — no duplicate records / double-consume.
-        "SELECT blood_group::text, expiry_at, status::text FROM blood_components \
-         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+        "SELECT blood_group::text AS blood_group, expiry_at, status::text AS status, \
+                donation_id, component_type::text AS component_type \
+           FROM blood_components WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(body.component_id)
     .bind(claims.tenant_id)
@@ -768,22 +883,116 @@ pub async fn create_transfusion(
 
     // Unit-safety gate: never transfuse an expired unit, or one that isn't in a usable state
     // (already transfused/returned/expired, or not yet released). AABB/NABH.
-    if component_expiry < Utc::now() {
+    if unit.expiry_at < Utc::now() {
         return Err(AppError::BadRequest(format!(
             "Blood unit expired on {} — it must not be transfused.",
-            component_expiry.format("%Y-%m-%d %H:%M")
+            unit.expiry_at.format("%Y-%m-%d %H:%M")
         )));
     }
-    if !["available", "reserved", "crossmatched", "issued"].contains(&component_status.as_str()) {
+    if !RELEASED_STATUSES.contains(&unit.status.as_str()) {
         return Err(AppError::BadRequest(format!(
-            "Blood unit status is '{component_status}' and not available for transfusion."
+            "Blood unit status is '{}' and not available for transfusion.",
+            unit.status
         )));
+    }
+    let tti_gate = tti::require_tti_cleared(&mut tx, claims.tenant_id, unit.donation_id).await;
+    if let Err(e) = tti_gate {
+        drop(tx);
+        return Err(issue_gates::audited(
+            &state,
+            &claims,
+            "blood_bank.issue_refused",
+            Some(body.component_id),
+            e,
+        )
+        .await);
+    }
+
+    // Cross-match (AABB/NABH): a red-cell unit is issued on a compatible
+    // crossmatch for THIS patient and THIS unit, tested within 72 hours.
+    let crossmatch_id = match body.crossmatch_id {
+        Some(id) => Some(id),
+        None => {
+            issue_gates::find_valid_crossmatch(
+                &mut tx,
+                claims.tenant_id,
+                body.patient_id,
+                body.component_id,
+            )
+            .await?
+        }
+    };
+    let emergency = crossmatch_id.is_none()
+        && issue_gates::requires_crossmatch(&unit.component_type)
+        && body.emergency_release;
+    let refusal = if emergency {
+        issue_gates::emergency_release_refusal(
+            unit.blood_group.as_deref().unwrap_or_default(),
+            body.emergency_reason.as_deref(),
+        )
+    } else if crossmatch_id.is_none() && issue_gates::requires_crossmatch(&unit.component_type) {
+        Some(
+            "No compatible crossmatch tested in the last 72 hours for this patient and this \
+             unit. Send a fresh sample for crossmatch; in a life-threatening bleed, release \
+             O-negative under emergency release."
+                .to_owned(),
+        )
+    } else {
+        None
+    };
+    if let Some(msg) = refusal {
+        drop(tx);
+        return Err(issue_gates::audited(
+            &state,
+            &claims,
+            "blood_bank.issue_refused",
+            Some(body.component_id),
+            AppError::Conflict(msg),
+        )
+        .await);
+    }
+
+    // Re-grouping: the ABO/Rh found on the crossmatch sample must match the
+    // patient's recorded group before red cells go. A discrepancy is a
+    // wrong-blood-in-tube until proved otherwise.
+    if let (Some(xm_id), Some(recorded), true) = (
+        crossmatch_id,
+        patient_blood_group.as_deref(),
+        issue_gates::requires_crossmatch(&unit.component_type),
+    ) {
+        let sample_group = sqlx::query_scalar::<_, String>(
+            "SELECT blood_group::text FROM crossmatch_requests WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(xm_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        if let Some(msg) = issue_gates::regrouping_refusal(&sample_group, recorded) {
+            drop(tx);
+            return Err(issue_gates::audited(
+                &state,
+                &claims,
+                "blood_bank.group_discrepancy",
+                Some(body.component_id),
+                AppError::Conflict(msg),
+            )
+            .await);
+        }
     }
 
     // Fail SAFE, not open: if either blood group is unrecorded we cannot verify
     // ABO/Rh compatibility, so the transfusion must not proceed. Previously the
     // whole check was skipped when the patient's group was NULL, allowing any
     // component to be transfused against an unknown group (hemovigilance/NABH hole).
+    // The one exception is the emergency O-negative release, which exists for
+    // the patient whose group is not yet known.
+    let component_blood_group = unit.blood_group.clone();
+    let patient_blood_group = if emergency {
+        patient_blood_group.or_else(|| Some("unknown".to_owned()))
+    } else {
+        patient_blood_group
+    };
     let (Some(patient_bg), Some(component_bg)) = (&patient_blood_group, &component_blood_group)
     else {
         return Err(AppError::BadRequest(
@@ -810,20 +1019,20 @@ pub async fn create_transfusion(
         )));
     }
 
-    // Cross-match safety (AABB): when a cross-match is linked, it must belong to this patient + unit,
-    // have a compatible result, and be within its 72-hour validity — antibodies can develop after
-    // 72h, so a stale cross-match must not be transfused on.
+    // A crossmatch named by the caller must belong to this patient + unit,
+    // have a compatible result, and be within its 72-hour validity —
+    // antibodies can develop after 72h.
     if let Some(crossmatch_id) = body.crossmatch_id {
         #[derive(sqlx::FromRow)]
         struct XmRow {
             status: String,
             tested_at: Option<DateTime<Utc>>,
             patient_id: Uuid,
-            component_id: Uuid,
+            component_id: Option<Uuid>,
         }
         let xm = sqlx::query_as::<_, XmRow>(
-            "SELECT status::text, tested_at, patient_id, component_id FROM crossmatch_requests \
-             WHERE id = $1 AND tenant_id = $2",
+            "SELECT status::text AS status, tested_at, patient_id, component_id \
+               FROM crossmatch_requests WHERE id = $1 AND tenant_id = $2",
         )
         .bind(crossmatch_id)
         .bind(claims.tenant_id)
@@ -831,13 +1040,13 @@ pub async fn create_transfusion(
         .await?
         .ok_or(AppError::NotFound)?;
 
-        if xm.patient_id != body.patient_id || xm.component_id != body.component_id {
-            return Err(AppError::BadRequest(
+        if xm.patient_id != body.patient_id || xm.component_id != Some(body.component_id) {
+            return Err(AppError::Conflict(
                 "Cross-match does not belong to this patient and blood unit.".to_owned(),
             ));
         }
         if !["compatible", "issued"].contains(&xm.status.as_str()) {
-            return Err(AppError::BadRequest(format!(
+            return Err(AppError::Conflict(format!(
                 "Cross-match is '{}' — a compatible cross-match is required before transfusion.",
                 xm.status
             )));
@@ -846,7 +1055,7 @@ pub async fn create_transfusion(
             .tested_at
             .is_some_and(|t| Utc::now() - t <= chrono::Duration::hours(72));
         if !fresh {
-            return Err(AppError::BadRequest(
+            return Err(AppError::Conflict(
                 "Cross-match is older than 72 hours (or untested) — a fresh sample and cross-match \
                  are required before transfusion."
                     .to_owned(),
@@ -857,19 +1066,47 @@ pub async fn create_transfusion(
     let record = sqlx::query_as::<_, TransfusionRecord>(
         "INSERT INTO transfusion_records \
          (tenant_id, patient_id, component_id, crossmatch_id, administered_by, \
-          patient_verified_by, product_verified_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+          patient_verified_by, product_verified_by, emergency_release, emergency_reason) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(body.component_id)
-    .bind(body.crossmatch_id)
+    .bind(crossmatch_id)
     .bind(claims.sub)
     .bind(body.patient_verified_by)
     .bind(body.product_verified_by)
+    .bind(emergency)
+    .bind(if emergency {
+        body.emergency_reason.as_deref().map(str::trim)
+    } else {
+        None
+    })
     .fetch_one(&mut *tx)
     .await?;
+
+    if emergency {
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "blood_bank.emergency_uncrossmatched_release",
+                entity_type: "transfusion_record",
+                entity_id: Some(record.id),
+                old_values: None,
+                new_values: Some(&serde_json::json!({
+                    "patient_id": body.patient_id,
+                    "component_id": body.component_id,
+                    "unit_group": unit.blood_group,
+                    "reason": body.emergency_reason,
+                })),
+                ip_address: None,
+            },
+        )
+        .await?;
+    }
 
     // Mark component as transfused
     sqlx::query(
@@ -947,8 +1184,7 @@ pub async fn record_reaction(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_nabh::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
-        .await?;
+    medbrains_nabh::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::BloodTransfusionReactionReported,
@@ -1573,8 +1809,28 @@ pub async fn inspect_return(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // If accepted, mark the component available again
+    // If accepted, mark the component available again — only if its donation
+    // is still TTI-cleared (a lookback may have found it reactive since).
     if body.status == "accepted" {
+        let donation_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT donation_id FROM blood_components WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(row.component_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let tti_gate = tti::require_tti_cleared(&mut tx, claims.tenant_id, donation_id).await;
+        if let Err(e) = tti_gate {
+            drop(tx);
+            return Err(issue_gates::audited(
+                &state,
+                &claims,
+                "blood_bank.release_refused",
+                Some(row.component_id),
+                e,
+            )
+            .await);
+        }
         sqlx::query(
             "UPDATE blood_components SET status = 'available'::blood_bag_status, \
              updated_at = now() WHERE id = $1 AND tenant_id = $2",
@@ -2148,6 +2404,14 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/blood-bank/donations/{donation_id}",
             put(update_donation),
+        )
+        .route(
+            "/api/blood-bank/donors/{id}/deferral",
+            put(deferral::set_donor_deferral),
+        )
+        .route(
+            "/api/blood-bank/donations/{donation_id}/tti",
+            get(tti::list_tti_results).post(tti::record_tti_results),
         )
         .route(
             "/api/blood-bank/components",

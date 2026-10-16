@@ -91,6 +91,8 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod nursing_safety;
+
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -103,6 +105,8 @@ pub struct ListAdmissionsQuery {
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
     pub patient_id: Option<Uuid>,
+    /// IP number or UHID, partial match.
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -138,6 +142,10 @@ pub struct AdmissionRow {
     /// free-text UUID field wearing a disguise. The wards join was already
     /// here; only the projection was missing.
     pub ward_id: Option<Uuid>,
+    /// IP number.
+    pub admission_number: Option<String>,
+    pub is_fall_risk: bool,
+    pub is_pressure_injury_risk: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -408,6 +416,8 @@ pub struct UpdateMarRequest {
     pub hold_reason: Option<String>,
     pub refused_reason: Option<String>,
     pub missed_reason: Option<String>,
+    /// Why an as-needed (PRN / SOS) dose was given. Required for one.
+    pub prn_reason: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -1173,6 +1183,8 @@ fn filter_ipd_mlc_case_response(
         row.cause_of_death = row.cause_of_death.map(|value| mask_free_text(&value));
     }
 
+    // The examination record, redacted as the emergency screens redact it.
+    row.redact_record_fields(restricted);
     row
 }
 
@@ -1359,12 +1371,28 @@ pub async fn list_admissions(
         });
         bind_idx += 1;
     }
+    if let Some(term) = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        conditions.push(format!(
+            "(a.admission_number ILIKE ${bind_idx} OR p.uhid ILIKE ${bind_idx})"
+        ));
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(format!("%{term}%")),
+        });
+        bind_idx += 1;
+    }
 
     let where_clause = conditions.join(" AND ");
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM admissions a \
          JOIN encounters e ON e.id = a.encounter_id \
+         JOIN patients p ON p.id = a.patient_id \
          WHERE {where_clause}"
     );
     // The ReBAC scope is the first condition after the tenant ($2), so its
@@ -1389,7 +1417,8 @@ pub async fn list_admissions(
                a.admitting_doctor, a.status, a.admitted_at, a.discharged_at, \
                CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
                p.uhid, \
-               w.name AS ward_name, a.ward_id \
+               w.name AS ward_name, a.ward_id, a.admission_number, \
+               a.is_fall_risk, a.is_pressure_injury_risk \
          FROM admissions a \
          JOIN encounters e ON e.id = a.encounter_id \
          JOIN patients p ON p.id = a.patient_id \
@@ -2625,6 +2654,16 @@ pub async fn create_assessment(
     .fetch_one(&mut *tx)
     .await?;
 
+    nursing_safety::apply_risk_score_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        id,
+        claims.sub,
+        &body.assessment_type,
+        body.score_value,
+    )
+    .await?;
+
     if body.assessment_type == "braden_scale" {
         medbrains_nabh::mirror_pressure_ulcer_from_ipd_assessment(
             &mut tx,
@@ -2643,11 +2682,21 @@ pub async fn create_assessment(
 //  GET /api/ipd/admissions/{id}/mar
 // ══════════════════════════════════════════════════════════
 
+/// A MAR row as the admission's chart lists it: the dose plus whether it is
+/// chemotherapy, so a bedside client can say so before the nurse scans.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MarListRow {
+    #[sqlx(flatten)]
+    #[serde(flatten)]
+    pub dose: IpdMedicationAdministration,
+    pub is_cytotoxic: bool,
+}
+
 pub async fn list_mar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<IpdMedicationAdministration>>, AppError> {
+) -> Result<Json<Vec<MarListRow>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
 
     // The route names an admission; holding the module permission is not the
@@ -2660,15 +2709,17 @@ pub async fn list_mar(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
-        "SELECT * FROM ipd_medication_administration \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY scheduled_at ASC LIMIT 5000",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let sql = format!(
+        "SELECT m.*, {} AS is_cytotoxic FROM ipd_medication_administration m \
+         WHERE m.admission_id = $1 AND m.tenant_id = $2 \
+         ORDER BY m.scheduled_at ASC LIMIT 5000",
+        nursing_safety::IS_CHEMO_DOSE_SQL
+    );
+    let rows = sqlx::query_as::<_, MarListRow>(&sql)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -2764,6 +2815,7 @@ async fn administer_mar_dose_in_tx(
             "This dose is already recorded as administered and cannot be changed.".to_owned(),
         ));
     }
+    nursing_safety::require_prn_reason(&existing, body)?;
 
     match status {
         MarStatus::Given => {
@@ -2851,6 +2903,7 @@ async fn administer_mar_dose_in_tx(
            refused_reason = COALESCE($9, refused_reason), \
            missed_reason = COALESCE($10, missed_reason), \
            notes = COALESCE($11, notes), \
+           prn_reason = COALESCE($12, prn_reason), \
            updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING *",
@@ -2867,6 +2920,7 @@ async fn administer_mar_dose_in_tx(
     .bind(&body.refused_reason)
     .bind(&body.missed_reason)
     .bind(&body.notes)
+    .bind(body.prn_reason.as_deref().map(str::trim))
     .fetch_one(&mut **tx)
     .await?;
 
@@ -2909,22 +2963,7 @@ pub async fn update_mar(
     medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     require_mar_status_permission(&claims, &body.status)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = administer_mar_dose_in_tx(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        mar_id,
-        Some(id),
-        &body,
-    )
-    .await?;
-
-    tx.commit().await?;
-
+    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, Some(id), &body).await?;
     Ok(Json(row))
 }
 
@@ -2955,6 +2994,8 @@ pub struct MarDueRow {
     pub scheduled_at: chrono::DateTime<Utc>,
     pub status: MarStatus,
     pub is_high_alert: bool,
+    /// Chemotherapy — only a certified nurse may give it.
+    pub is_cytotoxic: bool,
     pub batch_number: Option<String>,
     pub batch_expiry: Option<NaiveDate>,
 }
@@ -2984,11 +3025,11 @@ pub async fn list_mar_due_now(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, MarDueRow>(
+    let sql = format!(
         "SELECT m.id, m.admission_id, a.patient_id, \
                 (p.first_name || ' ' || p.last_name) AS patient_name, a.bed_id, \
                 m.drug_name, m.dose, m.route, m.frequency, m.scheduled_at, m.status, \
-                m.is_high_alert, m.batch_number, m.batch_expiry \
+                m.is_high_alert, {} AS is_cytotoxic, m.batch_number, m.batch_expiry \
          FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = m.tenant_id \
@@ -2997,13 +3038,15 @@ pub async fn list_mar_due_now(
            AND ($3::uuid IS NULL OR a.ward_id = $3) \
            AND ($4::uuid IS NULL OR a.patient_id = $4) \
          ORDER BY m.scheduled_at ASC LIMIT 500",
-    )
-    .bind(claims.tenant_id)
-    .bind(i32::try_from(window_min).unwrap_or(60))
-    .bind(params.ward_id)
-    .bind(params.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
+        nursing_safety::IS_CHEMO_DOSE_SQL
+    );
+    let rows = sqlx::query_as::<_, MarDueRow>(&sql)
+        .bind(claims.tenant_id)
+        .bind(i32::try_from(window_min).unwrap_or(60))
+        .bind(params.ward_id)
+        .bind(params.patient_id)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -3072,14 +3115,7 @@ pub async fn update_mar_round(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, None, &body)
-        .await?;
-
-    tx.commit().await?;
+    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, None, &body).await?;
     Ok(Json(row))
 }
 
@@ -7191,7 +7227,7 @@ pub async fn initiate_discharge_tat(
         "INSERT INTO ipd_discharge_tat_log \
            (tenant_id, admission_id, discharge_initiated_at) \
          VALUES ($1, $2, NOW()) \
-         ON CONFLICT (admission_id) DO UPDATE SET \
+         ON CONFLICT (admission_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            discharge_initiated_at = COALESCE(ipd_discharge_tat_log.discharge_initiated_at, NOW()) \
          RETURNING *",
     )
@@ -7881,6 +7917,7 @@ pub async fn get_admission_print_data(
         encounter_id: Uuid,
         patient_name: String,
         uhid: String,
+        admission_number: Option<String>,
         age: Option<i32>,
         gender: Option<String>,
         admission_date: chrono::DateTime<Utc>,
@@ -7898,6 +7935,7 @@ pub async fn get_admission_print_data(
            a.encounter_id, \
            p.first_name || ' ' || p.last_name AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age, \
            p.gender::text AS gender, \
            a.admitted_at AS admission_date, \
@@ -7999,6 +8037,7 @@ pub async fn get_admission_print_data(
     let print_data = AdmissionPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age,
         gender: row.gender,
         admission_date: row.admission_date,

@@ -1,8 +1,10 @@
 // Home-healthcare RemoteVitalsPanel — split from home-healthcare.tsx (pure move).
 
 import { Group, NumberInput, Select, Stack, Text } from "@mantine/core";
+import { isBloodPressureValid, toReading } from "@medbrains/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { BloodPressureInput } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
 import { homeHealthService } from "@/services/homeHealth.service";
 
@@ -11,9 +13,10 @@ const DEVICE_FIELDS: Record<string, { key: string; label: string }[]> = {
     { key: "spo2", label: "SpO₂ %" },
     { key: "pulse", label: "Pulse" },
   ],
+  // Rendered as BloodPressureInput; the keys are what the reading carries.
   bp: [
-    { key: "systolic", label: "Systolic" },
-    { key: "diastolic", label: "Diastolic" },
+    { key: "systolic", label: "Systolic (high)" },
+    { key: "diastolic", label: "Diastolic (low)" },
   ],
   glucometer: [{ key: "glucose", label: "Glucose" }],
   thermometer: [{ key: "temp", label: "Temp °C" }],
@@ -75,18 +78,37 @@ export function RemoteVitalsPanel({
             }}
             w={150}
           />
-          {fields.map((f) => (
-            <NumberInput
-              key={f.key}
-              label={f.label}
-              value={values[f.key] ?? ""}
-              onChange={(v) =>
-                setValues((p) => ({ ...p, [f.key]: typeof v === "number" ? v : "" }))
+          {device === "bp" ? (
+            <BloodPressureInput
+              value={{
+                systolic: toReading(values.systolic),
+                diastolic: toReading(values.diastolic),
+              }}
+              onChange={(bp) =>
+                setValues({ systolic: bp.systolic ?? "", diastolic: bp.diastolic ?? "" })
               }
-              w={110}
             />
-          ))}
-          <Button onClick={() => record.mutate()} loading={record.isPending}>
+          ) : (
+            fields.map((f) => (
+              <NumberInput
+                key={f.key}
+                label={f.label}
+                value={values[f.key] ?? ""}
+                onChange={(v) =>
+                  setValues((p) => ({ ...p, [f.key]: typeof v === "number" ? v : "" }))
+                }
+                w={110}
+              />
+            ))
+          )}
+          <Button
+            onClick={() => record.mutate()}
+            loading={record.isPending}
+            disabled={
+              device === "bp" &&
+              !isBloodPressureValid(toReading(values.systolic), toReading(values.diastolic))
+            }
+          >
             Record
           </Button>
         </Group>

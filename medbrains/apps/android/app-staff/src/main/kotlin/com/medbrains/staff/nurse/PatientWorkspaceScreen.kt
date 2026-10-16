@@ -47,7 +47,7 @@ fun PatientWorkspaceScreen(nav: NavHostController, admission: AdmissionRow) {
             Eyebrow("Patient context")
             Text("Work in one selected admission context. MAR, vitals, I/O and risk screens write against this encounter for auditability.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.padding(top = 8.dp)) {
-                CarbonTag("encounter ${admission.encounter_id.take(8)}", mono = true)
+                CarbonTag(admission.admission_number ?: "encounter ${admission.encounter_id.take(8)}", mono = true)
                 if (identity?.can("ipd.admissions.view") == true) CarbonTag("IPD visible", CarbonTone.Info, modifier = Modifier.padding(start = 8.dp))
             }
         }

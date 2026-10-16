@@ -344,7 +344,7 @@ pub async fn get_ama_form_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.id::text AS admission_number, \
+           a.admission_number, \
            a.admitted_at::date AS admission_date, \
            COALESCE(w.name, '') AS ward_name, \
            COALESCE(l.name, '') AS bed_number, \
@@ -1076,7 +1076,7 @@ pub async fn get_death_declaration_print_data(
            EXTRACT(YEAR FROM age(dr.death_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.address::text AS address, \
-           a.id::text AS admission_number, \
+           a.admission_number, \
            a.admitted_at::date AS admission_date, \
            w.name AS ward_name, \
            l.name AS bed_number, \

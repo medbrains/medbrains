@@ -84,6 +84,7 @@ import {
   workspaceReadinessBlockedReason,
 } from "./action-rail";
 import { AdmissionPrescriptionsTab } from "./admission-prescriptions";
+import { AdmissionRiskBadges } from "./admission-risk-badges";
 import { AssessmentsTab } from "./assessments";
 import { AttendersTab } from "./attenders";
 import { BedTransferModal } from "./bed-transfer-modal";
@@ -367,7 +368,15 @@ export function AdmissionDetail({
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={4}>
               <Group gap="xs">
-                <Text fw={700}>{t("admissionContext.shortId", { id: adm.id.slice(0, 8) })}</Text>
+                <Text fw={700}>
+                  {adm.admission_number
+                    ? t("admissionContext.ipNumber", { number: adm.admission_number })
+                    : t("admissionContext.shortId", { id: adm.id.slice(0, 8) })}
+                </Text>
+                <AdmissionRiskBadges
+                  isFallRisk={adm.is_fall_risk}
+                  isPressureInjuryRisk={adm.is_pressure_injury_risk}
+                />
                 {adm.is_critical && (
                   <OperationalSignal label={t("critical")} shape="diamond" size="xs" tone="risk" />
                 )}

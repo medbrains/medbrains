@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import re
 import sys
 
@@ -149,6 +150,26 @@ def render(fields: list[str]) -> str:
     return "\n".join(lines)
 
 
+BIOME = os.path.join(ROOT, "node_modules", ".bin", "biome")
+
+
+def biome_formatted(source: str) -> str:
+    """Format as biome would, so the committed file (which `biome check
+    --write` reformats) and a fresh render compare equal under `--check`."""
+    try:
+        result = subprocess.run(
+            [BIOME, "format", f"--stdin-file-path={OUT}"],
+            input=source,
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f"biome format failed ({error}); run `pnpm install` first") from error
+    return result.stdout
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if out of date")
@@ -157,7 +178,7 @@ def main() -> int:
     fields = discover()
     if not fields:
         raise SystemExit("found no *_FIELD constants — has the naming convention changed?")
-    rendered = render(fields)
+    rendered = biome_formatted(render(fields))
 
     if args.check:
         existing = ""

@@ -27,11 +27,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.medbrains.kit.ApiError
+import com.medbrains.kit.BloodPressure
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.RemoteState
 import com.medbrains.kit.ServerTime
 import com.medbrains.kit.value
+import com.medbrains.ui.BloodPressureFields
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonPrimaryButton
@@ -142,6 +144,7 @@ private fun ObservationForm(api: NurseApi, transfusionId: String, phase: String,
     var pulse by remember { mutableStateOf("") }
     var systolic by remember { mutableStateOf("") }
     var diastolic by remember { mutableStateOf("") }
+    var showBpErrors by remember { mutableStateOf(false) }
     var adverse by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -152,10 +155,7 @@ private fun ObservationForm(api: NurseApi, transfusionId: String, phase: String,
         Text(phaseLabel[phase] ?: phase, style = MaterialTheme.typography.titleSmall)
         CarbonTextField(temperature, { temperature = it }, "Temperature (°C)", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
         CarbonTextField(pulse, { pulse = it }, "Pulse", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CarbonTextField(systolic, { systolic = it }, "Systolic", Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            CarbonTextField(diastolic, { diastolic = it }, "Diastolic", Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        }
+        BloodPressureFields(systolic, { systolic = it }, diastolic, { diastolic = it }, showErrors = showBpErrors)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = adverse, onCheckedChange = { adverse = it })
             Text("Rigors, rash, breathlessness or back pain", style = MaterialTheme.typography.bodyLarge)
@@ -164,10 +164,16 @@ private fun ObservationForm(api: NurseApi, transfusionId: String, phase: String,
         failure?.let { CarbonNotification(NotificationKind.Error, "Not saved", it) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CarbonPrimaryButton("Save", enabled = !busy, modifier = Modifier.weight(1f), onClick = {
+                val bp = BloodPressure.readingOrNull(systolic, diastolic)
+                if (bp == null) {
+                    showBpErrors = true
+                    failure = BloodPressure.validate(systolic, diastolic).message
+                    return@CarbonPrimaryButton
+                }
                 scope.launch {
                     busy = true; failure = null
                     try {
-                        api.recordObservation(transfusionId, RecordObservationPayload(phase, num(temperature), num(pulse)?.toInt(), num(systolic)?.toInt(), num(diastolic)?.toInt(), adverse, notes.ifBlank { null }))
+                        api.recordObservation(transfusionId, RecordObservationPayload(phase, num(temperature), num(pulse)?.toInt(), bp.systolic, bp.diastolic, adverse, notes.ifBlank { null }))
                         onRecorded(phase == "completion")
                     } catch (e: Exception) { failure = (e as? ApiError)?.message ?: "The observations could not be saved." } finally { busy = false }
                 }

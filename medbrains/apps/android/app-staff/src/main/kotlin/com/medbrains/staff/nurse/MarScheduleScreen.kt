@@ -73,6 +73,7 @@ fun MarScheduleScreen(nav: NavHostController, api: NurseApi, session: NurseSessi
                             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 CarbonTag(dose.status, marTone(dose.status))
                                 if (dose.is_high_alert) CarbonTag("high alert", CarbonTone.HighAlert)
+                                if (dose.is_cytotoxic) CarbonTag("chemotherapy", CarbonTone.Danger)
                             }
                         }
                         if (dose.status == "scheduled") {

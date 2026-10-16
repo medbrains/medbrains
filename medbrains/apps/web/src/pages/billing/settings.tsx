@@ -7,6 +7,7 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
+import { ExchangeRatesSection } from "./exchange-rates-section";
 
 const AUTO_BILLING_KEYS = [
   {
@@ -37,6 +38,15 @@ const AUTO_BILLING_KEYS = [
 ] as const;
 
 export function BillingSettingsTab() {
+  return (
+    <Stack gap="xl">
+      <BillingTenantSettings />
+      <ExchangeRatesSection />
+    </Stack>
+  );
+}
+
+function BillingTenantSettings() {
   const queryClient = useQueryClient();
   // This tab had no gate of its own and rides in on the billing page's
   // invoice-list permission, while both its calls are tenant settings. A

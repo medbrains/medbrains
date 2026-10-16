@@ -63,7 +63,7 @@ struct IpdRoundDetailView: View {
                     Text("Progress notes, diagnosis, prescription review, investigations and discharge planning stay under this patient context.")
                         .font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary)
                     HStack(spacing: 8) {
-                        CarbonTag("encounter \(admission.encounterId.prefix(8))", mono: true)
+                        CarbonTag(admission.admissionNumber ?? "encounter \(admission.encounterId.prefix(8))", mono: true)
                         CarbonTag("IPD", tone: .info)
                     }
                 }

@@ -51,7 +51,9 @@ pub struct PharmacyOrder {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub prescription_id: Option<Uuid>,
-    pub patient_id: Uuid,
+    /// None for a walk-in counter sale: the column is nullable and an
+    /// over-the-counter sale need not name anyone.
+    pub patient_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
     pub ordered_by: Uuid,
     pub status: String,

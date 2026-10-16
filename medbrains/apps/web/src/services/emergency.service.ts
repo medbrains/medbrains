@@ -34,6 +34,9 @@ export const emergencyService = {
   listErBays: () => api.listErBays(),
   createErBay: (...args: Parameters<typeof api.createErBay>) => api.createErBay(...args),
   updateErBay: (...args: Parameters<typeof api.updateErBay>) => api.updateErBay(...args),
+  listTriageAssessments: (visitId: string) => api.listTriageAssessments(visitId),
+  createTriageAssessment: (...args: Parameters<typeof api.createTriageAssessment>) =>
+    api.createTriageAssessment(...args),
   listErObservationNotes: (visitId: string) => api.listErObservationNotes(visitId),
   createErObservationNote: (...args: Parameters<typeof api.createErObservationNote>) =>
     api.createErObservationNote(...args),

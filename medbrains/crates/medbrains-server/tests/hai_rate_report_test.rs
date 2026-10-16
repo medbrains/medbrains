@@ -87,7 +87,7 @@ async fn hai_rate_is_null_when_the_denominator_is_missing() {
          (tenant_id, location_id, record_date, central_line_days, recorded_by) \
          VALUES ($1, $2, {with_denominator}, 500, $3) \
          ON CONFLICT (tenant_id, location_id, record_date) \
-         DO UPDATE SET central_line_days = EXCLUDED.central_line_days"
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, central_line_days = EXCLUDED.central_line_days"
     ))
     .bind(tenant_id)
     .bind(location_id)

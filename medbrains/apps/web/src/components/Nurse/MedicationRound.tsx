@@ -88,6 +88,11 @@ export function MedicationRound({ patientId }: Props) {
                       High alert
                     </Badge>
                   )}
+                  {row.is_cytotoxic && (
+                    <Badge tone="danger" size="sm">
+                      Chemotherapy
+                    </Badge>
+                  )}
                 </Group>
                 <Text size="sm" c="dimmed">
                   {row.patient_name} · {row.route} · due{" "}
@@ -120,9 +125,13 @@ export function MedicationRound({ patientId }: Props) {
       {active && (
         <AdministerModal
           opened={active !== null}
-          onClose={() => setActive(null)}
+          onClose={() => {
+            setActive(null);
+            update.reset();
+          }}
           dose={active}
           isSubmitting={update.isPending}
+          error={update.error?.message ?? null}
           onSubmit={(input) => update.mutate({ id: active.id, ...input })}
         />
       )}

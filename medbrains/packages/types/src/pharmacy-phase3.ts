@@ -79,6 +79,24 @@ export interface PharmacyRxDetailResponse {
   allergies: unknown[];
   /** What the doctor wrote about refills and expiry. */
   terms: PrescriptionRefillTerms | null;
+  /** The medication safety checks the review enforces, run for this screen. */
+  safety: { findings: MedicationSafetyFinding[] };
+}
+
+/** One medication safety finding from the pharmacy gate (`rx_safety`). */
+export interface MedicationSafetyFinding {
+  code:
+    | "DRUG_ALLERGY_CONFLICT"
+    | "DRUG_INTERACTION"
+    | "RESERVE_ANTIBIOTIC_APPROVAL_REQUIRED"
+    | "NON_FORMULARY_APPROVAL_REQUIRED"
+    | (string & {});
+  severity: "warn" | "block";
+  message: string;
+  catalog_item_id: string | null;
+  drug_name: string;
+  /** Includes `override_permission`: the code that may override a block. */
+  detail: Record<string, unknown>;
 }
 
 export interface PrescriptionRefillTerms {
@@ -100,6 +118,8 @@ export interface ReviewPharmacyPrescriptionRequest {
   notes?: string;
   rejection_reason?: string;
   items?: PharmacyRxReviewItemInput[];
+  /** Clinical reason for approving past a blocking safety finding. */
+  safety_override_reason?: string;
 }
 
 export interface PharmacyPosSale {
@@ -133,6 +153,36 @@ export interface PharmacyPosSale {
   refund_amount?: number;
   created_at: string;
   updated_at: string;
+}
+
+/** What a catalogue line sells for at the counter: FEFO batch MRP, catalogue GST. */
+export interface PosLinePrice {
+  catalog_item_id: string;
+  mrp: string | number | null;
+  gst_rate: string | number;
+  hsn_code: string | null;
+}
+
+export interface PosPricesResponse {
+  lines: PosLinePrice[];
+  /** Discount off MRP the counter may give without an approver. */
+  discount_limit_percent: string | number;
+}
+
+/** One way part of a counter bill was paid. */
+export interface PosTenderInput {
+  mode: "cash" | "card" | "upi" | "credit";
+  amount: number;
+  reference?: string;
+}
+
+/** A patient as the pharmacy counter sees them — never more. */
+export interface CounterPatient {
+  id: string;
+  uhid: string;
+  full_name: string;
+  age_years: number | null;
+  gender: string | null;
 }
 
 export interface PharmacyPosSaleItem {
@@ -255,6 +305,35 @@ export interface UpiQrResponse {
   transaction_ref: string;
 }
 
+export interface UpiCollectRequest {
+  amount: number;
+  phone: string;
+  /** The patient's UPI ID — the request is pushed to it. */
+  vpa: string;
+  invoice_id?: string;
+  pos_sale_id?: string;
+}
+
+export interface UpiCollectResponse {
+  transaction_id: string;
+  status: string;
+  message: string;
+}
+
+export interface UpiDeepLinkRequest {
+  amount: number;
+  invoice_id?: string;
+  description?: string;
+}
+
+export interface UpiDeepLinkResponse {
+  deep_link: string;
+  qr_uri: string;
+  vpa: string;
+  amount: number;
+  transaction_ref: string;
+}
+
 export interface InitiateRefundRequest {
   transaction_id: string;
   amount?: number;
@@ -283,6 +362,8 @@ export interface PaymentProviderInfo {
   mode?: string;
   webhook_configured: boolean;
   methods: string[];
+  /** Can push a UPI collect request to the patient's UPI ID. */
+  supports_upi_collect: boolean;
 }
 
 export interface PaymentProvidersResponse {

@@ -2,7 +2,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-finance.md items #1, #2, #3.
 
-use axum::routing::{get,put};
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -143,26 +143,33 @@ pub async fn close_drawer(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Compute expected_close_amount from drawer's opening_float +
-    // sum of cash payments - sum of cash refunds - approved petty cash.
-    // Simplified version: opening_float + payments - refunds.
-    // Production: extend with petty cash + cash float movements.
-    let drawer: Option<(Decimal,)> = sqlx::query_as(
-        "SELECT opening_float FROM pharmacy_cash_drawers \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'open' \
-         FOR UPDATE",
+    // What the drawer should hold: its float, the counter's cash net of
+    // change (each cash tender and refund carries its drawer), less petty cash
+    // paid out of it, plus float moved in and less float moved out.
+    let expected_close: Option<Decimal> = sqlx::query_scalar::<_, Decimal>(
+        "SELECT d.opening_float \
+              + COALESCE((SELECT SUM(t.amount) FROM pharmacy_payment_transactions t \
+                           WHERE t.tenant_id = d.tenant_id AND t.shift_id = d.id::text \
+                             AND t.payment_mode = 'cash' AND t.deleted_at IS NULL), 0) \
+              - COALESCE((SELECT SUM(v.amount) FROM pharmacy_petty_cash_vouchers v \
+                           WHERE v.tenant_id = d.tenant_id AND v.cash_drawer_id = d.id \
+                             AND v.status IN ('approved', 'reimbursed') \
+                             AND v.deleted_at IS NULL), 0) \
+              + COALESCE((SELECT SUM(m.amount) FROM pharmacy_cash_float_movements m \
+                           WHERE m.tenant_id = d.tenant_id AND m.destination_drawer_id = d.id \
+                             AND m.deleted_at IS NULL), 0) \
+              - COALESCE((SELECT SUM(m.amount) FROM pharmacy_cash_float_movements m \
+                           WHERE m.tenant_id = d.tenant_id AND m.source_drawer_id = d.id \
+                             AND m.deleted_at IS NULL), 0) \
+           FROM pharmacy_cash_drawers d \
+          WHERE d.id = $1 AND d.tenant_id = $2 AND d.status = 'open' \
+          FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
-
-    let opening_float = drawer.ok_or(AppError::NotFound)?.0;
-
-    // Fold in cash payments + refunds for this drawer's window.
-    // This is a placeholder — actual aggregation needs join to
-    // pharmacy_payments + pharmacy_petty_cash_vouchers + cash_float_movements.
-    let expected_close = opening_float;
+    let expected_close = expected_close.ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, CashDrawer>(
         "UPDATE pharmacy_cash_drawers SET \
@@ -270,15 +277,11 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/pharmacy/cash-drawers",
-            get(list_drawers)
-                .post(open_drawer),
+            get(list_drawers).post(open_drawer),
         )
         .route(
             "/api/pharmacy/cash-drawers/me/active",
             get(get_my_active_drawer),
         )
-        .route(
-            "/api/pharmacy/cash-drawers/{id}/close",
-            put(close_drawer),
-        )
+        .route("/api/pharmacy/cash-drawers/{id}/close", put(close_drawer))
 }

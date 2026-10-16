@@ -162,6 +162,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // After migrations, so table ownership is visible on a fresh database.
+    warn_if_request_role_skips_rls(&db_pool).await;
+
     // A second pool for the background workers.
     //
     // They are the one part of the server with no request to take a tenant
@@ -643,6 +646,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // to the doctor's supervisor after the tenant's ack window.
     medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
+    // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
+    medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
@@ -653,6 +658,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // nurse, then the supervisor. The board already coloured it; nobody was
     // told (NABH CL-3).
     medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
+
+    // Restraint observations — a restrained patient missing the 30-minute
+    // check reaches the on-call nurse and whoever started the restraint
+    // (MHCA 2017 s.97).
+    medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+
+    // Calibration lock — equipment past its calibration date is locked and
+    // taken out of service, so an analyser cannot report on an expired one.
+    medbrains_server::services::calibration_lock::spawn(worker_pool.clone());
 
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
@@ -673,6 +687,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("shutdown complete — all in-flight requests drained");
     Ok(())
+}
+
+/// Row level security is the boundary between hospitals, and Postgres skips it
+/// for a superuser, a `BYPASSRLS` role, and the owner of a table. The request
+/// pool must be none of those (`medbrains_app`, migration 0981).
+///
+/// Logged, not fatal: installs that predate the role split connect as the
+/// owner, and refusing to boot would turn a missing safeguard into an outage.
+/// The switch is in `docs/ops/DB-ROLES.md`.
+async fn warn_if_request_role_skips_rls(pool: &sqlx::PgPool) {
+    let row = sqlx::query_as::<_, (String, bool, bool, bool)>(
+        "SELECT current_user::text, r.rolsuper, r.rolbypassrls, \
+                EXISTS (SELECT 1 FROM pg_tables t \
+                        WHERE t.schemaname = 'public' AND t.tableowner = current_user) \
+         FROM pg_roles r WHERE r.rolname = current_user",
+    )
+    .fetch_one(pool)
+    .await;
+    match row {
+        Ok((role, superuser, bypassrls, owns_tables)) if superuser || bypassrls || owns_tables => {
+            tracing::error!(
+                role = %role,
+                superuser,
+                bypassrls,
+                owns_tables,
+                "DATABASE_URL connects as a role that row level security does not apply to — \
+                 tenant isolation rests on every query's own WHERE clause. Point DATABASE_URL \
+                 at medbrains_app (see docs/ops/DB-ROLES.md)."
+            );
+        }
+        Ok((role, ..)) => {
+            tracing::info!(role = %role, "request pool is subject to row level security");
+        }
+        Err(e) => tracing::error!(
+            error = %e,
+            "could not check whether the request pool's role is subject to row level security"
+        ),
+    }
 }
 
 async fn shutdown_signal() {
@@ -751,6 +803,14 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // from the start, but with no handler it fell to the user-pipeline
     // fallback and was never sent.
     registry.register(twilio::SmsSendHandler::new("sms.token_called"));
+    // The statutory MLC police intimation and the Code Yellow page
+    // (medbrains-emergency::alerts). Unregistered, the fallback would mark
+    // them sent without sending anything.
+    registry.register(twilio::SmsSendHandler::new("sms.mlc_police_intimation"));
+    registry.register(twilio::SmsSendHandler::new("sms.mass_casualty_alert"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.mlc_police_intimation",
+    ));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));

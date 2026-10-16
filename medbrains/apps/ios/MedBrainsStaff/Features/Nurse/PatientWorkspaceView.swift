@@ -40,7 +40,7 @@ struct PatientWorkspaceView: View {
                     Text("Work in one selected admission context. MAR, vitals, I/O and risk screens write against this encounter for auditability.")
                         .font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary)
                     HStack(spacing: 8) {
-                        CarbonTag("encounter \(admission.encounterId.prefix(8))", mono: true)
+                        CarbonTag(admission.admissionNumber ?? "encounter \(admission.encounterId.prefix(8))", mono: true)
                         if auth.identity?.can("ipd.admissions.view") ?? false { CarbonTag("IPD visible", tone: .info) }
                     }
                 }

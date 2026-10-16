@@ -94,6 +94,7 @@ import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+import { isOtConsentType, OtBookingForConsentSelect } from "./OtBookingForConsentSelect";
 import { ReferralActions } from "./referral-actions";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
@@ -1763,6 +1764,8 @@ export function ConsentsTab({
     mode: "onTouched",
   });
   const procedureName = watch("procedure_name");
+  const consentType = watch("consent_type");
+  const [otBookingId, setOtBookingId] = useState<string | null>(null);
 
   const { data: consents = [] } = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
@@ -1776,9 +1779,10 @@ export function ConsentsTab({
       toast.success(variables.procedure_name, { title: "Consent created" });
       formHandlers.close();
       reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
+      setOtBookingId(null);
     },
-    onError: () => {
-      toast.error("Failed to create consent", { title: "Error" });
+    onError: (error: Error) => {
+      toast.error(error.message, { title: "Consent not created" });
     },
   });
 
@@ -1801,12 +1805,16 @@ export function ConsentsTab({
   });
 
   const handleCreate = handleSubmit((values) => {
-    createMutation.mutate(toCreateConsentRequest(values, patientId, encounterId));
+    createMutation.mutate({
+      ...toCreateConsentRequest(values, patientId, encounterId),
+      ot_booking_id: isOtConsentType(values.consent_type) ? (otBookingId ?? undefined) : undefined,
+    });
   });
 
   const closeForm = () => {
     formHandlers.close();
     reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
+    setOtBookingId(null);
   };
 
   const consentStatusColors: Record<string, BadgeTone> = {
@@ -1908,6 +1916,12 @@ export function ConsentsTab({
                 error={errors.consent_type?.message}
               />
             )}
+          />
+          <OtBookingForConsentSelect
+            patientId={patientId}
+            consentType={consentType}
+            value={otBookingId}
+            onChange={setOtBookingId}
           />
           <Controller
             control={control}

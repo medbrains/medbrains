@@ -64,7 +64,7 @@ pub async fn get_case_sheet_cover_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           a.id::text AS admission_number, \
+           a.admission_number, \
            a.admitted_at AS admission_date, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
@@ -206,7 +206,9 @@ pub async fn get_preop_assessment_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           COALESCE(b.admission_id::text, '') AS admission_number, \
+           COALESCE((SELECT ad.admission_number FROM admissions ad \
+                      WHERE ad.id = b.admission_id AND ad.tenant_id = b.tenant_id), '') \
+             AS admission_number, \
            b.procedure_name AS planned_surgery, \
            b.scheduled_date AS surgery_date, \
            surgeon.full_name AS surgeon_name, \
@@ -1044,6 +1046,23 @@ struct OperationNotesRow {
     surgery_end: Option<chrono::DateTime<chrono::Utc>>,
     dictated_by: Option<String>,
     dictated_at: Option<chrono::DateTime<chrono::Utc>>,
+    written_consent: Option<String>,
+    emergency_consent: Option<String>,
+}
+
+/// What the operation went ahead on: the written consent linked to the
+/// booking, and/or the two-doctor emergency certification.
+fn consent_basis(written: Option<String>, emergency: Option<String>) -> String {
+    let parts: Vec<String> = written
+        .map(|w| format!("Written consent: {w}"))
+        .into_iter()
+        .chain(emergency)
+        .collect();
+    if parts.is_empty() {
+        "No consent linked to this booking".to_owned()
+    } else {
+        parts.join("; ")
+    }
 }
 
 /// The operation note for one OT booking (`ot_bookings.id`), from the case
@@ -1092,7 +1111,20 @@ pub async fn get_operation_notes_print_data(
            COALESCE(cr.incision_time, b.actual_start) AS surgery_start, \
            COALESCE(cr.closure_time, b.actual_end) AS surgery_end, \
            cr_surgeon.full_name AS dictated_by, \
-           cr.created_at AS dictated_at \
+           cr.created_at AS dictated_at, \
+           (SELECT pc.procedure_name || ', signed ' || to_char(pc.signed_at, 'DD-Mon-YYYY') \
+              FROM procedure_consents pc \
+             WHERE pc.ot_booking_id = b.id AND pc.tenant_id = b.tenant_id \
+               AND pc.consent_type IN ('surgery', 'procedure') AND pc.status = 'signed' \
+               AND pc.deleted_at IS NULL \
+             ORDER BY pc.signed_at DESC NULLS LAST LIMIT 1) AS written_consent, \
+           (SELECT 'Emergency implied consent certified by ' || u1.full_name || ' and ' \
+                   || u2.full_name || ': ' || e.reason \
+              FROM ot_emergency_consent_certifications e \
+              JOIN users u1 ON u1.id = e.first_doctor_id \
+              JOIN users u2 ON u2.id = e.second_doctor_id \
+             WHERE e.booking_id = b.id AND e.tenant_id = b.tenant_id \
+               AND e.deleted_at IS NULL) AS emergency_consent \
          FROM ot_bookings b \
          JOIN patients p ON p.id = b.patient_id AND p.tenant_id = b.tenant_id \
          LEFT JOIN LATERAL (SELECT * FROM ot_case_records x \
@@ -1147,6 +1179,7 @@ pub async fn get_operation_notes_print_data(
         surgery_date: row.surgery_date.format("%d-%b-%Y").to_string(),
         procedure_name: row.procedure_name,
         procedure_code: row.procedure_code,
+        consent_basis: consent_basis(row.written_consent, row.emergency_consent),
         // ponytail: indication, position, incision, closure and the immediate
         // post-op condition/instructions are not recorded on the case record yet.
         indication: String::new(),
@@ -1186,6 +1219,7 @@ struct PostopOrdersRow {
     patient_name: String,
     uhid: String,
     admission_id: Option<Uuid>,
+    admission_number: Option<String>,
     surgery_date: chrono::NaiveDate,
     procedure_name: String,
     surgeon_name: Option<String>,
@@ -1228,6 +1262,7 @@ pub async fn get_postop_orders_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            b.admission_id, \
+           a.admission_number, \
            b.scheduled_date AS surgery_date, \
            b.procedure_name, \
            surgeon.full_name AS surgeon_name, \
@@ -1279,10 +1314,7 @@ pub async fn get_postop_orders_print_data(
     Ok(Json(PostopOrdersPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        admission_number: row
-            .admission_id
-            .map(|id| id.to_string())
-            .unwrap_or_default(),
+        admission_number: row.admission_number.unwrap_or_default(),
         surgery_date: row.surgery_date.format("%d-%b-%Y").to_string(),
         procedure_name: row.procedure_name,
         surgeon_name: row.surgeon_name.unwrap_or_default(),
@@ -1403,7 +1435,7 @@ pub async fn get_transfusion_monitoring_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           a.id::text AS admission_number, \
+           a.admission_number, \
            w.name AS ward_name, \
            l.name AS bed_number, \
            t.id AS transfusion_id, \

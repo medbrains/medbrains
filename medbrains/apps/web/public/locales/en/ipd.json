@@ -129,6 +129,7 @@
   "admissionContext.diagnosisLinked": "Diagnosis linked",
   "admissionContext.dischargedAt": "Discharged: {{date}}",
   "admissionContext.shortId": "Admission: {{id}}...",
+  "admissionContext.ipNumber": "IP no. {{number}}",
   "admissionContext.source": "Source {{source}}",
   "notifications.mrdHandoffFailed.message": "Unable to generate the IPD case-sheet packet",
   "notifications.mrdHandoffFailed.title": "MRD handoff failed",

@@ -20,6 +20,7 @@ import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
 import { ErObservationPanel } from "@/components/Emergency/ErObservationPanel";
+import { ErTriageAssessmentPanel } from "@/components/Emergency/ErTriageAssessmentPanel";
 import { Alert, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
@@ -204,6 +205,14 @@ export function EmergencyVisitDetailPage() {
                         <IconHeartbeat size={18} />
                         <Text fw={700}>Triage</Text>
                       </Group>
+                      <ErTriageAssessmentPanel
+                        visitId={visit.id}
+                        canView={canViewTriage}
+                        canCreate={canCreateTriage}
+                      />
+                      <Text size="sm" fw={600}>
+                        Triage log
+                      </Text>
                       <TriagePanel visitId={visit.id} canAppend={canCreateTriage} />
                       {!canViewTriage && canCreateTriage && (
                         <Text size="xs" c="dimmed">

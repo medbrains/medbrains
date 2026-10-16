@@ -844,7 +844,7 @@ pub async fn interaction_alerts_for_drugs(
 
     let rows = sqlx::query_as::<_, DrugInteraction>(
         "SELECT * FROM drug_interactions \
-         WHERE tenant_id = $1 AND is_active = true \
+         WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
          AND (lower(drug_a_name) = ANY($2) OR lower(drug_b_name) = ANY($2))",
     )
     .bind(tenant_id)
@@ -953,7 +953,7 @@ pub async fn list_drug_interactions(
 
     let rows = sqlx::query_as::<_, DrugInteraction>(
         "SELECT * FROM drug_interactions \
-         WHERE tenant_id = $1 AND is_active = true \
+         WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
          ORDER BY drug_a_name, drug_b_name LIMIT 5000",
     )
     .bind(claims.tenant_id)

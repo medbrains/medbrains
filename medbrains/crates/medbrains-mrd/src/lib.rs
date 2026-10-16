@@ -1236,7 +1236,7 @@ async fn create_case_sheet_pages(
              (tenant_id, packet_id, page_code, page_title, page_order, \
               source_module, source_table, source_id, status) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available') \
-             ON CONFLICT (packet_id, page_code) DO UPDATE SET \
+             ON CONFLICT (packet_id, page_code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                page_title = EXCLUDED.page_title, \
                page_order = EXCLUDED.page_order, \
                source_module = EXCLUDED.source_module, \

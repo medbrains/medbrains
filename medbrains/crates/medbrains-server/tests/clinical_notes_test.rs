@@ -80,7 +80,7 @@ async fn set_grace(app: &common::TestApp, minutes: i64) {
          SELECT tenant_id, 'clinical_notes', 'grace_minutes', to_jsonb($1::bigint) \
            FROM users WHERE username = 'admin' \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
     )
     .bind(minutes)
     .execute(&app.db)
@@ -468,7 +468,7 @@ async fn a_ward_round_is_a_signed_progress_note_billed_once() {
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          SELECT tenant_id, 'billing', 'auto_charge_ipd_doctor_round', 'true'::jsonb \
            FROM users WHERE username = 'admin' \
-         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
     )
     .execute(&app.db)
     .await
@@ -1229,7 +1229,7 @@ async fn an_unregistered_opd_visit_opens_no_case_sheet_under_the_lock() {
                 "INSERT INTO tenant_settings (tenant_id, category, key, value) \
                  SELECT tenant_id, 'mrd', 'require_opd_registration', to_jsonb($1) \
                    FROM users WHERE username = 'admin' \
-                 ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+                 ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
             )
             .bind(on)
             .execute(&db)

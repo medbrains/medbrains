@@ -312,7 +312,7 @@ pub async fn commit_scan(
             (tenant_id, patient_id, text, last_author_id, \
              last_author_name, last_edited_at, version) \
          VALUES ($1, $2, $3, $4, (SELECT full_name FROM users WHERE id = $4), now(), 1) \
-         ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
             text = patient_clinical_notes.text || E'\\n\\n' || EXCLUDED.text, \
             last_author_id = EXCLUDED.last_author_id, \
             last_author_name = EXCLUDED.last_author_name, \

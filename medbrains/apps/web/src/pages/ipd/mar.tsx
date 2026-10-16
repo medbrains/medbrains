@@ -2,7 +2,7 @@
 
 import { Group, Stack, Text, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { IpdMedicationAdministration } from "@medbrains/types";
+import type { MarListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -30,7 +30,7 @@ export function MarTab({ admissionId }: { admissionId: string }) {
     self_administered: "success",
   };
 
-  const rows = (data ?? []) as IpdMedicationAdministration[];
+  const rows: MarListRow[] = data ?? [];
 
   return (
     <Stack>
@@ -59,6 +59,11 @@ export function MarTab({ admissionId }: { admissionId: string }) {
                         HIGH ALERT
                       </Badge>
                     </Tooltip>
+                  )}
+                  {m.is_cytotoxic && (
+                    <Badge tone="danger" size="xs">
+                      Chemotherapy
+                    </Badge>
                   )}
                 </Group>
               </Table.Td>

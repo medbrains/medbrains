@@ -296,7 +296,9 @@ def main() -> int:
             continue
 
         norm = re.sub(r"\{[^}]+\}", "{}", route.replace("/api", "")).rstrip("/")
-        single = [c for c in by_path.get(norm, []) if c[1].count(",") == 0]
+        # Exactly one argument: a method taking none (the hospital branding
+        # payload) has no record to print against.
+        single = [c for c in by_path.get(norm, []) if c[1].strip() and c[1].count(",") == 0]
         if not single:
             skipped.append((handler, "no single-argument client method"))
             continue

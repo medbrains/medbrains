@@ -75,6 +75,10 @@ export function AssessmentsTab({ admissionId }: { admissionId: string }) {
       ipdService.createAssessment(admissionId, toCreateAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-assessments", admissionId] });
+      // A high Morse / Braden score flags the admission and opens a care plan
+      // and a ward task on the server; show them.
+      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-care-plans", admissionId] });
       formHandlers.close();
       reset(DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES);
     },

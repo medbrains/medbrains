@@ -75,6 +75,14 @@ test("quality prints an incident from its row and the report carries what was fi
   const quality = await hospital.as("quality_officer");
   await quality.goto("/quality");
   await quality.getByRole("tab", { name: "Incidents" }).click();
+  // A long register renders only the rows in view; scroll it, as the officer
+  // would, until today's report is on screen.
+  const printButton = quality.getByRole("button", { name: `Print ${incident.incident_number}` });
+  await quality.getByRole("columnheader", { name: "Incident #" }).hover();
+  await expect(async () => {
+    if (!(await printButton.isVisible())) await quality.mouse.wheel(0, 300);
+    await expect(printButton).toBeVisible({ timeout: 500 });
+  }).toPass({ timeout: 20_000 });
   const sheet = await printFrom(quality, `Print ${incident.incident_number}`, "Incident report");
   await expect(sheet.getByText(incident.incident_number).first()).toBeVisible();
   await expect(sheet.getByText("Patient helped back to bed, vitals checked")).toBeVisible();

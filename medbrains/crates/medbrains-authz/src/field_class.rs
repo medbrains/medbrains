@@ -34,7 +34,7 @@ pub struct FieldClass {
     pub note: Option<&'static str>,
 }
 
-/// The 49 redactable fields, classified.
+/// The 53 redactable fields, classified.
 ///
 /// Anything absent from this table has no declared class and is treated as
 /// `Routine` — which is the safe direction for presentation but means a new
@@ -168,6 +168,21 @@ pub const FIELD_CLASSES: &[FieldClass] = &[
         key: "emergency.mlc.informant_relation",
         class: DataClass::Confidential,
         note: None,
+    },
+    FieldClass {
+        key: "emergency.mlc.police_officer",
+        class: DataClass::Confidential,
+        note: Some("officer name, rank and DD number — a police record, like the FIR number"),
+    },
+    FieldClass {
+        key: "emergency.mlc.incident_details",
+        class: DataClass::Restricted,
+        note: Some("time, place and weapon of the alleged offence — as history of incident"),
+    },
+    FieldClass {
+        key: "emergency.mlc.clinical_course",
+        class: DataClass::Restricted,
+        note: Some("condition on arrival, treatment, samples — as examination findings"),
     },
     // ── Clinical content ───────────────────────────────────────────────
     // Tombstoned, not masked: "diagnosis: ****" still says a diagnosis exists,
@@ -312,6 +327,15 @@ pub const FIELD_CLASSES: &[FieldClass] = &[
         key: "billing.amount",
         class: DataClass::Routine,
         note: None,
+    },
+    // ── Blood bank ─────────────────────────────────────────────────────
+    FieldClass {
+        key: "blood_bank.tti.result",
+        class: DataClass::Restricted,
+        note: Some(
+            "A donor's HIV/HBsAg/HCV/syphilis/malaria result: withheld, never masked — \
+             'HIV: re****' is the disclosure.",
+        ),
     },
 ];
 

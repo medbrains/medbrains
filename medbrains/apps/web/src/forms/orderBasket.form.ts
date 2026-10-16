@@ -22,7 +22,7 @@ export const drugRouteOptions: { value: OrderBasketDrugRouteFormValue; label: st
 export const labPriorityOptions: { value: OrderBasketLabPriorityFormValue; label: string }[] =
   orderBasketLabPriorityValues.map((value) => ({
     value,
-    label: value === "stat" ? "STAT" : "Routine",
+    label: value === "stat" ? "STAT" : value.charAt(0).toUpperCase() + value.slice(1),
   }));
 
 export const radiologyPriorityOptions: {

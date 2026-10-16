@@ -3,7 +3,6 @@
 import {
   Drawer,
   Group,
-  NumberInput,
   Paper,
   Select,
   Stack,
@@ -12,8 +11,9 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
+import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   AdverseReaction,
   BloodDonation,
@@ -22,14 +22,23 @@ import type {
   CreateDonorRequest,
   UpdateDonationRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconDroplet, IconEye, IconPlus } from "@tabler/icons-react";
+import { BLOOD_GROUP_OPTIONS, bloodGroupLabel, P } from "@medbrains/types";
+import {
+  IconAlertTriangle,
+  IconDroplet,
+  IconEye,
+  IconMicroscope,
+  IconPlus,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
+import { CreateDonationForm } from "./CreateDonationForm";
+import { DonorDeferralModal } from "./DonorDeferralModal";
+import { TtiResultsDrawer } from "./TtiResultsDrawer";
 
 const reactionTypeLabels: Record<string, string> = {
   vasovagal: "Vasovagal",
@@ -62,6 +71,7 @@ function CreateDonorForm({
   const [bloodGroup, setBloodGroup] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState<string | null>(null);
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
 
   return (
     <Stack>
@@ -88,7 +98,7 @@ function CreateDonorForm({
       <Select
         label="Blood Group"
         required
-        data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+        data={BLOOD_GROUP_OPTIONS}
         value={bloodGroup}
         onChange={setBloodGroup}
       />
@@ -99,11 +109,20 @@ function CreateDonorForm({
         onChange={setGender}
         clearable
       />
+      <DateInput
+        label="Date of birth"
+        description="Donors must be 18 to 65 on the day they give."
+        required
+        valueFormat="YYYY-MM-DD"
+        maxDate={new Date()}
+        value={dateOfBirth}
+        onChange={setDateOfBirth}
+      />
       <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
       <Button
         tone="primary"
         onClick={() => {
-          if (!donorNumber || !firstName || !lastName || !bloodGroup) return;
+          if (!donorNumber || !firstName || !lastName || !bloodGroup || !dateOfBirth) return;
           onSubmit({
             donor_number: donorNumber,
             first_name: firstName,
@@ -111,6 +130,7 @@ function CreateDonorForm({
             blood_group: bloodGroup,
             phone: phone || undefined,
             gender: gender ?? undefined,
+            date_of_birth: dateOfBirth,
           });
         }}
         loading={loading}
@@ -121,11 +141,22 @@ function CreateDonorForm({
   );
 }
 
-function DonorDetail({ donor }: { donor: BloodDonor }) {
+function DonorDetail({
+  donor,
+  onDonorChange,
+}: {
+  donor: BloodDonor;
+  onDonorChange: (donor: BloodDonor) => void;
+}) {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.BLOOD_BANK.DONORS_CREATE);
   const [donateOpen, { open: openDonate, close: closeDonate }] = useDisclosure(false);
   const [reactionDonation, setReactionDonation] = useState<BloodDonation | null>(null);
+  const [ttiDonation, setTtiDonation] = useState<BloodDonation | null>(null);
+  const canDefer = useHasPermission(P.BLOOD_BANK.DONORS_DEFER);
+  const [deferralOpen, { open: openDeferral, close: closeDeferral }] = useDisclosure(false);
+  // Screening results are a donor's infection status: their own permission.
+  const canScreen = useHasAnyPermission([P.BLOOD_BANK.TTI_VIEW, P.BLOOD_BANK.TTI_RECORD]);
 
   const { data: donations } = useQuery({
     queryKey: ["blood-bank", "donations", donor.id],
@@ -159,8 +190,14 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         <Text fw={700}>
           {donor.first_name} {donor.last_name}
         </Text>
-        <Badge tone="danger">{donor.blood_group}</Badge>
-        {donor.is_deferred && <Badge tone="warning">Deferred until {donor.deferral_until}</Badge>}
+        <Badge tone="danger">{bloodGroupLabel(donor.blood_group)}</Badge>
+        {donor.is_deferred && (
+          <Badge tone="warning">
+            {donor.deferral_until
+              ? `Deferred until ${donor.deferral_until}`
+              : "Deferred permanently"}
+          </Badge>
+        )}
         <PrintDocumentIconMenu
           idKind="donor"
           recordId={donor.id}
@@ -190,10 +227,31 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         </Table.Tbody>
       </Table>
 
-      {canCreate && (
-        <Button tone="secondary" leftSection={<IconDroplet size={16} />} onClick={openDonate}>
-          Record Donation
-        </Button>
+      <Group>
+        {canCreate && (
+          <Button tone="secondary" leftSection={<IconDroplet size={16} />} onClick={openDonate}>
+            Record Donation
+          </Button>
+        )}
+        {canDefer && (
+          <Button tone="secondary" onClick={openDeferral}>
+            {donor.is_deferred ? "Lift deferral" : "Defer donor"}
+          </Button>
+        )}
+      </Group>
+      {donor.is_deferred && donor.deferral_reason && (
+        <Text size="sm">Deferral reason: {donor.deferral_reason}</Text>
+      )}
+      {canDefer && (
+        <DonorDeferralModal
+          donor={donor}
+          opened={deferralOpen}
+          onClose={closeDeferral}
+          onSaved={(saved) => {
+            closeDeferral();
+            onDonorChange(saved);
+          }}
+        />
       )}
 
       <Text fw={600} mt="md">
@@ -230,6 +288,24 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
                 );
               },
             },
+            ...(canScreen
+              ? [
+                  {
+                    key: "tti",
+                    label: "Screening",
+                    render: (d: BloodDonation) => (
+                      <Button
+                        tone="secondary"
+                        size="compact-xs"
+                        leftSection={<IconMicroscope size={12} />}
+                        onClick={() => setTtiDonation(d)}
+                      >
+                        TTI results
+                      </Button>
+                    ),
+                  },
+                ]
+              : []),
             ...(canCreate
               ? [
                   {
@@ -271,6 +347,8 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         <CreateDonationForm onSubmit={(d) => donateMut.mutate(d)} loading={donateMut.isPending} />
       </Drawer>
 
+      <TtiResultsDrawer donation={ttiDonation} onClose={() => setTtiDonation(null)} />
+
       <Drawer
         opened={!!reactionDonation}
         onClose={() => setReactionDonation(null)}
@@ -291,70 +369,6 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
           />
         )}
       </Drawer>
-    </Stack>
-  );
-}
-
-function CreateDonationForm({
-  onSubmit,
-  loading,
-}: {
-  onSubmit: (d: CreateDonationRequest) => void;
-  loading: boolean;
-}) {
-  const [bagNumber, setBagNumber] = useState("");
-  const [donationType, setDonationType] = useState<string | null>("whole_blood");
-  const [volumeMl, setVolumeMl] = useState<number>(450);
-  const [campName, setCampName] = useState("");
-  const [notes, setNotes] = useState("");
-
-  return (
-    <Stack>
-      <TextInput
-        label="Bag Number"
-        required
-        value={bagNumber}
-        onChange={(e) => setBagNumber(e.currentTarget.value)}
-      />
-      <Select
-        label="Donation Type"
-        data={[
-          { value: "whole_blood", label: "Whole Blood" },
-          { value: "apheresis_platelets", label: "Apheresis Platelets" },
-          { value: "apheresis_plasma", label: "Apheresis Plasma" },
-        ]}
-        value={donationType}
-        onChange={setDonationType}
-      />
-      <NumberInput
-        label="Volume (ml)"
-        value={volumeMl}
-        onChange={(v) => setVolumeMl(Number(v))}
-        min={50}
-        max={600}
-      />
-      <TextInput
-        label="Camp Name"
-        value={campName}
-        onChange={(e) => setCampName(e.currentTarget.value)}
-      />
-      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-      <Button
-        tone="primary"
-        onClick={() => {
-          if (!bagNumber) return;
-          onSubmit({
-            bag_number: bagNumber,
-            donation_type: (donationType as CreateDonationRequest["donation_type"]) ?? undefined,
-            volume_ml: volumeMl,
-            camp_name: campName || undefined,
-            notes: notes || undefined,
-          });
-        }}
-        loading={loading}
-      >
-        Record Donation
-      </Button>
     </Stack>
   );
 }
@@ -489,7 +503,7 @@ export function DonorsTab() {
     {
       key: "blood_group" as const,
       label: "Blood Group",
-      render: (d: BloodDonor) => <Badge tone="danger">{d.blood_group}</Badge>,
+      render: (d: BloodDonor) => <Badge tone="danger">{bloodGroupLabel(d.blood_group)}</Badge>,
     },
     {
       key: "total_donations" as const,
@@ -524,7 +538,7 @@ export function DonorsTab() {
       <Group>
         <Select
           placeholder="Blood group"
-          data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+          data={BLOOD_GROUP_OPTIONS}
           clearable
           value={bloodGroupFilter}
           onChange={setBloodGroupFilter}
@@ -566,7 +580,7 @@ export function DonorsTab() {
         position="right"
         size="lg"
       >
-        {detailDonor && <DonorDetail donor={detailDonor} />}
+        {detailDonor && <DonorDetail donor={detailDonor} onDonorChange={setDetailDonor} />}
       </Drawer>
     </Stack>
   );

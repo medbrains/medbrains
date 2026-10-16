@@ -55,6 +55,11 @@ interface DrugPickerFormProps {
   onAdd: (item: BasketItem) => void;
 }
 
+/** Whether this medicine needs its indication as a justification. */
+function needsIndication(drug: PharmacyCatalog | undefined): boolean {
+  return drug?.aware_category === "reserve" || drug?.formulary_status === "non_formulary";
+}
+
 export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
   const [drug, setDrug] = useState<PharmacyCatalog | undefined>();
   const canAddDrug = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
@@ -83,11 +88,15 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
       indication: "",
       schedule_x_serial: "",
       is_schedule_x: false,
+      needs_justification: false,
     },
   });
 
   const isScheduleX =
     drug?.drug_schedule != null && String(drug.drug_schedule).toUpperCase() === "X";
+  // A Reserve antibiotic raises a stewardship request and a non-formulary
+  // medicine needs a reason; the server takes both from the indication.
+  const needsJustification = needsIndication(drug);
   const preview = watch();
   const medicineLineValue = {
     catalog_item_id: preview.drug_id || undefined,
@@ -113,6 +122,7 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
       indication: "",
       schedule_x_serial: "",
       is_schedule_x: false,
+      needs_justification: false,
     });
   };
 
@@ -168,6 +178,10 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
               String(selectedDrug.drug_schedule).toUpperCase() === "X",
             { shouldDirty: true, shouldValidate: true },
           );
+          setValue("needs_justification", needsIndication(selectedDrug), {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
         }}
       />
       {(errors.drug_id?.message || errors.quantity?.message) && (
@@ -219,8 +233,20 @@ export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
         />
       </Group>
       <TextInput
-        label="Indication"
-        placeholder="optional — diagnosis or reason"
+        label={
+          needsJustification
+            ? drug?.aware_category === "reserve"
+              ? "Indication — raises an antimicrobial stewardship request"
+              : "Indication — reason for a non-formulary medicine"
+            : "Indication"
+        }
+        placeholder={
+          needsJustification
+            ? "e.g. Carbapenem-resistant Klebsiella on blood culture"
+            : "optional — diagnosis or reason"
+        }
+        required={needsJustification}
+        error={errors.indication?.message}
         {...register("indication")}
       />
       <Button

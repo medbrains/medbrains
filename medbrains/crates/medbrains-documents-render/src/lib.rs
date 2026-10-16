@@ -499,7 +499,7 @@ pub async fn save_template(
                 "INSERT INTO document_templates \
                    (tenant_id, code, name, module_code, body_layout, created_by) \
                  VALUES ($1, $2, $3, $4, jsonb_build_object('html', $5::text), $6) \
-                 ON CONFLICT (tenant_id, code) DO UPDATE SET \
+                 ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                    body_layout = jsonb_build_object('html', $5::text), \
                    version = document_templates.version + 1, \
                    is_active = true, updated_at = now()",

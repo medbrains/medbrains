@@ -92,7 +92,15 @@ pub async fn audit_layer(
 
     let entry = HttpAuditEntry {
         tenant_id: claims.tenant_id,
-        user_id: Some(claims.sub),
+        user_id: if response
+            .extensions()
+            .get::<ActorWithheld>()
+            .is_some_and(|w| w.0)
+        {
+            None
+        } else {
+            Some(claims.sub)
+        },
         correlation_id,
         action: if is_phi_list {
             "list".to_owned()
@@ -190,6 +198,12 @@ fn segment_is_uuid(segment: &str) -> bool {
 #[derive(Debug, Clone, Copy)]
 pub struct CorrelationId(pub Uuid);
 
+/// Set on a response (`(Extension(ActorWithheld(true)), Json(..))`) when the
+/// person who made the request must not be recorded — an anonymous incident
+/// report. The audit row is still written, without a `user_id`.
+#[derive(Debug, Clone, Copy)]
+pub struct ActorWithheld(pub bool);
+
 /// Derive a coarse action verb from method + path.
 /// Examples:
 ///   POST   /api/patients      → "create_patients"
@@ -255,16 +269,24 @@ mod tests {
     #[test]
     fn a_record_is_a_record_wherever_the_id_sits_in_the_path() {
         assert!(path_is_detail_route(&format!("/api/patients/{UUID}")));
-        assert!(path_is_detail_route(&format!("/api/patients/{UUID}/documents")));
-        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
-        assert!(path_is_detail_route(&format!("/api/ipd/admissions/{UUID}/progress-notes")));
+        assert!(path_is_detail_route(&format!(
+            "/api/patients/{UUID}/documents"
+        )));
+        assert!(path_is_detail_route(&format!(
+            "/api/fhir/Patient/{UUID}/$everything"
+        )));
+        assert!(path_is_detail_route(&format!(
+            "/api/ipd/admissions/{UUID}/progress-notes"
+        )));
     }
 
     /// A FHIR Bundle of a patient's whole record is the most complete export
     /// the API offers. It escaped because its final segment is `$everything`.
     #[test]
     fn the_whole_record_export_is_audited() {
-        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
+        assert!(path_is_detail_route(&format!(
+            "/api/fhir/Patient/{UUID}/$everything"
+        )));
     }
 
     /// Collection routes carry no id and are covered by the prefix list
@@ -280,10 +302,14 @@ mod tests {
     /// every slug-shaped path starts writing audit rows.
     #[test]
     fn only_real_uuid_shapes_count() {
-        assert!(!path_is_detail_route("/api/reports/a-very-long-slug-that-is-not-a-uuid"));
+        assert!(!path_is_detail_route(
+            "/api/reports/a-very-long-slug-that-is-not-a-uuid"
+        ));
         assert!(!path_is_detail_route("/api/patients/summary"));
         // right length, dashes in the wrong places
-        assert!(!path_is_detail_route("/api/x/3f2a1b4c5d6e-7f80-9a1b-2c3d4e5f60712"));
+        assert!(!path_is_detail_route(
+            "/api/x/3f2a1b4c5d6e-7f80-9a1b-2c3d4e5f60712"
+        ));
     }
 
     /// The access-control registers: reading them is itself privileged.

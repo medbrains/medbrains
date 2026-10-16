@@ -386,6 +386,7 @@ export function IncidentsTab() {
           />
           <Switch
             label="Report Anonymously"
+            description="Your name is not stored with this report — not on the register, the NABH registers or the audit trail."
             checked={form.is_anonymous ?? false}
             onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })}
           />

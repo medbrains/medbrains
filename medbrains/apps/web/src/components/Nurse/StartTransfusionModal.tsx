@@ -20,6 +20,9 @@ const PRODUCT_TYPES = [
 ];
 
 const schema = z.object({
+  // Right patient (IPSG-1): read off the arm, compared on the server with
+  // the patient the unit was issued for.
+  wristband_uhid: z.string().trim().min(1, "Scan the patient's wristband"),
   product_type: z.string().min(1, "Choose the product"),
   bag_number: z.string().trim().min(1, "Scan or type the bag number"),
   blood_group: z.string().min(1, "Choose the unit's group"),
@@ -87,6 +90,22 @@ export function StartTransfusionModal({ admissionId, opened, onClose }: Props) {
       secondaryAction={{ label: "Cancel", onClick: onClose }}
     >
       <Stack gap="sm">
+        <Controller
+          name="wristband_uhid"
+          control={control}
+          render={({ field }) => (
+            <Input
+              label="Patient wristband"
+              description="Scan the wristband barcode, or type the UHID printed on it — not from the screen."
+              required
+              data-autofocus
+              autoComplete="off"
+              value={field.value ?? ""}
+              onChange={(e) => field.onChange(e.currentTarget.value)}
+              error={errors.wristband_uhid?.message}
+            />
+          )}
+        />
         <Group grow>
           <Controller
             name="product_type"

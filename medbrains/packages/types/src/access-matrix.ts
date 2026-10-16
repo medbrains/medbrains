@@ -223,6 +223,9 @@ const EMERGENCY_MLC_FIELDS = [
   "emergency.mlc.medical_opinion",
   "emergency.mlc.cause_of_death",
   "emergency.mlc.pocso_report",
+  "emergency.mlc.police_officer",
+  "emergency.mlc.incident_details",
+  "emergency.mlc.clinical_course",
 ] as const;
 
 const CAMP_REGISTRATION_FIELDS = CAMP_REGISTRATION_FIELD_ACCESS_KEYS;

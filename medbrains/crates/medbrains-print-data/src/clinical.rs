@@ -545,6 +545,7 @@ struct WristbandRow {
     encounter_id: Uuid,
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     date_of_birth: Option<chrono::NaiveDate>,
@@ -612,6 +613,7 @@ pub async fn get_wristband_print_data(
            a.encounter_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.date_of_birth, \
@@ -735,6 +737,7 @@ pub async fn get_wristband_print_data(
         is_reprint,
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         date_of_birth: row.date_of_birth.map(|d| d.format("%d-%b-%Y").to_string()),
@@ -759,6 +762,7 @@ pub async fn get_wristband_print_data(
 struct DischargeSummaryRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admitted_at: chrono::DateTime<Utc>,
@@ -790,6 +794,7 @@ pub async fn get_discharge_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            a.admitted_at, \
@@ -835,6 +840,7 @@ pub async fn get_discharge_print_data(
     Ok(Json(DischargeSummaryPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         admission_date: row
@@ -1375,6 +1381,7 @@ pub async fn get_treatment_chart_print_data(
 struct TransferSummaryRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     transfer_date: chrono::DateTime<Utc>,
@@ -1424,6 +1431,7 @@ pub async fn get_transfer_summary_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            t.transferred_at AS transfer_date, \
@@ -1552,6 +1560,7 @@ pub async fn get_transfer_summary_print_data(
     Ok(Json(TransferSummaryPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: age_str,
         gender: row.gender,
         transfer_date: row
@@ -2159,7 +2168,7 @@ pub async fn get_lab_report_full_print_data(
            COALESCE(lo.order_date, lo.created_at) AS order_date, \
            COALESCE(lo.collection_date, lo.collected_at) AS collection_date, \
            COALESCE(lo.report_date, lo.verified_at, lo.completed_at) AS report_date, \
-           doc.full_name AS referring_doctor, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
            d.name AS department_name, \
            adm.ward_name, \
            adm.bed_number, \
@@ -2179,6 +2188,8 @@ pub async fn get_lab_report_full_print_data(
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
          LEFT JOIN users doc ON doc.id = COALESCE(lo.ordering_doctor_id, lo.ordered_by) \
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
          LEFT JOIN departments d ON d.id = COALESCE(lo.department_id, tc.department_id) \
                                 AND d.tenant_id = lo.tenant_id \
          LEFT JOIN LATERAL ( \
@@ -3026,7 +3037,7 @@ pub async fn get_ot_register_print_data(
             p.uhid,
             EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 AS age,
             p.gender::text AS gender,
-            a.id::text AS ip_number,
+            a.admission_number AS ip_number,
             COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis,
             COALESCE(cr.procedure_performed, b.procedure_name) AS procedure_name,
             b.priority::text AS surgery_type,
@@ -3362,7 +3373,7 @@ pub async fn get_cross_match_requisition_print_data(
             p.uhid,
             EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 AS age,
             p.gender::text AS gender,
-            adm.id::text AS ip_number,
+            adm.admission_number AS ip_number,
             concat_ws(' / ', adm.ward_name, adm.bed_name) AS ward_bed,
             upper(split_part(cr.blood_group::text, '_', 1)) AS blood_group,
             CASE split_part(cr.blood_group::text, '_', 2)
@@ -3379,7 +3390,7 @@ pub async fn get_cross_match_requisition_print_data(
         JOIN patients p ON p.id = cr.patient_id AND p.tenant_id = cr.tenant_id
         LEFT JOIN users doctor ON doctor.id = cr.requested_by
         LEFT JOIN LATERAL (
-            SELECT a.id, w.name AS ward_name, l.name AS bed_name,
+            SELECT a.id, a.admission_number, w.name AS ward_name, l.name AS bed_name,
                    COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis
             FROM admissions a
             LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id
@@ -3836,7 +3847,7 @@ pub async fn get_restraint_documentation_print_data(
             d.created_at AS form_date,
             (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
-            a.id::text AS ip_number,
+            a.admission_number AS ip_number,
             COALESCE(w.name, '') AS ward,
             COALESCE(a.primary_diagnosis, a.provisional_diagnosis, '') AS diagnosis,
             d.title AS restraint_type,

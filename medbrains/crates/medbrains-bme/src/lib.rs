@@ -1,10 +1,12 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod calibration_lock;
+
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use chrono::NaiveDate;
 use medbrains_core::bme::{
     BmeBreakdown, BmeCalibration, BmeContract, BmeEquipment, BmePmSchedule, BmeVendorEvaluation,
@@ -344,6 +346,8 @@ pub struct BmeStatsResponse {
     pub active_equipment: i64,
     pub pm_overdue: i64,
     pub calibration_overdue: i64,
+    /// Equipment kept out of patient use by an overdue or failed calibration.
+    pub calibration_locked: i64,
     pub open_breakdowns: i64,
     pub expiring_contracts: i64,
 }
@@ -411,10 +415,14 @@ pub async fn get_equipment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row = sqlx::query_as::<_, BmeEquipment>("SELECT * FROM bme_equipment WHERE id = $1")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
+    // A retired (soft-deleted) device is as absent as one that never existed.
+    let row = sqlx::query_as::<_, BmeEquipment>(
+        "SELECT * FROM bme_equipment WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -777,8 +785,7 @@ pub async fn create_work_order(
     .await?;
 
     if let Some(breakdown_id) = row.breakdown_id {
-        medbrains_nabh::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
-            .await?;
+        medbrains_nabh::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id).await?;
     }
 
     tx.commit().await?;
@@ -933,8 +940,30 @@ pub async fn create_calibration(
     .fetch_one(&mut *tx)
     .await?;
 
+    let row = if calibration_lock::lock_out_of_calibration(&mut tx, Some(row.id), Some(claims.sub))
+        .await?
+        .is_empty()
+    {
+        row
+    } else {
+        fetch_calibration(&mut tx, row.id).await?
+    };
+
     tx.commit().await?;
     Ok(Json(row))
+}
+
+async fn fetch_calibration(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+) -> Result<BmeCalibration, AppError> {
+    sqlx::query_as::<_, BmeCalibration>(
+        "SELECT * FROM bme_calibrations WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
 }
 
 pub async fn update_calibration(
@@ -947,6 +976,13 @@ pub async fn update_calibration(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let was_locked = fetch_calibration(&mut tx, id).await?.is_locked;
+    // Recording a calibration with a date and status "calibrated" is the
+    // only way a lock lifts; the relock below puts it straight back if the
+    // result is still out of tolerance or the next due date is already past.
+    let records_new_calibration = body.calibration_status.as_deref() == Some("calibrated")
+        && body.last_calibrated_date.is_some();
 
     let row = sqlx::query_as::<_, BmeCalibration>(
         "UPDATE bme_calibrations SET \
@@ -961,11 +997,13 @@ pub async fn update_calibration(
          is_in_tolerance = COALESCE($10, is_in_tolerance), \
          deviation_notes = COALESCE($11, deviation_notes), \
          reference_standard = COALESCE($12, reference_standard), \
-         is_locked = COALESCE($13, is_locked), \
-         locked_at = CASE WHEN $13 = true THEN now() ELSE locked_at END, \
-         locked_reason = COALESCE($14, locked_reason), \
+         is_locked = COALESCE($13, CASE WHEN $16 THEN false ELSE is_locked END), \
+         locked_at = CASE WHEN COALESCE($13, CASE WHEN $16 THEN false ELSE is_locked END) \
+                          THEN COALESCE(locked_at, now()) ELSE NULL END, \
+         locked_reason = CASE WHEN COALESCE($13, CASE WHEN $16 THEN false ELSE is_locked END) \
+                              THEN COALESCE($14, locked_reason) ELSE NULL END, \
          notes = COALESCE($15, notes) \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(&body.calibration_status)
@@ -982,18 +1020,38 @@ pub async fn update_calibration(
     .bind(body.is_locked)
     .bind(&body.locked_reason)
     .bind(&body.notes)
+    .bind(records_new_calibration)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Auto-lock equipment if out of tolerance
-    if body.is_in_tolerance == Some(false) {
-        sqlx::query(
-            "UPDATE bme_equipment SET status = 'out_of_service'::bme_equipment_status \
-             WHERE id = (SELECT equipment_id FROM bme_calibrations WHERE id = $1)",
-        )
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
+    let relocked = !calibration_lock::lock_out_of_calibration(&mut tx, Some(id), Some(claims.sub))
+        .await?
+        .is_empty();
+    let row = if relocked {
+        fetch_calibration(&mut tx, id).await?
+    } else {
+        row
+    };
+
+    if row.is_locked {
+        if body.is_locked == Some(false) {
+            return Err(AppError::Conflict(format!(
+                "This equipment stays locked: {}. Record a passing calibration — status \
+                 Calibrated, in tolerance, next due date in the future — to unlock it.",
+                row.locked_reason
+                    .as_deref()
+                    .unwrap_or("calibration not valid")
+            )));
+        }
+        calibration_lock::take_out_of_service(&mut tx, row.equipment_id).await?;
+        if !was_locked && !relocked {
+            // A manual lock; the automatic ones were audited by the relock.
+            calibration_lock::audit_lock_change(&mut tx, &claims, &row, "bme.calibration.locked")
+                .await?;
+        }
+    } else if was_locked {
+        calibration_lock::audit_lock_change(&mut tx, &claims, &row, "bme.calibration.unlocked")
+            .await?;
     }
 
     tx.commit().await?;
@@ -1398,6 +1456,13 @@ pub async fn get_bme_stats(
     .fetch_one(&mut *tx)
     .await?;
 
+    let cal_locked = sqlx::query_as::<_, CountRow>(
+        "SELECT COUNT(DISTINCT c.equipment_id) as count FROM bme_calibrations c \
+         WHERE c.deleted_at IS NULL AND bme_calibration_lock_reason(c) IS NOT NULL",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
     let open_bd = sqlx::query_as::<_, CountRow>(
         "SELECT COUNT(*) as count FROM bme_breakdowns \
          WHERE status NOT IN ('resolved', 'closed')",
@@ -1419,6 +1484,7 @@ pub async fn get_bme_stats(
         active_equipment: active.count.unwrap_or(0),
         pm_overdue: pm_overdue.count.unwrap_or(0),
         calibration_overdue: cal_overdue.count.unwrap_or(0),
+        calibration_locked: cal_locked.count.unwrap_or(0),
         open_breakdowns: open_bd.count.unwrap_or(0),
         expiring_contracts: expiring.count.unwrap_or(0),
     }))
@@ -1530,18 +1596,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/bme/pm-schedules",
             get(list_pm_schedules).post(create_pm_schedule),
         )
-        .route(
-            "/api/bme/pm-schedules/{id}",
-            put(update_pm_schedule),
-        )
+        .route("/api/bme/pm-schedules/{id}", put(update_pm_schedule))
         .route(
             "/api/bme/work-orders",
             get(list_work_orders).post(create_work_order),
         )
-        .route(
-            "/api/bme/work-orders/{id}",
-            get(get_work_order),
-        )
+        .route("/api/bme/work-orders/{id}", get(get_work_order))
         .route(
             "/api/bme/work-orders/{id}/status",
             put(update_work_order_status),
@@ -1550,18 +1610,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/bme/calibrations",
             get(list_calibrations).post(create_calibration),
         )
-        .route(
-            "/api/bme/calibrations/{id}",
-            put(update_calibration),
-        )
+        .route("/api/bme/calibrations/{id}", put(update_calibration))
         .route(
             "/api/bme/contracts",
             get(list_contracts).post(create_contract),
         )
-        .route(
-            "/api/bme/contracts/{id}",
-            put(update_contract),
-        )
+        .route("/api/bme/contracts/{id}", put(update_contract))
         .route(
             "/api/bme/breakdowns",
             get(list_breakdowns).post(create_breakdown),
@@ -1574,16 +1628,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/bme/vendor-evaluations",
             get(list_vendor_evaluations).post(create_vendor_evaluation),
         )
-        .route(
-            "/api/bme/stats",
-            get(get_bme_stats),
-        )
-        .route(
-            "/api/bme/analytics/mtbf",
-            get(get_mtbf_analytics),
-        )
-        .route(
-            "/api/bme/analytics/uptime",
-            get(get_uptime_analytics),
-        )
+        .route("/api/bme/stats", get(get_bme_stats))
+        .route("/api/bme/analytics/mtbf", get(get_mtbf_analytics))
+        .route("/api/bme/analytics/uptime", get(get_uptime_analytics))
 }

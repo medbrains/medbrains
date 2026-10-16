@@ -27,6 +27,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.medbrains.kit.ApiError
+import com.medbrains.kit.BloodPressure
+import com.medbrains.ui.BloodPressureFields
 import com.medbrains.ui.CarbonNotification
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonPrimaryButton
@@ -49,6 +51,7 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showBpErrors by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val (title, badge, tone) = when (mode) {
         "io" -> Triple("Intake / output", "I/O", CarbonTone.Success)
@@ -82,7 +85,7 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
                 "vitals" -> {
                     field("Temperature", "temperature", KeyboardType.Decimal)
                     field("Pulse", "pulse", KeyboardType.Number)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { field("Systolic BP", "systolic_bp", KeyboardType.Number, modifier = Modifier.weight(1f)); field("Diastolic BP", "diastolic_bp", KeyboardType.Number, modifier = Modifier.weight(1f)) }
+                    BloodPressureFields(form["systolic_bp"] ?: "", { form["systolic_bp"] = it }, form["diastolic_bp"] ?: "", { form["diastolic_bp"] = it }, showErrors = showBpErrors)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { field("SpO2", "spo2", KeyboardType.Number, modifier = Modifier.weight(1f)); field("Respiratory rate", "respiratory_rate", KeyboardType.Number, modifier = Modifier.weight(1f)) }
                     field("Notes", "notes", KeyboardType.Text)
                 }
@@ -117,7 +120,12 @@ fun BedsideActionScreen(api: NurseApi, admission: AdmissionRow, mode: String) {
                             "vitals" -> {
                                 val temp = text("temperature")
                                 if (temp != null && temp.toDoubleOrNull() == null) throw FormError("Temperature must be a number")
-                                val p = CreateVitalsPayload(admission.encounter_id, temp, int("pulse", "Pulse", 0..300), int("systolic_bp", "Systolic BP", 0..300), int("diastolic_bp", "Diastolic BP", 0..200), int("respiratory_rate", "Respiratory rate", 0..80), int("spo2", "SpO2", 0..100), text("notes"))
+                                val bpText = form["systolic_bp"].orEmpty() to form["diastolic_bp"].orEmpty()
+                                val bp = BloodPressure.readingOrNull(bpText.first, bpText.second) ?: run {
+                                    showBpErrors = true
+                                    throw FormError(BloodPressure.validate(bpText.first, bpText.second).message ?: "Check the blood pressure")
+                                }
+                                val p = CreateVitalsPayload(admission.encounter_id, temp, int("pulse", "Pulse", 0..300), bp.systolic, bp.diastolic, int("respiratory_rate", "Respiratory rate", 0..80), int("spo2", "SpO2", 0..100), text("notes"))
                                 if (listOf(p.temperature, p.pulse, p.systolic_bp, p.diastolic_bp, p.respiratory_rate, p.spo2).all { it == null }) throw FormError("Enter at least one vital reading")
                                 api.createVitals(p); message = "Saved to bedside chart."
                             }

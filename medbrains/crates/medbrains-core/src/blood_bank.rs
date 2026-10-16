@@ -150,7 +150,9 @@ pub struct CrossmatchRequest {
     pub patient_id: Uuid,
     pub component_id: Option<Uuid>,
     pub requested_by: Uuid,
-    pub blood_group: String,
+    /// The `blood_group` enum column; a `String` here failed to decode, so
+    /// every crossmatch request answered 500 after inserting.
+    pub blood_group: BloodGroup,
     pub component_type: BloodComponentType,
     pub units_requested: i32,
     pub clinical_indication: Option<String>,
@@ -191,6 +193,13 @@ pub struct TransfusionRecord {
     /// The unit's component type, joined on the list read only.
     #[sqlx(default)]
     pub component_type: Option<String>,
+    /// Issued uncrossmatched (O-negative) under emergency release.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub emergency_release: bool,
+    #[sqlx(default)]
+    #[serde(default)]
+    pub emergency_reason: Option<String>,
 }
 
 // ── Phase 2 Enums ──────────────────────────────────────

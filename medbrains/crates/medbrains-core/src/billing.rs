@@ -312,6 +312,15 @@ pub struct InsuranceClaim {
     pub nhcx_recipient_code: Option<String>,
     pub nhcx_response_payload: Option<serde_json::Value>,
     pub nhcx_response_at: Option<DateTime<Utc>>,
+    pub admission_id: Option<Uuid>,
+    pub insurance_id: Option<Uuid>,
+    pub claim_amount: Option<rust_decimal::Decimal>,
+    /// The claimed invoice's total, kept by the `insurance_claim_money` trigger.
+    pub total_bill_amount: rust_decimal::Decimal,
+    /// What the payer will not pay: bill total less the approved amount.
+    pub deductions: rust_decimal::Decimal,
+    /// Bill total less the payer's share less what the patient already paid.
+    pub patient_payable: rust_decimal::Decimal,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

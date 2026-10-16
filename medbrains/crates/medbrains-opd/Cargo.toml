@@ -14,6 +14,7 @@ medbrains-radiology = { path = "../medbrains-radiology" }
 medbrains-lab = { path = "../medbrains-lab" }
 medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
+medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-platform = { path = "../medbrains-platform" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }

@@ -41,20 +41,13 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::{Claims, encode_jwt};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 const TOKEN_TTL_MINUTES: i64 = 5;
 pub(crate) const DEVICE_JWT_DAYS: i64 = 30;
-
-pub(crate) fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
-    if claims.role == "super_admin" || claims.role == "hospital_admin" {
-        return Ok(());
-    }
-    if claims.permissions.iter().any(|p| p == perm) {
-        return Ok(());
-    }
-    Err(AppError::Forbidden)
-}
 
 // ──────────────────────────────────────────────────────────────────
 //  POST /api/admin/device-pairing-tokens
@@ -632,12 +625,16 @@ pub async fn register_device_node_key(
 /// Revokes without deleting. This is the emergency stop for a lost tablet, and
 /// it is expected to be used long before anyone gets round to changing the
 /// device's status.
+///
+/// Gated on the revoke right, not the enrol right: cutting a device off and
+/// admitting one are different duties, and the person who can stop a lost
+/// tablet syncing is the person who can revoke the device itself.
 pub async fn revoke_device_node_key(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+    require_permission(&claims, permissions::devices::pairing::PAIRED_REVOKE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -713,9 +710,13 @@ pub async fn get_peer_roster(
     // of the estate. `PAIRED_LIST` is accepted too because an operator holding
     // it can already see this data on the devices screen; requiring the new
     // right as well would have logged them out of a page that worked yesterday.
-    if require_permission(&claims, permissions::devices::pairing::ROSTER_READ).is_err() {
-        require_permission(&claims, permissions::devices::pairing::PAIRED_LIST)?;
-    }
+    require_any_permission(
+        &claims,
+        &[
+            permissions::devices::pairing::ROSTER_READ,
+            permissions::devices::pairing::PAIRED_LIST,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

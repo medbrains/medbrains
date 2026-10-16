@@ -926,7 +926,7 @@ async fn provision_demo_user(
              SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid \
              WHERE t.typname = 'user_role' AND e.enumlabel = $6 \
          ) \
-         ON CONFLICT (tenant_id, username) DO UPDATE SET username = EXCLUDED.username \
+         ON CONFLICT (tenant_id, username) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = users.is_active OR users.deleted_at IS NOT NULL, username = EXCLUDED.username \
          RETURNING username",
     )
     .bind(tenant_id)

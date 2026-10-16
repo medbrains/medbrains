@@ -16,8 +16,8 @@ use chrono::NaiveDate;
 use medbrains_core::billing::{InsuranceClaim, Invoice, InvoiceStatus, TpaRateCard};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use medbrains_server_core::{
@@ -121,8 +121,7 @@ pub async fn create_insurance_claim(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -229,6 +228,9 @@ pub async fn create_insurance_claim(
         .map(str::trim)
         .filter(|v| !v.is_empty());
 
+    // total_bill_amount, deductions, patient_payable, admission_id and
+    // insurance_id are derived by the `insurance_claim_money` trigger (1068)
+    // from the invoice and the patient's policy, on every write by any caller.
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "INSERT INTO insurance_claims \
          (tenant_id, invoice_id, patient_id, insurance_provider, policy_number, \
@@ -646,8 +648,9 @@ pub async fn coordinate_dual_insurance(
     if remaining > Decimal::ZERO {
         // Check for secondary insurance on patient
         let secondary_ins = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT provider_name FROM patient_insurance \
+            "SELECT insurance_provider FROM patient_insurance \
              WHERE patient_id = $1 AND tenant_id = $2 AND priority = 2 AND is_active = true \
+               AND deleted_at IS NULL \
              LIMIT 1",
         )
         .bind(invoice.patient_id)
@@ -1028,7 +1031,7 @@ pub async fn auto_match_bank_transactions(
             let by_amount: Option<(Uuid, Decimal, Option<Decimal>)> = sqlx::query_as(
                 "SELECT id, approved_amount::NUMERIC, settled_amount \
                      FROM insurance_claims \
-                     WHERE tenant_id = $1 AND status = 'approved' \
+                     WHERE tenant_id = $1 AND status = 'claim_approved' \
                        AND approved_amount IS NOT NULL \
                        AND ABS(approved_amount - $2) < 1 \
                      ORDER BY submitted_at DESC LIMIT 1",

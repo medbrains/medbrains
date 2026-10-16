@@ -91,6 +91,12 @@ export interface IpdMedicationAdministration {
   updated_at: string;
 }
 
+/** A MAR row as the admission chart lists it. */
+export interface MarListRow extends IpdMedicationAdministration {
+  /** Chemotherapy — only a nurse with a verified certification may give it. */
+  is_cytotoxic: boolean;
+}
+
 /** A due-now dose enriched for the nurse's medication round. */
 export interface MarDueRow {
   id: string;
@@ -105,6 +111,8 @@ export interface MarDueRow {
   scheduled_at: string;
   status: MarStatus;
   is_high_alert: boolean;
+  /** Chemotherapy — the server refuses it unless the nurse holds a verified certification. */
+  is_cytotoxic: boolean;
   batch_number: string | null;
   batch_expiry: string | null;
 }
@@ -117,6 +125,8 @@ export interface UpdateMarRoundInput {
   hold_reason?: string;
   refused_reason?: string;
   missed_reason?: string;
+  /** Why an as-needed (PRN / SOS) dose was given — required for one. */
+  prn_reason?: string;
   notes?: string;
 }
 
@@ -310,6 +320,7 @@ export interface CreateCarePlanRequest {
   nursing_diagnosis: string;
   goals?: string;
   interventions?: unknown;
+  evaluation?: string;
 }
 export interface UpdateCarePlanRequest {
   goals?: string;
@@ -957,6 +968,47 @@ export interface TransfusionRecord {
   /** Joined on the list read only; null when the unit is missing. */
   bag_number?: string | null;
   component_type?: string | null;
+  /** Issued uncrossmatched (O-negative) under emergency release. */
+  emergency_release: boolean;
+  emergency_reason: string | null;
+}
+
+/** The five statutory TTI markers (D&C Rules Part XII-B, NACO). */
+export type TtiMarker = "hiv" | "hbsag" | "hcv" | "syphilis" | "malaria";
+export type TtiResultValue = "non_reactive" | "reactive" | "indeterminate";
+
+export interface BloodTtiResult {
+  id: string;
+  donation_id: string;
+  marker: TtiMarker;
+  result: TtiResultValue;
+  method: string | null;
+  kit_lot: string | null;
+  notes: string | null;
+  tested_by: string;
+  tested_at: string;
+}
+
+/** A donation's screening, as the release gate reads it. */
+export interface TtiPanel {
+  donation_id: string;
+  results: BloodTtiResult[];
+  /** `withheld` when the caller's field access restricts TTI results. */
+  status: "cleared" | "reactive" | "incomplete" | "withheld";
+  /** Reactive markers, or those not yet non-reactive. */
+  outstanding: TtiMarker[];
+  /** Units already transfused — on a reactive donation, a lookback is owed. */
+  transfused_units: number;
+}
+
+export interface RecordTtiRequest {
+  results: {
+    marker: TtiMarker;
+    result: TtiResultValue;
+    method?: string;
+    kit_lot?: string;
+    notes?: string;
+  }[];
 }
 
 export interface DonorListResponse {
@@ -986,6 +1038,23 @@ export interface CreateDonationRequest {
   volume_ml: number;
   camp_name?: string;
   notes?: string;
+  /** Measured at the couch before this collection; the server refuses without them. */
+  weight_kg?: number;
+  hemoglobin_g_dl?: number;
+  /** Pre-apheresis platelet count, ×10⁹/L; required for apheresis (≥150). */
+  platelet_count?: number;
+  /** Donor vitals at the couch; required. D&C: BP 100–180 / 50–100, pulse 60–100, ≤ 37.5 °C. */
+  systolic_bp?: number;
+  diastolic_bp?: number;
+  pulse?: number;
+  temperature_c?: number;
+}
+
+/** Defer a donor (temporary with `until`, or permanent without), or reinstate. */
+export interface SetDonorDeferralRequest {
+  deferred: boolean;
+  until?: string;
+  reason: string;
 }
 
 export interface AdverseReaction {
@@ -1042,6 +1111,9 @@ export interface CreateTransfusionRequest {
   crossmatch_id?: string;
   patient_verified_by: string;
   product_verified_by: string;
+  /** Uncrossmatched O-negative in an emergency; needs the override permission. */
+  emergency_release?: boolean;
+  emergency_reason?: string;
 }
 
 export interface RecordReactionRequest {
@@ -1083,6 +1155,8 @@ export interface StartBedsideTransfusionRequest {
   consent_on_file: boolean;
   /** The second nurse who checked the patient's identity against the bag. */
   product_verified_by_id: string;
+  /** The UHID read off the patient's wristband at the bed. */
+  wristband_uhid: string;
 }
 
 export interface CompleteBedsideTransfusionRequest {
@@ -2957,6 +3031,10 @@ export interface CssdSterilizationLoad {
   flash_reason: string | null;
   notes: string | null;
   created_at: string;
+  /** Set when the whole load is recalled; no pack from it may be issued. */
+  recalled_at: string | null;
+  recalled_by: string | null;
+  recall_reason: string | null;
 }
 
 export interface CssdLoadItem {
@@ -2967,6 +3045,33 @@ export interface CssdLoadItem {
   instrument_id: string | null;
   quantity: number;
   pack_expiry_date: string | null;
+}
+
+/** A load item with the server's verdict on whether it may be issued. */
+export interface CssdPack extends CssdLoadItem {
+  /** Why the pack may not be issued; null when it may. */
+  block_reason: string | null;
+}
+
+/** Where one pack from a load went. */
+export interface CssdLoadIssuance {
+  issuance_id: string;
+  load_item_id: string;
+  set_name: string | null;
+  issued_to_department: string;
+  issued_to_patient_id: string | null;
+  issued_at: string;
+  returned_at: string | null;
+  is_recalled: boolean;
+}
+
+export interface CssdLoadRecallResponse {
+  load: CssdSterilizationLoad;
+  issuances: CssdLoadIssuance[];
+}
+
+export interface RecallCssdLoadRequest {
+  reason: string;
 }
 
 export interface CssdIndicatorResult {
@@ -3092,8 +3197,7 @@ export interface RecordCssdIndicatorRequest {
 }
 
 export interface CreateCssdIssuanceRequest {
-  load_item_id?: string;
-  set_id?: string;
+  load_item_id: string;
   issued_to_department: string;
   issued_to_patient_id?: string;
   notes?: string;
@@ -3566,4 +3670,36 @@ export interface UpdatePipelineStatusRequest {
 
 export interface TriggerPipelineRequest {
   input_data?: Record<string, unknown>;
+}
+
+/** One of the patient's consents as the OT booking screen lists it. */
+export interface OtConsentOption {
+  id: string;
+  procedure_name: string;
+  consent_type: string;
+  signed_at: string | null;
+  expires_at: string | null;
+  /** True when linked to this booking. */
+  linked: boolean;
+}
+
+/** Consent for a booked operation, as the server gates surgery on it. */
+export interface OtBookingConsents {
+  anaesthesia_required: boolean;
+  surgical_consent_id: string | null;
+  anaesthesia_consent_id: string | null;
+  /** Why surgery may not start; null when consent is complete. */
+  block_reason: string | null;
+  consents: OtConsentOption[];
+  /** Two-doctor emergency certification, once the first doctor has certified. */
+  emergency: OtEmergencyConsent | null;
+}
+
+/** Emergency implied consent, certified by two different doctors. */
+export interface OtEmergencyConsent {
+  reason: string;
+  first_doctor_name: string | null;
+  first_certified_at: string;
+  second_doctor_name: string | null;
+  second_certified_at: string | null;
 }

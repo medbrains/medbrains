@@ -168,6 +168,14 @@ pub struct Admission {
     pub isolation_required: bool,
     pub isolation_reason: Option<String>,
     pub primary_nurse_id: Option<Uuid>,
+    /// IP number, allocated by trigger from the tenant's `IP_NUMBER` sequence.
+    pub admission_number: Option<String>,
+    /// Latest Morse fall scale was 45 or more.
+    #[serde(default)]
+    pub is_fall_risk: bool,
+    /// Latest Braden scale was 12 or less.
+    #[serde(default)]
+    pub is_pressure_injury_risk: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -810,6 +818,8 @@ pub struct BillingSummaryResponse {
 pub struct AdmissionPrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number.
+    pub admission_number: Option<String>,
     pub age: Option<i32>,
     pub gender: Option<String>,
     pub admission_date: DateTime<Utc>,

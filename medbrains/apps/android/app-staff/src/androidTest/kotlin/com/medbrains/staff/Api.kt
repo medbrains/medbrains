@@ -108,12 +108,17 @@ class Api private constructor(private var token: String?) {
     fun endCodeBlue(id: String) { call("PUT", "/api/nurse/code-blue/$id/end", JSONObject().put("outcome", "rosc").put("notes", "e2e")) }
 
     /**
-     * A unit on the blood bank's record, released for issue — the server
-     * refuses to hang a bag it has no record of.
+     * A unit on the blood bank's record, screened and released for issue —
+     * the server refuses to hang a bag it has no record of.
      */
     fun bloodUnit(bag: String): String? {
-        val donor = obj("POST", "/api/blood-bank/donors", JSONObject().put("donor_number", "E2E-D-$bag").put("first_name", "E2E").put("last_name", "Donor").put("blood_group", SEED_BLOOD_GROUP)).optString("id").ifEmpty { return null }
-        val donation = obj("POST", "/api/blood-bank/donors/$donor/donations", JSONObject().put("bag_number", "E2E-DON-$bag").put("volume_ml", 450)).optString("id").ifEmpty { return null }
+        val donor = obj("POST", "/api/blood-bank/donors", JSONObject().put("donor_number", "E2E-D-$bag").put("first_name", "E2E").put("last_name", "Donor").put("blood_group", SEED_BLOOD_GROUP)
+            .put("gender", "male").put("date_of_birth", "1990-01-01")).optString("id").ifEmpty { return null }
+        val donation = obj("POST", "/api/blood-bank/donors/$donor/donations", JSONObject().put("bag_number", "E2E-DON-$bag").put("volume_ml", 450)
+            .put("weight_kg", 60).put("hemoglobin_g_dl", 13.5).put("systolic_bp", 120).put("diastolic_bp", 80).put("pulse", 72)).optString("id").ifEmpty { return null }
+        val results = org.json.JSONArray()
+        TTI_MARKERS.forEach { results.put(JSONObject().put("marker", it).put("result", "non_reactive")) }
+        call("POST", "/api/blood-bank/donations/$donation/tti", JSONObject().put("results", results))
         val unit = obj("POST", "/api/blood-bank/components", JSONObject().put("donation_id", donation).put("component_type", "prbc").put("bag_number", bag)
             .put("blood_group", SEED_BLOOD_GROUP).put("volume_ml", 350).put("expiry_at", java.time.Instant.now().plus(java.time.Duration.ofDays(30)).toString())).optString("id").ifEmpty { return null }
         call("PUT", "/api/blood-bank/components/$unit/status", JSONObject().put("status", "available"))
@@ -123,12 +128,26 @@ class Api private constructor(private var token: String?) {
     /** Group and hold: no transfusion without the patient's group on record. */
     fun recordBloodGroup(patientId: String) { call("PUT", "/api/patients/$patientId", JSONObject().put("blood_group", SEED_BLOOD_GROUP)) }
 
+    /**
+     * The bank's side: a compatible crossmatch for this patient and unit, then
+     * the issue — a bag is hung only once the bank has issued it to the patient.
+     */
+    fun issueUnit(unit: String, patientId: String, secondNurseId: String): Boolean {
+        val me = obj("GET", "/api/auth/me").optString("id").ifEmpty { return false }
+        val xm = obj("POST", "/api/blood-bank/crossmatch", JSONObject().put("patient_id", patientId).put("blood_group", SEED_BLOOD_GROUP)).optString("id").ifEmpty { return false }
+        call("PUT", "/api/blood-bank/crossmatch/$xm", JSONObject().put("status", "compatible").put("result", "compatible").put("component_id", unit))
+        return call("POST", "/api/blood-bank/transfusions", JSONObject().put("patient_id", patientId).put("component_id", unit)
+            .put("patient_verified_by", me).put("product_verified_by", secondNurseId)).first == 200
+    }
+
     fun transfusion(a: Admission, secondNurseId: String): String? {
         val bag = "BAG-$RUN"
-        bloodUnit(bag) ?: return null
+        val unit = bloodUnit(bag) ?: return null
         recordBloodGroup(a.patientId)
+        if (!issueUnit(unit, a.patientId, secondNurseId)) return null
         return obj("POST", "/api/ipd/admissions/${a.id}/transfusions", JSONObject().put("product_type", "PRBC").put("bag_number", bag).put("blood_group", "O").put("rh_factor", "positive")
-            .put("volume_ml", 350).put("expiry_date", "2027-01-01").put("crossmatch_compatible", true).put("consent_on_file", true).put("product_verified_by_id", secondNurseId)).optString("id").ifEmpty { null }
+            .put("volume_ml", 350).put("expiry_date", "2027-01-01").put("crossmatch_compatible", true).put("consent_on_file", true).put("product_verified_by_id", secondNurseId)
+            .put("wristband_uhid", a.uhid)).optString("id").ifEmpty { null }
     }
 
     fun waitingVisit(doctorId: String, last: String): Pair<String, String>? {
@@ -164,6 +183,8 @@ class Api private constructor(private var token: String?) {
     companion object {
         /** The group every seeded transfusion uses: O-positive donor and patient, compatible by rule. */
         const val SEED_BLOOD_GROUP = "o_positive"
+        /** The five statutory TTI markers, all non-reactive: nothing is released otherwise. */
+        val TTI_MARKERS = listOf("hiv", "hbsag", "hcv", "syphilis", "malaria")
         const val BACKEND = "http://10.0.2.2:3000"
         val RUN: String = (System.currentTimeMillis() / 1000 % 1_000_000).toString()
         private var serial = 0

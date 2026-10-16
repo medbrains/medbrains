@@ -36,6 +36,12 @@ export const ipdService = {
   createInfusion: (...args: Parameters<typeof api.createInfusion>) => api.createInfusion(...args),
   updateInfusion: (...args: Parameters<typeof api.updateInfusion>) => api.updateInfusion(...args),
   listCarePlans: (...args: Parameters<typeof api.listCarePlans>) => api.listCarePlans(...args),
+  createCarePlan: (...args: Parameters<typeof api.createCarePlan>) => api.createCarePlan(...args),
+  updateCarePlan: (...args: Parameters<typeof api.updateCarePlan>) => api.updateCarePlan(...args),
+  listNursingAssessments: (...args: Parameters<typeof api.listNursingAssessments>) =>
+    api.listNursingAssessments(...args),
+  createNursingAssessment: (...args: Parameters<typeof api.createNursingAssessment>) =>
+    api.createNursingAssessment(...args),
   listHandovers: (...args: Parameters<typeof api.listHandovers>) => api.listHandovers(...args),
   listAttenders: (...args: Parameters<typeof api.listAttenders>) => api.listAttenders(...args),
   createAttender: (...args: Parameters<typeof api.createAttender>) => api.createAttender(...args),

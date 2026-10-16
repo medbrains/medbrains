@@ -14,13 +14,14 @@
 
 import { Group, Loader, Stack, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { FulfilmentQueueRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { DataTable } from "@/components";
+import { isSafetyRefusal } from "@/components/Pharmacy/safetyGate";
 import { Alert, Badge, type BadgeProps, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
@@ -61,6 +62,13 @@ export function FulfilmentQueuePage() {
   const canCancel = useHasPermission(P.PHARMACY.FULFILMENT.RELEASE);
 
   const [cancelling, setCancelling] = useState<FulfilmentQueueRow | null>(null);
+  // A claim the medication safety check stopped, and what it said.
+  const [blocked, setBlocked] = useState<{ row: FulfilmentQueueRow; message: string } | null>(null);
+  const canOverrideSafety = useHasAnyPermission([
+    P.PHARMACY.SAFETY.OVERRIDE,
+    P.PHARMACY.STEWARDSHIP.APPROVE,
+    P.PHARMACY.FORMULARY.APPROVE,
+  ]);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-fulfilment-queue"],
@@ -76,10 +84,13 @@ export function FulfilmentQueuePage() {
   }
 
   const advance = useMutation({
-    mutationFn: ({ row }: { row: FulfilmentQueueRow }) => {
+    mutationFn: ({ row, overrideReason }: { row: FulfilmentQueueRow; overrideReason?: string }) => {
       switch (row.status) {
         case "ordered":
-          return pharmacyService.claimFulfilmentOrder(row.id);
+          return pharmacyService.claimFulfilmentOrder(
+            row.id,
+            overrideReason ? { safety_override_reason: overrideReason } : undefined,
+          );
         case "picking":
           return pharmacyService.packFulfilmentOrder(row.id);
         case "verified":
@@ -90,13 +101,20 @@ export function FulfilmentQueuePage() {
     },
     onSuccess: (result) => {
       invalidate();
+      setBlocked(null);
       notifications.show({
         title: "Updated",
         message: `Order is now ${result.status}`,
         color: "green",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, { row }) => {
+      // A safety block on a claim: show what it found, and let a pharmacist
+      // with override rights proceed with a reason.
+      if (isSafetyRefusal(error) && canOverrideSafety && row.status === "ordered") {
+        setBlocked({ row, message: error.message });
+        return;
+      }
       // The server's refusals name the specific problem — the wrong stage, a
       // counter pharmacy, an unchecked line. Passing them through unchanged is
       // the whole point of writing them that way.
@@ -266,6 +284,18 @@ export function FulfilmentQueuePage() {
         rowKey={(row: FulfilmentQueueRow) => row.id}
       />
 
+      <ReasonModal
+        opened={blocked !== null}
+        title={`Safety check stopped ${blocked?.row.token_number ?? "this order"}`}
+        description={`${blocked?.message ?? ""} Claiming it anyway records your reason against the order and the safety audit.`}
+        label="Clinical reason for overriding"
+        placeholder="e.g. Prescriber confirmed; INR monitored; ID physician approved first dose"
+        confirmLabel="Override and claim"
+        confirmTone="danger"
+        pending={advance.isPending}
+        onClose={() => setBlocked(null)}
+        onConfirm={(why) => blocked && advance.mutate({ row: blocked.row, overrideReason: why })}
+      />
       <ReasonModal
         opened={cancelling !== null}
         title={`Cancel ${cancelling?.token_number ?? "order"}`}

@@ -117,7 +117,7 @@ pub async fn import_lab_catalog(
               container, fasting_required, fasting_hours) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
                      $12, COALESCE($13, false), $14) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                name = EXCLUDED.name, \
                sample_type = COALESCE(EXCLUDED.sample_type, lab_test_catalog.sample_type), \
                normal_range = COALESCE(EXCLUDED.normal_range, lab_test_catalog.normal_range), \
@@ -361,7 +361,7 @@ pub async fn import_procedure_catalog(
              (tenant_id, code, name, category, base_price, duration_minutes, \
               requires_consent, requires_anesthesia) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                name = EXCLUDED.name, \
                category = COALESCE(EXCLUDED.category, procedure_catalog.category), \
                base_price = COALESCE(EXCLUDED.base_price, procedure_catalog.base_price), \

@@ -15,7 +15,7 @@ async fn enable_form(db: &sqlx::PgPool, tenant_id: Uuid, on: bool) {
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'marketing', 'public_enquiry_form_enabled', $2::jsonb) \
-         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
     )
     .bind(tenant_id)
     .bind(if on { "true" } else { "false" })

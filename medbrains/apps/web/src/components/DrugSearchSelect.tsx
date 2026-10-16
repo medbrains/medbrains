@@ -5,6 +5,7 @@ import { P, type PharmacyCatalog } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconPill } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import type { Ref } from "react";
 import { useState } from "react";
 import { lookupsService } from "@/services/lookups.service";
 import { MiniAddDrug } from "./Pharmacy/MiniAddDrug";
@@ -18,6 +19,8 @@ interface DrugSearchSelectProps {
   required?: boolean;
   size?: string;
   error?: string;
+  clearOnSelect?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
 }
 
 const SCHEDULE_COLORS: Record<string, string> = {
@@ -37,6 +40,8 @@ export function DrugSearchSelect({
   required,
   size = "sm",
   error,
+  clearOnSelect,
+  inputRef,
 }: DrugSearchSelectProps) {
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
@@ -61,6 +66,8 @@ export function DrugSearchSelect({
       required={required}
       size={size}
       error={error}
+      clearOnSelect={clearOnSelect}
+      inputRef={inputRef}
       leftSection={<IconPill size={14} />}
       items={drugs.slice(0, 15)}
       searchText={search}

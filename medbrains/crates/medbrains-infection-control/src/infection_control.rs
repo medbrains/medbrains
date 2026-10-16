@@ -455,7 +455,7 @@ pub async fn record_device_days(
           patient_days, central_line_days, urinary_catheter_days, \
           ventilator_days, recorded_by) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) \
-         ON CONFLICT (tenant_id, location_id, record_date) DO UPDATE SET \
+         ON CONFLICT (tenant_id, location_id, record_date) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            patient_days = EXCLUDED.patient_days, \
            central_line_days = EXCLUDED.central_line_days, \
            urinary_catheter_days = EXCLUDED.urinary_catheter_days, \
@@ -693,7 +693,7 @@ pub async fn record_consumption(
          (tenant_id, department_id, antibiotic_name, atc_code, record_month, \
           quantity_used, ddd, patient_days, ddd_per_1000_patient_days) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) \
-         ON CONFLICT (tenant_id, department_id, antibiotic_name, record_month) DO UPDATE SET \
+         ON CONFLICT (tenant_id, department_id, antibiotic_name, record_month) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            quantity_used = EXCLUDED.quantity_used, \
            ddd = EXCLUDED.ddd, \
            patient_days = EXCLUDED.patient_days, \

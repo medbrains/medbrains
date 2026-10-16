@@ -13,6 +13,7 @@ medbrains-diet = { path = "../medbrains-diet" }
 medbrains-lab = { path = "../medbrains-lab" }
 medbrains-radiology = { path = "../medbrains-radiology" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
+medbrains-opd = { path = "../medbrains-opd" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

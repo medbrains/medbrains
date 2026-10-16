@@ -95,6 +95,7 @@ export function FrontOfficePage() {
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
   const canViewPasses = useHasPermission(P.FRONT_OFFICE.PASSES_LIST);
   const canManagePasses = useHasPermission(P.FRONT_OFFICE.PASSES_MANAGE);
+  const canRecordVisitLogs = useHasPermission(P.FRONT_OFFICE.VISITOR_LOGS_RECORD);
   const canVerifyPasses = useHasPermission(P.FRONT_OFFICE.PASSES_VERIFY);
   const canViewQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
   const canManageQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
@@ -287,7 +288,11 @@ export function FrontOfficePage() {
         )}
         {canOpenVisitors && (
           <Tabs.Panel value="visitors" pt="md">
-            <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
+            <VisitorManagementTab
+              canCreate={canCreateVisitors}
+              canManagePasses={canManagePasses}
+              canRecordVisits={canManagePasses || canRecordVisitLogs}
+            />
           </Tabs.Panel>
         )}
         {canVerifyPasses && (

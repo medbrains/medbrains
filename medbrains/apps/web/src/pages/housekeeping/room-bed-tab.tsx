@@ -14,6 +14,7 @@ import { IconCheck, IconPlus, IconWash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { housekeepingService } from "@/services/housekeeping.service";
 import { AREA_TYPES } from "./shared";
@@ -37,11 +38,14 @@ const turnaroundColor = (mins?: number): BadgeTone => {
 export function RoomBedTab({
   canCreate,
   canManage,
+  canPerform,
   canListTurnaround,
   canManageTurnaround,
 }: {
   canCreate: boolean;
   canManage: boolean;
+  /** `housekeeping.tasks.perform` — start/complete own tasks (the server enforces "own"). */
+  canPerform: boolean;
   canListTurnaround: boolean;
   canManageTurnaround: boolean;
 }) {
@@ -84,6 +88,8 @@ export function RoomBedTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Task not updated", message: e.message, color: "danger" }),
   });
 
   const verifyM = useMutation({
@@ -227,7 +233,8 @@ export function RoomBedTab({
           {
             key: "assigned_to",
             label: "Assigned To",
-            render: (r: CleaningTask) => r.assigned_to ?? "-",
+            render: (r: CleaningTask) =>
+              r.assigned_to_me ? "You" : (r.assigned_to_name ?? r.assigned_to ?? "Unassigned"),
           },
           {
             key: "status",
@@ -236,27 +243,28 @@ export function RoomBedTab({
               <Badge tone={taskStatusColors[r.status]}>{r.status}</Badge>
             ),
           },
-          ...(canManage
+          ...(canManage || canPerform
             ? [
                 {
                   key: "actions" as const,
                   label: "Actions",
                   render: (r: CleaningTask) => (
                     <Group gap={4}>
-                      {r.status === "pending" && (
-                        <Tooltip label="Start">
-                          <IconButton
-                            tone="primary"
-                            onClick={() =>
-                              updateStatusM.mutate({ id: r.id, status: "in_progress" })
-                            }
-                            aria-label="Wash"
-                          >
-                            <IconWash size={16} />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {r.status === "in_progress" && (
+                      {r.status === "pending" &&
+                        (canManage || !r.assigned_to || r.assigned_to_me) && (
+                          <Tooltip label="Start">
+                            <IconButton
+                              tone="primary"
+                              onClick={() =>
+                                updateStatusM.mutate({ id: r.id, status: "in_progress" })
+                              }
+                              aria-label="Wash"
+                            >
+                              <IconWash size={16} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      {r.status === "in_progress" && (canManage || r.assigned_to_me) && (
                         <Tooltip label="Complete">
                           <IconButton
                             tone="success"
@@ -267,7 +275,7 @@ export function RoomBedTab({
                           </IconButton>
                         </Tooltip>
                       )}
-                      {r.status === "completed" && (
+                      {r.status === "completed" && canManage && (
                         <Tooltip label="Verify">
                           <IconButton
                             tone="success"
@@ -301,10 +309,10 @@ export function RoomBedTab({
             value={taskForm.area_type}
             onChange={(v) => setTaskForm({ ...taskForm, area_type: v ?? "ward" })}
           />
-          <TextInput
-            label="Assigned To"
+          <EmployeeSearchSelect
+            label="Assigned to"
             value={taskForm.assigned_to ?? ""}
-            onChange={(e) => setTaskForm({ ...taskForm, assigned_to: e.target.value })}
+            onChange={(id) => setTaskForm({ ...taskForm, assigned_to: id || undefined })}
           />
           <Textarea
             label="Notes"
