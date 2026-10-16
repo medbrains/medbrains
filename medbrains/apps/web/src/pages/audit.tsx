@@ -2,6 +2,7 @@ import { Tabs } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
+  IconAlertTriangle,
   IconChartBar,
   IconEye,
   IconFileAnalytics,
@@ -13,6 +14,7 @@ import {
 } from "@tabler/icons-react";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { AccessAlertsTab } from "./audit/AccessAlertsTab";
 import { AccessLogTab } from "./audit/AccessLogTab";
 import { AuditLogTab } from "./audit/AuditLogTab";
 import { AuditStatsTab } from "./audit/AuditStatsTab";
@@ -49,6 +51,11 @@ export function AuditPage() {
               Access Log
             </Tabs.Tab>
           )}
+          {canViewAccess && (
+            <Tabs.Tab value="access-alerts" leftSection={<IconAlertTriangle size={16} />}>
+              Access alerts
+            </Tabs.Tab>
+          )}
           {canReviewBreakGlass && (
             <Tabs.Tab value="break-glass" leftSection={<IconShieldLock size={16} />}>
               Break-glass
@@ -79,6 +86,11 @@ export function AuditPage() {
         {canViewAccess && (
           <Tabs.Panel value="access" pt="md">
             <AccessLogTab />
+          </Tabs.Panel>
+        )}
+        {canViewAccess && (
+          <Tabs.Panel value="access-alerts" pt="md">
+            <AccessAlertsTab />
           </Tabs.Panel>
         )}
         {canReviewBreakGlass && (

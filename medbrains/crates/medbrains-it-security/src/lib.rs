@@ -697,16 +697,21 @@ pub async fn acknowledge_access_alert(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AccessAlert>(
+        // The note says what happened; the reviewer's words are added, not
+        // written over it. Reviewed once — a second acknowledgement is a 404.
         "UPDATE access_alerts
-         SET acknowledged_at = now(), acknowledged_by = $2, notes = $3
-         WHERE id = $1
+         SET acknowledged_at = now(), acknowledged_by = $2,
+             notes = concat_ws(E'\\n', notes, 'Reviewed: ' || NULLIF(trim($3), ''))
+         WHERE id = $1 AND tenant_id = $4 AND acknowledged_at IS NULL
          RETURNING *, NULL AS patient_name, NULL AS user_name",
     )
     .bind(id)
     .bind(claims.sub)
     .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
