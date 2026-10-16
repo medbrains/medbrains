@@ -43,6 +43,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
       priority: "routine",
       contrast_required: false,
       pregnancy_checked: false,
+      patient_pregnant: false,
       allergy_flagged: false,
       notes: "",
     },
@@ -81,6 +82,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
       priority: "routine",
       contrast_required: false,
       pregnancy_checked: false,
+      patient_pregnant: false,
       allergy_flagged: false,
       notes: "",
     });
@@ -100,6 +102,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
       scheduled_at: null,
       contrast_required: values.contrast_required || null,
       pregnancy_checked: values.pregnancy_checked || null,
+      patient_pregnant: values.patient_pregnant || null,
       allergy_flagged: values.allergy_flagged || null,
       notes: values.notes.trim() || null,
     };
@@ -188,6 +191,18 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
           render={({ field }) => (
             <Checkbox
               label="Pregnancy checked"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="patient_pregnant"
+          render={({ field }) => (
+            <Checkbox
+              label="Patient is pregnant"
+              description="An ultrasound then opens a PC-PNDT Form F, needed before the report is verified"
               checked={field.value}
               onChange={(e) => field.onChange(e.currentTarget.checked)}
             />

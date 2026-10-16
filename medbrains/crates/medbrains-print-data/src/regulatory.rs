@@ -11,6 +11,7 @@ use axum::{
 use chrono::Datelike;
 
 use medbrains_core::permissions;
+use crate::pcpndt_form_f::get_pcpndt_form_f_print_data;
 use medbrains_core::print_data::{
     AebasAttendanceReportPrintData, BirthRegisterEntry, BirthRegisterPrintData, BmwCategory,
     ComplianceSection, CriticalValueMetrics, CylinderStorage, DeathRegisterEntry,
@@ -1631,6 +1632,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/pcpndt-report/{period}",
             get(get_pcpndt_report_print_data),
+        )
+        .route(
+            "/api/print-data/pcpndt-form-f/{id}",
+            get(get_pcpndt_form_f_print_data),
         )
         .route(
             "/api/print-data/birth-register/{period}",

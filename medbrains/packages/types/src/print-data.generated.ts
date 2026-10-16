@@ -2814,6 +2814,60 @@ export interface ExpiryAlert {
   days_to_expiry: number;
 }
 
+/**
+ * PC-PNDT Form F — the statutory record of one ultrasonography of a pregnant
+ * woman (Rule 9(4)). The sex of the fetus is never recorded, so it is not here.
+ */
+export interface PcpndtFormFPrintData {
+  form_number: string;
+  clinic: FormFClinic;
+  woman: FormFWoman;
+  referral: FormFReferral;
+  procedure: FormFProcedure;
+  declarations: FormFDeclarations;
+}
+
+export interface FormFClinic {
+  name: string;
+  address: string;
+  pcpndt_registration_number: string;
+}
+
+export interface FormFWoman {
+  name: string;
+  uhid: string;
+  age_years: number | null;
+  husband_or_father: string | null;
+  address: string | null;
+  phone: string | null;
+  living_sons: number | null;
+  living_daughters: number | null;
+  last_menstrual_period: string | null;
+  weeks_of_pregnancy: number | null;
+}
+
+export interface FormFReferral {
+  self_referred: boolean;
+  referred_by: string | null;
+  referring_doctor_registration: string | null;
+}
+
+export interface FormFProcedure {
+  procedure: string;
+  indication: string | null;
+  performed_by: string | null;
+  performing_doctor_registration: string | null;
+  performed_on: string;
+  result: string | null;
+}
+
+export interface FormFDeclarations {
+  woman: string;
+  woman_declared_at: string | null;
+  doctor: string;
+  doctor_declared_at: string | null;
+}
+
 /** PCPNDT Compliance Report */
 export interface PcpndtReportPrintData {
   report_period: string;

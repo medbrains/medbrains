@@ -70,6 +70,7 @@ export interface BasketRadiologyItem {
   scheduled_at?: string | null;
   contrast_required?: boolean | null;
   pregnancy_checked?: boolean | null;
+  patient_pregnant?: boolean | null;
   allergy_flagged?: boolean | null;
   notes?: string | null;
 }

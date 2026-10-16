@@ -44,6 +44,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     priority: "routine",
     contrast_required: false,
     pregnancy_checked: false,
+    patient_pregnant: false,
     allergy_flagged: false,
     notes: "",
   };
@@ -151,6 +152,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
       notes: radiologyOptionalText(values.notes),
       contrast_required: values.contrast_required,
       pregnancy_checked: values.pregnancy_checked,
+      patient_pregnant: values.patient_pregnant,
       allergy_flagged: values.allergy_flagged,
       exam_id: exam?.id,
     });
@@ -291,6 +293,18 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
               checked={field.value}
               onChange={(event) => field.onChange(event.currentTarget.checked)}
               error={errors.pregnancy_checked?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="patient_pregnant"
+          render={({ field }) => (
+            <Checkbox
+              label="Patient is pregnant"
+              description="An ultrasound then opens a PC-PNDT Form F, needed before the report is verified"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
             />
           )}
         />

@@ -10,7 +10,7 @@ import { P } from "@medbrains/types";
 import { IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
 import { Alert, Badge, Button, IconButton, Panel, Switch, Table } from "@/components/ui";
@@ -24,9 +24,15 @@ const modalityFormSchema = z.object({
   code: z.string().trim().min(1, "Enter a code, e.g. CT").max(20, "20 characters at most"),
   name: z.string().trim().min(1, "Enter a name, e.g. Computed tomography").max(200),
   description: z.string().trim(),
+  is_ultrasound: z.boolean(),
 });
 type ModalityFormValues = z.infer<typeof modalityFormSchema>;
-const EMPTY_FORM: ModalityFormValues = { code: "", name: "", description: "" };
+const EMPTY_FORM: ModalityFormValues = {
+  code: "",
+  name: "",
+  description: "",
+  is_ultrasound: false,
+};
 
 function showError(title: string) {
   return (error: Error) => notifications.show({ title, message: error.message, color: "danger" });
@@ -39,6 +45,7 @@ export function ModalitiesTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -68,11 +75,13 @@ export function ModalitiesTab() {
         ? radiologyService.updateRadiologyModality(editingId, {
             name: values.name,
             description: values.description,
+            is_ultrasound: values.is_ultrasound,
           })
         : radiologyService.createRadiologyModality({
             code: values.code.toUpperCase(),
             name: values.name,
             description: values.description || undefined,
+            is_ultrasound: values.is_ultrasound,
           }),
     onSuccess: () => {
       refresh();
@@ -100,7 +109,12 @@ export function ModalitiesTab() {
 
   const openEdit = (m: RadiologyModality) => {
     setEditingId(m.id);
-    reset({ code: m.code, name: m.name, description: m.description ?? "" });
+    reset({
+      code: m.code,
+      name: m.name,
+      description: m.description ?? "",
+      is_ultrasound: m.is_ultrasound,
+    });
   };
 
   return (
@@ -144,6 +158,18 @@ export function ModalitiesTab() {
               />
             </Group>
             <TextInput label="Description" {...register("description")} />
+            <Controller
+              control={control}
+              name="is_ultrasound"
+              render={({ field }) => (
+                <Switch
+                  label="Ultrasound"
+                  description="A scan of a pregnant woman on it needs a PC-PNDT Form F"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
+            />
             <Group>
               <Button tone="primary" type="submit" loading={saveMutation.isPending}>
                 Save

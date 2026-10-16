@@ -90,6 +90,9 @@ pub struct BasketRadiologyItem {
     pub scheduled_at: Option<String>,
     pub contrast_required: Option<bool>,
     pub pregnancy_checked: Option<bool>,
+    /// She is pregnant: an ultrasound then opens a PC-PNDT Form F.
+    #[serde(default)]
+    pub patient_pregnant: Option<bool>,
     pub allergy_flagged: Option<bool>,
     pub notes: Option<String>,
 }
@@ -1069,6 +1072,7 @@ async fn dispatch_item(
                 notes: it.notes.clone(),
                 contrast_required: it.contrast_required,
                 pregnancy_checked: it.pregnancy_checked,
+                patient_pregnant: it.patient_pregnant,
                 allergy_flagged: it.allergy_flagged,
                 exam_id: it.exam_id,
                 is_dummy: None,

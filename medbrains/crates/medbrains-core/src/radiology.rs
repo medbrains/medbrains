@@ -45,6 +45,9 @@ pub struct RadiologyModality {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub is_ultrasound: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -67,6 +70,9 @@ pub struct RadiologyOrder {
     pub notes: Option<String>,
     pub contrast_required: bool,
     pub pregnancy_checked: bool,
+    /// She is pregnant: an ultrasound then needs a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub patient_pregnant: bool,
     pub allergy_flagged: bool,
     pub cancellation_reason: Option<String>,
     /// The catalogue exam ordered; `None` for orders placed by modality alone.
@@ -97,6 +103,9 @@ pub struct RadiologyExam {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// A scan of a pregnancy: ordering it opens a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub pcpndt_applicable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

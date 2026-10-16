@@ -126,9 +126,9 @@ export interface PcpndtForm {
   form_number: string;
   patient_id: string;
   referral_doctor_id?: string;
-  performing_doctor_id: string;
+  performing_doctor_id: string | null;
   procedure_type: string;
-  indication: string;
+  indication: string | null;
   gestational_age_weeks?: number;
   lmp_date?: string;
   declaration_text?: string;
@@ -142,6 +142,27 @@ export interface PcpndtForm {
   created_by: string;
   created_at: string;
   updated_at: string;
+  /** The scan this form belongs to, when it was opened from an order. */
+  radiology_order_id: string | null;
+  living_sons: number | null;
+  living_daughters: number | null;
+  self_referred: boolean;
+  result_summary: string | null;
+  /** Her declaration that she does not want to know the sex of the fetus. */
+  woman_declared_at: string | null;
+  /** The doctor's declaration that the sex was neither detected nor disclosed. */
+  doctor_declared_at: string | null;
+}
+
+export interface CompletePcpndtFormRequest {
+  indication: string;
+  performing_doctor_id: string;
+  living_sons?: number;
+  living_daughters?: number;
+  self_referred: boolean;
+  result_summary?: string;
+  woman_declares: boolean;
+  doctor_declares: boolean;
 }
 
 export interface ComplianceCalendarEvent {

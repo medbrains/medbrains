@@ -1746,6 +1746,7 @@ export const orderBasketRadiologyFormSchema = z.object({
   priority: orderBasketRadiologyPriorityFormSchema,
   contrast_required: z.boolean(),
   pregnancy_checked: z.boolean(),
+  patient_pregnant: z.boolean(),
   allergy_flagged: z.boolean(),
   notes: z.string(),
 });
@@ -3836,6 +3837,7 @@ export const radiologyOrderFormSchema = z.object({
   priority: orderBasketRadiologyPriorityFormSchema,
   contrast_required: z.boolean(),
   pregnancy_checked: z.boolean(),
+  patient_pregnant: z.boolean(),
   allergy_flagged: z.boolean(),
   notes: z.string(),
 });

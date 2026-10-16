@@ -3085,6 +3085,8 @@ export interface RadiologyModality {
   name: string;
   description: string | null;
   is_active: boolean;
+  /** An ultrasound on a pregnant woman needs a PC-PNDT Form F. */
+  is_ultrasound: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3107,6 +3109,8 @@ export interface RadiologyExam {
   charge_code: string | null;
   preparation: string | null;
   is_active: boolean;
+  /** A scan of a pregnancy: ordering it opens a PC-PNDT Form F. */
+  pcpndt_applicable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3132,6 +3136,7 @@ export interface RadiologyExamInput {
   charge_code?: string;
   preparation?: string;
   is_active?: boolean;
+  pcpndt_applicable?: boolean;
 }
 
 export interface RadiologyExamListParams {
@@ -3159,6 +3164,8 @@ export interface RadiologyOrder {
   notes: string | null;
   contrast_required: boolean;
   pregnancy_checked: boolean;
+  /** She is pregnant: an ultrasound then needs a PC-PNDT Form F. */
+  patient_pregnant: boolean;
   allergy_flagged: boolean;
   cancellation_reason: string | null;
   created_at: string;
@@ -3222,6 +3229,8 @@ export interface CreateRadiologyOrderRequest {
   notes?: string;
   contrast_required?: boolean;
   pregnancy_checked?: boolean;
+  /** She is pregnant: an ultrasound then opens a PC-PNDT Form F. */
+  patient_pregnant?: boolean;
   allergy_flagged?: boolean;
   /** Catalogue exam; must belong to modality_id. */
   exam_id?: string;
@@ -3265,12 +3274,14 @@ export interface CreateModalityRequest {
   code: string;
   name: string;
   description?: string;
+  is_ultrasound?: boolean;
 }
 
 export interface UpdateModalityRequest {
   name?: string;
   description?: string;
   is_active?: boolean;
+  is_ultrasound?: boolean;
 }
 
 export interface RecordDoseRequest {

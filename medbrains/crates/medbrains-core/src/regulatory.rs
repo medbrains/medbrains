@@ -172,9 +172,10 @@ pub struct PcpndtForm {
     pub form_number: String,
     pub patient_id: Uuid,
     pub referral_doctor_id: Option<Uuid>,
-    pub performing_doctor_id: Uuid,
+    /// Unknown while the form is a draft opened from the order.
+    pub performing_doctor_id: Option<Uuid>,
     pub procedure_type: String,
-    pub indication: String,
+    pub indication: Option<String>,
     pub gestational_age_weeks: Option<i32>,
     pub lmp_date: Option<NaiveDate>,
     pub declaration_text: Option<String>,
@@ -188,6 +189,24 @@ pub struct PcpndtForm {
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub radiology_order_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub living_sons: Option<i32>,
+    #[sqlx(default)]
+    pub living_daughters: Option<i32>,
+    #[sqlx(default)]
+    pub self_referred: bool,
+    #[sqlx(default)]
+    pub result_summary: Option<String>,
+    /// Her declaration that she does not want to know the sex of the fetus.
+    #[sqlx(default)]
+    pub woman_declared_at: Option<DateTime<Utc>>,
+    /// The doctor's declaration that the sex was neither detected nor disclosed.
+    #[sqlx(default)]
+    pub doctor_declared_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub doctor_declared_by: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
