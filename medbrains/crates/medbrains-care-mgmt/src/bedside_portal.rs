@@ -134,7 +134,7 @@ pub async fn list_sessions(
 
     let rows = sqlx::query_as::<_, BedsideSession>(
         "SELECT * FROM bedside_sessions \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY started_at DESC LIMIT 100",
     )
@@ -530,7 +530,7 @@ pub async fn list_nurse_requests(
 
     let rows = sqlx::query_as::<_, BedsideNurseRequest>(
         "SELECT * FROM bedside_nurse_requests \
-         WHERE admission_id = $1 \
+         WHERE admission_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR status::text = $2) \
          ORDER BY created_at DESC LIMIT 50",
     )
@@ -796,7 +796,7 @@ pub async fn list_feedback(
 
     let rows = sqlx::query_as::<_, BedsideRealtimeFeedback>(
         "SELECT * FROM bedside_realtime_feedback \
-         WHERE admission_id = $1 \
+         WHERE admission_id = $1 AND deleted_at IS NULL \
          ORDER BY submitted_at DESC LIMIT 50",
     )
     .bind(admission_id)

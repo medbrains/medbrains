@@ -69,7 +69,7 @@ pub async fn list_insurance_claims(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, InsuranceClaim>(
-        "SELECT * FROM insurance_claims WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM insurance_claims WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

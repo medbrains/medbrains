@@ -298,7 +298,8 @@ pub async fn list_records(
 
     let rows = sqlx::query_as::<_, MrdMedicalRecord>(
         "SELECT * FROM mrd_medical_records \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL \
+           AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
            AND ($2::text IS NULL OR status::text = $2) \
            AND ($3::text IS NULL OR record_type = $3) \
          ORDER BY created_at DESC LIMIT 500",
@@ -473,7 +474,7 @@ pub async fn list_movements(
 
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
-         WHERE medical_record_id = $1 \
+         WHERE medical_record_id = $1 AND deleted_at IS NULL \
          ORDER BY issued_at DESC LIMIT 5000",
     )
     .bind(record_id)
@@ -574,7 +575,8 @@ pub async fn list_births(
 
     let rows = sqlx::query_as::<_, MrdBirthRegister>(
         "SELECT * FROM mrd_birth_register \
-         WHERE ($1::date IS NULL OR birth_date >= $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR birth_date >= $1) \
            AND ($2::date IS NULL OR birth_date <= $2) \
          ORDER BY birth_date DESC, birth_time DESC NULLS LAST LIMIT 500",
     )
@@ -696,7 +698,8 @@ pub async fn list_deaths(
 
     let rows = sqlx::query_as::<_, MrdDeathRegister>(
         "SELECT * FROM mrd_death_register \
-         WHERE ($1::date IS NULL OR death_date >= $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR death_date >= $1) \
            AND ($2::date IS NULL OR death_date <= $2) \
          ORDER BY death_date DESC, death_time DESC NULLS LAST LIMIT 500",
     )
@@ -820,7 +823,7 @@ pub async fn list_retention_policies(
         .await?;
 
     let rows = sqlx::query_as::<_, MrdRetentionPolicy>(
-        "SELECT * FROM mrd_retention_policies ORDER BY record_type, category LIMIT 5000",
+        "SELECT * FROM mrd_retention_policies WHERE deleted_at IS NULL ORDER BY record_type, category LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1279,7 +1282,7 @@ pub async fn list_storage_locations(
 
     let rows = sqlx::query_as::<_, MrdStorageLocation>(
         "SELECT * FROM mrd_storage_locations \
-         WHERE tenant_id = $1 ORDER BY is_active DESC, code LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY is_active DESC, code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1455,7 +1458,7 @@ pub async fn list_case_sheet_pages(
 
     let rows = sqlx::query_as::<_, MrdCaseSheetPage>(
         "SELECT * FROM mrd_case_sheet_pages \
-         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order LIMIT 5000",
+         WHERE tenant_id = $1 AND packet_id = $2 AND deleted_at IS NULL ORDER BY page_order LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(packet_id)

@@ -126,7 +126,7 @@ pub async fn list_doctors(
 
     let rows = sqlx::query_as::<_, DoctorProfile>(
         "SELECT * FROM doctor_profiles \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::boolean IS NULL OR is_active = $2) \
            AND ($3::boolean IS NULL OR is_visiting = $3) \
            AND ($4::uuid IS NULL OR $4 = ANY(specialty_ids)) \

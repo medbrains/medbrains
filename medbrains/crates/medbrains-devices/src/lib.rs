@@ -493,7 +493,7 @@ pub async fn list_device_messages(
         "SELECT id, tenant_id, device_instance_id, direction, protocol, \
          parsed_payload, mapped_data, processing_status, target_module, \
          target_entity_id, error_message, retry_count, processing_duration_ms, created_at \
-         FROM device_messages WHERE device_instance_id = $1 \
+         FROM device_messages WHERE device_instance_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR processing_status::text = $2) \
          ORDER BY created_at DESC LIMIT $3 OFFSET $4",
     )
@@ -521,7 +521,7 @@ pub async fn list_config_history(
     let rows = sqlx::query_as::<_, DeviceConfigHistoryRow>(
         "SELECT id, device_instance_id, change_type, previous_config, new_config, \
          changed_fields, changed_by, change_reason, ai_confidence, created_at \
-         FROM device_config_history WHERE device_instance_id = $1 \
+         FROM device_config_history WHERE device_instance_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .bind(device_id)

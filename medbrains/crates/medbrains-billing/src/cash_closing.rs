@@ -76,7 +76,7 @@ pub async fn list_day_closes(
         (Some(from), Some(to)) => {
             sqlx::query_as::<_, DayEndClose>(
                 "SELECT * FROM day_end_closes \
-                 WHERE tenant_id = $1 AND close_date >= $2 AND close_date <= $3 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND close_date >= $2 AND close_date <= $3 \
                  ORDER BY close_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
@@ -88,7 +88,7 @@ pub async fn list_day_closes(
         _ => {
             sqlx::query_as::<_, DayEndClose>(
                 "SELECT * FROM day_end_closes \
-                 WHERE tenant_id = $1 ORDER BY close_date DESC LIMIT 30",
+                 WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY close_date DESC LIMIT 30",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)

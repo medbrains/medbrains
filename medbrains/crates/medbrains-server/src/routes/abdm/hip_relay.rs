@@ -143,7 +143,7 @@ pub async fn list_pending_callbacks(
     let rows = sqlx::query_as::<_, PendingCallback>(
         "SELECT id, tenant_id, received_at, correlation_id, callback_type, payload \
          FROM abdm_gateway_callbacks \
-         WHERE tenant_id = $1 AND forwarded_at IS NULL \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND forwarded_at IS NULL \
          ORDER BY received_at \
          LIMIT 50",
     )

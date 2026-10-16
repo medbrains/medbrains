@@ -70,7 +70,7 @@ pub async fn list_gl_accounts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, GlAccount>(
-        "SELECT * FROM gl_accounts WHERE tenant_id = $1 \
+        "SELECT * FROM gl_accounts WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR account_type = $2) \
          ORDER BY code LIMIT 5000",
     )
@@ -179,7 +179,7 @@ pub async fn list_journal_entries(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, JournalEntry>(
-        "SELECT * FROM journal_entries WHERE tenant_id = $1 \
+        "SELECT * FROM journal_entries WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR status::text = $2) \
          AND ($3::date IS NULL OR entry_date >= $3) \
          AND ($4::date IS NULL OR entry_date <= $4) \
@@ -495,7 +495,7 @@ pub async fn list_bank_transactions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, BankTransaction>(
-        "SELECT * FROM bank_transactions WHERE tenant_id = $1 \
+        "SELECT * FROM bank_transactions WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR recon_status::text = $2) \
          AND ($3::date IS NULL OR transaction_date >= $3) \
          AND ($4::date IS NULL OR transaction_date <= $4) \
@@ -702,7 +702,7 @@ pub async fn list_tds_deductions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TdsDeduction>(
-        "SELECT * FROM tds_deductions WHERE tenant_id = $1 \
+        "SELECT * FROM tds_deductions WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR financial_year = $2) \
          AND ($3::text IS NULL OR quarter = $3) \
          AND ($4::text IS NULL OR status::text = $4) \
@@ -955,7 +955,7 @@ pub async fn list_gstr_summaries(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, GstReturnSummary>(
-        "SELECT * FROM gst_return_summaries WHERE tenant_id = $1 \
+        "SELECT * FROM gst_return_summaries WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY period DESC, return_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -1279,7 +1279,7 @@ pub async fn list_erp_exports(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ErpExportLog>(
-        "SELECT * FROM erp_export_log WHERE tenant_id = $1 \
+        "SELECT * FROM erp_export_log WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .bind(claims.tenant_id)

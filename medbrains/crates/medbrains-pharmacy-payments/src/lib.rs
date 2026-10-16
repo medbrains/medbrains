@@ -150,7 +150,7 @@ pub async fn list_payments(
 
     let rows = sqlx::query_as::<_, PharmacyPaymentTransaction>(
         "SELECT * FROM pharmacy_payment_transactions \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
            AND ($2::text IS NULL OR reconciliation_status = $2) \
          ORDER BY created_at DESC LIMIT 5000",
     )

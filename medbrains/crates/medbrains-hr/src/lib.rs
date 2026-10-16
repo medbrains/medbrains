@@ -304,7 +304,7 @@ pub async fn list_designations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Designation>(
-        "SELECT * FROM designations WHERE tenant_id = $1 ORDER BY level, name LIMIT 5000",
+        "SELECT * FROM designations WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY level, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -389,7 +389,7 @@ pub async fn list_employees(
     let rows = if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
         sqlx::query_as::<_, Employee>(
-            "SELECT * FROM employees WHERE tenant_id = $1 \
+            "SELECT * FROM employees WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND (first_name ILIKE $2 OR last_name ILIKE $2 \
              OR employee_code ILIKE $2 OR phone ILIKE $2 OR email ILIKE $2) \
              ORDER BY first_name, last_name LIMIT 5000",
@@ -400,7 +400,7 @@ pub async fn list_employees(
         .await?
     } else if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, Employee>(
-            "SELECT * FROM employees WHERE tenant_id = $1 AND department_id = $2 \
+            "SELECT * FROM employees WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -409,7 +409,7 @@ pub async fn list_employees(
         .await?
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, Employee>(
-            "SELECT * FROM employees WHERE tenant_id = $1 \
+            "SELECT * FROM employees WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND status = $2::employee_status \
              ORDER BY first_name, last_name LIMIT 5000",
         )
@@ -419,7 +419,7 @@ pub async fn list_employees(
         .await?
     } else {
         sqlx::query_as::<_, Employee>(
-            "SELECT * FROM employees WHERE tenant_id = $1 \
+            "SELECT * FROM employees WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -871,7 +871,7 @@ pub async fn list_credentials(
 
     let rows = sqlx::query_as::<_, EmployeeCredential>(
         "SELECT * FROM employee_credentials \
-         WHERE tenant_id = $1 AND employee_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
          ORDER BY expiry_date NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -987,7 +987,7 @@ pub async fn list_shifts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ShiftDefinition>(
-        "SELECT * FROM shift_definitions WHERE tenant_id = $1 ORDER BY start_time LIMIT 5000",
+        "SELECT * FROM shift_definitions WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY start_time LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1083,7 +1083,7 @@ pub async fn list_rosters(
 
     let rows = if let (Some(from), Some(to)) = (&params.date_from, &params.date_to) {
         sqlx::query_as::<_, DutyRoster>(
-            "SELECT * FROM duty_rosters WHERE tenant_id = $1 \
+            "SELECT * FROM duty_rosters WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND roster_date BETWEEN $2::date AND $3::date \
              ORDER BY roster_date, employee_id LIMIT 5000",
         )
@@ -1094,7 +1094,7 @@ pub async fn list_rosters(
         .await?
     } else if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, DutyRoster>(
-            "SELECT * FROM duty_rosters WHERE tenant_id = $1 AND department_id = $2 \
+            "SELECT * FROM duty_rosters WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY roster_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1103,7 +1103,7 @@ pub async fn list_rosters(
         .await?
     } else {
         sqlx::query_as::<_, DutyRoster>(
-            "SELECT * FROM duty_rosters WHERE tenant_id = $1 \
+            "SELECT * FROM duty_rosters WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY roster_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1187,7 +1187,7 @@ pub async fn list_attendance(
     let rows = if let Some(emp_id) = params.employee_id {
         sqlx::query_as::<_, AttendanceRecord>(
             "SELECT * FROM attendance_records \
-             WHERE tenant_id = $1 AND employee_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
              ORDER BY attendance_date DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -1196,7 +1196,7 @@ pub async fn list_attendance(
         .await?
     } else if let (Some(from), Some(to)) = (&params.date_from, &params.date_to) {
         sqlx::query_as::<_, AttendanceRecord>(
-            "SELECT * FROM attendance_records WHERE tenant_id = $1 \
+            "SELECT * FROM attendance_records WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND attendance_date BETWEEN $2::date AND $3::date \
              ORDER BY attendance_date, employee_id LIMIT 5000",
         )
@@ -1207,7 +1207,7 @@ pub async fn list_attendance(
         .await?
     } else {
         sqlx::query_as::<_, AttendanceRecord>(
-            "SELECT * FROM attendance_records WHERE tenant_id = $1 \
+            "SELECT * FROM attendance_records WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY attendance_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1851,7 +1851,7 @@ pub async fn list_duty_hours(
          FROM employees e \
          LEFT JOIN LATERAL ( \
              SELECT * FROM attendance_records a \
-             WHERE a.tenant_id = e.tenant_id AND a.employee_id = e.id \
+             WHERE a.tenant_id = e.tenant_id AND a.employee_id = e.id AND a.deleted_at IS NULL \
                AND a.session_status IN ('on_duty', 'paused') \
              ORDER BY a.check_in DESC LIMIT 1 \
          ) s ON true \
@@ -1861,11 +1861,11 @@ pub async fn list_duty_hours(
                         - paused_minutes)::float8 AS week_minutes, \
                     SUM(overtime_minutes) AS overtime_minutes \
              FROM attendance_records \
-             WHERE tenant_id = $1 AND check_in IS NOT NULL \
+             WHERE tenant_id = $1 AND check_in IS NOT NULL AND deleted_at IS NULL \
                AND attendance_date >= CURRENT_DATE - 7 \
              GROUP BY employee_id \
          ) wk ON wk.employee_id = e.id \
-         WHERE e.tenant_id = $1 AND (s.id IS NOT NULL OR wk.week_minutes IS NOT NULL) \
+         WHERE e.tenant_id = $1 AND e.deleted_at IS NULL AND (s.id IS NOT NULL OR wk.week_minutes IS NOT NULL) \
          ORDER BY COALESCE(wk.week_minutes, 0) DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -1927,7 +1927,7 @@ pub async fn list_on_call(
     let rows = if let Some(ref date) = params.schedule_date {
         sqlx::query_as::<_, OnCallSchedule>(
             "SELECT * FROM on_call_schedules \
-             WHERE tenant_id = $1 AND schedule_date = $2::date \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND schedule_date = $2::date \
              ORDER BY department_id, start_time LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -1936,7 +1936,7 @@ pub async fn list_on_call(
         .await?
     } else {
         sqlx::query_as::<_, OnCallSchedule>(
-            "SELECT * FROM on_call_schedules WHERE tenant_id = $1 \
+            "SELECT * FROM on_call_schedules WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY schedule_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1997,7 +1997,7 @@ pub async fn list_training_programs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TrainingProgram>(
-        "SELECT * FROM training_programs WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM training_programs WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2052,7 +2052,7 @@ pub async fn list_training_records(
 
     let rows = sqlx::query_as::<_, TrainingRecord>(
         "SELECT * FROM training_records \
-         WHERE tenant_id = $1 AND employee_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
          ORDER BY training_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2116,7 +2116,7 @@ pub async fn list_appraisals(
 
     let rows = sqlx::query_as::<_, Appraisal>(
         "SELECT * FROM appraisals \
-         WHERE tenant_id = $1 AND employee_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
          ORDER BY appraisal_year DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2177,7 +2177,7 @@ pub async fn list_statutory_records(
 
     let rows = sqlx::query_as::<_, StatutoryRecord>(
         "SELECT * FROM statutory_records \
-         WHERE tenant_id = $1 AND employee_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
          ORDER BY compliance_date DESC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)

@@ -191,7 +191,7 @@ pub async fn list_credentials(
                 valid_from, valid_until, revoked_at, revoked_reason, \
                 is_default, created_at \
          FROM doctor_signature_credentials \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
            AND ($2::uuid IS NULL OR doctor_user_id = $2) \
            AND ($3::boolean OR revoked_at IS NULL) \
          ORDER BY created_at DESC LIMIT 5000",
@@ -222,7 +222,7 @@ pub async fn list_my_credentials(
                 valid_from, valid_until, revoked_at, revoked_reason, \
                 is_default, created_at \
          FROM doctor_signature_credentials \
-         WHERE tenant_id = $1 AND doctor_user_id = $2 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 AND doctor_user_id = $2 \
            AND revoked_at IS NULL \
            AND (valid_until IS NULL OR valid_until > now()) \
          ORDER BY is_default DESC, created_at DESC LIMIT 5000",
@@ -817,7 +817,7 @@ pub async fn list_signatures(
                 payload_snapshot, payload_hash, signature_bytes, display_image_snapshot, \
                 display_block, legal_class, created_at \
          FROM signed_records \
-         WHERE tenant_id = $1 AND record_type = $2 AND record_id = $3 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 AND record_type = $2 AND record_id = $3 \
          ORDER BY signed_at LIMIT 5000",
     )
     .bind(claims.tenant_id)

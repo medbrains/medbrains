@@ -56,7 +56,7 @@ pub async fn list_policies(
         "SELECT id, document_category, hot_to_cold_days, cold_to_archive_days, \
                 archive_to_delete_days, retention_years, description, updated_at \
          FROM object_storage_policies \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
          ORDER BY document_category LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -237,7 +237,7 @@ pub async fn list_transitions(
             "SELECT id, document_id, document_table, from_tier::text, to_tier::text, \
                     byte_size, triggered_by, triggered_at, hash \
              FROM object_storage_transitions \
-             WHERE tenant_id = $1 AND triggered_at < $2 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 AND triggered_at < $2 \
              ORDER BY triggered_at DESC, id DESC \
              LIMIT $3",
         )
@@ -251,7 +251,7 @@ pub async fn list_transitions(
             "SELECT id, document_id, document_table, from_tier::text, to_tier::text, \
                     byte_size, triggered_by, triggered_at, hash \
              FROM object_storage_transitions \
-             WHERE tenant_id = $1 \
+             WHERE deleted_at IS NULL AND tenant_id = $1 \
              ORDER BY triggered_at DESC, id DESC \
              LIMIT $2",
         )

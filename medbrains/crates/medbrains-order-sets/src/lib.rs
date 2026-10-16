@@ -223,7 +223,7 @@ pub async fn list_templates(
 
     let rows = sqlx::query_as::<_, OrderSetTemplate>(
         "SELECT * FROM order_set_templates \
-         WHERE is_current = true \
+         WHERE is_current = true AND deleted_at IS NULL \
          AND ($1::text IS NULL OR context::text = $1) \
          AND ($2::uuid IS NULL OR department_id = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
@@ -659,10 +659,11 @@ pub async fn list_versions(
            SELECT t.* FROM order_set_templates t \
            JOIN chain c ON t.parent_template_id = c.id \
          ) \
-         SELECT * FROM chain \
+         SELECT * FROM chain WHERE deleted_at IS NULL \
          UNION \
          SELECT t2.* FROM order_set_templates t2 \
          WHERE t2.id = (SELECT parent_template_id FROM order_set_templates WHERE id = $1) \
+           AND t2.deleted_at IS NULL \
          ORDER BY version DESC LIMIT 5000",
     )
     .bind(id)
@@ -987,7 +988,7 @@ pub async fn list_activations(
 
     let rows = sqlx::query_as::<_, OrderSetActivation>(
         "SELECT * FROM order_set_activations \
-         WHERE ($1::uuid IS NULL OR encounter_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR encounter_id = $1) \
          AND ($2::uuid IS NULL OR patient_id = $2) \
          AND ($3::uuid IS NULL OR template_id = $3) \
          ORDER BY created_at DESC LIMIT 200",

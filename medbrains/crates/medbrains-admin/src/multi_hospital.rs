@@ -326,7 +326,7 @@ pub async fn list_all_hospitals(
     let rows = sqlx::query_as::<_, HospitalInGroup>(
         "SELECT id, code, name, group_id, region_id, branch_code, \
                 COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state \
-         FROM tenants ORDER BY name LIMIT 5000",
+         FROM tenants WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&state.db)
     .await?;
@@ -344,7 +344,7 @@ pub async fn list_hospitals_in_group(
     let rows = sqlx::query_as::<_, HospitalInGroup>(
         "SELECT id, code, name, group_id, region_id, branch_code, \
                 COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state \
-         FROM tenants WHERE group_id = $1 ORDER BY name",
+         FROM tenants WHERE group_id = $1 AND deleted_at IS NULL ORDER BY name",
     )
     .bind(group_id)
     .fetch_all(&state.db)

@@ -2022,7 +2022,7 @@ pub async fn list_modules(
         .await?;
 
     let rows = sqlx::query_as::<_, ModuleConfig>(
-        "SELECT * FROM module_config WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5465,7 +5465,7 @@ pub async fn list_brand_entities(
         ),
     >(
         "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
-         FROM brand_entities ORDER BY is_default DESC, name LIMIT 5000",
+         FROM brand_entities WHERE deleted_at IS NULL ORDER BY is_default DESC, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

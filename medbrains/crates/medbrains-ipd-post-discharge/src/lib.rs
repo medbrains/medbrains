@@ -545,7 +545,7 @@ pub async fn list_post_discharge(
 
     let rows = sqlx::query_as::<_, PostDischargeFollowup>(
         "SELECT * FROM ipd_post_discharge_followups \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -715,7 +715,7 @@ pub async fn list_mortality_reviews(
 
     let rows = sqlx::query_as::<_, MortalityReview>(
         "SELECT * FROM ipd_mortality_reviews \
-         WHERE tenant_id = $1 ORDER BY death_at DESC LIMIT 200",
+         WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY death_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
