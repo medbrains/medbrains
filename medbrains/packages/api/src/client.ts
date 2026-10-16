@@ -533,6 +533,7 @@ import type {
   CreateDonorRequest,
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
+  CreatePrivacyRequest,
   CreatedApiKey,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
@@ -941,6 +942,7 @@ import type {
   // Blood Bank
   DonorListResponse,
   DpdpConsentPrintData,
+  DecidePrivacyRequest,
   DpdpConsentInput,
   DrugExpiryAlertPrintData,
   DrugInteraction,
@@ -1505,6 +1507,7 @@ import type {
   PatientConsumableIssue,
   PatientContact,
   PatientContactConsents,
+  PatientDataSummary,
   PatientDpdpConsent,
   PatientContext,
   PatientDiagnosisRow,
@@ -1628,6 +1631,7 @@ import type {
   PriorAuthDetail,
   PriorAuthDocument,
   PriorAuthRequestRow,
+  PrivacyRequest,
   ProcedureCatalog,
   ProcedureConsent,
   ProcedureOrderWithName,
@@ -3790,6 +3794,22 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listPrivacyRequests: (params?: { status?: string; patient_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    const qs = sp.toString();
+    return request<PrivacyRequest[]>(`/privacy-requests${qs ? `?${qs}` : ""}`);
+  },
+  createPrivacyRequest: (data: CreatePrivacyRequest) =>
+    request<PrivacyRequest>("/privacy-requests", { method: "POST", body: JSON.stringify(data) }),
+  decidePrivacyRequest: (id: string, data: DecidePrivacyRequest) =>
+    request<PrivacyRequest>(`/privacy-requests/${id}/decide`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPatientDataSummary: (patientId: string) =>
+    request<PatientDataSummary>(`/patients/${patientId}/data-summary`),
   getPatientDpdpConsent: (patientId: string) =>
     request<PatientDpdpConsent>(`/patients/${patientId}/dpdp-consent`),
   setPatientDpdpConsent: (patientId: string, data: DpdpConsentInput) =>

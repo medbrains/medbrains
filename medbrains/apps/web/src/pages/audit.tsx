@@ -9,6 +9,7 @@ import {
   IconShieldCheck,
   IconShieldLock,
   IconUserSearch,
+  IconUserShield,
 } from "@tabler/icons-react";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -18,6 +19,7 @@ import { AuditStatsTab } from "./audit/AuditStatsTab";
 import { BreakGlassReviewTab } from "./audit/BreakGlassReviewTab";
 import { ChainIntegrityTab } from "./audit/ChainIntegrityTab";
 import { EntityTimelineTab } from "./audit/EntityTimelineTab";
+import { PrivacyRequestsTab } from "./audit/PrivacyRequestsTab";
 import { UserActivityTab } from "./audit/UserActivityTab";
 
 export function AuditPage() {
@@ -25,6 +27,7 @@ export function AuditPage() {
 
   const canViewAccess = useHasPermission(P.AUDIT.ACCESS_VIEW);
   const canReviewBreakGlass = useHasPermission(P.AUDIT.BREAK_GLASS_REVIEW);
+  const canSeePrivacyRequests = useHasPermission(P.PATIENTS.PRIVACY_REQUESTS_LIST);
 
   return (
     <div>
@@ -49,6 +52,11 @@ export function AuditPage() {
           {canReviewBreakGlass && (
             <Tabs.Tab value="break-glass" leftSection={<IconShieldLock size={16} />}>
               Break-glass
+            </Tabs.Tab>
+          )}
+          {canSeePrivacyRequests && (
+            <Tabs.Tab value="privacy-requests" leftSection={<IconUserShield size={16} />}>
+              Privacy requests
             </Tabs.Tab>
           )}
           <Tabs.Tab value="integrity" leftSection={<IconShieldCheck size={16} />}>
@@ -76,6 +84,11 @@ export function AuditPage() {
         {canReviewBreakGlass && (
           <Tabs.Panel value="break-glass" pt="md">
             <BreakGlassReviewTab />
+          </Tabs.Panel>
+        )}
+        {canSeePrivacyRequests && (
+          <Tabs.Panel value="privacy-requests" pt="md">
+            <PrivacyRequestsTab />
           </Tabs.Panel>
         )}
         <Tabs.Panel value="integrity" pt="md">

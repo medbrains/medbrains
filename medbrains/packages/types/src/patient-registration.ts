@@ -633,6 +633,53 @@ export interface DpdpConsentRecord {
   created_at: string;
 }
 
+/** DPDP Act s.11-14: what the patient asked the hospital for. */
+export type PrivacyRequestType = "access" | "correction" | "erasure" | "nominee" | "grievance";
+export type PrivacyRequestChannel = "desk" | "email" | "phone" | "letter" | "portal";
+
+export interface PrivacyRequest {
+  id: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  request_type: PrivacyRequestType;
+  details: string;
+  received_via: PrivacyRequestChannel;
+  received_at: string;
+  /** 90 days after it arrived (Rules 2025 r.14). */
+  due_at: string;
+  status: "open" | "completed" | "refused";
+  nominee_name: string | null;
+  nominee_relation: string | null;
+  nominee_contact: string | null;
+  decision: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  recorded_by_name: string | null;
+}
+
+export interface CreatePrivacyRequest {
+  patient_id: string;
+  request_type: PrivacyRequestType;
+  details: string;
+  received_via?: PrivacyRequestChannel;
+  nominee_name?: string;
+  nominee_relation?: string;
+  nominee_contact?: string;
+}
+
+export interface DecidePrivacyRequest {
+  status: "completed" | "refused";
+  decision: string;
+}
+
+/** What the hospital holds about a patient — the answer to an access request. */
+export interface PatientDataSummary {
+  held: Array<{ category: string; count: number }>;
+  staff_who_viewed: number;
+  insurers: string[];
+}
+
 export interface PatientDpdpConsent {
   notice_version: string;
   purposes: DpdpPurpose[];

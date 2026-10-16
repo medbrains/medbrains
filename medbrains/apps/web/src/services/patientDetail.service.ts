@@ -13,6 +13,14 @@ export const patientDetailService = {
     api.getPatientContactConsents(...args),
   setPatientContactConsent: (...args: Parameters<typeof api.setPatientContactConsent>) =>
     api.setPatientContactConsent(...args),
+  listPrivacyRequests: (...args: Parameters<typeof api.listPrivacyRequests>) =>
+    api.listPrivacyRequests(...args),
+  createPrivacyRequest: (...args: Parameters<typeof api.createPrivacyRequest>) =>
+    api.createPrivacyRequest(...args),
+  decidePrivacyRequest: (...args: Parameters<typeof api.decidePrivacyRequest>) =>
+    api.decidePrivacyRequest(...args),
+  getPatientDataSummary: (...args: Parameters<typeof api.getPatientDataSummary>) =>
+    api.getPatientDataSummary(...args),
   getPatientDpdpConsent: (...args: Parameters<typeof api.getPatientDpdpConsent>) =>
     api.getPatientDpdpConsent(...args),
   setPatientDpdpConsent: (...args: Parameters<typeof api.setPatientDpdpConsent>) =>
