@@ -5,6 +5,7 @@ import { IconLayoutDashboard, IconLayoutGridAdd } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
+import { AwaitingRoleNotice } from "@/components/dashboard/AwaitingRoleNotice";
 import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard";
 import { KpiPeriodControls } from "@/components/dashboard/KpiPeriodControls";
 import type { KpiBaseline } from "@/components/dashboard/kpi-reading";
@@ -116,6 +117,7 @@ export function DashboardPage() {
         onClose={() => setPickerOpen(false)}
         widgets={dashboard.widgets}
       />
+      <AwaitingRoleNotice />
       <GettingStartedWidget />
       {dashboard.widgets.length === 0 ? (
         <Text c="dimmed" size="sm" ta="center" py="xl">

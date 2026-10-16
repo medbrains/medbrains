@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1041 permissions, one per constant in the Rust source. */
+/** 1043 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4736,6 +4736,18 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // admin
   {
+    code: "admin.access_requests.list",
+    label: "See every access request in the hospital",
+    description: "Without it you see only your own requests.",
+    module: "admin",
+  },
+  {
+    code: "admin.access_requests.review",
+    label: "Approve, reject or revoke access requests",
+    description: "Grants temporary permissions to another person; a request for an elevated permission still needs an administrator. Approvers are notified of each new request.",
+    module: "admin",
+  },
+  {
     code: "admin.users.list",
     label: "List Users",
     description: "View user directory",
@@ -6356,6 +6368,12 @@ export const P = {
     HFR_VIEW: "abdm.hfr.view",
   },
   ADMIN: {
+    ACCESS_REQUESTS: {
+      LIST: "admin.access_requests.list",
+      REVIEW: "admin.access_requests.review",
+    },
+    ACCESS_REQUESTS_LIST: "admin.access_requests.list",
+    ACCESS_REQUESTS_REVIEW: "admin.access_requests.review",
     API_KEYS: {
       CREATE: "admin.api_keys.create",
       LIST: "admin.api_keys.list",
@@ -10398,6 +10416,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   audit_officer: {
     label: "Audit Officer",
     permissions: [
+      P.ADMIN.ACCESS_REQUESTS.LIST,
       P.ADMIN.SETTINGS.READ,
       P.AUDIT.ACCESS_VIEW,
       P.AUDIT.BREAK_GLASS_REVIEW,
@@ -10441,6 +10460,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.VIEW,
+      P.PHARMACY.DAY_CLOSE.VIEW,
       P.PHARMACY.PRESCRIPTIONS.LIST,
       P.PHARMACY.PRESCRIPTIONS.VIEW,
       P.REGULATORY.ADR.LIST,
@@ -11003,6 +11023,13 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DASHBOARD.VIEW,
       P.PHARMACY.DELIVERIES.COMPLETE,
       P.PHARMACY.DELIVERIES.VIEW,
+    ],
+  },
+  staff: {
+    label: "Staff (awaiting role)",
+    permissions: [
+      P.ADMIN.SETTINGS.READ,
+      P.DASHBOARD.VIEW,
     ],
   },
 };

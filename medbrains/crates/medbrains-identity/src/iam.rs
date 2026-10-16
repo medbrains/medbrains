@@ -15,7 +15,7 @@ use serde_json::{Map, Value};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use medbrains_notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification, notify_permission_holders};
 use medbrains_server_core::{
     error::AppError,
     middleware::{
@@ -108,7 +108,8 @@ pub async fn list_access_requests(
 
     let can_admin = is_bypass_role(&claims)
         || claims.permissions.iter().any(|p| {
-            p == permissions::security::access::LIST || p == permissions::security::access::MANAGE
+            p == permissions::admin::access_requests::LIST
+                || p == permissions::admin::access_requests::REVIEW
         });
 
     let rows = if can_admin {
@@ -152,7 +153,7 @@ pub async fn create_access_request(
 ) -> Result<Json<IamAccessRequestRow>, AppError> {
     let target_user_id = body.target_user_id.unwrap_or(claims.sub);
     if target_user_id != claims.sub {
-        require_permission(&claims, permissions::security::access::MANAGE)?;
+        require_permission(&claims, permissions::admin::access_requests::REVIEW)?;
     }
 
     let requested_permissions =
@@ -205,11 +206,29 @@ pub async fn create_access_request(
         body.resource_scope
             .unwrap_or_else(|| Value::Object(Map::new())),
     )
-    .bind(reason)
+    .bind(&reason)
     .bind(requested_expires_at)
     .fetch_one(&mut *tx)
     .await?;
 
+    // The approvers hear about it; otherwise it waits for someone to look.
+    notify_permission_holders(
+        &mut tx,
+        claims.tenant_id,
+        permissions::admin::access_requests::REVIEW,
+        claims.sub,
+        |user_id| NewNotification {
+            user_id,
+            kind: "info",
+            title: "Access request waiting for review",
+            body: Some(reason.as_str()),
+            category: Some("Access"),
+            entity_type: Some("access_request"),
+            entity_id: Some(inserted_id),
+            action_url: Some("/admin/access-requests"),
+        },
+    )
+    .await?;
     let row = fetch_access_request(&mut tx, claims.tenant_id, inserted_id).await?;
     tx.commit().await?;
     Ok(Json(row))
@@ -221,7 +240,7 @@ pub async fn approve_access_request(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewAccessRequest>,
 ) -> Result<Json<IamAccessRequestRow>, AppError> {
-    require_permission(&claims, permissions::security::access::MANAGE)?;
+    require_permission(&claims, permissions::admin::access_requests::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -247,6 +266,8 @@ pub async fn approve_access_request(
             .bind(body.note.as_deref())
             .execute(&mut *tx)
             .await?;
+            // Keep the 'expired' mark: returning the error drops the tx.
+            tx.commit().await?;
             return Err(AppError::Conflict(
                 "request expired before approval".to_owned(),
             ));
@@ -324,7 +345,7 @@ pub async fn reject_access_request(
     Path(id): Path<Uuid>,
     Json(body): Json<ReviewAccessRequest>,
 ) -> Result<Json<IamAccessRequestRow>, AppError> {
-    require_permission(&claims, permissions::security::access::MANAGE)?;
+    require_permission(&claims, permissions::admin::access_requests::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -378,7 +399,7 @@ pub async fn revoke_access_request(
     Path(id): Path<Uuid>,
     Json(body): Json<RevokeAccessRequest>,
 ) -> Result<Json<IamAccessRequestRow>, AppError> {
-    require_permission(&claims, permissions::security::access::MANAGE)?;
+    require_permission(&claims, permissions::admin::access_requests::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

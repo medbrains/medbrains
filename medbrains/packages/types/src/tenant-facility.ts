@@ -67,7 +67,9 @@ export type UserRole =
   | "billing_clerk"
   | "housekeeping_staff"
   | "facilities_manager"
-  | "audit_officer";
+  | "audit_officer"
+  /** A new sign-in no administrator has given a role yet: dashboard only. */
+  | "staff";
 
 export interface User {
   id: string;

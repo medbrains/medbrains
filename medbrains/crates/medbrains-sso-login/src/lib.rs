@@ -25,9 +25,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
+use medbrains_notifications::{NewNotification, notify_permission_holders};
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::{Claims, encode_jwt},
+    middleware::authorization::BYPASS_ROLES,
     middleware::cookies::{build_access_cookie, build_refresh_cookie, build_csrf_cookie},
     state::AppState,
 };
@@ -593,10 +596,9 @@ async fn federate_user(
     let user_groups: HashSet<String> = identity.groups.iter().cloned().collect();
     let (mapped_role, access_groups) = resolve_group_targets(&mappings, &user_groups);
 
-    // No mapped role and no default → no access (the provider opted out of a base role).
-    let role = mapped_role
-        .or_else(|| provider.default_role.clone())
-        .ok_or(AppError::Unauthorized)?;
+    // A mapped directory group decides the role. Without one, a returning or
+    // linked account keeps the role an administrator gave it — overwriting it
+    // with the provider default on every login undid every manual change.
 
     // 1. Existing federated user (idp + subject) · 2. else link by email · 3. else JIT.
     let existing = sqlx::query_scalar::<_, Uuid>(
@@ -607,17 +609,18 @@ async fn federate_user(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let (user_id, outcome) = match existing {
+    let (user_id, role, outcome) = match existing {
         Some(id) => {
-            sqlx::query(
-                "UPDATE users SET role = $2::user_role, email_verified = true, \
-                 perm_version = perm_version + 1, updated_at = now() WHERE id = $1",
+            let role = sqlx::query_scalar::<_, String>(
+                "UPDATE users SET role = COALESCE($2::user_role, role), email_verified = true, \
+                 perm_version = perm_version + 1, updated_at = now() WHERE id = $1 \
+                 RETURNING role::text",
             )
             .bind(id)
-            .bind(&role)
-            .execute(&mut **tx)
+            .bind(mapped_role.as_deref())
+            .fetch_one(&mut **tx)
             .await?;
-            (id, "returning")
+            (id, role, "returning")
         }
         None => {
             let linked = match identity.email.as_deref() {
@@ -647,24 +650,31 @@ async fn federate_user(
             };
             match linked {
                 Some(id) => {
-                    sqlx::query(
-                        "UPDATE users SET idp_id = $2, external_subject = $3, role = $4::user_role, \
-                         email_verified = true, perm_version = perm_version + 1, updated_at = now() \
-                         WHERE id = $1",
+                    let role = sqlx::query_scalar::<_, String>(
+                        "UPDATE users SET idp_id = $2, external_subject = $3, \
+                         role = COALESCE($4::user_role, role), email_verified = true, \
+                         perm_version = perm_version + 1, updated_at = now() \
+                         WHERE id = $1 RETURNING role::text",
                     )
                     .bind(id)
                     .bind(provider.id)
                     .bind(&identity.subject)
-                    .bind(&role)
-                    .execute(&mut **tx)
+                    .bind(mapped_role.as_deref())
+                    .fetch_one(&mut **tx)
                     .await?;
-                    (id, "linked")
+                    (id, role, "linked")
                 }
                 None => {
                     if !provider.jit_enabled {
                         return Err(AppError::Unauthorized);
                     }
-                    (jit_create(tx, provider, identity, &role).await?, "provisioned")
+                    let role = mapped_role
+                        .unwrap_or_else(|| new_user_role(provider.default_role.as_deref()));
+                    let id = jit_create(tx, provider, identity, &role).await?;
+                    if role == STAFF_ROLE {
+                        tell_admins_of_new_staff(tx, provider, identity, id).await?;
+                    }
+                    (id, role, "provisioned")
                 }
             }
         }
@@ -701,6 +711,49 @@ async fn federate_user(
     })
 }
 
+/// What a new sign-in with no mapped directory group gets: dashboard only,
+/// until an administrator assigns the real role.
+const STAFF_ROLE: &str = "staff";
+
+/// The provider's default role for a new account — never a role that
+/// bypasses every permission check. A default of `hospital_admin` made every
+/// new Microsoft sign-in an administrator whose access nobody could edit.
+fn new_user_role(default: Option<&str>) -> String {
+    match default {
+        Some(role) if !BYPASS_ROLES.contains(&role) => role.to_owned(),
+        _ => STAFF_ROLE.to_owned(),
+    }
+}
+
+/// The administrators who assign roles hear that someone is waiting for one.
+async fn tell_admins_of_new_staff(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    provider: &LoginProvider,
+    identity: &SsoIdentity,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let who = identity
+        .name
+        .as_deref()
+        .or(identity.email.as_deref())
+        .unwrap_or("A new member of staff");
+    let body = format!("{who} signed in with single sign-on and needs a role.");
+    notify_permission_holders(tx, provider.tenant_id, permissions::admin::users::UPDATE, user_id, |to| {
+        NewNotification {
+            user_id: to,
+            kind: "warning",
+            title: "New sign-in waiting for a role",
+            body: Some(body.as_str()),
+            category: Some("Access"),
+            entity_type: Some("user"),
+            entity_id: Some(user_id),
+            action_url: Some("/admin/users"),
+        }
+    })
+    .await?;
+    Ok(())
+}
+
 /// Best-effort audit of a REFUSED SSO login — the user authenticated at the IdP
 /// but is not authorized here (no matching group mapping + no default role, or
 /// JIT disabled for a new user). Uses its own tx so it survives the rolled-back
@@ -711,7 +764,7 @@ async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: 
         "external_subject": identity.subject,
         "email": identity.email,
         "groups": identity.groups,
-        "reason": "no authorized role: no matching group mapping and no default role, or JIT disabled",
+        "reason": "not provisioned: a new user and just-in-time accounts are off for this provider",
     });
     let Ok(mut tx) = state.db.begin().await else {
         return;
@@ -825,7 +878,10 @@ mod tests {
 
     use uuid::Uuid;
 
-    use super::{base_username, extract_groups, pkce_challenge, resolve_group_targets, SsoIdentity};
+    use super::{
+        STAFF_ROLE, SsoIdentity, base_username, extract_groups, new_user_role, pkce_challenge,
+        resolve_group_targets,
+    };
 
     fn groups(items: &[&str]) -> HashSet<String> {
         items.iter().map(|s| (*s).to_owned()).collect()
@@ -875,6 +931,14 @@ mod tests {
         let (role, ags) = resolve_group_targets(&mappings, &groups(&["nurses"]));
         assert!(role.is_none());
         assert!(ags.is_empty());
+    }
+
+    #[test]
+    fn a_new_sign_in_never_defaults_to_a_bypass_role() {
+        assert_eq!(new_user_role(Some("hospital_admin")), STAFF_ROLE);
+        assert_eq!(new_user_role(Some("super_admin")), STAFF_ROLE);
+        assert_eq!(new_user_role(None), STAFF_ROLE);
+        assert_eq!(new_user_role(Some("nurse")), "nurse");
     }
 
     #[test]

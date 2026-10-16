@@ -537,7 +537,8 @@ pub async fn list_store_locations(
         .await?;
 
     let locations = sqlx::query_as::<_, StoreLocation>(
-        "SELECT * FROM store_locations WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM store_locations WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

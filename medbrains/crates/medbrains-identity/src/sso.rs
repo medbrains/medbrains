@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::{
     error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
+    middleware::{auth::Claims, authorization::{BYPASS_ROLES, require_permission}},
     state::AppState,
 };
 
@@ -145,7 +145,9 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
         cfg.discovery_url,
         cfg.group_claim,
         cfg.client_id,
-        cfg.default_role,
+        // A bypass default from a config file is dropped, not seeded.
+        cfg.default_role
+            .filter(|r| !BYPASS_ROLES.contains(&r.as_str())),
     );
 
     let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants WHERE code = 'DEFAULT'")
@@ -290,6 +292,20 @@ pub struct UpdateProviderRequest {
     pub config: Option<serde_json::Value>,
 }
 
+/// A provider's default role is what every new sign-in gets. A role that
+/// bypasses permission checks there makes every new account an unrestricted
+/// administrator whose access cannot be edited — refuse it.
+fn validate_default_role(role: Option<&str>) -> Result<(), AppError> {
+    match role {
+        Some(r) if BYPASS_ROLES.contains(&r) => Err(AppError::BadRequest(
+            "An administrator role cannot be the default for new sign-ins; map an admin \
+             directory group to it instead"
+                .to_owned(),
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn validate_protocol(p: &str) -> Result<(), AppError> {
     if p == "oidc" || p == "saml" {
         Ok(())
@@ -325,6 +341,7 @@ pub async fn create_provider(
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
     validate_protocol(&req.protocol)?;
+    validate_default_role(req.default_role.as_deref())?;
 
     let secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {
@@ -373,6 +390,7 @@ pub async fn update_provider(
     Json(req): Json<UpdateProviderRequest>,
 ) -> Result<Json<ProviderResponse>, AppError> {
     require_permission(&claims, MANAGE)?;
+    validate_default_role(req.default_role.as_deref())?;
 
     let new_secret_enc = match req.client_secret.as_deref().filter(|s| !s.is_empty()) {
         Some(secret) => {

@@ -3,7 +3,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, ROLE_TEMPLATES } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
@@ -20,6 +20,11 @@ const EMPTY: CreateSsoProviderRequest = {
   group_claim: "groups",
   jit_enabled: true,
 };
+
+/** Every built-in role except those that bypass permission checks. */
+const DEFAULT_ROLE_OPTIONS = Object.entries(ROLE_TEMPLATES)
+  .filter(([code]) => code !== "super_admin" && code !== "hospital_admin")
+  .map(([value, role]) => ({ value, label: role.label }));
 
 export function SsoSettingsPage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
@@ -195,11 +200,14 @@ export function SsoSettingsPage() {
             value={draft.group_claim ?? "groups"}
             onChange={field("group_claim")}
           />
-          <Input
-            label="Default role"
-            description="Assigned when no group mapping matches (blank = no access)"
-            value={draft.default_role ?? ""}
-            onChange={field("default_role")}
+          <Select
+            label="Default role for new sign-ins"
+            description="Given when no directory group mapping matches. Blank gives Staff (dashboard only) until an administrator assigns a role. Administrator roles cannot be a default: map an admin group to them instead."
+            data={DEFAULT_ROLE_OPTIONS}
+            value={draft.default_role ?? null}
+            onChange={(v) => setDraft((d) => ({ ...d, default_role: v ?? undefined }))}
+            clearable
+            searchable
           />
           <Switch
             label="Just-in-time provisioning"
