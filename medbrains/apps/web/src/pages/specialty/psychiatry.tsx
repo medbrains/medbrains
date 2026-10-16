@@ -392,37 +392,42 @@ export function PsychiatryPage() {
           <Textarea
             label="Advance Directive"
             value={patForm.advance_directive_text ?? ""}
-            onChange={(e) =>
-              setPatForm((p) => ({ ...p, advance_directive_text: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setPatForm((p) => ({ ...p, advance_directive_text: nextValue }));
+            }}
           />
           <TextInput
             label="Nominated Rep Name"
             value={patForm.nominated_rep_name ?? ""}
-            onChange={(e) =>
-              setPatForm((p) => ({ ...p, nominated_rep_name: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setPatForm((p) => ({ ...p, nominated_rep_name: nextValue }));
+            }}
           />
           <TextInput
             label="Nominated Rep Contact"
             value={patForm.nominated_rep_contact ?? ""}
-            onChange={(e) =>
-              setPatForm((p) => ({ ...p, nominated_rep_contact: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setPatForm((p) => ({ ...p, nominated_rep_contact: nextValue }));
+            }}
           />
           <TextInput
             label="Nominated Rep Relation"
             value={patForm.nominated_rep_relation ?? ""}
-            onChange={(e) =>
-              setPatForm((p) => ({ ...p, nominated_rep_relation: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setPatForm((p) => ({ ...p, nominated_rep_relation: nextValue }));
+            }}
           />
           <Switch
             label="Substance Abuse"
             checked={patForm.substance_abuse_flag ?? false}
-            onChange={(e) =>
-              setPatForm((p) => ({ ...p, substance_abuse_flag: e.currentTarget.checked }))
-            }
+            onChange={(e) => {
+              const nextChecked = e.currentTarget.checked;
+              setPatForm((p) => ({ ...p, substance_abuse_flag: nextChecked }));
+            }}
           />
           <Button
             tone="primary"

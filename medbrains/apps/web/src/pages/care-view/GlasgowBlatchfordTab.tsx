@@ -101,7 +101,10 @@ export function GlasgowBlatchfordTab() {
           key={m.key}
           label={m.label}
           checked={markers[m.key]}
-          onChange={(e) => setMarkers((p) => ({ ...p, [m.key]: e.currentTarget.checked }))}
+          onChange={(e) => {
+            const nextChecked = e.currentTarget.checked;
+            setMarkers((p) => ({ ...p, [m.key]: nextChecked }));
+          }}
         />
       ))}
 

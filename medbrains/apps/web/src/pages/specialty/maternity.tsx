@@ -569,21 +569,28 @@ export function MaternityPage() {
             label="Registration Number"
             required
             value={regForm.registration_number}
-            onChange={(e) =>
-              setRegForm((p) => ({ ...p, registration_number: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, registration_number: nextValue }));
+            }}
           />
           <TextInput
             label="LMP Date"
             placeholder="YYYY-MM-DD"
             value={regForm.lmp_date ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, lmp_date: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, lmp_date: nextValue }));
+            }}
           />
           <TextInput
             label="EDD Date"
             placeholder="YYYY-MM-DD"
             value={regForm.edd_date ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, edd_date: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, edd_date: nextValue }));
+            }}
           />
           <Group grow>
             <NumberInput
@@ -624,7 +631,10 @@ export function MaternityPage() {
           <TextInput
             label="Blood Group"
             value={regForm.blood_group ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, blood_group: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, blood_group: nextValue }));
+            }}
           />
           <Button
             tone="primary"

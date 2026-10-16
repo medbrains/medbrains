@@ -38,6 +38,9 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
+import { DialyzerPicker } from "./dialysis/dialyzer-picker";
+import { MachinesPanel } from "./dialysis/machines-panel";
+import { ShiftsPanel } from "./dialysis/shifts-panel";
 
 export function OtherSpecialtiesPage() {
   useRequirePermission(P.SPECIALTY.OTHER.RECORDS_LIST);
@@ -437,7 +440,22 @@ export function OtherSpecialtiesPage() {
               </Button>
             )}
           </Group>
-          <DataTable columns={dialCols} data={dialysis} loading={false} rowKey={(r) => r.id} />
+          <Tabs defaultValue="sessions" variant="pills">
+            <Tabs.List mb="md">
+              <Tabs.Tab value="sessions">Sessions</Tabs.Tab>
+              <Tabs.Tab value="shifts">Shifts</Tabs.Tab>
+              <Tabs.Tab value="machines">Machines</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="sessions">
+              <DataTable columns={dialCols} data={dialysis} loading={false} rowKey={(r) => r.id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="shifts">
+              <ShiftsPanel />
+            </Tabs.Panel>
+            <Tabs.Panel value="machines">
+              <MachinesPanel />
+            </Tabs.Panel>
+          </Tabs>
         </Tabs.Panel>
         <Tabs.Panel value="chemo" pt="md">
           <Group justify="flex-end" mb="md">
@@ -495,19 +513,28 @@ export function OtherSpecialtiesPage() {
             required
             placeholder="e.g. Pediatrics, Ophthalmology"
             value={tmplForm.specialty}
-            onChange={(e) => setTmplForm((p) => ({ ...p, specialty: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setTmplForm((p) => ({ ...p, specialty: next }));
+            }}
           />
           <TextInput
             label="Template Name"
             required
             value={tmplForm.template_name}
-            onChange={(e) => setTmplForm((p) => ({ ...p, template_name: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setTmplForm((p) => ({ ...p, template_name: next }));
+            }}
           />
           <TextInput
             label="Template Code"
             required
             value={tmplForm.template_code}
-            onChange={(e) => setTmplForm((p) => ({ ...p, template_code: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setTmplForm((p) => ({ ...p, template_code: next }));
+            }}
           />
           <JsonInput
             label="Form Schema (JSON)"
@@ -547,7 +574,10 @@ export function OtherSpecialtiesPage() {
             label="Specialty"
             required
             value={recForm.specialty}
-            onChange={(e) => setRecForm((p) => ({ ...p, specialty: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setRecForm((p) => ({ ...p, specialty: next }));
+            }}
           />
           <Select
             label="Template"
@@ -592,15 +622,32 @@ export function OtherSpecialtiesPage() {
             onChange={(v) => setDialForm((p) => ({ ...p, patient_id: v }))}
             required
           />
-          <TextInput
-            label="Machine #"
-            value={dialForm.machine_number ?? ""}
-            onChange={(e) => setDialForm((p) => ({ ...p, machine_number: e.currentTarget.value }))}
-          />
+          {dialForm.patient_id && (
+            <DialyzerPicker
+              patientId={dialForm.patient_id}
+              dialyzerId={dialForm.dialyzer_id}
+              slotId={dialForm.slot_id}
+              onDialyzer={(id) => setDialForm((p) => ({ ...p, dialyzer_id: id }))}
+              onSlot={(id) => setDialForm((p) => ({ ...p, slot_id: id }))}
+            />
+          )}
+          {!dialForm.slot_id && (
+            <TextInput
+              label="Machine # (unbooked session)"
+              value={dialForm.machine_number ?? ""}
+              onChange={(e) => {
+                const next = e.currentTarget.value;
+                setDialForm((p) => ({ ...p, machine_number: next }));
+              }}
+            />
+          )}
           <TextInput
             label="Access Type"
             value={dialForm.access_type ?? ""}
-            onChange={(e) => setDialForm((p) => ({ ...p, access_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setDialForm((p) => ({ ...p, access_type: next }));
+            }}
           />
           <NumberInput
             label="Pre Weight (kg)"
@@ -653,17 +700,26 @@ export function OtherSpecialtiesPage() {
             label="Protocol Name"
             required
             value={chemoForm.protocol_name}
-            onChange={(e) => setChemoForm((p) => ({ ...p, protocol_name: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setChemoForm((p) => ({ ...p, protocol_name: next }));
+            }}
           />
           <TextInput
             label="Cancer Type"
             value={chemoForm.cancer_type ?? ""}
-            onChange={(e) => setChemoForm((p) => ({ ...p, cancer_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setChemoForm((p) => ({ ...p, cancer_type: next }));
+            }}
           />
           <TextInput
             label="Staging"
             value={chemoForm.staging ?? ""}
-            onChange={(e) => setChemoForm((p) => ({ ...p, staging: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setChemoForm((p) => ({ ...p, staging: next }));
+            }}
           />
           <NumberInput
             label="Cycle #"
@@ -676,12 +732,10 @@ export function OtherSpecialtiesPage() {
             label="Anthracycline agent (if any)"
             placeholder="e.g. Doxorubicin"
             value={chemoForm.anthracycline_agent ?? ""}
-            onChange={(e) =>
-              setChemoForm((p) => ({
-                ...p,
-                anthracycline_agent: e.currentTarget.value || undefined,
-              }))
-            }
+            onChange={(e) => {
+              const next = e.currentTarget.value || undefined;
+              setChemoForm((p) => ({ ...p, anthracycline_agent: next }));
+            }}
           />
           <NumberInput
             label="This cycle's anthracycline dose (mg/m²)"
@@ -715,9 +769,10 @@ export function OtherSpecialtiesPage() {
           <Switch
             label="Tumor Board Reviewed"
             checked={chemoForm.tumor_board_reviewed ?? false}
-            onChange={(e) =>
-              setChemoForm((p) => ({ ...p, tumor_board_reviewed: e.currentTarget.checked }))
-            }
+            onChange={(e) => {
+              const next = e.currentTarget.checked;
+              setChemoForm((p) => ({ ...p, tumor_board_reviewed: next }));
+            }}
           />
           <Button
             tone="primary"
@@ -745,37 +800,53 @@ export function OtherSpecialtiesPage() {
             label="Primary site"
             required
             value={stagingForm.primary_site}
-            onChange={(e) => setStagingForm((p) => ({ ...p, primary_site: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setStagingForm((p) => ({ ...p, primary_site: next }));
+            }}
           />
           <TextInput
             label="Histology"
             value={stagingForm.histology ?? ""}
-            onChange={(e) => setStagingForm((p) => ({ ...p, histology: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setStagingForm((p) => ({ ...p, histology: next }));
+            }}
           />
           <Group grow>
             <TextInput
               label="T"
               value={stagingForm.t_stage ?? ""}
-              onChange={(e) => setStagingForm((p) => ({ ...p, t_stage: e.currentTarget.value }))}
+              onChange={(e) => {
+                const next = e.currentTarget.value;
+                setStagingForm((p) => ({ ...p, t_stage: next }));
+              }}
             />
             <TextInput
               label="N"
               value={stagingForm.n_stage ?? ""}
-              onChange={(e) => setStagingForm((p) => ({ ...p, n_stage: e.currentTarget.value }))}
+              onChange={(e) => {
+                const next = e.currentTarget.value;
+                setStagingForm((p) => ({ ...p, n_stage: next }));
+              }}
             />
             <TextInput
               label="M"
               value={stagingForm.m_stage ?? ""}
-              onChange={(e) => setStagingForm((p) => ({ ...p, m_stage: e.currentTarget.value }))}
+              onChange={(e) => {
+                const next = e.currentTarget.value;
+                setStagingForm((p) => ({ ...p, m_stage: next }));
+              }}
             />
           </Group>
           <TextInput
             label="Overall stage"
             placeholder="IIIA"
             value={stagingForm.overall_stage ?? ""}
-            onChange={(e) =>
-              setStagingForm((p) => ({ ...p, overall_stage: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setStagingForm((p) => ({ ...p, overall_stage: next }));
+            }}
           />
           <Button
             tone="primary"
@@ -804,12 +875,18 @@ export function OtherSpecialtiesPage() {
             label="Site"
             required
             value={radForm.site}
-            onChange={(e) => setRadForm((p) => ({ ...p, site: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setRadForm((p) => ({ ...p, site: next }));
+            }}
           />
           <TextInput
             label="Technique"
             value={radForm.technique ?? ""}
-            onChange={(e) => setRadForm((p) => ({ ...p, technique: e.currentTarget.value }))}
+            onChange={(e) => {
+              const next = e.currentTarget.value;
+              setRadForm((p) => ({ ...p, technique: next }));
+            }}
           />
           <Group grow>
             <NumberInput

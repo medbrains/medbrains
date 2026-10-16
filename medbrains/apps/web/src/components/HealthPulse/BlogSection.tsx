@@ -204,20 +204,27 @@ export function BlogSection() {
           <Input
             label="Title"
             value={form.title}
-            onChange={(event) => setForm((f) => ({ ...f, title: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, title: nextValue }));
+            }}
             required
           />
           <Input
             label="Excerpt"
             value={form.excerpt ?? ""}
-            onChange={(event) => setForm((f) => ({ ...f, excerpt: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, excerpt: nextValue }));
+            }}
           />
           <Input
             label="Cover image URL"
             value={form.cover_image_url ?? ""}
-            onChange={(event) =>
-              setForm((f) => ({ ...f, cover_image_url: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, cover_image_url: nextValue }));
+            }}
           />
           <Select
             label="Status"

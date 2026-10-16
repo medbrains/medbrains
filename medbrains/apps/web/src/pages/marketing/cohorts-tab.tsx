@@ -292,7 +292,10 @@ export function MarketingCohortsTab({
           <TextInput
             label="Cohort name"
             value={enquiryForm.name}
-            onChange={(event) => setEnquiryForm((f) => ({ ...f, name: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setEnquiryForm((f) => ({ ...f, name: nextValue }));
+            }}
           />
           <Select
             label="Source"
@@ -307,16 +310,20 @@ export function MarketingCohortsTab({
             label="Stage code"
             description="Leave blank to include every stage."
             value={enquiryForm.stage}
-            onChange={(event) =>
-              setEnquiryForm((f) => ({ ...f, stage: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setEnquiryForm((f) => ({ ...f, stage: nextValue }));
+            }}
           />
           <TextInput
             label="Locality"
             description="Reached us through a touchpoint in this ward. Leave blank for anywhere."
             list="cohort-areas"
             value={enquiryForm.area}
-            onChange={(event) => setEnquiryForm((f) => ({ ...f, area: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setEnquiryForm((f) => ({ ...f, area: nextValue }));
+            }}
           />
           <datalist id="cohort-areas">
             {areas.map((a) => (
@@ -345,9 +352,10 @@ export function MarketingCohortsTab({
             label="Only those who are not patients yet"
             description="Drops anybody who has already registered — the ones worth another call."
             checked={enquiryForm.unconvertedOnly}
-            onChange={(event) =>
-              setEnquiryForm((f) => ({ ...f, unconvertedOnly: event.currentTarget.checked }))
-            }
+            onChange={(event) => {
+              const nextChecked = event.currentTarget.checked;
+              setEnquiryForm((f) => ({ ...f, unconvertedOnly: nextChecked }));
+            }}
           />
           <Group justify="flex-end">
             <Button tone="secondary" size="xs" onClick={enquiryDrawer.close}>
@@ -381,18 +389,20 @@ export function MarketingCohortsTab({
           <TextInput
             label="List name"
             value={clinicalForm.name}
-            onChange={(event) =>
-              setClinicalForm((f) => ({ ...f, name: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setClinicalForm((f) => ({ ...f, name: nextValue }));
+            }}
           />
           <TextInput
             label="Label shown on the campaign"
             placeholder="Annual review due"
             description="Deliberately coarse. This is the only description that reaches marketing."
             value={clinicalForm.criteria_label}
-            onChange={(event) =>
-              setClinicalForm((f) => ({ ...f, criteria_label: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setClinicalForm((f) => ({ ...f, criteria_label: nextValue }));
+            }}
           />
           <NumberInput
             label="Not seen in (days)"

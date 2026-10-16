@@ -54,10 +54,18 @@ export interface DialysisSession {
   urr_pct: number | null;
   created_at: string;
   updated_at: string;
+  machine_id: string | null;
+  dialyzer_id: string | null;
+  slot_id: string | null;
+  dialyzer_use: number | null;
 }
 
 export interface CreateDialysisSessionRequest {
   patient_id: string;
+  /** The patient's dialyzer: its use is counted; refused when shared, discarded or used up. */
+  dialyzer_id?: string;
+  /** The booked shift; it names the machine. */
+  slot_id?: string;
   machine_number?: string;
   access_type?: string;
   pre_weight_kg?: number;
@@ -113,4 +121,71 @@ export interface AnthracyclineCumulativeResult {
   remaining_mg_m2: number | null;
   near_ceiling: boolean;
   over_ceiling: boolean;
+}
+
+// ── Dialysis unit: machines, dialyzers, shifts ──────────────────────────
+
+export type DialysisSerology = "none" | "hbsag" | "hcv" | "hiv";
+export type DialysisShift = "morning" | "afternoon" | "evening" | "night";
+
+export interface DialysisMachine {
+  id: string;
+  code: string;
+  name: string;
+  serology: DialysisSerology;
+  status: "active" | "maintenance" | "retired";
+  location: string | null;
+}
+
+export interface SaveDialysisMachineRequest {
+  code: string;
+  name: string;
+  serology: DialysisSerology;
+  status?: "active" | "maintenance" | "retired";
+  location?: string;
+}
+
+export interface Dialyzer {
+  id: string;
+  patient_id: string;
+  label: string;
+  model: string | null;
+  serology: DialysisSerology;
+  max_uses: number;
+  uses: number;
+  baseline_tcv_ml: string | null;
+  last_tcv_ml: string | null;
+  status: "in_use" | "discarded";
+  discard_reason: string | null;
+  issued_at: string;
+}
+
+export interface IssueDialyzerRequest {
+  patient_id: string;
+  label: string;
+  model?: string;
+  serology: DialysisSerology;
+  baseline_tcv_ml?: number;
+}
+
+export interface DialysisSlot {
+  id: string;
+  machine_id: string;
+  machine_code: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  slot_date: string;
+  shift: DialysisShift;
+  serology: DialysisSerology;
+  status: "booked" | "completed" | "cancelled";
+  created_at: string;
+}
+
+export interface BookDialysisSlotRequest {
+  machine_id: string;
+  patient_id: string;
+  slot_date: string;
+  shift: DialysisShift;
+  serology: DialysisSerology;
 }
