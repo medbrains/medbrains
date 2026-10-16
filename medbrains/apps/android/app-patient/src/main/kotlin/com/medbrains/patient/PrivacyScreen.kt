@@ -1,6 +1,11 @@
 package com.medbrains.patient
 
 import android.content.Context
+import android.content.Intent
+import androidx.core.content.FileProvider
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,6 +67,9 @@ import kotlinx.serialization.json.Json
 }
 
 private const val NOTICE_FILE = "dpdp-notice.json"
+/** Where the downloaded record is kept for sharing — the provider exposes only this folder. */
+const val EXPORT_DIR = "exports"
+const val EXPORT_FILE = "my-health-record.json"
 private val NOTICE_LANGUAGES = listOf("en", "hi", "ta")
 private const val DEFAULT_LANGUAGE = "en"
 /** Shorter than this is not yet a request anyone can act on (the server agrees). */
@@ -91,6 +99,8 @@ fun PrivacyScreen(portal: PortalApi) {
     var saving by remember { mutableStateOf(false) }
     var asking by remember { mutableStateOf(false) }
     var outcome by remember { mutableStateOf<PrivacyOutcome?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    var exported by remember { mutableStateOf<File?>(null) }
     LaunchedEffect(Unit) { remote.load { portal.privacy() } }
     val state by remote.state.collectAsState()
 
@@ -100,86 +110,124 @@ fun PrivacyScreen(portal: PortalApi) {
         CarbonSectionTitle("Your privacy")
         outcome?.let { CarbonNotification(it.kind, it.title, it.message, Modifier.padding(horizontal = 16.dp).testTag("privacy-outcome")) }
         RemoteContent("privacy", state, "Couldn't load your privacy settings", "Try again in a moment.", { false }, "", "", { reload() }) { privacy ->
-            val current = privacy.consent.history.firstOrNull()
-            val lang = language ?: current?.notice_language ?: DEFAULT_LANGUAGE
-            val chosen = choices ?: current?.purposes?.toSet().orEmpty()
-            val text = notice?.languages?.get(lang)
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (notice == null || text == null) {
-                    CarbonNotification(NotificationKind.Error, "The privacy notice is unavailable", "Ask the hospital's front desk.")
-                } else {
-                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("privacy-language")) {
-                        NOTICE_LANGUAGES.forEachIndexed { i, code ->
-                            SegmentedButton(
-                                selected = lang == code,
-                                onClick = { language = code },
-                                shape = SegmentedButtonDefaults.itemShape(i, NOTICE_LANGUAGES.size),
-                            ) { Text(notice.languages[code]?.language ?: code) }
-                        }
-                    }
-                    Text(text.collected, style = MaterialTheme.typography.bodyMedium)
-                    Text(text.purposesIntro, style = MaterialTheme.typography.titleSmall)
-                    notice.purposes.forEach { purpose ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(text.purposes[purpose] ?: purpose, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            Switch(
-                                checked = purpose in chosen,
-                                onCheckedChange = { on -> choices = if (on) chosen + purpose else chosen - purpose },
-                                modifier = Modifier.testTag("purpose-$purpose"),
-                            )
-                        }
-                    }
-                    Text(text.rights, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    CarbonPrimaryButton(
-                        if (saving) "Saving…" else "Save my choices",
-                        {
-                            saving = true
-                            scope.launch {
-                                outcome = runCatching {
-                                    portal.setConsent(DpdpConsentChoice(notice.version, lang, chosen.sorted()))
-                                }.fold(
-                                    onSuccess = { choices = null; PrivacyOutcome(NotificationKind.Success, "Your choices are saved", "You can change them here at any time.") },
-                                    onFailure = { PrivacyOutcome(NotificationKind.Error, "Not saved", it.message ?: "Try again in a moment.") },
-                                )
-                                saving = false
-                                remote.load { portal.privacy() }
+            // One column of its own: the content slot stacks its children, and
+            // sections laid over each other take each other's taps.
+            Column {
+                val current = privacy.consent.history.firstOrNull()
+                val lang = language ?: current?.notice_language ?: DEFAULT_LANGUAGE
+                val chosen = choices ?: current?.purposes?.toSet().orEmpty()
+                val text = notice?.languages?.get(lang)
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (notice == null || text == null) {
+                        CarbonNotification(NotificationKind.Error, "The privacy notice is unavailable", "Ask the hospital's front desk.")
+                    } else {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("privacy-language")) {
+                            NOTICE_LANGUAGES.forEachIndexed { i, code ->
+                                SegmentedButton(
+                                    selected = lang == code,
+                                    onClick = { language = code },
+                                    shape = SegmentedButtonDefaults.itemShape(i, NOTICE_LANGUAGES.size),
+                                ) { Text(notice.languages[code]?.language ?: code) }
                             }
-                        },
-                        Modifier.testTag("privacy-save"),
-                        enabled = choices != null && !saving,
-                    )
-                }
-            }
-            CarbonSectionTitle("What the hospital holds about you")
-            Column(Modifier.testTag("privacy-held")) {
-                privacy.held.held.filter { it.count > 0 }.forEach { CarbonRow(it.category, it.count.toString()) }
-                CarbonRow("Staff who opened your record this year", privacy.held.staff_who_viewed.toString())
-            }
-            CarbonSectionTitle("Your requests")
-            Column(Modifier.testTag("privacy-requests")) {
-                if (privacy.requests.isEmpty()) {
-                    Text("You have not made any requests.", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
-                }
-                privacy.requests.forEach { CarbonRow(REQUEST_LABEL[it.request_type] ?: it.request_type, requestState(it)) }
-                if (asking) {
-                    NewPrivacyRequest(
-                        onCancel = { asking = false },
-                        onSend = { kind, details, nominee ->
-                            scope.launch {
-                                outcome = runCatching { portal.makePrivacyRequest(PrivacyRequestAsk(kind, details, nominee)) }.fold(
-                                    onSuccess = { asking = false; PrivacyOutcome(NotificationKind.Success, "Request sent", "The hospital answers within 90 days.") },
-                                    onFailure = { PrivacyOutcome(NotificationKind.Error, "Request not sent", it.message ?: "Try again in a moment.") },
+                        }
+                        Text(text.collected, style = MaterialTheme.typography.bodyMedium)
+                        Text(text.purposesIntro, style = MaterialTheme.typography.titleSmall)
+                        notice.purposes.forEach { purpose ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(text.purposes[purpose] ?: purpose, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Switch(
+                                    checked = purpose in chosen,
+                                    onCheckedChange = { on -> choices = if (on) chosen + purpose else chosen - purpose },
+                                    modifier = Modifier.testTag("purpose-$purpose"),
                                 )
-                                remote.load { portal.privacy() }
                             }
-                        },
-                    )
-                } else {
-                    CarbonTertiaryButton("Make a request", { asking = true }, Modifier.padding(horizontal = 16.dp).testTag("privacy-make-request"))
+                        }
+                        Text(text.rights, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        CarbonPrimaryButton(
+                            if (saving) "Saving…" else "Save my choices",
+                            {
+                                saving = true
+                                scope.launch {
+                                    outcome = runCatching {
+                                        portal.setConsent(DpdpConsentChoice(notice.version, lang, chosen.sorted()))
+                                    }.fold(
+                                        onSuccess = { choices = null; PrivacyOutcome(NotificationKind.Success, "Your choices are saved", "You can change them here at any time.") },
+                                        onFailure = { PrivacyOutcome(NotificationKind.Error, "Not saved", it.message ?: "Try again in a moment.") },
+                                    )
+                                    saving = false
+                                    remote.load { portal.privacy() }
+                                }
+                            },
+                            Modifier.testTag("privacy-save"),
+                            enabled = choices != null && !saving,
+                        )
+                    }
+                }
+                CarbonSectionTitle("What the hospital holds about you")
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    val file = exported
+                    if (file == null) {
+                        CarbonTertiaryButton(
+                            if (exporting) "Preparing…" else "Download my data",
+                            {
+                                exporting = true
+                                scope.launch {
+                                    runCatching { saveExport(context, portal.exportRecord()) }
+                                        .onSuccess { exported = it }
+                                        .onFailure { outcome = PrivacyOutcome(NotificationKind.Error, "Your record didn't download", it.message ?: "Try again in a moment.") }
+                                    exporting = false
+                                }
+                            },
+                            Modifier.testTag("privacy-export"),
+                            enabled = !exporting,
+                        )
+                    } else {
+                        CarbonTertiaryButton("Share my record", { shareExport(context, file) }, Modifier.testTag("privacy-share-export"))
+                    }
+                }
+                Column(Modifier.testTag("privacy-held")) {
+                    privacy.held.held.filter { it.count > 0 }.forEach { CarbonRow(it.category, it.count.toString()) }
+                    CarbonRow("Staff who opened your record this year", privacy.held.staff_who_viewed.toString())
+                }
+                CarbonSectionTitle("Your requests")
+                Column(Modifier.testTag("privacy-requests")) {
+                    if (privacy.requests.isEmpty()) {
+                        Text("You have not made any requests.", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    privacy.requests.forEach { CarbonRow(REQUEST_LABEL[it.request_type] ?: it.request_type, requestState(it)) }
+                    if (asking) {
+                        NewPrivacyRequest(
+                            onCancel = { asking = false },
+                            onSend = { kind, details, nominee ->
+                                scope.launch {
+                                    outcome = runCatching { portal.makePrivacyRequest(PrivacyRequestAsk(kind, details, nominee)) }.fold(
+                                        onSuccess = { asking = false; PrivacyOutcome(NotificationKind.Success, "Request sent", "The hospital answers within 90 days.") },
+                                        onFailure = { PrivacyOutcome(NotificationKind.Error, "Request not sent", it.message ?: "Try again in a moment.") },
+                                    )
+                                    remote.load { portal.privacy() }
+                                }
+                            },
+                        )
+                    } else {
+                        CarbonTertiaryButton("Make a request", { asking = true }, Modifier.padding(horizontal = 16.dp).testTag("privacy-make-request"))
+                    }
                 }
             }
         }
     }
+}
+
+/** Keeps the downloaded record in the app's own cache, for the share sheet to hand on. */
+private suspend fun saveExport(context: Context, json: String): File = withContext(Dispatchers.IO) {
+    File(context.cacheDir, EXPORT_DIR).apply { mkdirs() }.resolve(EXPORT_FILE).apply { writeText(json) }
+}
+
+/** The phone's own share sheet; the patient chooses where their record goes. */
+private fun shareExport(context: Context, file: File) {
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+    val send = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(Intent.createChooser(send, "Share my record"))
 }
 
 private fun requestState(request: PrivacyRequestRow): String = when (request.status) {

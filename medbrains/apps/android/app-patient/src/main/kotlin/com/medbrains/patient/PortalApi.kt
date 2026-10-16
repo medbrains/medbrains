@@ -55,6 +55,8 @@ class PortalApi(private val client: ApiClient) {
     /** The server decides where it goes and refuses, with the reason, when it can't be asked for. */
     suspend fun requestRefill(prescriptionId: String): PortalRefillRequest = client.post("/api/portal/prescriptions/$prescriptionId/refill-request")
     suspend fun privacy(): PortalPrivacy = client.get("/api/portal/privacy")
+    /** The patient's own record as a FHIR R4 bundle, exactly as the server sent it. */
+    suspend fun exportRecord(): String = client.call("GET", "/api/portal/privacy/export")
     /** The patient's own change of mind — a new decision on the ledger. */
     suspend fun setConsent(choice: DpdpConsentChoice): PatientDpdpConsent = client.put("/api/portal/dpdp-consent", choice)
     /** Answered within 90 days; the server applies the same rules as the desk. */

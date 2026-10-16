@@ -38,6 +38,17 @@ public actor ApiClient {
 
     /// Request and decode. `Empty` for routes that answer nothing useful.
     public func request<T: Decodable>(_ method: HttpMethod, _ path: String, body: (some Encodable)? = Optional<Empty>.none, as type: T.Type = T.self) async throws -> T {
+        let data = try await perform(method, path, body: body)
+        if T.self == Empty.self { return Empty() as! T }
+        return try JSONDecoder.medbrains.decode(T.self, from: data)
+    }
+
+    /// The response exactly as sent — a file to save or share, not a value to decode.
+    public func download(_ path: String) async throws -> Data {
+        try await perform(.get, path, body: Optional<Empty>.none)
+    }
+
+    private func perform(_ method: HttpMethod, _ path: String, body: (some Encodable)?) async throws -> Data {
         // Resolved against the base, not appended as a path component: a
         // component is percent-encoded, which turns `?status=admitted` into
         // `%3Fstatus=admitted` and every filtered list into a 404.
@@ -63,8 +74,7 @@ public actor ApiClient {
             if status == 401, used == (try? secrets.read(.jwt)) { await onUnauthorized?() }
             throw ApiError(status: status, message: Self.errorMessage(from: data, status: status))
         }
-        if T.self == Empty.self { return Empty() as! T }
-        return try JSONDecoder.medbrains.decode(T.self, from: data)
+        return data
     }
 
     private static func errorMessage(from data: Data, status: Int) -> String {

@@ -16828,6 +16828,9 @@ export const api = {
   getPortalRefills: (token: string) =>
     request<PortalRefill[]>("/portal/refills", portalAuth(token)),
   getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
+  /** The patient's own record as a FHIR R4 collection bundle. */
+  getPortalExport: (token: string) =>
+    request<Record<string, unknown>>("/portal/privacy/export", portalAuth(token)),
   setPortalDpdpConsent: (token: string, data: DpdpConsentInput) =>
     request<PatientDpdpConsent>("/portal/dpdp-consent", {
       ...portalAuth(token),

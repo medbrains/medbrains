@@ -9,6 +9,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -18,6 +20,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.medbrains.testkit.Evidence
+import java.io.File
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -124,6 +127,20 @@ class PatientJourneyTest {
         val (purposes, source) = seed.dpdpConsent(patientId)
         check((reminders in purposes) == !hadReminders) { "the server holds the patient's new choice" }
         check(source == "portal") { "recorded as the patient's own decision" }
+
+        // Their record, downloaded to hand on — the share sheet is the phone's own.
+        compose.onNodeWithTag("privacy-export").performScrollTo().performClick()
+        // The notification speaks its message as a content description, not as text.
+        fun outcome() = compose.onAllNodes(hasTestTag("privacy-outcome")).fetchSemanticsNodes().joinToString { it.config.toString() }
+        runCatching { compose.waitUntil(30_000) { has("privacy-share-export") || "didn't download" in outcome() } }
+        check(has("privacy-share-export")) {
+            val tree = compose.onRoot(useUnmergedTree = true).printToString().lines()
+                .filter { "privacy" in it || "Download" in it || "Preparing" in it || "Share" in it || "Text =" in it }
+                .take(40).joinToString("\n")
+            "the record downloads: ${outcome()}\n$tree"
+        }
+        val saved = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "$EXPORT_DIR/$EXPORT_FILE").readText()
+        check(saved.contains("\"resourceType\":\"Bundle\"") && saved.contains(patientId)) { "the file is the patient's FHIR record" }
 
         // A request, made from the phone, reaches the privacy officer's register.
         compose.onNodeWithTag("privacy-make-request").performScrollTo().performClick()

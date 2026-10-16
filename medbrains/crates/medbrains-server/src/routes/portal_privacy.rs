@@ -67,6 +67,29 @@ pub struct PortalPrivacyRequest {
     pub nominee_contact: Option<String>,
 }
 
+/// `GET /api/portal/privacy/export` — the patient's own record as a FHIR R4
+/// bundle, to keep or to take to another hospital.
+#[tracing::instrument(skip_all)]
+pub async fn portal_export(
+    State(state): State<AppState>,
+    Extension(claims): Extension<PatientClaims>,
+) -> Result<axum::response::Response, AppError> {
+    use axum::response::IntoResponse;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let bundle =
+        medbrains_fhir_api::export::patient_export(&mut tx, claims.tenant_id, claims.pid).await?;
+    tx.commit().await?;
+    let headers = [
+        (axum::http::header::CONTENT_TYPE, "application/fhir+json"),
+        (
+            axum::http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"my-health-record.json\"",
+        ),
+    ];
+    Ok((headers, Json(medbrains_fhir::r4::Resource::Bundle(bundle))).into_response())
+}
+
 /// `POST /api/portal/privacy-requests` — the patient makes a request.
 #[tracing::instrument(skip_all)]
 pub async fn portal_create_request(
