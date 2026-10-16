@@ -260,7 +260,7 @@ pub async fn list_templates(
 
     let rows = sqlx::query_as::<_, CommTemplate>(
         "SELECT * FROM comm_templates \
-         WHERE ($1::text IS NULL OR channel::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR channel::text = $1) \
          AND ($2::text IS NULL OR template_type::text = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
          ORDER BY template_name LIMIT 200",
@@ -375,7 +375,7 @@ pub async fn list_messages(
 
     let rows = sqlx::query_as::<_, CommMessage>(
         "SELECT * FROM comm_messages \
-         WHERE ($1::text IS NULL OR channel::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR channel::text = $1) \
          AND ($2::text IS NULL OR status::text = $2) \
          AND ($3::text IS NULL OR recipient_type = $3) \
          AND ($4::text IS NULL OR context_type = $4) \
@@ -509,7 +509,7 @@ pub async fn list_clinical_messages(
 
     let rows = sqlx::query_as::<_, CommClinicalMessage>(
         "SELECT * FROM comm_clinical_messages \
-         WHERE ($1::uuid IS NULL OR sender_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR sender_id = $1) \
          AND ($2::uuid IS NULL OR recipient_id = $2) \
          AND ($3::uuid IS NULL OR patient_id = $3) \
          AND ($4::text IS NULL OR priority::text = $4) \
@@ -635,7 +635,7 @@ pub async fn list_critical_alerts(
 
     let rows = sqlx::query_as::<_, CommCriticalAlert>(
         "SELECT * FROM comm_critical_alerts \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR priority::text = $2) \
          AND ($3::text IS NULL OR alert_source = $3) \
          ORDER BY triggered_at DESC LIMIT 200",
@@ -760,7 +760,7 @@ pub async fn list_complaints(
 
     let rows = sqlx::query_as::<_, CommComplaint>(
         "SELECT * FROM comm_complaints \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR source::text = $2) \
          AND ($3::text IS NULL OR severity = $3) \
          AND ($4::uuid IS NULL OR department_id = $4) \
@@ -909,7 +909,7 @@ pub async fn list_feedback(
 
     let rows = sqlx::query_as::<_, CommFeedbackSurvey>(
         "SELECT * FROM comm_feedback_surveys \
-         WHERE ($1::text IS NULL OR feedback_type::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR feedback_type::text = $1) \
          AND ($2::uuid IS NULL OR department_id = $2) \
          ORDER BY submitted_at DESC LIMIT 200",
     )

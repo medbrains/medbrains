@@ -579,7 +579,7 @@ pub async fn list_orders(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE {where_clause}");
+    let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -595,7 +595,7 @@ pub async fn list_orders(
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
-        "SELECT * FROM radiology_orders WHERE {where_clause} \
+        "SELECT * FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause} \
          ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
@@ -1892,7 +1892,7 @@ pub async fn list_dicom_studies(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
-         WHERE tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
     )
     .bind(params.patient_id)
@@ -2172,7 +2172,7 @@ pub async fn list_dosimetry_records(
     let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
         "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
          d.dose_value, d.is_compliant \
-         FROM radiology_dosimetry_records d WHERE d.tenant_id = $1 \
+         FROM radiology_dosimetry_records d WHERE d.deleted_at IS NULL AND d.tenant_id = $1 \
          ORDER BY d.monitoring_period_end DESC LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -2337,9 +2337,10 @@ pub async fn list_patient_reports(
                 ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at \
          FROM radiology_reports r \
          JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
+              AND o.deleted_at IS NULL \
          LEFT JOIN radiology_modalities m ON m.id = o.modality_id AND m.tenant_id = o.tenant_id \
          LEFT JOIN radiology_critical_alerts ca ON ca.report_id = r.id AND ca.tenant_id = r.tenant_id \
-         WHERE o.patient_id = $1 AND r.tenant_id = $2 \
+         WHERE r.deleted_at IS NULL AND o.patient_id = $1 AND r.tenant_id = $2 \
          ORDER BY o.created_at DESC LIMIT 200",
     )
     .bind(patient_id)

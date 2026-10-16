@@ -205,7 +205,7 @@ pub async fn list_reviews(
          WHERE ($1::uuid IS NULL OR admission_id = $1) \
          AND ($2::text IS NULL OR review_type::text = $2) \
          AND ($3::text IS NULL OR decision::text = $3) \
-         AND ($4::bool IS NULL OR is_outlier = $4) \
+         AND ($4::bool IS NULL OR is_outlier = $4) AND deleted_at IS NULL \
          ORDER BY review_date DESC, created_at DESC \
          LIMIT 500",
     )
@@ -298,7 +298,7 @@ pub async fn list_outliers(
 
     let rows = sqlx::query_as::<_, UtilizationReview>(
         "SELECT * FROM utilization_reviews \
-         WHERE is_outlier = true \
+         WHERE is_outlier = true AND deleted_at IS NULL \
          ORDER BY review_date DESC, created_at DESC \
          LIMIT 500",
     )
@@ -443,7 +443,7 @@ pub async fn list_by_admission(
 
     let rows = sqlx::query_as::<_, UtilizationReview>(
         "SELECT * FROM utilization_reviews \
-         WHERE admission_id = $1 \
+         WHERE admission_id = $1 AND deleted_at IS NULL \
          ORDER BY review_date ASC, created_at ASC LIMIT 5000",
     )
     .bind(admission_id)
@@ -471,7 +471,7 @@ pub async fn list_communications(
 
     let rows = sqlx::query_as::<_, UrPayerCommunication>(
         "SELECT * FROM ur_payer_communications \
-         WHERE ($1::uuid IS NULL OR review_id = $1) \
+         WHERE ($1::uuid IS NULL OR review_id = $1) AND deleted_at IS NULL \
          ORDER BY communicated_at DESC \
          LIMIT 500",
     )
@@ -581,7 +581,7 @@ pub async fn list_conversions(
 
     let rows = sqlx::query_as::<_, UrStatusConversion>(
         "SELECT * FROM ur_status_conversions \
-         WHERE ($1::uuid IS NULL OR admission_id = $1) \
+         WHERE ($1::uuid IS NULL OR admission_id = $1) AND deleted_at IS NULL \
          ORDER BY conversion_date DESC, created_at DESC \
          LIMIT 500",
     )

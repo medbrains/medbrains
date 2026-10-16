@@ -229,13 +229,13 @@ pub async fn list_refunds(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1")
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1 AND deleted_at IS NULL")
         .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 
     let rows = sqlx::query_as::<_, Refund>(
-        "SELECT * FROM refunds WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        "SELECT * FROM refunds WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
     .bind(p.limit())
@@ -430,13 +430,13 @@ pub async fn list_credit_notes(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1")
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1 AND deleted_at IS NULL")
         .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 
     let rows = sqlx::query_as::<_, CreditNote>(
-        "SELECT * FROM credit_notes WHERE tenant_id = $1 \
+        "SELECT * FROM credit_notes WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)

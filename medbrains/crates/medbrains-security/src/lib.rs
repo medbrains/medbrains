@@ -288,7 +288,7 @@ pub async fn list_zones(
         .await?;
 
     let rows = sqlx::query_as::<_, SecurityZone>(
-        "SELECT * FROM security_zones ORDER BY zone_code LIMIT 5000",
+        "SELECT * FROM security_zones WHERE deleted_at IS NULL ORDER BY zone_code LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -393,7 +393,7 @@ pub async fn list_access_logs(
 
     let rows = sqlx::query_as::<_, SecurityAccessLog>(
         "SELECT * FROM security_access_logs \
-         WHERE ($1::uuid IS NULL OR zone_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR zone_id = $1) \
          AND ($2::uuid IS NULL OR employee_id = $2) \
          AND ($3::bool IS NULL OR is_after_hours = $3) \
          AND ($4::timestamptz IS NULL OR accessed_at >= $4) \
@@ -470,7 +470,7 @@ pub async fn list_access_cards(
 
     let rows = sqlx::query_as::<_, SecurityAccessCard>(
         "SELECT * FROM security_access_cards \
-         WHERE ($1::uuid IS NULL OR employee_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR employee_id = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          ORDER BY card_number LIMIT 5000",
     )
@@ -592,7 +592,7 @@ pub async fn list_cameras(
 
     let rows = sqlx::query_as::<_, SecurityCamera>(
         "SELECT * FROM security_cameras \
-         WHERE ($1::uuid IS NULL OR zone_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR zone_id = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          ORDER BY name LIMIT 5000",
     )
@@ -879,7 +879,7 @@ pub async fn list_patient_tags(
 
     let rows = sqlx::query_as::<_, SecurityPatientTag>(
         "SELECT * FROM security_patient_tags \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR patient_id = $1) \
          AND ($2::text IS NULL OR tag_type::text = $2) \
          AND ($3::text IS NULL OR alert_status::text = $3) \
          ORDER BY activated_at DESC LIMIT 200",
@@ -998,7 +998,7 @@ pub async fn list_tag_alerts(
 
     let rows = sqlx::query_as::<_, SecurityTagAlert>(
         "SELECT * FROM security_tag_alerts \
-         WHERE ($1::uuid IS NULL OR tag_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR tag_id = $1) \
          AND ($2::bool IS NULL OR is_resolved = $2) \
          ORDER BY triggered_at DESC LIMIT 200",
     )
@@ -1067,7 +1067,7 @@ pub async fn list_debriefs(
         .await?;
 
     let rows = sqlx::query_as::<_, SecurityCodeDebrief>(
-        "SELECT * FROM security_code_debriefs ORDER BY debrief_date DESC LIMIT 200",
+        "SELECT * FROM security_code_debriefs WHERE deleted_at IS NULL ORDER BY debrief_date DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;

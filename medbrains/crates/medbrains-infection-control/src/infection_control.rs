@@ -308,7 +308,7 @@ pub async fn list_surveillance(
     let rows = if let Some(ref hai) = params.hai_type {
         sqlx::query_as::<_, InfectionSurveillanceEvent>(
             "SELECT * FROM infection_surveillance_events \
-             WHERE tenant_id = $1 AND hai_type = $2::hai_type \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND hai_type = $2::hai_type \
              ORDER BY infection_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -318,7 +318,7 @@ pub async fn list_surveillance(
     } else if let Some(ref status) = params.infection_status {
         sqlx::query_as::<_, InfectionSurveillanceEvent>(
             "SELECT * FROM infection_surveillance_events \
-             WHERE tenant_id = $1 AND infection_status = $2::infection_status \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND infection_status = $2::infection_status \
              ORDER BY infection_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -328,7 +328,7 @@ pub async fn list_surveillance(
     } else {
         sqlx::query_as::<_, InfectionSurveillanceEvent>(
             "SELECT * FROM infection_surveillance_events \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY infection_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -412,7 +412,7 @@ pub async fn list_device_days(
     let rows = if let Some(loc) = params.location_id {
         sqlx::query_as::<_, InfectionDeviceDay>(
             "SELECT * FROM infection_device_days \
-             WHERE tenant_id = $1 AND location_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND location_id = $2 \
              ORDER BY record_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -422,7 +422,7 @@ pub async fn list_device_days(
     } else {
         sqlx::query_as::<_, InfectionDeviceDay>(
             "SELECT * FROM infection_device_days \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY record_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -495,7 +495,7 @@ pub async fn list_stewardship(
     let rows = if let Some(ref status) = params.request_status {
         sqlx::query_as::<_, AntibioticStewardshipRequest>(
             "SELECT * FROM antibiotic_stewardship_requests \
-             WHERE tenant_id = $1 AND request_status = $2::antibiotic_request_status \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND request_status = $2::antibiotic_request_status \
              ORDER BY requested_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -505,7 +505,7 @@ pub async fn list_stewardship(
     } else {
         sqlx::query_as::<_, AntibioticStewardshipRequest>(
             "SELECT * FROM antibiotic_stewardship_requests \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY requested_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -654,7 +654,7 @@ pub async fn list_consumption(
     let rows = if let Some(dept) = params.department_id {
         sqlx::query_as::<_, AntibioticConsumptionRecord>(
             "SELECT * FROM antibiotic_consumption_records \
-             WHERE tenant_id = $1 AND department_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY record_month DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -664,7 +664,7 @@ pub async fn list_consumption(
     } else {
         sqlx::query_as::<_, AntibioticConsumptionRecord>(
             "SELECT * FROM antibiotic_consumption_records \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY record_month DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -733,7 +733,7 @@ pub async fn list_biowaste(
     let rows = if let Some(ref cat) = params.waste_category {
         sqlx::query_as::<_, BiowasteRecord>(
             "SELECT * FROM biowaste_records \
-             WHERE tenant_id = $1 AND waste_category = $2::waste_category \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND waste_category = $2::waste_category \
              ORDER BY record_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -743,7 +743,7 @@ pub async fn list_biowaste(
     } else {
         sqlx::query_as::<_, BiowasteRecord>(
             "SELECT * FROM biowaste_records \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY record_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -813,7 +813,7 @@ pub async fn list_needle_stick(
     let rows = if let Some(dept) = params.department_id {
         sqlx::query_as::<_, NeedleStickIncident>(
             "SELECT * FROM needle_stick_incidents \
-             WHERE tenant_id = $1 AND department_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY incident_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -823,7 +823,7 @@ pub async fn list_needle_stick(
     } else {
         sqlx::query_as::<_, NeedleStickIncident>(
             "SELECT * FROM needle_stick_incidents \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY incident_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -900,7 +900,7 @@ pub async fn list_hygiene_audits(
     let rows = if let Some(dept) = params.department_id {
         sqlx::query_as::<_, HandHygieneAudit>(
             "SELECT * FROM hand_hygiene_audits \
-             WHERE tenant_id = $1 AND department_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY audit_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -910,7 +910,7 @@ pub async fn list_hygiene_audits(
     } else {
         sqlx::query_as::<_, HandHygieneAudit>(
             "SELECT * FROM hand_hygiene_audits \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY audit_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -978,7 +978,7 @@ pub async fn list_cultures(
     let rows = if let Some(dept) = params.department_id {
         sqlx::query_as::<_, CultureSurveillance>(
             "SELECT * FROM culture_surveillance \
-             WHERE tenant_id = $1 AND department_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY collection_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -988,7 +988,7 @@ pub async fn list_cultures(
     } else {
         sqlx::query_as::<_, CultureSurveillance>(
             "SELECT * FROM culture_surveillance \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY collection_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1054,7 +1054,7 @@ pub async fn list_outbreaks(
     let rows = if let Some(ref status) = params.outbreak_status {
         sqlx::query_as::<_, OutbreakEvent>(
             "SELECT * FROM outbreak_events \
-             WHERE tenant_id = $1 AND outbreak_status = $2::outbreak_status \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND outbreak_status = $2::outbreak_status \
              ORDER BY detected_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -1064,7 +1064,7 @@ pub async fn list_outbreaks(
     } else {
         sqlx::query_as::<_, OutbreakEvent>(
             "SELECT * FROM outbreak_events \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY detected_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1187,7 +1187,7 @@ pub async fn list_outbreak_contacts(
 
     let rows = sqlx::query_as::<_, OutbreakContact>(
         "SELECT * FROM outbreak_contacts \
-         WHERE tenant_id = $1 AND outbreak_id = $2 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND outbreak_id = $2 \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -1712,7 +1712,8 @@ pub async fn list_ic_meetings(
         sqlx::query_as::<_, IcMeetingRow>(
             "SELECT m.* FROM quality_committee_meetings m \
              JOIN quality_committees c ON c.id = m.committee_id AND c.tenant_id = m.tenant_id \
-             WHERE m.tenant_id = $1 AND c.committee_type = $2 \
+             AND c.deleted_at IS NULL \
+             WHERE m.tenant_id = $1 AND m.deleted_at IS NULL AND c.committee_type = $2 \
              ORDER BY m.scheduled_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1723,7 +1724,8 @@ pub async fn list_ic_meetings(
         sqlx::query_as::<_, IcMeetingRow>(
             "SELECT m.* FROM quality_committee_meetings m \
              JOIN quality_committees c ON c.id = m.committee_id AND c.tenant_id = m.tenant_id \
-             WHERE m.tenant_id = $1 \
+             AND c.deleted_at IS NULL \
+             WHERE m.tenant_id = $1 AND m.deleted_at IS NULL \
              AND (c.committee_type = 'infection_control' \
                   OR LOWER(c.name) LIKE '%infection%' \
                   OR LOWER(c.name) LIKE '%hicc%') \

@@ -258,7 +258,8 @@ pub struct AccreditationScore {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepartmentComplianceScore {
-    pub department_id: Uuid,
+    /// None for checklists that cover the whole hospital.
+    pub department_id: Option<Uuid>,
     pub department_name: String,
     pub avg_score: f64,
     pub checklist_count: i64,

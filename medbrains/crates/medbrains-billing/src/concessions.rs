@@ -113,7 +113,7 @@ pub async fn list_concessions(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
-    let mut where_clauses = vec!["tenant_id = $1".to_owned()];
+    let mut where_clauses = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx = 2u32;
 
     if params.status.is_some() {

@@ -711,6 +711,7 @@ pub async fn list_tokens(
         FROM queue_tokens
         WHERE tenant_id = $1
           AND token_date = $2
+          AND deleted_at IS NULL
           AND ($3::uuid IS NULL OR department_id = $3)
           AND ($4::text IS NULL OR status = $4)
         ORDER BY priority DESC, token_seq ASC

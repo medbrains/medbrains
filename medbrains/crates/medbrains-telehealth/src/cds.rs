@@ -1224,7 +1224,7 @@ pub async fn list_restricted_drug_approvals(
 
     let rows = sqlx::query_as::<_, RestrictedDrugApproval>(
         "SELECT * FROM restricted_drug_approvals \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -1359,7 +1359,7 @@ pub async fn list_pre_auth_requests(
     let rows = if let Some(pid) = patient_filter {
         sqlx::query_as::<_, PreAuthorizationRequest>(
             "SELECT * FROM pre_authorization_requests \
-             WHERE tenant_id = $1 AND patient_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND patient_id = $2 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -1369,7 +1369,7 @@ pub async fn list_pre_auth_requests(
     } else {
         sqlx::query_as::<_, PreAuthorizationRequest>(
             "SELECT * FROM pre_authorization_requests \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY created_at DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -1534,7 +1534,7 @@ pub async fn list_pg_logbook(
         if q.pending_verification.unwrap_or(false) {
             sqlx::query_as::<_, PgLogbookEntry>(
                 "SELECT * FROM pg_logbook_entries \
-                 WHERE tenant_id = $1 AND supervisor_id = $2 AND supervisor_verified = false \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND supervisor_id = $2 AND supervisor_verified = false \
                  ORDER BY entry_date DESC LIMIT 100",
             )
             .bind(claims.tenant_id)
@@ -1544,7 +1544,7 @@ pub async fn list_pg_logbook(
         } else {
             sqlx::query_as::<_, PgLogbookEntry>(
                 "SELECT * FROM pg_logbook_entries \
-                 WHERE tenant_id = $1 AND supervisor_id = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND supervisor_id = $2 \
                  ORDER BY entry_date DESC LIMIT 100",
             )
             .bind(claims.tenant_id)
@@ -1555,7 +1555,7 @@ pub async fn list_pg_logbook(
     } else if let Some(user_id) = q.user_id {
         sqlx::query_as::<_, PgLogbookEntry>(
             "SELECT * FROM pg_logbook_entries \
-             WHERE tenant_id = $1 AND user_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND user_id = $2 \
              ORDER BY entry_date DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -1565,7 +1565,7 @@ pub async fn list_pg_logbook(
     } else {
         sqlx::query_as::<_, PgLogbookEntry>(
             "SELECT * FROM pg_logbook_entries \
-             WHERE tenant_id = $1 AND user_id = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND user_id = $2 \
              ORDER BY entry_date DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -1667,7 +1667,7 @@ pub async fn list_co_signatures(
 
     let rows = sqlx::query_as::<_, CoSignatureRequest>(
         "SELECT * FROM co_signature_requests \
-         WHERE tenant_id = $1 AND (approver_id = $2 OR requested_by = $2) \
+         WHERE tenant_id = $1 AND deleted_at IS NULL AND (approver_id = $2 OR requested_by = $2) \
          ORDER BY created_at DESC LIMIT 100",
     )
     .bind(claims.tenant_id)

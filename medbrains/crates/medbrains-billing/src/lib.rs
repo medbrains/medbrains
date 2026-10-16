@@ -1665,7 +1665,7 @@ pub async fn list_payments(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let payments = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY paid_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
@@ -1740,7 +1740,7 @@ pub async fn list_receipts(
 
     let rows = sqlx::query_as::<_, Receipt>(
         "SELECT * FROM receipts \
-         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -2392,6 +2392,7 @@ pub async fn list_audit_log(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // allow-soft-deleted: the billing audit trail must show every entry, deleted or not.
     // Build dynamic WHERE
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut param_idx: usize = 2;
@@ -2509,7 +2510,7 @@ pub async fn list_exchange_rates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ExchangeRate>(
-        "SELECT * FROM exchange_rates WHERE tenant_id = $1 \
+        "SELECT * FROM exchange_rates WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR from_currency::text = $2) \
          AND ($3::date IS NULL OR effective_date >= $3) \
          AND ($4::date IS NULL OR effective_date <= $4) \

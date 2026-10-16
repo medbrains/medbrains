@@ -157,7 +157,7 @@ pub async fn list_handoffs_for_encounter(
 
     let rows = sqlx::query_as::<_, ShiftHandoff>(
         "SELECT * FROM shift_handoffs \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 50",
     )
     .bind(claims.tenant_id)
@@ -410,7 +410,7 @@ pub async fn list_code_blue(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, CodeBlueEvent>(
         "SELECT * FROM code_blue_events \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::bool = false OR ended_at IS NULL) \
          ORDER BY started_at DESC LIMIT $3",
     )
@@ -495,7 +495,7 @@ pub async fn list_equipment_checks(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, EquipmentCheck>(
         "SELECT * FROM equipment_checks \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::uuid IS NULL OR location_id = $2) \
            AND ($3::bool = false OR (next_check_due_at IS NOT NULL AND next_check_due_at <= now())) \
          ORDER BY checked_at DESC LIMIT $4",

@@ -958,6 +958,8 @@ pub async fn list_worklist(
     Extension(claims): Extension<Claims>,
     Query(query): Query<BoardQuery>,
 ) -> Result<Json<Vec<WorklistToken>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_queue_worklist(&claims, &query.module)?;
     check_view(query.view.as_deref())?;
 

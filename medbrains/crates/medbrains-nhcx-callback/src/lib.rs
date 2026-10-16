@@ -310,7 +310,7 @@ pub async fn list_callbacks(
                 decrypted_payload, verification_status, matched_table, \
                 matched_id, error_detail \
          FROM nhcx_callback_log \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::UUID IS NULL OR correlation_id = $2) \
            AND ($3::UUID IS NULL OR matched_id = $3) \
          ORDER BY received_at DESC \

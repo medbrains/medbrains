@@ -319,7 +319,7 @@ pub async fn list_vendors(
     let vendors = if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
         sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendors WHERE tenant_id = $1 \
+            "SELECT * FROM vendors WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND (name ILIKE $2 OR code ILIKE $2 OR contact_person ILIKE $2) \
              ORDER BY name LIMIT 5000",
         )
@@ -329,7 +329,7 @@ pub async fn list_vendors(
         .await?
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendors WHERE tenant_id = $1 AND status = $2::vendor_status ORDER BY name LIMIT 5000",
+            "SELECT * FROM vendors WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2::vendor_status ORDER BY name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -337,7 +337,7 @@ pub async fn list_vendors(
         .await?
     } else {
         sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+            "SELECT * FROM vendors WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -636,7 +636,7 @@ pub async fn list_purchase_orders(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx = 2;
 
     if params.status.is_some() {
@@ -990,13 +990,13 @@ pub async fn list_grns(
 
     let (count_sql, data_sql) = if params.po_id.is_some() {
         (
-            "SELECT COUNT(*) FROM goods_receipt_notes WHERE tenant_id = $1 AND po_id = $2".to_owned(),
-            "SELECT * FROM goods_receipt_notes WHERE tenant_id = $1 AND po_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4".to_owned(),
+            "SELECT COUNT(*) FROM goods_receipt_notes WHERE tenant_id = $1 AND deleted_at IS NULL AND po_id = $2".to_owned(),
+            "SELECT * FROM goods_receipt_notes WHERE tenant_id = $1 AND deleted_at IS NULL AND po_id = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4".to_owned(),
         )
     } else {
         (
-            "SELECT COUNT(*) FROM goods_receipt_notes WHERE tenant_id = $1".to_owned(),
-            "SELECT * FROM goods_receipt_notes WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3".to_owned(),
+            "SELECT COUNT(*) FROM goods_receipt_notes WHERE tenant_id = $1 AND deleted_at IS NULL".to_owned(),
+            "SELECT * FROM goods_receipt_notes WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3".to_owned(),
         )
     };
 
@@ -1456,7 +1456,7 @@ pub async fn list_rate_contracts(
 
     let contracts = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, RateContract>(
-            "SELECT * FROM rate_contracts WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY end_date DESC LIMIT 5000",
+            "SELECT * FROM rate_contracts WHERE tenant_id = $1 AND deleted_at IS NULL AND vendor_id = $2 ORDER BY end_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(vendor_id)
@@ -1464,7 +1464,7 @@ pub async fn list_rate_contracts(
         .await?
     } else {
         sqlx::query_as::<_, RateContract>(
-            "SELECT * FROM rate_contracts WHERE tenant_id = $1 ORDER BY end_date DESC LIMIT 5000",
+            "SELECT * FROM rate_contracts WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY end_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1587,7 +1587,7 @@ pub async fn list_batch_stock(
 
     let batches = if let Some(catalog_id) = params.catalog_item_id {
         sqlx::query_as::<_, BatchStock>(
-            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND catalog_item_id = $2 AND quantity > 0 \
+            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND deleted_at IS NULL AND catalog_item_id = $2 AND quantity > 0 \
              ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -1596,7 +1596,7 @@ pub async fn list_batch_stock(
         .await?
     } else if params.consignment_only.unwrap_or(false) {
         sqlx::query_as::<_, BatchStock>(
-            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND is_consignment = true AND quantity > 0 \
+            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND deleted_at IS NULL AND is_consignment = true AND quantity > 0 \
              ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -1604,7 +1604,7 @@ pub async fn list_batch_stock(
         .await?
     } else {
         sqlx::query_as::<_, BatchStock>(
-            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND quantity > 0 \
+            "SELECT * FROM batch_stock WHERE tenant_id = $1 AND deleted_at IS NULL AND quantity > 0 \
              ORDER BY expiry_date ASC NULLS LAST LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -1878,7 +1878,7 @@ pub async fn list_supplier_payments(
 
     let rows = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, SupplierPayment>(
-            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY created_at DESC LIMIT 5000",
+            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND deleted_at IS NULL AND vendor_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(vendor_id)
@@ -1886,7 +1886,7 @@ pub async fn list_supplier_payments(
         .await?
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, SupplierPayment>(
-            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND status = $2::supplier_payment_status ORDER BY created_at DESC LIMIT 5000",
+            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2::supplier_payment_status ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -1894,7 +1894,7 @@ pub async fn list_supplier_payments(
         .await?
     } else {
         sqlx::query_as::<_, SupplierPayment>(
-            "SELECT * FROM supplier_payments WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200",
+            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)

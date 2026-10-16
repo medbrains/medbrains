@@ -142,7 +142,7 @@ pub async fn list_free_dispensings(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, FreeDispensing>(
         "SELECT * FROM pharmacy_free_dispensings \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR category = $2) \
            AND ($3::date IS NULL OR created_at::date >= $3) \
          ORDER BY created_at DESC LIMIT $4",
@@ -237,7 +237,7 @@ pub async fn list_cashier_overrides(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, CashierOverride>(
         "SELECT * FROM pharmacy_cashier_overrides \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::uuid IS NULL OR cashier_user_id = $2) \
            AND ($3::text IS NULL OR override_type = $3) \
          ORDER BY created_at DESC LIMIT $4",
@@ -397,7 +397,7 @@ pub async fn list_supplier_payments(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, SupplierPayment>(
         "SELECT * FROM pharmacy_supplier_payments \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR supplier_id = $3) \
            AND ($4::bool = false OR (status IN ('scheduled','approved') AND due_date < CURRENT_DATE)) \
@@ -458,7 +458,7 @@ pub async fn list_margins(
         "SELECT m.*, c.name AS drug_name \
          FROM pharmacy_drug_margin_daily m \
          LEFT JOIN pharmacy_catalog c ON c.id = m.drug_id AND c.tenant_id = m.tenant_id \
-         WHERE m.tenant_id = $1 \
+         WHERE m.tenant_id = $1 AND m.deleted_at IS NULL \
            AND ($2::date IS NULL OR m.snapshot_date >= $2) \
            AND ($3::date IS NULL OR m.snapshot_date <= $3) \
            AND ($4::uuid IS NULL OR m.drug_id = $4) \

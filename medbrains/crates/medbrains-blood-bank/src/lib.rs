@@ -175,7 +175,7 @@ pub async fn list_donors(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     #[allow(clippy::items_after_statements)]
@@ -422,7 +422,7 @@ pub async fn list_donations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let donations = sqlx::query_as::<_, BloodDonation>(
-        "SELECT * FROM blood_donations WHERE donor_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM blood_donations WHERE donor_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY donated_at DESC LIMIT 5000",
     )
     .bind(donor_id)
@@ -490,7 +490,7 @@ pub async fn list_components(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     let mut string_binds: Vec<String> = Vec::new();
 
@@ -702,13 +702,13 @@ pub async fn list_crossmatch_requests(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let total: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM crossmatch_requests WHERE tenant_id = $1")
+        sqlx::query_scalar("SELECT COUNT(*) FROM crossmatch_requests WHERE tenant_id = $1 AND deleted_at IS NULL")
             .bind(claims.tenant_id)
             .fetch_one(&mut *tx)
             .await?;
 
     let requests = sqlx::query_as::<_, CrossmatchRequest>(
-        "SELECT * FROM crossmatch_requests WHERE tenant_id = $1 \
+        "SELECT * FROM crossmatch_requests WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
@@ -1465,7 +1465,7 @@ pub async fn list_campaigns(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, BbRecruitmentCampaign>(
             "SELECT * FROM bb_recruitment_campaigns \
-             WHERE tenant_id = $1 AND status = $2 ORDER BY start_date DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND status = $2 AND deleted_at IS NULL ORDER BY start_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -1474,7 +1474,7 @@ pub async fn list_campaigns(
     } else {
         sqlx::query_as::<_, BbRecruitmentCampaign>(
             "SELECT * FROM bb_recruitment_campaigns \
-             WHERE tenant_id = $1 ORDER BY start_date DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY start_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1584,7 +1584,7 @@ pub async fn list_devices(
 
     let rows = sqlx::query_as::<_, BbColdChainDevice>(
         "SELECT * FROM bb_cold_chain_devices \
-         WHERE tenant_id = $1 ORDER BY device_name ASC LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY device_name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1716,7 +1716,7 @@ pub async fn list_readings(
 
     let rows = sqlx::query_as::<_, BbColdChainReading>(
         "SELECT * FROM bb_cold_chain_readings \
-         WHERE tenant_id = $1 AND device_id = $2 \
+         WHERE tenant_id = $1 AND device_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -1866,7 +1866,7 @@ pub async fn list_msbos(
 
     let rows = sqlx::query_as::<_, BbMsbosGuideline>(
         "SELECT * FROM bb_msbos_guidelines \
-         WHERE tenant_id = $1 ORDER BY procedure_name ASC LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY procedure_name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1935,7 +1935,7 @@ pub async fn list_lookback(
 
     let rows = sqlx::query_as::<_, BbLookbackEvent>(
         "SELECT * FROM bb_lookback_events \
-         WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2059,7 +2059,7 @@ pub async fn list_billing(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     let mut string_binds: Vec<String> = Vec::new();
     let mut uuid_binds: Vec<Uuid> = Vec::new();

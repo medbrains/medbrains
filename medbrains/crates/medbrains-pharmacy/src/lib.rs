@@ -1785,7 +1785,7 @@ pub async fn list_orders(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -4183,7 +4183,7 @@ pub async fn list_catalog(
 
     let rows = sqlx::query_as::<_, PharmacyCatalog>(
         "SELECT * FROM pharmacy_catalog
-         WHERE tenant_id = $1
+         WHERE tenant_id = $1 AND deleted_at IS NULL
            AND ($2::text IS NULL OR name ILIKE $2 OR generic_name ILIKE $2 OR code ILIKE $2)
            AND ($3::text IS NULL OR category = $3)
            AND ($4::text IS NULL OR formulary_status::text = $4)
@@ -4547,7 +4547,7 @@ pub async fn list_ndps_entries(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     if params.catalog_item_id.is_some() {
@@ -4814,7 +4814,7 @@ pub async fn list_batches(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     if params.catalog_item_id.is_some() {
@@ -5208,7 +5208,7 @@ pub async fn list_store_assignments(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreAssignment>(
-        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5478,7 +5478,7 @@ pub async fn list_transfers(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -5487,7 +5487,7 @@ pub async fn list_transfers(
     } else {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -5672,7 +5672,7 @@ pub async fn list_returns(
                 p.uhid AS patient_uhid \
            FROM pharmacy_returns r \
            LEFT JOIN patients p ON p.id = r.patient_id AND p.tenant_id = r.tenant_id \
-          WHERE r.tenant_id = $1 ORDER BY r.created_at DESC LIMIT 200",
+          WHERE r.tenant_id = $1 AND r.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -7758,7 +7758,7 @@ pub async fn list_pos_sales(
 
     let rows = sqlx::query_as::<_, PharmacyPosSale>(
         "SELECT * FROM pharmacy_pos_sales
-         WHERE tenant_id = $1
+         WHERE tenant_id = $1 AND deleted_at IS NULL
            AND ($2::text IS NULL OR payment_mode::text = $2)
            AND created_at >= COALESCE($3::date, CURRENT_DATE)::timestamptz
          ORDER BY created_at DESC LIMIT 100",
@@ -7797,7 +7797,7 @@ pub async fn list_pos_sale_items(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyPosSaleItem>(
-        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at, drug_name LIMIT 5000",
     )
     .bind(id)

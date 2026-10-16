@@ -1210,7 +1210,7 @@ pub async fn list_outcome_targets(
     let rows = sqlx::query_as::<_, OutcomeTargetRow>(
         "SELECT id, parameter_name, loinc_code, target_value, unit, comparison, \
          effective_from, notes, enrollment_id \
-         FROM patient_outcome_targets WHERE patient_id = $1 \
+         FROM patient_outcome_targets WHERE patient_id = $1 AND deleted_at IS NULL \
          ORDER BY parameter_name LIMIT 5000",
     )
     .bind(patient_id)
@@ -1456,7 +1456,7 @@ pub async fn list_interaction_alerts(
         "SELECT id, drug_a_name, drug_b_name, severity, description, management, \
          status, acknowledged_by, acknowledged_at, override_reason, detected_at \
          FROM polypharmacy_interaction_alerts \
-         WHERE patient_id = $1 \
+         WHERE patient_id = $1 AND deleted_at IS NULL \
          ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, detected_at DESC \
          LIMIT 100",
     )

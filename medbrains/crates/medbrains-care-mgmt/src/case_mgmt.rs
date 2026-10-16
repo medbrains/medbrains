@@ -183,7 +183,7 @@ pub async fn list_assignments(
 
     let rows = sqlx::query_as::<_, CaseAssignment>(
         "SELECT * FROM case_assignments \
-         WHERE ($1::uuid IS NULL OR case_manager_id = $1) \
+         WHERE ($1::uuid IS NULL OR case_manager_id = $1) AND deleted_at IS NULL \
          AND ($2::text IS NULL OR status::text = $2) \
          AND ($3::text IS NULL OR priority = $3) \
          AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
@@ -452,11 +452,11 @@ pub async fn list_barriers(
 
     let rows = sqlx::query_as::<_, DischargeBarrier>(
         "SELECT * FROM discharge_barriers \
-         WHERE ($1::uuid IS NULL OR case_assignment_id = $1) \
+         WHERE ($1::uuid IS NULL OR case_assignment_id = $1) AND deleted_at IS NULL \
          AND ($2::text IS NULL OR barrier_type::text = $2) \
          AND ($3::bool IS NULL OR is_resolved = $3) \
          AND ($4::uuid[] IS NULL OR case_assignment_id IN ( \
-               SELECT id FROM case_assignments WHERE patient_id = ANY($4))) \
+               SELECT id FROM case_assignments WHERE patient_id = ANY($4) AND deleted_at IS NULL)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.case_assignment_id)
@@ -597,11 +597,11 @@ pub async fn list_referrals(
 
     let rows = sqlx::query_as::<_, CaseReferral>(
         "SELECT * FROM case_referrals \
-         WHERE ($1::uuid IS NULL OR case_assignment_id = $1) \
+         WHERE ($1::uuid IS NULL OR case_assignment_id = $1) AND deleted_at IS NULL \
          AND ($2::text IS NULL OR referral_type = $2) \
          AND ($3::text IS NULL OR status = $3) \
          AND ($4::uuid[] IS NULL OR case_assignment_id IN ( \
-               SELECT id FROM case_assignments WHERE patient_id = ANY($4))) \
+               SELECT id FROM case_assignments WHERE patient_id = ANY($4) AND deleted_at IS NULL)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.case_assignment_id)

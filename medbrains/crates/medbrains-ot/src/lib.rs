@@ -355,7 +355,7 @@ pub async fn list_rooms(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, OtRoom>(
-        "SELECT * FROM ot_rooms WHERE tenant_id = $1 ORDER BY name ASC LIMIT 5000",
+        "SELECT * FROM ot_rooms WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -536,7 +536,7 @@ pub async fn list_bookings(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE {where_clause}");
+    let count_sql = format!("SELECT COUNT(*) FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause}");
     let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -552,7 +552,7 @@ pub async fn list_bookings(
     let total = count_q.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
-        "SELECT * FROM ot_bookings WHERE {where_clause} \
+        "SELECT * FROM ot_bookings WHERE deleted_at IS NULL AND {where_clause} \
          ORDER BY scheduled_date ASC, scheduled_start ASC \
          LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
@@ -2737,9 +2737,11 @@ pub async fn list_anesthesia_complications(
            b.scheduled_date AS case_date \
          FROM ot_anesthesia_records ar \
          JOIN ot_bookings b ON b.id = ar.booking_id AND b.tenant_id = ar.tenant_id \
+              AND b.deleted_at IS NULL \
          JOIN ot_case_records cr ON cr.booking_id = ar.booking_id AND cr.tenant_id = ar.tenant_id \
-         JOIN patients p ON p.id = b.patient_id \
-         WHERE ar.tenant_id = $1 \
+              AND cr.deleted_at IS NULL \
+         JOIN patients p ON p.id = b.patient_id AND p.deleted_at IS NULL \
+         WHERE ar.deleted_at IS NULL AND ar.tenant_id = $1 \
            AND b.scheduled_date BETWEEN $2 AND $3 \
            AND ($4::uuid[] IS NULL OR b.patient_id = ANY($4)) \
            AND (ar.complications IS NOT NULL AND ar.complications <> '' \
