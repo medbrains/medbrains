@@ -174,12 +174,6 @@ export const DEFAULT_OPD_FEEDBACK_FORM_VALUES: OpdFeedbackFormInput = {
 export const DEFAULT_OPD_CONSENT_FORM_VALUES: OpdProcedureConsentFormInput = {
   procedure_name: "",
   consent_type: "procedure",
-  risks_explained: "",
-  alternatives_explained: "",
-  benefits_explained: "",
-  consented_by_name: "",
-  consented_by_relation: "",
-  witness_name: "",
 };
 
 export const DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES: OpdMedicalCertificateFormInput = {
@@ -341,12 +335,6 @@ export function toCreateConsentRequest(
     encounter_id: encounterId,
     procedure_name: values.procedure_name.trim(),
     consent_type: values.consent_type,
-    risks_explained: optionalTextFromFormValue(values.risks_explained),
-    alternatives_explained: optionalTextFromFormValue(values.alternatives_explained),
-    benefits_explained: optionalTextFromFormValue(values.benefits_explained),
-    consented_by_name: optionalTextFromFormValue(values.consented_by_name),
-    consented_by_relation: optionalTextFromFormValue(values.consented_by_relation),
-    witness_name: optionalTextFromFormValue(values.witness_name),
   };
 }
 

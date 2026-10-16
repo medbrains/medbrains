@@ -20,7 +20,6 @@ import {
   type OpdMedicalCertificateFormInput,
   opdFeedbackFormSchema,
   opdMedicalCertificateFormSchema,
-  opdProcedureConsentFormSchema,
   opdProcedureOrderFormSchema,
   opdReminderFormSchema,
 } from "@medbrains/schemas";
@@ -54,6 +53,7 @@ import {
   IconCertificate,
   IconCheck,
   IconClock,
+  IconEye,
   IconFileCheck,
   IconFlask,
   IconMedicalCross,
@@ -73,18 +73,15 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
-  DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
   DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
   DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
   DEFAULT_OPD_REMINDER_FORM_VALUES,
   OPD_CERTIFICATE_TYPE_OPTIONS,
-  OPD_CONSENT_TYPE_OPTIONS,
   OPD_PROCEDURE_PRIORITY_OPTIONS,
   OPD_RATING_OPTIONS,
   OPD_REMINDER_PRIORITY_OPTIONS,
   OPD_REMINDER_TYPE_OPTIONS,
-  toCreateConsentRequest,
   toCreateFeedbackRequest,
   toCreateMedicalCertificateRequest,
   toCreateProcedureOrderRequest,
@@ -94,7 +91,8 @@ import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
-import { isOtConsentType, OtBookingForConsentSelect } from "./OtBookingForConsentSelect";
+import { ConsentAnswersModal } from "./ConsentAnswersModal";
+import { NewConsentModal } from "./NewConsentModal";
 import { ReferralActions } from "./referral-actions";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
@@ -1752,20 +1750,7 @@ export function ConsentsTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(opdProcedureConsentFormSchema),
-    defaultValues: DEFAULT_OPD_CONSENT_FORM_VALUES,
-    mode: "onTouched",
-  });
-  const procedureName = watch("procedure_name");
-  const consentType = watch("consent_type");
-  const [otBookingId, setOtBookingId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<ProcedureConsent | null>(null);
 
   const { data: consents = [] } = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
@@ -1778,8 +1763,6 @@ export function ConsentsTab({
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       toast.success(variables.procedure_name, { title: "Consent created" });
       formHandlers.close();
-      reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
-      setOtBookingId(null);
     },
     onError: (error: Error) => {
       toast.error(error.message, { title: "Consent not created" });
@@ -1803,19 +1786,6 @@ export function ConsentsTab({
       toast.success("Consent has been signed", { title: "Consent signed" });
     },
   });
-
-  const handleCreate = handleSubmit((values) => {
-    createMutation.mutate({
-      ...toCreateConsentRequest(values, patientId, encounterId),
-      ot_booking_id: isOtConsentType(values.consent_type) ? (otBookingId ?? undefined) : undefined,
-    });
-  });
-
-  const closeForm = () => {
-    formHandlers.close();
-    reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
-    setOtBookingId(null);
-  };
 
   const consentStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
@@ -1871,6 +1841,15 @@ export function ConsentsTab({
                 <Table.Td>{c.consented_by_name ?? "—"}</Table.Td>
                 <Table.Td>{new Date(c.created_at).toLocaleDateString()}</Table.Td>
                 <Table.Td>
+                  <Tooltip label="View answers">
+                    <IconButton
+                      size="sm"
+                      onClick={() => setViewing(c)}
+                      aria-label={`View consent for ${c.procedure_name}`}
+                    >
+                      <IconEye size={14} />
+                    </IconButton>
+                  </Tooltip>
                   {c.status === "pending" && canSignConsent && (
                     <Tooltip label="Sign Consent">
                       <IconButton
@@ -1890,93 +1869,15 @@ export function ConsentsTab({
         </Table>
       )}
 
-      <Modal opened={formOpened} onClose={closeForm} title="New Procedure Consent" size="lg">
-        <Stack gap="sm">
-          <Controller
-            control={control}
-            name="procedure_name"
-            render={({ field }) => (
-              <TextInput
-                label="Procedure Name"
-                error={errors.procedure_name?.message}
-                required
-                {...field}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="consent_type"
-            render={({ field }) => (
-              <Select
-                label="Consent Type"
-                data={OPD_CONSENT_TYPE_OPTIONS}
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.consent_type?.message}
-              />
-            )}
-          />
-          <OtBookingForConsentSelect
-            patientId={patientId}
-            consentType={consentType}
-            value={otBookingId}
-            onChange={setOtBookingId}
-          />
-          <Controller
-            control={control}
-            name="risks_explained"
-            render={({ field }) => (
-              <Textarea label="Risks Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Controller
-            control={control}
-            name="alternatives_explained"
-            render={({ field }) => (
-              <Textarea label="Alternatives Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Controller
-            control={control}
-            name="benefits_explained"
-            render={({ field }) => (
-              <Textarea label="Benefits Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="consented_by_name"
-              render={({ field }) => <TextInput label="Consented By (Name)" {...field} />}
-            />
-            <Controller
-              control={control}
-              name="consented_by_relation"
-              render={({ field }) => <TextInput label="Relation to Patient" {...field} />}
-            />
-          </Group>
-          <Controller
-            control={control}
-            name="witness_name"
-            render={({ field }) => <TextInput label="Witness Name" {...field} />}
-          />
-          <Group justify="flex-end">
-            <Button tone="ghost" onClick={closeForm}>
-              Cancel
-            </Button>
-            <Button
-              tone="primary"
-              onClick={handleCreate}
-              loading={createMutation.isPending}
-              disabled={!procedureName.trim()}
-              leftSection={<IconFileCheck size={14} />}
-            >
-              Create Consent
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <NewConsentModal
+        opened={formOpened}
+        patientId={patientId}
+        encounterId={encounterId}
+        saving={createMutation.isPending}
+        onClose={formHandlers.close}
+        onCreate={(request) => createMutation.mutate(request)}
+      />
+      <ConsentAnswersModal consent={viewing} onClose={() => setViewing(null)} />
     </Stack>
   );
 }

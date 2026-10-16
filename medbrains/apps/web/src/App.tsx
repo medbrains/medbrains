@@ -433,6 +433,9 @@ const DocumentTemplatesPage = lazy(() =>
 const IntegrationHubPage = lazy(() =>
   import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })),
 );
+const FormTemplatesPage = lazy(() =>
+  import("./pages/admin/forms").then((m) => ({ default: m.FormTemplatesPage })),
+);
 const TvDisplaysPage = lazy(() =>
   import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })),
 );
@@ -698,6 +701,7 @@ export function App() {
                   element={<Navigate to="/admin/settings#device-integrations" replace />}
                 />
                 <Route path="integration-hub" element={<IntegrationHubPage />} />
+                <Route path="forms" element={<FormTemplatesPage />} />
                 <Route
                   path="integration-builder"
                   element={<Navigate to="/admin/integration-hub" replace />}

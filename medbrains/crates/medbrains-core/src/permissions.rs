@@ -1020,6 +1020,35 @@ pub mod camp {
     }
 }
 
+pub mod forms {
+    pub mod templates {
+        /// See the hospital's forms.
+        ///
+        /// The list of forms the hospital has built or customised, with each
+        /// one's drafts and published versions.
+        pub const LIST: &str = "forms.templates.list";
+        /// Build and edit form drafts.
+        ///
+        /// Create a form, change its draft, and retire it. A draft is never
+        /// what staff fill in; only a published version is.
+        pub const MANAGE: &str = "forms.templates.manage";
+        /// Publish a form version.
+        ///
+        /// Makes the current draft the version staff fill in from now on. A
+        /// published version never changes, so every record keeps the exact
+        /// questions it was answered against.
+        pub const PUBLISH: &str = "forms.templates.publish";
+    }
+
+    pub mod definitions {
+        /// Load the live version of a form.
+        ///
+        /// Needed by anyone who fills in a configurable form, such as a
+        /// procedure consent. It reveals the questions, never any answers.
+        pub const READ: &str = "forms.definitions.read";
+    }
+}
+
 pub mod consent {
     pub mod templates {
         pub const LIST: &str = "consent.templates.list";

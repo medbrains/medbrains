@@ -350,6 +350,9 @@ pub struct ProcedureConsent {
     pub withdrawal_reason: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub body: serde_json::Value,
+    /// The hospital's published consent form this was taken on; none means
+    /// the built-in form.
+    pub form_version_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

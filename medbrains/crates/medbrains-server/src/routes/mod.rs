@@ -475,6 +475,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
         .merge(medbrains_consent::router())
+        .merge(medbrains_forms::router())
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
         .merge(medbrains_ambulance::router())

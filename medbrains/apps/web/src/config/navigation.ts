@@ -285,6 +285,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/admin/settings": { abbr: "Cfg", color: "#0e6027" },
   "/admin/document-templates": { abbr: "DT", color: "#d02670" },
   "/admin/integration-hub": { abbr: "IH", color: "#343a3f" },
+  "/admin/forms": { abbr: "Frm", color: "#6929c4" },
   "/admin/doctor-schedules": { abbr: "DS", color: "#0f62fe" },
   "/admin/documents": { abbr: "Dcs", color: "#007d79" },
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
@@ -1381,6 +1382,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/integration-hub",
             icon: "IconPlug",
             requiredPermission: "integration.list",
+          },
+          {
+            i18nKey: "formTemplates",
+            path: "/admin/forms",
+            icon: "IconForms",
+            requiredPermission: "forms.templates.list",
           },
           {
             i18nKey: "doctorSchedules",

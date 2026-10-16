@@ -5312,6 +5312,32 @@ pub struct CreateConsentRequest {
     /// The OT booking this surgical/anaesthesia consent is taken for. It then
     /// covers that operation without a separate link step on the OT screen.
     pub ot_booking_id: Option<Uuid>,
+    /// Answers to the hospital's consent form, checked against
+    /// `form_version_id` (none = the built-in form). Answers whose keys are
+    /// the record's own columns fill those columns; the rest stay in `body`.
+    pub answers: Option<serde_json::Map<String, serde_json::Value>>,
+    pub form_version_id: Option<Uuid>,
+}
+
+/// Fill the consent's own columns from the form's answers to them.
+fn apply_consent_answers(
+    body: &mut CreateConsentRequest,
+    answers: &serde_json::Map<String, serde_json::Value>,
+) {
+    let take = |key: &str| {
+        answers
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    body.risks_explained = take("risks_explained");
+    body.alternatives_explained = take("alternatives_explained");
+    body.benefits_explained = take("benefits_explained");
+    body.patient_questions = take("patient_questions");
+    body.consented_by_name = take("consented_by_name");
+    body.consented_by_relation = take("consented_by_relation");
+    body.witness_name = take("witness_name");
+    body.witness_designation = take("witness_designation");
 }
 
 #[derive(Debug, Deserialize)]
@@ -5350,7 +5376,7 @@ pub async fn list_consents(
 pub async fn create_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateConsentRequest>,
+    Json(mut body): Json<CreateConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::CREATE)?;
     // `ensure_opd_patient_context_in_tx` below proves the patient EXISTS in this
@@ -5359,7 +5385,11 @@ pub async fn create_consent(
     // on that patient, and a consent is their decision recorded.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
-    let consent_type = body.consent_type.as_deref().unwrap_or("procedure");
+    let consent_type = body
+        .consent_type
+        .clone()
+        .unwrap_or_else(|| "procedure".to_owned());
+    let consent_type = consent_type.as_str();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5381,13 +5411,40 @@ pub async fn create_consent(
         .await?;
     }
 
+    // A version id counts only once its answers have been checked against it.
+    let (form_body, form_version) = match body.answers.take() {
+        Some(answers) => {
+            let code = medbrains_core::form_template::PROCEDURE_CONSENT;
+            let (clean, version, definition) = medbrains_forms::check_submission(
+                &mut tx,
+                claims.tenant_id,
+                code,
+                body.form_version_id,
+                &answers,
+            )
+            .await?;
+            apply_consent_answers(&mut body, &clean);
+            // A built-in form lives in code and may change; the record keeps
+            // the questions it was answered on. A published version is
+            // immutable, so its id is enough.
+            let mut record =
+                serde_json::json!({ "form": code, "version": version, "answers": clean });
+            if version.is_none() {
+                record["definition"] = serde_json::to_value(&definition)
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+            (record, body.form_version_id)
+        }
+        None => (serde_json::json!({}), None),
+    };
+
     let row = sqlx::query_as::<_, ProcedureConsent>(
         "INSERT INTO procedure_consents \
          (tenant_id, patient_id, encounter_id, procedure_order_id, procedure_name, \
           consent_type, risks_explained, alternatives_explained, benefits_explained, \
           patient_questions, consented_by_name, consented_by_relation, \
-          witness_name, witness_designation, doctor_id, ot_booking_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
+          witness_name, witness_designation, doctor_id, ot_booking_id, body, form_version_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -5406,6 +5463,8 @@ pub async fn create_consent(
     .bind(&body.witness_designation)
     .bind(claims.sub)
     .bind(body.ot_booking_id)
+    .bind(form_body)
+    .bind(form_version)
     .fetch_one(&mut *tx)
     .await?;
 

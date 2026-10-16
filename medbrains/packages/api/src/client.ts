@@ -533,7 +533,6 @@ import type {
   CreateDonorRequest,
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
-  CreatePrivacyRequest,
   CreatedApiKey,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
@@ -561,6 +560,7 @@ import type {
   CreateFmsWaterScheduleRequest,
   CreateFmsWaterTestRequest,
   CreateFmsWorkOrderRequest,
+  CreateFormTemplateRequest,
   CreateGlAccountRequest,
   CreateGrnRequest,
   CreateGroupTemplate,
@@ -701,6 +701,7 @@ import type {
   CreatePrescriptionTemplateRequest,
   CreatePrinterRequest,
   CreatePriorAuthRequestBody,
+  CreatePrivacyRequest,
   CreateProcedureOrderRequest,
   CreateProficiencyTestRequest,
   CreatePsychAssessmentRequest,
@@ -845,6 +846,8 @@ import type {
   DashboardSummary,
   DashboardWithWidgets,
   DataMigration,
+  DataProcessor,
+  DataProcessorInput,
   DataQualityDashboard,
   DataQualityIssue,
   DataQualityQuery,
@@ -862,6 +865,7 @@ import type {
   DecideApprovalRequest,
   DecidedApprovalRequest,
   DecideItemRequest,
+  DecidePrivacyRequest,
   DeclineReferralRequest,
   DeliveryOptions,
   DeliveryRunner,
@@ -942,11 +946,8 @@ import type {
   DomainStatus,
   // Blood Bank
   DonorListResponse,
-  DpdpConsentPrintData,
-  DataProcessor,
-  DataProcessorInput,
-  DecidePrivacyRequest,
   DpdpConsentInput,
+  DpdpConsentPrintData,
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
@@ -1037,6 +1038,10 @@ import type {
   FmsWaterTest,
   FmsWorkOrder,
   FollowupComplianceRow,
+  FormTemplate,
+  FormTemplateDetail,
+  FormTemplateListItem,
+  FormTemplateVersion,
   FormularyCheckResult,
   FrontOfficeEnquiryLog,
   FsnAnalysisRow,
@@ -1276,6 +1281,7 @@ import type {
   ListCampAssetCandidatesParams,
   ListMrdCaseSheetPacketsParams,
   ListQueueTokensQuery,
+  LiveForm,
   LiveStewardshipRequest,
   LmsCertificate,
   LmsComplianceRow,
@@ -1510,13 +1516,11 @@ import type {
   PatientConsumableIssue,
   PatientContact,
   PatientContactConsents,
-  PatientDataSummary,
-  PatientDpdpConsent,
-  PortalPrivacy,
-  PortalPrivacyRequestInput,
   PatientContext,
+  PatientDataSummary,
   PatientDiagnosisRow,
   PatientDocument,
+  PatientDpdpConsent,
   PatientFamilyLink,
   PatientFeedback,
   // Command Center
@@ -1608,6 +1612,8 @@ import type {
   PortalInvoice,
   PortalLabReport,
   PortalPrescriptionItem,
+  PortalPrivacy,
+  PortalPrivacyRequestInput,
   PortalRefill,
   PortalRefillRequest,
   PortalSession,
@@ -2070,6 +2076,7 @@ import type {
   UpdateFmsGasComplianceRequest,
   UpdateFmsWaterScheduleRequest,
   UpdateFmsWorkOrderStatusRequest,
+  UpdateFormTemplateRequest,
   UpdateGlAccountRequest,
   UpdateHomeCollectionRequest,
   UpdateHospitalGroup,
@@ -13181,10 +13188,13 @@ export const api = {
   // ══════════════════════════════════════════════════════════
 
   autoPopulateChecklist: (checklistId: string, data?: AutoPopulateRequest) =>
-    request<{ items_auto_populated: number }>(`/regulatory/checklists/${checklistId}/auto-populate`, {
-      method: "POST",
-      body: JSON.stringify(data ?? {}),
-    }),
+    request<{ items_auto_populated: number }>(
+      `/regulatory/checklists/${checklistId}/auto-populate`,
+      {
+        method: "POST",
+        body: JSON.stringify(data ?? {}),
+      },
+    ),
 
   listRegulatorySubmissions: () => request<RegulatorySubmission[]>("/regulatory/submissions"),
 
@@ -14923,6 +14933,18 @@ export const api = {
     request<{ deleted: boolean }>(`/sensitive-patients/${id}`, { method: "DELETE" }),
 
   listAccessAlerts: () => request<AccessAlert[]>("/access-alerts"),
+  listFormTemplates: () => request<FormTemplateListItem[]>("/forms/templates"),
+  createFormTemplate: (data: CreateFormTemplateRequest) =>
+    request<FormTemplate>("/forms/templates", { method: "POST", body: JSON.stringify(data) }),
+  getFormTemplate: (id: string) => request<FormTemplateDetail>(`/forms/templates/${id}`),
+  updateFormTemplate: (id: string, data: UpdateFormTemplateRequest) =>
+    request<FormTemplate>(`/forms/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  publishFormTemplate: (id: string) =>
+    request<FormTemplateVersion>(`/forms/templates/${id}/publish`, { method: "POST" }),
+  retireFormTemplate: (id: string) =>
+    request<FormTemplate>(`/forms/templates/${id}/retire`, { method: "POST" }),
+  getLiveForm: (code: string) => request<LiveForm>(`/forms/live/${code}`),
+  getFormVersion: (id: string) => request<FormTemplateVersion>(`/forms/versions/${id}`),
   listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
   createDataProcessor: (data: DataProcessorInput) =>
     request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),
