@@ -24,6 +24,7 @@ const examFormSchema = z.object({
   code: z.string().trim().min(1, "Enter a code, e.g. CT-BRAIN-P").max(40),
   name: z.string().trim().min(1, "Enter the exam name, e.g. CT Brain Plain").max(200),
   laterality_required: z.boolean(),
+  pcpndt_applicable: z.boolean(),
   contrast: z.enum(contrastValues),
   synonyms: z.array(z.string()),
   charge_code: z.string().trim().max(50),
@@ -45,6 +46,7 @@ function toFormValues(exam: RadiologyExamListItem | null): ExamFormValues {
     code: exam?.code ?? "",
     name: exam?.name ?? "",
     laterality_required: exam?.laterality_required ?? false,
+    pcpndt_applicable: exam?.pcpndt_applicable ?? false,
     contrast: exam?.contrast ?? "none",
     synonyms: exam?.synonyms ?? [],
     charge_code: exam?.charge_code ?? "",
@@ -141,6 +143,18 @@ export function ExamFormDrawer({ editing, modalities, onClose }: ExamFormDrawerP
           render={({ field }) => (
             <Switch
               label="Side must be stated when ordering (left / right)"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="pcpndt_applicable"
+          render={({ field }) => (
+            <Switch
+              label="Scan of a pregnancy (obstetric, NT, anomaly, foetal echo)"
+              description="Ordering it opens a PC-PNDT Form F, needed before the report is verified"
               checked={field.value}
               onChange={(e) => field.onChange(e.currentTarget.checked)}
             />

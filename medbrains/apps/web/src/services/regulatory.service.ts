@@ -26,6 +26,8 @@ export const regulatoryService = {
     api.getComplianceGaps(...args),
   listPcpndtForms: (...args: Parameters<typeof api.listPcpndtForms>) =>
     api.listPcpndtForms(...args),
+  completePcpndtForm: (...args: Parameters<typeof api.completePcpndtForm>) =>
+    api.completePcpndtForm(...args),
   createPcpndtForm: (...args: Parameters<typeof api.createPcpndtForm>) =>
     api.createPcpndtForm(...args),
   listAdrReports: (...args: Parameters<typeof api.listAdrReports>) => api.listAdrReports(...args),

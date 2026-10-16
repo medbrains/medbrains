@@ -104,6 +104,8 @@ ACRONYMS = {
     "ipd", "opd", "rca", "ndps", "amc", "grn", "capa", "adr", "mlc", "nabh",
     "nabl", "pcpndt", "peso", "spcb", "bmw", "dg", "ups", "mgps", "nmc", "aebas",
     "ot", "id", "pm", "dpdp", "gst", "er", "gcs", "io", "mar", "tds", "icd", "ama",
+    # The statutory form letter: "PCPNDT form F".
+    "f",
 }
 
 

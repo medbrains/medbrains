@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod form_f;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -169,6 +171,8 @@ pub struct UpdateMvRequest {
 #[derive(Debug, Deserialize)]
 pub struct ListPcpndtQuery {
     pub status: Option<String>,
+    /// The scan the form belongs to.
+    pub radiology_order_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1216,20 +1220,24 @@ pub async fn list_pcpndt_forms(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PcpndtForm>(
             "SELECT * FROM pcpndt_forms \
-             WHERE tenant_id = $1 AND status::text = $2 \
+             WHERE tenant_id = $1 AND status::text = $2 AND deleted_at IS NULL \
+               AND ($3::uuid IS NULL OR radiology_order_id = $3) \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
         .bind(status)
+        .bind(params.radiology_order_id)
         .fetch_all(&mut *tx)
         .await?
     } else {
         sqlx::query_as::<_, PcpndtForm>(
             "SELECT * FROM pcpndt_forms \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
+               AND ($2::uuid IS NULL OR radiology_order_id = $2) \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
+        .bind(params.radiology_order_id)
         .fetch_all(&mut *tx)
         .await?
     };
@@ -2162,6 +2170,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/regulatory/pcpndt-forms/{id}",
             get(get_pcpndt_form).put(update_pcpndt_form),
+        )
+        .route(
+            "/api/regulatory/pcpndt-forms/{id}/complete",
+            put(form_f::complete_form_f),
         )
         .route(
             "/api/regulatory/pcpndt-forms/quarterly",

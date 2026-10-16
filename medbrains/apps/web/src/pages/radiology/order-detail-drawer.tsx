@@ -12,6 +12,7 @@ import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
+import { OrderFormFNotice } from "./order-form-f-notice";
 import { colorToBadgeTone, printRadiologyReportPacket, statusColors } from "./shared";
 
 export function OrderDetailDrawer({
@@ -114,6 +115,7 @@ export function OrderDetailDrawer({
             <Text fw={600}>Priority:</Text>
             <Badge tone={colorToBadgeTone(statusColor(order.priority))}>{order.priority}</Badge>
           </Group>
+          <OrderFormFNotice orderId={order.id} />
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
           {order.clinical_indication && (
             <Text size="sm">Indication: {order.clinical_indication}</Text>
