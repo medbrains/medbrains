@@ -468,13 +468,19 @@ export function PalliativePage() {
           <TextInput
             label="Admission ID"
             value={dnrForm.admission_id ?? ""}
-            onChange={(e) => setDnrForm((p) => ({ ...p, admission_id: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setDnrForm((p) => ({ ...p, admission_id: nextValue }));
+            }}
           />
           <TextInput
             label="Scope"
             placeholder="Full DNR, Limited, etc."
             value={dnrForm.scope ?? ""}
-            onChange={(e) => setDnrForm((p) => ({ ...p, scope: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setDnrForm((p) => ({ ...p, scope: nextValue }));
+            }}
           />
           <Button
             tone="primary"
@@ -557,32 +563,43 @@ export function PalliativePage() {
             label="Body Receipt Number"
             required
             value={mortForm.body_receipt_number}
-            onChange={(e) =>
-              setMortForm((p) => ({ ...p, body_receipt_number: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setMortForm((p) => ({ ...p, body_receipt_number: nextValue }));
+            }}
           />
           <TextInput
             label="Deceased Name"
             required
             value={mortForm.deceased_name}
-            onChange={(e) => setMortForm((p) => ({ ...p, deceased_name: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setMortForm((p) => ({ ...p, deceased_name: nextValue }));
+            }}
           />
           <Switch
             label="MLC Case"
             checked={mortForm.is_mlc ?? false}
-            onChange={(e) => setMortForm((p) => ({ ...p, is_mlc: e.currentTarget.checked }))}
+            onChange={(e) => {
+              const nextChecked = e.currentTarget.checked;
+              setMortForm((p) => ({ ...p, is_mlc: nextChecked }));
+            }}
           />
           <TextInput
             label="MLC Case ID"
             value={mortForm.mlc_case_id ?? ""}
-            onChange={(e) => setMortForm((p) => ({ ...p, mlc_case_id: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setMortForm((p) => ({ ...p, mlc_case_id: nextValue }));
+            }}
           />
           <TextInput
             label="Cold Storage Slot"
             value={mortForm.cold_storage_slot ?? ""}
-            onChange={(e) =>
-              setMortForm((p) => ({ ...p, cold_storage_slot: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setMortForm((p) => ({ ...p, cold_storage_slot: nextValue }));
+            }}
           />
           <Button
             tone="primary"

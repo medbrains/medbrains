@@ -289,7 +289,10 @@ export function PmrPage() {
           <Textarea
             label="Goals"
             value={planForm.goals ?? ""}
-            onChange={(e) => setPlanForm((p) => ({ ...p, goals: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setPlanForm((p) => ({ ...p, goals: nextValue }));
+            }}
           />
           <NumberInput
             label="FIM Score (Initial)"
@@ -343,7 +346,10 @@ export function PmrPage() {
             required
             placeholder="Therapy performed this session (e.g. gait training, ROM exercises)"
             value={sessionForm.intervention ?? ""}
-            onChange={(e) => setSessionForm((p) => ({ ...p, intervention: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setSessionForm((p) => ({ ...p, intervention: nextValue }));
+            }}
           />
           <NumberInput
             label="Pain score (0–10)"

@@ -379,14 +379,17 @@ export function CathLabPage() {
             label="STEMI"
             checked={procForm?.is_stemi ?? false}
             onChange={(e) => {
-              if (e?.currentTarget)
-                setProcForm((p) => ({ ...p, is_stemi: e.currentTarget.checked }));
+              const nextChecked = e.currentTarget.checked;
+              setProcForm((p) => ({ ...p, is_stemi: nextChecked }));
             }}
           />
           <TextInput
             label="Contrast Type"
             value={procForm.contrast_type ?? ""}
-            onChange={(e) => setProcForm((p) => ({ ...p, contrast_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setProcForm((p) => ({ ...p, contrast_type: nextValue }));
+            }}
           />
           <NumberInput
             label="Contrast Volume (ml)"

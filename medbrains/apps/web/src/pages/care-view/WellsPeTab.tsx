@@ -64,7 +64,10 @@ export function WellsPeTab() {
           key={c.key}
           label={`${c.label} (${c.points})`}
           checked={criteria[c.key]}
-          onChange={(e) => setCriteria((p) => ({ ...p, [c.key]: e.currentTarget.checked }))}
+          onChange={(e) => {
+            const nextChecked = e.currentTarget.checked;
+            setCriteria((p) => ({ ...p, [c.key]: nextChecked }));
+          }}
         />
       ))}
 

@@ -73,7 +73,10 @@ export function VteAssessmentPanel({ patientId }: { patientId: string }) {
             key={f.key}
             label={`${f.label} (+${f.weight})`}
             checked={!!factors[f.key]}
-            onChange={(e) => setFactors((p) => ({ ...p, [f.key]: e.currentTarget.checked }))}
+            onChange={(e) => {
+              const nextChecked = e.currentTarget.checked;
+              setFactors((p) => ({ ...p, [f.key]: nextChecked }));
+            }}
           />
         ))}
       </SimpleGrid>

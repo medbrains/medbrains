@@ -203,6 +203,7 @@ import type {
   BodyStatus,
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
+  BookDialysisSlotRequest,
   BottleneckRow,
   // IT Security types
   BreakGlassEvent,
@@ -890,7 +891,10 @@ import type {
   DgUpsRunLogPrintData,
   Diagnosis,
   DiagnosisReference,
+  DialysisMachine,
   DialysisSession,
+  DialysisSlot,
+  Dialyzer,
   DietOrder,
   // Diet & Kitchen
   DietTemplate,
@@ -1187,6 +1191,7 @@ import type {
   IpTypeConfiguration,
   IssueCampAssetRequest,
   IssueCredentialRequest,
+  IssueDialyzerRequest,
   IssueIndentRequest,
   IssueMrdRecordRequest,
   IssueTokenInput,
@@ -1792,6 +1797,7 @@ import type {
   RxQueueRow,
   SalaryStructure,
   SaveBasketDraftRequest,
+  SaveDialysisMachineRequest,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
   SchedulePmRequest,
@@ -3225,6 +3231,46 @@ export const api = {
   getOnboardingWorkbook: () => request<OnboardingWorkbook>("/setup/workbook"),
   importOnboardingWorkbook: (data: WorkbookSheets & { dry_run: boolean }) =>
     request<WorkbookImportResult>("/setup/workbook/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listDialysisMachines: () => request<DialysisMachine[]>("/specialty/dialysis/machines"),
+  saveDialysisMachine: (data: SaveDialysisMachineRequest) =>
+    request<DialysisMachine>("/specialty/dialysis/machines", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getDialysisReusePolicy: () => request<{ max_uses: number }>("/specialty/dialysis/reuse-policy"),
+  setDialysisReusePolicy: (data: { max_uses: number }) =>
+    request<{ max_uses: number }>("/specialty/dialysis/reuse-policy", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listDialysisSlots: (date: string) =>
+    request<DialysisSlot[]>(`/specialty/dialysis/slots?${new URLSearchParams({ date })}`),
+  bookDialysisSlot: (data: BookDialysisSlotRequest) =>
+    request<DialysisSlot>("/specialty/dialysis/slots", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  cancelDialysisSlot: (id: string) =>
+    request<{ status: string }>(`/specialty/dialysis/slots/${id}/cancel`, { method: "POST" }),
+  listDialyzers: (patientId: string) =>
+    request<Dialyzer[]>(
+      `/specialty/dialysis/dialyzers?${new URLSearchParams({ patient_id: patientId })}`,
+    ),
+  issueDialyzer: (data: IssueDialyzerRequest) =>
+    request<Dialyzer>("/specialty/dialysis/dialyzers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  reprocessDialyzer: (id: string, data: { tcv_ml: number }) =>
+    request<Dialyzer>(`/specialty/dialysis/dialyzers/${id}/reprocess`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  discardDialyzer: (id: string, data: { reason: string }) =>
+    request<{ status: string }>(`/specialty/dialysis/dialyzers/${id}/discard`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
