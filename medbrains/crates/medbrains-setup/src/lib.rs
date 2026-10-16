@@ -137,6 +137,12 @@ pub async fn update_tenant(
            locale = COALESCE($11, locale), \
            currency = COALESCE($12, currency), \
            fy_start_month = COALESCE($13, fy_start_month), \
+           custom_domain_verified_at = CASE \
+             WHEN NULLIF(COALESCE($14, custom_domain), '') IS DISTINCT FROM custom_domain \
+             THEN NULL ELSE custom_domain_verified_at END, \
+           custom_domain_token = CASE \
+             WHEN NULLIF(COALESCE($14, custom_domain), '') IS DISTINCT FROM custom_domain \
+             THEN encode(gen_random_bytes(16), 'hex') ELSE custom_domain_token END, \
            custom_domain = NULLIF(COALESCE($14, custom_domain), '') \
            WHERE id = $15 \
            RETURNING id, code, name, address_line1, address_line2, city, pincode, \

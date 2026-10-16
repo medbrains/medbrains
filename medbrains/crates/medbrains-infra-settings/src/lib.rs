@@ -6,6 +6,7 @@
 //!   `config`) consumed by the AI config module. The API key itself is never
 //!   stored here or returned — only a reference to a key in the secret backend.
 
+pub mod domain_ownership;
 use axum::{Extension, Json, extract::State};
 use axum::routing::{get,post};
 use medbrains_core::deploy_mode::DeployMode;
@@ -497,4 +498,18 @@ pub fn router() -> axum::Router<AppState> {
             "/api/admin/domain-status",
             get(get_domain_status),
         )
+        .route(
+            "/api/admin/domain-ownership",
+            get(domain_ownership::get_domain_ownership),
+        )
+        .route(
+            "/api/admin/domain-ownership/verify",
+            post(domain_ownership::verify_domain_ownership),
+        )
+}
+
+/// Routes that answer without a session: the certificate front end asks
+/// before issuing.
+pub fn public_router() -> axum::Router<AppState> {
+    axum::Router::new().route("/api/tls/allow", get(domain_ownership::tls_allow))
 }

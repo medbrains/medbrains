@@ -84,6 +84,34 @@ curl -I https://hims.amh.org.in                        # 200 once ACME completes
 | Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
 
+## A hospital's own domain
+
+A hospital names its domain in **Settings → Organization** and proves it on
+**Setup → Domains & Email** with a DNS TXT record (`_medbrains-verify.<domain>`).
+Until it is proven, sign-in does not follow the domain.
+
+Certificates for proven domains need no hand work on a host fronted by Caddy:
+on-demand TLS asks MedBrains before issuing, and MedBrains answers 200 only for
+a proven, active hospital domain.
+
+```caddy
+{
+    on_demand_tls {
+        ask http://127.0.0.1:3000/api/tls/allow
+    }
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy 127.0.0.1:3000
+}
+```
+
+On a Pingora-fronted install (this kit's default), issue the certificate with
+Certbot once the domain is proven and add its route to the proxy config.
+
 ## Files in this directory
 
 | File | Purpose |

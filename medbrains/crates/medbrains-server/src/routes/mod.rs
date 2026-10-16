@@ -89,6 +89,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
+        // Caddy on-demand TLS asks before issuing a certificate.
+        .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
         // NHCX async-response webhook — gateway authenticates via JWS,
