@@ -81,4 +81,16 @@ describe("PatientSearchSelect", () => {
     await userEvent.type(input, "ACM");
     expect(await screen.findByText(/ask an administrator for patients\.find/i)).toBeInTheDocument();
   });
+
+  it("still offers registering a new patient when the name partly matches someone", async () => {
+    // A fuzzy hit on "Ravi" is not the Ravi at the desk; registering must stay
+    // one click away, not appear only when nobody at all matches.
+    findPatients.mockResolvedValueOnce([
+      { id: "p-1", uhid: "UH-1", first_name: "Ravichandran", last_name: "S" },
+    ] as never);
+    const input = setup(["patients.find", "patients.create"]);
+    await userEvent.type(input, "Ravi");
+    await waitFor(() => expect(screen.getByText(/Ravichandran/)).toBeInTheDocument());
+    expect(screen.getByText("Register new patient")).toBeInTheDocument();
+  });
 });

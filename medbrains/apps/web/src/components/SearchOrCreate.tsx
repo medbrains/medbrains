@@ -192,6 +192,25 @@ export function SearchOrCreate<T>({
               </Combobox.Empty>
             )}
           </Combobox.Options>
+          {/* A name that partly matches someone else is still a new person:
+              offer creating whenever there are results, not only when none. */}
+          {canShowCreate && items.length > 0 && searchText.length >= minSearchLength && (
+            <Combobox.Footer>
+              <Button
+                size="xs"
+                variant="light"
+                fullWidth
+                leftSection={createButtonIcon}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  combobox.closeDropdown();
+                  setCreateOpen(true);
+                }}
+              >
+                {createButtonLabel}
+              </Button>
+            </Combobox.Footer>
+          )}
         </Combobox.Dropdown>
       </Combobox>
 
