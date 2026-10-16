@@ -165,6 +165,32 @@ export interface ComplianceRow {
 export interface OnboardingStatusResponse {
   needs_setup: boolean;
   tenant_count: number;
+  /** This is the trial server: anyone may start a hospital of their own. */
+  trial_open: boolean;
+  trial_days: number;
+}
+
+/** Where a hospital's MedBrains runs. */
+export type Placement = "shared_cloud" | "dedicated_cloud" | "on_prem";
+
+/** What a trial sign-up says about the facility. */
+export interface TrialPlan {
+  beds: number;
+  staff_users: number;
+  imaging: boolean;
+  placement: Placement;
+}
+
+/** The quote shown at sign-up — mirrors `medbrains-onboarding/src/sizing.rs`. */
+export interface Sizing {
+  tier: "small" | "medium" | "large" | "xlarge";
+  vcpu: number;
+  ram_gb: number;
+  storage_gb: number;
+  backup_gb: number;
+  cloud_instance: string | null;
+  infra_monthly_inr: number | null;
+  hardware: string | null;
 }
 
 export interface OnboardingInitRequest {
@@ -175,12 +201,16 @@ export interface OnboardingInitRequest {
   admin_email: string;
   admin_password: string;
   admin_full_name: string;
+  /** Required on the trial server. */
+  plan?: TrialPlan;
 }
 
 export interface OnboardingInitResponse {
   tenant_id: string;
   user_id: string;
   csrf_token: string;
+  role: UserRole;
+  trial_ends_at: string | null;
 }
 
 export interface OnboardingProgress {

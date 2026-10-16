@@ -1844,6 +1844,7 @@ import type {
   SimulatorInbox,
   SimulatorInboxQuery,
   SiteDomain,
+  Sizing,
   SnfAdmission,
   SnomedCode,
   SofaRequest,
@@ -1939,6 +1940,7 @@ import type {
   TrialCandidate,
   TrialConsent,
   TrialIrbSubmission,
+  TrialPlan,
   TrialRandomization,
   TrialVisit,
   TriggerPipelineRequest,
@@ -3217,6 +3219,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getTrialSizing: (data: TrialPlan) =>
+    request<Sizing>("/onboarding/sizing", { method: "POST", body: JSON.stringify(data) }),
   onboardingProgress: () => request<OnboardingProgress>("/onboarding/progress"),
   updateOnboardingProgress: (data: { current_step: number; completed_steps: number[] }) =>
     request<OnboardingProgress>("/onboarding/progress", {

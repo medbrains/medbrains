@@ -1,4 +1,6 @@
 pub mod email_verification;
+pub mod sizing;
+pub mod trial;
 
 use std::collections::HashMap;
 
@@ -67,6 +69,9 @@ pub struct OnboardingStatusResponse {
     pub needs_setup: bool,
     /// How many hospitals have been registered (no PII leaked).
     pub tenant_count: i64,
+    /// This is the trial server: anyone may start a hospital of their own.
+    pub trial_open: bool,
+    pub trial_days: i64,
 }
 
 pub async fn status(
@@ -85,6 +90,8 @@ pub async fn status(
     Ok(Json(OnboardingStatusResponse {
         needs_setup: !server_has_tenant(&state).await?,
         tenant_count,
+        trial_open: trial::signup_open(),
+        trial_days: trial::TRIAL_DAYS,
     }))
 }
 
@@ -112,6 +119,9 @@ pub struct InitRequest {
     pub admin_email: String,
     pub admin_password: String,
     pub admin_full_name: String,
+    /// The facility and placement a trial sign-up described. Required on the
+    /// trial server, where it is what the 30-day trial is quoted on.
+    pub plan: Option<trial::TrialPlan>,
 }
 
 #[derive(Debug, Serialize)]
@@ -119,6 +129,10 @@ pub struct InitResponse {
     pub tenant_id: Uuid,
     pub user_id: Uuid,
     pub csrf_token: String,
+    /// The first hospital on a server gets its platform administrator; a
+    /// trial hospital's administrator runs that hospital only.
+    pub role: String,
+    pub trial_ends_at: Option<chrono::DateTime<Utc>>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -127,9 +141,22 @@ pub async fn init(
     headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    if server_has_tenant(&state).await? {
+    // The first hospital on an empty server, or anyone on the trial server.
+    let is_trial = server_has_tenant(&state).await?;
+    if is_trial && !trial::signup_open() {
         return Err(AppError::Forbidden);
     }
+    if is_trial && body.plan.is_none() {
+        return Err(AppError::BadRequest(
+            "Tell us about your facility to start a trial".to_owned(),
+        ));
+    }
+    let signup_ip = trial::client_ip(&headers);
+    if is_trial {
+        trial::throttle(&state.db, signup_ip.as_deref()).await?;
+    }
+    // Never a platform administrator for a stranger's sign-up.
+    let admin_role = if is_trial { "hospital_admin" } else { "super_admin" };
 
     // ── Field validation ────────────────────────────────
     let mut errors = ValidationErrors::new();
@@ -167,7 +194,7 @@ pub async fn init(
             // Public domain → check exact email only
             let email_taken: bool = sqlx::query_scalar(
                 "SELECT EXISTS(\
-                    SELECT 1 FROM users WHERE email = $1 AND role = 'super_admin'\
+                    SELECT 1 FROM users WHERE email = $1 AND role IN ('super_admin', 'hospital_admin')\
                 )",
             )
             .bind(&body.admin_email)
@@ -185,7 +212,7 @@ pub async fn init(
             let domain_taken: bool = sqlx::query_scalar(
                 "SELECT EXISTS(\
                     SELECT 1 FROM users \
-                    WHERE email ILIKE $1 AND role = 'super_admin'\
+                    WHERE email ILIKE $1 AND role IN ('super_admin', 'hospital_admin')\
                 )",
             )
             .bind(&domain_pattern)
@@ -239,7 +266,7 @@ pub async fn init(
     // Create super admin user
     sqlx::query(
         "INSERT INTO users (id, tenant_id, username, email, password_hash, full_name, role) \
-         VALUES ($1, $2, $3, $4, $5, $6, 'super_admin')",
+         VALUES ($1, $2, $3, $4, $5, $6, $7::user_role)",
     )
     .bind(user_id)
     .bind(tenant_id)
@@ -247,8 +274,14 @@ pub async fn init(
     .bind(&body.admin_email)
     .bind(&password_hash)
     .bind(&body.admin_full_name)
+    .bind(admin_role)
     .execute(&mut *tx)
     .await?;
+
+    let trial_ends_at = match &body.plan {
+        Some(plan) => Some(trial::start(&mut tx, tenant_id, plan, signup_ip.as_deref()).await?),
+        None => None,
+    };
 
     // Issue a verification email (advisory — does not block login). The link
     // points at the public app origin from the request host.
@@ -295,7 +328,7 @@ pub async fn init(
     let access_claims = Claims {
         sub: user_id,
         tenant_id,
-        role: "super_admin".to_owned(),
+        role: admin_role.to_owned(),
         permissions: Vec::new(),
         department_ids: Vec::new(),
         perm_version: 1,
@@ -353,6 +386,8 @@ pub async fn init(
             tenant_id,
             user_id,
             csrf_token,
+            role: admin_role.to_owned(),
+            trial_ends_at,
         }),
     ))
 }
@@ -1535,6 +1570,7 @@ pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/onboarding/status", get(status))
         .route("/api/onboarding/init", post(init))
+        .route("/api/onboarding/sizing", post(trial::quote))
 }
 
 /// The rest of onboarding, which needs a signed-in administrator.
