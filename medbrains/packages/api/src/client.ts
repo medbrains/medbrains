@@ -941,6 +941,7 @@ import type {
   // Blood Bank
   DonorListResponse,
   DpdpConsentPrintData,
+  DpdpConsentInput,
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
@@ -1504,6 +1505,7 @@ import type {
   PatientConsumableIssue,
   PatientContact,
   PatientContactConsents,
+  PatientDpdpConsent,
   PatientContext,
   PatientDiagnosisRow,
   PatientDocument,
@@ -3785,6 +3787,13 @@ export const api = {
     data: { channel: "whatsapp" | "email"; granted: boolean },
   ) =>
     request<PatientContactConsents>(`/patients/${patientId}/contact-consents`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPatientDpdpConsent: (patientId: string) =>
+    request<PatientDpdpConsent>(`/patients/${patientId}/dpdp-consent`),
+  setPatientDpdpConsent: (patientId: string, data: DpdpConsentInput) =>
+    request<PatientDpdpConsent>(`/patients/${patientId}/dpdp-consent`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

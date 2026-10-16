@@ -2,6 +2,7 @@
 
 pub mod acquisition;
 pub mod contact_consent;
+pub mod dpdp_consent;
 mod registration_rules;
 
 use std::collections::HashMap;
@@ -415,6 +416,9 @@ pub struct CreatePatientRequest {
     // ── How the patient agreed to be contacted ──
     #[serde(default)]
     pub contact: contact_consent::ContactPreferences,
+
+    // ── The DPDP notice, and what the patient agreed to ──
+    pub privacy: Option<dpdp_consent::DpdpConsentInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -1406,6 +1410,9 @@ pub async fn create_patient(
     let mut errors = ValidationErrors::new();
     registration_rules::check(&body_json, &mut errors);
     body.contact.validate(has_text(&body.email))?;
+    if let Some(privacy) = &body.privacy {
+        privacy.validate()?;
+    }
     // Shapes were checked above; these only normalise for storage.
     let aadhaar_digits = body
         .aadhaar_number
@@ -1535,6 +1542,12 @@ pub async fn create_patient(
         &mut tx,
         (claims.tenant_id, patient.id, claims.sub),
         &body.contact,
+    )
+    .await?;
+    dpdp_consent::record_at_registration(
+        &mut tx,
+        (claims.tenant_id, patient.id, claims.sub),
+        body.privacy.as_ref(),
     )
     .await?;
 
@@ -4105,6 +4118,7 @@ pub async fn list_merge_history(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // allow-soft-deleted: merge history is the audit record of identity merges; it must stay complete.
     let rows = sqlx::query_as!(
         PatientMergeHistory,
         "SELECT * FROM patient_merge_history
@@ -5049,6 +5063,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/patients/{id}/contact-consents",
             get(contact_consent::get_contact_consents).put(contact_consent::set_contact_consent),
+        )
+        .route(
+            "/api/patients/{id}/dpdp-consent",
+            get(dpdp_consent::get_dpdp_consent).put(dpdp_consent::set_dpdp_consent),
         )
         .route(
             "/api/patients/{id}/clinical-timeline",
