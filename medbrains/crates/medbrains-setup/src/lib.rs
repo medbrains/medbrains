@@ -2,6 +2,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
+pub mod workbook;
 use axum::routing::{delete, get, post, put};
 use axum::{
     Extension, Json,
@@ -5968,6 +5969,7 @@ pub async fn remove_access_group_member(
 /// Setup / configuration (access groups, invitations, config import/export, health, onboarding) authed routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .merge(workbook::router())
         .route(
             "/api/access-groups",
             get(list_access_groups).post(create_access_group),

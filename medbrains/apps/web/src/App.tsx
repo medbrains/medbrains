@@ -460,6 +460,9 @@ const PairedDevicesPage = lazy(() =>
   import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
 );
 
+const OnboardingWorkbookPage = lazy(() =>
+  import("./pages/admin/workbook").then((m) => ({ default: m.OnboardingWorkbookPage })),
+);
 const TrialPage = lazy(() => import("./pages/trial/index").then((m) => ({ default: m.TrialPage })));
 const AccessDeniedPage = lazy(() =>
   import("./pages/errors/access-denied").then((m) => ({ default: m.AccessDeniedPage })),
@@ -688,6 +691,7 @@ export function App() {
                 <Route path="sso" element={<SsoSettingsPage />} />
                 <Route path="access-requests" element={<AccessRequestsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="workbook" element={<OnboardingWorkbookPage />} />
                 <Route path="document-templates" element={<DocumentTemplatesPage />} />
                 <Route
                   path="device-integrations"

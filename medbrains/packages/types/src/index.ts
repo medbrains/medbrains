@@ -239,6 +239,7 @@ export {
   ROLE_TEMPLATES,
 } from "./permissions.js";
 export * from "./pharmacy-credit-indents";
+export * from "./onboarding-workbook";
 export * from "./pharmacy-counter-close";
 export * from "./pharmacy-delivery";
 export * from "./pharmacy-fulfilment";

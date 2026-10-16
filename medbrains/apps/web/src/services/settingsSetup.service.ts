@@ -21,6 +21,9 @@ export type ImportConfigInput = Parameters<typeof api.importConfig>[0];
 export type UpdateSecureDeviceSettingInput = Parameters<typeof api.updateSecureDeviceSetting>[0];
 
 export const settingsSetupService = {
+  getOnboardingWorkbook: () => api.getOnboardingWorkbook(),
+  importOnboardingWorkbook: (...args: Parameters<typeof api.importOnboardingWorkbook>) =>
+    api.importOnboardingWorkbook(...args),
   completenessCheck: () => api.completenessCheck(),
   systemHealth: () => api.systemHealth(),
   exportConfig: () => api.exportConfig(),
