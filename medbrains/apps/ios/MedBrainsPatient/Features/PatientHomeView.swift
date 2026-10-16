@@ -52,7 +52,7 @@ struct HospitalTabView: View {
                 row("lab-reports", "Results", "Released by the laboratory.", "testtube.2", .results)
                 row("prescriptions", "Medicines", "What was prescribed, and how to take it.", "pills", .medicines)
                 row("bills", "Bills", "Invoices, payments and receipts.", "indianrupeesign.circle", .bills)
-                row("consent", "Consent", "View, grant, or revoke consent for your records.", "checkmark.shield", .consent)
+                row("consent", "Privacy", "What you agree to, what we hold, and your requests.", "checkmark.shield", .consent)
                 row("family-share", "Family share", "Link family, share specific records, set expiry.", "person.2", .familyShare)
             }
         }
@@ -71,9 +71,7 @@ struct HospitalTabView: View {
             case .results: ResultsView()
             case .medicines: MedicinesView()
             case .bills: BillsView()
-            case .consent: TilesView(id: "consent", eyebrow: "Consent", title: "Consent", subtitle: "View, grant, or revoke consent for any of your records.", tiles: [
-                ("Active consents", "What you've granted, to whom, for how long."), ("Revoke a consent", "Stop a previously granted access."),
-                ("Access audit", "Who saw what, when."), ("Export my data", "DPDP right to portability."), ("Delete my account", "DPDP right to erasure (with safety holds).")])
+            case .consent: PrivacyView()
             case .familyShare: TilesView(id: "family-share", eyebrow: "Family", title: "Family share", subtitle: "Link family, share specific records, set expiry.", tiles: [
                 ("Link a family member", "Parent, spouse, child or caregiver."), ("Share a record", "Choose what they can see, and until when."), ("Manage sharing", "Stop or extend a share.")])
             }

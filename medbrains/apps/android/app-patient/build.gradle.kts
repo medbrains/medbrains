@@ -6,6 +6,8 @@ plugins {
 }
 android {
     sourceSets.getByName("androidTest").kotlin.srcDir("../testkit/src")
+    // Shared with the web: one DPDP privacy notice for every surface.
+    sourceSets.getByName("main").assets.srcDir("../../../packages/privacy")
     namespace = "com.medbrains.patient"
     compileSdk = 37
     defaultConfig {

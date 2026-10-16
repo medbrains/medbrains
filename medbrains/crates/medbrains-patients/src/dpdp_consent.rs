@@ -240,7 +240,7 @@ pub async fn set_dpdp_consent(
 
 #[cfg(test)]
 mod tests {
-    use super::{DpdpConsentInput, NOTICE_VERSION};
+    use super::{DpdpConsentInput, NOTICE_VERSION, PURPOSES};
 
     fn input(version: &str, lang: &str, purposes: &[&str]) -> DpdpConsentInput {
         DpdpConsentInput {
@@ -249,6 +249,22 @@ mod tests {
             purposes: purposes.iter().map(|p| (*p).to_owned()).collect(),
             guardian_name: None,
         }
+    }
+
+    /// The notice every surface shows (`packages/privacy/dpdp-notice.json`) is
+    /// the one this server accepts consent to: same version, same purposes.
+    #[test]
+    fn the_shared_notice_is_the_version_the_server_accepts() {
+        let notice: Option<serde_json::Value> =
+            serde_json::from_str(include_str!("../../../packages/privacy/dpdp-notice.json")).ok();
+        let version = notice.as_ref().and_then(|n| n["version"].as_str());
+        assert_eq!(version, Some(NOTICE_VERSION));
+        let purposes: Vec<&str> = notice
+            .as_ref()
+            .and_then(|n| n["purposes"].as_array())
+            .map(|a| a.iter().filter_map(serde_json::Value::as_str).collect())
+            .unwrap_or_default();
+        assert_eq!(purposes, PURPOSES);
     }
 
     #[test]

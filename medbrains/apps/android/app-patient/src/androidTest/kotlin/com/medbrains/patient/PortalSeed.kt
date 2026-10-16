@@ -46,6 +46,17 @@ class PortalSeed private constructor(private var token: String?) {
     }
 
     /** A consultation charge raised at the desk, unpaid: the bill the patient will see. */
+    /** The purposes the patient currently agrees to (newest decision on the ledger), and who made it. */
+    fun dpdpConsent(patientId: String): Pair<List<String>, String?> {
+        val first = obj("GET", "/api/patients/$patientId/dpdp-consent").optJSONArray("history")?.optJSONObject(0)
+        val purposes = first?.optJSONArray("purposes")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+        return purposes to first?.optString("source")
+    }
+
+    /** The patient's requests on the privacy officer's register, newest first. */
+    fun privacyRequests(patientId: String): JSONArray =
+        runCatching { JSONArray(call("GET", "/api/privacy-requests?patient_id=$patientId").second) }.getOrDefault(JSONArray())
+
     fun invoice(patientId: String, amount: Double): Invoice? {
         val id = obj("POST", "/api/billing/invoices", JSONObject().put("patient_id", patientId).put("notes", "native e2e $RUN")).optString("id").ifEmpty { return null }
         call("POST", "/api/billing/invoices/$id/items", JSONObject().put("charge_code", "CONSULT").put("description", "Consultation (e2e $RUN)").put("source", "opd").put("quantity", 1).put("unit_price", "%.2f".format(amount)).put("tax_percent", "0"))
