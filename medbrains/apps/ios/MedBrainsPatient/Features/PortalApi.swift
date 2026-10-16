@@ -83,6 +83,60 @@ struct PortalEntitlements: Decodable, Sendable {
     let companion: Bool
 }
 
+/// One decision on the patient's DPDP consent ledger; the newest is current.
+struct DpdpConsentRecord: Decodable, Sendable {
+    let purposes: [String]
+    let noticeLanguage: String?
+    let source: String
+    let createdAt: String
+}
+
+struct PatientDpdpConsent: Decodable, Sendable {
+    let noticeVersion: String
+    let purposes: [String]
+    let history: [DpdpConsentRecord]
+}
+
+/// A request the patient made under the DPDP Act, and its answer.
+struct PrivacyRequestRow: Decodable, Identifiable, Sendable {
+    let id: String
+    let requestType: String
+    let details: String
+    let dueAt: String
+    let status: String
+    let decision: String?
+}
+
+struct HeldData: Decodable, Sendable {
+    let category: String
+    let count: Int
+}
+
+struct PatientDataSummary: Decodable, Sendable {
+    let held: [HeldData]
+    let staffWhoViewed: Int
+    let insurers: [String]
+}
+
+/// The patient's privacy page: consent, their requests, what is held.
+struct PortalPrivacy: Decodable, Sendable {
+    let consent: PatientDpdpConsent
+    let requests: [PrivacyRequestRow]
+    let held: PatientDataSummary
+}
+
+struct DpdpConsentChoice: Encodable, Sendable {
+    let noticeVersion: String
+    let noticeLanguage: String
+    let purposes: [String]
+}
+
+struct PrivacyRequestAsk: Encodable, Sendable {
+    let requestType: String
+    let details: String
+    let nomineeName: String?
+}
+
 private struct OtpRequest: Encodable { let tenantCode: String; let phone: String }
 private struct OtpVerify: Encodable { let tenantCode: String; let phone: String; let code: String }
 
@@ -110,4 +164,13 @@ struct PortalApi: Sendable {
         try await client.request(.post, "/api/portal/prescriptions/\(prescriptionId)/refill-request", body: RefillAsk(note: nil))
     }
     func entitlements() async throws -> PortalEntitlements { try await client.request(.get, "/api/portal/entitlements") }
+    func privacy() async throws -> PortalPrivacy { try await client.request(.get, "/api/portal/privacy") }
+    /// The patient's own change of mind — a new decision on the ledger.
+    func setConsent(_ choice: DpdpConsentChoice) async throws -> PatientDpdpConsent {
+        try await client.request(.put, "/api/portal/dpdp-consent", body: choice)
+    }
+    /// Answered within 90 days; the server applies the same rules as the desk.
+    func makePrivacyRequest(_ ask: PrivacyRequestAsk) async throws -> PrivacyRequestRow {
+        try await client.request(.post, "/api/portal/privacy-requests", body: ask)
+    }
 }

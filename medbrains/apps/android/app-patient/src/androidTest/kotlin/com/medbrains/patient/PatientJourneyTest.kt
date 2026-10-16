@@ -2,6 +2,8 @@ package com.medbrains.patient
 
 import android.content.Intent
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -15,11 +17,11 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.After
 import com.medbrains.testkit.Evidence
+import org.junit.After
 import org.junit.Rule
-import org.junit.rules.RuleChain
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
 /**
@@ -103,6 +105,35 @@ class PatientJourneyTest {
 
     // ── the record
 
+    /**
+     * From the record, the patient changes what they agree to and makes a
+     * request — part of the signed-in walk, because the seeded code signs in once.
+     */
+    private fun privacyStep(seed: PortalSeed, patientId: String) {
+        val reminders = "health_reminders"
+        val hadReminders = reminders in seed.dpdpConsent(patientId).first
+        val requestsBefore = seed.privacyRequests(patientId).length()
+        compose.onNodeWithTag("module-consent").performClick()
+        compose.waitUntil(10_000) { has("privacy-save") }
+        compose.onNodeWithTag("privacy-save").assertIsNotEnabled()
+
+        // The patient changes their mind about reminders, and saves it themselves.
+        compose.onNodeWithTag("purpose-$reminders").performScrollTo().performClick()
+        compose.onNodeWithTag("privacy-save").performScrollTo().assertIsEnabled().performClick()
+        compose.waitUntil(10_000) { has("privacy-outcome") }
+        val (purposes, source) = seed.dpdpConsent(patientId)
+        check((reminders in purposes) == !hadReminders) { "the server holds the patient's new choice" }
+        check(source == "portal") { "recorded as the patient's own decision" }
+
+        // A request, made from the phone, reaches the privacy officer's register.
+        compose.onNodeWithTag("privacy-make-request").performScrollTo().performClick()
+        compose.waitUntil(5_000) { has("request-details") }
+        compose.onNodeWithTag("request-details").performScrollTo().performTextInput("Please show me everything you hold about me")
+        compose.onNodeWithTag("request-send").performScrollTo().performClick()
+        compose.waitUntil(10_000) { seed.privacyRequests(patientId).length() == requestsBefore + 1 }
+        check(seed.privacyRequests(patientId).getJSONObject(0).optString("received_via") == "portal") { "on the register as a portal request" }
+    }
+
     @Test
     fun theSeededCodeOpensTheRecordTheDeskHolds() {
         val seed = PortalSeed.admin()
@@ -144,6 +175,10 @@ class PatientJourneyTest {
             compose.waitUntil(10_000) { has("refill-outcome") }
             compose.waitUntil(10_000) { seesText("With your doctor") }
             check(seed.refillRequestsAwaiting(drug) == waitingBefore + 1) { "and it is in the prescriber's sign-offs" }
+            // Back to the record the way the walk does it: the session survives a relaunch.
+            launch()
+            compose.waitUntil(15_000) { has("module-consent") }
+            privacyStep(seed, patientId)
 
             seed.setModule("companion", enabled = true)
             launch()

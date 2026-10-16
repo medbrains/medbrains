@@ -67,6 +67,17 @@ final class PortalSeed {
         return created["id"] == nil ? nil : phone
     }
 
+    /// The purposes the patient currently agrees to (newest decision on the ledger), and who made it.
+    func dpdpConsent(patientId: String) -> (purposes: [String], source: String?) {
+        let history = (obj("GET", "/api/patients/\(patientId)/dpdp-consent")["history"] as? [[String: Any]]) ?? []
+        return ((history.first?["purposes"] as? [String]) ?? [], history.first?["source"] as? String)
+    }
+
+    /// The patient's requests on the privacy officer's register, newest first.
+    func privacyRequests(patientId: String) -> [[String: Any]] {
+        (call("GET", "/api/privacy-requests?patient_id=\(patientId)").1 as? [[String: Any]]) ?? []
+    }
+
     /// A consultation charge raised at the desk, unpaid: the bill the patient will see.
     func invoice(patientId: String, amount: Double) -> Invoice? {
         let (_, created) = call("POST", "/api/billing/invoices", ["patient_id": patientId, "notes": "native e2e \(Self.runId)"])

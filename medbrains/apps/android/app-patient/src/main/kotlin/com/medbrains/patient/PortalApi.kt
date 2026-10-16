@@ -27,6 +27,17 @@ import kotlinx.serialization.Serializable
     val message: String,
     val latest_request: PortalRefillRequest? = null,
 )
+/** One decision on the patient's DPDP consent ledger; the newest is current. */
+@Serializable data class DpdpConsentRecord(val purposes: List<String>, val notice_language: String? = null, val source: String, val created_at: String)
+@Serializable data class PatientDpdpConsent(val notice_version: String, val purposes: List<String>, val history: List<DpdpConsentRecord>)
+/** A request the patient made under the DPDP Act, and its answer. */
+@Serializable data class PrivacyRequestRow(val id: String, val request_type: String, val details: String, val due_at: String, val status: String, val decision: String? = null)
+@Serializable data class HeldData(val category: String, val count: Int)
+@Serializable data class PatientDataSummary(val held: List<HeldData>, val staff_who_viewed: Int, val insurers: List<String> = emptyList())
+/** The patient's privacy page: consent, their requests, what is held. */
+@Serializable data class PortalPrivacy(val consent: PatientDpdpConsent, val requests: List<PrivacyRequestRow>, val held: PatientDataSummary)
+@Serializable data class DpdpConsentChoice(val notice_version: String, val notice_language: String, val purposes: List<String>)
+@Serializable data class PrivacyRequestAsk(val request_type: String, val details: String, val nominee_name: String? = null)
 @Serializable private data class OtpRequest(val tenant_code: String, val phone: String)
 @Serializable private data class OtpVerify(val tenant_code: String, val phone: String, val code: String)
 @Serializable data class Ack(val ok: Boolean = true)
@@ -43,6 +54,11 @@ class PortalApi(private val client: ApiClient) {
     suspend fun refills(): List<PortalRefill> = client.get("/api/portal/refills")
     /** The server decides where it goes and refuses, with the reason, when it can't be asked for. */
     suspend fun requestRefill(prescriptionId: String): PortalRefillRequest = client.post("/api/portal/prescriptions/$prescriptionId/refill-request")
+    suspend fun privacy(): PortalPrivacy = client.get("/api/portal/privacy")
+    /** The patient's own change of mind — a new decision on the ledger. */
+    suspend fun setConsent(choice: DpdpConsentChoice): PatientDpdpConsent = client.put("/api/portal/dpdp-consent", choice)
+    /** Answered within 90 days; the server applies the same rules as the desk. */
+    suspend fun makePrivacyRequest(ask: PrivacyRequestAsk): PrivacyRequestRow = client.post("/api/portal/privacy-requests", ask)
 }
 
 val LocalPortalApi = compositionLocalOf<PortalApi> { error("PortalApi not provided") }

@@ -79,6 +79,45 @@ final class PatientJourneyTests: XCTestCase {
 
     private func sees(_ text: String) -> Bool { app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists }
 
+    // MARK: privacy
+    /// From the record, the patient changes what they agree to and makes a
+    /// request — part of the signed-in walk, because the seeded code signs in once.
+    private func privacyStep(_ seed: PortalSeed, patientId: String) {
+        let reminders = "health_reminders"
+        let hadReminders = seed.dpdpConsent(patientId: patientId).purposes.contains(reminders)
+        let requestsBefore = seed.privacyRequests(patientId: patientId).count
+        el("module-consent").tap()
+        XCTAssertTrue(waitOrDump("screen-privacy"))
+        XCTAssertTrue(waitOrDump("privacy-save"), "the notice and the choices load")
+        XCTAssertFalse(el("privacy-save").isEnabled, "nothing to save until a choice changes")
+
+        // The patient changes their mind about reminders, and saves it themselves.
+        let toggle = app.switches["purpose-\(reminders)"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        // The switch itself, not its label: a tap on the text does not flip it.
+        if toggle.switches.firstMatch.exists { toggle.switches.firstMatch.tap() } else { toggle.tap() }
+        XCTAssertTrue(el("privacy-save").isEnabled)
+        el("privacy-save").tap()
+        XCTAssertTrue(waitOrDump("privacy-outcome"))
+        let after = seed.dpdpConsent(patientId: patientId)
+        XCTAssertEqual(after.purposes.contains(reminders), !hadReminders, "the server holds the patient's new choice")
+        XCTAssertEqual(after.source, "portal", "recorded as the patient's own decision")
+        shoot("patient-06c-privacy-saved")
+
+        // A request, made from the phone, reaches the privacy officer's register.
+        el("privacy-make-request").tap()
+        XCTAssertTrue(waitOrDump("request-details"))
+        el("request-details").tap()
+        el("request-details").typeText("Please show me everything you hold about me")
+        app.buttons["request-send"].firstMatch.tap()
+        XCTAssertTrue(waitOrDump("privacy-outcome"))
+        let requests = seed.privacyRequests(patientId: patientId)
+        XCTAssertEqual(requests.count, requestsBefore + 1)
+        XCTAssertEqual(requests.first?["received_via"] as? String, "portal")
+        shoot("patient-06d-privacy-request")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+
     // MARK: refusals
 
     func testUnregisteredAndRegisteredNumbersGetTheSameReply() {
@@ -178,6 +217,7 @@ final class PatientJourneyTests: XCTestCase {
         XCTAssertEqual(seed.refillRequestsAwaiting(drug: rx.drug), waitingBefore + 1, "and it is in the prescriber's sign-offs")
         shoot("patient-06b-refill-requested")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        privacyStep(seed, patientId: patientId)
 
         seed.setModule("companion", enabled: true)
         app.terminate()

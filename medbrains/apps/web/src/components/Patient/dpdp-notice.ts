@@ -1,22 +1,16 @@
 /**
- * The privacy notice the desk shows a patient (DPDP Act 2023 s.5, Rules 2025
- * r.3): what is collected and why, the purposes that need their own yes, how
- * to withdraw, and where to complain. It is shown in the patient's language,
- * whatever language the staff member's screen is in, so it lives here rather
- * than in the UI translations. Changing any wording means a new
- * `NOTICE_VERSION` here and in `crates/medbrains-patients/src/dpdp_consent.rs`
- * — every consent records which text the patient read.
+ * The privacy notice the desk and the portal show a patient (DPDP Act s.5,
+ * Rules 2025 r.3): what is collected and why, the purposes that need their
+ * own yes, how to withdraw, and where to complain. It is shown in the
+ * patient's language, whatever language the staff member's screen is in.
+ *
+ * The text lives in `packages/privacy/dpdp-notice.json`, one file for web,
+ * iOS and Android. Its `version` must match `NOTICE_VERSION` in
+ * `crates/medbrains-patients/src/dpdp_consent.rs` — every consent records
+ * which text the patient read.
  */
 import type { DpdpNoticeLanguage, DpdpPurpose } from "@medbrains/types";
-
-export const DPDP_NOTICE_VERSION = "2026-10";
-
-export const DPDP_PURPOSES: DpdpPurpose[] = [
-  "abdm_linking",
-  "insurance_claims",
-  "health_reminders",
-  "research",
-];
+import notice from "../../../../../packages/privacy/dpdp-notice.json";
 
 interface NoticeText {
   language: string;
@@ -26,53 +20,11 @@ interface NoticeText {
   rights: string;
 }
 
-export const DPDP_NOTICE: Record<DpdpNoticeLanguage, NoticeText> = {
-  en: {
-    language: "English",
-    collected:
-      "The hospital collects your name, contact details, identity numbers and health information to register you and give you care. Your care, billing for it, and what the law requires the hospital to report do not need your consent.",
-    purposesIntro: "With your agreement, the hospital also uses it for:",
-    purposes: {
-      abdm_linking:
-        "Linking your records to your ABHA (Ayushman Bharat Health Account), so that you and the doctors you choose can see them",
-      insurance_claims: "Sending your insurer or TPA what they need to settle your claim",
-      health_reminders: "Reminders about follow-up visits, tests and vaccinations",
-      research: "Medical research, only after your name and identity numbers are removed",
-    },
-    rights:
-      "You can withdraw any of these at any time, as easily as you gave it, at the front desk. You can ask to see or correct your information. Complaints go to the hospital's grievance officer; if they are not resolved, to the Data Protection Board of India.",
-  },
-  hi: {
-    language: "हिन्दी",
-    collected:
-      "अस्पताल आपका पंजीकरण करने और आपका इलाज करने के लिए आपका नाम, संपर्क विवरण, पहचान संख्याएँ और स्वास्थ्य जानकारी एकत्र करता है। आपके इलाज, उसके बिल, और कानून के अनुसार अस्पताल को जो सूचना देनी होती है, उसके लिए आपकी सहमति आवश्यक नहीं है।",
-    purposesIntro: "आपकी सहमति से, अस्पताल इसका उपयोग इनके लिए भी करता है:",
-    purposes: {
-      abdm_linking:
-        "आपके रिकॉर्ड को आपके ABHA (आयुष्मान भारत हेल्थ अकाउंट) से जोड़ना, ताकि आप और आपके चुने हुए डॉक्टर उन्हें देख सकें",
-      insurance_claims: "आपके दावे के निपटान के लिए आपकी बीमा कंपनी या TPA को आवश्यक जानकारी भेजना",
-      health_reminders: "फ़ॉलो-अप, जाँच और टीकाकरण की याद दिलाना",
-      research: "चिकित्सा अनुसंधान, केवल आपका नाम और पहचान संख्याएँ हटाने के बाद",
-    },
-    rights:
-      "आप इनमें से कोई भी सहमति किसी भी समय फ्रंट डेस्क पर उतनी ही आसानी से वापस ले सकते हैं जितनी आसानी से आपने दी थी। आप अपनी जानकारी देखने या सुधारने का अनुरोध कर सकते हैं। शिकायत अस्पताल के शिकायत अधिकारी से करें; समाधान न होने पर भारतीय डेटा संरक्षण बोर्ड से।",
-  },
-  ta: {
-    language: "தமிழ்",
-    collected:
-      "உங்களைப் பதிவு செய்து சிகிச்சை அளிக்க, மருத்துவமனை உங்கள் பெயர், தொடர்பு விவரங்கள், அடையாள எண்கள் மற்றும் உடல்நலத் தகவல்களைச் சேகரிக்கிறது. உங்கள் சிகிச்சை, அதற்கான கட்டணம், மற்றும் சட்டப்படி மருத்துவமனை தெரிவிக்க வேண்டியவை ஆகியவற்றுக்கு உங்கள் ஒப்புதல் தேவையில்லை.",
-    purposesIntro: "உங்கள் ஒப்புதலுடன், மருத்துவமனை இவற்றுக்கும் இதைப் பயன்படுத்துகிறது:",
-    purposes: {
-      abdm_linking:
-        "உங்கள் பதிவுகளை உங்கள் ABHA (ஆயுஷ்மான் பாரத் சுகாதாரக் கணக்கு) உடன் இணைத்தல், அதனால் நீங்களும் நீங்கள் தேர்ந்தெடுக்கும் மருத்துவர்களும் அவற்றைப் பார்க்கலாம்",
-      insurance_claims: "உங்கள் காப்பீட்டு நிறுவனம் அல்லது TPA உங்கள் கோரிக்கையைத் தீர்க்கத் தேவையானவற்றை அனுப்புதல்",
-      health_reminders: "மறு வருகை, பரிசோதனைகள் மற்றும் தடுப்பூசிகள் பற்றிய நினைவூட்டல்கள்",
-      research: "மருத்துவ ஆராய்ச்சி, உங்கள் பெயரும் அடையாள எண்களும் நீக்கப்பட்ட பிறகு மட்டும்",
-    },
-    rights:
-      "இவற்றில் எதையும், நீங்கள் கொடுத்த அதே எளிமையுடன், எந்த நேரத்திலும் முன் மேசையில் திரும்பப் பெறலாம். உங்கள் தகவல்களைப் பார்க்கவோ திருத்தவோ கேட்கலாம். புகார்களை மருத்துவமனையின் குறைதீர்ப்பு அலுவலரிடம் தெரிவிக்கலாம்; தீர்வு கிடைக்காவிட்டால், இந்திய தரவுப் பாதுகாப்பு வாரியத்திடம்.",
-  },
-};
+export const DPDP_NOTICE_VERSION: string = notice.version;
+
+export const DPDP_PURPOSES = notice.purposes as DpdpPurpose[];
+
+export const DPDP_NOTICE = notice.languages as Record<DpdpNoticeLanguage, NoticeText>;
 
 export const DPDP_LANGUAGES = (Object.keys(DPDP_NOTICE) as DpdpNoticeLanguage[]).map((value) => ({
   value,
