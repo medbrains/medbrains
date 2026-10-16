@@ -10,6 +10,7 @@ medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }
+medbrains-forms = { path = "../medbrains-forms" }
 medbrains-radiology = { path = "../medbrains-radiology" }
 medbrains-lab = { path = "../medbrains-lab" }
 medbrains-tokens = { path = "../medbrains-tokens" }

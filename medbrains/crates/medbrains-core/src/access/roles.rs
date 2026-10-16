@@ -31,6 +31,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::forms::definitions::READ,
             // A department head decides the first step of their staff's leave;
             // the handler checks `departments.head_employee_id`, so a doctor
             // who heads nothing approves nothing.
@@ -371,6 +372,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::forms::definitions::READ,
             // A nursing head approves her own department's leave; the department-head
             // check in medbrains-hr limits this to the departments she heads.
             permissions::hr::leave::APPROVE,

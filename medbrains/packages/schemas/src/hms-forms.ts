@@ -3956,12 +3956,6 @@ export const opdFeedbackFormSchema = z.object({
 export const opdProcedureConsentFormSchema = z.object({
   procedure_name: requiredTrimmed("Procedure name is required", 255),
   consent_type: opdProcedureConsentTypeFormSchema,
-  risks_explained: z.string(),
-  alternatives_explained: z.string(),
-  benefits_explained: z.string(),
-  consented_by_name: z.string(),
-  consented_by_relation: z.string(),
-  witness_name: z.string(),
 });
 
 export const opdMedicalCertificateFormSchema = z

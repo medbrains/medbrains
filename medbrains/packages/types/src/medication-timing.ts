@@ -486,6 +486,8 @@ export interface ProcedureConsent {
   withdrawal_reason: string | null;
   expires_at: string | null;
   body: Record<string, unknown>;
+  /** The hospital's published consent form version; null = the built-in form. */
+  form_version_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -506,6 +508,9 @@ export interface CreateConsentRequest {
   witness_designation?: string;
   /** The OT booking a surgical/anaesthesia consent is taken for. */
   ot_booking_id?: string;
+  /** Answers to the consent form, checked against `form_version_id`. */
+  answers?: Record<string, string | number | boolean | string[]>;
+  form_version_id?: string;
 }
 
 export interface RevokeProcedureConsentRequest {

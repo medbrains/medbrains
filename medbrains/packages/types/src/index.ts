@@ -151,6 +151,7 @@ export {
 export * from "./field-access-catalogue";
 export * from "./field-mapping";
 export * from "./form-builder";
+export * from "./form-templates";
 export * from "./form-master";
 export * from "./form-runtime";
 export * from "./form-versioning";

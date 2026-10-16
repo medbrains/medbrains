@@ -68,6 +68,7 @@ members = [
     "crates/medbrains-devices",
     "crates/medbrains-specialty-interventional",
     "crates/medbrains-consent",
+    "crates/medbrains-forms",
     "crates/medbrains-security",
     "crates/medbrains-pharmacy-finance",
     "crates/medbrains-pharmacy-fulfilment",
