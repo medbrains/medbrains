@@ -18,6 +18,16 @@ import { daysLeft, PRIVACY_TYPE_LABEL } from "@/components/Patient/privacy-reque
 import { Alert, Badge, Button, Card, toast } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 
+/** Hands the browser a file to save; nothing is kept on the page. */
+function saveFile(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "application/fhir+json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function PortalPrivacy({ token }: { token: string }) {
   const qc = useQueryClient();
   const queryKey = ["portal-privacy", token];
@@ -50,6 +60,11 @@ export function PortalPrivacy({ token }: { token: string }) {
       void qc.invalidateQueries({ queryKey });
       toast.success("Request sent — the hospital answers within 90 days");
     },
+  });
+
+  const download = useMutation({
+    mutationFn: () => portalService.getPortalExport(token),
+    onSuccess: (bundle) => saveFile("my-health-record.json", JSON.stringify(bundle, null, 2)),
   });
 
   if (privacy.isError) return <Alert tone="danger">{privacy.error.message}</Alert>;
@@ -101,6 +116,19 @@ export function PortalPrivacy({ token }: { token: string }) {
         <Title order={4} mb="xs">
           What the hospital holds about you
         </Title>
+        <Text size="sm" c="dimmed" mb="xs">
+          Download your record — visits and released results — as a file other hospitals can read
+          (FHIR).
+        </Text>
+        <Button
+          tone="secondary"
+          loading={download.isPending}
+          onClick={() => download.mutate()}
+          mb="sm"
+        >
+          Download my data
+        </Button>
+        {download.isError && <Alert tone="danger">{download.error.message}</Alert>}
         <List size="sm">
           {(privacy.data?.held.held ?? [])
             .filter((h) => h.count > 0)

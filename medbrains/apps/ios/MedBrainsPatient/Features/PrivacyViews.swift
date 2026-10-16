@@ -45,6 +45,8 @@ private let requestKinds: [(id: String, label: String)] = [
     ("grievance", "Make a privacy complaint"),
 ]
 private let requestLabel = Dictionary(uniqueKeysWithValues: requestKinds.map { ($0.id, $0.label) })
+/// What the downloaded record is called wherever the patient saves it.
+private let exportFileName = "my-health-record.json"
 /// Shorter than this is not yet a request anyone can act on (the server agrees).
 private let minimumDetails = 5
 
@@ -56,6 +58,9 @@ struct PrivacyView: View {
     @State private var saving = false
     @State private var asking = false
     @State private var outcome: (kind: CarbonNotification<EmptyView>.Kind, title: String, message: String)?
+    @State private var exporting = false
+    /// The downloaded record, written to a temporary file the share sheet can hand on.
+    @State private var exported: URL?
 
     var body: some View {
         ScrollView {
@@ -137,6 +142,18 @@ struct PrivacyView: View {
     private func heldSection(_ held: PatientDataSummary) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             CarbonSectionTitle("What the hospital holds about you")
+            Group {
+                if let exported {
+                    ShareLink(item: exported) { Label("Share my record", systemImage: "square.and.arrow.up") }
+                        .accessibilityIdentifier("privacy-share-export")
+                } else {
+                    Button(exporting ? "Preparing…" : "Download my data") { Task { await export() } }
+                        .buttonStyle(CarbonGhostButtonStyle())
+                        .disabled(exporting)
+                        .accessibilityIdentifier("privacy-export")
+                }
+            }
+            .padding(.horizontal, 16)
             ForEach(held.held.filter { $0.count > 0 }, id: \.category) { row in
                 CarbonRow(row.category, detail: "\(row.count)")
             }
@@ -176,6 +193,20 @@ struct PrivacyView: View {
     private func load() async {
         guard let portal else { return }
         await remote.load { try await portal.privacy() }
+    }
+
+    private func export() async {
+        guard let portal else { return }
+        exporting = true
+        defer { exporting = false }
+        do {
+            let data = try await portal.exportRecord()
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(exportFileName)
+            try data.write(to: url, options: [.atomic, .completeFileProtection])
+            exported = url
+        } catch {
+            outcome = (.error, "Your record didn't download", error.localizedDescription)
+        }
     }
 
     private func save(version: String, language: String, purposes: Set<String>) async {

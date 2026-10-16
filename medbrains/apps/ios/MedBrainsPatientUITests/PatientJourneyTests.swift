@@ -104,6 +104,10 @@ final class PatientJourneyTests: XCTestCase {
         XCTAssertEqual(after.source, "portal", "recorded as the patient's own decision")
         shoot("patient-06c-privacy-saved")
 
+        // Their record, downloaded to hand on — the share sheet is the phone's own.
+        el("privacy-export").tap()
+        XCTAssertTrue(waitOrDump("privacy-share-export", timeout: 15), "the record downloaded and can be shared")
+
         // A request, made from the phone, reaches the privacy officer's register.
         el("privacy-make-request").tap()
         XCTAssertTrue(waitOrDump("request-details"))
