@@ -607,6 +607,36 @@ export interface CreatePatientRequest {
   is_unknown_patient?: boolean;
   attributes?: Record<string, unknown>;
   contact?: PatientContactPreferences;
+  /** The DPDP notice shown at the desk, and what the patient agreed to. */
+  privacy?: DpdpConsentInput;
+}
+
+/** Purposes beyond care that need the patient's own yes (DPDP Act 2023 s.6). */
+export type DpdpPurpose = "abdm_linking" | "insurance_claims" | "health_reminders" | "research";
+export type DpdpNoticeLanguage = "en" | "hi" | "ta";
+
+export interface DpdpConsentInput {
+  notice_version: string;
+  notice_language: DpdpNoticeLanguage;
+  purposes: DpdpPurpose[];
+  guardian_name?: string;
+}
+
+/** One decision on the consent ledger; the newest is the current answer. */
+export interface DpdpConsentRecord {
+  purposes: DpdpPurpose[];
+  notice_version: string | null;
+  notice_language: DpdpNoticeLanguage | null;
+  guardian_name: string | null;
+  source: "registration" | "patient_update" | "portal";
+  recorded_by_name: string | null;
+  created_at: string;
+}
+
+export interface PatientDpdpConsent {
+  notice_version: string;
+  purposes: DpdpPurpose[];
+  history: DpdpConsentRecord[];
 }
 
 /**

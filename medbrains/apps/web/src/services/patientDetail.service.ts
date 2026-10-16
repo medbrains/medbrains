@@ -13,6 +13,10 @@ export const patientDetailService = {
     api.getPatientContactConsents(...args),
   setPatientContactConsent: (...args: Parameters<typeof api.setPatientContactConsent>) =>
     api.setPatientContactConsent(...args),
+  getPatientDpdpConsent: (...args: Parameters<typeof api.getPatientDpdpConsent>) =>
+    api.getPatientDpdpConsent(...args),
+  setPatientDpdpConsent: (...args: Parameters<typeof api.setPatientDpdpConsent>) =>
+    api.setPatientDpdpConsent(...args),
   getClinicalTimeline: (patientId: string) => api.getPatientClinicalTimeline(patientId),
   listRadiologyReports: (patientId: string) => api.listPatientRadiologyReports(patientId),
   acknowledgeRadiologyCriticalAlert: (alertId: string) =>

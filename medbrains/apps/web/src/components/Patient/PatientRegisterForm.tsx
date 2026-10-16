@@ -69,6 +69,8 @@ import { patientsService } from "@/services/patients.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 import { AbhaLinkPanel } from "./AbhaLinkPanel";
 import { CampaignSelect } from "./CampaignSelect";
+import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
+import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
@@ -706,6 +708,15 @@ export function PatientRegisterForm({
         whatsapp_opt_in: values.whatsapp_opt_in ?? false,
         email_opt_in: values.email_opt_in ?? false,
       },
+      // Recorded only when the notice was actually shown.
+      privacy: values.privacy_notice_given
+        ? {
+            notice_version: DPDP_NOTICE_VERSION,
+            notice_language: values.privacy_language ?? "en",
+            purposes: values.privacy_purposes ?? [],
+            guardian_name: values.privacy_guardian?.trim() || undefined,
+          }
+        : undefined,
       address: Object.keys(address).length > 0 ? address : null,
       attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
     };
@@ -1179,6 +1190,14 @@ export function PatientRegisterForm({
                   )}
                 />
               </Stack>
+            </FormRow>
+          </FormSection>
+        )}
+
+        {activeStep === 1 && (
+          <FormSection num="02" name="Privacy notice and consent">
+            <FormRow label="DPDP Act 2023">
+              <DpdpRegistrationSection control={control} />
             </FormRow>
           </FormSection>
         )}
