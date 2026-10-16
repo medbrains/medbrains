@@ -102,33 +102,30 @@ export function MedReconciliationPanel({ patientId }: { patientId: string }) {
                   label={i === 0 ? "Medication" : undefined}
                   placeholder="Drug name"
                   value={row.drug_name}
-                  onChange={(e) =>
-                    setRows((p) =>
-                      p.map((r, j) => (j === i ? { ...r, drug_name: e.currentTarget.value } : r)),
-                    )
-                  }
+                  onChange={(e) => {
+                    const nextValue = e.currentTarget.value;
+                    setRows((p) => p.map((r, j) => (j === i ? { ...r, drug_name: nextValue } : r)));
+                  }}
                   style={{ flex: 2 }}
                 />
                 <Input
                   label={i === 0 ? "Dose" : undefined}
                   placeholder="500 mg"
                   value={row.dose}
-                  onChange={(e) =>
-                    setRows((p) =>
-                      p.map((r, j) => (j === i ? { ...r, dose: e.currentTarget.value } : r)),
-                    )
-                  }
+                  onChange={(e) => {
+                    const nextValue = e.currentTarget.value;
+                    setRows((p) => p.map((r, j) => (j === i ? { ...r, dose: nextValue } : r)));
+                  }}
                   style={{ flex: 1 }}
                 />
                 <Input
                   label={i === 0 ? "Frequency" : undefined}
                   placeholder="BD"
                   value={row.frequency}
-                  onChange={(e) =>
-                    setRows((p) =>
-                      p.map((r, j) => (j === i ? { ...r, frequency: e.currentTarget.value } : r)),
-                    )
-                  }
+                  onChange={(e) => {
+                    const nextValue = e.currentTarget.value;
+                    setRows((p) => p.map((r, j) => (j === i ? { ...r, frequency: nextValue } : r)));
+                  }}
                   style={{ flex: 1 }}
                 />
                 <Select

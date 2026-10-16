@@ -55,6 +55,11 @@ pub struct DialysisSession {
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub machine_id: Option<Uuid>,
+    pub dialyzer_id: Option<Uuid>,
+    pub slot_id: Option<Uuid>,
+    /// Which use of the dialyzer this session was: 1 for a new one.
+    pub dialyzer_use: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

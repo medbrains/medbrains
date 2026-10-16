@@ -341,12 +341,13 @@ export function CampDetail({ camp }: { camp: Camp }) {
                     label="Item"
                     size="xs"
                     value={supplyForm.item_name}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
                       setSupplyForm((current) => ({
                         ...current,
-                        item_name: event.currentTarget.value,
-                      }))
-                    }
+                        item_name: nextValue,
+                      }));
+                    }}
                   />
                   <Group grow align="flex-end">
                     <NumberInput
@@ -365,24 +366,26 @@ export function CampDetail({ camp }: { camp: Camp }) {
                       label="Unit"
                       size="xs"
                       value={supplyForm.unit}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        const nextValue = event.currentTarget.value;
                         setSupplyForm((current) => ({
                           ...current,
-                          unit: event.currentTarget.value,
-                        }))
-                      }
+                          unit: nextValue,
+                        }));
+                      }}
                     />
                   </Group>
                   <Switch
                     size="xs"
                     label="Critical item"
                     checked={supplyForm.is_critical}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextChecked = event.currentTarget.checked;
                       setSupplyForm((current) => ({
                         ...current,
-                        is_critical: event.currentTarget.checked,
-                      }))
-                    }
+                        is_critical: nextChecked,
+                      }));
+                    }}
                   />
                   <Button
                     tone="secondary"
@@ -466,12 +469,13 @@ export function CampDetail({ camp }: { camp: Camp }) {
                     size="xs"
                     minRows={2}
                     value={incidentForm.description}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
                       setIncidentForm((current) => ({
                         ...current,
-                        description: event.currentTarget.value,
-                      }))
-                    }
+                        description: nextValue,
+                      }));
+                    }}
                   />
                   <Button
                     tone="subtle-danger"

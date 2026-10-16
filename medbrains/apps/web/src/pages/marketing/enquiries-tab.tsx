@@ -181,24 +181,34 @@ export function MarketingEnquiriesTab({
           <TextInput
             label="Name"
             value={form.display_name}
-            onChange={(event) =>
-              setForm((f) => ({ ...f, display_name: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, display_name: nextValue }));
+            }}
           />
           <TextInput
             label="Phone"
             value={form.phone}
-            onChange={(event) => setForm((f) => ({ ...f, phone: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, phone: nextValue }));
+            }}
           />
           <TextInput
             label="Email"
             value={form.email}
-            onChange={(event) => setForm((f) => ({ ...f, email: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, email: nextValue }));
+            }}
           />
           <TextInput
             label="Source"
             value={form.source}
-            onChange={(event) => setForm((f) => ({ ...f, source: event.currentTarget.value }))}
+            onChange={(event) => {
+              const nextValue = event.currentTarget.value;
+              setForm((f) => ({ ...f, source: nextValue }));
+            }}
           />
           <Group justify="flex-end">
             <Button tone="secondary" size="xs" onClick={createDrawer.close}>

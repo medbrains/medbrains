@@ -2255,6 +2255,13 @@ pub mod specialty {
         pub mod dialysis {
             pub const LIST: &str = "specialty.other.dialysis.list";
             pub const MANAGE: &str = "specialty.other.dialysis.manage";
+            /// Set up dialysis machines and dialyzer reuse.
+            ///
+            /// The unit's machines, the serology each is dedicated to, which
+            /// are under maintenance, and how many times a dialyzer may be
+            /// reused here. Booking shifts and reprocessing dialyzers need only
+            /// the manage permission.
+            pub const CONFIGURE: &str = "specialty.other.dialysis.configure";
         }
     }
 }

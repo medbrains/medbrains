@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1044 permissions, one per constant in the Rust source. */
+/** 1045 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4400,6 +4400,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.other.dialysis.manage",
     label: "Manage Dialysis Sessions",
     description: "Manage dialysis session records",
+    module: "specialty",
+  },
+  {
+    code: "specialty.other.dialysis.configure",
+    label: "Set up dialysis machines and dialyzer reuse",
+    description: "The unit's machines, the serology each is dedicated to, which are under maintenance, and how many times a dialyzer may be reused here. Booking shifts and reprocessing dialyzers need only the manage permission.",
     module: "specialty",
   },
   // order_sets
@@ -9266,9 +9272,11 @@ export const P = {
     OPHTHALMOLOGY_EXAMS_UPDATE: "specialty.ophthalmology.exams.update",
     OTHER: {
       DIALYSIS: {
+        CONFIGURE: "specialty.other.dialysis.configure",
         LIST: "specialty.other.dialysis.list",
         MANAGE: "specialty.other.dialysis.manage",
       },
+      DIALYSIS_CONFIGURE: "specialty.other.dialysis.configure",
       DIALYSIS_LIST: "specialty.other.dialysis.list",
       DIALYSIS_MANAGE: "specialty.other.dialysis.manage",
       ONCOLOGY: {
@@ -9290,6 +9298,7 @@ export const P = {
       TEMPLATES_LIST: "specialty.other.templates.list",
       TEMPLATES_MANAGE: "specialty.other.templates.manage",
     },
+    OTHER_DIALYSIS_CONFIGURE: "specialty.other.dialysis.configure",
     OTHER_DIALYSIS_LIST: "specialty.other.dialysis.list",
     OTHER_DIALYSIS_MANAGE: "specialty.other.dialysis.manage",
     OTHER_ONCOLOGY_CREATE: "specialty.other.oncology.create",
@@ -9982,6 +9991,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.CREATE,
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.LIST,
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.UPDATE,
+      P.SPECIALTY.OTHER.DIALYSIS.LIST,
       P.SPECIALTY.OTHER.DIALYSIS.MANAGE,
       P.SPECIALTY.OTHER.ONCOLOGY.CREATE,
       P.SPECIALTY.OTHER.ONCOLOGY.LIST,
