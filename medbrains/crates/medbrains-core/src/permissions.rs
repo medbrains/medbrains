@@ -61,6 +61,26 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod privacy_requests {
+        /// See patients' privacy requests.
+        ///
+        /// The DPDP Act rights register: requests to see, correct or erase
+        /// personal data, to name a nominee, and privacy grievances, with
+        /// the 90-day answer due date of each.
+        pub const LIST: &str = "patients.privacy_requests.list";
+        /// Record a patient's privacy request.
+        ///
+        /// Take down a request the patient makes at the desk, by email or by
+        /// phone, so it starts its 90-day clock the day it arrives.
+        pub const CREATE: &str = "patients.privacy_requests.create";
+        /// Answer a patient's privacy request.
+        ///
+        /// Close a request as done or refused. A refusal states its reason —
+        /// an erasure refused because the law requires the medical record to
+        /// be kept, for example.
+        pub const DECIDE: &str = "patients.privacy_requests.decide";
+    }
+
     pub mod acquisition {
         /// Correct where a patient came from.
         ///

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1045 permissions, one per constant in the Rust source. */
+/** 1048 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -86,6 +86,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "patients.delete",
     label: "Delete Patient",
     description: "Remove patient records",
+    module: "patients",
+  },
+  {
+    code: "patients.privacy_requests.list",
+    label: "See patients' privacy requests",
+    description: "The DPDP Act rights register: requests to see, correct or erase personal data, to name a nominee, and privacy grievances, with the 90-day answer due date of each.",
+    module: "patients",
+  },
+  {
+    code: "patients.privacy_requests.create",
+    label: "Record a patient's privacy request",
+    description: "Take down a request the patient makes at the desk, by email or by phone, so it starts its 90-day clock the day it arrives.",
+    module: "patients",
+  },
+  {
+    code: "patients.privacy_requests.decide",
+    label: "Answer a patient's privacy request",
+    description: "Close a request as done or refused. A refusal states its reason — an erasure refused because the law requires the medical record to be kept, for example.",
     module: "patients",
   },
   {
@@ -8523,6 +8541,14 @@ export const P = {
     },
     NOTES_EDIT: "patients.notes.edit",
     NOTES_VIEW: "patients.notes.view",
+    PRIVACY_REQUESTS: {
+      CREATE: "patients.privacy_requests.create",
+      DECIDE: "patients.privacy_requests.decide",
+      LIST: "patients.privacy_requests.list",
+    },
+    PRIVACY_REQUESTS_CREATE: "patients.privacy_requests.create",
+    PRIVACY_REQUESTS_DECIDE: "patients.privacy_requests.decide",
+    PRIVACY_REQUESTS_LIST: "patients.privacy_requests.list",
     UPDATE: "patients.update",
     VIEW: "patients.view",
   },
@@ -10078,6 +10104,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.LIST,
+      P.PATIENTS.PRIVACY_REQUESTS.CREATE,
+      P.PATIENTS.PRIVACY_REQUESTS.LIST,
       P.PATIENTS.UPDATE,
       P.PATIENTS.VIEW,
       P.PHARMACY.CATALOG.LOOKUP,
@@ -10479,6 +10507,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
+      P.PATIENTS.PRIVACY_REQUESTS.CREATE,
+      P.PATIENTS.PRIVACY_REQUESTS.DECIDE,
+      P.PATIENTS.PRIVACY_REQUESTS.LIST,
       P.PATIENTS.VIEW,
       P.PHARMACY.DAY_CLOSE.VIEW,
       P.PHARMACY.PRESCRIPTIONS.LIST,
@@ -10863,6 +10894,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.SUPPRESSION_MANAGE,
       P.OPD.VISIT.TRANSFER,
       P.PATIENTS.ACQUISITION.UPDATE,
+      P.PATIENTS.PRIVACY_REQUESTS.CREATE,
+      P.PATIENTS.PRIVACY_REQUESTS.LIST,
     ],
   },
   infection_control_officer: {
