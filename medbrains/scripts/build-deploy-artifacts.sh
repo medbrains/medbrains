@@ -118,9 +118,9 @@ say "dist.tgz $(du -h apps/web/dist.tgz | cut -f1) (from $(du -sh apps/web/dist 
 # this script exists to prevent, so check rather than assume.
 echo "==> verifying artefacts exist"
 missing=0
-for f in "target/$TARGET/release/medbrains-server" \
-         "target/$TARGET/release/medbrains-archive" \
-         "target/$TARGET/release/medbrains-proxy" \
+for f in "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-server" \
+         "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-archive" \
+         "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-proxy" \
          "apps/web/dist/index.html"; do
     if [ -e "$f" ]; then
         say "ok      $f"
