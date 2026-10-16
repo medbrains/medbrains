@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1043 permissions, one per constant in the Rust source. */
+/** 1044 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4748,6 +4748,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.workbook.import",
+    label: "Set up the hospital from a spreadsheet",
+    description: "Download the onboarding workbook — blank or filled with what the hospital already has — and upload it back to add or update departments, wards, beds and staff in one checked, all-or-nothing change. New staff are emailed how to set their password.",
+    module: "admin",
+  },
+  {
     code: "admin.users.list",
     label: "List Users",
     description: "View user directory",
@@ -6612,6 +6618,10 @@ export const P = {
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",
+    WORKBOOK: {
+      IMPORT: "admin.workbook.import",
+    },
+    WORKBOOK_IMPORT: "admin.workbook.import",
   },
   AI: {
     ASSISTANT: {
