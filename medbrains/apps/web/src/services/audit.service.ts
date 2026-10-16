@@ -12,6 +12,7 @@ export const auditService = {
   exportAuditLogUrl: api.exportAuditLogUrl,
   getEntityTimeline: api.getEntityTimeline,
   getUserActivity: api.getUserActivity,
+  startBreakGlass: api.startBreakGlass,
   listBreakGlass: api.listBreakGlass,
   getBreakGlass: api.getBreakGlass,
   reviewBreakGlass: api.reviewBreakGlass,
