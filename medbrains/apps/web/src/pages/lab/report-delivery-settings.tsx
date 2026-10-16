@@ -76,7 +76,9 @@ export function ReportDeliverySettings() {
         Report delivery
       </Text>
       <Text size="sm" c="dimmed" mb="md">
-        Which channels reports may be sent on, and the default for new dispatches.
+        Which channels lab and imaging reports may be sent on, and the default for new dispatches.
+        With automatic sending on, the patient is told the moment a report is verified — that it is
+        ready, never what it says.
       </Text>
       <form onSubmit={form.handleSubmit((v) => save.mutate(v))} noValidate>
         <Stack gap="md">
