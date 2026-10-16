@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod checklist_score;
 pub mod form_f;
 
 use axum::{
@@ -19,7 +20,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -49,12 +50,13 @@ pub struct CreateChecklistRequest {
     pub assessment_period_end: NaiveDate,
     pub next_review_date: Option<NaiveDate>,
     pub notes: Option<String>,
+    /// An earlier checklist whose criteria this one is assessed against again.
+    pub copy_criteria_from: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateChecklistRequest {
     pub overall_status: Option<ComplianceChecklistStatus>,
-    pub compliance_score: Option<f64>,
     pub next_review_date: Option<NaiveDate>,
     pub notes: Option<String>,
 }
@@ -305,7 +307,7 @@ pub async fn dashboard(
                 COALESCE(AVG(cl.compliance_score), 0)::float8, COUNT(*) \
          FROM compliance_checklists cl \
          LEFT JOIN departments d ON d.id = cl.department_id \
-         WHERE cl.tenant_id = $1 \
+         WHERE cl.tenant_id = $1 AND cl.deleted_at IS NULL \
          GROUP BY cl.department_id, d.name \
          ORDER BY d.name LIMIT 5000",
     )
@@ -540,6 +542,18 @@ pub async fn create_checklist(
     .fetch_one(&mut *tx)
     .await?;
 
+    let row = if let Some(from) = body.copy_criteria_from {
+        checklist_score::copy_criteria(&mut tx, &claims, from, row.id).await?;
+        sqlx::query_as::<_, ComplianceChecklist>(
+            "SELECT * FROM compliance_checklists WHERE id = $1",
+        )
+        .bind(row.id)
+        .fetch_one(&mut *tx)
+        .await?
+    } else {
+        row
+    };
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -565,7 +579,7 @@ pub async fn get_checklist(
 
     let items = sqlx::query_as::<_, ComplianceChecklistItem>(
         "SELECT * FROM compliance_checklist_items \
-         WHERE checklist_id = $1 AND tenant_id = $2 \
+         WHERE checklist_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY item_number LIMIT 5000",
     )
     .bind(id)
@@ -597,19 +611,17 @@ pub async fn update_checklist(
     let row = sqlx::query_as::<_, ComplianceChecklist>(
         "UPDATE compliance_checklists SET \
          overall_status = COALESCE($3, overall_status), \
-         compliance_score = COALESCE($4, compliance_score), \
-         next_review_date = COALESCE($5, next_review_date), \
-         notes = COALESCE($6, notes), \
-         assessed_by = $7, \
+         next_review_date = COALESCE($4, next_review_date), \
+         notes = COALESCE($5, notes), \
+         assessed_by = $6, \
          assessed_at = CASE WHEN $3 IS NOT NULL THEN now() ELSE assessed_at END, \
-         updated_by = $7 \
+         updated_by = $6 \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.overall_status)
-    .bind(body.compliance_score)
     .bind(body.next_review_date)
     .bind(&body.notes)
     .bind(claims.sub)
@@ -632,10 +644,7 @@ pub async fn batch_checklist_items(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut results = Vec::new();
-    let mut compliant = 0i32;
-    let mut non_compliant = 0i32;
-    let total = body.items.len() as i32;
+    let mut results = Vec::with_capacity(body.items.len());
 
     for item in &body.items {
         let row = if let Some(existing_id) = item.id {
@@ -687,30 +696,10 @@ pub async fn batch_checklist_items(
             .await?
         };
 
-        match row.status {
-            ComplianceChecklistStatus::Compliant => compliant += 1,
-            ComplianceChecklistStatus::NonCompliant => non_compliant += 1,
-            _ => {}
-        }
         results.push(row);
     }
 
-    // Update parent checklist counters
-    sqlx::query(
-        "UPDATE compliance_checklists SET \
-         total_items = $3, compliant_items = $4, non_compliant_items = $5, \
-         updated_by = $6 \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(checklist_id)
-    .bind(claims.tenant_id)
-    .bind(total)
-    .bind(compliant)
-    .bind(non_compliant)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-
+    checklist_score::recount(&mut tx, &claims, checklist_id).await?;
     tx.commit().await?;
     Ok(Json(results))
 }
@@ -752,9 +741,11 @@ pub async fn update_checklist_item(
     .bind(body.responsible_user_id)
     .bind(claims.sub)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
+    checklist_score::recount(&mut tx, &claims, checklist_id).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -1688,7 +1679,7 @@ pub async fn auto_populate_checklist(
     // Get checklist items
     let items = sqlx::query_as::<_, ComplianceChecklistItem>(
         "SELECT * FROM compliance_checklist_items \
-         WHERE checklist_id = $1 AND tenant_id = $2 \
+         WHERE checklist_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY item_number LIMIT 5000",
     )
     .bind(checklist_id)
@@ -1740,34 +1731,7 @@ pub async fn auto_populate_checklist(
         }
     }
 
-    // Recount checklist stats
-    let stats: (i64, i64, i64) = sqlx::query_as(
-        "SELECT COUNT(*), \
-                COUNT(*) FILTER (WHERE status = 'compliant'), \
-                COUNT(*) FILTER (WHERE status = 'non_compliant') \
-         FROM compliance_checklist_items \
-         WHERE checklist_id = $1 AND tenant_id = $2",
-    )
-    .bind(checklist_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        "UPDATE compliance_checklists SET \
-         total_items = $3, compliant_items = $4, non_compliant_items = $5, \
-         updated_by = $6 \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(checklist_id)
-    .bind(claims.tenant_id)
-    .bind(stats.0 as i32)
-    .bind(stats.1 as i32)
-    .bind(stats.2 as i32)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-
+    checklist_score::recount(&mut tx, &claims, checklist_id).await?;
     tx.commit().await?;
 
     Ok(Json(serde_json::json!({
@@ -2111,18 +2075,12 @@ pub async fn nabl_document_tracking(
 /// Regulatory & compliance (dashboard, licenses, NABH/NABL, incidents) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/regulatory/dashboard",
-            get(dashboard),
-        )
+        .route("/api/regulatory/dashboard", get(dashboard))
         .route(
             "/api/regulatory/dashboard/department/{id}",
             get(department_dashboard),
         )
-        .route(
-            "/api/regulatory/dashboard/gaps",
-            get(dashboard_gaps),
-        )
+        .route("/api/regulatory/dashboard/gaps", get(dashboard_gaps))
         .route(
             "/api/regulatory/checklists",
             get(list_checklists).post(create_checklist),
@@ -2137,7 +2095,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/regulatory/checklists/{checklist_id}/items/{item_id}",
-            put(update_checklist_item),
+            put(update_checklist_item).delete(checklist_score::delete_checklist_item),
         )
         .route(
             "/api/regulatory/adr-reports",
@@ -2183,14 +2141,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/regulatory/calendar",
             get(list_calendar).post(create_calendar_event),
         )
-        .route(
-            "/api/regulatory/calendar/{id}",
-            put(update_calendar_event),
-        )
-        .route(
-            "/api/regulatory/calendar/overdue",
-            get(overdue_calendar),
-        )
+        .route("/api/regulatory/calendar/{id}", put(update_calendar_event))
+        .route("/api/regulatory/calendar/overdue", get(overdue_calendar))
         .route(
             "/api/regulatory/checklists/{id}/auto-populate",
             post(auto_populate_checklist),
@@ -2203,14 +2155,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/regulatory/mock-surveys",
             get(list_mock_surveys).post(create_mock_survey),
         )
-        .route(
-            "/api/regulatory/staff-credentials",
-            get(staff_credentials),
-        )
-        .route(
-            "/api/regulatory/licenses/dashboard",
-            get(license_dashboard),
-        )
+        .route("/api/regulatory/staff-credentials", get(staff_credentials))
+        .route("/api/regulatory/licenses/dashboard", get(license_dashboard))
         .route(
             "/api/regulatory/nabl/documents",
             get(nabl_document_tracking),
