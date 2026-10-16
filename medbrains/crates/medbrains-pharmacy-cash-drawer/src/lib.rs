@@ -2,7 +2,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-finance.md items #1, #2, #3.
 
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -14,6 +14,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+pub mod day_close;
+pub mod day_close_report;
+pub mod day_close_rules;
 
 use medbrains_server_core::{
     error::AppError,
@@ -105,6 +109,20 @@ pub async fn open_drawer(
             "cashier already has an open drawer — close current shift first".to_owned(),
         ));
     }
+    let day_closed: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pharmacy_day_closes WHERE tenant_id = $1 \
+            AND pharmacy_location_id = $2 AND status = 'closed' AND deleted_at IS NULL \
+            AND business_date = tenant_local_date($1, now()))",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.pharmacy_location_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if day_closed {
+        return Err(AppError::Conflict(
+            "Today is already closed at this counter; a supervisor must reopen it".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, CashDrawer>(
         "INSERT INTO pharmacy_cash_drawers \
@@ -143,27 +161,10 @@ pub async fn close_drawer(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // What the drawer should hold: its float, the counter's cash net of
-    // change (each cash tender and refund carries its drawer), less petty cash
-    // paid out of it, plus float moved in and less float moved out.
+    // What the drawer should hold — the same function the day close sums.
     let expected_close: Option<Decimal> = sqlx::query_scalar::<_, Decimal>(
-        "SELECT d.opening_float \
-              + COALESCE((SELECT SUM(t.amount) FROM pharmacy_payment_transactions t \
-                           WHERE t.tenant_id = d.tenant_id AND t.shift_id = d.id::text \
-                             AND t.payment_mode = 'cash' AND t.deleted_at IS NULL), 0) \
-              - COALESCE((SELECT SUM(v.amount) FROM pharmacy_petty_cash_vouchers v \
-                           WHERE v.tenant_id = d.tenant_id AND v.cash_drawer_id = d.id \
-                             AND v.status IN ('approved', 'reimbursed') \
-                             AND v.deleted_at IS NULL), 0) \
-              + COALESCE((SELECT SUM(m.amount) FROM pharmacy_cash_float_movements m \
-                           WHERE m.tenant_id = d.tenant_id AND m.destination_drawer_id = d.id \
-                             AND m.deleted_at IS NULL), 0) \
-              - COALESCE((SELECT SUM(m.amount) FROM pharmacy_cash_float_movements m \
-                           WHERE m.tenant_id = d.tenant_id AND m.source_drawer_id = d.id \
-                             AND m.deleted_at IS NULL), 0) \
-           FROM pharmacy_cash_drawers d \
-          WHERE d.id = $1 AND d.tenant_id = $2 AND d.status = 'open' \
-          FOR UPDATE",
+        "SELECT pharmacy_drawer_expected_cash(d.id) FROM pharmacy_cash_drawers d \
+          WHERE d.id = $1 AND d.tenant_id = $2 AND d.status = 'open' FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -284,4 +285,13 @@ pub fn router() -> axum::Router<AppState> {
             get(get_my_active_drawer),
         )
         .route("/api/pharmacy/cash-drawers/{id}/close", put(close_drawer))
+        .route(
+            "/api/pharmacy/day-close",
+            get(day_close::list_counter_days).post(day_close::close_day),
+        )
+        .route("/api/pharmacy/day-close/report", get(day_close::get_day_report))
+        .route(
+            "/api/pharmacy/day-close/{id}/reopen",
+            post(day_close::reopen_day),
+        )
 }

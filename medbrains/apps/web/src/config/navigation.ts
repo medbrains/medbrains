@@ -366,7 +366,7 @@ const ADMIN_NAV_PERMISSIONS = [
   "admin.users.list",
   "admin.doctors.list",
   "admin.roles.list",
-  "security.access.list",
+  "admin.access_requests.list",
   "quality.indicators.list",
   ...SETTINGS_NAV_PERMISSIONS,
   "integration.list",
@@ -1341,7 +1341,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "accessRequests",
             path: "/admin/access-requests",
             icon: "IconShieldLock",
-            requiredPermission: "security.access.list",
+            requiredPermission: "admin.access_requests.list",
           },
           {
             i18nKey: "nabhIndicators",

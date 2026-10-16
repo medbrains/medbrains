@@ -2,9 +2,11 @@ import { Tabs } from "@mantine/core";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { CashDrawerTab } from "./pharmacy-finance/cash-drawer-tab";
+import { DayCloseTab } from "./pharmacy-finance/day-close-tab";
 import { FreeDispensingTab } from "./pharmacy-finance/free-dispensing-tab";
 import { MarginsTab } from "./pharmacy-finance/margins-tab";
 import { PettyCashTab } from "./pharmacy-finance/petty-cash-tab";
@@ -19,6 +21,7 @@ const PHARMACY_FINANCE_PAGE_PERMISSIONS = [
   P.PHARMACY_FINANCE.SUPPLIER_PAYMENTS_VIEW,
   P.PHARMACY_FINANCE.SUPPLIER_PAYMENTS_MANAGE,
   P.PHARMACY_FINANCE.FINANCE_REPORTS_VIEW,
+  P.PHARMACY.DAY_CLOSE_VIEW,
 ] as const;
 
 export function PharmacyFinancePage() {
@@ -33,13 +36,16 @@ export function PharmacyFinancePage() {
   const canViewSupplierPayments = useHasPermission(P.PHARMACY_FINANCE.SUPPLIER_PAYMENTS_VIEW);
   const canManageSupplierPayments = useHasPermission(P.PHARMACY_FINANCE.SUPPLIER_PAYMENTS_MANAGE);
   const canViewFinanceReports = useHasPermission(P.PHARMACY_FINANCE.FINANCE_REPORTS_VIEW);
-  const [tab, setTab] = useState<string>("cash-drawer");
+  const canViewDayClose = useHasPermission(P.PHARMACY.DAY_CLOSE_VIEW);
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<string>(params.get("tab") ?? "cash-drawer");
   const visibleTabs = [
     {
       value: "cash-drawer",
       label: "Cash Drawer",
       visible: canViewCashDrawer || canOpenCashDrawer || canCloseCashDrawer,
     },
+    { value: "day-close", label: "Day close", visible: canViewDayClose },
     { value: "petty-cash", label: "Petty Cash", visible: canViewPettyCash },
     {
       value: "supplier-payments",
@@ -87,6 +93,11 @@ export function PharmacyFinancePage() {
               canClose={canCloseCashDrawer}
               amountAccess={amountAccess}
             />
+          </Tabs.Panel>
+        )}
+        {canViewDayClose && (
+          <Tabs.Panel value="day-close" pt="md">
+            <DayCloseTab amountAccess={amountAccess} />
           </Tabs.Panel>
         )}
         {canViewPettyCash && (

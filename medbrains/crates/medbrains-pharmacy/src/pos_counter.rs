@@ -434,8 +434,9 @@ pub(crate) async fn require_counter_day_open_in_tx(
         shift.business_date,
     )
     .await?;
-    // ponytail: a warning until day close ships — refusing a sale that no
-    // screen can unblock would stop the counter. Refuse once a day can be closed.
+    // A warning, not a refusal: an uncounted yesterday must never stop a
+    // counter dispensing medicine today. The cashier sees it on every sale
+    // and the Day close screen lists the day until someone closes it.
     Ok(unclosed.filter(|d| d.overdue).map(|day| {
         format!(
             "The {} day at this counter has not been closed",

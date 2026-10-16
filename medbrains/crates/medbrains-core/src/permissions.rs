@@ -2428,6 +2428,25 @@ pub mod vpn {
 }
 
 pub mod admin {
+    /// Requests for temporary extra permissions, raised from the
+    /// access-denied screen or the Access requests page.
+    ///
+    /// These used to be guarded by `security.access.*` — the physical-security
+    /// codes for door zones and access cards — so every security guard could
+    /// see and approve anyone's permission requests.
+    pub mod access_requests {
+        /// See every access request in the hospital.
+        ///
+        /// Without it you see only your own requests.
+        pub const LIST: &str = "admin.access_requests.list";
+        /// Approve, reject or revoke access requests.
+        ///
+        /// Grants temporary permissions to another person; a request for an
+        /// elevated permission still needs an administrator. Approvers are
+        /// notified of each new request.
+        pub const REVIEW: &str = "admin.access_requests.review";
+    }
+
     pub mod users {
         pub const LIST: &str = "admin.users.list";
         pub const VIEW: &str = "admin.users.view";
