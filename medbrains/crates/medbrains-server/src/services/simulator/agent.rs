@@ -646,7 +646,8 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
             "tool": spec.name,
             "status": outcome.status,
             "ok": outcome.success,
-            "result": truncate(&outcome.body, 250)
+            // Sent to the model as history: no one's identity in it.
+            "result": medbrains_core::ai_egress::scrub(&truncate(&outcome.body, 250))
         }));
         if history.len() > 8 {
             history.remove(0);
@@ -691,7 +692,7 @@ fn record_outcome(acc: &mut RunAcc, cell_json: &Value, tool: &'static str, outco
             format!(
                 "{tool} → HTTP {}: {}",
                 outcome.status,
-                truncate(&outcome.body, 300)
+                medbrains_core::ai_egress::scrub(&truncate(&outcome.body, 300))
             ),
             outcome.target_id,
         )));
