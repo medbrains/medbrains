@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
+  IconBuildingStore,
   IconChartBar,
   IconEye,
   IconFileAnalytics,
@@ -20,6 +21,7 @@ import { AuditLogTab } from "./audit/AuditLogTab";
 import { AuditStatsTab } from "./audit/AuditStatsTab";
 import { BreakGlassReviewTab } from "./audit/BreakGlassReviewTab";
 import { ChainIntegrityTab } from "./audit/ChainIntegrityTab";
+import { DataProcessorsTab } from "./audit/DataProcessorsTab";
 import { EntityTimelineTab } from "./audit/EntityTimelineTab";
 import { PrivacyRequestsTab } from "./audit/PrivacyRequestsTab";
 import { UserActivityTab } from "./audit/UserActivityTab";
@@ -30,6 +32,7 @@ export function AuditPage() {
   const canViewAccess = useHasPermission(P.AUDIT.ACCESS_VIEW);
   const canReviewBreakGlass = useHasPermission(P.AUDIT.BREAK_GLASS_REVIEW);
   const canSeePrivacyRequests = useHasPermission(P.PATIENTS.PRIVACY_REQUESTS_LIST);
+  const canSeeProcessors = useHasPermission(P.AUDIT.PROCESSORS_LIST);
 
   return (
     <div>
@@ -66,6 +69,11 @@ export function AuditPage() {
               Privacy requests
             </Tabs.Tab>
           )}
+          {canSeeProcessors && (
+            <Tabs.Tab value="processors" leftSection={<IconBuildingStore size={16} />}>
+              Data processors
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="integrity" leftSection={<IconShieldCheck size={16} />}>
             Chain Integrity
           </Tabs.Tab>
@@ -96,6 +104,11 @@ export function AuditPage() {
         {canReviewBreakGlass && (
           <Tabs.Panel value="break-glass" pt="md">
             <BreakGlassReviewTab />
+          </Tabs.Panel>
+        )}
+        {canSeeProcessors && (
+          <Tabs.Panel value="processors" pt="md">
+            <DataProcessorsTab />
           </Tabs.Panel>
         )}
         {canSeePrivacyRequests && (
