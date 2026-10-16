@@ -1,22 +1,10 @@
 // REGULATORY ChecklistsTab — split from regulatory.tsx (pure move).
 
 import { BarChart } from "@mantine/charts";
-import {
-  Drawer,
-  Group,
-  Paper,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
+import { Group, Paper, SegmentedControl, Select, Stack, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { ComplianceChecklist, CreateChecklistRequest } from "@medbrains/types";
+import type { ComplianceChecklist } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconDownload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,19 +12,23 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
+import { ChecklistDetailDrawer } from "./checklist-detail-drawer";
 import { ChecklistsHeaderActions } from "./checklists-header-actions";
-import { checklistStatusColors } from "./shared";
+import { CreateChecklistDrawer } from "./create-checklist-drawer";
+import { ACCREDITATION_BODIES, checklistStatusColors } from "./shared";
 
 function ChecklistListView({
   checklists,
   isLoading,
   bodyFilter,
   setBodyFilter,
+  onOpen,
 }: {
   checklists: ComplianceChecklist[];
   isLoading: boolean;
   bodyFilter: string | null;
   setBodyFilter: (v: string | null) => void;
+  onOpen: (id: string) => void;
 }) {
   const canUpdate = useHasPermission(P.REGULATORY.CHECKLISTS_UPDATE);
   const qc = useQueryClient();
@@ -45,7 +37,7 @@ function ChecklistListView({
     mutationFn: (id: string) => regulatoryService.autoPopulateChecklist(id),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
-      toast.success(`${result.updated} item(s) updated`, { title: "Auto-populated" });
+      toast.success(`${result.items_auto_populated} item(s) updated`, { title: "Auto-populated" });
     },
     onError: () => {
       toast.error("Could not auto-populate checklist", { title: "Auto-populate failed" });
@@ -60,13 +52,7 @@ function ChecklistListView({
           clearable
           value={bodyFilter}
           onChange={setBodyFilter}
-          data={[
-            { value: "nabh", label: "NABH" },
-            { value: "nmc", label: "NMC" },
-            { value: "nabl", label: "NABL" },
-            { value: "jci", label: "JCI" },
-            { value: "abdm", label: "ABDM" },
-          ]}
+          data={ACCREDITATION_BODIES}
         />
       </Group>
 
@@ -150,19 +136,25 @@ function ChecklistListView({
           {
             key: "actions",
             label: "Actions",
-            render: (r) =>
-              canUpdate ? (
-                <Tooltip label="Auto-populate from system data">
-                  <Button
-                    tone="secondary"
-                    size="compact-xs"
-                    loading={autoPopulateMut.isPending}
-                    onClick={() => autoPopulateMut.mutate(r.id)}
-                  >
-                    Auto-Populate
-                  </Button>
-                </Tooltip>
-              ) : null,
+            render: (r) => (
+              <Group gap="xs" wrap="nowrap">
+                <Button tone="secondary" size="compact-xs" onClick={() => onOpen(r.id)}>
+                  Open
+                </Button>
+                {canUpdate && (
+                  <Tooltip label="Auto-populate from system data">
+                    <Button
+                      tone="secondary"
+                      size="compact-xs"
+                      loading={autoPopulateMut.isPending}
+                      onClick={() => autoPopulateMut.mutate(r.id)}
+                    >
+                      Auto-Populate
+                    </Button>
+                  </Tooltip>
+                )}
+              </Group>
+            ),
           },
         ]}
       />
@@ -337,7 +329,6 @@ function GapAnalysisView({
 export function ChecklistsTab() {
   const [checklistView, setChecklistView] = useState("list");
   const canCreate = useHasPermission(P.REGULATORY.CHECKLISTS_CREATE);
-  const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [bodyFilter, setBodyFilter] = useState<string | null>(null);
 
@@ -347,22 +338,7 @@ export function ChecklistsTab() {
       regulatoryService.listChecklists(bodyFilter ? { accreditation_body: bodyFilter } : undefined),
   });
 
-  const [form, setForm] = useState<CreateChecklistRequest>({
-    accreditation_body: "nabh",
-    standard_code: "",
-    name: "",
-    assessment_period_start: "",
-    assessment_period_end: "",
-  });
-
-  const createMut = useMutation({
-    mutationFn: (data: CreateChecklistRequest) => regulatoryService.createChecklist(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
-      toast.success("", { title: "Checklist created" });
-      close();
-    },
-  });
+  const [openChecklist, setOpenChecklist] = useState<string | null>(null);
 
   return (
     <Stack gap="md">
@@ -387,81 +363,14 @@ export function ChecklistsTab() {
           isLoading={isLoading}
           bodyFilter={bodyFilter}
           setBodyFilter={setBodyFilter}
+          onOpen={setOpenChecklist}
         />
       ) : (
         <GapAnalysisView checklists={checklists} isLoading={isLoading} />
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="New Compliance Checklist"
-        position="right"
-        size="xl"
-      >
-        <Stack gap="sm">
-          <TextInput
-            label="Name"
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-          />
-          <Select
-            label="Accreditation Body"
-            required
-            value={form.accreditation_body}
-            onChange={(v) => setForm({ ...form, accreditation_body: v ?? "nabh" })}
-            data={[
-              { value: "nabh", label: "NABH" },
-              { value: "nmc", label: "NMC" },
-              { value: "nabl", label: "NABL" },
-              { value: "jci", label: "JCI" },
-              { value: "abdm", label: "ABDM" },
-              { value: "other", label: "Other" },
-            ]}
-          />
-          <TextInput
-            label="Standard Code"
-            required
-            value={form.standard_code}
-            onChange={(e) => setForm({ ...form, standard_code: e.currentTarget.value })}
-          />
-          <Textarea
-            label="Description"
-            value={form.description ?? ""}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
-          />
-          <DateInput
-            label="Assessment Start"
-            required
-            value={form.assessment_period_start ? new Date(form.assessment_period_start) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                assessment_period_start: d ? new Date(d).toISOString().slice(0, 10) : "",
-              })
-            }
-          />
-          <DateInput
-            label="Assessment End"
-            required
-            value={form.assessment_period_end ? new Date(form.assessment_period_end) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                assessment_period_end: d ? new Date(d).toISOString().slice(0, 10) : "",
-              })
-            }
-          />
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-          >
-            Create Checklist
-          </Button>
-        </Stack>
-      </Drawer>
+      <CreateChecklistDrawer opened={opened} onClose={close} checklists={checklists} />
+      <ChecklistDetailDrawer checklistId={openChecklist} onClose={() => setOpenChecklist(null)} />
     </Stack>
   );
 }

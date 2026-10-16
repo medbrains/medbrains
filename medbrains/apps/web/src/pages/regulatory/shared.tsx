@@ -32,3 +32,21 @@ export const checklistStatusColors: Record<string, BadgeTone> = {
   non_compliant: "danger",
   not_applicable: "neutral",
 };
+
+export const ACCREDITATION_BODIES = [
+  { value: "nabh", label: "NABH" },
+  { value: "nmc", label: "NMC" },
+  { value: "nabl", label: "NABL" },
+  { value: "jci", label: "JCI" },
+  { value: "abdm", label: "ABDM" },
+  { value: "other", label: "Other" },
+];
+
+/** How a criterion was found. Not applicable leaves it out of the score. */
+export const CRITERION_STATUSES = [
+  { value: "not_started", label: "Not assessed" },
+  { value: "in_progress", label: "Being assessed" },
+  { value: "compliant", label: "Compliant" },
+  { value: "non_compliant", label: "Not compliant" },
+  { value: "not_applicable", label: "Not applicable" },
+];

@@ -232,13 +232,22 @@ export interface CreateChecklistRequest {
   assessment_period_end: string;
   next_review_date?: string;
   notes?: string;
+  /** An earlier checklist whose criteria are assessed again, from scratch. */
+  copy_criteria_from?: string;
 }
 
 export interface UpdateChecklistRequest {
   overall_status?: ComplianceChecklistStatus;
-  compliance_score?: number;
   next_review_date?: string;
   notes?: string;
+}
+
+export interface UpdateChecklistItemRequest {
+  status?: ComplianceChecklistStatus;
+  evidence_summary?: string;
+  gap_description?: string;
+  corrective_action?: string;
+  target_date?: string;
 }
 
 export interface ChecklistItemInput {

@@ -15,7 +15,7 @@ export function ChecklistsHeaderActions({ canCreate, onCreate }: ChecklistsHeade
       <PrintRegisterButton documentKey="nmc-compliance-report" period="year" />
       {canCreate && (
         <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={onCreate}>
-          New Checklist
+          New checklist
         </Button>
       )}
     </Group>
