@@ -2872,6 +2872,20 @@ pub mod retrospective {
 }
 
 pub mod audit {
+    /// The register of who processes patient data for the hospital.
+    pub mod processors {
+        /// See the data processors register.
+        ///
+        /// Every outside service that handles patient data — hosting, SMS,
+        /// payments, AI — with what it receives, where it keeps it, and the
+        /// agreement that binds it (DPDP Act s.8(2), s.16).
+        pub const LIST: &str = "audit.processors.list";
+        /// Add and update data processors.
+        ///
+        /// Record a processor and its agreement, and retire one the hospital
+        /// stops using.
+        pub const MANAGE: &str = "audit.processors.manage";
+    }
     pub const VIEW: &str = "audit.log.view";
     pub const EXPORT: &str = "audit.log.export";
     pub const ACCESS_VIEW: &str = "audit.access.view";

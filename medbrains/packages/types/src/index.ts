@@ -4651,6 +4651,40 @@ export interface AccessAlert {
   created_at: string;
 }
 
+/** What a processor receives (DPDP Act s.8(2)). */
+export type ProcessorDataCategory = "identity" | "contact" | "clinical" | "billing" | "images" | "staff";
+
+export interface DataProcessor {
+  id: string;
+  name: string;
+  service: string;
+  data_categories: ProcessorDataCategory[];
+  /** ISO 3166 alpha-2; anything but IN is a transfer abroad (s.16). */
+  country: string;
+  sub_processor_of: string | null;
+  sub_processor_of_name: string | null;
+  dpa_reference: string | null;
+  dpa_signed_on: string | null;
+  dpa_expires_on: string | null;
+  status: "active" | "retired";
+  notes: string | null;
+  dpa_state: "missing" | "expired" | "expiring" | "in_force";
+  created_at: string;
+}
+
+export interface DataProcessorInput {
+  name: string;
+  service: string;
+  data_categories: ProcessorDataCategory[];
+  country: string;
+  sub_processor_of?: string;
+  dpa_reference?: string;
+  dpa_signed_on?: string;
+  dpa_expires_on?: string;
+  status?: "active" | "retired";
+  notes?: string;
+}
+
 export interface AcknowledgeAlertRequest {
   notes?: string;
 }

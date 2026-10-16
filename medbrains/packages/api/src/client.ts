@@ -942,6 +942,8 @@ import type {
   // Blood Bank
   DonorListResponse,
   DpdpConsentPrintData,
+  DataProcessor,
+  DataProcessorInput,
   DecidePrivacyRequest,
   DpdpConsentInput,
   DrugExpiryAlertPrintData,
@@ -14918,6 +14920,11 @@ export const api = {
     request<{ deleted: boolean }>(`/sensitive-patients/${id}`, { method: "DELETE" }),
 
   listAccessAlerts: () => request<AccessAlert[]>("/access-alerts"),
+  listDataProcessors: () => request<DataProcessor[]>("/data-processors"),
+  createDataProcessor: (data: DataProcessorInput) =>
+    request<DataProcessor>("/data-processors", { method: "POST", body: JSON.stringify(data) }),
+  updateDataProcessor: (id: string, data: DataProcessorInput) =>
+    request<DataProcessor>(`/data-processors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 
   acknowledgeAccessAlert: (id: string, data: AcknowledgeAlertRequest) =>
     request<AccessAlert>(`/access-alerts/${id}/acknowledge`, {

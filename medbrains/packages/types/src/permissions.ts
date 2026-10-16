@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1048 permissions, one per constant in the Rust source. */
+/** 1050 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5639,6 +5639,18 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // audit
   {
+    code: "audit.processors.list",
+    label: "See the data processors register",
+    description: "Every outside service that handles patient data — hosting, SMS, payments, AI — with what it receives, where it keeps it, and the agreement that binds it (DPDP Act s.8(2), s.16).",
+    module: "audit",
+  },
+  {
+    code: "audit.processors.manage",
+    label: "Add and update data processors",
+    description: "Record a processor and its agreement, and retire one the hospital stops using.",
+    module: "audit",
+  },
+  {
     code: "audit.log.view",
     label: "View Audit Log",
     description: "View centralized audit trail entries",
@@ -6704,6 +6716,12 @@ export const P = {
     BREAK_GLASS_START: "audit.break_glass.start",
     LOG_EXPORT: "audit.log.export",
     LOG_VIEW: "audit.log.view",
+    PROCESSORS: {
+      LIST: "audit.processors.list",
+      MANAGE: "audit.processors.manage",
+    },
+    PROCESSORS_LIST: "audit.processors.list",
+    PROCESSORS_MANAGE: "audit.processors.manage",
   },
   AUTOMATION: {
     ACTIVATE: "automation.activate",
@@ -10470,6 +10488,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AUDIT.BREAK_GLASS_REVIEW,
       P.AUDIT.LOG_EXPORT,
       P.AUDIT.LOG_VIEW,
+      P.AUDIT.PROCESSORS.LIST,
+      P.AUDIT.PROCESSORS.MANAGE,
       P.BILLING.INVOICES.LIST,
       P.BILLING.INVOICES.VIEW,
       P.CAMP.LIST,
