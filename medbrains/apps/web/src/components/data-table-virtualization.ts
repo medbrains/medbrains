@@ -63,3 +63,20 @@ export function resolveDataTableVirtualWindow<T>({
     topSpacerHeight,
   };
 }
+
+/**
+ * The row height the window should assume, given the rows on screen.
+ *
+ * The configured height is only an estimate: a row whose cells wrap is taller.
+ * Windowing on the estimate puts every row below where the spacers say it is,
+ * so scrolling a row into view scrolls it out of the window and unmounts it.
+ * Only ever grows, so re-measuring a different window cannot oscillate.
+ */
+export function resolveMeasuredRowHeight(current: number, renderedHeights: number[]): number {
+  const measured = renderedHeights.filter((height) => height > 0);
+  if (measured.length === 0) {
+    return current;
+  }
+  const average = measured.reduce((sum, height) => sum + height, 0) / measured.length;
+  return Math.max(current, Math.ceil(average));
+}

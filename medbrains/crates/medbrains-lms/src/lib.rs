@@ -754,7 +754,7 @@ pub async fn assign_course(
         "INSERT INTO lms_enrollments (tenant_id, user_id, course_id, assigned_by, due_date)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (tenant_id, user_id, course_id) DO UPDATE SET
-           due_date = COALESCE(EXCLUDED.due_date, lms_enrollments.due_date),
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, due_date = COALESCE(EXCLUDED.due_date, lms_enrollments.due_date),
            status = CASE WHEN lms_enrollments.status = 'cancelled' THEN 'assigned'::lms_enrollment_status ELSE lms_enrollments.status END
          RETURNING *",
     )

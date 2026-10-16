@@ -80,6 +80,15 @@ pub struct CleaningTask {
     pub area_type: CleaningAreaType,
     pub task_date: NaiveDate,
     pub assigned_to: Option<String>,
+    /// Who `assigned_to` names, when it is an employee or user id. Only the
+    /// list query resolves it.
+    #[sqlx(default)]
+    pub assigned_to_name: Option<String>,
+    /// Whether `assigned_to` is the caller. Only the list query computes it;
+    /// the server re-checks on every status change.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub assigned_to_me: bool,
     pub status: CleaningTaskStatus,
     pub started_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,

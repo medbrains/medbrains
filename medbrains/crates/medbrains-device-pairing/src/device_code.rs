@@ -30,7 +30,8 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::{Claims, encode_jwt};
 use medbrains_server_core::state::AppState;
 
-use crate::{DEVICE_JWT_DAYS, require_permission, sha256_hex};
+use crate::{DEVICE_JWT_DAYS, sha256_hex};
+use medbrains_server_core::middleware::authorization::require_permission;
 
 /// Long enough that an unattended display is not stranded mid-shift, short
 /// enough that an unclaimed code on a screen stops being useful.

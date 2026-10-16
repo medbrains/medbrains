@@ -72,6 +72,7 @@ private struct DoseRow: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     CarbonTag(dose.status, tone: marTone(dose.status))
                     if dose.isHighAlert { CarbonTag("high alert", tone: .highAlert) }
+                    if dose.isCytotoxic == true { CarbonTag("chemotherapy", tone: .danger) }
                 }
             }
             if dose.status == "scheduled" {

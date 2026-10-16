@@ -9,9 +9,12 @@ import { adminAccessService } from "@/services/adminAccess.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
+import { SafetyFindingsPanel, useSafetyGate } from "./SafetyFindingsPanel";
 
 interface Props {
   opened: boolean;
+  /** The order being dispensed — its safety findings come from the server. */
+  orderId: string;
   onClose: () => void;
   items: PharmacyOrderItem[];
   isDispensing: boolean;
@@ -21,6 +24,7 @@ interface Props {
     items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
     witnessed_by?: string;
     allergy_override_reason?: string;
+    safety_override_reason?: string;
   }) => void;
 }
 
@@ -39,6 +43,7 @@ const isControlled = (drug?: PharmacyCatalog): boolean =>
  */
 export function DispenseModal({
   opened,
+  orderId,
   onClose,
   items,
   isDispensing,
@@ -72,6 +77,20 @@ export function DispenseModal({
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [witness, setWitness] = useState<string | null>(null);
   const [allergyReason, setAllergyReason] = useState("");
+  const [safetyReason, setSafetyReason] = useState("");
+
+  // Interactions, Reserve antibiotics and non-formulary lines, as the dispense
+  // gate will judge them. Allergy is checked separately below.
+  const validation = useQuery({
+    queryKey: ["pharmacy-order-validate", orderId],
+    queryFn: () => pharmacyService.validatePharmacyOrder(orderId),
+    enabled: opened,
+  });
+  const safety = useSafetyGate(validation.data?.findings, {
+    loading: validation.isLoading,
+    failed: validation.isError,
+    reason: safetyReason,
+  });
 
   // Last-barrier allergy check: a dispensable line whose drug name matches a
   // documented allergen. Warn & require an acknowledged reason (logged server-
@@ -121,6 +140,7 @@ export function DispenseModal({
       items: payloadItems,
       witnessed_by: witness ?? undefined,
       allergy_override_reason: allergyConflicts.length > 0 ? allergyReason.trim() : undefined,
+      safety_override_reason: safety.needsReason ? safetyReason.trim() : undefined,
     });
   };
 
@@ -181,6 +201,12 @@ export function DispenseModal({
           </Alert>
         )}
 
+        <SafetyFindingsPanel
+          state={safety}
+          reason={safetyReason}
+          onReasonChange={setSafetyReason}
+        />
+
         {anyControlled && (
           <Select
             label="Witness (second pharmacist — required for Schedule X)"
@@ -200,7 +226,7 @@ export function DispenseModal({
           <Button
             tone="primary"
             loading={isDispensing}
-            disabled={lines.length === 0 || witnessMissing || allergyBlocked}
+            disabled={lines.length === 0 || witnessMissing || allergyBlocked || !safety.canProceed}
             onClick={submit}
           >
             Dispense

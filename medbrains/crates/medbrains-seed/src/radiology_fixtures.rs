@@ -180,7 +180,7 @@ pub(super) async fn seed_radiology_fixtures(
               instance_count = EXCLUDED.instance_count, series_count = EXCLUDED.series_count, \
               orthanc_id = EXCLUDED.orthanc_id, pacs_url = EXCLUDED.pacs_url, \
               viewer_url = EXCLUDED.viewer_url, file_size_bytes = EXCLUDED.file_size_bytes, \
-              dicom_metadata = EXCLUDED.dicom_metadata, is_active = true, updated_at = now()",
+              dicom_metadata = EXCLUDED.dicom_metadata, is_active = true, updated_at = now() WHERE radiology_dicom_studies.deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(patient_id)

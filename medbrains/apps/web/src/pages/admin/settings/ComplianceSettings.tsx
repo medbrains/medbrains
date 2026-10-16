@@ -12,9 +12,6 @@ import { tenantSettingsService } from "@/services/tenantSettings.service";
 const DEFAULT_COMPLIANCE: ComplianceFlags = {
   enforce_drug_scheduling: false,
   enforce_ndps_tracking: false,
-  enforce_formulary: false,
-  enforce_drug_interactions: false,
-  enforce_antibiotic_stewardship: false,
   enforce_lasa_warnings: false,
   enforce_max_dose_check: false,
   enforce_batch_tracking: false,
@@ -65,23 +62,6 @@ const ENFORCEMENT_TOGGLES: ToggleItem[] = [
     label: "NDPS Act Compliance",
     description:
       "Require narcotic register entries for controlled substance dispensing (NDPS Act 1985)",
-  },
-  {
-    key: "enforce_formulary",
-    label: "Formulary Enforcement",
-    description:
-      "Block or warn when prescribing non-formulary drugs. Require DTC approval workflow.",
-  },
-  {
-    key: "enforce_drug_interactions",
-    label: "Drug Interaction Checks",
-    description:
-      "Check drug-drug interactions before prescribing/dispensing (requires interaction database)",
-  },
-  {
-    key: "enforce_antibiotic_stewardship",
-    label: "Antibiotic Stewardship",
-    description: "Enforce WHO AWaRe classification. Require approval for Reserve antibiotics.",
   },
   {
     key: "enforce_lasa_warnings",
@@ -236,6 +216,10 @@ export function ComplianceSettingsTab() {
         <Text size="xs" c="dimmed" mb="md">
           When enabled, these rules will block or warn on non-compliant actions. Enable only after
           ensuring your drug catalog has the required regulatory data populated.
+        </Text>
+        <Text size="xs" c="dimmed">
+          Drug-interaction, Reserve-antibiotic stewardship and formulary checks are always enforced
+          by the server when prescribing and dispensing; they cannot be switched off.
         </Text>
         <Stack gap="sm">
           {ENFORCEMENT_TOGGLES.map((item) => (

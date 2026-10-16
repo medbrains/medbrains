@@ -29,7 +29,6 @@ use axum::{
 use medbrains_core::it_security::{
     AccessAlert,
     AcknowledgeAlertRequest,
-    AddIncidentUpdateRequest,
     ApproveDisposalRequest,
     ApproveIncentiveRequest,
     AssignIncentivePlanRequest,
@@ -48,7 +47,6 @@ use medbrains_core::it_security::{
     CreateIncentivePlanRequest,
     CreateIncentiveRuleRequest,
     CreateMigrationRequest,
-    CreateSecurityIncidentRequest,
     CreateSensitivePatientRequest,
     CreateTatBenchmarkRequest,
     CreateTatRecordRequest,
@@ -72,18 +70,12 @@ use medbrains_core::it_security::{
     // Incentives
     IncentivePlan,
     IncentivePlanRule,
-    // CERT-In Compliance
-    IncidentQuery,
     MarkIncentivePaidRequest,
     // Data Migration
     MigrationQuery,
     // Onboarding
-    ReportToCertInRequest,
     ResolveIssueRequest,
     ReviewBreakGlassRequest,
-    SecurityIncident,
-    SecurityIncidentSummary,
-    SecurityIncidentUpdate,
     SensitivePatient,
     // Clinical Access Monitor
     SensitivePatientSummary,
@@ -101,7 +93,6 @@ use medbrains_core::it_security::{
     TatRecord,
     TatRecordSummary,
     UpdateComplianceRequest,
-    UpdateSecurityIncidentRequest,
     UpdateVulnerabilityRequest,
     Vulnerability,
 };
@@ -110,7 +101,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
@@ -1309,7 +1300,7 @@ pub async fn upsert_digest_subscription(
          email_enabled, push_enabled)
          VALUES ($1, $2, $3, $4, $5::time, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (tenant_id, user_id) DO UPDATE SET
-         frequency = COALESCE($4, eod_digest_subscriptions.frequency),
+         deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = eod_digest_subscriptions.is_active OR eod_digest_subscriptions.deleted_at IS NOT NULL, frequency = COALESCE($4, eod_digest_subscriptions.frequency),
          delivery_time = COALESCE($5::time, eod_digest_subscriptions.delivery_time),
          delivery_days = COALESCE($6, eod_digest_subscriptions.delivery_days),
          modules = COALESCE($7, eod_digest_subscriptions.modules),
@@ -1563,357 +1554,6 @@ pub async fn dq_dashboard(
 // ══════════════════════════════════════════════════════════════
 // CERT-IN COMPLIANCE (Security Incidents & Vulnerabilities)
 // ══════════════════════════════════════════════════════════════
-
-/// List security incidents
-pub async fn list_security_incidents(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<IncidentQuery>,
-) -> Result<Json<Vec<SecurityIncidentSummary>>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let per_page = params.per_page.unwrap_or(50).min(200);
-    let offset = (params.page.unwrap_or(1) - 1).max(0) * per_page;
-
-    let rows = sqlx::query_as::<_, SecurityIncidentSummary>(
-        "SELECT id, incident_number, title, incident_type, severity, status,
-         detected_at, cert_in_reported, created_at
-         FROM security_incidents
-         WHERE ($1::text IS NULL OR incident_type = $1)
-         AND ($2::text IS NULL OR severity::text = $2)
-         AND ($3::text IS NULL OR status::text = $3)
-         AND ($4::boolean IS NULL OR cert_in_reported = $4)
-         AND ($5::timestamptz IS NULL OR detected_at >= $5::timestamptz)
-         AND ($6::timestamptz IS NULL OR detected_at <= $6::timestamptz)
-         ORDER BY detected_at DESC
-         LIMIT $7 OFFSET $8",
-    )
-    .bind(&params.incident_type)
-    .bind(&params.severity)
-    .bind(&params.status)
-    .bind(params.cert_in_reported)
-    .bind(&params.from)
-    .bind(&params.to)
-    .bind(per_page)
-    .bind(offset)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Get security incident detail
-pub async fn get_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row =
-        sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Create security incident
-pub async fn create_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateSecurityIncidentRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::CREATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Generate incident number
-    let seq: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(MAX(CAST(SUBSTRING(incident_number FROM 'INC-([0-9]+)') AS BIGINT)), 0) + 1
-         FROM security_incidents"
-    )
-    .fetch_one(&mut *tx)
-    .await?;
-    let incident_number = format!("INC-{:06}", seq.0);
-
-    let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "INSERT INTO security_incidents (id, tenant_id, incident_number, title, description,
-         incident_type, severity, detected_at, detected_by, affected_systems, affected_data_types,
-         estimated_impact)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&incident_number)
-    .bind(&body.title)
-    .bind(&body.description)
-    .bind(&body.incident_type)
-    .bind(body.severity)
-    .bind(body.detected_at)
-    .bind(claims.sub)
-    .bind(&body.affected_systems)
-    .bind(&body.affected_data_types)
-    .bind(&body.estimated_impact)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Update security incident
-pub async fn update_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdateSecurityIncidentRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Get old status for logging
-    let old: SecurityIncident = sqlx::query_as("SELECT * FROM security_incidents WHERE id = $1")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "UPDATE security_incidents SET
-         title = COALESCE($2, title),
-         description = COALESCE($3, description),
-         severity = COALESCE($4, severity),
-         status = COALESCE($5, status),
-         containment_steps = COALESCE($6, containment_steps),
-         eradication_steps = COALESCE($7, eradication_steps),
-         recovery_steps = COALESCE($8, recovery_steps),
-         lessons_learned = COALESCE($9, lessons_learned),
-         updated_at = now()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&body.title)
-    .bind(&body.description)
-    .bind(body.severity)
-    .bind(body.status)
-    .bind(&body.containment_steps)
-    .bind(&body.eradication_steps)
-    .bind(&body.recovery_steps)
-    .bind(&body.lessons_learned)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Log status change if changed
-    if let Some(new_status) = body.status {
-        if new_status != old.status {
-            sqlx::query(
-                "INSERT INTO security_incident_updates (id, incident_id, update_type, description,
-                 old_status, new_status, updated_by)
-                 VALUES ($1, $2, 'status_change', $3, $4, $5, $6)",
-            )
-            .bind(Uuid::new_v4())
-            .bind(id)
-            .bind(format!(
-                "Status changed from {:?} to {:?}",
-                old.status, new_status
-            ))
-            .bind(old.status)
-            .bind(new_status)
-            .bind(claims.sub)
-            .execute(&mut *tx)
-            .await?;
-        }
-    }
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Report incident to CERT-In
-pub async fn report_to_cert_in(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ReportToCertInRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "UPDATE security_incidents SET
-         cert_in_reported = true, cert_in_report_date = now(), cert_in_reference = $2,
-         updated_at = now()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&body.cert_in_reference)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Log the reporting
-    sqlx::query(
-        "INSERT INTO security_incident_updates (id, incident_id, update_type, description, updated_by)
-         VALUES ($1, $2, 'note', 'Reported to CERT-In', $3)"
-    )
-    .bind(Uuid::new_v4())
-    .bind(id)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Get incident updates
-pub async fn get_incident_updates(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Vec<SecurityIncidentUpdate>>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, SecurityIncidentUpdate>(
-        "SELECT su.*, u.full_name AS updated_by_name
-         FROM security_incident_updates su
-         LEFT JOIN users u ON u.id = su.updated_by
-         WHERE su.incident_id = $1
-         ORDER BY su.created_at DESC LIMIT 5000",
-    )
-    .bind(id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Add incident update
-pub async fn add_incident_update(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<AddIncidentUpdateRequest>,
-) -> Result<Json<SecurityIncidentUpdate>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, SecurityIncidentUpdate>(
-        "INSERT INTO security_incident_updates (id, incident_id, update_type, description, updated_by)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *, NULL AS updated_by_name"
-    )
-    .bind(Uuid::new_v4())
-    .bind(id)
-    .bind(&body.update_type)
-    .bind(&body.description)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
 
 /// List vulnerabilities
 pub async fn list_vulnerabilities(
@@ -2501,22 +2141,6 @@ pub fn router() -> axum::Router<AppState> {
             post(resolve_dq_issue),
         )
         .route("/api/data-quality/dashboard", get(dq_dashboard))
-        .route(
-            "/api/security-incidents",
-            get(list_security_incidents).post(create_security_incident),
-        )
-        .route(
-            "/api/security-incidents/{id}",
-            get(get_security_incident).patch(update_security_incident),
-        )
-        .route(
-            "/api/security-incidents/{id}/cert-in",
-            post(report_to_cert_in),
-        )
-        .route(
-            "/api/security-incidents/{id}/updates",
-            get(get_incident_updates).post(add_incident_update),
-        )
         .route(
             "/api/vulnerabilities",
             get(list_vulnerabilities).post(create_vulnerability),

@@ -11,8 +11,10 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { isBloodPressureValid } from "@medbrains/schemas";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { BloodPressureInput, type BloodPressureValue } from "@/components";
 import { Badge, Button } from "@/components/ui";
 import { telemedicineService } from "@/services/telemedicine.service";
 import { acuityTone } from "./shared";
@@ -56,7 +58,8 @@ export function TriageModal({
   const [symptoms, setSymptoms] = useState<string[]>([]);
   const [severity, setSeverity] = useState<number | "">("");
   const [spo2, setSpo2] = useState<number | "">("");
-  const [systolic, setSystolic] = useState<number | "">("");
+  const [bp, setBp] = useState<BloodPressureValue>({});
+  const bpValid = isBloodPressureValid(bp.systolic, bp.diastolic);
 
   const submit = useMutation({
     mutationFn: () =>
@@ -66,7 +69,8 @@ export function TriageModal({
         severity: typeof severity === "number" ? severity : undefined,
         vitals: {
           ...(typeof spo2 === "number" ? { spo2 } : {}),
-          ...(typeof systolic === "number" ? { systolic } : {}),
+          ...(bp.systolic !== undefined ? { systolic: bp.systolic } : {}),
+          ...(bp.diastolic !== undefined ? { diastolic: bp.diastolic } : {}),
         },
       }),
     onSuccess: (r) => {
@@ -111,13 +115,9 @@ export function TriageModal({
             value={spo2}
             onChange={(v) => setSpo2(typeof v === "number" ? v : "")}
           />
-          <NumberInput
-            label="Systolic BP"
-            value={systolic}
-            onChange={(v) => setSystolic(typeof v === "number" ? v : "")}
-          />
         </Group>
-        <Button onClick={() => submit.mutate()} loading={submit.isPending}>
+        <BloodPressureInput value={bp} onChange={setBp} />
+        <Button onClick={() => submit.mutate()} loading={submit.isPending} disabled={!bpValid}>
           Run triage
         </Button>
         {result && (

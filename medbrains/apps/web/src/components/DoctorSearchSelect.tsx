@@ -4,6 +4,7 @@ import { P, type SetupUser } from "@medbrains/types";
 import { IconPlus, IconStethoscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { searchErrorText } from "@/lib/search-error";
 import { lookupsService } from "@/services/lookups.service";
 import { MiniCreateDoctor } from "./admin/MiniCreateDoctor";
 import { SearchOrCreate } from "./SearchOrCreate";
@@ -22,6 +23,25 @@ interface DoctorSearchSelectProps {
   doctorIds?: string[];
 }
 
+function doctorLabel(doctor: SetupUser): string {
+  return `Dr. ${doctor.full_name}${doctor.specialization ? ` — ${doctor.specialization}` : ""}`;
+}
+
+/** People type "Dr Rao" — the honorific is not part of anyone's name. */
+function doctorNeedle(search: string): string {
+  return search
+    .trim()
+    .toLowerCase()
+    .replace(/^dr\.?\s*/, "");
+}
+
+function doctorHaystack(doctor: SetupUser): string {
+  return [doctor.full_name, doctor.email, doctor.specialization, doctor.medical_registration_number]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 export function DoctorSearchSelect({
   value,
   onChange,
@@ -38,7 +58,11 @@ export function DoctorSearchSelect({
   const [search, setSearch] = useState("");
   const canCreate = useHasPermission(P.ADMIN.USERS.CREATE);
 
-  const { data: doctors = [] } = useQuery({
+  const {
+    data: doctors = [],
+    isLoading,
+    error: listError,
+  } = useQuery({
     queryKey: ["doctors-list"],
     queryFn: () => lookupsService.listDoctors(),
     staleTime: 300_000,
@@ -64,37 +88,28 @@ export function DoctorSearchSelect({
     return departmentDoctors.length > 0 ? departmentDoctors : activeDoctors;
   }, [activeDoctors, departmentIds, doctorIds]);
   const selectedDoctor = activeDoctors.find((doctor) => doctor.id === value);
+  const selectedLabel = selectedDoctor ? doctorLabel(selectedDoctor) : undefined;
   const visibleDoctors = useMemo(() => {
-    const needle = search.trim().toLowerCase();
+    // The box holds the picked doctor's label after a pick; reopening it must
+    // list everyone again, not filter on that label and find nobody.
+    const needle = search === selectedLabel ? "" : doctorNeedle(search);
     if (!needle) {
       return scopedDoctors;
     }
-
-    return scopedDoctors.filter(
-      (doctor) =>
-        doctor.full_name.toLowerCase().includes(needle) ||
-        doctor.email.toLowerCase().includes(needle) ||
-        (doctor.specialization ?? "").toLowerCase().includes(needle),
-    );
-  }, [scopedDoctors, search]);
+    return scopedDoctors.filter((doctor) => doctorHaystack(doctor).includes(needle));
+  }, [scopedDoctors, search, selectedLabel]);
 
   return (
     <SearchOrCreate<SetupUser>
       label={label}
       placeholder={placeholder}
       value={value}
-      selectedDisplay={
-        selectedDoctor
-          ? `Dr. ${selectedDoctor.full_name}${
-              selectedDoctor.specialization ? ` — ${selectedDoctor.specialization}` : ""
-            }`
-          : undefined
-      }
+      selectedDisplay={selectedLabel}
       items={visibleDoctors}
       getItemValue={(doctor) => doctor.id}
-      getItemDisplay={(doctor) =>
-        `Dr. ${doctor.full_name}${doctor.specialization ? ` — ${doctor.specialization}` : ""}`
-      }
+      getItemDisplay={doctorLabel}
+      loading={isLoading}
+      fetchError={searchErrorText(listError, "doctors")}
       renderItem={(doctor) => (
         <Stack gap={0}>
           <Text size="sm" fw={600}>

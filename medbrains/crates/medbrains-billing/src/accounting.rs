@@ -904,7 +904,7 @@ pub async fn generate_gstr_summary(
          (tenant_id, return_type, period, total_taxable, total_cgst, total_sgst, \
           total_igst, total_cess, total_tax, hsn_summary, invoice_count) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
-         ON CONFLICT (tenant_id, return_type, period) DO UPDATE SET \
+         ON CONFLICT (tenant_id, return_type, period) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
          total_taxable = EXCLUDED.total_taxable, \
          total_cgst = EXCLUDED.total_cgst, \
          total_sgst = EXCLUDED.total_sgst, \

@@ -84,12 +84,14 @@ import {
   type PrintCopyRoute,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import { MlcExaminationPanel } from "./mlc-examination-panel";
 import { MlcInjuriesPanel } from "./mlc-injuries-panel";
 import {
   MlcDocumentationPrintPreview,
   MlcPoliceIntimationPrintPreview,
   MlcRegisterPrintPreview,
 } from "./mlc-print-previews";
+import { PoliceIntimationDelivery } from "./police-intimation-delivery";
 import {
   canEditSensitiveField,
   canViewSensitiveField,
@@ -431,9 +433,14 @@ export function MlcCaseDetail({
         ...EMPTY_POLICE_INTIMATION,
         police_station: mlcCase.police_station ?? "",
       });
+      const sentCount = row.delivery?.length ?? 0;
       notifications.show({
-        title: "Police Intimation Saved",
-        message: "MLC police intimation has been recorded",
+        title: "Police intimation recorded",
+        message:
+          sentCount > 0
+            ? `${row.intimation_number} queued to the police by ${sentCount} message(s).`
+            : `${row.intimation_number} recorded but NOT sent — no police contact is configured.`,
+        color: sentCount > 0 ? undefined : "yellow",
       });
     },
     onError: (e: Error) =>
@@ -784,6 +791,7 @@ export function MlcCaseDetail({
             </Text>
           )}
         </Card>
+        <MlcExaminationPanel key={`${mlcCase.id}:${mlcCase.updated_at}`} mlcCase={mlcCase} />
         <MlcInjuriesPanel mlcId={mlcCase.id} />
 
         {/* Action Buttons */}
@@ -930,6 +938,13 @@ export function MlcCaseDetail({
                         ) : (
                           "---"
                         ),
+                    },
+                    {
+                      key: "delivery",
+                      label: "Sent to police",
+                      render: (row: MlcPoliceIntimation) => (
+                        <PoliceIntimationDelivery delivery={row.delivery} />
+                      ),
                     },
                     {
                       key: "receipt",

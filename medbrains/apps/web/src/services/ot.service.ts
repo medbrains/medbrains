@@ -7,6 +7,13 @@ export const otService = {
   createOtBooking: (...args: Parameters<typeof api.createOtBooking>) =>
     api.createOtBooking(...args),
   getOtBooking: (...args: Parameters<typeof api.getOtBooking>) => api.getOtBooking(...args),
+  getOtBookingConsents: (bookingId: string) => api.getOtBookingConsents(bookingId),
+  linkOtBookingConsent: (bookingId: string, consentId: string) =>
+    api.linkOtBookingConsent(bookingId, consentId),
+  unlinkOtBookingConsent: (bookingId: string, consentId: string, reason: string) =>
+    api.unlinkOtBookingConsent(bookingId, consentId, reason),
+  certifyOtEmergencyConsent: (bookingId: string, reason?: string) =>
+    api.certifyOtEmergencyConsent(bookingId, reason),
   updateOtBookingStatus: (...args: Parameters<typeof api.updateOtBookingStatus>) =>
     api.updateOtBookingStatus(...args),
   listPreopAssessments: (...args: Parameters<typeof api.listPreopAssessments>) =>

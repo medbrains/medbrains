@@ -18,8 +18,12 @@ struct AdmissionRow: Codable, Hashable, Identifiable, Sendable {
     let wardId: String?
     let status: String
     let admittedAt: String
+    /// IP number, e.g. IP-000123.
+    let admissionNumber: String?
 
-    var bedLine: String { "UHID \(uhid)" + (bedLabel.map { " · BED \($0)" } ?? "") }
+    var bedLine: String {
+        (admissionNumber.map { "\($0) · " } ?? "") + "UHID \(uhid)" + (bedLabel.map { " · BED \($0)" } ?? "")
+    }
 }
 
 private struct AdmissionList: Decodable { let admissions: [AdmissionRow] }
@@ -37,6 +41,23 @@ struct MarRow: Codable, Hashable, Identifiable, Sendable {
     let isHighAlert: Bool
     let barcodeVerified: Bool
     let holdReason: String?
+    /// Chemotherapy — the server gives it only to a nurse with a verified certification.
+    let isCytotoxic: Bool?
+
+    /// As-needed orders: each dose given must say why (the server refuses it otherwise).
+    var isPrn: Bool { MarFrequency.isPrn(frequency) }
+}
+
+/// Mirrors `is_prn_frequency` in crates/medbrains-ipd, which enforces it.
+enum MarFrequency {
+    static let prnExact: Set<String> = ["prn", "sos"]
+    static let prnPrefix = "prn "
+    static let asNeeded = "as needed"
+
+    static func isPrn(_ frequency: String?) -> Bool {
+        let f = (frequency ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        return prnExact.contains(f) || f.hasPrefix(prnPrefix) || f.contains(asNeeded)
+    }
 }
 
 struct UpdateMarPayload: Encodable {
@@ -45,6 +66,7 @@ struct UpdateMarPayload: Encodable {
     var witnessedBy: String?
     var holdReason: String?
     var refusedReason: String?
+    var prnReason: String?
 }
 
 struct BarcodeVerifyResult: Decodable, Sendable {

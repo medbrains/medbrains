@@ -33,6 +33,7 @@ export type GeneratedPrintIdKind =
   | "employee"
   | "encounter"
   | "energy_reading"
+  | "entry"
   | "equipment"
   | "fire_drill"
   | "fire_inspection"
@@ -578,6 +579,13 @@ export const GENERATED_PRINT_DOCUMENTS: readonly PrintDocumentDef[] = [
     idKind: "period",
     permission: "facilities.gas.list",
     fetch: (id) => api.getPesoCompliancePrintData(id),
+  },
+  {
+    key: "pg-logbook-entry",
+    label: "Pg logbook entry",
+    idKind: "entry",
+    permission: "opd.queue.view",
+    fetch: (id) => api.getPgLogbookEntryPrintData(id),
   },
   {
     key: "pm-checklist",

@@ -7,6 +7,7 @@ import type {
   PharmacyOrderItemInput,
   PharmacyReturnStatusType,
 } from "./medication-timing";
+import type { MedicationSafetyFinding } from "./pharmacy-phase3";
 
 // ── Pharmacy Phase 2 ──────────────────────────────────────
 
@@ -99,6 +100,8 @@ export interface PharmacyValidationResult {
   warnings: string[];
   blocks: string[];
   interactions: unknown[];
+  /** The medication safety findings the dispense gate will ask about. */
+  findings: MedicationSafetyFinding[];
 }
 
 export interface NdpsBalanceRow {
@@ -877,6 +880,12 @@ export interface Admission {
   isolation_required: boolean;
   isolation_reason: string | null;
   primary_nurse_id: string | null;
+  /** IP number, e.g. IP-000123. */
+  admission_number: string | null;
+  /** Latest Morse fall scale was 45 or more. */
+  is_fall_risk: boolean;
+  /** Latest Braden scale was 12 or less. */
+  is_pressure_injury_risk: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -893,6 +902,10 @@ export interface AdmissionRow {
   patient_name: string;
   uhid: string;
   ward_name: string | null;
+  ward_id: string | null;
+  admission_number: string | null;
+  is_fall_risk: boolean;
+  is_pressure_injury_risk: boolean;
 }
 
 export type NursingTaskPriority = "routine" | "urgent" | "stat";

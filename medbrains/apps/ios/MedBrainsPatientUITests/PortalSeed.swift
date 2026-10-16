@@ -104,6 +104,8 @@ final class PortalSeed {
         guard let drug = catalog.first(where: {
             ($0["is_active"] as? Bool) == true && ($0["is_controlled"] as? Bool) == false
                 && !["X", "H1", "NDPS"].contains(($0["drug_schedule"] as? String) ?? "")
+                // Reserve antibiotics and non-formulary drugs need approvals the seed does not give.
+                && ($0["aware_category"] as? String) != "reserve" && ($0["formulary_status"] as? String) != "non_formulary"
                 && ($0["refill_policy"] as? String) == "doctor_approval" && Self.number($0["current_stock"]) >= 10
         }), let drugId = drug["id"] as? String, let name = drug["name"] as? String else { XCTFail("a stocked drug the doctor refills (\(catalog.count) in catalogue)"); return nil }
         let (rxStatus, rxBody) = call("POST", "/api/opd/encounters/\(encounter)/prescriptions", ["items": [[

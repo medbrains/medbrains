@@ -79,7 +79,10 @@ async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
     // The wrapper, not the bare function: a partition created without RLS is
     // a month of audit rows a direct query can read across tenants, and
     // `ensure_partitions()` made one every month.
-    match sqlx::query("SELECT ensure_partitions_with_rls()").execute(pool).await {
+    match sqlx::query("SELECT ensure_partitions_with_rls()")
+        .execute(pool)
+        .await
+    {
         Ok(_) => tracing::debug!("partition maintenance complete"),
         Err(error) => tracing::error!(%error, "partition maintenance failed"),
     }
@@ -133,7 +136,7 @@ async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
                 "outbox_events",
                 format!(
                     "DELETE FROM outbox_events WHERE tenant_id = $1 \
-                     AND status = 'sent' \
+                     AND status IN ('sent', 'skipped_unconfigured') \
                      AND created_at < now() - make_interval(days => {outbox_days})"
                 ),
             ),

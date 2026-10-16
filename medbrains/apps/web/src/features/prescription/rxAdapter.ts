@@ -127,6 +127,7 @@ export function catalogToFormulary(catalog: PharmacyCatalog[]): FormularyDrug[] 
       controlled: c.is_controlled || ndps,
       atc: c.atc_code ?? undefined,
       aware: c.aware_category ? (AWARE_FROM_CATALOG[c.aware_category] ?? null) : null,
+      nonFormulary: c.formulary_status === "non_formulary",
       lasa: c.is_lasa,
       stock: c.current_stock,
       reorderLevel: c.reorder_level,

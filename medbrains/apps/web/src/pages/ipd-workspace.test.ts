@@ -47,6 +47,7 @@ const activeContext: IpdActionRailContext = {
 function admission(overrides: Partial<Admission> = {}): Admission {
   return {
     admission_height_cm: null,
+    admission_number: "IP-000001",
     admission_source: "opd",
     admission_weight_kg: null,
     admitted_at: "2026-01-01T00:00:00Z",
@@ -66,6 +67,8 @@ function admission(overrides: Partial<Admission> = {}): Admission {
     id: "admission-1",
     ip_type: "general",
     is_critical: false,
+    is_fall_risk: false,
+    is_pressure_injury_risk: false,
     isolation_reason: null,
     isolation_required: false,
     mlc_case_id: null,

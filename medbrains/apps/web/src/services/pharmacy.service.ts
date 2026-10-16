@@ -21,6 +21,8 @@ export const pharmacyService = {
   listPharmacyOrders: (...args: Parameters<typeof api.listPharmacyOrders>) =>
     api.listPharmacyOrders(...args),
   dispenseOrder: (...args: Parameters<typeof api.dispenseOrder>) => api.dispenseOrder(...args),
+  validatePharmacyOrder: (...args: Parameters<typeof api.validatePharmacyOrder>) =>
+    api.validatePharmacyOrder(...args),
   listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
     api.listPatientAllergies(...args),
   cancelPharmacyOrder: (...args: Parameters<typeof api.cancelPharmacyOrder>) =>
@@ -114,6 +116,10 @@ export const pharmacyService = {
   getPosDaySummary: (...args: Parameters<typeof api.getPosDaySummary>) =>
     api.getPosDaySummary(...args),
   listPosSales: (...args: Parameters<typeof api.listPosSales>) => api.listPosSales(...args),
+  getPosSale: (...args: Parameters<typeof api.getPosSale>) => api.getPosSale(...args),
+  getPosPrices: (...args: Parameters<typeof api.getPosPrices>) => api.getPosPrices(...args),
+  searchCounterPatients: (...args: Parameters<typeof api.searchCounterPatients>) =>
+    api.searchCounterPatients(...args),
   listPosSaleItems: (...args: Parameters<typeof api.listPosSaleItems>) =>
     api.listPosSaleItems(...args),
   createPosSale: (...args: Parameters<typeof api.createPosSale>) => api.createPosSale(...args),

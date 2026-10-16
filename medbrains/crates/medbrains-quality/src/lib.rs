@@ -16,7 +16,6 @@
 //! patients, at which point the incident register becomes a way to confirm a
 //! named patient exists.
 
-
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -34,8 +33,9 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,patch};
+use axum::routing::{get, patch, post};
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::audit::ActorWithheld;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
@@ -735,9 +735,9 @@ pub async fn list_incidents(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = match (&params.status, &params.severity) {
-        (Some(status), Some(severity)) => {
-            sqlx::query_as::<_, QualityIncidentListItem>(
+    let rows =
+        match (&params.status, &params.severity) {
+            (Some(status), Some(severity)) => sqlx::query_as::<_, QualityIncidentListItem>(
                 "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
                  department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
                  assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
@@ -745,56 +745,49 @@ pub async fn list_incidents(
                  WHERE tenant_id = $1 \
                  AND status = $2::incident_status \
                  AND severity = $3::incident_severity \
-                 ORDER BY incident_date DESC LIMIT 5000",
+                 ORDER BY incident_date DESC, created_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
             .bind(severity)
             .fetch_all(&mut *tx)
-            .await?
-        }
-        (Some(status), None) => {
-            sqlx::query_as::<_, QualityIncidentListItem>(
+            .await?,
+            (Some(status), None) => sqlx::query_as::<_, QualityIncidentListItem>(
                 "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
                  department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
                  assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
                  regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 AND status = $2::incident_status \
-                 ORDER BY incident_date DESC LIMIT 5000",
+                 ORDER BY incident_date DESC, created_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
             .fetch_all(&mut *tx)
-            .await?
-        }
-        (None, Some(severity)) => {
-            sqlx::query_as::<_, QualityIncidentListItem>(
+            .await?,
+            (None, Some(severity)) => sqlx::query_as::<_, QualityIncidentListItem>(
                 "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
                  department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
                  assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
                  regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 AND severity = $2::incident_severity \
-                 ORDER BY incident_date DESC LIMIT 5000",
+                 ORDER BY incident_date DESC, created_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(severity)
             .fetch_all(&mut *tx)
-            .await?
-        }
-        (None, None) => {
-            sqlx::query_as::<_, QualityIncidentListItem>(
+            .await?,
+            (None, None) => sqlx::query_as::<_, QualityIncidentListItem>(
                 "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
                  department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
                  assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
                  regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 \
-                 ORDER BY incident_date DESC LIMIT 200",
+                 ORDER BY incident_date DESC, created_at DESC LIMIT 200",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)
-            .await?
-        }
-    };
+            .await?,
+        };
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -828,8 +821,15 @@ pub async fn create_incident(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateIncidentRequest>,
-) -> Result<Json<QualityIncident>, AppError> {
+) -> Result<(Extension<ActorWithheld>, Json<QualityIncident>), AppError> {
     require_permission(&claims, permissions::quality::incidents::CREATE)?;
+
+    // An anonymous report names nobody: not the row, not the NABH registers
+    // mirrored from it, not the outbox event, not the HTTP audit row. The
+    // nil uuid stands in where a column or envelope demands an actor.
+    let is_anonymous = body.is_anonymous.unwrap_or(false);
+    let reporter = (!is_anonymous).then_some(claims.sub);
+    let actor = reporter.unwrap_or_else(Uuid::nil);
 
     let incident_date = chrono::DateTime::parse_from_rfc3339(&body.incident_date)
         .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -853,7 +853,7 @@ pub async fn create_incident(
          (tenant_id, incident_number, title, description, incident_type, \
           severity, department_id, location, incident_date, \
           reported_by, is_anonymous, patient_id, immediate_action) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,COALESCE($11,false),$12,$13) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -865,8 +865,8 @@ pub async fn create_incident(
     .bind(body.department_id)
     .bind(&body.location)
     .bind(incident_date)
-    .bind(claims.sub)
-    .bind(body.is_anonymous)
+    .bind(reporter)
+    .bind(is_anonymous)
     .bind(body.patient_id)
     .bind(&body.immediate_action)
     .fetch_one(&mut *tx)
@@ -875,29 +875,17 @@ pub async fn create_incident(
     if matches!(body.severity, IncidentSeverity::Sentinel)
         || body.incident_type.to_lowercase().contains("sentinel")
     {
-        medbrains_nabh::mirror_sentinel_incident(
-            &mut tx,
-            claims.tenant_id,
-            claims.sub,
-            row.id,
-        )
-        .await?;
+        medbrains_nabh::mirror_sentinel_incident(&mut tx, claims.tenant_id, actor, row.id).await?;
     }
     if body.incident_type.to_lowercase().contains("fall") {
-        medbrains_nabh::mirror_fall_incident(
-            &mut tx,
-            claims.tenant_id,
-            claims.sub,
-            row.id,
-        )
-        .await?;
+        medbrains_nabh::mirror_fall_incident(&mut tx, claims.tenant_id, actor, row.id).await?;
     }
 
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::QualityIncidentReported,
         row.id,
-        claims.sub,
+        actor,
         serde_json::json!({
             "incident_id": row.id,
             "incident_number": &row.incident_number,
@@ -915,7 +903,7 @@ pub async fn create_incident(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok((Extension(ActorWithheld(is_anonymous)), Json(row)))
 }
 
 pub async fn update_incident(
@@ -1565,7 +1553,7 @@ pub async fn update_compliance(
           evidence_documents, gap_description, action_plan, \
           responsible_person_id, target_date, assessed_at, assessed_by) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now(),$10) \
-         ON CONFLICT (tenant_id, standard_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, standard_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
          compliance = EXCLUDED.compliance, \
          evidence_summary = EXCLUDED.evidence_summary, \
          evidence_documents = EXCLUDED.evidence_documents, \
@@ -2201,7 +2189,7 @@ pub async fn list_audit_findings(
          WHERE tenant_id = $1 \
          AND (contributing_factors @> $2::jsonb \
               OR incident_type LIKE '%audit%') \
-         ORDER BY incident_date DESC LIMIT 200",
+         ORDER BY incident_date DESC, created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .bind(serde_json::json!({"audit_id": audit_id}))
@@ -2416,7 +2404,7 @@ pub async fn list_sentinel_events(
          AND (severity IN ('sentinel'::incident_severity, \
                            'major'::incident_severity) \
               OR incident_type LIKE '%sentinel%') \
-         ORDER BY incident_date DESC LIMIT 200",
+         ORDER BY incident_date DESC, created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2555,10 +2543,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/documents",
             get(list_documents).post(create_document),
         )
-        .route(
-            "/api/quality/documents/{id}",
-            get(get_document),
-        )
+        .route("/api/quality/documents/{id}", get(get_document))
         .route(
             "/api/quality/documents/{id}/status",
             patch(update_document_status),
@@ -2575,14 +2560,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/incidents/{id}",
             get(get_incident).patch(update_incident),
         )
-        .route(
-            "/api/quality/capa",
-            get(list_capa).post(create_capa),
-        )
-        .route(
-            "/api/quality/capa/{id}",
-            patch(update_capa),
-        )
+        .route("/api/quality/capa", get(list_capa).post(create_capa))
+        .route("/api/quality/capa/{id}", patch(update_capa))
         .route(
             "/api/quality/committees",
             get(list_committees).post(create_committee),
@@ -2591,10 +2570,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/meetings",
             get(list_meetings).post(create_meeting),
         )
-        .route(
-            "/api/quality/meetings/{id}",
-            patch(update_meeting),
-        )
+        .route("/api/quality/meetings/{id}", patch(update_meeting))
         .route(
             "/api/quality/action-items",
             get(list_action_items).post(create_action_item),
@@ -2607,10 +2583,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/compliance",
             get(list_compliance).post(update_compliance),
         )
-        .route(
-            "/api/quality/audits",
-            get(list_audits).post(create_audit),
-        )
+        .route("/api/quality/audits", get(list_audits).post(create_audit))
         .route(
             "/api/quality/audits/{id}",
             get(get_audit).patch(update_audit),
@@ -2631,18 +2604,12 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/accreditation/{body}/evidence",
             get(compile_evidence),
         )
-        .route(
-            "/api/quality/audits/schedule",
-            post(schedule_audits),
-        )
+        .route("/api/quality/audits/schedule", post(schedule_audits))
         .route(
             "/api/quality/audits/{id}/findings",
             get(list_audit_findings).post(create_audit_finding),
         )
-        .route(
-            "/api/quality/capas/overdue",
-            get(list_overdue_capas),
-        )
+        .route("/api/quality/capas/overdue", get(list_overdue_capas))
         .route(
             "/api/quality/committees/dashboard",
             get(committee_dashboard),
@@ -2651,14 +2618,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/quality/mortality-reviews",
             post(create_mortality_review),
         )
-        .route(
-            "/api/quality/incidents/sentinel",
-            get(list_sentinel_events),
-        )
-        .route(
-            "/api/quality/analytics/psi",
-            get(patient_safety_indicators),
-        )
+        .route("/api/quality/incidents/sentinel", get(list_sentinel_events))
+        .route("/api/quality/analytics/psi", get(patient_safety_indicators))
         .route(
             "/api/quality/analytics/scorecard",
             get(department_scorecard),

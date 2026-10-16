@@ -33,12 +33,17 @@ export interface RedactableFieldGroup {
   fields: RedactableField[];
 }
 
-/** 49 fields across 7 modules. */
+/** 53 fields across 8 modules. */
 export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
   {
     module: "billing",
     label: "Billing",
     fields: [{ key: "billing.amount", label: "amount" }],
+  },
+  {
+    module: "blood_bank",
+    label: "blood bank",
+    fields: [{ key: "blood_bank.tti.result", label: "tti · result" }],
   },
   {
     module: "camp",
@@ -58,9 +63,11 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
     label: "Medico-legal (MLC)",
     fields: [
       { key: "emergency.mlc.cause_of_death", label: "mlc · cause of death", note: "medico-legal" },
+      { key: "emergency.mlc.clinical_course", label: "mlc · clinical course" },
       { key: "emergency.mlc.examination_findings", label: "mlc · examination findings" },
       { key: "emergency.mlc.fir_number", label: "mlc · fir number", note: "police record" },
       { key: "emergency.mlc.history_of_incident", label: "mlc · history of incident" },
+      { key: "emergency.mlc.incident_details", label: "mlc · incident details" },
       { key: "emergency.mlc.informant_contact", label: "mlc · informant contact" },
       { key: "emergency.mlc.informant_name", label: "mlc · informant name" },
       { key: "emergency.mlc.informant_relation", label: "mlc · informant relation" },
@@ -70,6 +77,7 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
         label: "mlc · pocso report",
         note: "POCSO — statutory confidentiality",
       },
+      { key: "emergency.mlc.police_officer", label: "mlc · police officer" },
       { key: "emergency.mlc.police_station", label: "mlc · police station" },
     ],
   },

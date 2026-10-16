@@ -29,6 +29,7 @@ export function HrPage() {
   const canManageAttendance = useHasPermission(P.HR.ATTENDANCE_MANAGE);
   const canCreateLeave = useHasPermission(P.HR.LEAVE_CREATE);
   const canApproveLeave = useHasPermission(P.HR.LEAVE_APPROVE);
+  const canManageLeave = useHasPermission(P.HR.LEAVE_MANAGE);
   const canManageRoster = useHasPermission(P.HR.ROSTER_MANAGE);
   const canManageOnCall = useHasPermission(P.HR.ON_CALL_MANAGE);
   const canManageTraining = useHasPermission(P.HR.TRAINING_MANAGE);
@@ -80,7 +81,11 @@ export function HrPage() {
           <DutyHoursTab />
         </Tabs.Panel>
         <Tabs.Panel value="leave">
-          <LeaveTab canCreate={canCreateLeave} canApprove={canApproveLeave} />
+          <LeaveTab
+            canCreate={canCreateLeave}
+            canApprove={canApproveLeave}
+            canManage={canManageLeave}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="roster">
           <RosterTab canManage={canManageRoster} canManageOnCall={canManageOnCall} />

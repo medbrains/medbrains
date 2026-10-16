@@ -20,6 +20,8 @@ export const cssdService = {
   updateCssdLoadStatus: (id: string, status: LoadStatus) =>
     api.updateCssdLoadStatus(id, { status }),
   listCssdLoadItems: (loadId: string) => api.listCssdLoadItems(loadId),
+  listCssdLoadIssuances: (loadId: string) => api.listCssdLoadIssuances(loadId),
+  recallCssdLoad: (loadId: string, reason: string) => api.recallCssdLoad(loadId, reason),
   addCssdLoadItem: (...args: Parameters<typeof api.addCssdLoadItem>) =>
     api.addCssdLoadItem(...args),
   getCssdSetItems: (setId: string) => api.getCssdSetItems(setId),

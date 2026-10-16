@@ -933,7 +933,7 @@ pub async fn upsert_asset_classification(
          VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'routine'), \
                  COALESCE($8, 'asset_tagged'), COALESCE($9, false), \
                  COALESCE($10, ARRAY[]::text[]), $11, $12) \
-         ON CONFLICT (tenant_id, source_type, source_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, source_type, source_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            asset_category_id = EXCLUDED.asset_category_id, \
            store_category_id = EXCLUDED.store_category_id, \
            asset_domain = EXCLUDED.asset_domain, \

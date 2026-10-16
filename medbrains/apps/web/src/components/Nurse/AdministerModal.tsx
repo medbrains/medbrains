@@ -14,12 +14,15 @@ import {
 } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
+import { isPrnFrequency } from "./prn";
 
 interface Props {
   opened: boolean;
   onClose: () => void;
   dose: MarDueRow;
   isSubmitting: boolean;
+  /** The server's refusal, in its words (e.g. chemotherapy needs a certified nurse). */
+  error?: string | null;
   onSubmit: (input: UpdateMarRoundInput) => void;
 }
 
@@ -38,13 +41,15 @@ const MODE_STATUS: Record<Mode, MarStatus> = {
  * dose is held / refused / missed. Mirrors the pharmacy DispenseModal's witness
  * pattern.
  */
-export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit }: Props) {
+export function AdministerModal({ opened, onClose, dose, isSubmitting, error, onSubmit }: Props) {
   const [mode, setMode] = useState<Mode>("give");
   const [patientBarcode, setPatientBarcode] = useState("");
   const [drugBarcode, setDrugBarcode] = useState("");
   const [doseChecked, setDoseChecked] = useState(false);
   const [witness, setWitness] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [prnReason, setPrnReason] = useState("");
+  const isPrn = isPrnFrequency(dose.frequency);
 
   const { data: users = [] } = useQuery({
     queryKey: ["setup-users"],
@@ -75,11 +80,24 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
 
   const witnessMissing = dose.is_high_alert && !witness;
   const reasonMissing = mode !== "give" && !reason.trim();
+  const prnReasonMissing = mode === "give" && isPrn && !prnReason.trim();
 
   const canSubmit = useMemo(() => {
-    if (mode === "give") return doseChecked && !witnessMissing && (!dose.is_high_alert || verified);
+    if (mode === "give") {
+      return (
+        doseChecked && !witnessMissing && !prnReasonMissing && (!dose.is_high_alert || verified)
+      );
+    }
     return !reasonMissing;
-  }, [mode, doseChecked, witnessMissing, reasonMissing, dose.is_high_alert, verified]);
+  }, [
+    mode,
+    doseChecked,
+    witnessMissing,
+    prnReasonMissing,
+    reasonMissing,
+    dose.is_high_alert,
+    verified,
+  ]);
 
   const submit = () => {
     if (mode === "give" && witnessMissing) {
@@ -92,6 +110,7 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
     if (mode === "give") {
       // barcode_verified is set server-side by verify-barcode; never sent from here.
       if (witness) input.witnessed_by = witness;
+      if (isPrn) input.prn_reason = prnReason.trim();
     } else if (mode === "hold") {
       input.hold_reason = reason.trim();
     } else if (mode === "refuse") {
@@ -113,7 +132,18 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
                 High alert
               </Badge>
             )}
+            {dose.is_cytotoxic && (
+              <Badge tone="danger" size="sm">
+                Chemotherapy
+              </Badge>
+            )}
           </Group>
+          {dose.is_cytotoxic && (
+            <Alert tone="warning">
+              Chemotherapy: only a nurse with an HR-verified chemotherapy certification can give
+              this dose.
+            </Alert>
+          )}
           <Text size="sm" c="dimmed">
             {dose.dose} · {dose.route} · for {dose.patient_name}
           </Text>
@@ -179,6 +209,17 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
               checked={doseChecked}
               onChange={(e) => setDoseChecked(e.currentTarget.checked)}
             />
+            {isPrn && (
+              <Textarea
+                label="Reason for this as-needed (PRN) dose"
+                placeholder="e.g. pain score 7, temperature 39.2 °C"
+                value={prnReason}
+                onChange={(e) => setPrnReason(e.currentTarget.value)}
+                minRows={2}
+                required
+                error={prnReasonMissing ? "Required for a PRN dose" : undefined}
+              />
+            )}
             {dose.is_high_alert && (
               <Select
                 label="Witness (second nurse — required for high-alert)"
@@ -211,6 +252,8 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
         {mode !== "give" && (
           <Alert tone="info">The prescriber is notified when a dose is not given.</Alert>
         )}
+
+        {error && <Alert tone="danger">{error}</Alert>}
 
         <Group justify="flex-end" mt="xs">
           <Button tone="ghost" onClick={onClose}>

@@ -1,16 +1,16 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,put};
 use chrono::{DateTime, Duration, NaiveTime, TimeZone, Utc};
 use medbrains_core::fatigue::{self, FatigueThresholds};
 use medbrains_core::hr::{
     Appraisal, AttendanceRecord, Designation, DutyRoster, Employee, EmployeeCredential,
-    EmployeeStatus, LeaveBalance, LeaveRequest, OnCallSchedule, ShiftDefinition, StatutoryRecord,
-    TrainingProgram, TrainingRecord,
+    EmployeeStatus, OnCallSchedule, ShiftDefinition, StatutoryRecord, TrainingProgram,
+    TrainingRecord,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -21,12 +21,15 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
 
-use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
-use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
+use medbrains_server_core::validation::{self, ValidationErrors};
+
+pub mod leave;
+pub mod leave_approval;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -143,7 +146,9 @@ pub struct CreateCredentialRequest {
 pub struct UpdateCredentialRequest {
     pub status: Option<String>,
     pub expiry_date: Option<String>,
-    pub verified_by: Option<Uuid>,
+    /// Mark the credential verified against the original. The verifier is
+    /// always the caller — never an id the client names.
+    pub verify: Option<bool>,
     pub document_url: Option<String>,
     pub notes: Option<String>,
 }
@@ -211,31 +216,6 @@ pub struct CreateAttendanceRequest {
     pub status: Option<String>,
     pub source: Option<String>,
     pub notes: Option<String>,
-}
-
-// ── Leave ───────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-pub struct ListLeaveQuery {
-    pub employee_id: Option<Uuid>,
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateLeaveRequest {
-    pub employee_id: Uuid,
-    pub leave_type: String,
-    pub start_date: String,
-    pub end_date: String,
-    pub days: Option<f64>,
-    pub is_half_day: Option<bool>,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LeaveActionRequest {
-    pub action: String,
-    pub remarks: Option<String>,
 }
 
 // ── On-Call ─────────────────────────────────────────────
@@ -550,7 +530,10 @@ fn empty_completeness() -> ProfileCompleteness {
         percent: 0,
         filled: 0,
         total: u8::try_from(SELF_PROFILE_FIELDS.len()).unwrap_or(u8::MAX),
-        missing: SELF_PROFILE_FIELDS.iter().map(|s| (*s).to_owned()).collect(),
+        missing: SELF_PROFILE_FIELDS
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect(),
     }
 }
 
@@ -569,7 +552,9 @@ pub async fn get_my_profile(
     .await?;
     tx.commit().await?;
 
-    let completeness = employee.as_ref().map_or_else(empty_completeness, compute_completeness);
+    let completeness = employee
+        .as_ref()
+        .map_or_else(empty_completeness, compute_completeness);
     Ok(Json(MyProfileResponse {
         employee,
         completeness,
@@ -581,7 +566,12 @@ pub async fn update_my_profile(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateMyProfileRequest>,
 ) -> Result<Json<MyProfileResponse>, AppError> {
-    let dob = match body.date_of_birth.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    let dob = match body
+        .date_of_birth
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         Some(s) => Some(
             s.parse::<chrono::NaiveDate>()
                 .map_err(|_| AppError::BadRequest("Invalid date_of_birth".to_owned()))?,
@@ -681,7 +671,14 @@ pub async fn create_employee(
         .bind(username)
         .bind(&body.email)
         .bind(&password_hash)
-        .bind(format!("{} {}", body.first_name, body.last_name.as_deref().unwrap_or("")).trim())
+        .bind(
+            format!(
+                "{} {}",
+                body.first_name,
+                body.last_name.as_deref().unwrap_or("")
+            )
+            .trim(),
+        )
         .bind(role)
         .fetch_one(&mut *tx)
         .await?;
@@ -932,6 +929,25 @@ pub async fn update_credential(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let verifier = body.verify.unwrap_or(false).then_some(claims.sub);
+    if verifier.is_some() {
+        // Nobody verifies their own licence or certification.
+        let own = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM employees \
+             WHERE id = $1 AND tenant_id = $2 AND user_id = $3)",
+        )
+        .bind(employee_id)
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
+        .fetch_one(&mut *tx)
+        .await?;
+        if own {
+            return Err(AppError::Conflict(
+                "You cannot verify your own credential. Ask another HR officer.".to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, EmployeeCredential>(
         "UPDATE employee_credentials SET \
          status = COALESCE($4::credential_status, status), \
@@ -947,7 +963,7 @@ pub async fn update_credential(
     .bind(cred_id)
     .bind(&body.status)
     .bind(&body.expiry_date)
-    .bind(body.verified_by)
+    .bind(verifier)
     .bind(&body.document_url)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -1435,7 +1451,9 @@ async fn resolve_fatigue_thresholds(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
-    let o: FatigueOverrides = row.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    let o: FatigueOverrides = row
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
     Ok(FatigueThresholds {
         continuous_h: o.continuous_h.unwrap_or(d.continuous_h),
         rest_h: o.rest_h.unwrap_or(d.rest_h),
@@ -1470,7 +1488,9 @@ async fn compute_fatigue(
     .fetch_one(&mut **tx)
     .await?;
     let rest_h = match (session.and_then(|s| s.check_in), prev_checkout) {
-        (Some(check_in), Some(co)) => Some(f64::from((check_in - co).num_minutes().max(0) as i32) / 60.0),
+        (Some(check_in), Some(co)) => {
+            Some(f64::from((check_in - co).num_minutes().max(0) as i32) / 60.0)
+        }
         _ => None,
     };
 
@@ -1494,7 +1514,10 @@ async fn compute_fatigue(
     Ok(FatigueState {
         flags: flags
             .iter()
-            .map(|f| FatigueFlagDto { code: f.code(), message: f.message() })
+            .map(|f| FatigueFlagDto {
+                code: f.code(),
+                message: f.message(),
+            })
             .collect(),
         continuous_h,
         rest_h,
@@ -1512,7 +1535,11 @@ async fn build_my_shift(
     let session = open_session(tx, tenant_id, employee_id).await?;
     let scheduled = todays_scheduled_shift(tx, tenant_id, employee_id, user_id).await?;
     let fatigue = compute_fatigue(tx, tenant_id, employee_id, session.as_ref()).await?;
-    Ok(MyShiftResponse { scheduled, session, fatigue })
+    Ok(MyShiftResponse {
+        scheduled,
+        session,
+        fatigue,
+    })
 }
 
 /// `GET /api/hr/my-shift`
@@ -1562,8 +1589,13 @@ pub async fn start_shift(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
 
-    if open_session(&mut tx, &claims.tenant_id, employee_id).await?.is_some() {
-        return Err(AppError::BadRequest("You already have an open shift.".to_owned()));
+    if open_session(&mut tx, &claims.tenant_id, employee_id)
+        .await?
+        .is_some()
+    {
+        return Err(AppError::BadRequest(
+            "You already have an open shift.".to_owned(),
+        ));
     }
 
     let planned_end = resolve_planned_end(&mut tx, &claims.tenant_id, employee_id).await?;
@@ -1593,7 +1625,9 @@ pub async fn extend_shift(
     Json(body): Json<ExtendShiftRequest>,
 ) -> Result<Json<MyShiftResponse>, AppError> {
     if !(body.hours > 0.0 && body.hours <= 12.0) {
-        return Err(AppError::BadRequest("Extend by between 0 and 12 hours.".to_owned()));
+        return Err(AppError::BadRequest(
+            "Extend by between 0 and 12 hours.".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1728,12 +1762,16 @@ pub async fn acknowledge_fatigue(
 
     // Notify the charge nurse on duty that a colleague is working through fatigue.
     if !codes.is_empty() {
-        if let Some(charge) = todays_scheduled_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub)
-            .await?
-            .and_then(|s| s.charge_nurse_user_id)
+        if let Some(charge) =
+            todays_scheduled_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub)
+                .await?
+                .and_then(|s| s.charge_nurse_user_id)
         {
             if charge != claims.sub {
-                let body_text = format!("A staff member is continuing on shift despite a fatigue warning ({}).", codes.join(", "));
+                let body_text = format!(
+                    "A staff member is continuing on shift despite a fatigue warning ({}).",
+                    codes.join(", ")
+                );
                 create_notification(
                     &mut tx,
                     claims.tenant_id,
@@ -1870,206 +1908,6 @@ pub async fn list_duty_hours(
         .collect();
 
     Ok(Json(out))
-}
-
-// ══════════════════════════════════════════════════════════
-//  Leave handlers
-// ══════════════════════════════════════════════════════════
-
-pub async fn list_leave_balances(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(employee_id): Path<Uuid>,
-) -> Result<Json<Vec<LeaveBalance>>, AppError> {
-    require_permission(&claims, permissions::hr::leave::LIST)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, LeaveBalance>(
-        "SELECT * FROM leave_balances \
-         WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY year DESC, leave_type LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .bind(employee_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-pub async fn list_leave_requests(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<ListLeaveQuery>,
-) -> Result<Json<Vec<LeaveRequest>>, AppError> {
-    require_permission(&claims, permissions::hr::leave::LIST)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = if let Some(emp_id) = params.employee_id {
-        sqlx::query_as::<_, LeaveRequest>(
-            "SELECT * FROM leave_requests \
-             WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY created_at DESC LIMIT 5000",
-        )
-        .bind(claims.tenant_id)
-        .bind(emp_id)
-        .fetch_all(&mut *tx)
-        .await?
-    } else if let Some(ref status) = params.status {
-        sqlx::query_as::<_, LeaveRequest>(
-            "SELECT * FROM leave_requests \
-             WHERE tenant_id = $1 AND status = $2::leave_status \
-             ORDER BY created_at DESC LIMIT 5000",
-        )
-        .bind(claims.tenant_id)
-        .bind(status)
-        .fetch_all(&mut *tx)
-        .await?
-    } else {
-        sqlx::query_as::<_, LeaveRequest>(
-            "SELECT * FROM leave_requests WHERE tenant_id = $1 \
-             ORDER BY created_at DESC LIMIT 200",
-        )
-        .bind(claims.tenant_id)
-        .fetch_all(&mut *tx)
-        .await?
-    };
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-pub async fn create_leave_request(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateLeaveRequest>,
-) -> Result<Json<LeaveRequest>, AppError> {
-    require_permission(&claims, permissions::hr::leave::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, LeaveRequest>(
-        "INSERT INTO leave_requests \
-         (tenant_id, employee_id, leave_type, start_date, end_date, \
-          days, is_half_day, reason, status) \
-         VALUES ($1, $2, $3::leave_type, $4::date, $5::date, \
-         COALESCE($6, 1), COALESCE($7, false), $8, 'pending_hod') \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.employee_id)
-    .bind(&body.leave_type)
-    .bind(&body.start_date)
-    .bind(&body.end_date)
-    .bind(body.days)
-    .bind(body.is_half_day)
-    .bind(&body.reason)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-pub async fn leave_action(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<LeaveActionRequest>,
-) -> Result<Json<LeaveRequest>, AppError> {
-    require_permission(&claims, permissions::hr::leave::APPROVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let new_status = match body.action.as_str() {
-        "approve_hod" => "pending_admin",
-        "approve_admin" | "approve" => "approved",
-        "reject" => "rejected",
-        _ => return Err(AppError::BadRequest("Invalid action".into())),
-    };
-
-    // Reverse of the create_attendance guard: don't approve a leave that overlaps days
-    // the employee was already marked present — that would leave payroll double-counting.
-    if new_status == "approved" {
-        let has_present: bool = sqlx::query_scalar(
-            "SELECT EXISTS( \
-               SELECT 1 FROM attendance_records a \
-               JOIN leave_requests l ON l.id = $2 AND l.tenant_id = $1 \
-               WHERE a.tenant_id = $1 AND a.employee_id = l.employee_id \
-                 AND a.status = 'present' \
-                 AND a.attendance_date BETWEEN l.start_date AND l.end_date)",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if has_present {
-            return Err(AppError::BadRequest(
-                "Employee has 'present' attendance within the leave dates — correct the attendance before approving this leave.".into(),
-            ));
-        }
-    }
-
-    let row = sqlx::query_as::<_, LeaveRequest>(
-        "UPDATE leave_requests SET \
-         status = $3::leave_status, \
-         hod_id = CASE WHEN $3 IN ('pending_admin','rejected') AND hod_id IS NULL \
-                       THEN $4 ELSE hod_id END, \
-         hod_action_at = CASE WHEN $3 IN ('pending_admin','rejected') AND hod_action_at IS NULL \
-                              THEN now() ELSE hod_action_at END, \
-         hod_remarks = CASE WHEN $3 IN ('pending_admin','rejected') AND hod_remarks IS NULL \
-                            THEN $5 ELSE hod_remarks END, \
-         admin_id = CASE WHEN $3 IN ('approved','rejected') AND admin_id IS NULL \
-                         THEN $4 ELSE admin_id END, \
-         admin_action_at = CASE WHEN $3 IN ('approved','rejected') AND admin_action_at IS NULL \
-                                THEN now() ELSE admin_action_at END, \
-         admin_remarks = CASE WHEN $3 IN ('approved','rejected') AND admin_remarks IS NULL \
-                              THEN $5 ELSE admin_remarks END \
-         WHERE id = $1 AND tenant_id = $2 RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(new_status)
-    .bind(claims.sub)
-    .bind(&body.remarks)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-pub async fn cancel_leave(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<LeaveRequest>, AppError> {
-    require_permission(&claims, permissions::hr::leave::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, LeaveRequest>(
-        "UPDATE leave_requests SET \
-         status = 'cancelled'::leave_status, \
-         cancelled_by = $3, cancelled_at = now() \
-         WHERE id = $1 AND tenant_id = $2 RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2482,10 +2320,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/hr/designations",
             get(list_designations).post(create_designation),
         )
-        .route(
-            "/api/hr/designations/{id}",
-            put(update_designation),
-        )
+        .route("/api/hr/designations/{id}", put(update_designation))
         .route(
             "/api/hr/me/profile",
             get(get_my_profile).put(update_my_profile),
@@ -2508,36 +2343,21 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/hr/employees/{id}/leave-balances",
-            get(list_leave_balances),
+            get(leave::list_leave_balances),
         )
         .route(
             "/api/hr/employees/{id}/training-records",
             get(list_training_records),
         )
-        .route(
-            "/api/hr/employees/{id}/appraisals",
-            get(list_appraisals),
-        )
+        .route("/api/hr/employees/{id}/appraisals", get(list_appraisals))
         .route(
             "/api/hr/employees/{id}/statutory-records",
             get(list_statutory_records),
         )
-        .route(
-            "/api/hr/shifts",
-            get(list_shifts).post(create_shift),
-        )
-        .route(
-            "/api/hr/shifts/{id}",
-            put(update_shift),
-        )
-        .route(
-            "/api/hr/rosters",
-            get(list_rosters).post(create_roster),
-        )
-        .route(
-            "/api/hr/rosters/{id}/approve-swap",
-            put(approve_swap),
-        )
+        .route("/api/hr/shifts", get(list_shifts).post(create_shift))
+        .route("/api/hr/shifts/{id}", put(update_shift))
+        .route("/api/hr/rosters", get(list_rosters).post(create_roster))
+        .route("/api/hr/rosters/{id}/approve-swap", put(approve_swap))
         .route(
             "/api/hr/attendance",
             get(list_attendance).post(create_attendance),
@@ -2549,41 +2369,38 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/hr/my-shift/pause", post(pause_shift))
         .route("/api/hr/my-shift/resume", post(resume_shift))
         .route("/api/hr/my-shift/end", post(end_shift))
-        .route("/api/hr/my-shift/acknowledge-fatigue", post(acknowledge_fatigue))
+        .route(
+            "/api/hr/my-shift/acknowledge-fatigue",
+            post(acknowledge_fatigue),
+        )
         .route(
             "/api/hr/leaves",
-            get(list_leave_requests).post(create_leave_request),
+            get(leave::list_leave_requests).post(leave::create_leave_request),
+        )
+        .route(
+            "/api/hr/me/leaves",
+            get(leave::list_my_leave_requests).post(leave::create_my_leave_request),
+        )
+        .route(
+            "/api/hr/me/leave-balances",
+            get(leave::list_my_leave_balances),
         )
         .route(
             "/api/hr/leaves/{id}/action",
-            put(leave_action),
+            put(leave_approval::leave_action),
         )
         .route(
-            "/api/hr/leaves/{id}/cancel",
-            put(cancel_leave),
+            "/api/hr/me/team-leaves",
+            get(leave_approval::list_team_leaves),
         )
-        .route(
-            "/api/hr/on-call",
-            get(list_on_call).post(create_on_call),
-        )
+        .route("/api/hr/leaves/{id}/cancel", put(leave::cancel_leave))
+        .route("/api/hr/on-call", get(list_on_call).post(create_on_call))
         .route(
             "/api/hr/training-programs",
             get(list_training_programs).post(create_training_program),
         )
-        .route(
-            "/api/hr/training-records",
-            post(create_training_record),
-        )
-        .route(
-            "/api/hr/appraisals",
-            post(create_appraisal),
-        )
-        .route(
-            "/api/hr/statutory-records",
-            post(create_statutory_record),
-        )
-        .route(
-            "/api/hr/training/compliance",
-            get(training_compliance),
-        )
+        .route("/api/hr/training-records", post(create_training_record))
+        .route("/api/hr/appraisals", post(create_appraisal))
+        .route("/api/hr/statutory-records", post(create_statutory_record))
+        .route("/api/hr/training/compliance", get(training_compliance))
 }

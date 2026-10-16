@@ -19,6 +19,7 @@ import {
   toUpdateOtBookingStatusRequest,
 } from "@/forms/ot.form";
 import { otService } from "@/services/ot.service";
+import { BookingConsentPanel } from "./BookingConsentPanel";
 
 const bookingStatusTones: Record<string, BadgeTone> = {
   requested: "warning",
@@ -65,7 +66,8 @@ export function OverviewTab({ booking: b }: { booking: OtBooking }) {
       toast.success("Booking status updated", { title: "Updated" });
       closeStatusReasonEditor();
     },
-    onError: () => toast.error("Status update failed", { title: "Error" }),
+    // The server names the gate that refused (consent, checklist, send-off).
+    onError: (error: Error) => toast.error(error.message, { title: "Status not changed" }),
   });
 
   return (
@@ -100,6 +102,7 @@ export function OverviewTab({ booking: b }: { booking: OtBooking }) {
         <Checkbox label="Site Marked" checked={b.site_marked} readOnly size="xs" />
         <Checkbox label="Blood Arranged" checked={b.blood_arranged} readOnly size="xs" />
       </Group>
+      <BookingConsentPanel booking={b} />
       {b.notes && (
         <Text size="sm" c="dimmed">
           {b.notes}

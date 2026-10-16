@@ -59,6 +59,8 @@ export interface BasketLabItem {
 export interface BasketRadiologyItem {
   kind: "radiology";
   modality_id: string;
+  /** Catalogue exam, when one was picked. */
+  exam_id?: string | null;
   body_part?: string | null;
   /** FMA concept from the body-site picker; null when typed. */
   body_part_code?: string | null;
@@ -410,19 +412,6 @@ export interface VerbalOrderEntry {
   countersigned_by?: string | null;
   countersigned_by_name?: string | null;
   compliance_status: VerbalOrderComplianceStatus;
-}
-
-/**
- * Visual signature block data for printed PDFs.
- * Mirrors `medbrains_core::print_data::PrintSignatureData`.
- */
-export interface PrintSignatureData {
-  signed_at: string;
-  signer_name: string | null;
-  display_image_url: string | null;
-  display_block: string | null;
-  verify_ref: string;
-  legal_class: string;
 }
 
 // ─────────────────────────────────────────────────────────

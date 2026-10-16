@@ -24,8 +24,9 @@
 //!
 //! # The checklist is enforced here, not drawn
 //!
-//! Consent, compatibility, expiry and the two-person identity check are
-//! conditions of starting, not boxes on a form. A UI can only decline to send;
+//! Consent, compatibility, expiry, the two-person identity check, the
+//! scanned wristband, the bank's issue of this unit to this patient and its
+//! TTI clearance are conditions of starting, not boxes on a form. A UI can only decline to send;
 //! a rule that lives on the server is one a second client cannot skip.
 
 use axum::{
@@ -80,6 +81,9 @@ pub struct StartTransfusionRequest {
     pub consent_on_file: bool,
     /// The second nurse who checked the patient's identity against the bag.
     pub product_verified_by_id: Uuid,
+    /// The UHID read off the patient's wristband at the bed — scanned, or
+    /// typed from it. Compared with the admission's patient on the server.
+    pub wristband_uhid: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,6 +127,7 @@ pub async fn list_bedside_transfusions(
 #[derive(Debug, sqlx::FromRow)]
 struct UnitOnRecord {
     id: Uuid,
+    donation_id: Uuid,
     blood_group: String,
     expiry_at: DateTime<Utc>,
     status: String,
@@ -162,6 +167,11 @@ pub async fn start_bedside_transfusion(
                 .to_owned(),
         ));
     }
+    if body.wristband_uhid.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Scan the patient's wristband before hanging the unit.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -180,6 +190,35 @@ pub async fn start_bedside_transfusion(
         ));
     }
 
+    // Right patient first (IPSG-1): the wristband on the arm, not the name on
+    // the screen, has to be this admission's patient.
+    let (patient_id, uhid) = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT a.patient_id, p.uhid FROM admissions a \
+           JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+          WHERE a.id = $1 AND a.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !uhid.eq_ignore_ascii_case(body.wristband_uhid.trim()) {
+        drop(tx);
+        let err = AppError::Conflict(
+            "The wristband scanned is not this patient's. Stop: do not hang the unit. Check the \
+             patient's identity and the bag's compatibility label with a second nurse."
+                .to_owned(),
+        );
+        return Err(crate::issue_gates::audited(
+            &state,
+            &claims,
+            "blood_bank.bedside_wrong_patient",
+            Some(admission_id),
+            err,
+        )
+        .await);
+    }
+
     // The bag itself, read from the hospital's own record rather than from
     // the handset.
     //
@@ -190,18 +229,16 @@ pub async fn start_bedside_transfusion(
     // transfusion errors — was accepted without complaint. The scanned bag
     // number now has to resolve to a real unit, and that unit has to be this
     // patient's.
-    let unit = sqlx::query_as!(
-        UnitOnRecord,
-        "SELECT c.id AS \"id!\", c.blood_group::text AS \"blood_group!\", \
-                c.expiry_at AS \"expiry_at!\", c.status::text AS \"status!\", \
-                c.issued_to_patient AS \"issued_to_patient?\" \
+    let unit = sqlx::query_as::<_, UnitOnRecord>(
+        "SELECT c.id, c.donation_id, c.blood_group::text AS blood_group, c.expiry_at, \
+                c.status::text AS status, c.issued_to_patient \
            FROM blood_components c \
           WHERE c.tenant_id = $1 AND upper(c.bag_number) = upper($2) \
             AND c.deleted_at IS NULL \
           LIMIT 1",
-        claims.tenant_id,
-        body.bag_number.trim(),
     )
+    .bind(claims.tenant_id)
+    .bind(body.bag_number.trim())
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -213,26 +250,40 @@ pub async fn start_bedside_transfusion(
         )));
     };
 
-    let patient_id = sqlx::query_scalar!(
-        "SELECT patient_id AS \"patient_id!\" FROM admissions WHERE id = $1 AND tenant_id = $2",
-        admission_id,
-        claims.tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
     // Issued to somebody else is the wrong-blood-in-patient case, and it is
     // worth its own sentence: the nurse is holding a bag meant for a
     // different bed.
-    if let Some(issued_to) = unit.issued_to_patient {
-        if issued_to != patient_id {
+    match unit.issued_to_patient {
+        Some(issued_to) if issued_to != patient_id => {
             return Err(AppError::BadRequest(
                 "This unit was issued for a different patient. Do not transfuse it; return it to \
                  the blood bank and check the compatibility label against the wristband."
                     .to_owned(),
             ));
         }
+        // Not issued at all: the blood bank's issue is where the crossmatch
+        // for this patient is checked, so a bag that skipped it skipped that.
+        None => {
+            return Err(AppError::Conflict(
+                "This unit has not been issued by the blood bank for this patient. Do not hang \
+                 it; have the blood bank issue it against this patient's crossmatch."
+                    .to_owned(),
+            ));
+        }
+        Some(_) => {}
+    }
+    let tti_gate =
+        crate::tti::require_tti_cleared(&mut tx, claims.tenant_id, unit.donation_id).await;
+    if let Err(e) = tti_gate {
+        drop(tx);
+        return Err(crate::issue_gates::audited(
+            &state,
+            &claims,
+            "blood_bank.bedside_start_refused",
+            Some(unit.id),
+            e,
+        )
+        .await);
     }
 
     // A crossmatch for this unit that belongs to somebody else says the same
@@ -325,8 +376,10 @@ pub async fn start_bedside_transfusion(
         "INSERT INTO transfusions \
          (tenant_id, admission_id, transfusion_date, product_type, bag_number, blood_group, \
           rh_factor, volume_ml, expiry_date, crossmatch_compatible, patient_verified_by_id, \
-          product_verified_by_id, consent_on_file, transfusion_start_time, started_by_id) \
-         VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, $6, $7, $8, true, $9, $10, true, now(), $9) \
+          product_verified_by_id, consent_on_file, transfusion_start_time, started_by_id, \
+          wristband_uhid) \
+         VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, $6, $7, $8, true, $9, $10, true, now(), $9, \
+                 $11) \
          RETURNING id, admission_id, transfusion_date, product_type, bag_number, blood_group, \
                    rh_factor, volume_ml, expiry_date, crossmatch_compatible, \
                    patient_verified_by_id, product_verified_by_id, consent_on_file, \
@@ -343,6 +396,7 @@ pub async fn start_bedside_transfusion(
     .bind(body.expiry_date)
     .bind(claims.sub)
     .bind(body.product_verified_by_id)
+    .bind(body.wristband_uhid.trim())
     .fetch_one(&mut *tx)
     .await?;
 

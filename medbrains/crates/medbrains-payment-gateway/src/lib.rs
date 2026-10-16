@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -221,6 +221,9 @@ struct ProviderSpec {
     label: &'static str,
     methods: &'static [&'static str],
     has_adapter: bool,
+    /// Outbox event that pushes a UPI collect request to the patient's UPI ID.
+    /// `None` when the adapter can only create an order the patient opens.
+    upi_collect_event: Option<&'static str>,
 }
 
 const KNOWN_PROVIDERS: &[ProviderSpec] = &[
@@ -228,72 +231,125 @@ const KNOWN_PROVIDERS: &[ProviderSpec] = &[
         code: "razorpay",
         label: "Razorpay",
         methods: &["card", "upi", "upi_qr", "netbanking", "wallet"],
+        upi_collect_event: None,
         has_adapter: true,
     },
     ProviderSpec {
         code: "cashfree",
         label: "Cashfree",
         methods: &["card", "upi", "upi_qr", "netbanking"],
+        upi_collect_event: None,
         has_adapter: true,
     },
     ProviderSpec {
         code: "paytm",
         label: "Paytm",
         methods: &["card", "upi", "wallet"],
+        upi_collect_event: None,
         has_adapter: false,
     },
     ProviderSpec {
         code: "pinelabs",
         label: "Pine Labs (POS/TSP)",
         methods: &["card", "upi_qr"],
+        upi_collect_event: None,
         has_adapter: false,
     },
     ProviderSpec {
         code: "mswipe",
         label: "Mswipe (POS/TSP)",
         methods: &["card", "upi_qr"],
+        upi_collect_event: None,
         has_adapter: false,
     },
     ProviderSpec {
         code: "worldline",
         label: "Worldline (POS/TSP)",
         methods: &["card", "upi_qr"],
+        upi_collect_event: None,
         has_adapter: false,
     },
     ProviderSpec {
         code: "phonepe",
         label: "PhonePe",
         methods: &["card", "upi", "upi_qr", "netbanking"],
+        upi_collect_event: Some("payment.phonepe.create_order"),
         has_adapter: true,
     },
     ProviderSpec {
         code: "payu",
         label: "PayU",
         methods: &["card", "netbanking", "upi", "wallet"],
+        upi_collect_event: None,
         has_adapter: true,
     },
     ProviderSpec {
         code: "ccavenue",
         label: "CCAvenue",
         methods: &["card", "netbanking", "wallet", "emi"],
+        upi_collect_event: None,
         has_adapter: true,
     },
     ProviderSpec {
         code: "razorpayx",
         label: "RazorpayX (bank virtual account)",
         methods: &["virtual_account", "upi", "netbanking"],
+        upi_collect_event: None,
         has_adapter: true,
     },
     ProviderSpec {
         code: "icici",
         label: "ICICI Corporate API (bank virtual account)",
         methods: &["virtual_account", "upi", "netbanking"],
+        upi_collect_event: None,
         has_adapter: false,
     },
 ];
 
 fn provider_spec(code: &str) -> Option<&'static ProviderSpec> {
     KNOWN_PROVIDERS.iter().find(|p| p.code == code)
+}
+
+/// Rupees to paise for a gateway. Refuses amounts that are not whole paise —
+/// silently rounding would charge the patient something other than the bill.
+fn amount_to_paise(amount: Decimal) -> Result<i64, AppError> {
+    use rust_decimal::prelude::ToPrimitive;
+    if amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Amount must be greater than zero".to_owned(),
+        ));
+    }
+    let rounded =
+        amount.round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero);
+    if rounded != amount {
+        return Err(AppError::BadRequest(format!(
+            "Amount {amount} is not a whole number of paise"
+        )));
+    }
+    (rounded * Decimal::from(100))
+        .to_i64()
+        .ok_or_else(|| AppError::BadRequest(format!("Amount {amount} is too large")))
+}
+
+/// A payment raised against a bill may only be raised by someone who may bill
+/// that bill's patient — the same check recording a payment makes.
+async fn require_invoice_billing(
+    state: &AppState,
+    claims: &Claims,
+    invoice_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    match invoice_id {
+        Some(id) => {
+            medbrains_authz_gate::require_access_via(
+                state,
+                claims,
+                medbrains_authz_gate::links::INVOICE,
+                id,
+            )
+            .await
+        }
+        None => Ok(()),
+    }
 }
 
 /// Resolve the tenant's active payment provider. Defaults to `razorpay` for
@@ -327,6 +383,8 @@ struct PaymentProviderInfo {
     mode: Option<String>,
     webhook_configured: bool,
     methods: Vec<String>,
+    /// Can send a UPI collect request to the patient's UPI ID.
+    supports_upi_collect: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -356,8 +414,14 @@ async fn peek_provider_config(
         return Ok((false, None, false));
     };
     // A provider is "configured" once it has a credential id (key_id / app_id).
-    let configured = cfg.get("key_id").and_then(serde_json::Value::as_str).is_some()
-        || cfg.get("app_id").and_then(serde_json::Value::as_str).is_some();
+    let configured = cfg
+        .get("key_id")
+        .and_then(serde_json::Value::as_str)
+        .is_some()
+        || cfg
+            .get("app_id")
+            .and_then(serde_json::Value::as_str)
+            .is_some();
     let mode = cfg
         .get("mode")
         .and_then(serde_json::Value::as_str)
@@ -414,6 +478,7 @@ pub async fn list_payment_providers(
             mode,
             webhook_configured,
             methods: spec.methods.iter().map(|m| (*m).to_owned()).collect(),
+            supports_upi_collect: spec.upi_collect_event.is_some(),
         });
     }
 
@@ -467,7 +532,9 @@ fn validate_terminal_provider(provider: &str) -> Result<(), AppError> {
     if provider_spec(provider).is_some() {
         Ok(())
     } else {
-        Err(AppError::BadRequest(format!("Unknown payment provider '{provider}'")))
+        Err(AppError::BadRequest(format!(
+            "Unknown payment provider '{provider}'"
+        )))
     }
 }
 
@@ -510,7 +577,12 @@ pub async fn list_payment_terminals(
          ORDER BY counter_id NULLS LAST, provider, label",
     )
     .bind(claims.tenant_id)
-    .bind(q.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        q.counter_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(q.active_only)
     .fetch_all(&mut *tx)
     .await?;
@@ -529,13 +601,25 @@ pub async fn create_payment_terminal(
 
     let provider = body.provider.trim();
     validate_terminal_provider(provider)?;
-    let kind = body.kind.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("pos");
+    let kind = body
+        .kind
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("pos");
     validate_terminal_kind(kind)?;
-    let mode = body.mode.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("sandbox");
+    let mode = body
+        .mode
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("sandbox");
     validate_terminal_mode(mode)?;
     let label = body.label.trim();
     if label.is_empty() {
-        return Err(AppError::BadRequest("Terminal label is required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Terminal label is required".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -551,9 +635,24 @@ pub async fn create_payment_terminal(
     .bind(claims.tenant_id)
     .bind(provider)
     .bind(kind)
-    .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.acquiring_bank.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        body.terminal_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.acquiring_bank
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.counter_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(body.location_id)
     .bind(label)
     .bind(mode)
@@ -598,13 +697,43 @@ pub async fn update_payment_terminal(
          WHERE id = $9 AND tenant_id = $10 \
          RETURNING *",
     )
-    .bind(body.kind.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.acquiring_bank.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        body.kind
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.terminal_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.acquiring_bank
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.counter_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(body.location_id)
-    .bind(body.label.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .bind(body.mode.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        body.label
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.mode
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
@@ -651,6 +780,7 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<CreateOrderResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_invoice_billing(&state, &claims, body.invoice_id).await?;
 
     if body.invoice_id.is_none() && body.pos_sale_id.is_none() {
         return Err(AppError::BadRequest(
@@ -670,13 +800,20 @@ pub async fn create_order(
         )));
     }
 
+    // PhonePe takes an online payment as a UPI request pushed to the patient's
+    // UPI ID; without one it would queue a request that reaches nobody.
+    if provider == "phonepe" && !body.vpa.as_deref().is_some_and(|v| v.trim().contains('@')) {
+        return Err(AppError::Conflict(
+            "PhonePe needs the patient's UPI ID (name@bank) to send the payment request. \
+             Enter it under \"Send UPI request\", or use the UPI QR instead."
+                .to_owned(),
+        ));
+    }
+
     let currency = body.currency.as_deref().unwrap_or("INR");
 
     // Convert amount to paise (smallest unit)
-    let amount_paise = (body.amount * Decimal::from(100))
-        .to_string()
-        .parse::<i64>()
-        .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?;
+    let amount_paise = amount_to_paise(body.amount)?;
 
     let receipt = body
         .receipt
@@ -905,7 +1042,9 @@ pub async fn pos_sale(
         ));
     }
     if body.amount <= Decimal::ZERO {
-        return Err(AppError::BadRequest("Amount must be greater than zero".to_owned()));
+        return Err(AppError::BadRequest(
+            "Amount must be greater than zero".to_owned(),
+        ));
     }
 
     let mut tx = state.db.begin().await?;
@@ -944,10 +1083,7 @@ pub async fn pos_sale(
         "https://www.plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1"
     };
 
-    let amount_paise = (body.amount * Decimal::from(100))
-        .to_string()
-        .parse::<i64>()
-        .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?;
+    let amount_paise = amount_to_paise(body.amount)?;
 
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "INSERT INTO payment_gateway_transactions \
@@ -1034,12 +1170,7 @@ pub async fn create_virtual_account(
 
     let amount = body.amount.unwrap_or(Decimal::ZERO);
     let amount_paise = if amount > Decimal::ZERO {
-        Some(
-            (amount * Decimal::from(100))
-                .to_string()
-                .parse::<i64>()
-                .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?,
-        )
+        Some(amount_to_paise(amount)?)
     } else {
         None
     };
@@ -1129,7 +1260,14 @@ pub async fn razorpayx_webhook(
     .await?;
 
     let Some(txn_row) = txn_row else {
-        log_webhook_exception(&state.db, "razorpayx", Some(va_id), "unknown_order", &payload).await?;
+        log_webhook_exception(
+            &state.db,
+            "razorpayx",
+            Some(va_id),
+            "unknown_order",
+            &payload,
+        )
+        .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1183,8 +1321,14 @@ pub async fn razorpayx_webhook(
                 } else {
                     txn_row.amount
                 };
-                record_invoice_payment(&mut tx, txn_row.tenant_id, invoice_id, received, payment_id)
-                    .await?;
+                record_invoice_payment(
+                    &mut tx,
+                    txn_row.tenant_id,
+                    invoice_id,
+                    received,
+                    payment_id,
+                )
+                .await?;
             }
         }
     }
@@ -1315,8 +1459,14 @@ pub async fn razorpay_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "webhook for unknown order");
-        log_webhook_exception(&state.db, "razorpay", Some(order_id), "unknown_order", &payload)
-            .await?;
+        log_webhook_exception(
+            &state.db,
+            "razorpay",
+            Some(order_id),
+            "unknown_order",
+            &payload,
+        )
+        .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1602,7 +1752,12 @@ pub async fn resolve_payment_exception(
          WHERE id = $4 RETURNING *",
     )
     .bind(status)
-    .bind(body.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(
+        body.notes
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .bind(claims.sub)
     .bind(id)
     .fetch_optional(&state.db)
@@ -1700,8 +1855,14 @@ pub async fn cashfree_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "cashfree webhook for unknown order");
-        log_webhook_exception(&state.db, "cashfree", Some(order_id), "unknown_order", &payload)
-            .await?;
+        log_webhook_exception(
+            &state.db,
+            "cashfree",
+            Some(order_id),
+            "unknown_order",
+            &payload,
+        )
+        .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1842,8 +2003,14 @@ pub async fn phonepe_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "phonepe webhook for unknown order");
-        log_webhook_exception(&state.db, "phonepe", Some(order_id), "unknown_order", &payload)
-            .await?;
+        log_webhook_exception(
+            &state.db,
+            "phonepe",
+            Some(order_id),
+            "unknown_order",
+            &payload,
+        )
+        .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1954,8 +2121,7 @@ pub async fn payu_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "payu webhook for unknown order");
-        log_webhook_exception(&state.db, "payu", Some(order_id), "unknown_order", &payload)
-            .await?;
+        log_webhook_exception(&state.db, "payu", Some(order_id), "unknown_order", &payload).await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1993,11 +2159,7 @@ pub async fn payu_webhook(
             let method = payload["cardnum"]
                 .as_str()
                 .map(|_| "card")
-                .or_else(|| {
-                    payload["netbanking_brand"]
-                        .as_str()
-                        .map(|_| "netbanking")
-                })
+                .or_else(|| payload["netbanking_brand"].as_str().map(|_| "netbanking"))
                 .unwrap_or("upi");
 
             sqlx::query(
@@ -2061,9 +2223,9 @@ pub async fn ccavenue_webhook(
         .as_str()
         .or_else(|| {
             // Try form-encoded parsing
-            body.split("encResp=").nth(1).and_then(|v| {
-                v.split('&').next()
-            })
+            body.split("encResp=")
+                .nth(1)
+                .and_then(|v| v.split('&').next())
         })
         .ok_or_else(|| AppError::BadRequest("missing encResp in webhook".to_owned()))?;
 
@@ -2187,7 +2349,7 @@ pub async fn ccavenue_webhook(
 
 fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String, String> {
     use base64::Engine as _;
-    use cipher::{block_padding::NoPadding, BlockDecryptMut, KeyIvInit};
+    use cipher::{BlockDecryptMut, KeyIvInit, block_padding::NoPadding};
 
     let key = working_key.as_bytes();
     let iv = key[..16].to_vec();
@@ -2197,8 +2359,8 @@ fn decrypt_ccavenue_response(enc_resp: &str, working_key: &str) -> Result<String
         .map_err(|e| format!("base64 decode: {e}"))?;
 
     type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
-    let decryptor = Aes256CbcDec::new_from_slices(key, &iv)
-        .map_err(|e| format!("cipher init: {e}"))?;
+    let decryptor =
+        Aes256CbcDec::new_from_slices(key, &iv).map_err(|e| format!("cipher init: {e}"))?;
     let mut buf = ciphertext.clone();
     decryptor
         .decrypt_padded_mut::<NoPadding>(&mut buf)
@@ -2220,7 +2382,8 @@ async fn get_ccavenue_working_key(
     .await
     .map_err(|e| format!("db: {e}"))?;
 
-    row.map(|r| r.0).ok_or_else(|| "ccavenue_working_key not configured".to_owned())
+    row.map(|r| r.0)
+        .ok_or_else(|| "ccavenue_working_key not configured".to_owned())
 }
 
 /// Record a payment against an invoice and update its status.
@@ -2298,6 +2461,7 @@ pub async fn generate_upi_qr(
     Json(body): Json<GenerateUpiQrRequest>,
 ) -> Result<Json<UpiQrResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_invoice_billing(&state, &claims, body.invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2383,27 +2547,47 @@ pub async fn upi_collect(
     Json(body): Json<UpiCollectRequest>,
 ) -> Result<Json<UpiCollectResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_invoice_billing(&state, &claims, body.invoice_id).await?;
+
+    let vpa = body
+        .vpa
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| v.contains('@'))
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "Enter the patient's UPI ID (name@bank) to send a request".to_owned(),
+            )
+        })?
+        .to_owned();
+    let amount_paise = amount_to_paise(body.amount)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let provider = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
-    if !provider_spec(&provider).is_some_and(|s| s.has_adapter) {
-        return Err(AppError::ServiceUnavailable(format!(
-            "Payment provider '{provider}' has no gateway adapter yet"
-        )));
-    }
-
-    let amount_paise = (body.amount * Decimal::from(100))
-        .to_string()
-        .parse::<i64>()
-        .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?;
+    let spec = provider_spec(&provider)
+        .filter(|s| s.has_adapter)
+        .ok_or_else(|| {
+            AppError::ServiceUnavailable(format!(
+                "Payment provider '{provider}' has no gateway adapter yet"
+            ))
+        })?;
+    // Only an adapter that pushes a collect to the patient's UPI ID may claim
+    // to have sent one; the others only create an order nobody is told about.
+    let event_type = spec.upi_collect_event.ok_or_else(|| {
+        AppError::Conflict(format!(
+            "{} cannot send a UPI request to the patient's phone. Use the UPI QR \
+             or Pay Online instead.",
+            spec.label
+        ))
+    })?;
 
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
-          amount, currency, status, created_by, idempotency_key) \
-         VALUES ($1, $2, $3, $4, '', $5, $6, 'pending_gateway', $7, $8) \
+          amount, currency, status, upi_vpa, created_by, idempotency_key) \
+         VALUES ($1, $2, $3, $4, '', $5, 'INR', 'pending_gateway', $6, $7, $8) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2411,33 +2595,29 @@ pub async fn upi_collect(
     .bind(body.pos_sale_id)
     .bind(&provider)
     .bind(body.amount)
-    .bind("INR")
+    .bind(&vpa)
     .bind(claims.sub)
     .bind(Uuid::new_v4().to_string())
     .fetch_one(&mut *tx)
     .await?;
 
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
-    )
-    .bind(txn.id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1")
+        .bind(txn.id)
+        .execute(&mut *tx)
+        .await?;
 
-    // Queue provider-specific UPI collect event
-    let event_type: &'static str = Box::leak(format!("payment.{}.create_order", provider).into_boxed_str());
     medbrains_outbox::queue_in_tx(
         &mut tx,
         medbrains_outbox::OutboxRow {
             tenant_id: claims.tenant_id,
             aggregate_type: "payment_gateway_transaction",
             aggregate_id: Some(txn.id),
-            event_type: &event_type,
+            event_type,
             payload: serde_json::json!({
                 "internal_payment_id": txn.id,
                 "amount_paise": amount_paise,
                 "phone": body.phone,
-                "vpa": body.vpa.as_deref().unwrap_or(""),
+                "vpa": vpa,
                 "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
             }),
             idempotency_key: Some(txn.id.to_string()),
@@ -2450,8 +2630,12 @@ pub async fn upi_collect(
 
     Ok(Json(UpiCollectResponse {
         transaction_id: txn.id,
-        status: "collect_initiated".to_owned(),
-        message: format!("UPI collect sent to {}", body.phone),
+        status: "collect_queued".to_owned(),
+        message: format!(
+            "{} will send a UPI request to {vpa}; it appears on the patient's phone \
+             within a minute",
+            spec.label
+        ),
     }))
 }
 
@@ -2484,6 +2668,7 @@ pub async fn upi_deep_link(
     Json(body): Json<UpiDeepLinkRequest>,
 ) -> Result<Json<UpiDeepLinkResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_invoice_billing(&state, &claims, body.invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2565,10 +2750,7 @@ pub async fn initiate_refund(
     let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
 
     let refund_amount = body.amount.unwrap_or(txn.amount);
-    let refund_paise = (refund_amount * Decimal::from(100))
-        .to_string()
-        .parse::<i64>()
-        .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?;
+    let refund_paise = amount_to_paise(refund_amount)?;
 
     let mut rz_body = serde_json::json!({
         "amount": refund_paise,
@@ -2643,67 +2825,56 @@ fn mask_key_id(key_id: &str) -> String {
 /// Payment gateway (orders, POS, refunds, exceptions, provider webhooks) authed routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/payments/create-order",
-            post(create_order),
-        )
+        .route("/api/payments/create-order", post(create_order))
         .route("/api/payments/pos-sale", post(pos_sale))
         .route(
             "/api/payments/virtual-account",
             post(create_virtual_account),
         )
-        .route(
-            "/api/payments/verify",
-            post(verify_payment),
-        )
-        .route(
-            "/api/payments/{id}/status",
-            get(get_payment_status),
-        )
-        .route(
-            "/api/payments/upi-qr",
-            post(generate_upi_qr),
-        )
-        .route(
-            "/api/payments/upi-collect",
-            post(upi_collect),
-        )
-        .route(
-            "/api/payments/upi-deep-link",
-            post(upi_deep_link),
-        )
-        .route(
-            "/api/payments/refund",
-            post(initiate_refund),
-        )
-        .route(
-            "/api/payments/razorpay/status",
-            get(razorpay_status),
-        )
-        .route(
-            "/api/payments/providers",
-            get(list_payment_providers),
-        )
+        .route("/api/payments/verify", post(verify_payment))
+        .route("/api/payments/{id}/status", get(get_payment_status))
+        .route("/api/payments/upi-qr", post(generate_upi_qr))
+        .route("/api/payments/upi-collect", post(upi_collect))
+        .route("/api/payments/upi-deep-link", post(upi_deep_link))
+        .route("/api/payments/refund", post(initiate_refund))
+        .route("/api/payments/razorpay/status", get(razorpay_status))
+        .route("/api/payments/providers", get(list_payment_providers))
         .route(
             "/api/payments/terminals",
-            get(list_payment_terminals)
-                .post(create_payment_terminal),
+            get(list_payment_terminals).post(create_payment_terminal),
         )
         .route(
             "/api/payments/terminals/{id}",
-            put(update_payment_terminal)
-                .delete(delete_payment_terminal),
+            put(update_payment_terminal).delete(delete_payment_terminal),
         )
-        .route(
-            "/api/payments/recon-summary",
-            get(payment_recon_summary),
-        )
-        .route(
-            "/api/payments/exceptions",
-            get(list_payment_exceptions),
-        )
+        .route("/api/payments/recon-summary", get(payment_recon_summary))
+        .route("/api/payments/exceptions", get(list_payment_exceptions))
         .route(
             "/api/payments/exceptions/{id}",
             put(resolve_payment_exception),
         )
+}
+
+#[cfg(test)]
+mod paise_tests {
+    use super::{Decimal, KNOWN_PROVIDERS, amount_to_paise};
+
+    #[test]
+    fn whole_paise_convert_and_fractions_of_a_paisa_are_refused() {
+        assert_eq!(amount_to_paise(Decimal::new(12_345, 2)).ok(), Some(12_345));
+        assert_eq!(amount_to_paise(Decimal::new(1_000, 3)).ok(), Some(100));
+        assert!(amount_to_paise(Decimal::new(12_345, 3)).is_err());
+        assert!(amount_to_paise(Decimal::ZERO).is_err());
+        assert!(amount_to_paise(Decimal::new(-100, 2)).is_err());
+    }
+
+    #[test]
+    fn only_an_adapter_that_pushes_a_collect_claims_to_send_one() {
+        let collecting: Vec<&str> = KNOWN_PROVIDERS
+            .iter()
+            .filter(|p| p.upi_collect_event.is_some())
+            .map(|p| p.code)
+            .collect();
+        assert_eq!(collecting, ["phonepe"]);
+    }
 }

@@ -31,6 +31,8 @@ export const hrService = {
     api.listCredentials(...args),
   createCredential: (...args: Parameters<typeof api.createCredential>) =>
     api.createCredential(...args),
+  updateCredential: (...args: Parameters<typeof api.updateCredential>) =>
+    api.updateCredential(...args),
   listLeaveBalances: (...args: Parameters<typeof api.listLeaveBalances>) =>
     api.listLeaveBalances(...args),
   listAttendance: (...args: Parameters<typeof api.listAttendance>) => api.listAttendance(...args),
@@ -42,6 +44,12 @@ export const hrService = {
     api.createLeaveRequest(...args),
   leaveAction: (...args: Parameters<typeof api.leaveAction>) => api.leaveAction(...args),
   cancelLeave: (...args: Parameters<typeof api.cancelLeave>) => api.cancelLeave(...args),
+  getMyProfile: () => api.getMyProfile(),
+  listMyLeaveRequests: () => api.listMyLeaveRequests(),
+  createMyLeaveRequest: (...args: Parameters<typeof api.createMyLeaveRequest>) =>
+    api.createMyLeaveRequest(...args),
+  listMyLeaveBalances: () => api.listMyLeaveBalances(),
+  listMyTeamLeaves: () => api.listMyTeamLeaves(),
   listShifts: (...args: Parameters<typeof api.listShifts>) => api.listShifts(...args),
   createShift: (...args: Parameters<typeof api.createShift>) => api.createShift(...args),
   listRosters: (...args: Parameters<typeof api.listRosters>) => api.listRosters(...args),

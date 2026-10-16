@@ -60,7 +60,7 @@ pub async fn update_reminder_config(
         "INSERT INTO tenant_settings (id, tenant_id, category, key, value) \
          VALUES (gen_random_uuid(), $1, 'appointments', 'reminder_config', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = $2, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = $2, updated_at = now()",
     )
     .bind(claims.tenant_id)
     .bind(&value)

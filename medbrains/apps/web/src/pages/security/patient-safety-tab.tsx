@@ -20,12 +20,14 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   defaultSecurityPatientTagFormValues,
   securityPatientTagFormToRequest,
 } from "@/forms/security.form";
 import { securityService } from "@/services/security.service";
+import { MotherBabyMatchPanel } from "./mother-baby-match-panel";
+import { TAG_EVENT_LABELS, TagEventPanel } from "./tag-event-panel";
 
 const TAG_TYPES = [
   { value: "infant_rfid", label: "Infant RFID" },
@@ -42,13 +44,20 @@ const ALERT_STATUS_COLORS: Record<string, BadgeTone> = {
 
 export function PatientSafetyTab() {
   const canManage = useHasPermission(P.SECURITY.PATIENT_SAFETY_MANAGE);
+  // Generated into P by the coordinator; literal until then.
+  const canVerifyMatch = useHasPermission(P.SECURITY.PATIENT_SAFETY_VERIFY_MATCH);
+  const canReportEvent = useHasPermission(P.SECURITY.PATIENT_SAFETY_REPORT_EVENT);
   const qc = useQueryClient();
 
   const { data: tags = [], isLoading: tagsLoading } = useQuery({
     queryKey: ["sec-patient-tags"],
     queryFn: () => securityService.listSecurityPatientTags(),
   });
-  const { data: alerts = [], isLoading: alertsLoading } = useQuery({
+  const {
+    data: alerts = [],
+    isLoading: alertsLoading,
+    isError: alertsFailed,
+  } = useQuery({
     queryKey: ["sec-tag-alerts"],
     queryFn: () => securityService.listSecurityTagAlerts(),
   });
@@ -169,7 +178,30 @@ export function PatientSafetyTab() {
     {
       key: "alert_type",
       label: "Alert Type",
-      render: (r) => <Badge tone="danger">{r.alert_type.replace("_", " ")}</Badge>,
+      render: (r) => (
+        <Badge tone="danger">
+          {TAG_EVENT_LABELS[r.alert_type] ?? r.alert_type.replace("_", " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "tag_id",
+      label: "Tag",
+      render: (r) => (
+        <Text size="sm">{tags.find((t) => t.id === r.tag_id)?.tag_identifier ?? "—"}</Text>
+      ),
+    },
+    {
+      key: "code_activation_id",
+      label: "Code",
+      render: (r) =>
+        r.code_activation_id ? (
+          <Badge tone="danger" variant="filled">
+            Code Pink
+          </Badge>
+        ) : (
+          <Text c="dimmed">—</Text>
+        ),
     },
     {
       key: "triggered_at",
@@ -262,9 +294,18 @@ export function PatientSafetyTab() {
       </Group>
       <DataTable columns={tagColumns} data={tags} loading={tagsLoading} rowKey={(r) => r.id} />
 
+      {canVerifyMatch && <MotherBabyMatchPanel />}
+      {canReportEvent && <TagEventPanel zones={zones} />}
+
       <Text fw={600} size="lg" mt="lg">
         Tag Alerts
       </Text>
+      {alertsFailed && (
+        <Alert tone="danger" title="Tag alerts could not be loaded">
+          This list is not empty — it failed to load. Reload, and check the tag reader with
+          security.
+        </Alert>
+      )}
       <DataTable
         columns={alertColumns}
         data={alerts}

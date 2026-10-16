@@ -15,7 +15,7 @@ async fn enable_form(db: &sqlx::PgPool, tenant_id: Uuid, on: bool) {
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'marketing', 'public_enquiry_form_enabled', $2::jsonb) \
-         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
     )
     .bind(tenant_id)
     .bind(if on { "true" } else { "false" })
@@ -25,10 +25,15 @@ async fn enable_form(db: &sqlx::PgPool, tenant_id: Uuid, on: bool) {
 }
 
 async fn tenant_code(db: &sqlx::PgPool) -> (Uuid, String) {
-    sqlx::query_as("SELECT id, code FROM tenants WHERE is_active = true LIMIT 1")
-        .fetch_one(db)
-        .await
-        .expect("a seeded active tenant")
+    // The admin's own tenant: "any active tenant" picked whichever row came
+    // first, which after other suites created tenants had no pipeline stages.
+    sqlx::query_as(
+        "SELECT t.id, t.code FROM tenants t JOIN users u ON u.tenant_id = t.id \
+          WHERE u.username = 'admin' LIMIT 1",
+    )
+    .fetch_one(db)
+    .await
+    .expect("a seeded active tenant")
 }
 
 fn enquiry(code: &str, phone: &str) -> serde_json::Value {
@@ -49,7 +54,9 @@ fn enquiry(code: &str, phone: &str) -> serde_json::Value {
 /// answer an anonymous caller has not earned.
 #[tokio::test]
 async fn the_form_is_off_until_the_hospital_turns_it_on() {
-    let _serial = FORM_SETTING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _serial = FORM_SETTING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let app = common::spawn_app().await;
     let (tenant_id, code) = tenant_code(&app.db).await;
     enable_form(&app.db, tenant_id, false).await;
@@ -61,7 +68,11 @@ async fn the_form_is_off_until_the_hospital_turns_it_on() {
         .send()
         .await
         .expect("post enquiry");
-    assert_eq!(res.status().as_u16(), 404, "a disabled form must not accept writes");
+    assert_eq!(
+        res.status().as_u16(),
+        404,
+        "a disabled form must not accept writes"
+    );
 
     let unknown = app
         .client
@@ -86,7 +97,9 @@ async fn the_form_is_off_until_the_hospital_turns_it_on() {
 /// that obligation becomes visible.
 #[tokio::test]
 async fn a_web_enquiry_lands_as_a_callable_lead() {
-    let _serial = FORM_SETTING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _serial = FORM_SETTING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let app = common::spawn_app().await;
     let (tenant_id, code) = tenant_code(&app.db).await;
     enable_form(&app.db, tenant_id, true).await;
@@ -99,7 +112,11 @@ async fn a_web_enquiry_lands_as_a_callable_lead() {
         .send()
         .await
         .expect("post enquiry");
-    assert!(res.status().is_success(), "enquiry rejected: {:?}", res.status());
+    assert!(
+        res.status().is_success(),
+        "enquiry rejected: {:?}",
+        res.status()
+    );
 
     let normalised = format!("+91{phone}");
     let contact_id: Uuid = sqlx::query_scalar(
@@ -141,16 +158,23 @@ async fn a_web_enquiry_lands_as_a_callable_lead() {
     .fetch_one(&app.db)
     .await
     .expect("count callbacks");
-    assert_eq!(callbacks, 1, "somebody still has to ring — the form is not a reply");
+    assert_eq!(
+        callbacks, 1,
+        "somebody still has to ring — the form is not a reply"
+    );
 
     // Parked in a stage, so it appears in the funnel rather than being
     // invisible to every report that groups by stage.
-    let staged: Option<Uuid> = sqlx::query_scalar("SELECT stage_id FROM mkt_contacts WHERE id = $1")
-        .bind(contact_id)
-        .fetch_one(&app.db)
-        .await
-        .expect("read stage");
-    assert!(staged.is_some(), "a stageless enquiry is invisible to the funnel");
+    let staged: Option<Uuid> =
+        sqlx::query_scalar("SELECT stage_id FROM mkt_contacts WHERE id = $1")
+            .bind(contact_id)
+            .fetch_one(&app.db)
+            .await
+            .expect("read stage");
+    assert!(
+        staged.is_some(),
+        "a stageless enquiry is invisible to the funnel"
+    );
 }
 
 /// A form fill and a later phone call from the same number are one enquiry.
@@ -160,7 +184,9 @@ async fn a_web_enquiry_lands_as_a_callable_lead() {
 /// person and ring them twice.
 #[tokio::test]
 async fn a_form_fill_and_a_phone_call_collapse_onto_one_enquiry() {
-    let _serial = FORM_SETTING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _serial = FORM_SETTING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let app = common::spawn_app().await;
     let (tenant_id, code) = tenant_code(&app.db).await;
     enable_form(&app.db, tenant_id, true).await;
@@ -176,7 +202,11 @@ async fn a_form_fill_and_a_phone_call_collapse_onto_one_enquiry() {
             .send()
             .await
             .expect("post enquiry");
-        assert!(res.status().is_success(), "{written} rejected: {:?}", res.status());
+        assert!(
+            res.status().is_success(),
+            "{written} rejected: {:?}",
+            res.status()
+        );
     }
 
     let contacts: i64 = sqlx::query_scalar(
@@ -197,7 +227,9 @@ async fn a_form_fill_and_a_phone_call_collapse_onto_one_enquiry() {
 /// never know to make.
 #[tokio::test]
 async fn a_bot_that_fills_the_hidden_field_is_thanked_and_ignored() {
-    let _serial = FORM_SETTING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _serial = FORM_SETTING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let app = common::spawn_app().await;
     let (tenant_id, code) = tenant_code(&app.db).await;
     enable_form(&app.db, tenant_id, true).await;

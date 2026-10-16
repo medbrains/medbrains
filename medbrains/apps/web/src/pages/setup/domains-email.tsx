@@ -168,7 +168,13 @@ export function DomainsEmailPage() {
       notifications.show({ title: "Could not send", message: err.message, color: "danger" }),
   });
   const statusTone = (s: string): BadgeTone =>
-    s === "sent" ? "success" : s === "failed" || s === "dlq" ? "danger" : "info";
+    s === "sent"
+      ? "success"
+      : s === "failed" || s === "dlq"
+        ? "danger"
+        : s === "skipped_unconfigured"
+          ? "warning"
+          : "info";
 
   return (
     <Stack>

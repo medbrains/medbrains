@@ -78,7 +78,7 @@ export interface DeactivateCodeRequest {
   notes?: string;
 }
 
-export interface CreateMlcCaseRequest {
+export interface CreateMlcCaseRequest extends MlcRecordFields {
   er_visit_id?: string;
   patient_id: string;
   case_type?: string;
@@ -94,7 +94,24 @@ export interface CreateMlcCaseRequest {
   is_death_case?: boolean;
 }
 
-export interface UpdateMlcCaseRequest {
+/** The examination and incident an MLC records; prints on the register and
+ *  the wound certificate. */
+export interface MlcRecordFields {
+  examining_doctor_id?: string;
+  examined_at?: string;
+  date_time_of_incident?: string;
+  place_of_incident?: string;
+  weapon_used?: string;
+  police_officer_name?: string;
+  police_officer_rank?: string;
+  police_dd_number?: string;
+  condition_on_arrival?: string;
+  treatment_given?: string;
+  samples_handed_to?: string;
+  patient_condition_at_discharge?: string;
+}
+
+export interface UpdateMlcCaseRequest extends MlcRecordFields {
   status?: string;
   case_type?: string;
   fir_number?: string;
@@ -102,6 +119,8 @@ export interface UpdateMlcCaseRequest {
   examination_findings?: string;
   medical_opinion?: string;
   cause_of_death?: string;
+  /** Required once the case is certified (opinion given, in court, closed). */
+  amendment_reason?: string;
 }
 
 export interface CreateMlcDocumentRequest {
@@ -139,6 +158,5 @@ export interface UpdateMassCasualtyEventRequest {
   actual_casualties?: number;
   triage_summary?: Record<string, unknown>;
   resources_deployed?: Record<string, unknown>;
-  notifications_sent?: Record<string, unknown>;
   notes?: string;
 }

@@ -377,7 +377,7 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
     <td class="right">{{ discharge.age | default(value="") }} {{ discharge.gender }}</td>
   </tr>
   <tr>
-    <td><strong>Admitted:</strong> {{ discharge.admission_date }}</td>
+    <td><strong>Admitted:</strong> {{ discharge.admission_date }}{% if discharge.admission_number %} · <strong>IP no.</strong> <span class="mono">{{ discharge.admission_number }}</span>{% endif %}</td>
     <td class="right"><strong>Discharged:</strong> {{ discharge.discharge_date | default(value="—") }}</td>
   </tr>
   <tr>
@@ -401,6 +401,7 @@ const DISCHARGE_SAMPLE: &str = r#"{
   "discharge": {
     "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
     "age": "42y", "gender": "F",
+    "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
     "department": "General Medicine", "doctor_name": "Dr. S. Ravi",
     "bed_number": "GW-12", "ward_name": "General Ward A",
@@ -479,6 +480,7 @@ const IPD_CONSOLIDATED_BILL_HTML: &str = r#"{% extends "base.html" %}
   <td class="right">
     <div><strong>Patient:</strong> {{ bill.patient_name }}{% if bill.age %} · {{ bill.age }}{% endif %} · {{ bill.gender }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ bill.uhid }}</span></div>
+    {% if bill.admission_number %}<div><strong>IP no.:</strong> <span class="mono">{{ bill.admission_number }}</span></div>{% endif %}
     {% if bill.ward_name %}<div><strong>Ward/Bed:</strong> {{ bill.ward_name }}{% if bill.bed_number %} / {{ bill.bed_number }}{% endif %}</div>{% endif %}
   </td>
 </tr></table>
@@ -550,6 +552,7 @@ const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
   <td>
     <div><strong>Patient:</strong> {{ cert.patient_name }}{% if cert.age %} · {{ cert.age }}{% endif %} · {{ cert.gender }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ cert.uhid }}</span></div>
+    {% if cert.admission_number %}<div><strong>IP no.:</strong> <span class="mono">{{ cert.admission_number }}</span></div>{% endif %}
     {% if cert.ward_name %}<div><strong>Ward/Bed:</strong> {{ cert.ward_name }}{% if cert.bed_number %} / {{ cert.bed_number }}{% endif %}</div>{% endif %}
   </td>
   <td class="right">
@@ -581,7 +584,7 @@ const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
 
 const NO_DUES_SAMPLE: &str = r#"{
   "cert": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "ward_name": "General Ward A", "bed_number": "GW-12",
@@ -596,7 +599,7 @@ const NO_DUES_SAMPLE: &str = r#"{
 const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
   "bill": {
     "invoice_number": "IP/3F2A9B1C", "invoice_date": "12-Jun-2026",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "bed_number": "GW-12", "ward_name": "General Ward A",
@@ -956,7 +959,7 @@ const WRISTBAND_HTML: &str = r#"{% extends "base.html" %}
   <div class="who">
     <div class="name">{{ band.patient_name }}</div>
     <div><span class="mono">{{ band.uhid }}</span> · {{ band.age | default(value="") }} {{ band.gender }}{% if band.blood_group %} · <strong>{{ band.blood_group }}</strong>{% endif %}</div>
-    <div class="muted">Adm {{ band.admission_date }}{% if band.ward_name %} · {{ band.ward_name }}{% endif %}{% if band.bed_number %} · {{ band.bed_number }}{% endif %}</div>
+    <div class="muted">{% if band.admission_number %}<span class="mono">{{ band.admission_number }}</span> · {% endif %}Adm {{ band.admission_date }}{% if band.ward_name %} · {{ band.ward_name }}{% endif %}{% if band.bed_number %} · {{ band.bed_number }}{% endif %}</div>
     {% if band.allergies and band.allergies | length > 0 %}<div class="alert">⚠ {{ band.allergies | join(sep=", ") }}</div>{% endif %}
   </div>
   <div class="barcode">{{ band.barcode_svg | safe }}</div>
@@ -969,6 +972,7 @@ const WRISTBAND_SAMPLE: &str = r#"{
   "band": {
     "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
     "age": "42y", "gender": "F", "blood_group": "B+",
+    "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "ward_name": "GW-A", "bed_number": "12",
     "allergies": ["Penicillin"],
     "barcode_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'><rect width='100' height='20' fill='#eee'/></svg>",
@@ -989,6 +993,7 @@ const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
   <tr><td><strong>Insurer</strong></td><td>{{ claim.insurance_company }}</td>
       <td class="right"><strong>Policy</strong></td><td class="right mono">{{ claim.policy_number }}</td></tr>
   {% if claim.tpa_name %}<tr><td><strong>TPA</strong></td><td colspan="3">{{ claim.tpa_name }}</td></tr>{% endif %}
+  {% if claim.admission_number %}<tr><td><strong>IP No.</strong></td><td colspan="3" class="mono">{{ claim.admission_number }}</td></tr>{% endif %}
   <tr><td><strong>Admitted</strong></td><td>{{ claim.admission_date }}</td>
       <td class="right"><strong>Discharged</strong></td><td class="right">{{ claim.discharge_date | default(value="—") }}</td></tr>
   {% if claim.treating_doctor %}<tr><td><strong>Treating Doctor</strong></td><td colspan="3">{{ claim.treating_doctor }}</td></tr>{% endif %}
@@ -1008,7 +1013,7 @@ const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
 const CASHLESS_CLAIM_SAMPLE: &str = r#"{
   "claim": {
     "claim_number": "CLM-2026-04471", "claim_date": "2026-06-12",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "policy_number": "POL-88412290", "insurance_company": "Star Health Insurance",
     "tpa_name": "MediAssist TPA", "claim_status": "approved",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",

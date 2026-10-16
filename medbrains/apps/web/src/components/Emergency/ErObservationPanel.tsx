@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { refineBloodPressure } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import { type ErObservationNote, P } from "@medbrains/types";
 import { IconActivityHeartbeat, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { DataTable } from "@/components";
+import { BloodPressureField, DataTable } from "@/components";
 import { Alert, Button, Card, NumberField, TextArea, toast } from "@/components/ui";
 import { emergencyService } from "@/services/emergency.service";
 
@@ -16,8 +17,6 @@ import { emergencyService } from "@/services/emergency.service";
 
 const VITALS = [
   { name: "pulse", label: "Pulse" },
-  { name: "bp_systolic", label: "BP sys" },
-  { name: "bp_diastolic", label: "BP dia" },
   { name: "resp_rate", label: "RR" },
   { name: "spo2", label: "SpO₂ %" },
   { name: "temperature", label: "Temp °C" },
@@ -25,17 +24,19 @@ const VITALS = [
   { name: "pain_score", label: "Pain" },
 ] as const;
 
-const schema = z.object({
-  pulse: z.number().optional(),
-  bp_systolic: z.number().optional(),
-  bp_diastolic: z.number().optional(),
-  resp_rate: z.number().optional(),
-  spo2: z.number().optional(),
-  temperature: z.number().optional(),
-  gcs: z.number().optional(),
-  pain_score: z.number().optional(),
-  note: z.string().optional(),
-});
+const schema = z
+  .object({
+    pulse: z.number().optional(),
+    bp_systolic: z.number().optional(),
+    bp_diastolic: z.number().optional(),
+    resp_rate: z.number().optional(),
+    spo2: z.number().optional(),
+    temperature: z.number().optional(),
+    gcs: z.number().optional(),
+    pain_score: z.number().optional(),
+    note: z.string().optional(),
+  })
+  .superRefine(refineBloodPressure("bp_systolic", "bp_diastolic"));
 type FormValues = z.infer<typeof schema>;
 
 const EMPTY: FormValues = {};
@@ -106,6 +107,12 @@ export function ErObservationPanel({ visitId }: { visitId: string }) {
           {canChart && (
             <Box component="form" onSubmit={submit}>
               <Stack gap="sm">
+                <BloodPressureField
+                  control={control}
+                  systolicName="bp_systolic"
+                  diastolicName="bp_diastolic"
+                  emptyValue={undefined}
+                />
                 <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
                   {VITALS.map((v) => (
                     <Controller

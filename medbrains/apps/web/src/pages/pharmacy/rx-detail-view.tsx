@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal, PrescriptionViews } from "@/components";
 import { isRxExpired, RxTermsLine } from "@/components/Pharmacy/RxTermsLine";
+import { SafetyFindingsPanel, useSafetyGate } from "@/components/Pharmacy/SafetyFindingsPanel";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { usePatientName } from "@/hooks/usePatientName";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
@@ -61,6 +62,11 @@ export function RxDetailView({
   const rxDetail = data as PharmacyRxDetailResponse | undefined;
   const rxPatientId = rxDetail?.prescription.patient_id;
   const { data: patientName } = usePatientName(canViewPatientRecord ? rxPatientId : undefined);
+  const safety = useSafetyGate(rxDetail?.safety?.findings, {
+    loading: isLoading,
+    failed: Boolean(error),
+    reason: "",
+  });
 
   if (isLoading) return <Loader />;
   if (error)
@@ -139,6 +145,8 @@ export function RxDetailView({
           </Group>
         </Alert>
       )}
+
+      <SafetyFindingsPanel state={safety} />
 
       <RxBillingEstimate
         items={pricedRxItems}

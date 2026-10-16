@@ -55,9 +55,12 @@ const passStatusColors: Record<string, string> = {
 export function VisitorManagementTab({
   canCreate,
   canManagePasses,
+  canRecordVisits,
 }: {
   canCreate: boolean;
   canManagePasses: boolean;
+  /** Check a pass in/out: `front_office.passes.manage` or the guard's `front_office.visitor_logs.record`. */
+  canRecordVisits: boolean;
 }) {
   const qc = useQueryClient();
   const [visitorDrawer, visitorDrawerHandlers] = useDisclosure(false);
@@ -131,6 +134,8 @@ export function VisitorManagementTab({
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked in", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Not checked in", message: e.message, color: "danger" }),
   });
 
   const checkOut = useMutation({
@@ -139,6 +144,8 @@ export function VisitorManagementTab({
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked out", color: "primary" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Not checked out", message: e.message, color: "danger" }),
   });
 
   const visitorColumns = [
@@ -212,7 +219,7 @@ export function VisitorManagementTab({
               <IconPrinter size={16} />
             </IconButton>
           </Tooltip>
-          {r.status === "active" && canManagePasses && (
+          {r.status === "active" && canRecordVisits && (
             <>
               <Tooltip label="Check In">
                 <IconButton
@@ -232,6 +239,10 @@ export function VisitorManagementTab({
                   <IconClock size={16} />
                 </IconButton>
               </Tooltip>
+            </>
+          )}
+          {r.status === "active" && canManagePasses && (
+            <>
               <Tooltip label="Revoke">
                 <IconButton
                   tone="danger"

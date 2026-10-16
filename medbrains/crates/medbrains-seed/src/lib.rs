@@ -72,7 +72,7 @@ async fn seed_dev_email_defaults(
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'email', 'config', $2) \
-         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value WHERE tenant_settings.deleted_at IS NULL",
     )
     .bind(tenant_id)
     .bind(&config)
@@ -367,7 +367,7 @@ async fn seed_default_groups(
              ON CONFLICT (tenant_id, code) DO UPDATE SET \
                name = EXCLUDED.name, \
                description = EXCLUDED.description, \
-               updated_at = now()",
+               updated_at = now() WHERE access_groups.deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(group.code)

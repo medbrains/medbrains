@@ -1,4 +1,4 @@
-import { Group, Text } from "@mantine/core";
+import { Box, Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
@@ -6,6 +6,7 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { searchErrorText } from "@/lib/search-error";
 import { lookupsService } from "@/services/lookups.service";
 import { MiniRegisterPatient } from "./Patient/MiniRegisterPatient";
 import { useProtectedFieldAccess } from "./PermissionedFieldValue";
@@ -83,15 +84,21 @@ export function PatientSearchSelect({
   // Three characters is the server's floor for the hospital-wide lookup; the
   // scoped list has always answered from two.
   const minChars = canFindPatients ? 3 : 2;
-  const { data } = useQuery({
-    queryKey: ["patient-search", canFindPatients, debounced],
+  const query = debounced.trim();
+  const {
+    data,
+    isFetching,
+    error: searchError,
+  } = useQuery({
+    queryKey: ["patient-search", canFindPatients, query],
     queryFn: async (): Promise<PickerPatient[]> =>
       canFindPatients
-        ? await lookupsService.findPatients(debounced)
-        : (await lookupsService.listPatients({ search: debounced, per_page: 15 })).patients,
-    enabled: (canFindPatients || canListPatients) && debounced.length >= minChars,
+        ? await lookupsService.findPatients(query)
+        : (await lookupsService.listPatients({ search: query, per_page: 15 })).patients,
+    enabled: (canFindPatients || canListPatients) && query.length >= minChars,
     staleTime: 30_000,
   });
+  const isSearching = isFetching || search.trim() !== query;
 
   const patients = (data ?? []).filter((patient) => !excludeIds.includes(patient.id));
   const patientDisplay = (patient: (typeof patients)[number]) => {
@@ -117,6 +124,13 @@ export function PatientSearchSelect({
       items={patients}
       searchText={search}
       onSearchChange={setSearch}
+      minSearchLength={minChars}
+      loading={isSearching}
+      fetchError={
+        canFindPatients || canListPatients
+          ? searchErrorText(searchError, "patients")
+          : "You don't have access to search patients. Ask an administrator for patients.find."
+      }
       getItemValue={(patient) => patient.id}
       getItemDisplay={patientDisplay}
       selectedDisplay={selectedDisplay}
@@ -125,9 +139,7 @@ export function PatientSearchSelect({
       emptyLabel={
         canFindPatients
           ? "No patient in the hospital by that name, UHID or phone"
-          : canListPatients
-            ? "No patients found among yours — a colleague's registration needs patients.find"
-            : "Patient search restricted"
+          : "No patients found among yours — a colleague's registration needs patients.find"
       }
       canCreate={canCreatePatient}
       createButtonLabel="Register new patient"
@@ -135,7 +147,7 @@ export function PatientSearchSelect({
       createModalTitle="Register new patient"
       renderItem={(p) => (
         <Group gap={8} wrap="nowrap">
-          <div style={{ flex: 1 }}>
+          <Box flex={1}>
             <Text size="sm" fw={500}>
               {fieldAccessText(patientNameAccess, `${p.first_name} ${p.last_name}`.trim(), "name")}
             </Text>
@@ -154,7 +166,7 @@ export function PatientSearchSelect({
                 </Text>
               )}
             </Group>
-          </div>
+          </Box>
         </Group>
       )}
       renderCreateForm={({ searchText, close, selectItem }) => (

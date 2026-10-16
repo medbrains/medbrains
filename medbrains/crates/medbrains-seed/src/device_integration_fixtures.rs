@@ -230,7 +230,7 @@ async fn seed_adapter_catalog(
               default_baud_rate = EXCLUDED.default_baud_rate, default_ae_title = EXCLUDED.default_ae_title, \
               default_config = EXCLUDED.default_config, field_mappings = EXCLUDED.field_mappings, \
               known_quirks = EXCLUDED.known_quirks, supported_tests = EXCLUDED.supported_tests, \
-              is_verified = true, is_active = true, updated_at = now()",
+              is_verified = true, is_active = true, updated_at = now() WHERE device_adapter_catalog.deleted_at IS NULL",
         )
         .bind(adapter.adapter_code)
         .bind(adapter.manufacturer)
@@ -402,7 +402,7 @@ async fn seed_device_instances(
               message_count_24h, bridge_agent_id, notes, tags, created_by, updated_by) \
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'[]','{}',1,0.96,'imported','active', \
               now(), now(), 2, $11, $12, $13, $14, $14) \
-             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = device_instances.is_active OR device_instances.deleted_at IS NOT NULL, \
               adapter_code=EXCLUDED.adapter_code, name=EXCLUDED.name, department_id=EXCLUDED.department_id, \
               serial_number=EXCLUDED.serial_number, hostname=EXCLUDED.hostname, port=EXCLUDED.port, \
               protocol_config=EXCLUDED.protocol_config, field_mappings=EXCLUDED.field_mappings, \

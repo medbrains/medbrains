@@ -7,6 +7,7 @@ import { OutsourcedTab } from "./lab/outsourced";
 import { LabPanelsTab } from "./lab/panels";
 import { PhlebotomyTab } from "./lab/phlebotomy";
 import { QcComplianceTab } from "./lab/qc-compliance";
+import { ReportDeliverySettings } from "./lab/report-delivery-settings";
 import { SampleManagementTab } from "./lab/sample-management";
 import { printLabReportPacket, statusColors } from "./lab/shared";
 import { SpecializedReportsTab } from "./lab/specialized-reports";
@@ -71,6 +72,7 @@ function LabPageInner() {
   // from everyone entitled to press it.
   const canPrintReports = useHasPermission(P.LAB.ORDERS_VIEW);
   const canDispatchList = useHasPermission(P.LAB.DISPATCH_LIST);
+  const canManageDelivery = useHasPermission(P.LAB.REPORT_DELIVERY_MANAGE);
   const canDispatchManage = useHasPermission(P.LAB.DISPATCH_MANAGE);
 
   // The worklist showed `test_id.slice(0, 8)` — eight characters of a UUID
@@ -303,7 +305,7 @@ function LabPageInner() {
           <Tabs.Tab value="panels">{t("panelsProfiles")}</Tabs.Tab>
           {canPhlebotomy && <Tabs.Tab value="phlebotomy">{t("phlebotomy")}</Tabs.Tab>}
           {canSamples && <Tabs.Tab value="samples">{t("sampleMgmt")}</Tabs.Tab>}
-          {canDispatchList && <Tabs.Tab value="dispatch">Dispatch</Tabs.Tab>}
+          {(canDispatchList || canManageDelivery) && <Tabs.Tab value="dispatch">Dispatch</Tabs.Tab>}
           {canQc && <Tabs.Tab value="qc">{t("qc&Compliance")}</Tabs.Tab>}
           {canSpecialized && <Tabs.Tab value="specialized">{t("specialized")}</Tabs.Tab>}
           {canB2b && <Tabs.Tab value="b2b">{t("b2b")}</Tabs.Tab>}
@@ -400,9 +402,12 @@ function LabPageInner() {
             <SampleManagementTab />
           </Tabs.Panel>
         )}
-        {canDispatchList && (
+        {(canDispatchList || canManageDelivery) && (
           <Tabs.Panel value="dispatch">
-            <LabDispatchSection canManage={canDispatchManage} />
+            <Stack gap="lg">
+              {canManageDelivery && <ReportDeliverySettings />}
+              {canDispatchList && <LabDispatchSection canManage={canDispatchManage} />}
+            </Stack>
           </Tabs.Panel>
         )}
 

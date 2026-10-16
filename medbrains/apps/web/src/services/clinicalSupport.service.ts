@@ -1,6 +1,10 @@
 import { api } from "@medbrains/api";
 
 export const clinicalSupportService = {
+  listLiveStewardshipRequests: (...args: Parameters<typeof api.listLiveStewardshipRequests>) =>
+    api.listLiveStewardshipRequests(...args),
+  listRadiologyExams: (...args: Parameters<typeof api.listRadiologyExams>) =>
+    api.listRadiologyExams(...args),
   listRadiologyModalities: (...args: Parameters<typeof api.listRadiologyModalities>) =>
     api.listRadiologyModalities(...args),
   getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>

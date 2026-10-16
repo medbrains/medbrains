@@ -6,6 +6,7 @@ import { ClinicalEventProvider } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { AppointmentsTab } from "./radiology/appointments-tab";
 import { DicomStudiesTab } from "./radiology/dicom-studies-tab";
+import { ExamsTab } from "./radiology/exams-tab";
 import { ModalitiesTab } from "./radiology/modalities-tab";
 import { RadiologyOrdersTab } from "./radiology/radiology-orders-tab";
 import { TatAnalyticsTab } from "./radiology/tat-analytics-tab";
@@ -46,6 +47,7 @@ export function RadiologyPage() {
             Orders
           </Tabs.Tab>
           <Tabs.Tab value="modalities">Modalities</Tabs.Tab>
+          <Tabs.Tab value="exams">Exams</Tabs.Tab>
           <Tabs.Tab value="appointments" leftSection={<IconCalendar size={16} />}>
             Appointments
           </Tabs.Tab>
@@ -62,6 +64,9 @@ export function RadiologyPage() {
         </Tabs.Panel>
         <Tabs.Panel value="modalities" pt="md">
           <ModalitiesTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="exams" pt="md">
+          <ExamsTab />
         </Tabs.Panel>
         <Tabs.Panel value="appointments" pt="md">
           <AppointmentsTab />

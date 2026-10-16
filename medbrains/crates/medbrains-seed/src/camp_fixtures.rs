@@ -599,7 +599,7 @@ async fn insert_camp(
           $11, $12, $13, $14, $15, \
           0, 0, $16, $17, true, \
           100, $18, CASE WHEN $5 IN ('approved', 'setup', 'active') THEN now() ELSE NULL END, $18) \
-         ON CONFLICT (tenant_id, camp_code) DO UPDATE SET \
+         ON CONFLICT (tenant_id, camp_code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
           name = EXCLUDED.name, status = EXCLUDED.status, scheduled_date = EXCLUDED.scheduled_date \
          RETURNING id",
     )
@@ -660,7 +660,7 @@ async fn ensure_camp_staff_employees(
               employment_type, status, department_id, qualifications, address, emergency_contact, notes) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, \
               'permanent', 'active', $8, $9, $10, $11, $12) \
-             ON CONFLICT (tenant_id, employee_code) DO UPDATE SET \
+             ON CONFLICT (tenant_id, employee_code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
               user_id = EXCLUDED.user_id, phone = EXCLUDED.phone, email = EXCLUDED.email, \
               department_id = EXCLUDED.department_id, updated_at = now() \
              RETURNING id",
@@ -714,7 +714,7 @@ async fn seed_team(
              (tenant_id, camp_id, employee_id, role_in_camp, is_confirmed, notes) \
              VALUES ($1, $2, $3, $4, true, 'Seeded rural camp team member') \
              ON CONFLICT (tenant_id, camp_id, employee_id) DO UPDATE SET \
-              role_in_camp = EXCLUDED.role_in_camp, is_confirmed = true, updated_at = now()",
+              role_in_camp = EXCLUDED.role_in_camp, is_confirmed = true, updated_at = now() WHERE camp_team_members.deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(camp_id)
@@ -753,7 +753,7 @@ async fn seed_remote_setup(
           CASE WHEN $20 = 'ready' THEN now() ELSE NULL END) \
          ON CONFLICT (tenant_id, camp_id) DO UPDATE SET \
           village_name = EXCLUDED.village_name, status = EXCLUDED.status, \
-          readiness_score = EXCLUDED.readiness_score, updated_at = now()",
+          readiness_score = EXCLUDED.readiness_score, updated_at = now() WHERE camp_remote_setups.deleted_at IS NULL",
     )
     .bind(tenant_id)
     .bind(camp_id)
@@ -808,7 +808,7 @@ async fn seed_checklist(
              VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9, \
               CASE WHEN $7 = 'ok' THEN now() ELSE NULL END) \
              ON CONFLICT (tenant_id, camp_id, code) DO UPDATE SET \
-              status = EXCLUDED.status, notes = EXCLUDED.notes, updated_at = now()",
+              status = EXCLUDED.status, notes = EXCLUDED.notes, updated_at = now() WHERE camp_remote_checklist_items.deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(camp_id)
@@ -912,7 +912,7 @@ async fn seed_camp_person(
              VALUES ($1, $2, $3, $4, $5, $6::gender, $7, $8, \
               $9::blood_group, $10, 'camp', 'camp', \
               $11, $12, $13::date, $14, $15, $16) \
-             ON CONFLICT (tenant_id, uhid) DO UPDATE SET \
+             ON CONFLICT (tenant_id, uhid) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = patients.is_active OR patients.deleted_at IS NOT NULL, \
               phone = EXCLUDED.phone, address = EXCLUDED.address, updated_at = now() \
              RETURNING id",
         )

@@ -1367,7 +1367,7 @@ pub(super) async fn seed_pharmacy_catalog(
              is_controlled = EXCLUDED.is_controlled, \
              inn_name = COALESCE(EXCLUDED.inn_name, pharmacy_catalog.inn_name), \
              atc_code = COALESCE(EXCLUDED.atc_code, pharmacy_catalog.atc_code), \
-             aware_category = COALESCE(EXCLUDED.aware_category, pharmacy_catalog.aware_category)",
+             aware_category = COALESCE(EXCLUDED.aware_category, pharmacy_catalog.aware_category) WHERE pharmacy_catalog.deleted_at IS NULL",
         )
         .bind(tenant_id)
         .bind(code)

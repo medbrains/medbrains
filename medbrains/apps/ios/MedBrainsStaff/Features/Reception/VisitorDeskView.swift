@@ -120,7 +120,10 @@ struct VisitorDeskView: View {
     private func row(_ pass: PassRow) -> some View {
         let s = state(pass)
         let inside = isInside(pass)
-        let actions = (auth.identity?.can("front_office.passes.manage") ?? false) ? passActions(state: s, inside: inside) : []
+        // The desk issues and revokes; the gate guard only records entry and exit.
+        let canManage = auth.identity?.can("front_office.passes.manage") ?? false
+        let canRecord = canManage || (auth.identity?.can("front_office.visitor_logs.record") ?? false)
+        let actions = canRecord ? passActions(state: s, inside: inside).filter { canManage || $0 != "revoke" } : []
         VStack(alignment: .leading, spacing: 8) {
             CarbonRow(name(of: pass), detail: "\(pass.passNumber) · \(pass.bedNumber.map { "bed \($0) · " } ?? "")until \(ServerTime.short(pass.validUntil))") {
                 CarbonTag(s, tone: tone(s))

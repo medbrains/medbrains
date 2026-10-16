@@ -9216,7 +9216,6 @@ describe("/print-data endpoints", () => {
     expect(url).toContain("/api/print-data/credit-note");
   });
 
-
   it("getGstInvoicePrintData → GET /print-data/gst-invoice/{param_1}", async () => {
     mockOk({});
     await api.getGstInvoicePrintData(UUID);
@@ -10501,40 +10500,40 @@ describe("/security endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("listSecurityIncidents → GET /security-incidents", async () => {
+  it("listSecurityIncidents → GET /security/incidents", async () => {
     mockOk({});
     await api.listSecurityIncidents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/security-incidents");
+    expect(url.split("?")[0]).toBe("/api/security/incidents");
   });
 
-  it("getSecurityIncident → GET /security-incidents/{param_1}", async () => {
+  it("getSecurityIncident → GET /security/incidents/{param_1}", async () => {
     mockOk({});
     await api.getSecurityIncident(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
   });
 
-  it("createSecurityIncident → POST /security-incidents", async () => {
+  it("createSecurityIncident → POST /security/incidents", async () => {
     mockOk({});
     await api.createSecurityIncident({ test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/security-incidents");
+    expect(url.split("?")[0]).toBe("/api/security/incidents");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("updateSecurityIncident → PATCH /security-incidents/{param_1}", async () => {
+  it("updateSecurityIncident → PUT /security/incidents/{param_1}", async () => {
     mockOk({});
     await api.updateSecurityIncident(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
-    expect(opts.method).toBe("PATCH");
+    expect(url).toContain("/api/security/incidents");
+    expect(opts.method).toBe("PUT");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
@@ -10615,33 +10614,33 @@ describe("/security endpoints", () => {
 });
 
 describe("/it-security endpoints", () => {
-  it("reportToCertIn → POST /security-incidents/{param_1}/cert-in", async () => {
+  it("recordIncidentNotice → POST /security/incidents/{param_1}/notices", async () => {
     mockOk({});
-    await api.reportToCertIn(UUID, { test: "data" });
+    await api.recordIncidentNotice(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
-    expect(url).toContain("/cert-in");
+    expect(url).toContain("/api/security/incidents");
+    expect(url).toContain("/notices");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("getIncidentUpdates → GET /security-incidents/{param_1}/updates", async () => {
+  it("getIncidentUpdates → GET /security/incidents/{param_1}/updates", async () => {
     mockOk({});
     await api.getIncidentUpdates(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
     expect(url).toContain("/updates");
   });
 
-  it("addIncidentUpdate → POST /security-incidents/{param_1}/updates", async () => {
+  it("addIncidentUpdate → POST /security/incidents/{param_1}/updates", async () => {
     mockOk({});
     await api.addIncidentUpdate(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
     expect(url).toContain("/updates");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();

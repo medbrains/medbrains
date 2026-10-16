@@ -123,6 +123,7 @@ export function LabOrderDetail({
   // panel renders as though the order has no results.
   const canViewOrder = useHasPermission(P.LAB.ORDERS_VIEW);
   const canDispatch = useHasPermission(P.LAB.DISPATCH_MANAGE);
+  const canCollect = useHasPermission(P.LAB.SAMPLES_COLLECT);
   const navigate = useNavigate();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
@@ -155,6 +156,7 @@ export function LabOrderDetail({
   );
   const [collectOpened, { open: openCollect, close: closeCollect }] = useDisclosure(false);
   const [scannedId, setScannedId] = useState("");
+  const [tubeBarcode, setTubeBarcode] = useState("");
   // Each row carries an id of its own. The key used to be built from the
   // values being typed, so every keystroke produced a new key, React
   // unmounted the input and remounted it, and the field lost focus after
@@ -224,13 +226,24 @@ export function LabOrderDetail({
     [data],
   );
 
+  // The worklist and the draw queue show this order's status too; refreshing
+  // only the detail left them a step behind after every transition.
+  const refreshOrder = () => {
+    void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+    void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+    void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] });
+  };
   const collectMutation = useMutation({
     mutationFn: (patientIdentifier: string) =>
-      labService.collectSample(orderId, { patient_identifier: patientIdentifier }),
+      labService.collectSample(orderId, {
+        patient_identifier: patientIdentifier,
+        sample_barcode: tubeBarcode.trim() || undefined,
+      }),
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      refreshOrder();
       closeCollect();
       setScannedId("");
+      setTubeBarcode("");
       toast.success("Identity confirmed — sample collected", { title: "Sample collected" });
       emit("lab.sample_collected", {
         encounter_id: result.encounter_id,
@@ -245,14 +258,13 @@ export function LabOrderDetail({
   });
   const processMutation = useMutation({
     mutationFn: () => labService.startProcessing(orderId),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: refreshOrder,
     onError: (e: Error) => toast.error(e.message, { title: "Could not start processing" }),
   });
   const completeMutation = useMutation({
     mutationFn: () => labService.completeLabOrder(orderId),
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      refreshOrder();
       emit("lab.order.completed", {
         encounter_id: result.encounter_id,
         order_id: result.id,
@@ -267,7 +279,7 @@ export function LabOrderDetail({
   const verifyMutation = useMutation({
     mutationFn: () => labService.verifyResults(orderId),
     onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      refreshOrder();
       emit("lab.result.verified", {
         encounter_id: result.encounter_id,
         order_id: result.id,
@@ -281,15 +293,13 @@ export function LabOrderDetail({
   });
   const cancelMutation = useMutation({
     mutationFn: () => labService.cancelLabOrder(orderId),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onSuccess: refreshOrder,
     onError: (e: Error) => toast.error(e.message, { title: "Could not cancel order" }),
   });
   const rejectMutation = useMutation({
     mutationFn: (reason: string) => labService.rejectSample(orderId, { rejection_reason: reason }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      refreshOrder();
       setRejectionReason("");
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not reject sample" }),
@@ -572,6 +582,14 @@ export function LabOrderDetail({
             autoFocus
           />
 
+          <Input
+            label="Tube barcode"
+            description="Scan the label on the tube — the analyzer matches results on it"
+            placeholder="Scan the tube label"
+            value={tubeBarcode}
+            onChange={(e) => setTubeBarcode(e.currentTarget.value)}
+          />
+
           <Group justify="flex-end">
             <Button tone="ghost" onClick={closeCollect}>
               Cancel
@@ -594,20 +612,26 @@ export function LabOrderDetail({
         </Badge>
       )}
 
-      {/* Status transition buttons */}
-      {canCreateResult && (
+      {/* Status transition buttons. Collecting is the draw (`lab.samples.collect`,
+          held by nurses too); processing and completing are bench work. */}
+      {(canCreateResult || canCollect) && (
         <Group>
-          {order.status === "ordered" && (
+          {order.status === "ordered" && canCollect && (
             <Button tone="primary" size="xs" onClick={openCollect}>
               {t("collectSample")}
             </Button>
           )}
-          {order.status === "sample_collected" && (
-            <Button tone="primary" size="xs" onClick={() => processMutation.mutate()}>
+          {order.status === "sample_collected" && canCreateResult && (
+            <Button
+              tone="primary"
+              size="xs"
+              loading={processMutation.isPending}
+              onClick={() => processMutation.mutate()}
+            >
               {t("startProcessing")}
             </Button>
           )}
-          {order.status === "processing" && (
+          {order.status === "processing" && canCreateResult && (
             // A test is completed by its results; the server refuses an
             // empty one, so the button says why rather than failing.
             <Tooltip label="Add the results first" disabled={hasResults}>
@@ -615,6 +639,7 @@ export function LabOrderDetail({
                 tone="primary"
                 size="xs"
                 disabled={!hasResults}
+                loading={completeMutation.isPending}
                 onClick={() => completeMutation.mutate()}
               >
                 {t("complete")}
@@ -641,30 +666,38 @@ export function LabOrderDetail({
               {t("cancel")}
             </Button>
           )}
-          {(order.status === "ordered" || order.status === "sample_collected") && (
-            <Group gap="xs">
-              <TextInput
-                size="xs"
-                placeholder={t("placeholder.rejectionReason")}
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.currentTarget.value)}
-                w={200}
-              />
-              <Button
-                tone="danger"
-                size="xs"
-                disabled={!rejectionReason}
-                onClick={() => rejectMutation.mutate(rejectionReason)}
-                loading={rejectMutation.isPending}
-              >
-                Reject Sample
-              </Button>
-            </Group>
-          )}
+          {/* `reject_sample` requires `lab.results.create`; a nurse who can only
+              collect saw this and got a 403. */}
+          {(order.status === "ordered" || order.status === "sample_collected") &&
+            canCreateResult && (
+              <Group gap="xs">
+                <TextInput
+                  size="xs"
+                  placeholder={t("placeholder.rejectionReason")}
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.currentTarget.value)}
+                  w={200}
+                />
+                <Button
+                  tone="danger"
+                  size="xs"
+                  disabled={!rejectionReason}
+                  onClick={() => rejectMutation.mutate(rejectionReason)}
+                  loading={rejectMutation.isPending}
+                >
+                  Reject Sample
+                </Button>
+              </Group>
+            )}
         </Group>
       )}
       {canVerify && order.status === "completed" && (
-        <Button tone="primary" size="xs" onClick={() => verifyMutation.mutate()}>
+        <Button
+          tone="primary"
+          size="xs"
+          loading={verifyMutation.isPending}
+          onClick={() => verifyMutation.mutate()}
+        >
           {t("verifyResults")}
         </Button>
       )}

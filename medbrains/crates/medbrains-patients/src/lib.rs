@@ -966,7 +966,7 @@ async fn persist_registration_identifiers(
             "INSERT INTO patient_abha_links \
              (tenant_id, patient_id, abha_number, abha_address, kyc_verified, status) \
              VALUES ($1, $2, $3, $4, false, 'linked') \
-             ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+             ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                 abha_number = EXCLUDED.abha_number, \
                 abha_address = EXCLUDED.abha_address, \
                 updated_at = now()",
@@ -3397,37 +3397,48 @@ pub async fn find_patients(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // One query, bounded: exact identifiers score highest, then a prefix of
-    // either, then trigram on the name. No second round trip to rank.
-    let like = format!("%{q}%");
-    let rows = sqlx::query_as_unchecked!(
-        MatchResult,
-        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
+    // One query, bounded. Exact UHID / phone first, then a name that starts
+    // with the term, then any word of the name that does ("ravi" finds
+    // "Mr.K Ravindran"), then UHID / phone fragments, then a fuzzy name for
+    // typos. The match predicates are the trigram-indexed ones (migration
+    // 1070); the regexp only ranks rows already matched. Similarity alone on
+    // the full name missed partial names: "ravi" scores 0.17 against
+    // "Ravichandran.S Patient", under the old 0.3 floor.
+    let rows = sqlx::query_as::<_, MatchResult>(
+        "WITH p AS ( \
+           SELECT $2::text AS q, \
+                  replace(replace(replace(lower($2), '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS e \
+         ) \
+         SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
          ( \
-           CASE WHEN upper(uhid) = upper($2) THEN 1.0 \
-                WHEN phone = $2 THEN 0.95 \
-                WHEN uhid ILIKE $3 THEN 0.80 \
-                WHEN phone LIKE $3 THEN 0.75 \
-                ELSE COALESCE(similarity(first_name || ' ' || last_name, $2), 0) \
+           CASE WHEN upper(uhid) = upper(p.q) THEN 1.0 \
+                WHEN phone = p.q THEN 0.95 \
+                WHEN lower(first_name || ' ' || last_name) LIKE p.e || '%' THEN 0.9 \
+                WHEN ' ' || regexp_replace(lower(first_name || ' ' || last_name), '[^a-z0-9]+', ' ', 'g') \
+                     LIKE '% ' || p.e || '%' THEN 0.85 \
+                WHEN uhid ILIKE '%' || p.e || '%' THEN 0.80 \
+                WHEN phone LIKE '%' || p.e || '%' THEN 0.75 \
+                ELSE COALESCE(word_similarity(p.q, first_name || ' ' || last_name), 0) * 0.7 \
            END \
          )::float8 AS score \
-         FROM patients \
+         FROM patients, p \
          WHERE tenant_id = $1 \
            AND is_merged = false \
            AND is_active = true \
+           AND deleted_at IS NULL \
            AND ( \
-             upper(uhid) = upper($2) \
-             OR phone = $2 \
-             OR uhid ILIKE $3 \
-             OR phone LIKE $3 \
-             OR similarity(first_name || ' ' || last_name, $2) > 0.3 \
+             upper(uhid) = upper(p.q) \
+             OR phone = p.q \
+             OR uhid ILIKE '%' || p.e || '%' \
+             OR phone LIKE '%' || p.e || '%' \
+             OR (first_name || ' ' || last_name) ILIKE '%' || p.e || '%' \
+             OR p.q <% (first_name || ' ' || last_name) \
            ) \
          ORDER BY score DESC, last_name, first_name \
          LIMIT 20",
-        claims.tenant_id,
-        q,
-        &like,
     )
+    .bind(claims.tenant_id)
+    .bind(q)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

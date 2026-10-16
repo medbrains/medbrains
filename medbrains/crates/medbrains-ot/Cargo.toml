@@ -13,6 +13,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
+axum-extra = { version = "0.10", features = ["cookie"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }

@@ -22,6 +22,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { printColumn } from "@/components/Print/printColumn";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
+import { LEAVE_TYPE_OPTIONS } from "./leave-options";
 
 const leaveStatusColors: Record<string, BadgeTone> = {
   draft: "neutral",
@@ -32,8 +33,21 @@ const leaveStatusColors: Record<string, BadgeTone> = {
   cancelled: "neutral",
 };
 
-export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: boolean }) {
+interface LeaveTabProps {
+  canCreate: boolean;
+  canApprove: boolean;
+  /** `hr.leave.manage` — file and cancel leave for anyone, not only yourself. */
+  canManage: boolean;
+}
+
+export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
   const qc = useQueryClient();
+  // The server refuses self-approval; this only hides the buttons that would be refused.
+  const { data: me } = useQuery({
+    queryKey: ["my-profile"],
+    queryFn: () => hrService.getMyProfile(),
+  });
+  const myEmployeeId = me?.employee?.id;
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
@@ -54,7 +68,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
   const createMut = useMutation({
     mutationFn: () =>
       hrService.createLeaveRequest({
-        employee_id: form.employee_id,
+        employee_id: canManage ? form.employee_id : undefined,
         leave_type: form.leave_type,
         start_date: form.start_date,
         end_date: form.end_date,
@@ -76,7 +90,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
       });
       toast.success("Leave request submitted", { title: "Leave Applied" });
     },
-    onError: () => toast.error("Failed to submit leave", { title: "Error" }),
+    onError: (e: Error) => toast.error(e.message, { title: "Leave not submitted" }),
   });
 
   const actionMut = useMutation({
@@ -86,6 +100,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       toast.success("Leave status updated", { title: "Leave Updated" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Leave not updated" }),
   });
 
   const cancelMut = useMutation({
@@ -94,6 +109,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       toast.warning("Leave request cancelled", { title: "Leave Cancelled" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Leave not cancelled" }),
   });
 
   return (
@@ -181,35 +197,44 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
             label: "",
             render: (r: LeaveRequest) => (
               <Group gap={4}>
-                {canApprove && r.status === "pending_hod" && (
-                  <>
-                    <Tooltip label="Approve">
-                      <IconButton
-                        tone="success"
-                        onClick={() => actionMut.mutate({ id: r.id, action: "approve" })}
-                        aria-label="Approve leave"
-                      >
-                        <IconCheck size={16} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip label="Reject">
-                      <IconButton
-                        tone="danger"
-                        onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
-                        aria-label="Reject leave"
-                      >
+                {canApprove &&
+                  r.employee_id !== myEmployeeId &&
+                  (r.status === "pending_hod" || (canManage && r.status === "pending_admin")) && (
+                    <>
+                      <Tooltip label="Approve">
+                        <IconButton
+                          tone="success"
+                          onClick={() =>
+                            // HR gives final approval; a department head forwards to HR.
+                            actionMut.mutate({
+                              id: r.id,
+                              action: canManage ? "approve" : "approve_hod",
+                            })
+                          }
+                          aria-label="Approve leave"
+                        >
+                          <IconCheck size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip label="Reject">
+                        <IconButton
+                          tone="danger"
+                          onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
+                          aria-label="Reject leave"
+                        >
+                          <IconX size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                {(r.status === "draft" || r.status === "pending_hod") &&
+                  (canManage || r.employee_id === myEmployeeId) && (
+                    <Tooltip label="Cancel">
+                      <IconButton onClick={() => cancelMut.mutate(r.id)} aria-label="Cancel leave">
                         <IconX size={16} />
                       </IconButton>
                     </Tooltip>
-                  </>
-                )}
-                {(r.status === "draft" || r.status === "pending_hod") && (
-                  <Tooltip label="Cancel">
-                    <IconButton onClick={() => cancelMut.mutate(r.id)} aria-label="Cancel leave">
-                      <IconX size={16} />
-                    </IconButton>
-                  </Tooltip>
-                )}
+                  )}
               </Group>
             ),
           },
@@ -225,26 +250,22 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
         size="xl"
       >
         <Stack gap="sm">
-          <EmployeeSearchSelect
-            value={form.employee_id}
-            onChange={(id) => setForm({ ...form, employee_id: id })}
-            required
-          />
+          {canManage ? (
+            <EmployeeSearchSelect
+              value={form.employee_id}
+              onChange={(id) => setForm({ ...form, employee_id: id })}
+              required
+            />
+          ) : (
+            <Text size="sm" c="dimmed">
+              You are applying for your own leave.
+            </Text>
+          )}
           <Select
             label="Leave Type"
             value={form.leave_type}
             onChange={(v) => setForm({ ...form, leave_type: v || "casual" })}
-            data={[
-              { value: "casual", label: "Casual" },
-              { value: "earned", label: "Earned" },
-              { value: "medical", label: "Medical" },
-              { value: "maternity", label: "Maternity" },
-              { value: "paternity", label: "Paternity" },
-              { value: "compensatory", label: "Compensatory" },
-              { value: "study", label: "Study" },
-              { value: "special", label: "Special" },
-              { value: "loss_of_pay", label: "Loss of Pay" },
-            ]}
+            data={LEAVE_TYPE_OPTIONS}
           />
           <TextInput
             label="Start Date"
@@ -281,7 +302,7 @@ export function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApp
             tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
-            disabled={!form.employee_id || !form.start_date || !form.end_date}
+            disabled={(canManage && !form.employee_id) || !form.start_date || !form.end_date}
           >
             Submit Leave
           </Button>

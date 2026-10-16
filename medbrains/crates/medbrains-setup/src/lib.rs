@@ -369,7 +369,7 @@ pub async fn create_compliance(
          (tenant_id, facility_id, regulatory_body_id, license_number, status) \
          VALUES ($1, $2, $3, $4, COALESCE($5, 'pending')) \
          ON CONFLICT (tenant_id, facility_id, regulatory_body_id) \
-         DO UPDATE SET license_number = EXCLUDED.license_number, status = EXCLUDED.status \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, license_number = EXCLUDED.license_number, status = EXCLUDED.status \
          RETURNING id, tenant_id, facility_id, regulatory_body_id, license_number, status",
     )
     .bind(claims.tenant_id)
@@ -1226,6 +1226,10 @@ pub async fn list_doctors(
             permissions::emergency::visits::UPDATE,
             permissions::ot::bookings::CREATE,
             permissions::ot::bookings::UPDATE,
+            // Whoever places a lab or imaging order names the doctor behind it.
+            permissions::lab::orders::CREATE,
+            permissions::lab::orders::DIRECT,
+            permissions::radiology::orders::CREATE,
         ],
     )?;
     let mut tx = state.db.begin().await?;
@@ -2199,7 +2203,8 @@ pub async fn update_branding(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'branding', $2, $3) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value \
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2246,7 +2251,7 @@ pub async fn create_sequence(
         "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
          VALUES ($1, $2, $3, 0, $4) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width \
          RETURNING id, tenant_id, seq_type, prefix, current_val, pad_width",
     )
     .bind(claims.tenant_id)
@@ -2828,6 +2833,7 @@ pub async fn get_settings(
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = $2 \
+           AND deleted_at IS NULL \
          ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2861,7 +2867,8 @@ pub async fn update_setting(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value \
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -3084,7 +3091,8 @@ pub async fn update_secure_device_setting(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now() \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now(), \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -3370,7 +3378,8 @@ async fn upsert_setting_in_tx(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
     )
     .bind(tenant_id)
     .bind(category)
@@ -4753,7 +4762,8 @@ pub async fn upsert_print_template(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
     )
     .bind(claims.tenant_id)
     .bind("print_templates")
@@ -5759,7 +5769,7 @@ pub async fn add_access_group_member(
          SELECT $1, $2, $3, $4 \
          WHERE EXISTS (SELECT 1 FROM access_groups WHERE id = $1 AND tenant_id = $3) \
            AND EXISTS (SELECT 1 FROM users WHERE id = $2 AND tenant_id = $3) \
-         ON CONFLICT (group_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at",
+         ON CONFLICT (group_id, user_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, expires_at = EXCLUDED.expires_at",
     )
     .bind(group_id)
     .bind(body.user_id)

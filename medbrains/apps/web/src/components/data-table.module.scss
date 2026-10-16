@@ -31,6 +31,10 @@
 .tableWrapper[data-virtualized="true"] {
   contain: layout paint;
   will-change: scroll-position;
+  // The window swaps rows above the viewport on every scroll. Scroll anchoring
+  // answers each swap by moving scrollTop, which swaps the rows back: the
+  // table scrolled itself between two offsets until React gave up.
+  overflow-anchor: none;
 }
 
 .tableWrapper[data-density="compact"] {

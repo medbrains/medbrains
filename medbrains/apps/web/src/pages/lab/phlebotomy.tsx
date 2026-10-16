@@ -6,6 +6,7 @@ import type { LabPhlebotomyQueueItem } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { DataTable, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Badge, Button, Select, toast } from "@/components/ui";
@@ -17,6 +18,8 @@ import { phlebotomyStatusColors } from "./shared";
 export function PhlebotomyTab() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
+  const canCollect = useHasPermission(P.LAB.SAMPLES_COLLECT);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: queue = [], isLoading } = useQuery({
@@ -50,6 +53,7 @@ export function PhlebotomyTab() {
         status: status as "in_progress" | "completed" | "skipped" | "waiting",
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
+    onError: (error: Error) => toast.error(error.message, { title: "Could not update the draw" }),
   });
 
   const staffOptions = staff.map((user) => ({ value: user.id, label: user.full_name }));
@@ -127,13 +131,16 @@ export function PhlebotomyTab() {
                 Start
               </Button>
             )}
-            {row.status === "in_progress" && (
+            {/* The draw is finished on the order: that is where the wristband is
+                checked and the tube label recorded. "Complete" here closed the
+                queue row and left the order at `ordered`, unlabelled. */}
+            {row.status === "in_progress" && canCollect && (
               <Button
-                tone="secondary"
+                tone="primary"
                 size="xs"
-                onClick={() => statusMutation.mutate({ id: row.id, status: "completed" })}
+                onClick={() => navigate(`/lab/orders/${row.order_id}`)}
               >
-                Complete
+                Collect
               </Button>
             )}
             {(row.status === "waiting" || row.status === "in_progress") && (

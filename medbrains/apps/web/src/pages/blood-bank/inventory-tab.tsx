@@ -19,7 +19,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { BloodComponent, CreateComponentRequest } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { BLOOD_GROUP_OPTIONS, bloodGroupLabel, P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -39,7 +39,15 @@ const bagStatusColors: Record<string, string> = {
   returned: "danger",
   expired: "danger",
   discarded: "dark",
+  quarantined: "danger",
 };
+
+/** The donation's screening as the release gate sees it. */
+const TTI_BADGE: Record<string, { tone: "success" | "danger" | "warning"; label: string }> = {
+  non_reactive: { tone: "success", label: "TTI non-reactive" },
+  reactive: { tone: "danger", label: "TTI reactive" },
+};
+const TTI_PENDING = { tone: "warning", label: "TTI pending" } as const;
 
 const discardReasonLabels: Record<string, string> = {
   expired: "Expired",
@@ -92,7 +100,7 @@ function CreateComponentForm({ onSubmit }: { onSubmit: (d: CreateComponentReques
       <Select
         label="Blood Group"
         required
-        data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+        data={BLOOD_GROUP_OPTIONS}
         value={bloodGroup}
         onChange={setBloodGroup}
       />
@@ -156,7 +164,7 @@ function DiscardComponentForm({
           {component.component_type.toUpperCase()})
         </Text>
         <Text size="sm" c="dimmed">
-          Blood Group: <strong>{component.blood_group}</strong> | Volume:{" "}
+          Blood Group: <strong>{bloodGroupLabel(component.blood_group)}</strong> | Volume:{" "}
           <strong>{component.volume_ml} ml</strong>
         </Text>
         <Text size="sm" c="dimmed">
@@ -279,7 +287,7 @@ export function InventoryTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (c: BloodComponent) => <Badge tone="danger">{c.blood_group}</Badge>,
+      render: (c: BloodComponent) => <Badge tone="danger">{bloodGroupLabel(c.blood_group)}</Badge>,
     },
     {
       key: "volume_ml" as const,
@@ -294,6 +302,14 @@ export function InventoryTab() {
       ),
     },
     {
+      key: "tti_status" as const,
+      label: "Screening",
+      render: (c: BloodComponent) => {
+        const badge = TTI_BADGE[c.tti_status ?? ""] ?? TTI_PENDING;
+        return <Badge tone={badge.tone}>{badge.label}</Badge>;
+      },
+    },
+    {
       key: "expiry_at" as const,
       label: "Expiry",
       render: (c: BloodComponent) => new Date(c.expiry_at).toLocaleDateString(),
@@ -305,7 +321,9 @@ export function InventoryTab() {
             label: "Actions",
             render: (c: BloodComponent) => (
               <Group gap={4}>
-                {c.status === "collected" && (
+                {/* Release needs all five TTI markers non-reactive; the
+                    server refuses otherwise, and the row says so first. */}
+                {c.status === "collected" && c.tti_status === "non_reactive" && (
                   <Button
                     tone="secondary"
                     size="compact-xs"
@@ -313,6 +331,11 @@ export function InventoryTab() {
                   >
                     Mark Available
                   </Button>
+                )}
+                {c.status === "collected" && c.tti_status !== "non_reactive" && (
+                  <Text size="xs" c="dimmed">
+                    Awaiting TTI clearance
+                  </Text>
                 )}
                 {c.status === "available" && (
                   <Button
@@ -352,7 +375,7 @@ export function InventoryTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (c: BloodComponent) => <Badge tone="danger">{c.blood_group}</Badge>,
+      render: (c: BloodComponent) => <Badge tone="danger">{bloodGroupLabel(c.blood_group)}</Badge>,
     },
     {
       key: "volume_ml" as const,
@@ -411,7 +434,7 @@ export function InventoryTab() {
             />
             <Select
               placeholder="Blood group"
-              data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+              data={BLOOD_GROUP_OPTIONS}
               clearable
               value={bgFilter}
               onChange={setBgFilter}

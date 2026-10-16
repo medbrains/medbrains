@@ -77,7 +77,7 @@ fun IpdRoundDetailScreen(admission: AdmissionRow) {
             Text("Ward review context", style = MaterialTheme.typography.titleMedium)
             Text("Progress notes, diagnosis, prescription review, investigations and discharge planning stay under this patient context.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CarbonTag("encounter ${admission.encounter_id.take(8)}", mono = true)
+                CarbonTag(admission.admission_number ?: "encounter ${admission.encounter_id.take(8)}", mono = true)
                 CarbonTag("IPD", CarbonTone.Info)
             }
         }

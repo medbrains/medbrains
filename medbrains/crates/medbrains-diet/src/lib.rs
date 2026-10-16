@@ -723,7 +723,7 @@ pub async fn create_meal_count(
         "INSERT INTO meal_counts (tenant_id, count_date, meal_type, ward, total_beds, occupied, npo_count, regular_count, special_count, notes)
          VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3::meal_type, $4, $5, $6, COALESCE($7, 0), COALESCE($8, 0), COALESCE($9, 0), $10)
          ON CONFLICT (tenant_id, count_date, meal_type, ward) DO UPDATE SET
-            total_beds = EXCLUDED.total_beds,
+            deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, total_beds = EXCLUDED.total_beds,
             occupied = EXCLUDED.occupied,
             npo_count = EXCLUDED.npo_count,
             regular_count = EXCLUDED.regular_count,

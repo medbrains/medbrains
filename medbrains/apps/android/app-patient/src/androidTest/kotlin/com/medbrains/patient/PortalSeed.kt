@@ -74,6 +74,8 @@ class PortalSeed private constructor(private var token: String?) {
         val catalog = JSONArray(call("GET", "/api/pharmacy/catalog").second)
         val drug = (0 until catalog.length()).map { catalog.getJSONObject(it) }.first {
             it.optBoolean("is_active") && !it.optBoolean("is_controlled") && it.optString("drug_schedule") !in setOf("X", "H1", "NDPS") &&
+                // Reserve antibiotics and non-formulary drugs need approvals the seed does not give.
+                it.optString("aware_category") != "reserve" && it.optString("formulary_status") != "non_formulary" &&
                 it.optString("refill_policy") == "doctor_approval" && (it.optString("current_stock").toDoubleOrNull() ?: it.optDouble("current_stock", 0.0)) >= 10
         }
         val line = JSONObject().put("drug_name", drug.getString("name")).put("catalog_item_id", drug.getString("id")).put("dosage", "1 tab").put("frequency", "OD").put("duration", "5 days").put("route", "oral")

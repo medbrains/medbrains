@@ -1,6 +1,7 @@
 import { Group, Modal, NumberInput, Select, Stack, TextInput } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
+import { isBloodPressureValid, parseBloodPressureText, toReading } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { HomeVisit } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -8,7 +9,7 @@ import { IconPlus, IconRoute } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { DataTable, PageHeader } from "@/components";
+import { BloodPressureInput, type BloodPressureValue, DataTable, PageHeader } from "@/components";
 import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -95,7 +96,12 @@ function ScheduleVisitModal({
 function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => void }) {
   const qc = useQueryClient();
   const v = (visit.vitals ?? {}) as Record<string, unknown>;
-  const [bp, setBp] = useState(v.bp ? String(v.bp) : "");
+  // Readings from before BP was two numbers carry it as "bp": "120/80".
+  const [bp, setBp] = useState<BloodPressureValue>(() =>
+    typeof v.systolic_bp === "number"
+      ? { systolic: v.systolic_bp, diastolic: toReading(v.diastolic_bp) }
+      : parseBloodPressureText(v.bp),
+  );
   const [pulse, setPulse] = useState(v.pulse ? String(v.pulse) : "");
   const [spo2, setSpo2] = useState(v.spo2 ? String(v.spo2) : "");
   const [temp, setTemp] = useState(v.temp ? String(v.temp) : "");
@@ -106,7 +112,8 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
     mutationFn: () =>
       homeHealthService.documentHomeVisit(visit.id, {
         vitals: {
-          ...(bp && { bp }),
+          ...(bp.systolic !== undefined && { systolic_bp: bp.systolic }),
+          ...(bp.diastolic !== undefined && { diastolic_bp: bp.diastolic }),
           ...(pulse && { pulse }),
           ...(spo2 && { spo2 }),
           ...(temp && { temp }),
@@ -125,13 +132,8 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
   return (
     <Modal opened onClose={onClose} title="Document visit" size="lg">
       <Stack gap="sm">
+        <BloodPressureInput value={bp} onChange={setBp} />
         <Group grow>
-          <TextInput
-            label="BP"
-            value={bp}
-            onChange={(e) => setBp(e.currentTarget.value)}
-            placeholder="120/80"
-          />
           <TextInput
             label="Pulse"
             value={pulse}
@@ -153,7 +155,11 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
           onChange={(e) => setPhoto(e.currentTarget.value)}
           placeholder="Uploaded image reference"
         />
-        <Button onClick={() => save.mutate()} loading={save.isPending}>
+        <Button
+          onClick={() => save.mutate()}
+          loading={save.isPending}
+          disabled={!isBloodPressureValid(bp.systolic, bp.diastolic)}
+        >
           Save documentation
         </Button>
       </Stack>

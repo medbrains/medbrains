@@ -11,7 +11,12 @@ mod common;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-async fn create_patient(app: &common::TestApp, csrf: &str, last: &str, blood_group: Option<&str>) -> Value {
+async fn create_patient(
+    app: &common::TestApp,
+    csrf: &str,
+    last: &str,
+    blood_group: Option<&str>,
+) -> Value {
     let mut body = json!({
         "first_name": "Linkage",
         "last_name": last,
@@ -49,7 +54,12 @@ async fn post(app: &common::TestApp, csrf: &str, path: &str, body: Value) -> Val
     serde_json::from_str(&text).expect("json body")
 }
 
-async fn incidents(app: &common::TestApp, tenant_id: Uuid, incident_type: &str, needle: &str) -> i64 {
+async fn incidents(
+    app: &common::TestApp,
+    tenant_id: Uuid,
+    incident_type: &str,
+    needle: &str,
+) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT count(*) FROM quality_incidents \
           WHERE tenant_id = $1 AND incident_type = $2 AND deleted_at IS NULL \
@@ -68,7 +78,10 @@ async fn ndps_movement_without_second_witness_raises_one_incident_however_often_
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let patient = create_patient(&app, &csrf, "Ndps", None).await;
-    let tenant_id: Uuid = patient["tenant_id"].as_str().and_then(|s| s.parse().ok()).expect("tenant");
+    let tenant_id: Uuid = patient["tenant_id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("tenant");
 
     // A Schedule X drug with stock. The register handler derives
     // requires_dual_sign from the catalogue; nothing wrote it before.
@@ -91,7 +104,11 @@ async fn ndps_movement_without_second_witness_raises_one_incident_however_often_
         .send()
         .await
         .expect("step-up");
-    assert!(stepped.status().is_success(), "step-up: {}", stepped.status());
+    assert!(
+        stepped.status().is_success(),
+        "step-up: {}",
+        stepped.status()
+    );
 
     // A receipt with no witness is the deficiency: the handler refuses an
     // unwitnessed dispense outright, so the register can only go wrong on
@@ -110,13 +127,24 @@ async fn ndps_movement_without_second_witness_raises_one_incident_however_often_
             .fetch_one(&app.db)
             .await
             .expect("register row");
-    assert_eq!(requires, Some(true), "a Schedule X movement requires a second signature");
+    assert_eq!(
+        requires,
+        Some(true),
+        "a Schedule X movement requires a second signature"
+    );
 
-    let emitted = app.outbox_rows("pharmacy.ndps.movement.created", &entry_id).await;
+    let emitted = app
+        .outbox_rows("pharmacy.ndps.movement.created", &entry_id)
+        .await;
     assert_eq!(emitted.len(), 1);
-    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0]).await;
-    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0]).await;
-    assert_eq!(incidents(&app, tenant_id, "ndps_dual_signature_missing", &entry_id).await, 1);
+    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0])
+        .await;
+    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0])
+        .await;
+    assert_eq!(
+        incidents(&app, tenant_id, "ndps_dual_signature_missing", &entry_id).await,
+        1
+    );
 
     // The negative: a witnessed movement raises nothing.
     let witness: Uuid = sqlx::query_scalar(
@@ -134,18 +162,32 @@ async fn ndps_movement_without_second_witness_raises_one_incident_however_often_
     )
     .await;
     let witnessed_id = witnessed["id"].as_str().expect("entry id").to_owned();
-    let emitted = app.outbox_rows("pharmacy.ndps.movement.created", &witnessed_id).await;
+    let emitted = app
+        .outbox_rows("pharmacy.ndps.movement.created", &witnessed_id)
+        .await;
     assert_eq!(emitted.len(), 1);
-    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0]).await;
-    assert_eq!(incidents(&app, tenant_id, "ndps_dual_signature_missing", &witnessed_id).await, 0);
+    app.dispatch(tenant_id, "pharmacy.ndps.movement.created", &emitted[0])
+        .await;
+    assert_eq!(
+        incidents(
+            &app,
+            tenant_id,
+            "ndps_dual_signature_missing",
+            &witnessed_id
+        )
+        .await,
+        0
+    );
 }
 
 async fn mirror_count(app: &common::TestApp, table: &str, id: Uuid) -> i64 {
-    sqlx::query_scalar::<_, i64>(&format!("SELECT count(*) FROM {table} WHERE source_record_id = $1"))
-        .bind(id)
-        .fetch_one(&app.db)
-        .await
-        .expect("mirror count")
+    sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT count(*) FROM {table} WHERE source_record_id = $1"
+    ))
+    .bind(id)
+    .fetch_one(&app.db)
+    .await
+    .expect("mirror count")
 }
 
 #[tokio::test]
@@ -159,7 +201,11 @@ async fn fall_and_sentinel_incidents_reach_their_nabh_registers_and_a_near_miss_
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
 
     let mut ids = Vec::new();
-    for (kind, severity) in [("fall", "minor"), ("medication_error", "sentinel"), ("medication_error", "near_miss")] {
+    for (kind, severity) in [
+        ("fall", "minor"),
+        ("medication_error", "sentinel"),
+        ("medication_error", "near_miss"),
+    ] {
         let row = post(
             &app,
             &csrf,
@@ -173,15 +219,28 @@ async fn fall_and_sentinel_incidents_reach_their_nabh_registers_and_a_near_miss_
             }),
         )
         .await;
-        ids.push(row["id"].as_str().and_then(|s| s.parse::<Uuid>().ok()).expect("incident id"));
+        ids.push(
+            row["id"]
+                .as_str()
+                .and_then(|s| s.parse::<Uuid>().ok())
+                .expect("incident id"),
+        );
     }
-    assert_eq!(mirror_count(&app, "nabh_falls_register", ids[0]).await, 1, "a fall is on the falls register");
+    assert_eq!(
+        mirror_count(&app, "nabh_falls_register", ids[0]).await,
+        1,
+        "a fall is on the falls register"
+    );
     assert_eq!(
         mirror_count(&app, "nabh_sentinel_event_register", ids[1]).await,
         1,
         "a sentinel event is on the sentinel register"
     );
-    assert_eq!(mirror_count(&app, "nabh_sentinel_event_register", ids[2]).await, 0, "a near-miss is not");
+    assert_eq!(
+        mirror_count(&app, "nabh_sentinel_event_register", ids[2]).await,
+        0,
+        "a near-miss is not"
+    );
     assert_eq!(mirror_count(&app, "nabh_falls_register", ids[2]).await, 0);
 }
 
@@ -190,10 +249,22 @@ async fn breakdown_takes_active_kit_out_of_service_once_and_mirrors_downtime() {
     let app = common::spawn_app().await;
     let csrf = app.login_admin().await;
     let patient = create_patient(&app, &csrf, "Bme", None).await;
-    let tenant_id: Uuid = patient["tenant_id"].as_str().and_then(|s| s.parse().ok()).expect("tenant");
+    let tenant_id: Uuid = patient["tenant_id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("tenant");
 
-    let kit = post(&app, &csrf, "/api/bme/equipment", json!({ "name": "Linkage Ventilator", "status": "active" })).await;
-    let kit_id: Uuid = kit["id"].as_str().and_then(|s| s.parse().ok()).expect("equipment id");
+    let kit = post(
+        &app,
+        &csrf,
+        "/api/bme/equipment",
+        json!({ "name": "Linkage Ventilator", "status": "active" }),
+    )
+    .await;
+    let kit_id: Uuid = kit["id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("equipment id");
     let breakdown = post(
         &app,
         &csrf,
@@ -203,7 +274,9 @@ async fn breakdown_takes_active_kit_out_of_service_once_and_mirrors_downtime() {
     .await;
     let breakdown_id = breakdown["id"].as_str().expect("breakdown id").to_owned();
 
-    let emitted = app.outbox_rows("bme.equipment_downtime.recorded", &breakdown_id).await;
+    let emitted = app
+        .outbox_rows("bme.equipment_downtime.recorded", &breakdown_id)
+        .await;
     assert_eq!(emitted.len(), 1);
     let mirrored: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM nabh_equipment_downtime_log WHERE source_record_id = $1",
@@ -214,8 +287,10 @@ async fn breakdown_takes_active_kit_out_of_service_once_and_mirrors_downtime() {
     .expect("downtime mirror");
     assert_eq!(mirrored, 1, "the breakdown is on the NABH downtime log");
 
-    app.dispatch(tenant_id, "bme.equipment_downtime.recorded", &emitted[0]).await;
-    app.dispatch(tenant_id, "bme.equipment_downtime.recorded", &emitted[0]).await;
+    app.dispatch(tenant_id, "bme.equipment_downtime.recorded", &emitted[0])
+        .await;
+    app.dispatch(tenant_id, "bme.equipment_downtime.recorded", &emitted[0])
+        .await;
     let status: String = sqlx::query_scalar("SELECT status::text FROM bme_equipment WHERE id = $1")
         .bind(kit_id)
         .fetch_one(&app.db)
@@ -230,24 +305,39 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
     let csrf = app.login_admin().await;
     let patient = create_patient(&app, &csrf, "Transfusion", Some("o_positive")).await;
     let patient_id = patient["id"].as_str().expect("patient id").to_owned();
-    let tenant_id: Uuid = patient["tenant_id"].as_str().and_then(|s| s.parse().ok()).expect("tenant");
+    let tenant_id: Uuid = patient["tenant_id"]
+        .as_str()
+        .and_then(|s| s.parse().ok())
+        .expect("tenant");
 
     let donor = post(
         &app,
         &csrf,
         "/api/blood-bank/donors",
         json!({ "donor_number": format!("LNK-{}", &Uuid::new_v4().to_string()[..8]), "first_name": "Linkage",
-                "last_name": "Donor", "blood_group": "o_positive" }),
+                "last_name": "Donor", "blood_group": "o_positive", "date_of_birth": "1990-01-01" }),
     )
     .await;
     let donation = post(
         &app,
         &csrf,
         &format!("/api/blood-bank/donors/{}/donations", donor["id"].as_str().expect("donor id")),
-        json!({ "bag_number": format!("LNK-BAG-{}", &Uuid::new_v4().to_string()[..8]), "volume_ml": 450 }),
+        json!({ "bag_number": format!("LNK-BAG-{}", &Uuid::new_v4().to_string()[..8]), "volume_ml": 450, "weight_kg": 60.0, "hemoglobin_g_dl": 13.5, "systolic_bp": 120, "diastolic_bp": 80, "pulse": 72 }),
     )
     .await;
     let donation_id = donation["id"].as_str().expect("donation id").to_owned();
+    // Screened non-reactive on all five markers: nothing is released otherwise.
+    let markers: Vec<Value> = ["hiv", "hbsag", "hcv", "syphilis", "malaria"]
+        .iter()
+        .map(|m| json!({ "marker": m, "result": "non_reactive" }))
+        .collect();
+    post(
+        &app,
+        &csrf,
+        &format!("/api/blood-bank/donations/{donation_id}/tti"),
+        json!({ "results": markers }),
+    )
+    .await;
     let expiry = (chrono::Utc::now() + chrono::Duration::days(30)).to_rfc3339();
     let mut units = Vec::new();
     for _ in 0..2 {
@@ -278,7 +368,12 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
         "SELECT id FROM users WHERE tenant_id = $1 AND is_active = true AND id <> $2 LIMIT 1",
     )
     .bind(tenant_id)
-    .bind(patient["created_by"].as_str().and_then(|s| s.parse::<Uuid>().ok()).unwrap_or(Uuid::nil()))
+    .bind(
+        patient["created_by"]
+            .as_str()
+            .and_then(|s| s.parse::<Uuid>().ok())
+            .unwrap_or(Uuid::nil()),
+    )
     .fetch_one(&app.db)
     .await
     .expect("a second verifier");
@@ -290,6 +385,31 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
     .fetch_one(&app.db)
     .await
     .expect("a first verifier");
+    // A red-cell unit is issued only on a compatible crossmatch for this
+    // patient and this unit.
+    let crossmatch = post(
+        &app,
+        &csrf,
+        "/api/blood-bank/crossmatch",
+        json!({ "patient_id": patient_id, "blood_group": "o_positive" }),
+    )
+    .await;
+    let matched = app
+        .client
+        .put(app.url(&format!(
+            "/api/blood-bank/crossmatch/{}",
+            crossmatch["id"].as_str().expect("crossmatch id")
+        )))
+        .header("x-csrf-token", &csrf)
+        .json(&json!({ "status": "compatible", "result": "compatible", "component_id": units[0] }))
+        .send()
+        .await
+        .expect("crossmatch result");
+    assert!(
+        matched.status().is_success(),
+        "crossmatch: {}",
+        matched.status()
+    );
     let transfusion = post(
         &app,
         &csrf,
@@ -298,36 +418,63 @@ async fn transfusion_reaction_quarantines_siblings_alerts_and_files_one_incident
                 "patient_verified_by": me, "product_verified_by": other_user }),
     )
     .await;
-    let transfusion_id = transfusion["id"].as_str().expect("transfusion id").to_owned();
+    let transfusion_id = transfusion["id"]
+        .as_str()
+        .expect("transfusion id")
+        .to_owned();
     let reacted = app
         .client
-        .put(app.url(&format!("/api/blood-bank/transfusions/{transfusion_id}/reaction")))
+        .put(app.url(&format!(
+            "/api/blood-bank/transfusions/{transfusion_id}/reaction"
+        )))
         .header("x-csrf-token", &csrf)
         .json(&json!({ "reaction_type": "febrile", "reaction_severity": "severe" }))
         .send()
         .await
         .expect("record reaction");
-    assert!(reacted.status().is_success(), "reaction: {}", reacted.status());
+    assert!(
+        reacted.status().is_success(),
+        "reaction: {}",
+        reacted.status()
+    );
 
-    let emitted = app.outbox_rows("blood.transfusion_reaction.reported", &transfusion_id).await;
+    let emitted = app
+        .outbox_rows("blood.transfusion_reaction.reported", &transfusion_id)
+        .await;
     assert_eq!(emitted.len(), 1, "one reaction event");
-    app.dispatch(tenant_id, "blood.transfusion_reaction.reported", &emitted[0]).await;
-    app.dispatch(tenant_id, "blood.transfusion_reaction.reported", &emitted[0]).await;
+    app.dispatch(
+        tenant_id,
+        "blood.transfusion_reaction.reported",
+        &emitted[0],
+    )
+    .await;
+    app.dispatch(
+        tenant_id,
+        "blood.transfusion_reaction.reported",
+        &emitted[0],
+    )
+    .await;
 
-    let sibling: String = sqlx::query_scalar("SELECT status::text FROM blood_components WHERE id = $1")
-        .bind(units[1].parse::<Uuid>().expect("uuid"))
-        .fetch_one(&app.db)
-        .await
-        .expect("sibling");
+    let sibling: String =
+        sqlx::query_scalar("SELECT status::text FROM blood_components WHERE id = $1")
+            .bind(units[1].parse::<Uuid>().expect("uuid"))
+            .fetch_one(&app.db)
+            .await
+            .expect("sibling");
     assert_eq!(sibling, "quarantined", "the donation's other unit is held");
-    let reaction_id = emitted[0]["payload"]["reaction_id"].as_str().expect("reaction id").to_owned();
+    let reaction_id = emitted[0]["payload"]["reaction_id"]
+        .as_str()
+        .expect("reaction id")
+        .to_owned();
     assert_eq!(
         incidents(&app, tenant_id, "transfusion_reaction", &reaction_id).await,
         1,
         "two deliveries, one incident"
     );
     assert!(
-        !app.outbox_rows("blood_bank.transfusion_reaction_alert", &reaction_id).await.is_empty(),
+        !app.outbox_rows("blood_bank.transfusion_reaction_alert", &reaction_id)
+            .await
+            .is_empty(),
         "the blood bank is told"
     );
 }

@@ -680,7 +680,7 @@ pub async fn create_mortality_review(
          (tenant_id, admission_id, death_at, cause_of_death, primary_dx, \
           is_mlc_case, autopsy_required, review_due_at) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-         ON CONFLICT (admission_id) DO UPDATE SET \
+         ON CONFLICT (admission_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            death_at = EXCLUDED.death_at, \
            cause_of_death = EXCLUDED.cause_of_death, \
            primary_dx = EXCLUDED.primary_dx, \

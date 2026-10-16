@@ -18,7 +18,7 @@ import type {
   CreateBbMsbosRequest,
   CreateBbReturnRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { BLOOD_GROUP_OPTIONS, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -215,7 +215,7 @@ export function ReturnsAndMsbosTab() {
               />
               <Select
                 label="Blood Group"
-                data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+                data={BLOOD_GROUP_OPTIONS}
                 clearable
                 value={msbosGroup}
                 onChange={setMsbosGroup}

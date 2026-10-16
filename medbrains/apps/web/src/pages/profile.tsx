@@ -8,6 +8,8 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
 import { Alert, Badge, Button, Input, Select } from "@/components/ui";
+import { MyLeaveCard } from "./profile/my-leave-card";
+import { TeamLeaveCard } from "./profile/team-leave-card";
 
 const GENDERS = ["male", "female", "other"];
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -149,6 +151,9 @@ export function ProfilePage() {
 
       {employee && (
         <>
+          <MyLeaveCard />
+          <TeamLeaveCard />
+
           <Card withBorder padding="lg">
             <Text fw={600} mb="sm">
               Employment — HR-managed

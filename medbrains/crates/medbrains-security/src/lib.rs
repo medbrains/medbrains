@@ -16,12 +16,15 @@
 //! clinical role, at which point the tag becomes a clinical annotation and
 //! needs scoping like one.
 
+pub mod breach;
+pub mod code_pink;
+pub mod incident_timeline;
 
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use medbrains_core::security::{
@@ -700,7 +703,8 @@ pub async fn list_incidents(
 
     let rows = sqlx::query_as::<_, SecurityIncident>(
         "SELECT * FROM security_incidents \
-         WHERE ($1::text IS NULL OR severity::text = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::text IS NULL OR severity::text = $1) \
          AND ($2::text IS NULL OR status::text = $2) \
          AND ($3::text IS NULL OR category = $3) \
          ORDER BY occurred_at DESC LIMIT 200",
@@ -712,7 +716,11 @@ pub async fn list_incidents(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(SecurityIncident::with_deadlines)
+            .collect(),
+    ))
 }
 
 pub async fn get_incident(
@@ -726,14 +734,16 @@ pub async fn get_incident(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row =
-        sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let row = sqlx::query_as::<_, SecurityIncident>(
+        "SELECT * FROM security_incidents WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(row.with_deadlines()))
 }
 
 pub async fn create_incident(
@@ -786,7 +796,7 @@ pub async fn create_incident(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(row.with_deadlines()))
 }
 
 pub async fn update_incident(
@@ -849,7 +859,7 @@ pub async fn update_incident(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(row.with_deadlines()))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -890,10 +900,38 @@ pub async fn create_patient_tag(
     Json(body): Json<CreatePatientTagRequest>,
 ) -> Result<Json<SecurityPatientTag>, AppError> {
     require_permission(&claims, permissions::security::patient_safety::MANAGE)?;
+    let identifier = body
+        .tag_identifier
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty());
+    // An infant tag is only useful if the band can be matched to a mother
+    // and an event on it can be traced to the baby (Code Pink).
+    if body.tag_type == "infant_rfid" && (body.mother_id.is_none() || identifier.is_none()) {
+        return Err(AppError::BadRequest(
+            "An infant tag needs the band number and the mother.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    if let Some(identifier) = identifier {
+        let in_use = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM security_patient_tags \
+              WHERE lower(tag_identifier) = lower($1) \
+                AND alert_status <> 'deactivated' AND deleted_at IS NULL)",
+        )
+        .bind(identifier)
+        .fetch_one(&mut *tx)
+        .await?;
+        if in_use {
+            return Err(AppError::Conflict(format!(
+                "Tag {identifier} is already active on another patient. Deactivate it first."
+            )));
+        }
+    }
 
     let row = sqlx::query_as::<_, SecurityPatientTag>(
         "INSERT INTO security_patient_tags \
@@ -905,7 +943,7 @@ pub async fn create_patient_tag(
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(&body.tag_type)
-    .bind(&body.tag_identifier)
+    .bind(identifier)
     .bind(body.allowed_zone_id)
     .bind(body.mother_id)
     .bind(body.admission_id)
@@ -997,6 +1035,17 @@ pub async fn resolve_tag_alert(
     .bind(body.was_false_alarm)
     .bind(&body.resolution_notes)
     .fetch_one(&mut *tx)
+    .await?;
+
+    // The tag goes back to active once its last open alert is resolved.
+    sqlx::query(
+        "UPDATE security_patient_tags SET alert_status = 'active'::sec_tag_alert_status \
+          WHERE id = $1 AND alert_status = 'alert_triggered' \
+            AND NOT EXISTS (SELECT 1 FROM security_tag_alerts \
+                             WHERE tag_id = $1 AND NOT is_resolved AND deleted_at IS NULL)",
+    )
+    .bind(row.tag_id)
+    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -1098,76 +1147,70 @@ pub async fn create_debrief(
 /// security routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/security/zones",
-            get(list_zones)
-                .post(create_zone),
-        )
-        .route(
-            "/api/security/zones/{id}",
-            put(update_zone),
-        )
+        .route("/api/security/zones", get(list_zones).post(create_zone))
+        .route("/api/security/zones/{id}", put(update_zone))
         .route(
             "/api/security/access-logs",
-            get(list_access_logs)
-                .post(create_access_log),
+            get(list_access_logs).post(create_access_log),
         )
         .route(
             "/api/security/cards",
-            get(list_access_cards)
-                .post(create_access_card),
+            get(list_access_cards).post(create_access_card),
         )
-        .route(
-            "/api/security/cards/{id}",
-            put(update_access_card),
-        )
+        .route("/api/security/cards/{id}", put(update_access_card))
         .route(
             "/api/security/cards/{id}/deactivate",
             put(deactivate_access_card),
         )
         .route(
             "/api/security/cameras",
-            get(list_cameras)
-                .post(create_camera),
+            get(list_cameras).post(create_camera),
         )
-        .route(
-            "/api/security/cameras/{id}",
-            put(update_camera),
-        )
+        .route("/api/security/cameras/{id}", put(update_camera))
         .route(
             "/api/security/incidents",
-            get(list_incidents)
-                .post(create_incident),
+            get(list_incidents).post(create_incident),
         )
         .route(
             "/api/security/incidents/{id}",
-            get(get_incident)
-                .put(update_incident),
+            get(get_incident).put(update_incident),
+        )
+        .route(
+            "/api/security/incidents/{id}/breach",
+            put(breach::assess_breach),
+        )
+        .route(
+            "/api/security/incidents/{id}/notices",
+            post(breach::record_notice),
+        )
+        .route(
+            "/api/security/incidents/{id}/updates",
+            get(incident_timeline::list_updates).post(incident_timeline::add_note),
         )
         .route(
             "/api/security/patient-tags",
-            get(list_patient_tags)
-                .post(create_patient_tag),
+            get(list_patient_tags).post(create_patient_tag),
         )
         .route(
             "/api/security/patient-tags/{id}/deactivate",
             put(deactivate_patient_tag),
         )
         .route(
-            "/api/security/tag-alerts",
-            get(list_tag_alerts),
+            "/api/security/patient-tags/verify-match",
+            post(code_pink::verify_band_match),
         )
+        .route(
+            "/api/security/tag-events",
+            post(code_pink::record_tag_event),
+        )
+        .route("/api/security/tag-alerts", get(list_tag_alerts))
         .route(
             "/api/security/tag-alerts/{id}/resolve",
             put(resolve_tag_alert),
         )
         .route(
             "/api/security/debriefs",
-            get(list_debriefs)
-                .post(create_debrief),
+            get(list_debriefs).post(create_debrief),
         )
-        .route(
-            "/api/security/debriefs/{id}",
-            get(get_debrief),
-        )
+        .route("/api/security/debriefs/{id}", get(get_debrief))
 }

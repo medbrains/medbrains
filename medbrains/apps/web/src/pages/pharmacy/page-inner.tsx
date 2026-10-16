@@ -175,9 +175,6 @@ export function PharmacyPageInner() {
     const defaults: ComplianceSettings = {
       enforce_drug_scheduling: false,
       enforce_ndps_tracking: false,
-      enforce_formulary: false,
-      enforce_drug_interactions: false,
-      enforce_antibiotic_stewardship: false,
       enforce_lasa_warnings: false,
       enforce_max_dose_check: false,
       enforce_batch_tracking: false,

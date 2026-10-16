@@ -25,6 +25,13 @@ export const securityService = {
     api.createSecurityIncident(...args),
   updateSecurityIncident: (...args: Parameters<typeof api.updateSecurityIncident>) =>
     api.updateSecurityIncident(...args),
+  assessIncidentBreach: (...args: Parameters<typeof api.assessIncidentBreach>) =>
+    api.assessIncidentBreach(...args),
+  recordIncidentNotice: (...args: Parameters<typeof api.recordIncidentNotice>) =>
+    api.recordIncidentNotice(...args),
+  getIncidentUpdates: (id: string) => api.getIncidentUpdates(id),
+  addIncidentUpdate: (...args: Parameters<typeof api.addIncidentUpdate>) =>
+    api.addIncidentUpdate(...args),
   listSecurityPatientTags: (...args: Parameters<typeof api.listSecurityPatientTags>) =>
     api.listSecurityPatientTags(...args),
   createSecurityPatientTag: (...args: Parameters<typeof api.createSecurityPatientTag>) =>
@@ -35,6 +42,10 @@ export const securityService = {
     api.listSecurityTagAlerts(...args),
   resolveSecurityTagAlert: (...args: Parameters<typeof api.resolveSecurityTagAlert>) =>
     api.resolveSecurityTagAlert(...args),
+  verifySecurityBandMatch: (...args: Parameters<typeof api.verifySecurityBandMatch>) =>
+    api.verifySecurityBandMatch(...args),
+  recordSecurityTagEvent: (...args: Parameters<typeof api.recordSecurityTagEvent>) =>
+    api.recordSecurityTagEvent(...args),
   listSecurityCodeDebriefs: (...args: Parameters<typeof api.listSecurityCodeDebriefs>) =>
     api.listSecurityCodeDebriefs(...args),
   createSecurityCodeDebrief: (...args: Parameters<typeof api.createSecurityCodeDebrief>) =>

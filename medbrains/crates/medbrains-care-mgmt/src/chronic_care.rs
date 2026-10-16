@@ -1532,8 +1532,9 @@ pub async fn check_polypharmacy(
 
             let interaction = sqlx::query_as::<_, InteractionRow>(
                 "SELECT id, severity, description, management FROM drug_interactions \
-                 WHERE (drug_a_name ILIKE $1 AND drug_b_name ILIKE $2) \
-                 OR (drug_a_name ILIKE $2 AND drug_b_name ILIKE $1) \
+                 WHERE deleted_at IS NULL \
+                 AND ((drug_a_name ILIKE $1 AND drug_b_name ILIKE $2) \
+                 OR (drug_a_name ILIKE $2 AND drug_b_name ILIKE $1)) \
                  LIMIT 1",
             )
             .bind(&drug_a.drug_name)

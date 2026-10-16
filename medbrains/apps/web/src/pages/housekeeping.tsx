@@ -30,6 +30,7 @@ export function HousekeepingPage() {
 
   const canCreateCleaning = useHasPermission(P.HOUSEKEEPING.CLEANING_CREATE);
   const canManageCleaning = useHasPermission(P.HOUSEKEEPING.CLEANING_MANAGE);
+  const canPerformCleaning = useHasPermission(P.HOUSEKEEPING.TASKS_PERFORM);
   const canListTurnaround = useHasPermission(P.HOUSEKEEPING.TURNAROUND_LIST);
   const canManageTurnaround = useHasPermission(P.HOUSEKEEPING.TURNAROUND_MANAGE);
   const canListPest = useHasPermission(P.HOUSEKEEPING.PEST_CONTROL_LIST);
@@ -73,6 +74,7 @@ export function HousekeepingPage() {
           <RoomBedTab
             canCreate={canCreateCleaning}
             canManage={canManageCleaning}
+            canPerform={canPerformCleaning}
             canListTurnaround={canListTurnaround}
             canManageTurnaround={canManageTurnaround}
           />

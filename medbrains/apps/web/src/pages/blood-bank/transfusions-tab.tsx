@@ -4,7 +4,7 @@ import { Drawer, Group, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateTransfusionRequest, TransfusionRecord } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { bloodGroupLabel, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -14,7 +14,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button, toast } from "@/components/ui";
+import { Alert, Badge, Button, Switch, TextArea, toast } from "@/components/ui";
 import { useConsentGate } from "@/hooks/useConsentGate";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
@@ -45,6 +45,11 @@ function CreateTransfusionForm({
   const [crossmatchId, setCrossmatchId] = useState("");
   const [patientVerifier, setPatientVerifier] = useState<string | null>(null);
   const [productVerifier, setProductVerifier] = useState<string | null>(null);
+  // Uncrossmatched O-negative for a life-threatening bleed: its own
+  // permission, a mandatory reason, and the server audits every use.
+  const canEmergencyRelease = useHasPermission(P.BLOOD_BANK.TRANSFUSION_EMERGENCY_RELEASE);
+  const [emergency, setEmergency] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState("");
   const { data: users = [] } = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => adminAccessService.listUsers(),
@@ -72,7 +77,7 @@ function CreateTransfusionForm({
   });
   const componentOptions = components.map((component) => ({
     value: component.id,
-    label: `${component.bag_number} · ${component.blood_group} ${component.component_type.replace(/_/g, " ")} · exp ${new Date(component.expiry_at).toLocaleDateString()}`,
+    label: `${component.bag_number} · ${bloodGroupLabel(component.blood_group)} ${component.component_type.replace(/_/g, " ")} · exp ${new Date(component.expiry_at).toLocaleDateString()}`,
   }));
 
   // Scoped to the patient on the form: offering another patient's crossmatch
@@ -114,7 +119,7 @@ function CreateTransfusionForm({
       />
       <Select
         label="Crossmatch"
-        description="Optional, and only this patient's crossmatches are offered."
+        description="Required for whole blood and PRBC. Left blank, the bank uses this patient's compatible crossmatch for this unit from the last 72 hours; without one the unit is not issued."
         placeholder="Select the crossmatch this unit was matched on"
         data={crossmatchOptions}
         value={crossmatchId || null}
@@ -147,6 +152,31 @@ function CreateTransfusionForm({
             : undefined
         }
       />
+      {canEmergencyRelease && (
+        <Stack gap="xs">
+          <Switch
+            label="Emergency uncrossmatched O-negative release"
+            checked={emergency}
+            onChange={(e) => setEmergency(e.currentTarget.checked)}
+          />
+          {emergency && (
+            <>
+              <Alert tone="danger" title="Uncrossmatched blood">
+                Only an O-negative red-cell unit is released this way. Send a sample for crossmatch
+                now; this release is written to the audit log under your name.
+              </Alert>
+              <TextArea
+                label="Reason"
+                description="The emergency and the requesting doctor."
+                required
+                value={emergencyReason}
+                onChange={(e) => setEmergencyReason(e.currentTarget.value)}
+                error={emergencyReason.trim() ? undefined : "A reason is required"}
+              />
+            </>
+          )}
+        </Stack>
+      )}
       {patientId && (
         <ConsentGateNotice
           outcome={consentGate.outcome}
@@ -158,7 +188,7 @@ function CreateTransfusionForm({
       )}
       <Button
         tone="primary"
-        disabled={twoPersonInvalid || !consentSettled}
+        disabled={twoPersonInvalid || !consentSettled || (emergency && !emergencyReason.trim())}
         onClick={() => {
           if (!patientId || !componentId || !patientVerifier || !productVerifier) return;
           if (patientVerifier === productVerifier) return;
@@ -168,6 +198,8 @@ function CreateTransfusionForm({
             crossmatch_id: crossmatchId || undefined,
             patient_verified_by: patientVerifier,
             product_verified_by: productVerifier,
+            emergency_release: emergency || undefined,
+            emergency_reason: emergency ? emergencyReason.trim() : undefined,
           });
         }}
         loading={loading}
@@ -298,9 +330,16 @@ export function TransfusionsTab() {
       key: "component_id" as const,
       label: "Unit",
       render: (t: TransfusionRecord) =>
-        t.bag_number
-          ? `${t.bag_number}${t.component_type ? ` · ${t.component_type.toUpperCase()}` : ""}`
-          : "Unknown unit",
+        t.emergency_release ? (
+          <Group gap={4}>
+            {t.bag_number ?? "Unknown unit"}
+            <Badge tone="danger">Emergency O-neg, uncrossmatched</Badge>
+          </Group>
+        ) : t.bag_number ? (
+          `${t.bag_number}${t.component_type ? ` · ${t.component_type.toUpperCase()}` : ""}`
+        ) : (
+          "Unknown unit"
+        ),
     },
     {
       key: "patient_id" as const,
