@@ -2235,6 +2235,29 @@ async fn decrement_catalog_stock_for_dispense_in_tx(
             reorder_level,
         )
         .await?;
+        // The email to the pharmacists goes through the default pipeline, so a
+        // hospital can switch it off in the Integration Hub. Keyed by day: a
+        // drug that crosses twice in one day is one message, not two.
+        let event = ClinicalEventEnvelope::new(
+            *tenant_id,
+            ClinicalEventName::PharmacyStockLow,
+            catalog_id,
+            Uuid::nil(),
+            serde_json::json!({
+                "catalog_item_id": catalog_id,
+                "drug_name": drug_name,
+                "on_hand": new_stock,
+                "reorder_level": reorder_level,
+            }),
+        );
+        let mut row = medbrains_workflow::events::clinical_event_outbox_row(&event)?;
+        row.idempotency_key = Some(format!(
+            "pharmacy.stock.low:{catalog_id}:{}",
+            event.occurred_at.date_naive()
+        ));
+        medbrains_outbox::queue_in_tx(tx, row)
+            .await
+            .map_err(|e| AppError::Internal(format!("low-stock event: {e}")))?;
     }
 
     Ok(())
