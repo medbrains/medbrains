@@ -54,6 +54,8 @@ sessionService.setApiBase(
   import.meta.env.VITE_API_BASE || (isTauriDesktop ? desktopApiBase : "/api"),
 );
 sessionService.configureNativeAuth(isTauriDesktop ? "desktop" : null);
+// A response that drifts from its schema throws while developing, logs in production.
+sessionService.setStrictResponseValidation(import.meta.env.DEV);
 
 const runtimeState = globalThis as typeof globalThis & {
   __medbrainsConsoleReporterInstalled?: boolean;
