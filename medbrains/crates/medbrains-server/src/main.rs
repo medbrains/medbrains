@@ -648,6 +648,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
     // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
+    medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
