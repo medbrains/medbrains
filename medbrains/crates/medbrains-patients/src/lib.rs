@@ -3,6 +3,7 @@
 pub mod acquisition;
 pub mod contact_consent;
 pub mod dpdp_consent;
+pub mod privacy_requests;
 mod registration_rules;
 
 use std::collections::HashMap;
@@ -5067,6 +5068,19 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/patients/{id}/dpdp-consent",
             get(dpdp_consent::get_dpdp_consent).put(dpdp_consent::set_dpdp_consent),
+        )
+        .route(
+            "/api/patients/{id}/data-summary",
+            get(privacy_requests::patient_data_summary),
+        )
+        .route(
+            "/api/privacy-requests",
+            get(privacy_requests::list_privacy_requests)
+                .post(privacy_requests::create_privacy_request),
+        )
+        .route(
+            "/api/privacy-requests/{id}/decide",
+            put(privacy_requests::decide_privacy_request),
         )
         .route(
             "/api/patients/{id}/clinical-timeline",

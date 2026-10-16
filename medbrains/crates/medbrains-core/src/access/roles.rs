@@ -666,6 +666,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::VIEW,
             permissions::patients::CREATE,
             permissions::patients::UPDATE,
+            permissions::patients::privacy_requests::LIST,
+            permissions::patients::privacy_requests::CREATE,
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::opd::visit::CREATE,
@@ -1132,6 +1134,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::audit::EXPORT,
             permissions::audit::ACCESS_VIEW,
             permissions::audit::REVIEW,
+            permissions::patients::privacy_requests::LIST,
+            permissions::patients::privacy_requests::CREATE,
+            permissions::patients::privacy_requests::DECIDE,
             permissions::opd::queue::LIST,
             permissions::opd::queue::VIEW,
             permissions::emergency::visits::LIST,
@@ -1591,6 +1596,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
             permissions::front_office::passes::VERIFY,
+            permissions::patients::privacy_requests::LIST,
+            permissions::patients::privacy_requests::CREATE,
             permissions::marketing::campaigns::LOOKUP,
             permissions::patients::acquisition::UPDATE,
             // Marketing / enquiry desk — the tele-calling and front-desk seat.
