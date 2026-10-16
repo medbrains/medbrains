@@ -22,6 +22,7 @@ import {
   IconEye,
   IconFileAnalytics,
   IconFileCertificate,
+  IconFileSpreadsheet,
   IconFileText,
   IconFileTypePdf,
   IconFirstAidKit,
@@ -153,6 +154,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconScissors,
   IconSettings,
   IconShieldCheck,
+  IconFileSpreadsheet,
   IconShieldLock,
   IconSignature,
   IconSpray,
@@ -1354,6 +1356,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/setup",
             icon: "IconListDetails",
             requiredPermission: "admin.settings.general.manage",
+          },
+          {
+            i18nKey: "onboardingWorkbook",
+            path: "/admin/workbook",
+            icon: "IconFileSpreadsheet",
+            requiredPermission: "admin.workbook.import",
           },
           {
             i18nKey: "settings",

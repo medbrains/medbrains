@@ -3219,6 +3219,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getOnboardingWorkbook: () => request<OnboardingWorkbook>("/setup/workbook"),
+  importOnboardingWorkbook: (data: WorkbookSheets & { dry_run: boolean }) =>
+    request<WorkbookImportResult>("/setup/workbook/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getTrialSizing: (data: TrialPlan) =>
     request<Sizing>("/onboarding/sizing", { method: "POST", body: JSON.stringify(data) }),
   onboardingProgress: () => request<OnboardingProgress>("/onboarding/progress"),

@@ -826,6 +826,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(email_stub::SmtpSendHandler::new("email.dunning_notice"));
     registry.register(email_stub::SmtpSendHandler::new("email.verify_email"));
     registry.register(email_stub::SmtpSendHandler::new("email.invite"));
+    registry.register(email_stub::SmtpSendHandler::new("email.welcome"));
     registry.register(email_stub::SmtpSendHandler::new("email.test"));
 
     // WhatsApp — Meta Cloud API (falls back to stub if creds unset).

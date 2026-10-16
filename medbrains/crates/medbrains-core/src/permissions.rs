@@ -2447,6 +2447,17 @@ pub mod admin {
         pub const REVIEW: &str = "admin.access_requests.review";
     }
 
+    /// Setting a hospital up from a spreadsheet.
+    pub mod workbook {
+        /// Set up the hospital from a spreadsheet.
+        ///
+        /// Download the onboarding workbook — blank or filled with what the
+        /// hospital already has — and upload it back to add or update
+        /// departments, wards, beds and staff in one checked, all-or-nothing
+        /// change. New staff are emailed how to set their password.
+        pub const IMPORT: &str = "admin.workbook.import";
+    }
+
     pub mod users {
         pub const LIST: &str = "admin.users.list";
         pub const VIEW: &str = "admin.users.view";
