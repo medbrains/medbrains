@@ -98,14 +98,14 @@ fn trimmed(v: Option<&str>) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// `POST /api/privacy-requests` — the 90-day clock starts now.
-pub async fn create_privacy_request(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreatePrivacyRequest>,
-) -> Result<Json<PrivacyRequest>, AppError> {
-    require_permission(&claims, permissions::patients::privacy_requests::CREATE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+/// Validates and records a request; its 90-day clock starts now. Shared by
+/// the desk (`recorded_by` is the staff member) and the patient portal
+/// (`recorded_by` is `None`, `received_via` is `portal`).
+pub async fn record_request(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    (tenant_id, recorded_by): (Uuid, Option<Uuid>),
+    body: &CreatePrivacyRequest,
+) -> Result<PrivacyRequest, AppError> {
     if !REQUEST_TYPES.contains(&body.request_type.as_str()) {
         return Err(AppError::BadRequest(format!(
             "request type must be one of {}",
@@ -119,6 +119,11 @@ pub async fn create_privacy_request(
             CHANNELS.join(", ")
         )));
     }
+    if recorded_by.is_none() && via != "portal" {
+        return Err(AppError::BadRequest(
+            "A request from the desk names who took it".to_owned(),
+        ));
+    }
     let details = body.details.trim();
     if details.len() < 5 {
         return Err(AppError::BadRequest(
@@ -129,14 +134,12 @@ pub async fn create_privacy_request(
     if body.request_type == "nominee" && nominee.is_none() {
         return Err(AppError::BadRequest("Name the nominee".to_owned()));
     }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO privacy_requests (tenant_id, patient_id, request_type, details, received_via, \
            nominee_name, nominee_relation, nominee_contact, recorded_by) \
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(body.patient_id)
     .bind(&body.request_type)
     .bind(details)
@@ -144,10 +147,44 @@ pub async fn create_privacy_request(
     .bind(nominee)
     .bind(trimmed(body.nominee_relation.as_deref()))
     .bind(trimmed(body.nominee_contact.as_deref()))
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
+    .bind(recorded_by)
+    .fetch_one(&mut **tx)
     .await?;
-    let row = fetch_one(&mut tx, claims.tenant_id, id).await?;
+    fetch_one(tx, tenant_id, id).await
+}
+
+/// A patient's own requests, newest first.
+pub async fn requests_for_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<Vec<PrivacyRequest>, AppError> {
+    Ok(sqlx::query_as::<_, PrivacyRequest>(&format!(
+        "{SELECT} WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.deleted_at IS NULL \
+         ORDER BY r.received_at DESC LIMIT 100"
+    ))
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_all(&mut **tx)
+    .await?)
+}
+
+/// `POST /api/privacy-requests` — taken down at the desk.
+pub async fn create_privacy_request(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreatePrivacyRequest>,
+) -> Result<Json<PrivacyRequest>, AppError> {
+    require_permission(&claims, permissions::patients::privacy_requests::CREATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
+    if body.received_via.as_deref() == Some("portal") {
+        return Err(AppError::BadRequest(
+            "Staff record desk, email, phone or letter requests".to_owned(),
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = record_request(&mut tx, (claims.tenant_id, Some(claims.sub)), &body).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -260,6 +297,17 @@ pub async fn patient_data_summary(
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let summary = data_summary(&mut tx, claims.tenant_id, patient_id).await?;
+    tx.commit().await?;
+    Ok(Json(summary))
+}
+
+/// What is held about one patient, in one round trip per part.
+pub async fn data_summary(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<PatientDataSummary, AppError> {
     // One round trip: a count per table, unioned.
     let union = HELD
         .iter()
@@ -272,9 +320,9 @@ pub async fn patient_data_summary(
         .collect::<Vec<_>>()
         .join(" UNION ALL ");
     let counts: Vec<(String, i64)> = sqlx::query_as(&union)
-        .bind(claims.tenant_id)
+        .bind(tenant_id)
         .bind(patient_id)
-        .fetch_all(&mut *tx)
+        .fetch_all(&mut **tx)
         .await?;
     let held = HELD
         .iter()
@@ -290,23 +338,22 @@ pub async fn patient_data_summary(
         "SELECT COUNT(DISTINCT user_id) FROM access_log \
          WHERE tenant_id = $1 AND patient_id = $2 AND created_at > now() - interval '1 year'",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(patient_id)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
     let insurers: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT insurance_provider FROM patient_insurance \
          WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
            AND insurance_provider IS NOT NULL LIMIT 20",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(patient_id)
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
-    tx.commit().await?;
-    Ok(Json(PatientDataSummary {
+    Ok(PatientDataSummary {
         held,
         staff_who_viewed,
         insurers,
-    }))
+    })
 }

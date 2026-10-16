@@ -27,7 +27,12 @@ use uuid::Uuid;
 /// consent says which text the patient read.
 pub const NOTICE_VERSION: &str = "2026-10";
 /// The purposes the notice names — the only ones that can be agreed to.
-pub const PURPOSES: [&str; 4] = ["abdm_linking", "insurance_claims", "health_reminders", "research"];
+pub const PURPOSES: [&str; 4] = [
+    "abdm_linking",
+    "insurance_claims",
+    "health_reminders",
+    "research",
+];
 /// Languages the notice exists in.
 pub const NOTICE_LANGUAGES: [&str; 3] = ["en", "hi", "ta"];
 
@@ -53,35 +58,81 @@ impl DpdpConsentInput {
             ));
         }
         if !NOTICE_LANGUAGES.contains(&self.notice_language.as_str()) {
-            return Err(AppError::BadRequest("The notice was not shown in a language we have".into()));
+            return Err(AppError::BadRequest(
+                "The notice was not shown in a language we have".into(),
+            ));
         }
-        if let Some(p) = self.purposes.iter().find(|p| !PURPOSES.contains(&p.as_str())) {
-            return Err(AppError::BadRequest(format!("{p} is not a purpose the notice names")));
+        if let Some(p) = self
+            .purposes
+            .iter()
+            .find(|p| !PURPOSES.contains(&p.as_str()))
+        {
+            return Err(AppError::BadRequest(format!(
+                "{p} is not a purpose the notice names"
+            )));
         }
         Ok(())
     }
 }
 
-async fn insert(
+/// One decision on the ledger, recorded by a member of staff.
+pub async fn insert(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     (tenant_id, patient_id, recorded_by): (Uuid, Uuid, Uuid),
     input: &DpdpConsentInput,
     source: &str,
 ) -> Result<(), AppError> {
+    write(
+        tx,
+        (tenant_id, patient_id, Some(recorded_by)),
+        input,
+        (source, "Shown at the desk"),
+    )
+    .await
+}
+
+/// One decision on the ledger, made by the patient online.
+pub async fn insert_by_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    (tenant_id, patient_id): (Uuid, Uuid),
+    input: &DpdpConsentInput,
+) -> Result<(), AppError> {
+    write(
+        tx,
+        (tenant_id, patient_id, None),
+        input,
+        ("portal", "By the patient, online"),
+    )
+    .await
+}
+
+async fn write(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    (tenant_id, patient_id, recorded_by): (Uuid, Uuid, Option<Uuid>),
+    input: &DpdpConsentInput,
+    (source, method): (&str, &str),
+) -> Result<(), AppError> {
     sqlx::query(
         "INSERT INTO dpdp_consents \
            (tenant_id, patient_id, purposes, consent_given, notice_version, notice_language, \
             guardian_name, consent_method, source, recorded_by) \
-         VALUES ($1, $2, $3, cardinality($3) > 0, $4, $5, $6, 'Shown at the desk', $7, $8)",
+         VALUES ($1, $2, $3, cardinality($3) > 0, $4, $5, $6, $9, $7, $8)",
     )
     .bind(tenant_id)
     .bind(patient_id)
     .bind(&input.purposes)
     .bind(&input.notice_version)
     .bind(&input.notice_language)
-    .bind(input.guardian_name.as_deref().map(str::trim).filter(|g| !g.is_empty()))
+    .bind(
+        input
+            .guardian_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|g| !g.is_empty()),
+    )
     .bind(source)
     .bind(recorded_by)
+    .bind(method)
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -122,7 +173,8 @@ pub struct PatientDpdpConsent {
     pub history: Vec<DpdpConsentRecord>,
 }
 
-async fn read(
+/// The patient's current answer and its history.
+pub async fn read(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,
@@ -138,7 +190,11 @@ async fn read(
     .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
-    Ok(PatientDpdpConsent { notice_version: NOTICE_VERSION, purposes: PURPOSES, history })
+    Ok(PatientDpdpConsent {
+        notice_version: NOTICE_VERSION,
+        purposes: PURPOSES,
+        history,
+    })
 }
 
 /// `GET /api/patients/{id}/dpdp-consent`
@@ -170,7 +226,13 @@ pub async fn set_dpdp_consent(
     body.validate()?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    insert(&mut tx, (claims.tenant_id, patient_id, claims.sub), &body, "patient_update").await?;
+    insert(
+        &mut tx,
+        (claims.tenant_id, patient_id, claims.sub),
+        &body,
+        "patient_update",
+    )
+    .await?;
     let consent = read(&mut tx, claims.tenant_id, patient_id).await?;
     tx.commit().await?;
     Ok(Json(consent))
@@ -192,12 +254,20 @@ mod tests {
     #[test]
     fn consent_to_an_old_notice_is_refused() {
         assert!(input("2020-01", "en", &[]).validate().is_err());
-        assert!(input(NOTICE_VERSION, "en", &["research"]).validate().is_ok());
+        assert!(
+            input(NOTICE_VERSION, "en", &["research"])
+                .validate()
+                .is_ok()
+        );
     }
 
     #[test]
     fn only_named_purposes_and_languages() {
-        assert!(input(NOTICE_VERSION, "en", &["marketing"]).validate().is_err());
+        assert!(
+            input(NOTICE_VERSION, "en", &["marketing"])
+                .validate()
+                .is_err()
+        );
         assert!(input(NOTICE_VERSION, "fr", &[]).validate().is_err());
     }
 }

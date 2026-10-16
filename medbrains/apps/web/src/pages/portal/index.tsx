@@ -22,6 +22,7 @@ import { useParams } from "react-router";
 import { Alert, Button } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { PortalHome } from "./PortalHome";
+import { PortalPrivacy } from "./portal-privacy";
 import { PortalRefills } from "./portal-refills";
 import {
   clearPortalSession,
@@ -65,6 +66,7 @@ export function PatientPortalPage() {
           <Tabs.Tab value="prescriptions">Medicines</Tabs.Tab>
           <Tabs.Tab value="bills">Bills</Tabs.Tab>
           <Tabs.Tab value="visits">Visits</Tabs.Tab>
+          <Tabs.Tab value="privacy">Privacy</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="reports" pt="md">
@@ -81,6 +83,9 @@ export function PatientPortalPage() {
         </Tabs.Panel>
         <Tabs.Panel value="visits" pt="md">
           <PortalAppointments token={session.token} />
+        </Tabs.Panel>
+        <Tabs.Panel value="privacy" pt="md">
+          <PortalPrivacy token={session.token} />
         </Tabs.Panel>
       </Tabs>
 
