@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
+import { RevisitWindowCard } from "./RevisitWindowCard";
 
 const AUTO_BILLING_KEYS = [
   {
@@ -198,6 +199,15 @@ function BillingTenantSettings() {
         checked={isEnabled("auto_adjust_advance")}
         onChange={() => toggle("auto_adjust_advance")}
         disabled={!canManage || updateMutation.isPending}
+      />
+
+      <RevisitWindowCard
+        value={settingsMap.get("opd_revisit")}
+        canManage={canManage}
+        saving={updateMutation.isPending}
+        onSave={(policy) =>
+          updateMutation.mutate({ category: "billing", key: "opd_revisit", value: policy })
+        }
       />
 
       <Text fw={600} mt="lg">
