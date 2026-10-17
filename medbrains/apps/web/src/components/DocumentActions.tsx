@@ -11,6 +11,8 @@ interface DocumentActionsProps {
   sourceId: string;
   size?: "xs" | "sm";
   disabled?: boolean;
+  /** Button text when a screen offers more than one document. */
+  label?: string;
 }
 
 /**
@@ -23,6 +25,7 @@ export function DocumentActions({
   sourceId,
   size = "xs",
   disabled,
+  label = "PDF",
 }: DocumentActionsProps) {
   const renderMutation = useMutation({
     mutationFn: () => api.renderDocument({ template_code: templateCode, source_id: sourceId }),
@@ -61,7 +64,7 @@ export function DocumentActions({
           loading={renderMutation.isPending}
           disabled={disabled}
         >
-          PDF
+          {label}
         </Button>
       </Menu.Target>
       <Menu.Dropdown>

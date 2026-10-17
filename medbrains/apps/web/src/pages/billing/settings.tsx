@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
+import { NonPayablesCard } from "./NonPayablesCard";
 import { RevisitWindowCard } from "./RevisitWindowCard";
 
 const AUTO_BILLING_KEYS = [
@@ -207,6 +208,22 @@ function BillingTenantSettings() {
         saving={updateMutation.isPending}
         onSave={(policy) =>
           updateMutation.mutate({ category: "billing", key: "opd_revisit", value: policy })
+        }
+      />
+
+      <NonPayablesCard
+        canManage={canManage}
+        saving={updateMutation.isPending}
+        onSave={(rules) =>
+          updateMutation.mutate(
+            { category: "billing", key: "non_payables", value: rules },
+            {
+              onSuccess: () => {
+                void queryClient.invalidateQueries({ queryKey: ["non-payables"] });
+                toast.success("Non-payables list saved", { title: "Billing" });
+              },
+            },
+          )
         }
       />
 

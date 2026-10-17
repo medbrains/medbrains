@@ -900,6 +900,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::invoices::LIST,
             permissions::billing::invoices::VIEW,
             permissions::billing::invoices::CREATE,
+            permissions::billing::payer_split::MANAGE,
             permissions::billing::invoices::UPDATE,
             permissions::billing::invoices::CANCEL,
             permissions::billing::catalog::MANAGE,

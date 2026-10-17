@@ -40,6 +40,10 @@ pub use credit::*;
 // Day-end cash closing — the one place billing's source of truth is a drawer.
 mod cash_closing;
 pub mod final_bill;
+
+// Who pays each bill line: insurer, scheme or corporate, or the patient.
+pub mod payer_split;
+pub mod payer_split_api;
 pub use cash_closing::*;
 
 use axum::routing::{delete, get, post, put};
@@ -361,21 +365,40 @@ async fn ensure_invoice_view_access(
     claims: &Claims,
     invoice_id: Uuid,
 ) -> Result<(), AppError> {
+    use medbrains_authz::decision::{Outcome, any};
+    use medbrains_server_core::middleware::authorization::{collapse, outcome_of};
     let authz_ctx = authz_context(claims);
-    medbrains_server_core::middleware::authorization::collapse(
-        medbrains_server_core::middleware::authorization::outcome_of(
-            state
-                .authz
-                .check(
-                    &authz_ctx,
-                    medbrains_authz::Relation::Viewer,
-                    "invoice",
-                    invoice_id,
-                )
-                .await,
-            "invoice",
-        ),
-    )
+    let invoice = outcome_of(
+        state
+            .authz
+            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id)
+            .await,
+        "invoice",
+    );
+    if invoice == Outcome::Allow {
+        return Ok(());
+    }
+    // The bill's own grant goes to whoever raised it, and auto-billed bills
+    // carry none. The billing desk reaches a bill the way it reaches every
+    // financial record: a direct grant on the patient — the billing hand-off
+    // a visit, a policy or a bill makes.
+    let patient: Option<Uuid> =
+        sqlx::query_scalar("SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let Some(patient) = patient else {
+        return collapse(any([invoice, Outcome::Deny]));
+    };
+    let direct = outcome_of(
+        state
+            .authz
+            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient)
+            .await,
+        "patient",
+    );
+    collapse(any([invoice, direct]))
 }
 
 const BILLING_INVOICE_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -826,6 +849,19 @@ pub async fn create_invoice(
             Some("invoice creator".to_owned()),
         )
         .await;
+    // A bill is billing's work: the billing desk, the TPA desk with it,
+    // reaches the patient it was raised for — also for a bill raised outside
+    // a visit, which no visit hand-off covers.
+    medbrains_authz_gate::hand_off(
+        &state,
+        &claims,
+        medbrains_authz_gate::HandOff {
+            object_type: "patient",
+            object_id: invoice.patient_id,
+            department_code: medbrains_authz_gate::BILLING,
+        },
+    )
+    .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
@@ -3656,6 +3692,19 @@ pub fn router() -> axum::Router<AppState> {
             put(update_credit_patient),
         )
         .route(
+            "/api/billing/invoices/{id}/payer-split",
+            get(payer_split_api::get_payer_split),
+        )
+        .route(
+            "/api/billing/invoices/{id}/payer-split/apply",
+            post(payer_split_api::apply_payer_split),
+        )
+        .route(
+            "/api/billing/invoices/{id}/items/{iid}/payer",
+            put(payer_split_api::assign_item_payer),
+        )
+        .route("/api/billing/non-payables", get(payer_split_api::get_non_payables))
+        .route(
             "/api/billing/invoices/{id}/dual-insurance",
             get(get_dual_insurance_status).post(coordinate_dual_insurance),
         )
@@ -3728,7 +3777,6 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/billing/reports/profit-loss", get(report_profit_loss))
         .route("/api/billing/erp/export", post(export_to_erp))
         .route("/api/billing/erp/exports", get(list_erp_exports))
-        .route("/api/billing/copay/calculate", post(copay_calculation))
         .route("/api/billing/er-invoice", post(er_fast_invoice))
         .route(
             "/api/billing/concessions",

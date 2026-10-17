@@ -235,6 +235,15 @@ pub(crate) async fn build_context(
             .await?;
             serde_json::json!({ "claim": data })
         }
+        "payer_split_insurer" | "payer_split_patient" => {
+            let payer = if template_code == "payer_split_insurer" {
+                medbrains_billing::payer_split::Payer::ThirdParty
+            } else {
+                medbrains_billing::payer_split::Payer::Patient
+            };
+            medbrains_billing::payer_split_api::split_document_context(state, claims, source_id, payer)
+                .await?
+        }
         "spectacle_prescription" => {
             medbrains_specialty::ophtho_print::spectacle_rx_context(state, claims, source_id)
                 .await?

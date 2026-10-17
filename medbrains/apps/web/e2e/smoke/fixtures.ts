@@ -158,9 +158,6 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
     invoice_id: SEED.invoice,
     amount: 0,
   },
-  "POST /api/billing/copay/calculate": {
-    invoice_id: SEED.invoice,
-  },
   "POST /api/billing/credit-notes/{id}/apply": {
     invoice_id: SEED.invoice,
   },
