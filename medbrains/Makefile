@@ -228,6 +228,10 @@ dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password f
 db-shell: ## Open psql shell
 	docker compose exec postgres psql -U medbrains -d medbrains
 
+partition-audit-tables: ## MAINTENANCE WINDOW: rebuild access_log/security_access_logs/break_glass_events as monthly partitions (DATABASE_URL, else local dev DB)
+	@if [ -n "$(DATABASE_URL)" ]; then psql "$(DATABASE_URL)" -f scripts/maintenance/partition-audit-tables.sql; \
+	else docker compose exec -T postgres psql -U medbrains -d medbrains < scripts/maintenance/partition-audit-tables.sql; fi
+
 logs: ## Tail database logs
 	docker compose logs -f postgres
 
