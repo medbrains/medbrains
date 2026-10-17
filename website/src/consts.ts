@@ -13,6 +13,8 @@ export const SITE = {
   email: env.PUBLIC_EMAIL ?? "hello@medbrains.in",
   // Where hospital staff sign in — the app, not this site.
   app: env.PUBLIC_APP_URL ?? "https://app.medbrains.in",
+  // The copy the app serves at its own root signs in on its own host (/login).
+  signIn: env.PUBLIC_SIGN_IN_URL ?? `${env.PUBLIC_APP_URL ?? "https://app.medbrains.in"}/login`,
 };
 
 // WhatsApp Business — international format, digits only, no + or spaces.

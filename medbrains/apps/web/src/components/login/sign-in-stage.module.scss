@@ -1,23 +1,7 @@
 // Sign-in left side: layout here, every colour from the --mb-stage-* tokens.
 
 .stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  padding: var(--mantine-spacing-xl) calc(var(--mantine-spacing-xl) * 2);
-  background: var(--mb-stage-bg);
   color: var(--mb-stage-text);
-  position: relative;
-  overflow: hidden;
-
-  // The brand line along the top.
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 4px;
-    background: var(--mb-accent-gradient);
-  }
 
   @media (max-width: 900px) {
     display: none;
@@ -25,8 +9,7 @@
 }
 
 .inner {
-  max-width: 520px;
-  width: 100%;
+  max-width: 600px;
 }
 
 .brand {
@@ -49,13 +32,14 @@
   color: var(--mb-stage-text);
   font-family: var(--mb-font-display);
   font-stretch: 125%;
-  font-size: clamp(30px, 3.4vw, 48px);
+  font-size: clamp(32px, 3.6vw, 52px);
   font-weight: 900;
   line-height: 1.02;
   letter-spacing: -0.035em;
 }
 
 .gradient {
+  display: block;
   background: var(--mb-gradient-signal);
   background-clip: text;
   -webkit-background-clip: text;
@@ -69,6 +53,9 @@
 }
 
 .points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
   list-style: none;
   margin: 0;
   padding: 0;
