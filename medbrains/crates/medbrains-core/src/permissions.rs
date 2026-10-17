@@ -2285,6 +2285,26 @@ pub mod specialty {
         pub mod chart {
             pub const LIST: &str = "specialty.dental.chart.list";
             pub const CREATE: &str = "specialty.dental.chart.create";
+            /// Correct or remove a tooth finding.
+            ///
+            /// A removed finding is kept (soft delete) with who removed it.
+            pub const UPDATE: &str = "specialty.dental.chart.update";
+        }
+        pub mod treatment {
+            /// See a dental treatment plan.
+            ///
+            /// The procedures planned, done and cancelled, tooth by tooth,
+            /// with their prices.
+            pub const LIST: &str = "specialty.dental.treatment.list";
+            /// Plan or cancel dental procedures.
+            ///
+            /// Adds procedures to a patient's dental plan with their price,
+            /// or cancels one that has not been done.
+            pub const MANAGE: &str = "specialty.dental.treatment.manage";
+            /// Mark a dental procedure done.
+            ///
+            /// Records who did it and when, and charges it to the visit's bill.
+            pub const COMPLETE: &str = "specialty.dental.treatment.complete";
         }
     }
 
