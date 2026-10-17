@@ -1,10 +1,15 @@
 //! Specialty departments leaf crate: psychiatry, maternity, dental, ophthalmology,
 //! long-term care. Mounted via router().
 
-use axum::{Router, routing::{get,post,put}};
+use axum::{
+    Router,
+    routing::{get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod long_term_care;
+pub mod ophtho_print;
+pub mod ophtho_refraction;
 pub mod specialty_dental;
 pub mod specialty_dental_plan;
 pub mod specialty_maternity;
@@ -76,6 +81,10 @@ pub fn router() -> Router<AppState> {
             get(specialty_ophtho::get_ophtho_exam).put(specialty_ophtho::update_ophtho_exam),
         )
         .route(
+            "/api/specialty/ophthalmology/exams/{id}/sign",
+            post(specialty_ophtho::sign_ophtho_exam),
+        )
+        .route(
             "/api/specialty/dental/exams",
             get(specialty_dental::list_dental_exams).post(specialty_dental::create_dental_exam),
         )
@@ -126,8 +135,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/specialty/psychiatry/patients/{patient_id}/restraints",
-            get(specialty_psychiatry::list_restraints)
-                .post(specialty_psychiatry::create_restraint),
+            get(specialty_psychiatry::list_restraints).post(specialty_psychiatry::create_restraint),
         )
         .route(
             "/api/specialty/psychiatry/restraints/{id}/release",
@@ -158,8 +166,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/specialty/maternity/registrations/{registration_id}/anc",
-            get(specialty_maternity::list_anc_visits)
-                .post(specialty_maternity::create_anc_visit),
+            get(specialty_maternity::list_anc_visits).post(specialty_maternity::create_anc_visit),
         )
         .route(
             "/api/specialty/maternity/registrations/{registration_id}/labor",
@@ -172,8 +179,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/specialty/maternity/labor/{labor_id}/newborns",
-            get(specialty_maternity::list_newborns)
-                .post(specialty_maternity::create_newborn),
+            get(specialty_maternity::list_newborns).post(specialty_maternity::create_newborn),
         )
         .route(
             "/api/specialty/maternity/newborns/{newborn_id}/verify-identity",
@@ -181,7 +187,6 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/specialty/maternity/registrations/{registration_id}/postnatal",
-            get(specialty_maternity::list_postnatal)
-                .post(specialty_maternity::create_postnatal),
+            get(specialty_maternity::list_postnatal).post(specialty_maternity::create_postnatal),
         )
 }

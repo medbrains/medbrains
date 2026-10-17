@@ -28,6 +28,7 @@ async fn patient_id_for(
         "admissions" => "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
         "er_visits" => "SELECT patient_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
         "lab_orders" => "SELECT patient_id FROM lab_orders WHERE id = $1 AND tenant_id = $2",
+        "ophtho_exams" => "SELECT patient_id FROM ophtho_exams WHERE id = $1 AND tenant_id = $2",
         "queue_tokens" => "SELECT patient_id FROM queue_tokens WHERE id = $1 AND tenant_id = $2",
         "insurance_claims" => {
             "SELECT patient_id FROM insurance_claims WHERE id = $1 AND tenant_id = $2"
@@ -62,7 +63,9 @@ pub(crate) async fn build_context(
             // UPI, and check the bill is genuine.
             let qr = |link: &Option<String>| -> Result<Option<String>, AppError> {
                 link.as_deref()
-                    .map(|l| codes::qr_svg(l).map_err(|e| AppError::Internal(format!("bill qr: {e}"))))
+                    .map(|l| {
+                        codes::qr_svg(l).map_err(|e| AppError::Internal(format!("bill qr: {e}")))
+                    })
                     .transpose()
             };
             let upi_qr_svg = qr(&data.upi_link)?;
@@ -201,7 +204,8 @@ pub(crate) async fn build_context(
             )
             .await?;
             // The data already carries the UHID barcode and QR (BCMA reads them).
-            let band = serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
+            let band =
+                serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
             serde_json::json!({ "band": band })
         }
         "queue_token_slip" => {
@@ -230,6 +234,10 @@ pub(crate) async fn build_context(
             )
             .await?;
             serde_json::json!({ "claim": data })
+        }
+        "spectacle_prescription" => {
+            medbrains_specialty::ophtho_print::spectacle_rx_context(state, claims, source_id)
+                .await?
         }
         "clinical_notes" => {
             medbrains_clinical_notes::print::case_sheet_context(state, claims, source_id)

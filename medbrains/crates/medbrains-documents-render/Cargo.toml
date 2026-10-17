@@ -11,6 +11,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-print = { path = "../medbrains-print" }
 medbrains-print-data = { path = "../medbrains-print-data" }
 medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
+medbrains-specialty = { path = "../medbrains-specialty" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -11127,9 +11127,10 @@ export const api = {
   // ── Specialty Clinical: Cath Lab ────────────────────────────
 
   // Specialty — Ophthalmology
-  listOphthoExams: (params?: { patient_id?: string; status?: string }) => {
+  listOphthoExams: (params?: { patient_id?: string; encounter_id?: string; status?: string }) => {
     const sp = new URLSearchParams();
     if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.encounter_id) sp.set("encounter_id", params.encounter_id);
     if (params?.status) sp.set("status", params.status);
     const qs = sp.toString();
     return request<OphthoExam[]>(`/specialty/ophthalmology/exams${qs ? `?${qs}` : ""}`);
@@ -11145,6 +11146,9 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Sign the exam; its refraction becomes the spectacle prescription. */
+  signOphthoExam: (id: string) =>
+    request<OphthoExam>(`/specialty/ophthalmology/exams/${id}/sign`, { method: "POST" }),
 
   // Specialty — Dental
   listDentalExams: (params?: { patient_id?: string; status?: string }) => {

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1063 permissions, one per constant in the Rust source. */
+/** 1064 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4365,6 +4365,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.ophthalmology.exams.update",
     label: "Update Exams",
     description: "Update Exams",
+    module: "specialty",
+  },
+  {
+    code: "specialty.ophthalmology.exams.sign",
+    label: "Sign a spectacle prescription",
+    description: "Completes the eye exam under the signer's name and registration number and locks its refraction; only a signed exam prints as a spectacle prescription without the DRAFT mark. Recording the workup does not need it.",
     module: "specialty",
   },
   {
@@ -9428,14 +9434,17 @@ export const P = {
       EXAMS: {
         CREATE: "specialty.ophthalmology.exams.create",
         LIST: "specialty.ophthalmology.exams.list",
+        SIGN: "specialty.ophthalmology.exams.sign",
         UPDATE: "specialty.ophthalmology.exams.update",
       },
       EXAMS_CREATE: "specialty.ophthalmology.exams.create",
       EXAMS_LIST: "specialty.ophthalmology.exams.list",
+      EXAMS_SIGN: "specialty.ophthalmology.exams.sign",
       EXAMS_UPDATE: "specialty.ophthalmology.exams.update",
     },
     OPHTHALMOLOGY_EXAMS_CREATE: "specialty.ophthalmology.exams.create",
     OPHTHALMOLOGY_EXAMS_LIST: "specialty.ophthalmology.exams.list",
+    OPHTHALMOLOGY_EXAMS_SIGN: "specialty.ophthalmology.exams.sign",
     OPHTHALMOLOGY_EXAMS_UPDATE: "specialty.ophthalmology.exams.update",
     OTHER: {
       DIALYSIS: {
@@ -9921,6 +9930,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.MATERNITY.REGISTRATIONS.LIST,
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.CREATE,
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.LIST,
+      P.SPECIALTY.OPHTHALMOLOGY.EXAMS.SIGN,
       P.SPECIALTY.OPHTHALMOLOGY.EXAMS.UPDATE,
       P.SPECIALTY.OTHER.DIALYSIS.LIST,
       P.SPECIALTY.OTHER.DIALYSIS.MANAGE,

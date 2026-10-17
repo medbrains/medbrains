@@ -168,6 +168,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: QUEUE_TOKEN_SLIP_SAMPLE,
     },
     SystemTemplate {
+        code: "spectacle_prescription",
+        title: "Spectacle Prescription",
+        module_code: "ophthalmology",
+        source_table: "ophtho_exams",
+        number_prefix: "EYE-RX",
+        paper: Paper::A5,
+        margins: A4_MARGINS,
+        html: SPECTACLE_RX_HTML,
+        sample_context: SPECTACLE_RX_SAMPLE,
+    },
+    SystemTemplate {
         code: "insurance_cashless_claim",
         title: "Cashless Claim Summary",
         module_code: "insurance",
@@ -184,6 +195,66 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
 pub fn find_template(code: &str) -> Option<&'static SystemTemplate> {
     SYSTEM_TEMPLATES.iter().find(|t| t.code == code)
 }
+
+// ── Ophthalmology ───────────────────────────────────────────
+
+const SPECTACLE_RX_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">SPECTACLE PRESCRIPTION</h2>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>{{ rx.patient_name }}</strong> <span class="mono">({{ rx.uhid }})</span></div>
+    <div class="muted">{{ rx.age | default(value="") }} {{ rx.gender | default(value="") }}</div>
+  </td>
+  <td class="right"><div>{{ rx.date }}</div></td>
+</tr></table>
+{% if rx.no_glasses %}
+<p><strong>No glasses needed.</strong></p>
+{% else %}
+<table>
+  <thead><tr><th>Eye</th><th></th><th>Sphere</th><th>Cylinder</th><th>Axis</th><th>Vision</th></tr></thead>
+  <tbody>
+  {% for e in rx.eyes %}
+    <tr><td rowspan="{% if e.near %}2{% else %}1{% endif %}"><strong>{{ e.label }}</strong></td>
+      <td>Distance</td><td class="mono">{{ e.distance.sphere }}</td><td class="mono">{{ e.distance.cylinder }}</td>
+      <td class="mono">{{ e.distance.axis }}</td><td>{{ e.distance.va }}</td></tr>
+    {% if e.near %}<tr><td>Near (add {{ e.near.add }})</td><td class="mono">{{ e.near.sphere }}</td>
+      <td class="mono">{{ e.near.cylinder }}</td><td class="mono">{{ e.near.axis }}</td><td>{{ e.near.va }}</td></tr>{% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+<p style="margin-top:6px;">
+  {% if rx.pd_mm %}<strong>PD:</strong> {{ rx.pd_mm }} mm &nbsp; {% endif %}
+  {% if rx.lens_type %}<strong>Lens:</strong> {{ rx.lens_type }}{% endif %}
+</p>
+{% if rx.lens_advice %}<p><strong>Advice:</strong> {{ rx.lens_advice }}</p>{% endif %}
+{% endif %}
+{% if rx.diagnosis %}<p><strong>Diagnosis:</strong> {{ rx.diagnosis }}</p>{% endif %}
+{% if rx.review %}<p><strong>Review:</strong> after {{ rx.review }}</p>{% endif %}
+{% if rx.signed %}
+<div class="signature-block">
+  <div><strong>{{ rx.signed.name }}</strong>{% if rx.signed.qualification %}, {{ rx.signed.qualification }}{% endif %}</div>
+  {% if rx.signed.registration %}<div>Reg. No. {{ rx.signed.registration }}</div>{% endif %}
+  <div class="muted small">Signed {{ rx.signed.at }}</div>
+</div>
+{% endif %}
+{% endblock content %}"#;
+
+const SPECTACLE_RX_SAMPLE: &str = r#"{
+  "rx": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "age": "46y", "gender": "female",
+    "date": "17 Oct 2026",
+    "eyes": [
+      {"label": "Right (OD)", "distance": {"sphere": "−1.25", "cylinder": "−0.50", "axis": "180°", "va": "6/6"},
+       "near": {"sphere": "+0.75", "cylinder": "−0.50", "axis": "180°", "va": "N6", "add": "+2.00"}},
+      {"label": "Left (OS)", "distance": {"sphere": "−1.50", "cylinder": "", "axis": "", "va": "6/6"}, "near": null}
+    ],
+    "pd_mm": "63", "lens_type": "progressive", "no_glasses": false,
+    "lens_advice": "Anti-reflective coating", "diagnosis": "Myopia with presbyopia", "review": "12 months",
+    "signed": {"name": "Dr. S. Ravi", "qualification": "MBBS, MS (Ophth)", "registration": "TNMC 54321", "at": "17 Oct 2026 10:15 UTC"}
+  },
+  "document_number": "EYE-RX-20261017-0001"
+}"#;
 
 // ── Billing ─────────────────────────────────────────────────
 

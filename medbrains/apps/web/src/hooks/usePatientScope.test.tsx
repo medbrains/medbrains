@@ -21,6 +21,20 @@ describe("usePatientScope", () => {
     expect(result.current.isScoped).toBe(true);
   });
 
+  it("carries the visit, but only alongside its patient and only as a UUID", () => {
+    const VISIT = "c1d2e3f4-0000-4000-8000-000000000231";
+    const scoped = renderHook(() => usePatientScope(), {
+      wrapper: at(`?patient_id=${PATIENT}&encounter_id=${VISIT}`),
+    });
+    expect(scoped.result.current.encounterId).toBe(VISIT);
+    const orphan = renderHook(() => usePatientScope(), { wrapper: at(`?encounter_id=${VISIT}`) });
+    expect(orphan.result.current.encounterId).toBe("");
+    const junk = renderHook(() => usePatientScope(), {
+      wrapper: at(`?patient_id=${PATIENT}&encounter_id=1%27or1=1`),
+    });
+    expect(junk.result.current.encounterId).toBe("");
+  });
+
   it("reports no scope when reached from the navigation", () => {
     const { result } = renderHook(() => usePatientScope(), { wrapper: at("") });
     // Empty string, not null: it is handed straight to a form field, and the
