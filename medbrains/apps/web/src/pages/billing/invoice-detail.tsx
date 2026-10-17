@@ -24,7 +24,6 @@ import type {
   AddInvoiceItemRequest,
   ClinicalEventName,
   ClinicalJourneyContext,
-  CopayCalculation,
   InvoiceDetailResponse,
   InvoiceDiscount,
   RecordPaymentRequest,
@@ -83,6 +82,7 @@ import { paymentsService } from "@/services/payments.service";
 import { printCopyRouteLabel } from "@/utils/printCopies";
 import classes from "../billing.module.scss";
 import { billingInvoicePaymentRoute } from "../billing-workspace";
+import { PayerSplitPanel } from "./PayerSplitPanel";
 import type { BillingDisplayAccess } from "./shared";
 import {
   BILLING_INVOICE_PRINT_COPIES,
@@ -135,90 +135,6 @@ function BillingSummaryMetric({
   );
 }
 
-function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["copay-calculation", invoiceId],
-    queryFn: () => billingService.calculateCopay({ invoice_id: invoiceId }),
-    enabled: false,
-  });
-
-  const calculateMutation = useMutation({
-    mutationFn: () => billingService.calculateCopay({ invoice_id: invoiceId }),
-    onSuccess: () => refetch(),
-  });
-
-  const copay = data as CopayCalculation | undefined;
-
-  return (
-    <Card withBorder p="sm">
-      {!copay && !isLoading && (
-        <Button
-          tone="primary"
-          size="xs"
-          onClick={() => calculateMutation.mutate()}
-          loading={calculateMutation.isPending}
-        >
-          Calculate Co-pay
-        </Button>
-      )}
-      {(isLoading || calculateMutation.isPending) && (
-        <Text size="sm" c="dimmed">
-          Calculating...
-        </Text>
-      )}
-      {copay && (
-        <SimpleGrid cols={5}>
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed">
-              Invoice Amount
-            </Text>
-            <Text size="sm" fw={700}>
-              {"\u20B9"}
-              {copay.invoice_amount.toFixed(2)}
-            </Text>
-          </Stack>
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed">
-              Insurance Coverage
-            </Text>
-            <Text size="sm" fw={700} c="success">
-              {"\u20B9"}
-              {copay.insurance_coverage.toFixed(2)}
-            </Text>
-          </Stack>
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed">
-              Co-pay
-            </Text>
-            <Text size="sm" fw={700}>
-              {"\u20B9"}
-              {copay.copay_amount.toFixed(2)}
-            </Text>
-          </Stack>
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed">
-              Deductible
-            </Text>
-            <Text size="sm" fw={700}>
-              {"\u20B9"}
-              {copay.deductible.toFixed(2)}
-            </Text>
-          </Stack>
-          <Stack gap={2}>
-            <Text size="xs" c="dimmed">
-              Patient Responsibility
-            </Text>
-            <Text size="sm" fw={700} c="danger">
-              {"\u20B9"}
-              {copay.patient_responsibility.toFixed(2)}
-            </Text>
-          </Stack>
-        </SimpleGrid>
-      )}
-    </Card>
-  );
-}
-
 // ── ER Fast Invoice Modal ─────────────────────────────────
 
 export function InvoiceDetail({
@@ -260,7 +176,7 @@ export function InvoiceDetail({
     useDisclosure(false);
   const [gatewayOpened, gatewayHandlers] = useDisclosure(false);
   const [discountOpened, discountHandlers] = useDisclosure(false);
-  const [copayOpened, copayHandlers] = useDisclosure(false);
+  const [payerSplitOpened, payerSplitHandlers] = useDisclosure(false);
   const itemDefaults: BillingInvoiceItemFormInput = {
     charge_code: "",
     description: "",
@@ -295,7 +211,11 @@ export function InvoiceDetail({
     defaultValues: discountDefaults,
   });
 
-  const { data } = useQuery({
+  const {
+    data,
+    error: loadError,
+    isError,
+  } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
     queryFn: () => billingService.getInvoice(invoiceId),
   });
@@ -493,6 +413,14 @@ export function InvoiceDetail({
     openPaymentPanel();
   }, [amountAccess, canPay, data, initialAction, openPaymentPanel, paymentOpened]);
 
+  // A refusal answers 404 and an outage 5xx: both must say so, never spin.
+  if (isError) {
+    return (
+      <Alert tone="danger" title="This bill could not be opened">
+        {(loadError as Error).message}
+      </Alert>
+    );
+  }
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
   const detail = data as InvoiceDetailResponse;
@@ -780,9 +708,9 @@ export function InvoiceDetail({
                     {new Date(inv.billing_period_end).toLocaleDateString()}
                   </Text>
                 )}
-                {copayOpened && (
-                  <Box id="billing-copay">
-                    <CopayBreakdown invoiceId={invoiceId} />
+                {payerSplitOpened && (
+                  <Box id="billing-payer-split">
+                    <PayerSplitPanel invoiceId={invoiceId} />
                   </Box>
                 )}
               </Stack>
@@ -1380,10 +1308,10 @@ export function InvoiceDetail({
                   tone="secondary"
                   size="xs"
                   leftSection={<IconShieldCheck size={14} />}
-                  onClick={copayHandlers.toggle}
+                  onClick={payerSplitHandlers.toggle}
                   fullWidth
                 >
-                  {copayOpened ? "Close Co-pay" : "Calculate Co-pay"}
+                  {payerSplitOpened ? "Close payer split" : "Payer split"}
                 </Button>
                 <Button
                   tone="secondary"

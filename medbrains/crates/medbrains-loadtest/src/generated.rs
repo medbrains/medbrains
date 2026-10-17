@@ -1082,11 +1082,6 @@ async fn t_post_api_billing_erp_export_29a4c9(user: &mut GooseUser) -> Transacti
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_billing_copay_calculate_e95c1c(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/billing/copay/calculate").await;
-    crate::json_post(user, &path, &serde_json::json!({})).await
-}
-
 async fn t_get_api_billing_concessions_6811f2(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/concessions").await;
     let _ = crate::json_get(user, &path).await?;
@@ -6320,7 +6315,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_billing_gst_returns_id_file_91de0a))
         .register_transaction(transaction!(t_get_api_billing_reports_financial_mis_5e2959))
         .register_transaction(transaction!(t_post_api_billing_erp_export_29a4c9))
-        .register_transaction(transaction!(t_post_api_billing_copay_calculate_e95c1c))
         .register_transaction(transaction!(t_get_api_billing_concessions_6811f2))
         .register_transaction(transaction!(
             t_get_api_billing_concessions_auto_rules_7a6d10

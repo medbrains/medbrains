@@ -1,6 +1,11 @@
 import { api } from "@medbrains/api";
 
 export const billingService = {
+  getPayerSplit: (invoiceId: string) => api.getPayerSplit(invoiceId),
+  assignItemPayer: (...args: Parameters<typeof api.assignItemPayer>) =>
+    api.assignItemPayer(...args),
+  applyPayerSplit: (invoiceId: string) => api.applyPayerSplit(invoiceId),
+  getNonPayables: () => api.getNonPayables(),
   listExchangeRates: (...args: Parameters<typeof api.listExchangeRates>) =>
     api.listExchangeRates(...args),
   createExchangeRate: (...args: Parameters<typeof api.createExchangeRate>) =>
@@ -37,7 +42,6 @@ export const billingService = {
     api.importChargeMaster(...args),
   deleteChargeMaster: (...args: Parameters<typeof api.deleteChargeMaster>) =>
     api.deleteChargeMaster(...args),
-  calculateCopay: (...args: Parameters<typeof api.calculateCopay>) => api.calculateCopay(...args),
   erFastInvoice: (...args: Parameters<typeof api.erFastInvoice>) => api.erFastInvoice(...args),
   listPackages: (...args: Parameters<typeof api.listPackages>) => api.listPackages(...args),
   createPackage: (...args: Parameters<typeof api.createPackage>) => api.createPackage(...args),

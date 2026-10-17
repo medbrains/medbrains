@@ -372,7 +372,9 @@ import type {
   ContrastScreeningResult,
   ConvertLeadRequest,
   ConvertLeadResponse,
-  CopayCalculation,
+  BillPayer,
+  NonPayableRule,
+  PayerSplit,
   CorporateClient,
   CorporateEnrollment,
   CoSignatureRequest,
@@ -13449,11 +13451,25 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  calculateCopay: (data: { invoice_id: string }) =>
-    request<CopayCalculation>("/billing/copay/calculate", {
-      method: "POST",
+  /** Each bill line's payer and the insurer/patient totals (#294). */
+  getPayerSplit: (invoiceId: string) =>
+    request<PayerSplit>(`/billing/invoices/${invoiceId}/payer-split`),
+  /** Move one line to the insurer or the patient; `payer: null` returns it to the rule. */
+  assignItemPayer: (
+    invoiceId: string,
+    itemId: string,
+    data: { payer: BillPayer | null; reason?: string },
+  ) =>
+    request<PayerSplit>(`/billing/invoices/${invoiceId}/items/${itemId}/payer`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
+  /** Write the insurer's share onto the claim as the amount claimed. */
+  applyPayerSplit: (invoiceId: string) =>
+    request<PayerSplit>(`/billing/invoices/${invoiceId}/payer-split/apply`, { method: "POST" }),
+  /** The non-payables list in force (the hospital's, or the IRDAI default). */
+  getNonPayables: () =>
+    request<{ rules: NonPayableRule[]; is_default: boolean }>("/billing/non-payables"),
 
   erFastInvoice: (data: ErFastInvoiceRequest) =>
     request<Invoice>("/billing/er-invoice", { method: "POST", body: JSON.stringify(data) }),
