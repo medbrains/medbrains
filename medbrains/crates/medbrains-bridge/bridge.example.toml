@@ -30,6 +30,14 @@ hl7_listen = "0.0.0.0:2575"
 # (Admin → Devices); needs device_instance_id.
 # order_poll_secs = 15
 
+# Print delivery: send queued print jobs (wristbands, labels, slips, pages)
+# to printers every N seconds. Printers are set up in MedBrains under
+# Documents → Printers with a network address (host or host:9100) or a USB
+# device path on this machine (/dev/usb/lp0). Needs documents.print_jobs.deliver
+# on the API key. List printer ids to serve only this site's printers.
+# print_poll_secs = 3
+# printer_ids = ["uuid-of-ward-3-zebra"]
+
 # Device instance ID (from MedBrains admin → Devices → your device)
 # device_instance_id = "uuid-of-device-instance"
 

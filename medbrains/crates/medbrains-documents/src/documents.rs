@@ -1250,14 +1250,46 @@ pub async fn list_printers(
         "SELECT id, tenant_id, name, printer_type, connection_type, connection_string, \
          department_id, default_format, capabilities, is_active, created_at, updated_at \
          FROM printer_configs \
-         WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY is_active DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPrinterActive {
+    pub is_active: bool,
+}
+
+/// `PUT /api/documents/printers/{id}/active` — retire a printer (it stops
+/// receiving jobs) or bring it back.
+pub async fn set_printer_active(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetPrinterActive>,
+) -> Result<Json<PrinterConfig>, AppError> {
+    require_permission(&claims, permissions::documents::printers::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, PrinterConfig>(
+        "UPDATE printer_configs SET is_active = $3, updated_at = now() \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         RETURNING id, tenant_id, name, printer_type, connection_type, connection_string, \
+         department_id, default_format, capabilities, is_active, created_at, updated_at",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.is_active)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 pub async fn create_printer(
@@ -1312,11 +1344,12 @@ pub async fn list_print_jobs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, PrintJob>(
-        "SELECT id, tenant_id, document_output_id, printer_id, status, copies, priority, \
-         department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at \
-         FROM print_jobs \
-         WHERE deleted_at IS NULL AND tenant_id = $1 \
-         ORDER BY created_at DESC \
+        "SELECT j.id, j.tenant_id, j.document_output_id, j.printer_id, j.status, j.copies, j.priority, \
+         j.department_id, j.submitted_by, j.started_at, j.completed_at, j.error_message, j.created_at, \
+         j.updated_at, d.title AS document_title, d.document_number \
+         FROM print_jobs j LEFT JOIN document_outputs d ON d.id = j.document_output_id \
+         WHERE j.deleted_at IS NULL AND j.tenant_id = $1 \
+         ORDER BY j.created_at DESC \
          LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -1347,8 +1380,10 @@ pub async fn update_print_job(
         "UPDATE print_jobs SET \
          status = $3::print_job_status, \
          error_message = $4, \
-         started_at = CASE WHEN $3 = 'printing' THEN COALESCE(started_at, now()) ELSE started_at END, \
-         completed_at = CASE WHEN $3 IN ('completed', 'failed', 'cancelled') THEN now() ELSE completed_at END \
+         started_at = CASE WHEN $3 = 'printing' THEN COALESCE(started_at, now()) \
+                           WHEN $3 = 'queued' THEN NULL ELSE started_at END, \
+         completed_at = CASE WHEN $3 IN ('completed', 'failed', 'cancelled') THEN now() \
+                             WHEN $3 = 'queued' THEN NULL ELSE completed_at END \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING id, tenant_id, document_output_id, printer_id, status, copies, priority, \
          department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at",

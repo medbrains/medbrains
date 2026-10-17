@@ -24,6 +24,12 @@ pub struct BridgeConfig {
     /// every this many seconds. The analyzer's address is the device's host
     /// and port in MedBrains. Off when absent.
     pub order_poll_secs: Option<u64>,
+    /// Deliver queued print jobs to printers, polling every this many
+    /// seconds. Off when absent. Needs `documents.print_jobs.deliver`.
+    pub print_poll_secs: Option<u64>,
+    /// Only these printers (MedBrains printer ids) — the ones this site can
+    /// reach. Every deliverable printer when absent.
+    pub printer_ids: Option<Vec<String>>,
     pub device_instance_id: Option<String>,
     #[serde(default = "default_deployment_mode")]
     pub deployment_mode: String,

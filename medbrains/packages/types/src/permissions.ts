@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1065 permissions, one per constant in the Rust source. */
+/** 1066 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5483,6 +5483,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Configure and manage printers",
     module: "documents",
   },
+  {
+    code: "documents.print_jobs.deliver",
+    label: "Deliver print jobs to printers",
+    description: "Lets a site bridge take queued print jobs — the document already rendered for its printer as PDF, ZPL or ESC/POS, which carries patient details — send them to the printer and report the result. Grant it to the bridge's API key, not to people.",
+    module: "documents",
+  },
   // occ_health
   {
     code: "occ_health.screenings.list",
@@ -7462,6 +7468,10 @@ export const P = {
     },
     PRINTERS_LIST: "documents.printers.list",
     PRINTERS_MANAGE: "documents.printers.manage",
+    PRINT_JOBS: {
+      DELIVER: "documents.print_jobs.deliver",
+    },
+    PRINT_JOBS_DELIVER: "documents.print_jobs.deliver",
     REPRINT: "documents.reprint",
     REVIEW: {
       LIST: "documents.review.list",

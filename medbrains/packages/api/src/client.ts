@@ -941,6 +941,7 @@ import type {
   DoctorSchedule,
   DoctorScheduleException,
   DocumentFormReviewSchedule,
+  DeliverablePrintJob,
   DocumentOutput,
   DocumentOutputSignature,
   DocumentOutputStats,
@@ -11769,6 +11770,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Retire a printer (it stops receiving jobs) or bring it back. */
+  setPrinterActive: (id: string, isActive: boolean) =>
+    request<PrinterConfig>(`/documents/printers/${id}/active`, {
+      method: "PUT",
+      body: JSON.stringify({ is_active: isActive }),
+    }),
   listPrintJobs: () => request<PrintJob[]>("/documents/print-jobs"),
   updatePrintJob: (id: string, data: UpdatePrintJobRequest) =>
     request<PrintJob>(`/documents/print-jobs/${id}`, {
@@ -16984,8 +16991,21 @@ export const api = {
       { method: "POST", body: JSON.stringify(data) },
     ),
   downloadDocumentUrl: (id: string) => `/api/documents/${id}/download`,
+  /** Send a rendered document to a printer — the one named, else the best match. */
   queueDocumentPrint: (id: string, data: { printer_id?: string; copies?: number }) =>
-    request<{ print_job_id: string; status: string }>(`/documents/${id}/queue-print`, {
+    request<{ print_job_id: string; status: string; printer_name: string }>(
+      `/documents/${id}/queue-print`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  /** A site bridge takes queued jobs, each rendered for its printer. */
+  claimPrintJobs: (data: { printer_ids?: string[] }) =>
+    request<DeliverablePrintJob[]>("/documents/print-jobs/claim", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** A site bridge reports a job printed (no error) or failed. */
+  reportPrintJobResult: (id: string, data: { error?: string | null }) =>
+    request<{ status: string }>(`/documents/print-jobs/${id}/result`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

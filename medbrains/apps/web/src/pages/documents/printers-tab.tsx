@@ -104,6 +104,20 @@ export function PrintersTab() {
     },
   });
 
+  const activeMutation = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      documentsService.setPrinterActive(id, isActive),
+    onSuccess: (printer) => {
+      void queryClient.invalidateQueries({ queryKey: ["printers"] });
+      toast.success(
+        printer.is_active
+          ? `${printer.name} takes jobs again`
+          : `${printer.name} no longer takes jobs`,
+        { title: printer.is_active ? "Printer reactivated" : "Printer retired" },
+      );
+    },
+  });
+
   const openCreateDrawer = () => {
     reset(DEFAULT_PRINTER_FORM);
     openDrawer();
@@ -184,6 +198,22 @@ export function PrintersTab() {
       render: (row: PrinterConfig) => (
         <Text size="sm">{optionLabel(PRINT_FORMATS, row.default_format)}</Text>
       ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: PrinterConfig) =>
+        canManage ? (
+          <Button
+            tone={row.is_active ? "subtle-danger" : "ghost"}
+            size="xs"
+            aria-label={`${row.is_active ? "Retire" : "Reactivate"} ${row.name}`}
+            loading={activeMutation.isPending}
+            onClick={() => activeMutation.mutate({ id: row.id, isActive: !row.is_active })}
+          >
+            {row.is_active ? "Retire" : "Reactivate"}
+          </Button>
+        ) : null,
     },
   ];
 
@@ -281,6 +311,7 @@ export function PrintersTab() {
           />
           <TextInput
             label="Connection string"
+            description="Network: host or host:9100. USB: the device path on the bridge machine, e.g. /dev/usb/lp0."
             placeholder="10.10.12.25:9100"
             {...register("connection_string")}
             error={errors.connection_string?.message}
