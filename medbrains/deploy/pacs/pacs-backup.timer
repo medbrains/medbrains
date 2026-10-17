@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly cloud copy of the on-site PACS
+
+[Timer]
+# 20:30 UTC = 02:00 IST: after the day's last scans, before the morning list.
+OnCalendar=*-*-* 20:30:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
