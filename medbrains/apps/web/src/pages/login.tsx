@@ -7,12 +7,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, Navigate } from "react-router";
 import { Brand } from "@/components/Brand";
-import { HealthTipsSlider } from "@/components/HealthTipsSlider";
 import { DesktopConnection } from "@/components/login/DesktopConnection";
 import { HospitalCodeStep } from "@/components/login/HospitalCodeStep";
 import { PasswordSignIn } from "@/components/login/PasswordSignIn";
+import { SignInStage } from "@/components/login/SignInStage";
 import { SsoLoginButtons } from "@/components/SsoLoginButtons";
-import { Alert, Image } from "@/components/ui";
+import { Alert } from "@/components/ui";
 import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import classes from "./login.module.scss";
@@ -47,21 +47,7 @@ export function LoginPage() {
   const hospital = choosing ? null : options.data;
   return (
     <Box className={classes.wrapper}>
-      <aside className={classes.manifesto} aria-label="About MedBrains">
-        <Box className={classes.manifestoLogo}>
-          <Image
-            src="/logo/medbrains-mark.svg"
-            alt=""
-            w={36}
-            h={36}
-            fit="contain"
-            radius={2}
-            loading="eager"
-          />
-          <span className={classes.manifestoLogoText}>MedBrains</span>
-        </Box>
-        <HealthTipsSlider />
-      </aside>
+      <SignInStage />
 
       <main className={classes.formSide}>
         <Box className={classes.container}>
