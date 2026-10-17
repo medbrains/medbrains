@@ -1,0 +1,66 @@
+---
+import { getCollection } from "astro:content";
+import Footer from "../../components/Footer.astro";
+import Header from "../../components/Header.astro";
+import WhatsAppFloat from "../../components/WhatsAppFloat.astro";
+import { SITE } from "../../consts";
+import Base from "../../layouts/Base.astro";
+
+const posts = (await getCollection("blog")).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const day = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
+const schema = [{ "@type": "Blog", name: `${SITE.brand} Health Blog`, url: new URL("/blog", Astro.site).href }];
+---
+
+<Base
+  title={`Health blog | ${SITE.brand}`}
+  description="Plain-language health advice for Indian families, and notes on health technology for hospitals."
+  schema={schema}
+>
+  <Header />
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Health blog</p>
+        <h1>Health, in plain words.</h1>
+        <p class="lede">Practical advice for families through the seasons, and what's changing in health technology in India.</p>
+      </div>
+    </section>
+    <section class="list">
+      <div class="wrap posts">
+        {posts.map((p) => (
+          <a class="card" href={`/blog/${p.id}`}>
+            <span class="meta">{p.data.tags.join(" · ")} — <time datetime={p.data.date.toISOString()}>{day.format(p.data.date)}</time></span>
+            <h2>{p.data.title}</h2>
+            <p>{p.data.description}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .hero {
+    padding: 72px 0 64px;
+    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
+    h1 { font: 900 clamp(2.2rem, 5vw, 4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; }
+    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0; }
+  }
+  .list { background: var(--paper-2); color: var(--ink); padding: 64px 0 96px; }
+  .posts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card {
+    display: grid; align-content: start; gap: 10px; padding: 28px; border: 1px solid var(--line);
+    border-radius: 18px; background: #fff; box-shadow: var(--shadow); text-decoration: none;
+    transition: border-color .2s ease;
+    h2 { font: 800 1.2rem/1.25 var(--display); letter-spacing: -.02em; margin: 0; }
+    p { margin: 0; color: var(--ink-2); }
+  }
+  .card:hover { border-color: var(--blue); }
+  .meta { font: 600 .72rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--blue-deep); }
+  @include below(lg) { .posts { grid-template-columns: 1fr 1fr; } }
+  @include below(sm) { .posts { grid-template-columns: 1fr; } }
+</style>
