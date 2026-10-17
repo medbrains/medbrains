@@ -7,6 +7,7 @@
 pub mod appointment_reminders;
 pub mod access_alert_scan;
 pub mod prescription_expiry;
+pub mod pacs_sync;
 pub mod breach_deadline_escalation;
 pub mod bridge_pusher;
 pub mod calibration_lock;

@@ -17,6 +17,7 @@ import { Alert, Badge, Button, IconButton, Panel, Switch, Table } from "@/compon
 import { confirmDestructive } from "@/lib/confirm";
 import { searchErrorText } from "@/lib/search-error";
 import { radiologyService } from "@/services/radiology.service";
+import { PacsSettingsCard } from "./PacsSettingsCard";
 
 const QUERY_KEY = ["radiology-modalities"];
 
@@ -135,6 +136,8 @@ export function ModalitiesTab() {
           ) : undefined
         }
       />
+
+      <PacsSettingsCard />
 
       {editingId !== null && (
         <Panel title={editingId ? "Edit modality" : "Add modality"}>

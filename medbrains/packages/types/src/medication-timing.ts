@@ -3198,6 +3198,10 @@ export interface RadiologyOrder {
   created_at: string;
   updated_at: string;
   exam_id?: string | null;
+  /** Written into every image; links the study back to this order. */
+  accession_number: string;
+  /** The study the PACS holds for this order, once it has arrived. */
+  pacs_study_uid?: string | null;
 }
 
 export interface RadiologyReport {

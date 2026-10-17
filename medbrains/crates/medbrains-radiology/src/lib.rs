@@ -25,6 +25,7 @@ use medbrains_server_core::state::AppState;
 
 pub mod exams;
 pub mod form_f;
+pub mod pacs;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -744,6 +745,8 @@ pub async fn create_order_in_tx_with_options(
     .await?;
 
     form_f::open_if_required(tx, claims.tenant_id, order.id, claims.sub).await?;
+    // Onto the modality worklist, when the hospital has a PACS.
+    pacs::queue_worklist(tx, claims.tenant_id, &order).await?;
 
     if options.auto_bill {
         best_effort_auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
