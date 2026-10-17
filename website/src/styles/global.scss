@@ -14,10 +14,15 @@
   --blue-tint: #e5edff;
   --pulse: #42be65;
   --pulse-soft: #a7f0ba;
-  --night: #060a14;
-  --night-2: #0d1526;
-  --night-line: #1f2a40;
-  --night-text: #c6cfdd;
+  /* Deep navy, not black: the page is dark but never flat. */
+  --night: #0a1630;
+  --night-2: #0f1f42;
+  --night-3: #142a57;
+  --night-line: #26395f;
+  --night-text: #d5deec;
+  --sky: #78a9ff;
+  --glow-blue: rgb(15 98 254 / 38%);
+  --glow-green: rgb(66 190 101 / 22%);
   --radius: 14px;
   --shadow: 0 1px 2px rgb(11 18 32 / 6%), 0 12px 32px rgb(11 18 32 / 10%);
   --wrap: 1200px;
@@ -28,7 +33,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 80px; }
 body {
-  margin: 0; background: var(--paper); color: var(--ink);
+  margin: 0; background: var(--night); color: #fff;
   font-family: var(--sans); font-size: 17px; line-height: 1.55;
   -webkit-font-smoothing: antialiased; overflow-x: hidden;
 }
@@ -38,14 +43,21 @@ img { max-width: 100%; display: block; }
 .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
 .eyebrow {
   font-family: var(--mono); font-weight: 600; font-size: .74rem;
-  letter-spacing: .14em; text-transform: uppercase; color: var(--blue); margin: 0 0 14px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--sky); margin: 0 0 14px;
 }
 .section { padding: 112px 0; }
 .section-title {
   font-family: var(--display); font-weight: 800; letter-spacing: -.025em;
   font-size: clamp(2rem, 4.4vw, 3.4rem); line-height: 1.02; margin: 0 0 18px; max-width: 18ch;
 }
-.section-lede { font-size: 1.15rem; color: var(--muted); max-width: 58ch; margin: 0; }
+.section-lede { font-size: 1.15rem; color: var(--night-text); max-width: 58ch; margin: 0; }
+/* A soft blue and green light behind a dark section, so it is never flat black. */
+.glow {
+  background:
+    radial-gradient(900px 520px at 85% 0%, var(--glow-blue), transparent 65%),
+    radial-gradient(700px 480px at 0% 100%, var(--glow-green), transparent 65%),
+    var(--night);
+}
 .btn {
   display: inline-flex; align-items: center; gap: 10px; min-height: 48px;
   padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: .98rem;
