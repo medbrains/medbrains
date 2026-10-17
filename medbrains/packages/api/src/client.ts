@@ -1620,6 +1620,7 @@ import type {
   PortalRefill,
   PortalRefillRequest,
   PortalSession,
+  PortalTeleconsult,
   PosDaySummary,
   PosPricesResponse,
   PosSaleRequest,
@@ -16877,6 +16878,8 @@ export const api = {
     request<PortalPrescriptionItem[]>("/portal/prescriptions", portalAuth(token)),
   getPortalAppointments: (token: string) =>
     request<PortalAppointment[]>("/portal/appointments", portalAuth(token)),
+  getPortalTeleconsults: (token: string) =>
+    request<PortalTeleconsult[]>("/portal/teleconsults", portalAuth(token)),
   getPortalRefills: (token: string) =>
     request<PortalRefill[]>("/portal/refills", portalAuth(token)),
   getPortalPrivacy: (token: string) => request<PortalPrivacy>("/portal/privacy", portalAuth(token)),
