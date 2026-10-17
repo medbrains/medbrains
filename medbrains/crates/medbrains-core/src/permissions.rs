@@ -597,6 +597,15 @@ pub mod billing {
         pub const REFUND: &str = "billing.advances.refund";
     }
 
+    pub mod payer_split {
+        /// Split a bill between insurer and patient.
+        ///
+        /// Assign each bill line to the insurer, scheme or corporate, or to
+        /// the patient, overriding the automatic non-payables list; and
+        /// write the insurer's share onto the claim as the amount claimed.
+        pub const MANAGE: &str = "billing.payer_split.manage";
+    }
+
     pub mod corporate {
         pub const LIST: &str = "billing.corporate.list";
         pub const CREATE: &str = "billing.corporate.create";

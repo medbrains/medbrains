@@ -168,6 +168,28 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: QUEUE_TOKEN_SLIP_SAMPLE,
     },
     SystemTemplate {
+        code: "payer_split_insurer",
+        title: "Bill to Insurer / TPA",
+        module_code: "billing",
+        source_table: "invoices",
+        number_prefix: "TPA-BILL",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: PAYER_SPLIT_INSURER_HTML,
+        sample_context: PAYER_SPLIT_SAMPLE,
+    },
+    SystemTemplate {
+        code: "payer_split_patient",
+        title: "Patient Share of Bill",
+        module_code: "billing",
+        source_table: "invoices",
+        number_prefix: "PT-SHARE",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: PAYER_SPLIT_PATIENT_HTML,
+        sample_context: PAYER_SPLIT_SAMPLE,
+    },
+    SystemTemplate {
         code: "spectacle_prescription",
         title: "Spectacle Prescription",
         module_code: "ophthalmology",
@@ -195,6 +217,73 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
 pub fn find_template(code: &str) -> Option<&'static SystemTemplate> {
     SYSTEM_TEMPLATES.iter().find(|t| t.code == code)
 }
+
+// ── Payer split ─────────────────────────────────────────────
+
+/// The patient and bill header both split documents share.
+macro_rules! payer_split_head {
+    () => {
+        r#"<table style="margin-bottom:8px;"><tr>
+  <td><div><strong>{{ split.patient_name }}</strong> <span class="mono">({{ split.uhid }})</span></div>
+      <div class="muted">Bill {{ split.invoice_number }} · {{ split.date }}</div></td>
+  <td class="right">{% if split.payer_name %}<div><strong>{{ split.payer_name }}</strong></div>{% endif %}</td>
+</tr></table>"#
+    };
+}
+
+const PAYER_SPLIT_INSURER_HTML: &str = concat!(
+    r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">BILL TO INSURER / TPA</h2>
+"#,
+    payer_split_head!(),
+    r#"
+<table>
+  <thead><tr><th>#</th><th>Item</th><th class="right">Amount</th></tr></thead>
+  <tbody>{% for l in split.lines %}<tr><td>{{ loop.index }}</td><td>{{ l.description }}</td><td class="right mono">{{ l.total }}</td></tr>{% endfor %}</tbody>
+</table>
+<table style="margin-top:8px;width:50%;margin-left:auto;">
+  <tr><td>Payable items</td><td class="right mono">{{ split.gross }}</td></tr>
+  <tr><td>Less co-pay</td><td class="right mono">{{ split.copay }}</td></tr>
+  <tr><td>Less deductible</td><td class="right mono">{{ split.deductible }}</td></tr>
+  <tr><td><strong>Amount claimed</strong></td><td class="right mono"><strong>{{ split.net }}</strong></td></tr>
+</table>
+{% endblock content %}"#
+);
+
+const PAYER_SPLIT_PATIENT_HTML: &str = concat!(
+    r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">PATIENT SHARE OF BILL</h2>
+"#,
+    payer_split_head!(),
+    r#"
+<table>
+  <thead><tr><th>#</th><th>Item not covered</th><th>Why</th><th class="right">Amount</th></tr></thead>
+  <tbody>{% for l in split.lines %}<tr><td>{{ loop.index }}</td><td>{{ l.description }}</td><td class="muted">{{ l.reason }}</td><td class="right mono">{{ l.total }}</td></tr>{% endfor %}</tbody>
+</table>
+<table style="margin-top:8px;width:50%;margin-left:auto;">
+  <tr><td>Items not covered</td><td class="right mono">{{ split.patient_lines }}</td></tr>
+  <tr><td>Co-pay</td><td class="right mono">{{ split.copay }}</td></tr>
+  <tr><td>Deductible</td><td class="right mono">{{ split.deductible }}</td></tr>
+  <tr><td><strong>You pay</strong></td><td class="right mono"><strong>{{ split.patient_total }}</strong></td></tr>
+</table>
+{% endblock content %}"#
+);
+
+const PAYER_SPLIT_SAMPLE: &str = r#"{
+  "split": {
+    "invoice_number": "INV-2026-001234", "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "date": "17 Oct 2026", "payer_name": "Star Health · TPA Medi Assist",
+    "lines": [
+      {"description": "Room rent — semi-private (3 days)", "total": "6000.00", "reason": "Covered"},
+      {"description": "Admission kit", "total": "500.00", "reason": "IRDAI List I — non-medical item"}
+    ],
+    "gross": "6400.00", "copay": "640.00", "deductible": "1000.00", "net": "4760.00",
+    "patient_lines": "500.00", "patient_total": "2140.00"
+  },
+  "document_number": "TPA-BILL-20261017-0001"
+}"#;
 
 // ── Ophthalmology ───────────────────────────────────────────
 

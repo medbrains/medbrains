@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1064 permissions, one per constant in the Rust source. */
+/** 1065 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1004,6 +1004,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.advances.refund",
     label: "Refund Advance",
     description: "Refund advance deposit to patient",
+    module: "billing",
+  },
+  {
+    code: "billing.payer_split.manage",
+    label: "Split a bill between insurer and patient",
+    description: "Assign each bill line to the insurer, scheme or corporate, or to the patient, overriding the automatic non-payables list; and write the insurer's share onto the claim as the amount claimed.",
     module: "billing",
   },
   {
@@ -6945,6 +6951,10 @@ export const P = {
     JOURNAL_CREATE: "billing.journal.create",
     JOURNAL_LIST: "billing.journal.list",
     JOURNAL_POST: "billing.journal.post",
+    PAYER_SPLIT: {
+      MANAGE: "billing.payer_split.manage",
+    },
+    PAYER_SPLIT_MANAGE: "billing.payer_split.manage",
     PAYMENTS: {
       CREATE: "billing.payments.create",
       VOID: "billing.payments.void",
@@ -10439,6 +10449,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.JOURNAL.CREATE,
       P.BILLING.JOURNAL.LIST,
       P.BILLING.JOURNAL.POST,
+      P.BILLING.PAYER_SPLIT.MANAGE,
       P.BILLING.PAYMENTS.CREATE,
       P.BILLING.PAYMENTS.VOID,
       P.BILLING.RECEIPTS.PRINT,

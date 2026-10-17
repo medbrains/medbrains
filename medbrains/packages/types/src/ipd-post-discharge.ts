@@ -197,12 +197,42 @@ export interface CreateBillingServicePackageRequest {
   components?: unknown[];
 }
 
-export interface CopayCalculation {
-  invoice_amount: number;
-  insurance_coverage: number;
-  copay_amount: number;
-  deductible: number;
-  patient_responsibility: number;
+/** Who pays a bill line (#294). */
+export type BillPayer = "third_party" | "patient";
+
+export interface PayerSplitLine {
+  id: string;
+  description: string;
+  total: string;
+  payer: BillPayer;
+  /** Why: the non-payables rule, the desk's reason, "Covered" or "Self-pay bill". */
+  reason: string;
+  /** False when the desk assigned it. */
+  automatic: boolean;
+}
+
+export interface PayerSplit {
+  invoice_id: string;
+  third_party: {
+    kind: "insurer" | "scheme" | "corporate";
+    name: string;
+    claim_id: string | null;
+    claim_status: string | null;
+    claimed_amount: string | null;
+  } | null;
+  lines: PayerSplitLine[];
+  third_party_gross: string;
+  copay: string;
+  deductible: string;
+  third_party_net: string;
+  patient_lines: string;
+  patient_total: string;
+}
+
+export interface NonPayableRule {
+  match_on: "keyword" | "category" | "charge_code";
+  value: string;
+  reason: string;
 }
 
 export interface ErFastInvoiceRequest {

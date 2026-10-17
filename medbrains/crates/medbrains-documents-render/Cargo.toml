@@ -10,6 +10,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-print = { path = "../medbrains-print" }
 medbrains-print-data = { path = "../medbrains-print-data" }
+medbrains-billing = { path = "../medbrains-billing" }
 medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
 medbrains-specialty = { path = "../medbrains-specialty" }
 axum = { workspace = true }
