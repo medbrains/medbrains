@@ -537,8 +537,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // agent simulations.
     let scheduler_state = state.clone();
 
+    // www.medbrains.in is the landing page: the web build copies it in as
+    // home.html and it answers `/`. Every other path still falls back to the
+    // SPA shell. A dist built without the website keeps `/` on the SPA.
+    let home_page = format!("{static_dir}/home.html");
+    let router = routes::build_router(state);
+    let router = if std::path::Path::new(&home_page).is_file() {
+        router.route_service("/", tower_http::services::ServeFile::new(home_page))
+    } else {
+        router
+    };
+
     // Build router with all routes + static file fallback
-    let app: Router = routes::build_router(state)
+    let app: Router = router
         .nest_service("/assets", assets_service)
         .fallback_service(spa_fallback)
         // Dev-only (opt-in via MEDBRAINS_LOG_PAYLOAD_SIZES): logs the

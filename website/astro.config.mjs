@@ -13,4 +13,7 @@ export default defineConfig({
   // slash: one canonical address each (deploy.sh uploads them that way).
   trailingSlash: "never",
   integrations: [sitemap()],
+  // The app serves this page at its own root under a CSP with no
+  // 'unsafe-inline' scripts, so scripts ship as files, never inlined.
+  vite: { build: { assetsInlineLimit: 0 } },
 });

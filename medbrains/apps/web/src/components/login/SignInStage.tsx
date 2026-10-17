@@ -47,7 +47,7 @@ const POINTS: Point[] = [
 export function SignInStage() {
   return (
     <Box component="aside" className={classes.stage} aria-label="About MedBrains">
-      <Stack gap={40} className={classes.inner}>
+      <Stack gap={32} className={classes.inner}>
         <Group gap={12}>
           <Image
             src="/logo/medbrains-mark.svg"

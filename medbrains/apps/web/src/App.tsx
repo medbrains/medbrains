@@ -5,7 +5,6 @@ import { PageSkeleton } from "./components/PageSkeleton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SpotlightProvider } from "./components/SpotlightProvider";
 import { TopProgressBar } from "./components/TopProgressBar";
-import { WebsiteHome } from "./components/WebsiteHome";
 import { AppLayout } from "./layouts/AppLayout";
 import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 
@@ -489,7 +488,9 @@ export function App() {
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             {/* Public */}
-            <Route path="/" element={<WebsiteHome />} />
+            {/* A page load of / is the website (served as home.html); reaching /
+                inside the app means sign-in, which sends a signed-in user on. */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
