@@ -14,6 +14,8 @@ export interface PatientScope {
    * without every caller writing the same `?? ""`.
    */
   patientId: string;
+  /** The visit the screen was opened from, when it was; "" otherwise. */
+  encounterId: string;
   /** Whether a patient was named — the screen is scoped rather than general. */
   isScoped: boolean;
   /** Where to go back to. Validated; falls back when absent or crafted. */
@@ -41,9 +43,12 @@ export function usePatientScope(): PatientScope {
   return useMemo(() => {
     const raw = searchParams.get("patient_id");
     const patientId = raw && UUID.test(raw) ? raw : "";
+    const rawVisit = searchParams.get("encounter_id");
+    const encounterId = patientId && rawVisit && UUID.test(rawVisit) ? rawVisit : "";
     const rawReturn = searchParams.get("return");
     return {
       patientId,
+      encounterId,
       isScoped: patientId !== "",
       returnPath: rawReturn ? safeReturnPath(rawReturn, "/dashboard") : null,
     };

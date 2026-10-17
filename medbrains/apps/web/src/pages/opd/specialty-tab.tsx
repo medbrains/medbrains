@@ -1,13 +1,15 @@
 import { Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import {
   IconArrowRight,
   IconBabyCarriage,
   IconBrain,
+  IconDental,
+  IconEye,
   IconHeartbeat,
   IconHeartHandshake,
   IconMicroscope,
-  IconStethoscope,
   IconStretching,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -72,7 +74,7 @@ const SPECIALTIES: readonly SpecialtyEntry[] = [
     description: "Symptom control, care plans, family conferences",
     icon: <IconHeartHandshake size={16} />,
     path: "/specialty/palliative",
-    permission: "specialty.palliative.plans.list",
+    permission: P.SPECIALTY.PALLIATIVE.PAIN_LIST,
     // Asked for from any department -- oncology, medicine, surgery alike.
     departmentCodes: [],
   },
@@ -81,16 +83,24 @@ const SPECIALTIES: readonly SpecialtyEntry[] = [
     description: "Antenatal care, partogram, delivery records",
     icon: <IconBabyCarriage size={16} />,
     path: "/specialty/maternity",
-    permission: "specialty.maternity.patients.list",
+    permission: P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST,
     departmentCodes: ["OBGYN"],
   },
   {
-    title: "Ophthalmology & Dental",
-    description: "Refraction, IOP, dental charting",
-    icon: <IconStethoscope size={16} />,
-    path: "/specialty/ophtho",
-    permission: "specialty.ophtho.exams.list",
-    departmentCodes: ["OPHTHALMOLOGY", "DENTAL"],
+    title: "Ophthalmology",
+    description: "Vision, refraction, IOP, spectacle prescription",
+    icon: <IconEye size={16} />,
+    path: "/specialty/ophthalmology",
+    permission: P.SPECIALTY.OPHTHALMOLOGY.EXAMS_LIST,
+    departmentCodes: ["OPHTHALMOLOGY"],
+  },
+  {
+    title: "Dental",
+    description: "Tooth charting and treatment plan",
+    icon: <IconDental size={16} />,
+    path: "/specialty/dental",
+    permission: P.SPECIALTY.DENTAL.EXAMS_LIST,
+    departmentCodes: ["DENTAL"],
   },
 ] as const;
 
@@ -139,9 +149,10 @@ export function SpecialtyTab({ patientId, encounterId, departmentId }: Specialty
   const canEndoscopy = useHasPermission("specialty.endoscopy.procedures.list");
   const canPsychiatry = useHasPermission("specialty.psychiatry.patients.list");
   const canPmr = useHasPermission("specialty.pmr.plans.list");
-  const canPalliative = useHasPermission("specialty.palliative.plans.list");
-  const canMaternity = useHasPermission("specialty.maternity.patients.list");
-  const canOphtho = useHasPermission("specialty.ophtho.exams.list");
+  const canPalliative = useHasPermission(P.SPECIALTY.PALLIATIVE.PAIN_LIST);
+  const canMaternity = useHasPermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST);
+  const canOphtho = useHasPermission(P.SPECIALTY.OPHTHALMOLOGY.EXAMS_LIST);
+  const canDental = useHasPermission(P.SPECIALTY.DENTAL.EXAMS_LIST);
 
   const { relevant, others } = useMemo(() => {
     const permitted: Record<string, boolean> = {
@@ -149,9 +160,10 @@ export function SpecialtyTab({ patientId, encounterId, departmentId }: Specialty
       "specialty.endoscopy.procedures.list": canEndoscopy,
       "specialty.psychiatry.patients.list": canPsychiatry,
       "specialty.pmr.plans.list": canPmr,
-      "specialty.palliative.plans.list": canPalliative,
-      "specialty.maternity.patients.list": canMaternity,
-      "specialty.ophtho.exams.list": canOphtho,
+      [P.SPECIALTY.PALLIATIVE.PAIN_LIST]: canPalliative,
+      [P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST]: canMaternity,
+      [P.SPECIALTY.OPHTHALMOLOGY.EXAMS_LIST]: canOphtho,
+      [P.SPECIALTY.DENTAL.EXAMS_LIST]: canDental,
     };
     const allowed = SPECIALTIES.filter((s) => permitted[s.permission] === true);
     const code = departmentCode?.toUpperCase();
@@ -172,13 +184,15 @@ export function SpecialtyTab({ patientId, encounterId, departmentId }: Specialty
     canPalliative,
     canMaternity,
     canOphtho,
+    canDental,
   ]);
 
   const open = (path: string) => {
     // The return path is validated on arrival by safeReturnPath, so a crafted
     // value cannot bounce a clinician off-site.
     const back = encodeURIComponent(`/opd/encounters/${encounterId}`);
-    navigate(`${path}?patient_id=${encodeURIComponent(patientId)}&return=${back}`);
+    const visit = `&encounter_id=${encodeURIComponent(encounterId)}`;
+    navigate(`${path}?patient_id=${encodeURIComponent(patientId)}${visit}&return=${back}`);
   };
 
   if (relevant.length === 0 && others.length === 0) {
@@ -231,6 +245,7 @@ function SpecialtyRow({ entry, onOpen }: { entry: SpecialtyEntry; onOpen: () => 
           size="xs"
           rightSection={<IconArrowRight size={14} />}
           onClick={onOpen}
+          aria-label={`Open ${entry.title} for this patient`}
           style={{ alignSelf: "flex-start" }}
         >
           Open for this patient
