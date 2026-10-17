@@ -140,6 +140,25 @@ pub async fn authenticate(db: &PgPool, presented: &str) -> Result<(Claims, Uuid)
         return Err(AppError::Unauthorized);
     };
 
+    // The key's own budget, counted from its usage log so every server process
+    // agrees. A refused request is not logged, so a key that backs off is
+    // let back in within the minute.
+    let (limit, used): (i32, i64) = sqlx::query_as(
+        "SELECT k.rate_limit_per_minute, \
+                (SELECT count(*) FROM api_key_usage u \
+                  WHERE u.api_key_id = k.id AND u.occurred_at > now() - interval '1 minute') \
+           FROM api_keys k WHERE k.id = $1 AND k.tenant_id = $2",
+    )
+    .bind(record.id)
+    .bind(record.tenant_id)
+    .fetch_one(&mut *conn)
+    .await?;
+    if used >= i64::from(limit) {
+        return Err(AppError::TooManyRequests(format!(
+            "This key may make {limit} requests a minute. Wait a moment and retry."
+        )));
+    }
+
     let permissions: Vec<String> = serde_json::from_value(record.permissions).unwrap_or_default();
 
     Ok((

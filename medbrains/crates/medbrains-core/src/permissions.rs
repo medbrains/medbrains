@@ -2572,6 +2572,12 @@ pub mod admin {
         /// Reading what a key actually did — a forensic surface, so it is
         /// grantable to an auditor who cannot mint or revoke anything.
         pub const VIEW_USAGE: &str = "admin.api_keys.view_usage";
+        /// Read the API description.
+        ///
+        /// The OpenAPI document: every endpoint, method and the permission
+        /// it needs. Grant it to an integration's key so its developers can
+        /// generate a client.
+        pub const DOCS: &str = "admin.api_keys.docs";
     }
 
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
