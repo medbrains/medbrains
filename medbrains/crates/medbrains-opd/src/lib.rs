@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod consult_pricing;
 pub mod last_visit;
 pub mod referral_lifecycle;
 pub mod rx_policy;
@@ -1452,6 +1453,16 @@ async fn charge_consultation(
 
             let charge_code =
                 dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
+            // Free inside the revisit window; else the doctor's own fee; else
+            // the charge master's department rate (#296).
+            let priced = consult_pricing::consult_price(
+                tx,
+                claims.tenant_id,
+                patient_id,
+                q.doctor_id,
+                q.department_id,
+            )
+            .await?;
 
             let _ = medbrains_server_services::billing::auto_charge(
                 tx,
@@ -1463,8 +1474,8 @@ async fn charge_consultation(
                     source: "opd".to_owned(),
                     source_id: q.id,
                     quantity: 1,
-                    description_override: Some("OPD Consultation".to_owned()),
-                    unit_price_override: None,
+                    description_override: Some(priced.description),
+                    unit_price_override: priced.price,
                     tax_percent_override: None,
                 },
             )

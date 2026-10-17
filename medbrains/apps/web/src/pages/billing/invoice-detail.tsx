@@ -817,7 +817,18 @@ export function InvoiceDetail({
                   <Table.Tbody>
                     {detail.items.map((item) => (
                       <Table.Tr key={item.id}>
-                        <Table.Td>{item.description}</Table.Td>
+                        <Table.Td>
+                          {item.description.startsWith("Free revisit") ? (
+                            <Group gap={6} wrap="nowrap">
+                              <Badge tone="info" size="sm">
+                                {item.description.split(" — ")[0]}
+                              </Badge>
+                              <Text size="sm">{item.description.split(" — ")[1] ?? ""}</Text>
+                            </Group>
+                          ) : (
+                            item.description
+                          )}
+                        </Table.Td>
                         <Table.Td>{item.quantity}</Table.Td>
                         <Table.Td>{billingAmountText(item.unit_price, amountAccess)}</Table.Td>
                         <Table.Td>{item.tax_percent}%</Table.Td>
