@@ -82,6 +82,7 @@ import {
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { createElement } from "react";
+import { MRD_PAGE_PERMISSIONS } from "@/pages/mrd-access";
 import { REPORT_READERS } from "@/pages/reports/report-readers";
 
 // ── Types ──
@@ -1073,7 +1074,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "mrd",
         path: "/mrd",
         icon: "IconFileCertificate",
-        requiredPermission: "mrd.records.list",
+        requiredPermissions: MRD_PAGE_PERMISSIONS,
       },
       {
         i18nKey: "clinicalKb",
@@ -1390,6 +1391,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/forms",
             icon: "IconForms",
             requiredPermission: "forms.templates.list",
+          },
+          {
+            i18nKey: "testCycles",
+            path: "/admin/test-cycles",
+            icon: "IconChecklist",
+            requiredPermission: "qa.test_cycles.manage",
           },
           {
             i18nKey: "apiKeys",

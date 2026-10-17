@@ -28,7 +28,12 @@ export interface Hospital {
   /** A page signed in to nothing: a patient or a member of the public. */
   asPublic: () => Promise<Page>;
   /** A new staff member in this role, logged in in their own browser. */
-  newStaff: (role: string, fullName: string) => Promise<{ id: string; page: Page; password: string }>;
+  newStaff: (
+    role: string,
+    fullName: string,
+    /** Per-user grants on top of the role, set before they first sign in. */
+    extraPermissions?: string[],
+  ) => Promise<{ id: string; page: Page; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
@@ -82,9 +87,10 @@ export const test = base.extend<{ hospital: Hospital }>({
         pages.push(page);
         return page;
       },
-      newStaff: async (role, fullName) => {
+      newStaff: async (role, fullName, extraPermissions) => {
         const suffix = unique().toLowerCase();
-        const username = `${role}_${suffix}`;
+        // Usernames are at most 30 characters; long role codes are cut.
+        const username = `${role.slice(0, 20)}_${suffix}`;
         const password = `Staff-${suffix}-Pass1!`;
         const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
           username,
@@ -92,6 +98,7 @@ export const test = base.extend<{ hospital: Hospital }>({
           password,
           full_name: fullName,
           role,
+          ...(extraPermissions ? { access_matrix: { extra: extraPermissions, denied: [] } } : {}),
         });
         const page = await openPage(browser);
         await loginAsRole(page, username, password);

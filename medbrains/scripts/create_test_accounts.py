@@ -4,7 +4,8 @@
 Testers who sign in as an administrator see every screen, because
 administrators bypass every permission check. This makes one account per
 role -- `test_nurse`, `test_pharmacist`, ... -- each in the department that
-role works in, so a tester sees exactly what that role sees.
+role works in, so a tester sees exactly what that role sees. Each also gets
+`qa.test_cases.record` (per user, not per role): the in-app Test cases panel.
 
     python3 scripts/create_test_accounts.py --admin-user admin
     python3 scripts/create_test_accounts.py --base http://127.0.0.1:3000 --admin-user admin
@@ -164,6 +165,12 @@ def main() -> int:
             else:
                 api.call("POST", "/api/setup/users", {**body, "password": password})
                 action = "created"
+            # The in-app Test cases panel: a per-user grant, never a role's.
+            uid = existing.get(body["username"]) or next(
+                u["id"] for u in api.call("GET", "/api/setup/users") if u["username"] == body["username"]
+            )
+            api.call("PUT", f"/api/setup/users/{uid}/access-matrix",
+                     {"extra_permissions": ["qa.test_cases.record"], "denied_permissions": []})
         except RuntimeError as e:
             print(f"  ! {role}: {e}", file=sys.stderr)
             continue

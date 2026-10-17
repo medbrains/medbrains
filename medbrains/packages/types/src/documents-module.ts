@@ -393,3 +393,27 @@ export interface CreateReviewScheduleRequest {
   next_review_due?: string;
   notes?: string;
 }
+
+/** A round of role testing (#4804); one is open at a time. */
+export interface TestCycle {
+  id: string;
+  name: string;
+  opened_at: string;
+  closed_at: string | null;
+}
+
+export type TestResultValue = "pass" | "fail" | "blocked";
+
+/** One case's answer in a cycle, for a role (last answer wins). */
+export interface TestCaseResult {
+  id: string;
+  cycle_id: string;
+  case_id: string;
+  role: string;
+  tester_name: string | null;
+  result: TestResultValue;
+  note: string | null;
+  screen_path: string | null;
+  recorded_at: string;
+  recorded_by: string | null;
+}
