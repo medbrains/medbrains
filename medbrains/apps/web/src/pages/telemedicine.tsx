@@ -9,6 +9,7 @@ import {
   IconBrandGoogle,
   IconCalendarPlus,
   IconDownload,
+  IconNotes,
   IconPhoneOff,
   IconPlayerPlay,
   IconSettings,
@@ -17,7 +18,9 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { DataTable } from "@/components";
+import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -63,6 +66,7 @@ const EMPTY_FORM: CreateForm = {
 };
 
 export function TelemedicinePage() {
+  const navigate = useNavigate();
   useRequirePermission(P.OPD.QUEUE_VIEW);
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
@@ -278,11 +282,7 @@ export function TelemedicinePage() {
             {
               key: "patient",
               label: "Patient",
-              render: (c: TeleConsultation) => (
-                <Text size="xs" ff="monospace">
-                  {c.patient_id.slice(0, 8)}
-                </Text>
-              ),
+              render: (c: TeleConsultation) => <PatientNameCell patientId={c.patient_id} />,
             },
             {
               key: "provider",
@@ -377,6 +377,15 @@ export function TelemedicinePage() {
                           )}
                         </Menu.Dropdown>
                       </Menu>
+                    )}
+                    {c.encounter_id && (
+                      <IconButton
+                        size="sm"
+                        aria-label="Open the visit"
+                        onClick={() => navigate(`/opd/encounters/${c.encounter_id}`)}
+                      >
+                        <IconNotes size={14} />
+                      </IconButton>
                     )}
                     {canUpdate && c.status === "in_progress" && (
                       <IconButton

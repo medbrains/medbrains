@@ -12,6 +12,7 @@ pub mod nhcx_onboarding;
 pub mod portal;
 pub mod portal_privacy;
 pub mod portal_refills;
+pub mod portal_tele;
 pub mod bill_verify;
 pub mod rx_verify;
 pub use medbrains_nabh as nabh_evidence;
@@ -774,6 +775,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/portal/appointments", get(portal::portal_appointments))
         .route("/api/portal/entitlements", get(portal::portal_entitlements))
         .route("/api/portal/refills", get(portal_refills::portal_refills))
+        .route("/api/portal/teleconsults", get(portal_tele::portal_teleconsults))
         .route(
             "/api/portal/prescriptions/{id}/refill-request",
             post(portal_refills::portal_request_refill),

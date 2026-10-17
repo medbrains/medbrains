@@ -933,6 +933,15 @@ export interface PortalRefill {
   latest_request: PortalRefillRequest | null;
 }
 
+/** A video consultation the patient can join from the portal. */
+export interface PortalTeleconsult {
+  id: string;
+  doctor_name: string | null;
+  status: "scheduled" | "waiting" | "in_progress";
+  scheduled_at: string | null;
+  join_url: string;
+}
+
 export interface PortalAppointment {
   id: string;
   appointment_date: string;
