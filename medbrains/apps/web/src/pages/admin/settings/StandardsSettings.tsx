@@ -316,7 +316,7 @@ export function StandardsSettings() {
         status: fhirStatus,
         metric: resources.length > 0 ? resources.join(", ") : "No resources",
         description:
-          "CapabilityStatement should advertise Patient, Encounter, Observation and Patient/$everything for EHR exchange clients.",
+          "CapabilityStatement should advertise Patient, Encounter, Observation, DiagnosticReport and Patient/$everything for EHR exchange clients.",
         actionLabel: "Open metadata",
         actionHref: "/api/fhir/metadata",
       },
