@@ -999,6 +999,9 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-stage-surface": "rgb(255 255 255 / 6%)",
       "--mb-stage-accent": "#42be65",
       "--mb-stage-sky": "#78a9ff",
+      // A card standing on the stage in the dark scheme: one step up the navy.
+      "--mb-stage-card": "#0f1f42",
+      "--mb-stage-shadow": "0 1px 2px rgb(0 0 0 / 20%), 0 24px 64px rgb(0 0 0 / 40%)",
       "--mb-font-display": "'Archivo Variable', 'Archivo', system-ui, sans-serif",
 
       // ── Motion (mode-agnostic) ───────────────────────────────
