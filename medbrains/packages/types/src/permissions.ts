@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1055 permissions, one per constant in the Rust source. */
+/** 1059 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4395,6 +4395,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.dental.chart.create",
     label: "Create Chart",
     description: "Create Chart",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.chart.update",
+    label: "Correct or remove a tooth finding",
+    description: "A removed finding is kept (soft delete) with who removed it.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.treatment.list",
+    label: "See a dental treatment plan",
+    description: "The procedures planned, done and cancelled, tooth by tooth, with their prices.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.treatment.manage",
+    label: "Plan or cancel dental procedures",
+    description: "Adds procedures to a patient's dental plan with their price, or cancels one that has not been done.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.dental.treatment.complete",
+    label: "Mark a dental procedure done",
+    description: "Records who did it and when, and charges it to the visit's bill.",
     module: "specialty",
   },
   {
@@ -9186,9 +9210,11 @@ export const P = {
       CHART: {
         CREATE: "specialty.dental.chart.create",
         LIST: "specialty.dental.chart.list",
+        UPDATE: "specialty.dental.chart.update",
       },
       CHART_CREATE: "specialty.dental.chart.create",
       CHART_LIST: "specialty.dental.chart.list",
+      CHART_UPDATE: "specialty.dental.chart.update",
       EXAMS: {
         CREATE: "specialty.dental.exams.create",
         LIST: "specialty.dental.exams.list",
@@ -9197,12 +9223,24 @@ export const P = {
       EXAMS_CREATE: "specialty.dental.exams.create",
       EXAMS_LIST: "specialty.dental.exams.list",
       EXAMS_UPDATE: "specialty.dental.exams.update",
+      TREATMENT: {
+        COMPLETE: "specialty.dental.treatment.complete",
+        LIST: "specialty.dental.treatment.list",
+        MANAGE: "specialty.dental.treatment.manage",
+      },
+      TREATMENT_COMPLETE: "specialty.dental.treatment.complete",
+      TREATMENT_LIST: "specialty.dental.treatment.list",
+      TREATMENT_MANAGE: "specialty.dental.treatment.manage",
     },
     DENTAL_CHART_CREATE: "specialty.dental.chart.create",
     DENTAL_CHART_LIST: "specialty.dental.chart.list",
+    DENTAL_CHART_UPDATE: "specialty.dental.chart.update",
     DENTAL_EXAMS_CREATE: "specialty.dental.exams.create",
     DENTAL_EXAMS_LIST: "specialty.dental.exams.list",
     DENTAL_EXAMS_UPDATE: "specialty.dental.exams.update",
+    DENTAL_TREATMENT_COMPLETE: "specialty.dental.treatment.complete",
+    DENTAL_TREATMENT_LIST: "specialty.dental.treatment.list",
+    DENTAL_TREATMENT_MANAGE: "specialty.dental.treatment.manage",
     ENDOSCOPY: {
       PROCEDURES: {
         CREATE: "specialty.endoscopy.procedures.create",
@@ -9822,9 +9860,13 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.CLINICAL_TRIALS.SCREEN,
       P.SPECIALTY.DENTAL.CHART.CREATE,
       P.SPECIALTY.DENTAL.CHART.LIST,
+      P.SPECIALTY.DENTAL.CHART.UPDATE,
       P.SPECIALTY.DENTAL.EXAMS.CREATE,
       P.SPECIALTY.DENTAL.EXAMS.LIST,
       P.SPECIALTY.DENTAL.EXAMS.UPDATE,
+      P.SPECIALTY.DENTAL.TREATMENT.COMPLETE,
+      P.SPECIALTY.DENTAL.TREATMENT.LIST,
+      P.SPECIALTY.DENTAL.TREATMENT.MANAGE,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.CREATE,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.LIST,
       P.SPECIALTY.ENDOSCOPY.REPROCESSING.LIST,
@@ -10055,6 +10097,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.DENTAL.EXAMS.CREATE,
       P.SPECIALTY.DENTAL.EXAMS.LIST,
       P.SPECIALTY.DENTAL.EXAMS.UPDATE,
+      P.SPECIALTY.DENTAL.TREATMENT.LIST,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.LIST,
       P.SPECIALTY.ENDOSCOPY.REPROCESSING.LIST,
       P.SPECIALTY.ENDOSCOPY.REPROCESSING.MANAGE,

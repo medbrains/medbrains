@@ -1,0 +1,12 @@
+-- ====================================================================
+-- Migration: 1089_charge_source_dental.sql
+-- RLS-Posture: not-tenant-scoped
+-- Tenant-Column: none
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- A done dental procedure is billed with its own source, so the bill and
+-- the reports can tell dental work from other procedures. Added, never used
+-- in this migration (an enum value cannot be used in the transaction that
+-- adds it).
+ALTER TYPE public.charge_source ADD VALUE IF NOT EXISTS 'dental';

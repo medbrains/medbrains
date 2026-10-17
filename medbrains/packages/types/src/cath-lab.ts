@@ -131,6 +131,37 @@ export interface DentalChartEntry {
   updated_at: string;
 }
 
+/** One procedure on a dental treatment plan; money arrives as a decimal string. */
+export interface DentalTreatmentItem {
+  id: string;
+  exam_id: string;
+  tooth_number: string | null;
+  procedure: string;
+  charge_code: string | null;
+  price: string | number;
+  status: "planned" | "done" | "cancelled";
+  done_at: string | null;
+  done_by: string | null;
+  invoice_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PlanDentalTreatmentRequest {
+  tooth_number?: string;
+  procedure: string;
+  charge_code?: string;
+  price: number;
+  notes?: string;
+}
+
+export interface UpdateDentalChartEntryRequest {
+  condition: string;
+  surface?: string | null;
+  treatment_planned?: string | null;
+  notes?: string | null;
+}
+
 export interface CreateDentalExamRequest {
   patient_id: string;
   encounter_id?: string | null;

@@ -43,6 +43,8 @@ pub enum ChargeSource {
     Diet,
     Cssd,
     Ambulance,
+    Consumable,
+    Dental,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
