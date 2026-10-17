@@ -46,12 +46,21 @@ export function DocumentActions({
 
   const queuePrint = async () => {
     const result = await renderMutation.mutateAsync();
-    await api.queueDocumentPrint(result.document_output_id, { copies: 1 });
-    notifications.show({
-      title: "Queued for printing",
-      message: "The document was handed to the print queue.",
-      color: "success",
-    });
+    try {
+      const job = await api.queueDocumentPrint(result.document_output_id, { copies: 1 });
+      notifications.show({
+        title: "Sent to the printer",
+        message: `Queued on ${job.printer_name}.`,
+        color: "success",
+      });
+    } catch (error) {
+      // No printer for this document must say so, not do nothing.
+      notifications.show({
+        title: "Not sent to a printer",
+        message: (error as Error).message,
+        color: "danger",
+      });
+    }
   };
 
   return (

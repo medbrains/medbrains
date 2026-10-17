@@ -49,6 +49,8 @@ fn service_usernames_satisfy_the_username_constraint() {
         "X-Ray/PACS bridge",
         "日本語",
         "!!!",
+        "Print bridge for the ward three Zebra printers",
+        "Lab bridge  -  chemistry wing",
     ] {
         let username = service_username(name, id);
         assert!(
@@ -57,6 +59,11 @@ fn service_usernames_satisfy_the_username_constraint() {
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
             "`{username}` (from `{name}`) breaks chk_users_username_pattern",
         );
+        assert!(
+            (3..=30).contains(&username.len()),
+            "`{username}` breaks chk_users_username_length",
+        );
+        assert!(!username.contains("__"), "`{username}`");
         assert!(
             username.starts_with("svc_"),
             "{username} is not marked as a service account"

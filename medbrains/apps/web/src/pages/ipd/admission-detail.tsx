@@ -893,8 +893,16 @@ export function AdmissionDetail({
                     onClick={openWristband}
                   />
                   <Group gap="xs">
-                    <DocumentActions templateCode="patient_wristband" sourceId={admissionId} />
-                    <DocumentActions templateCode="discharge_summary" sourceId={admissionId} />
+                    <DocumentActions
+                      templateCode="patient_wristband"
+                      sourceId={admissionId}
+                      label="Wristband"
+                    />
+                    <DocumentActions
+                      templateCode="discharge_summary"
+                      sourceId={admissionId}
+                      label="Discharge summary"
+                    />
                   </Group>
                   <ActionRailActionButton
                     action={referOutAction}

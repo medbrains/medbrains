@@ -2858,6 +2858,16 @@ pub mod documents {
         pub const LIST: &str = "documents.printers.list";
         pub const MANAGE: &str = "documents.printers.manage";
     }
+
+    pub mod print_jobs {
+        /// Deliver print jobs to printers.
+        ///
+        /// Lets a site bridge take queued print jobs — the document already
+        /// rendered for its printer as PDF, ZPL or ESC/POS, which carries
+        /// patient details — send them to the printer and report the result.
+        /// Grant it to the bridge's API key, not to people.
+        pub const DELIVER: &str = "documents.print_jobs.deliver";
+    }
 }
 
 pub mod occ_health {

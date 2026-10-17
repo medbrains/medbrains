@@ -4,7 +4,7 @@ import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { PrintJob } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPrinter, IconX } from "@tabler/icons-react";
+import { IconPrinter, IconRefresh, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DataTable } from "@/components";
@@ -82,10 +82,10 @@ export function PrintQueueTab() {
         return (
           <Stack gap={2}>
             <Text size="sm" fw={500}>
-              {printer?.name ?? "Unassigned"}
+              {printer?.name ?? "No printer"}
             </Text>
             <Text size="xs" c="dimmed">
-              {printer ? optionLabel(CONNECTION_TYPES, printer.connection_type) : "Manual dispatch"}
+              {printer ? optionLabel(CONNECTION_TYPES, printer.connection_type) : "—"}
             </Text>
           </Stack>
         );
@@ -107,9 +107,12 @@ export function PrintQueueTab() {
       key: "document_output_id",
       label: "Document",
       render: (row: PrintJob) => (
-        <Text size="sm" ff="monospace">
-          {row.document_output_id.slice(0, 8)}
-        </Text>
+        <Stack gap={2}>
+          <Text size="sm">{row.document_title ?? "Document"}</Text>
+          <Text size="xs" c="dimmed" ff="monospace">
+            {row.document_number ?? row.document_output_id.slice(0, 8)}
+          </Text>
+        </Stack>
       ),
     },
     {
@@ -126,44 +129,27 @@ export function PrintQueueTab() {
       label: "",
       render: (row: PrintJob) => (
         <Group gap={4} justify="flex-end">
+          {canManage && row.status === "failed" && (
+            <Button
+              tone="ghost"
+              size="xs"
+              leftSection={<IconRefresh size={14} />}
+              loading={updateMutation.isPending}
+              aria-label={`Retry ${row.document_title ?? "print job"}`}
+              onClick={() => updateMutation.mutate({ id: row.id, status: "queued" })}
+            >
+              Retry
+            </Button>
+          )}
           {canManage && row.status === "queued" && (
-            <Button
-              tone="ghost"
-              size="xs"
-              leftSection={<IconPrinter size={14} />}
-              loading={updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ id: row.id, status: "printing" })}
-            >
-              Start
-            </Button>
-          )}
-          {canManage && row.status === "printing" && (
-            <Button
-              tone="ghost"
-              size="xs"
-              leftSection={<IconCheck size={14} />}
-              loading={updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ id: row.id, status: "completed" })}
-            >
-              Complete
-            </Button>
-          )}
-          {canManage && (row.status === "queued" || row.status === "printing") && (
             <Button
               tone="subtle-danger"
               size="xs"
               leftSection={<IconX size={14} />}
               loading={updateMutation.isPending}
-              onClick={() =>
-                updateMutation.mutate({
-                  id: row.id,
-                  status: row.status === "printing" ? "failed" : "cancelled",
-                  errorMessage:
-                    row.status === "printing" ? "Marked failed from print queue" : undefined,
-                })
-              }
+              onClick={() => updateMutation.mutate({ id: row.id, status: "cancelled" })}
             >
-              {row.status === "printing" ? "Fail" : "Cancel"}
+              Cancel
             </Button>
           )}
         </Group>
@@ -209,7 +195,7 @@ export function PrintQueueTab() {
         tableMaxHeight="62vh"
         emptyIcon={<IconPrinter size={36} />}
         emptyTitle="No print jobs"
-        emptyDescription="Direct-dispatch print jobs will appear here."
+        emptyDescription="Documents sent to a printer appear here; the site bridge delivers them."
       />
     </Stack>
   );
