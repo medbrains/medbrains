@@ -356,6 +356,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::ophthalmology::exams::CREATE,
             permissions::specialty::ophthalmology::exams::LIST,
             permissions::specialty::ophthalmology::exams::UPDATE,
+            permissions::specialty::ophthalmology::exams::SIGN,
             permissions::specialty::other::dialysis::MANAGE,
             permissions::specialty::other::oncology::CREATE,
             permissions::specialty::other::oncology::LIST,

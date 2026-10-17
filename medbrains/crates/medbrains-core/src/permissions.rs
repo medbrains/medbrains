@@ -2273,6 +2273,13 @@ pub mod specialty {
             pub const LIST: &str = "specialty.ophthalmology.exams.list";
             pub const CREATE: &str = "specialty.ophthalmology.exams.create";
             pub const UPDATE: &str = "specialty.ophthalmology.exams.update";
+            /// Sign a spectacle prescription.
+            ///
+            /// Completes the eye exam under the signer's name and registration
+            /// number and locks its refraction; only a signed exam prints as a
+            /// spectacle prescription without the DRAFT mark. Recording the
+            /// workup does not need it.
+            pub const SIGN: &str = "specialty.ophthalmology.exams.sign";
         }
     }
 

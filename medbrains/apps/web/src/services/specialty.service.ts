@@ -30,6 +30,7 @@ export const specialtyService = {
   getOphthoExam: api.getOphthoExam,
   createOphthoExam: api.createOphthoExam,
   updateOphthoExam: api.updateOphthoExam,
+  signOphthoExam: api.signOphthoExam,
   listDentalExams: api.listDentalExams,
   getDentalExam: api.getDentalExam,
   createDentalExam: api.createDentalExam,
