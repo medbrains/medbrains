@@ -77,6 +77,8 @@ export const billingService = {
     api.updateTenantSetting(...args),
   listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
   createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
+  getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
+    api.getFinalBillChecklist(...args),
   adjustAdvance: (...args: Parameters<typeof api.adjustAdvance>) => api.adjustAdvance(...args),
   refundAdvance: (...args: Parameters<typeof api.refundAdvance>) => api.refundAdvance(...args),
   listCorporates: (...args: Parameters<typeof api.listCorporates>) => api.listCorporates(...args),

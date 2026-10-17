@@ -1358,6 +1358,28 @@ export interface AdjustAdvanceRequest {
   notes?: string;
 }
 
+/** The discharge bill checklist for an admission (#292). Money arrives as decimal strings. */
+export interface FinalBillChecklist {
+  admission_id: string;
+  patient_id: string;
+  invoice: {
+    id: string;
+    invoice_number: string;
+    status: string;
+    total_amount: string | number;
+    paid_amount: string | number;
+  } | null;
+  departments: { department: string; amount: string | number; lines: number }[];
+  unbilled_orders: { module: string; order_id: string; name: string }[];
+  pending_returns: number;
+  pending_concessions: number;
+  interim_outstanding: string | number;
+  advance_balance: string | number;
+  advances: { id: string; advance_number: string; balance: string | number }[];
+  net_payable: string | number;
+  blockers: string[];
+}
+
 export interface RefundAdvanceRequest {
   amount: number;
   reason: string;
