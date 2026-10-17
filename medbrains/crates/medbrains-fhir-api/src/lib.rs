@@ -13,6 +13,7 @@
 //! Read-only for now. Write (POST `Bundle` transaction) is a follow-up
 //! once we add ABDM/NHCX outbound and validation.
 
+pub mod diagnostic;
 pub mod export;
 
 use axum::routing::get;
@@ -23,20 +24,17 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::Utc;
-use medbrains_fhir::mapper::{
-    EncounterView, ObservationView, PatientView, encounter_to_fhir, observation_to_fhir,
-    patient_to_fhir,
-};
+use medbrains_fhir::mapper::{EncounterView, PatientView, encounter_to_fhir, patient_to_fhir};
 use medbrains_fhir::r4::Resource;
 use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use serde_json::json;
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
-use medbrains_core::permissions;
 
 // ── Patient ───────────────────────────────────────────────────────
 
@@ -117,11 +115,10 @@ pub async fn read_encounter(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row: Option<EncounterRow> = sqlx::query_as!(
-        EncounterRow,
+    let row: Option<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
         "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
                 e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS \"encounter_type!\", e.status::text AS \"status!\", \
+                e.encounter_type::text AS encounter_type, e.status::text AS status, \
                 e.created_at AS started_at, \
                 CASE WHEN e.status::text IN ('closed','completed','discharged') \
                      THEN e.updated_at ELSE NULL END AS ended_at \
@@ -129,9 +126,9 @@ pub async fn read_encounter(
          LEFT JOIN patients p ON p.id = e.patient_id \
          LEFT JOIN users u ON u.id = e.doctor_id \
          WHERE e.id = $1 AND e.tenant_id = $2",
-        id,
-        claims.tenant_id,
     )
+    .bind(id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -167,7 +164,8 @@ struct EncounterRow {
 // ── Patient $everything (Bundle) ──────────────────────────────────
 
 /// `GET /api/fhir/Patient/{id}/$everything` — returns a Bundle with the
-/// patient and their recent encounters + observations. Used by ABDM HIE
+/// patient, their recent encounters, and their released lab and imaging
+/// reports with the lab results they report. Used by ABDM HIE
 /// HIP role to push a care-context payload to a connected HIU.
 pub async fn patient_everything(
     State(state): State<AppState>,
@@ -197,11 +195,10 @@ pub async fn patient_everything(
     let patient_resource = patient_to_fhir(&patient_view);
 
     // Recent encounters (last 90 days, max 50)
-    let encs: Vec<EncounterRow> = sqlx::query_as!(
-        EncounterRow,
+    let encs: Vec<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
         "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
                 e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS \"encounter_type!\", e.status::text AS \"status!\", \
+                e.encounter_type::text AS encounter_type, e.status::text AS status, \
                 e.created_at AS started_at, \
                 CASE WHEN e.status::text IN ('closed','completed','discharged') \
                      THEN e.updated_at ELSE NULL END AS ended_at \
@@ -211,11 +208,15 @@ pub async fn patient_everything(
          WHERE e.patient_id = $1 AND e.tenant_id = $2 \
            AND e.created_at >= now() - interval '90 days' \
          ORDER BY e.created_at DESC LIMIT 50",
-        id,
-        claims.tenant_id,
     )
+    .bind(id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    // Released reports and their results, which an HIU asks for most.
+    let patient_scope = diagnostic::Scope::PatientRecent(id);
+    let mut reports = diagnostic::lab_entries(&mut tx, claims.tenant_id, patient_scope).await?;
+    reports.extend(diagnostic::imaging_entries(&mut tx, claims.tenant_id, patient_scope).await?);
     tx.commit().await?;
 
     let mut entries = vec![BundleEntry {
@@ -240,6 +241,7 @@ pub async fn patient_everything(
             resource: Resource::Encounter(encounter_to_fhir(&v)),
         });
     }
+    entries.extend(reports);
 
     let total = u32::try_from(entries.len()).unwrap_or(u32::MAX);
     Ok(Json(Resource::Bundle(Bundle {
@@ -278,18 +280,12 @@ pub async fn metadata() -> impl IntoResponse {
                     "interaction": [{ "code": "read" }, { "code": "search-type" }],
                     "searchParam": [{ "name": "encounter", "type": "reference" }]
                 },
-                { "type": "Observation", "interaction": [{ "code": "read" }] }
+                { "type": "Observation", "interaction": [{ "code": "read" }] },
+                { "type": "DiagnosticReport", "interaction": [{ "code": "read" }] }
             ]
         }]
     });
     (StatusCode::OK, Json(body))
-}
-
-// Marker for unused mapper import — observation_to_fhir is exposed via
-// the patient/$everything bundle once we wire vitals fetch (next pass).
-#[allow(dead_code)]
-fn _keep_observation_mapper(o: &ObservationView) {
-    let _ = observation_to_fhir(o);
 }
 
 /// FHIR R4 read API routes.
@@ -297,6 +293,17 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/fhir/metadata", get(metadata))
         .route("/api/fhir/Patient/{id}", get(read_patient))
-        .route("/api/fhir/Patient/{id}/$everything", get(patient_everything))
+        .route(
+            "/api/fhir/Patient/{id}/$everything",
+            get(patient_everything),
+        )
         .route("/api/fhir/Encounter/{id}", get(read_encounter))
+        .route(
+            "/api/fhir/DiagnosticReport/{id}",
+            get(diagnostic::read_diagnostic_report),
+        )
+        .route(
+            "/api/fhir/Observation/{id}",
+            get(diagnostic::read_observation),
+        )
 }
