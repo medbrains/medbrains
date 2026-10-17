@@ -5,6 +5,7 @@ import { PageSkeleton } from "./components/PageSkeleton";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { SpotlightProvider } from "./components/SpotlightProvider";
 import { TopProgressBar } from "./components/TopProgressBar";
+import { WebsiteHome } from "./components/WebsiteHome";
 import { AppLayout } from "./layouts/AppLayout";
 import { TenantConfigProvider } from "./providers/TenantConfigProvider";
 
@@ -488,8 +489,7 @@ export function App() {
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             {/* Public */}
-            {/* The website (www.medbrains.in) is the landing page; the app opens on sign-in. */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/" element={<WebsiteHome />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
