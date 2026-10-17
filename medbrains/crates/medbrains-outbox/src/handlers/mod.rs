@@ -24,6 +24,7 @@ pub mod hl7_stub;
 pub mod nhcx;
 pub mod pinelabs;
 pub mod pipeline_fallback;
+pub mod pacs_worklist;
 pub mod payu;
 pub mod phonepe;
 pub mod razorpay;
