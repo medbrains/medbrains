@@ -39,6 +39,7 @@ pub use credit::*;
 
 // Day-end cash closing — the one place billing's source of truth is a drawer.
 mod cash_closing;
+pub mod final_bill;
 pub use cash_closing::*;
 
 use axum::routing::{delete, get, post, put};
@@ -1253,6 +1254,7 @@ pub async fn issue_invoice(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     enforce_preauth_limit(&mut tx, &claims, id, &body).await?;
+    final_bill::ensure_final_bill_ready(&mut tx, claims.tenant_id, id).await?;
 
     // A zero-total invoice (free / medical-college / charity) has
     // nothing to collect, so it settles the moment it is issued
@@ -3479,6 +3481,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/invoices/{id}/items/{iid}",
             delete(remove_invoice_item),
+        )
+        .route(
+            "/api/billing/admissions/{id}/final-bill-checklist",
+            get(final_bill::get_final_bill_checklist),
         )
         .route("/api/billing/invoices/{id}/issue", post(issue_invoice))
         .route("/api/billing/invoices/{id}/cancel", post(cancel_invoice))

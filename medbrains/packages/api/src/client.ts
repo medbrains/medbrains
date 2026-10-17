@@ -1020,6 +1020,7 @@ import type {
   FeedbackStatsResponse,
   FieldAccessLevel,
   FileMrdCaseSheetPacketRequest,
+  FinalBillChecklist,
   FinancialMisReport,
   FireEquipmentInspectionPrintData,
   FireMockDrillReportPrintData,
@@ -5270,6 +5271,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getFinalBillChecklist: (admissionId: string) =>
+    request<FinalBillChecklist>(`/billing/admissions/${admissionId}/final-bill-checklist`),
   adjustAdvance: (id: string, data: AdjustAdvanceRequest) =>
     request<AdvanceAdjustment>(`/billing/advances/${id}/adjust`, {
       method: "POST",
