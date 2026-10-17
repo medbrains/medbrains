@@ -17,6 +17,8 @@
 //! as a hash, so there is no second chance and no support path that recovers
 //! it — losing it means issuing a new key, which is the correct outcome.
 
+mod docs;
+
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -37,6 +39,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/api-keys", get(list).post(create))
         .route("/api/admin/api-keys/{id}/revoke", post(revoke))
         .route("/api/admin/api-keys/{id}/usage", get(usage))
+        .route("/api/openapi.json", get(docs::openapi))
 }
 
 /// The longest a key may live.
@@ -45,6 +48,10 @@ pub fn router() -> Router<AppState> {
 /// working while the person who created it is still reachable. The database
 /// requires an expiry; this bounds it.
 const MAX_LIFETIME_DAYS: i64 = 365;
+/// Requests a minute a key gets unless its issuer says otherwise.
+const DEFAULT_RATE_LIMIT: i32 = 600;
+/// The most a single key may be allowed (the column's CHECK agrees).
+const MAX_RATE_LIMIT: i32 = 6000;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateKeyRequest {
@@ -53,6 +60,8 @@ pub struct CreateKeyRequest {
     pub permissions: Vec<String>,
     /// Defaults to 90 days. Capped at [`MAX_LIFETIME_DAYS`].
     pub expires_in_days: Option<i64>,
+    /// Requests a minute before the key is answered 429. Defaults to 600.
+    pub rate_limit_per_minute: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -83,6 +92,7 @@ pub struct KeySummary {
     /// The human who issued it. A machine action traces to a key, and the key
     /// traces to a person.
     pub created_by_name: Option<String>,
+    pub rate_limit_per_minute: i32,
 }
 
 /// Refuse to mint a key carrying permissions the caller does not hold.
@@ -204,6 +214,18 @@ async fn create(
     )
     .execute(&mut *tx)
     .await?;
+    let rate_limit = body.rate_limit_per_minute.unwrap_or(DEFAULT_RATE_LIMIT);
+    if !(1..=MAX_RATE_LIMIT).contains(&rate_limit) {
+        return Err(AppError::BadRequest(format!(
+            "A key may make between 1 and {MAX_RATE_LIMIT} requests a minute"
+        )));
+    }
+    sqlx::query("UPDATE api_keys SET rate_limit_per_minute = $1 WHERE id = $2 AND tenant_id = $3")
+        .bind(rate_limit)
+        .bind(key_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     let created_audit = serde_json::json!({
         "name": name,
@@ -253,14 +275,14 @@ async fn list(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // `key_hash` is never selected. There is nothing useful a console does
     // with it and every place it travels is another place it can leak.
-    let rows = sqlx::query_as!(
-        KeySummary,
+    let rows = sqlx::query_as::<_, KeySummary>(
         "SELECT k.id, k.name, k.description, k.key_prefix, k.permissions, k.expires_at, \
-         k.last_used_at, k.revoked_at, k.created_at, u.full_name AS created_by_name \
+         k.last_used_at, k.revoked_at, k.created_at, u.full_name AS created_by_name, \
+         k.rate_limit_per_minute \
          FROM api_keys k LEFT JOIN users u ON u.id = k.created_by \
-         WHERE k.tenant_id = $1 ORDER BY k.created_at DESC",
-        claims.tenant_id,
+         WHERE k.tenant_id = $1 ORDER BY k.created_at DESC LIMIT 500",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -370,70 +392,4 @@ async fn usage(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{refuse_escalation, service_username};
-    use medbrains_server_core::middleware::auth::Claims;
-    use uuid::Uuid;
-
-    fn claims(role: &str, permissions: &[&str]) -> Claims {
-        Claims {
-            sub: Uuid::nil(),
-            tenant_id: Uuid::nil(),
-            role: role.to_owned(),
-            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
-            department_ids: Vec::new(),
-            perm_version: 0,
-            paired_device_id: None,
-            exp: 0,
-        }
-    }
-
-    #[test]
-    fn a_key_cannot_be_granted_what_its_creator_lacks() {
-        let clerk = claims("billing_clerk", &["admin.api_keys.create", "billing.view"]);
-        let error = refuse_escalation(&clerk, &["billing.view".into(), "opd.prescribe".into()])
-            .expect_err("a clerk minted a key that can prescribe");
-        assert!(
-            error.to_string().contains("opd.prescribe"),
-            "the refusal must name what was missing, or nobody can fix it: {error}",
-        );
-    }
-
-    #[test]
-    fn a_key_may_carry_what_its_creator_holds() {
-        let clerk = claims("billing_clerk", &["billing.view", "billing.create"]);
-        assert!(refuse_escalation(&clerk, &["billing.view".into()]).is_ok());
-    }
-
-    #[test]
-    fn bypass_roles_may_grant_without_enumerating() {
-        // Their `permissions` is empty by design — the role short-circuits
-        // every check — so a naive subset test would refuse them everything.
-        let admin = claims("hospital_admin", &[]);
-        assert!(refuse_escalation(&admin, &["opd.prescribe".into()]).is_ok());
-    }
-
-    #[test]
-    fn service_usernames_satisfy_the_username_constraint() {
-        let id = Uuid::from_u128(0x1234_5678_9abc_def0_1234_5678_9abc_def0);
-        for name in [
-            "Lab Integration",
-            "  Billing  Sync  ",
-            "X-Ray/PACS bridge",
-            "日本語",
-            "!!!",
-        ] {
-            let username = service_username(name, id);
-            assert!(
-                username
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'),
-                "`{username}` (from `{name}`) breaks chk_users_username_pattern",
-            );
-            assert!(
-                username.starts_with("svc_"),
-                "{username} is not marked as a service account"
-            );
-        }
-    }
-}
+mod tests;

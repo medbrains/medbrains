@@ -6019,6 +6019,8 @@ export interface ApiKeySummary {
   created_at: string;
   /** The human who issued it. A machine action traces to a key, the key to a person. */
   created_by_name: string | null;
+  /** Requests a minute before the key is answered 429. */
+  rate_limit_per_minute: number;
 }
 
 /**
@@ -6044,6 +6046,8 @@ export interface CreateApiKeyInput {
   description?: string;
   permissions: string[];
   expires_in_days?: number;
+  /** Requests a minute; defaults to 600, at most 6000. */
+  rate_limit_per_minute?: number;
 }
 
 export interface ApiKeyUsageRow {

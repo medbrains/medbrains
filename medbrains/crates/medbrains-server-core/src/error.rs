@@ -57,6 +57,10 @@ pub enum AppError {
     #[error("service unavailable: {0}")]
     ServiceUnavailable(String),
 
+    /// The caller has used its request budget; try again shortly.
+    #[error("too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("validation failed")]
     ValidationFailed(ValidationErrors),
 
@@ -148,6 +152,10 @@ impl IntoResponse for AppError {
             Self::Conflict(msg) => {
                 tracing::warn!(detail = %msg, "conflict");
                 (StatusCode::CONFLICT, "conflict", msg.clone())
+            }
+            Self::TooManyRequests(msg) => {
+                tracing::warn!(detail = %msg, "too many requests");
+                (StatusCode::TOO_MANY_REQUESTS, "too many requests", msg.clone())
             }
             Self::ServiceUnavailable(msg) => {
                 tracing::warn!(detail = %msg, "service unavailable");
