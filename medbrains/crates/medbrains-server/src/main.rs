@@ -867,6 +867,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(tpa_stub::ClaimSubmitHandler);
     registry.register(tpa_stub::CoverageEligibilityHandler);
     registry.register(hl7_stub::CriticalValueHandler);
+    // Outbound webhooks to subscribed partners (#224).
+    registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.
     let dispatcher = Arc::new(EventsPipelineDispatcher);

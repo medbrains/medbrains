@@ -73,6 +73,8 @@
   "dashboardBuilder": "Dashboard Builder",
   "integrationHub": "Built-in Pipelines",
   "formTemplates": "Forms",
+  "apiKeys": "API keys",
+  "webhooks": "Webhooks",
   "screenBuilder": "Screen Builder",
   "doctorSchedules": "Doctor Schedules",
   "administration": "Administration",

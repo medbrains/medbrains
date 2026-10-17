@@ -2580,6 +2580,19 @@ pub mod admin {
         pub const DOCS: &str = "admin.api_keys.docs";
     }
 
+    pub mod webhooks {
+        /// See webhook subscriptions and their deliveries.
+        ///
+        /// Where the hospital's events are sent, which events, and whether
+        /// each delivery landed.
+        pub const LIST: &str = "admin.webhooks.list";
+        /// Create, change and switch off webhooks.
+        ///
+        /// Decides which outside systems are told about events and where they
+        /// are sent, and issues the signing secret.
+        pub const MANAGE: &str = "admin.webhooks.manage";
+    }
+
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
     pub mod system_state {
         pub const VIEW: &str = "admin.system_state.view";

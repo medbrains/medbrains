@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1060 permissions, one per constant in the Rust source. */
+/** 1062 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4899,6 +4899,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.webhooks.list",
+    label: "See webhook subscriptions and their deliveries",
+    description: "Where the hospital's events are sent, which events, and whether each delivery landed.",
+    module: "admin",
+  },
+  {
+    code: "admin.webhooks.manage",
+    label: "Create, change and switch off webhooks",
+    description: "Decides which outside systems are told about events and where they are sent, and issues the signing secret.",
+    module: "admin",
+  },
+  {
     code: "admin.system_state.view",
     label: "View System State",
     description: "View System State",
@@ -6721,6 +6733,12 @@ export const P = {
     USERS_LIST: "admin.users.list",
     USERS_UPDATE: "admin.users.update",
     USERS_VIEW: "admin.users.view",
+    WEBHOOKS: {
+      LIST: "admin.webhooks.list",
+      MANAGE: "admin.webhooks.manage",
+    },
+    WEBHOOKS_LIST: "admin.webhooks.list",
+    WEBHOOKS_MANAGE: "admin.webhooks.manage",
     WORKBOOK: {
       IMPORT: "admin.workbook.import",
     },
