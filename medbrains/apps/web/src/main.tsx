@@ -27,6 +27,8 @@ import "@fontsource/ibm-plex-sans/700.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource/ibm-plex-mono/600.css";
+// The website's display face (Archivo Expanded), for the sign-in page headline.
+import "@fontsource-variable/archivo/wdth.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/tiptap/styles.css";
