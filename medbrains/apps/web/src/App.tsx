@@ -433,6 +433,9 @@ const DocumentTemplatesPage = lazy(() =>
 const IntegrationHubPage = lazy(() =>
   import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })),
 );
+const WebhooksPage = lazy(() =>
+  import("./pages/admin/webhooks").then((m) => ({ default: m.WebhooksPage })),
+);
 const FormTemplatesPage = lazy(() =>
   import("./pages/admin/forms").then((m) => ({ default: m.FormTemplatesPage })),
 );
@@ -702,6 +705,7 @@ export function App() {
                 />
                 <Route path="integration-hub" element={<IntegrationHubPage />} />
                 <Route path="forms" element={<FormTemplatesPage />} />
+                <Route path="webhooks" element={<WebhooksPage />} />
                 <Route
                   path="integration-builder"
                   element={<Navigate to="/admin/integration-hub" replace />}

@@ -14,6 +14,9 @@ medbrains-api-keys = { path = "../medbrains-api-keys" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+hex = { workspace = true }
+getrandom = { version = "0.3", features = ["std"] }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

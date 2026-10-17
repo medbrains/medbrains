@@ -230,6 +230,10 @@ pub async fn dispatch_default_pipelines(
     event_type: &str,
     payload: &Value,
 ) {
+    // Partners hear about the event whatever the hospital does with its own
+    // pipelines; their subscription is the switch for that.
+    super::webhook_fanout::fan_out(pool, tenant_id, event_type, payload, domain_payload(payload)).await;
+
     if is_disabled(pool, tenant_id, event_type).await {
         tracing::debug!(
             tenant_id = %tenant_id,

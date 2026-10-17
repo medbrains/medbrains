@@ -286,6 +286,8 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/admin/document-templates": { abbr: "DT", color: "#d02670" },
   "/admin/integration-hub": { abbr: "IH", color: "#343a3f" },
   "/admin/forms": { abbr: "Frm", color: "#6929c4" },
+  "/admin/api-keys": { abbr: "Key", color: "#343a3f" },
+  "/admin/webhooks": { abbr: "WH", color: "#343a3f" },
   "/admin/doctor-schedules": { abbr: "DS", color: "#0f62fe" },
   "/admin/documents": { abbr: "Dcs", color: "#007d79" },
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
@@ -1388,6 +1390,18 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/forms",
             icon: "IconForms",
             requiredPermission: "forms.templates.list",
+          },
+          {
+            i18nKey: "apiKeys",
+            path: "/admin/api-keys",
+            icon: "IconPlug",
+            requiredPermission: "admin.api_keys.list",
+          },
+          {
+            i18nKey: "webhooks",
+            path: "/admin/webhooks",
+            icon: "IconPlug",
+            requiredPermission: "admin.webhooks.list",
           },
           {
             i18nKey: "doctorSchedules",
