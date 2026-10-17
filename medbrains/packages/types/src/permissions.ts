@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1062 permissions, one per constant in the Rust source. */
+/** 1063 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5872,6 +5872,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "devices",
   },
   {
+    code: "devices.orders.send",
+    label: "Send lab orders to an analyzer",
+    description: "Lets a lab bridge read collected samples — barcode, test, and the patient's name, birth date and sex — to load them onto its analyzer's worklist, and record that it did. Grant it to the bridge's API key, not to people.",
+    module: "devices",
+  },
+  {
     code: "devices.agents.list",
     label: "List Bridge Agents",
     description: "View registered bridge agents",
@@ -7342,6 +7348,10 @@ export const P = {
     },
     MESSAGES_RETRY: "devices.messages.retry",
     MESSAGES_VIEW: "devices.messages.view",
+    ORDERS: {
+      SEND: "devices.orders.send",
+    },
+    ORDERS_SEND: "devices.orders.send",
     PAIRING: {
       PAIRED_LIST: "devices.pairing.paired.list",
       PAIRED_REVOKE: "devices.pairing.paired.revoke",
@@ -10888,6 +10898,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DEVICES.INGEST,
       P.DEVICES.LIST,
       P.DEVICES.MESSAGES.VIEW,
+      P.DEVICES.ORDERS.SEND,
       P.DEVICES.PAIRING.PAIRED_LIST,
       P.DEVICES.PAIRING.PAIRED_REVOKE,
       P.DEVICES.PAIRING.ROSTER_READ,

@@ -890,6 +890,8 @@ import type {
   DeviceInfectionRate,
   DeviceInstance,
   DeviceMessage,
+  AnalyzerOrderSent,
+  AnalyzerWorklist,
   DeviceNodeKey,
   DevicePairingRequest,
   DeviceRoutingRule,
@@ -15296,6 +15298,17 @@ export const api = {
       `/devices/instances/${deviceId}/messages${query ? `?${query}` : ""}`,
     );
   },
+
+  /** The analyzer's worklist, as its lab bridge polls it (#227). */
+  listAnalyzerOrders: (deviceId: string) =>
+    request<AnalyzerWorklist>(`/devices/instances/${deviceId}/analyzer-orders`),
+
+  /** What the analyzer acknowledged, as its lab bridge reports it. */
+  recordAnalyzerOrdersSent: (deviceId: string, sent: AnalyzerOrderSent[]) =>
+    request<{ recorded: number }>(`/devices/instances/${deviceId}/analyzer-orders/sent`, {
+      method: "POST",
+      body: JSON.stringify({ sent }),
+    }),
 
   listDeviceConfigHistory: (deviceId: string) =>
     request<DeviceConfigHistory[]>(`/devices/instances/${deviceId}/config-history`),
