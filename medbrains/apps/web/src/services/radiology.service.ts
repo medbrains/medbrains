@@ -44,6 +44,8 @@ export const radiologyService = {
     api.listRadiologyDicomStudies(...args),
   getRadiologyPacsConfig: (...args: Parameters<typeof api.getRadiologyPacsConfig>) =>
     api.getRadiologyPacsConfig(...args),
+  updateRadiologyPacsConfig: (...args: Parameters<typeof api.updateRadiologyPacsConfig>) =>
+    api.updateRadiologyPacsConfig(...args),
   getRadiologyTat: (...args: Parameters<typeof api.getRadiologyTat>) =>
     api.getRadiologyTat(...args),
 };

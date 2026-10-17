@@ -79,6 +79,14 @@ pub struct RadiologyOrder {
     #[sqlx(default)]
     #[serde(default)]
     pub exam_id: Option<Uuid>,
+    /// Written into every image; links the study back to this order (#226).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub accession_number: String,
+    /// The study the PACS holds for this order, once it has arrived.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pacs_study_uid: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

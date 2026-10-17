@@ -30,6 +30,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # PACS for development (#226): stores studies, serves the modality worklist
+  # the server fills from radiology orders (DICOM port 4242), and the OHIF
+  # viewer. Loopback only and no auth — a hospital's real PACS sits on its
+  # own network with its own credentials (Settings → Radiology → PACS).
+  orthanc:
+    image: orthancteam/orthanc:latest
+    ports:
+      - "127.0.0.1:8042:8042"
+      - "127.0.0.1:4242:4242"
+    environment:
+      ORTHANC__NAME: MedBrains dev PACS
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+      ORTHANC__DICOM_AET: MEDBRAINS
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      OHIF_PLUGIN_ENABLED: "true"
+      WORKLISTS_PLUGIN_ENABLED: "true"
+      ORTHANC__WORKLISTS__SAVE_IN_ORTHANC_DATABASE: "true"
+      ORTHANC__WORKLISTS__DELETE_WORKLISTS_ON_STABLE_STUDY: "true"
+      ORTHANC__STABLE_AGE: "5"
+    volumes:
+      - orthanc_data:/var/lib/orthanc/db
+
   # ── Kiwi TCMS (Test Case Management) ──
   kiwi_db:
     image: mariadb:11
@@ -209,6 +231,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  orthanc_data:
   pgdata:
   kiwi_dbdata:
   kiwi_uploads:

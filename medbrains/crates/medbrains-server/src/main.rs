@@ -650,6 +650,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
     medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
     medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
+    medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
@@ -869,6 +870,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(hl7_stub::CriticalValueHandler);
     // Outbound webhooks to subscribed partners (#224).
     registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
+    // Radiology orders onto the PACS modality worklist (#226).
+    registry.register(medbrains_outbox::handlers::pacs_worklist::WorklistCreateHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.
     let dispatcher = Arc::new(EventsPipelineDispatcher);
