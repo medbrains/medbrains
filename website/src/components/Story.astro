@@ -31,7 +31,7 @@ import StoryScreens from "./StoryScreens.astro";
 <style lang="scss">
   @use "../styles/mixins" as *;
 
-  .story { height: 760vh; background: linear-gradient(180deg, var(--night) 0%, #0a1430 100%); color: #fff; }
+  .story { height: 760vh; background: radial-gradient(900px 600px at 80% 30%, var(--glow-blue), transparent 65%), linear-gradient(180deg, var(--night) 0%, var(--night-2) 100%); color: #fff; }
   .sticky { position: sticky; top: 0; height: 100vh; display: grid; align-items: center; overflow: hidden; }
   .layout { display: grid; grid-template-columns: .9fr 1.3fr; gap: 64px; align-items: center; width: 100%; }
   .copy { position: relative; }

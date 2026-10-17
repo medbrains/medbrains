@@ -59,14 +59,17 @@ const action = FORMSPREE_ID ? `https://formspree.io/f/${FORMSPREE_ID}` : waBase;
 <style lang="scss">
   @use "../styles/mixins" as *;
 
-  .demo { background: linear-gradient(180deg, var(--paper-2), #fff); }
+  .demo {
+    background: radial-gradient(800px 500px at 90% 20%, var(--glow-blue), transparent 65%),
+      radial-gradient(600px 420px at 0% 90%, var(--glow-green), transparent 65%), var(--night-2);
+  }
   .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
   .points { list-style: none; padding: 0; margin: 32px 0; display: grid; gap: 12px; }
   .points li { padding-left: 32px; position: relative; font-weight: 500; }
   .points li::before { content: "✓"; position: absolute; left: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; background: var(--blue); color: #fff; }
-  .alt { color: var(--muted); }
-  .alt a { color: var(--blue); font-weight: 600; }
-  .form { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 32px; display: grid; gap: 16px; box-shadow: var(--shadow); }
+  .alt { color: var(--night-text); }
+  .alt a { color: var(--sky); font-weight: 600; }
+  .form { color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 32px; display: grid; gap: 16px; box-shadow: var(--shadow); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   label { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
   input, select, textarea {
