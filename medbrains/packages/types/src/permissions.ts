@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1059 permissions, one per constant in the Rust source. */
+/** 1060 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4893,6 +4893,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.api_keys.docs",
+    label: "Read the API description",
+    description: "The OpenAPI document: every endpoint, method and the permission it needs. Grant it to an integration's key so its developers can generate a client.",
+    module: "admin",
+  },
+  {
     code: "admin.system_state.view",
     label: "View System State",
     description: "View System State",
@@ -6477,11 +6483,13 @@ export const P = {
     ACCESS_REQUESTS_REVIEW: "admin.access_requests.review",
     API_KEYS: {
       CREATE: "admin.api_keys.create",
+      DOCS: "admin.api_keys.docs",
       LIST: "admin.api_keys.list",
       REVOKE: "admin.api_keys.revoke",
       VIEW_USAGE: "admin.api_keys.view_usage",
     },
     API_KEYS_CREATE: "admin.api_keys.create",
+    API_KEYS_DOCS: "admin.api_keys.docs",
     API_KEYS_LIST: "admin.api_keys.list",
     API_KEYS_REVOKE: "admin.api_keys.revoke",
     API_KEYS_VIEW_USAGE: "admin.api_keys.view_usage",

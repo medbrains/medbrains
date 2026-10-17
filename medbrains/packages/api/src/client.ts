@@ -3181,6 +3181,8 @@ export const api = {
 
   /** What the key actually did — the question asked after a leak. */
   getApiKeyUsage: (id: string) => request<ApiKeyUsageRow[]>(`/admin/api-keys/${id}/usage`),
+  /** The OpenAPI description of this server's API: every path, method and permission. */
+  getOpenApiSpec: () => request<Record<string, unknown>>("/openapi.json"),
 
   // ── central approvals ─────────────────────────────────────────────────────
   //

@@ -35,6 +35,9 @@ interface Props {
   onClose: () => void;
 }
 
+/** The server's default per-key budget. */
+const DEFAULT_RATE_LIMIT = 600;
+
 export function IssueApiKeyDrawer({ opened, onClose }: Props) {
   const queryClient = useQueryClient();
   const userPermissions = usePermissionStore((state) => state.userPermissions);
@@ -43,6 +46,7 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [expiresInDays, setExpiresInDays] = useState<number>(90);
+  const [rateLimit, setRateLimit] = useState<number>(DEFAULT_RATE_LIMIT);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [issued, setIssued] = useState<CreatedApiKey | null>(null);
@@ -86,6 +90,7 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
         description: description.trim() || undefined,
         permissions: [...selected],
         expires_in_days: expiresInDays,
+        rate_limit_per_minute: rateLimit,
       }),
     onSuccess: (key) => {
       setIssued(key);
@@ -103,6 +108,7 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
     setName("");
     setDescription("");
     setExpiresInDays(90);
+    setRateLimit(DEFAULT_RATE_LIMIT);
     setSelected(new Set());
     setSearch("");
     setIssued(null);
@@ -222,6 +228,15 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
           onChange={(value) => setExpiresInDays(typeof value === "number" ? value : 90)}
           min={1}
           max={365}
+        />
+
+        <NumberInput
+          label="Requests a minute"
+          description="Past this the key is answered 429 until the minute passes, so a runaway sync slows itself, not the hospital."
+          value={rateLimit}
+          onChange={(value) => setRateLimit(typeof value === "number" ? value : DEFAULT_RATE_LIMIT)}
+          min={1}
+          max={6000}
         />
 
         <Group justify="space-between">
