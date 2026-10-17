@@ -257,6 +257,20 @@ export interface PrintJob {
   error_message: string | null;
   created_at: string;
   updated_at: string;
+  /** What is being printed. */
+  document_title: string | null;
+  document_number: string | null;
+}
+
+/** A queued job as a site bridge takes it, rendered for its printer (#221). */
+export interface DeliverablePrintJob {
+  job_id: string;
+  copies: number;
+  printer_name: string;
+  connection_type: string;
+  connection_string: string;
+  content_type: "application/pdf" | "application/zpl" | "application/escpos";
+  payload_base64: string;
 }
 
 // Request types

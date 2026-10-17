@@ -41,10 +41,19 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/api-keys/{id}/revoke", post(revoke))
         .route("/api/admin/api-keys/{id}/usage", get(usage))
         .route("/api/openapi.json", get(docs::openapi))
-        .route("/api/admin/webhooks", get(webhooks::list).post(webhooks::create))
+        .route(
+            "/api/admin/webhooks",
+            get(webhooks::list).post(webhooks::create),
+        )
         .route("/api/admin/webhooks/{id}", put(webhooks::update))
-        .route("/api/admin/webhooks/{id}/rotate-secret", post(webhooks::rotate_secret))
-        .route("/api/admin/webhooks/{id}/deliveries", get(webhooks::deliveries))
+        .route(
+            "/api/admin/webhooks/{id}/rotate-secret",
+            post(webhooks::rotate_secret),
+        )
+        .route(
+            "/api/admin/webhooks/{id}/deliveries",
+            get(webhooks::deliveries),
+        )
 }
 
 /// The longest a key may live.
@@ -126,26 +135,33 @@ fn refuse_escalation(claims: &Claims, requested: &[String]) -> Result<(), AppErr
     )))
 }
 
+/// The longest name slug that still fits `svc_<slug>_<8-char id>` in 30.
+const MAX_SLUG: usize = 30 - "svc_".len() - 1 - 8;
+
 /// A username for the key's identity, derived from the key's name.
 ///
-/// `users.username` is constrained to `^[a-z][a-z0-9_]*$`, so the name is
-/// reduced to that alphabet. The `svc_` prefix makes a service account
-/// recognisable at a glance in any list that has not been taught about
-/// `is_service_account`, and the id suffix keeps two keys called "Lab" apart.
+/// `users.username` is constrained to `^[a-z][a-z0-9_]*$` and 3–30
+/// characters, so the name is reduced to that alphabet and cut to fit. The
+/// `svc_` prefix makes a service account recognisable at a glance in any
+/// list that has not been taught about `is_service_account`, and the id
+/// suffix keeps two keys called "Lab" apart.
 fn service_username(name: &str, id: Uuid) -> String {
-    let slug: String = name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let slug = slug.trim_matches('_').replace("__", "_");
+    let mut slug = String::with_capacity(name.len());
+    for c in name.chars() {
+        let c = if c.is_ascii_alphanumeric() {
+            c.to_ascii_lowercase()
+        } else {
+            '_'
+        };
+        if !(c == '_' && slug.ends_with('_')) {
+            slug.push(c);
+        }
+    }
+    let slug = slug.trim_matches('_');
     let short = &id.simple().to_string()[..8];
-    let trimmed: String = slug.chars().take(24).collect();
+    // svc_ + slug + _ + 8-char id ≤ the 30-character username limit.
+    let trimmed: String = slug.chars().take(MAX_SLUG).collect();
+    let trimmed = trimmed.trim_end_matches('_');
     if trimmed.is_empty() {
         format!("svc_{short}")
     } else {

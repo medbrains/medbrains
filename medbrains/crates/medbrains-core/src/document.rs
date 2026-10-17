@@ -268,4 +268,9 @@ pub struct PrintJob {
     pub error_message: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// What is being printed, for the queue screen; filled by the list.
+    #[sqlx(default)]
+    pub document_title: Option<String>,
+    #[sqlx(default)]
+    pub document_number: Option<String>,
 }

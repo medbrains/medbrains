@@ -23,6 +23,7 @@ use medbrains_server_core::{
     state::AppState,
 };
 
+pub mod delivery;
 mod templates;
 pub(crate) use templates::{SYSTEM_TEMPLATES, SystemTemplate};
 
@@ -150,10 +151,11 @@ async fn record_output(
         "INSERT INTO document_outputs ( \
            tenant_id, module_code, source_table, source_id, patient_id, \
            document_number, title, category, status, file_url, file_size_bytes, \
-           mime_type, page_count, watermark, context_snapshot, document_hash, generated_by) \
+           mime_type, page_count, watermark, context_snapshot, document_hash, generated_by, \
+           template_code) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, \
            'custom'::document_template_category, 'generated'::document_output_status, \
-           $8, $9, 'application/pdf', NULL, $10::watermark_type, $11, $12, $13) \
+           $8, $9, 'application/pdf', NULL, $10::watermark_type, $11, $12, $13, $14) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -169,6 +171,7 @@ async fn record_output(
     .bind(context)
     .bind(&document_hash)
     .bind(claims.sub)
+    .bind(template.code)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -416,16 +419,15 @@ pub async fn queue_print(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM document_outputs WHERE id = $1 AND tenant_id = $2)",
+    let template_code: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT template_code FROM document_outputs WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
-    if !exists {
-        return Err(AppError::NotFound);
-    }
+    let template_code = template_code.ok_or(AppError::NotFound)?.unwrap_or_default();
+    let printer = delivery::route(&mut tx, &claims, &template_code, body.printer_id).await?;
 
     let job_id: Uuid = sqlx::query_scalar(
         "INSERT INTO print_jobs (tenant_id, document_output_id, printer_id, copies, submitted_by) \
@@ -433,16 +435,16 @@ pub async fn queue_print(
     )
     .bind(claims.tenant_id)
     .bind(id)
-    .bind(body.printer_id)
+    .bind(printer.id)
     .bind(body.copies.clamp(1, 10))
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
 
-    Ok(Json(
-        serde_json::json!({ "print_job_id": job_id, "status": "queued" }),
-    ))
+    Ok(Json(serde_json::json!({
+        "print_job_id": job_id, "status": "queued", "printer_name": printer.name,
+    })))
 }
 
 // ── Template management (admin) ─────────────────────────────
@@ -558,6 +560,11 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/documents/render", post(render_document))
         .route("/api/documents/{id}/download", get(download_document))
         .route("/api/documents/{id}/queue-print", post(queue_print))
+        .route("/api/documents/print-jobs/claim", post(delivery::claim_print_jobs))
+        .route(
+            "/api/documents/print-jobs/{id}/result",
+            post(delivery::report_print_job),
+        )
         .route(
             "/api/documents/render/templates/{code}/preview",
             get(preview_template),
