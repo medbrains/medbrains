@@ -3074,6 +3074,26 @@ pub mod devices {
     }
 }
 
+pub mod qa {
+    pub mod test_cases {
+        /// Record test results.
+        ///
+        /// Shows the test-case panel and saves Pass, Fail or Blocked for the
+        /// signed-in role's cases in the open test cycle. Given to the
+        /// `test_<role>` accounts per user by scripts/create_test_accounts.py,
+        /// never to a built-in role: real staff never see the panel.
+        pub const RECORD: &str = "qa.test_cases.record";
+    }
+
+    pub mod test_cycles {
+        /// Run test cycles.
+        ///
+        /// Open and close a test cycle, and see every role's progress and
+        /// every failure across the hospital's testers.
+        pub const MANAGE: &str = "qa.test_cycles.manage";
+    }
+}
+
 pub mod storage {
     pub mod policies {
         pub const LIST: &str = "storage.policies.list";

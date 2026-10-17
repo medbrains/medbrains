@@ -399,6 +399,9 @@ const OtherSpecialtiesPage = lazy(() =>
 );
 const NabhIndicatorsPage = lazy(() => import("./pages/admin/nabh-indicators"));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
+const TestCyclesPage = lazy(() =>
+  import("./pages/admin/test-cycles").then((m) => ({ default: m.TestCyclesPage })),
+);
 const ApiKeysPage = lazy(() =>
   import("./pages/admin/api-keys").then((m) => ({ default: m.ApiKeysPage })),
 );
@@ -692,6 +695,7 @@ export function App() {
                 <Route path="doctors" element={<AdminDoctorsPage />} />
                 <Route path="nabh-indicators" element={<NabhIndicatorsPage />} />
                 <Route path="api-keys" element={<ApiKeysPage />} />
+                <Route path="test-cycles" element={<TestCyclesPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="sso" element={<SsoSettingsPage />} />

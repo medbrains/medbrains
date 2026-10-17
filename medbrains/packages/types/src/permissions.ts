@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1066 permissions, one per constant in the Rust source. */
+/** 1068 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5943,6 +5943,19 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
     module: "devices",
   },
+  // qa
+  {
+    code: "qa.test_cases.record",
+    label: "Record test results",
+    description: "Shows the test-case panel and saves Pass, Fail or Blocked for the signed-in role's cases in the open test cycle. Given to the `test_<role>` accounts per user by scripts/create_test_accounts.py, never to a built-in role: real staff never see the panel.",
+    module: "qa",
+  },
+  {
+    code: "qa.test_cycles.manage",
+    label: "Run test cycles",
+    description: "Open and close a test cycle, and see every role's progress and every failure across the hospital's testers.",
+    module: "qa",
+  },
   // storage
   {
     code: "storage.policies.list",
@@ -8972,6 +8985,16 @@ export const P = {
     VENDORS_LIST: "procurement.vendors.list",
     VENDORS_UPDATE: "procurement.vendors.update",
   },
+  QA: {
+    TEST_CASES: {
+      RECORD: "qa.test_cases.record",
+    },
+    TEST_CASES_RECORD: "qa.test_cases.record",
+    TEST_CYCLES: {
+      MANAGE: "qa.test_cycles.manage",
+    },
+    TEST_CYCLES_MANAGE: "qa.test_cycles.manage",
+  },
   QUALITY: {
     ACCREDITATION: {
       LIST: "quality.accreditation.list",
@@ -10727,6 +10750,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
+      P.QA.TEST_CYCLES.MANAGE,
       P.QUALITY.ACCREDITATION.LIST,
       P.QUALITY.ACCREDITATION.MANAGE,
       P.QUALITY.AUDITS.CREATE,

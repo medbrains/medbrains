@@ -2,8 +2,8 @@
 """Role test cases as a workbook testers fill in (#4804).
 
 Generated from the code so it never drifts from what each role can do:
-the menu (apps/web/src/config/navigation.ts, same visibility rule as the
-sidebar), the role grants (crates/medbrains-core/src/access/roles.rs) and the
+the menu (NAV_GROUPS, exported by apps/web/scripts/export-nav.ts; same
+visibility rule as the sidebar), the role grants (crates/medbrains-core/src/access/roles.rs) and the
 permission codes (crates/medbrains-core/src/permissions.rs). The day-to-day
 jobs come from scripts/role_test_workflows.py.
 
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -31,12 +32,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from role_test_workflows import WORKFLOWS  # noqa: E402
 
 OUT = ROOT / "docs" / "testing" / "MedBrains_Role_Test_Cases.xlsx"
+# The same workflows, for the in-app test panel.
+WORKFLOWS_JSON = ROOT / "apps" / "web" / "src" / "data" / "role-workflows.json"
 ADMIN_ROLES = {"super_admin", "hospital_admin"}
 # Probed by URL when a role cannot see them: the screens a leak would hurt most.
 SENSITIVE = ["/admin/users", "/audit", "/billing", "/mrd", "/pharmacy", "/lab", "/ipd", "/hr/payroll"]
-HEADER = ["ID", "Type", "Area", "What to test", "Steps", "Expected", "Permission",
+HEADER = ["Case", "Type", "Area", "What to test", "Steps", "Expected", "Permission",
           "Result", "Tester", "Date", "Notes"]
-WIDTHS = [11, 13, 18, 34, 60, 60, 30, 11, 14, 12, 30]
+WIDTHS = [26, 13, 18, 34, 60, 60, 30, 11, 14, 12, 30]
 RESULTS = '"Pass,Fail,Blocked,Not run"'
 
 
@@ -66,27 +69,19 @@ def roles(paths: dict[str, str]) -> list[tuple[str, str, set[str]]]:
 
 
 def menu() -> list[dict]:
-    nav = (ROOT / "apps/web/src/config/navigation.ts").read_text()
-    nav = nav[nav.index("export const NAV_GROUPS"):]
-    labels = json.loads((ROOT / "apps/web/public/locales/en/nav.json").read_text())
-    group, items = "", []
-    pattern = r'key: "([a-zA-Z_]+)",\s*\n\s*items:|i18nKey: "(\w+)",\s*\n\s*path: "([^"]+)",(.*?)(?=\n\s*\},|\n\s*children:)'
-    for m in re.finditer(pattern, nav, re.S):
-        if m.group(1):
-            group = m.group(1)
-            continue
-        rest = m.group(4)
-        one = re.search(r'requiredPermission: "([^"]+)"', rest)
-        many = re.search(r"requiredPermissions: \[([^\]]*)\]", rest)
-        items.append({
-            "group": labels.get("group" + group[:1].upper() + group[1:], group),
-            "label": labels.get(m.group(2), m.group(2)),
-            "path": m.group(3),
-            "one": one.group(1) if one else None,
-            "any": re.findall(r'"([^"]+)"', many.group(1)) if many else [],
-            "module": "moduleCode" in rest,
-        })
+    """The real sidebar, exported from NAV_GROUPS (computed lists resolved)."""
+    subprocess.run(
+        ["npx", "vite-node", "--root", "apps/web", "apps/web/scripts/export-nav.ts"],
+        cwd=ROOT, check=True, capture_output=True,
+    )
+    items = json.loads((ROOT / "docs/testing/nav-menu.json").read_text())
+    for item in items:
+        item["module"] = item["module"] is not None
     return items
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def visible(item: dict, granted: set[str]) -> bool:
@@ -98,35 +93,36 @@ def visible(item: dict, granted: set[str]) -> bool:
 def cases_for(code: str, name: str, granted: set[str], items: list[dict]) -> list[list[str]]:
     rows: list[list[str]] = []
 
-    def add(kind: str, area: str, what: str, steps: str, expected: str, perm: str = "") -> None:
-        rows.append([f"{code[:6].upper()}-{len(rows) + 1:03d}", kind, area, what, steps, expected, perm,
-                     "Not run", "", "", ""])
+    def add(key: str, kind: str, area: str, what: str, steps: str, expected: str, perm: str = "") -> None:
+        # The same id the in-app test panel records results under.
+        rows.append([f"{code}:{key}", kind, area, what, steps, expected, perm, "Not run", "", "", ""])
 
     login = f"test_{code}"[:30]
-    add("Sign in", "Sign in", f"Sign in as {name}",
+    add("sign-in", "Sign in", "Sign in", f"Sign in as {name}",
         f"app.medbrains.in → hospital code AMH → username {login} and the password from your test-accounts file.",
         f"You are signed in; the header shows 'TEST - {name}'; you land on a page you can use (not an error).")
     seen = [i for i in items if visible(i, granted)]
     for item in seen:
-        add("Should see", item["group"], f"Open {item['label']}",
-            f"Menu → {item['group']} → {item['label']}  ({item['path']})",
+        add(f"see:{item['path']}", "Should see", item["group"], f"Open {item['label']}",
+            f"Menu → {item['group']} → {item['parent'] + ' → ' if item.get('parent') else ''}{item['label']}  ({item['path']})",
             "The screen opens with no 'access denied' or error message. Lists load; an empty list says so. "
             "Buttons to add or change things appear only where this role should do that."
             + (" (Hidden if the hospital has this module switched off.)" if item["module"] else ""),
             item["one"] or ", ".join(item["any"][:3]) + ("…" if len(item["any"]) > 3 else ""))
     hidden = [i for i in items if not visible(i, granted)]
     if hidden:
-        add("Must not see", "Menu", "Menu shows only this role's screens",
+        add("menu", "Must not see", "Menu", "Menu shows only this role's screens",
             "Look through every menu group.",
             "These must NOT be in the menu: " + ", ".join(i["label"] for i in hidden) + ".")
         by_path = {i["path"]: i for i in hidden}
         for path in [p for p in SENSITIVE if p in by_path][:4]:
-            add("Must not see", by_path[path]["group"], f"Typing the address of {by_path[path]['label']}",
+            add(f"url:{path}", "Must not see", by_path[path]["group"],
+                f"Typing the address of {by_path[path]['label']}",
                 f"Type app.medbrains.in{path} into the address bar.",
                 "You get an 'access denied' page or are sent back — none of that screen's data is shown, even briefly.",
                 by_path[path]["one"] or "")
     for w in WORKFLOWS.get(code, []):
-        add("Workflow", w["area"], w["title"], w["steps"], w["expected"])
+        add(f"wf:{slug(w['title'])}", "Workflow", w["area"], w["title"], w["steps"], w["expected"])
     return rows
 
 
@@ -205,6 +201,9 @@ def main() -> int:
     readme(readme_ws, total, len(tested))
     OUT.parent.mkdir(parents=True, exist_ok=True)
     wb.save(OUT)
+    WORKFLOWS_JSON.write_text(json.dumps(
+        {role: [{**w, "id": f"wf:{slug(w['title'])}"} for w in flows] for role, flows in WORKFLOWS.items()},
+        indent=2, ensure_ascii=False) + "\n")
     print(f"{len(tested)} roles, {total} cases -> {OUT.relative_to(ROOT)}")
     return 0
 
