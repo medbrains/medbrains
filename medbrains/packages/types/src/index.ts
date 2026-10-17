@@ -151,9 +151,9 @@ export {
 export * from "./field-access-catalogue";
 export * from "./field-mapping";
 export * from "./form-builder";
-export * from "./form-templates";
 export * from "./form-master";
 export * from "./form-runtime";
+export * from "./form-templates";
 export * from "./form-versioning";
 export * from "./housekeeping";
 export * from "./infection-control";
@@ -171,6 +171,7 @@ export * from "./mrd";
 export * from "./nurse-calls";
 export * from "./onboarding-masters";
 export * from "./onboarding-store";
+export * from "./onboarding-workbook";
 export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";
@@ -239,9 +240,8 @@ export {
   PERMISSIONS,
   ROLE_TEMPLATES,
 } from "./permissions.js";
-export * from "./pharmacy-credit-indents";
-export * from "./onboarding-workbook";
 export * from "./pharmacy-counter-close";
+export * from "./pharmacy-credit-indents";
 export * from "./pharmacy-delivery";
 export * from "./pharmacy-fulfilment";
 export * from "./pharmacy-phase2";
@@ -288,6 +288,7 @@ export type {
   PortalRefill,
   PortalRefillRequest,
   PortalSession,
+  PortalTeleconsult,
   PublicAvailableSlot,
   PublicBookableDoctor,
   PublicBookingDirectory,
@@ -4653,7 +4654,13 @@ export interface AccessAlert {
 }
 
 /** What a processor receives (DPDP Act s.8(2)). */
-export type ProcessorDataCategory = "identity" | "contact" | "clinical" | "billing" | "images" | "staff";
+export type ProcessorDataCategory =
+  | "identity"
+  | "contact"
+  | "clinical"
+  | "billing"
+  | "images"
+  | "staff";
 
 export interface DataProcessor {
   id: string;

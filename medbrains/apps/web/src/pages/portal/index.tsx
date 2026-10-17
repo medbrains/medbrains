@@ -30,6 +30,7 @@ import {
   type StoredPortalSession,
   storePortalSession,
 } from "./portal-session";
+import { PortalTeleconsults } from "./portal-tele";
 import { PortalAppointments, PortalBills, PortalPrescriptions, PortalReports } from "./views";
 
 /** Digits in the code the server mints. */
@@ -82,7 +83,10 @@ export function PatientPortalPage() {
           <PortalBills token={session.token} />
         </Tabs.Panel>
         <Tabs.Panel value="visits" pt="md">
-          <PortalAppointments token={session.token} />
+          <Stack gap="lg">
+            <PortalTeleconsults token={session.token} />
+            <PortalAppointments token={session.token} />
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="privacy" pt="md">
           <PortalPrivacy token={session.token} />
