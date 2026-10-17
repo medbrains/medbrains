@@ -14,6 +14,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
+pub mod analyzer_orders;
 mod hl7_flag;
 use hl7_flag::map_hl7_flag;
 
@@ -777,9 +778,11 @@ pub async fn ingest_device_data(
     // authenticated user could push readings for a device in another tenant.
     require_permission(&claims, permissions::devices::INGEST)?;
 
-    let dq = format!("{INSTANCE_SELECT} WHERE id = $1");
+    // A key or session from one hospital must not push readings into another's device.
+    let dq = format!("{INSTANCE_SELECT} WHERE id = $1 AND tenant_id = $2");
     let device = sqlx::query_as::<_, DeviceInstanceRow>(&dq)
         .bind(body.device_instance_id)
+        .bind(claims.tenant_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -1109,6 +1112,14 @@ pub fn router() -> axum::Router<AppState> {
             put(update_routing_rule).delete(delete_routing_rule),
         )
         .route("/api/devices/agents", get(list_bridge_agents))
+        .route(
+            "/api/devices/instances/{id}/analyzer-orders",
+            get(analyzer_orders::list_analyzer_orders),
+        )
+        .route(
+            "/api/devices/instances/{id}/analyzer-orders/sent",
+            post(analyzer_orders::record_analyzer_orders_sent),
+        )
         .route("/api/device-ingest/{module}", post(ingest_device_data))
 }
 

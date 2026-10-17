@@ -6,6 +6,10 @@ pub struct BridgeConfig {
     pub agent_name: String,
     pub agent_key: String,
     pub api_base: String,
+    /// A MedBrains API key (Admin → API keys) holding `devices.ingest`, and
+    /// `devices.orders.send` when orders go out to the analyzer. Sent as a
+    /// bearer token on every data call.
+    pub api_key: Option<String>,
     #[serde(default = "default_buffer_path")]
     pub buffer_path: String,
     #[serde(default = "default_heartbeat_interval")]
@@ -13,6 +17,13 @@ pub struct BridgeConfig {
     #[serde(default = "default_drain_interval")]
     pub drain_interval_secs: u64,
     pub hl7_listen: Option<String>,
+    /// ASTM E1381/E1394 listener (Sysmex-class analyzers), e.g. "0.0.0.0:5000".
+    /// A serial analyzer reaches it through a serial-to-TCP converter.
+    pub astm_listen: Option<String>,
+    /// Send collected samples' orders to the analyzer as HL7 ORM, polling
+    /// every this many seconds. The analyzer's address is the device's host
+    /// and port in MedBrains. Off when absent.
+    pub order_poll_secs: Option<u64>,
     pub device_instance_id: Option<String>,
     #[serde(default = "default_deployment_mode")]
     pub deployment_mode: String,
