@@ -104,7 +104,6 @@ HIGH_RISK_PATH_WORDS = (
 )
 
 PUBLIC_ROUTE_FILES = {
-    "apps/web/src/pages/landing.tsx",
     "apps/web/src/pages/login.tsx",
     "apps/web/src/pages/onboarding/index.tsx",
 }

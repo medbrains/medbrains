@@ -17,7 +17,6 @@ function ScrollToTop() {
   return null;
 }
 
-const LandingPage = lazy(() => import("./pages/landing").then((m) => ({ default: m.LandingPage })));
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
 const TermsPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.TermsPage })));
 const PrivacyPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.PrivacyPage })));
@@ -489,7 +488,8 @@ export function App() {
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             {/* Public */}
-            <Route path="/" element={<LandingPage />} />
+            {/* The website (www.medbrains.in) is the landing page; the app opens on sign-in. */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
