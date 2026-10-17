@@ -6,6 +6,7 @@ use medbrains_server_core::state::AppState;
 
 pub mod long_term_care;
 pub mod specialty_dental;
+pub mod specialty_dental_plan;
 pub mod specialty_maternity;
 pub mod specialty_ophtho;
 pub mod specialty_psychiatry;
@@ -85,6 +86,23 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/specialty/dental/exams/{exam_id}/chart",
             get(specialty_dental::list_chart_entries).post(specialty_dental::create_chart_entry),
+        )
+        .route(
+            "/api/specialty/dental/chart/{id}",
+            put(specialty_dental_plan::update_chart_entry)
+                .delete(specialty_dental_plan::remove_chart_entry),
+        )
+        .route(
+            "/api/specialty/dental/exams/{exam_id}/treatment",
+            get(specialty_dental_plan::list_treatment).post(specialty_dental_plan::plan_treatment),
+        )
+        .route(
+            "/api/specialty/dental/treatment/{id}/complete",
+            post(specialty_dental_plan::complete_treatment),
+        )
+        .route(
+            "/api/specialty/dental/treatment/{id}/cancel",
+            post(specialty_dental_plan::cancel_treatment),
         )
         .route(
             "/api/specialty/psychiatry/patients",

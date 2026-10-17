@@ -4,7 +4,7 @@
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use medbrains_core::permissions;
-use medbrains_core::specialty::dental::{DentalChartEntry, DentalExam};
+use medbrains_core::specialty::dental::{DentalChartEntry, DentalExam, is_fdi_tooth};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -206,7 +206,8 @@ pub async fn list_chart_entries(
         .await?;
     let rows = sqlx::query_as::<_, DentalChartEntry>(
         "SELECT * FROM dental_chart_entries \
-         WHERE tenant_id = $1 AND exam_id = $2 ORDER BY tooth_number LIMIT 200",
+         WHERE tenant_id = $1 AND exam_id = $2 AND deleted_at IS NULL \
+         ORDER BY tooth_number LIMIT 200",
     )
     .bind(claims.tenant_id)
     .bind(exam_id)
@@ -245,6 +246,11 @@ pub async fn create_chart_entry(
     if body.tooth_number.trim().is_empty() || body.condition.trim().is_empty() {
         return Err(AppError::BadRequest(
             "tooth_number and condition are required".to_owned(),
+        ));
+    }
+    if !is_fdi_tooth(body.tooth_number.trim()) {
+        return Err(AppError::BadRequest(
+            "Use an FDI tooth number, such as 36 or 75".to_owned(),
         ));
     }
     let mut tx = state.db.begin().await?;

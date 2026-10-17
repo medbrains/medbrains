@@ -872,6 +872,7 @@ import type {
   DeliveryType,
   DentalChartEntry,
   DentalExam,
+  DentalTreatmentItem,
   DepartmentAlertRow,
   DepartmentIssueRequest,
   DepartmentLoadRow,
@@ -1605,6 +1606,7 @@ import type {
   PickLine,
   PincodeResult,
   PipelineListResponse,
+  PlanDentalTreatmentRequest,
   PmChecklistPrintData,
   PoDetailResponse,
   PoListResponse,
@@ -2051,6 +2053,7 @@ import type {
   UpdateCssdLoadStatusRequest,
   UpdateCssdSterilizerRequest,
   UpdateDeathSummaryRequest,
+  UpdateDentalChartEntryRequest,
   UpdateDesignationRequest,
   UpdateDeviceInstanceRequest,
   UpdateDiagnosisRequest,
@@ -11146,6 +11149,24 @@ export const api = {
     }),
   listDentalChart: (examId: string) =>
     request<DentalChartEntry[]>(`/specialty/dental/exams/${examId}/chart`),
+  updateDentalChartEntry: (id: string, data: UpdateDentalChartEntryRequest) =>
+    request<DentalChartEntry>(`/specialty/dental/chart/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  removeDentalChartEntry: (id: string) =>
+    request<{ removed: boolean }>(`/specialty/dental/chart/${id}`, { method: "DELETE" }),
+  listDentalTreatment: (examId: string) =>
+    request<DentalTreatmentItem[]>(`/specialty/dental/exams/${examId}/treatment`),
+  planDentalTreatment: (examId: string, data: PlanDentalTreatmentRequest) =>
+    request<DentalTreatmentItem>(`/specialty/dental/exams/${examId}/treatment`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completeDentalTreatment: (id: string) =>
+    request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/complete`, { method: "POST" }),
+  cancelDentalTreatment: (id: string) =>
+    request<DentalTreatmentItem>(`/specialty/dental/treatment/${id}/cancel`, { method: "POST" }),
   createDentalChartEntry: (examId: string, data: CreateDentalChartEntryRequest) =>
     request<DentalChartEntry>(`/specialty/dental/exams/${examId}/chart`, {
       method: "POST",
