@@ -2247,6 +2247,10 @@ import type {
   WardOnDutyRow,
   WardStockRow,
   WaterQualityTestPrintData,
+  WebhookDelivery,
+  WebhookInput,
+  WebhookSubscription,
+  WebhookWithSecret,
   WellsDvtRequest,
   WellsDvtResult,
   WellsPeRequest,
@@ -3183,6 +3187,18 @@ export const api = {
   getApiKeyUsage: (id: string) => request<ApiKeyUsageRow[]>(`/admin/api-keys/${id}/usage`),
   /** The OpenAPI description of this server's API: every path, method and permission. */
   getOpenApiSpec: () => request<Record<string, unknown>>("/openapi.json"),
+  listWebhooks: () => request<WebhookSubscription[]>("/admin/webhooks"),
+  createWebhook: (data: WebhookInput) =>
+    request<WebhookWithSecret>("/admin/webhooks", { method: "POST", body: JSON.stringify(data) }),
+  updateWebhook: (id: string, data: WebhookInput) =>
+    request<WebhookSubscription>(`/admin/webhooks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  rotateWebhookSecret: (id: string) =>
+    request<WebhookWithSecret>(`/admin/webhooks/${id}/rotate-secret`, { method: "POST" }),
+  listWebhookDeliveries: (id: string) =>
+    request<WebhookDelivery[]>(`/admin/webhooks/${id}/deliveries`),
 
   // ── central approvals ─────────────────────────────────────────────────────
   //

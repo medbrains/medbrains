@@ -60,6 +60,8 @@
   "dashboardBuilder": "منشئ لوحة التحكم",
   "integrationHub": "خطوط الأنابيب المدمجة",
   "formTemplates": "النماذج",
+  "apiKeys": "مفاتيح API",
+  "webhooks": "خطافات الويب",
   "screenBuilder": "منشئ الشاشات",
   "doctorSchedules": "جداول الأطباء",
   "administration": "الإدارة",

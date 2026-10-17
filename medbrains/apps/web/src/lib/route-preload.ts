@@ -70,6 +70,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/admin/settings": () => import("@/pages/admin/settings"),
   "/admin/integration-hub": () => import("@/pages/admin/integration-hub"),
   "/admin/forms": () => import("@/pages/admin/forms"),
+  "/admin/webhooks": () => import("@/pages/admin/webhooks"),
   "/admin/tv-displays": () => import("@/pages/tv-displays"),
   "/admin/doctor-schedules": () => import("@/pages/admin/doctor-schedules"),
   "/admin/documents": () => import("@/pages/documents"),

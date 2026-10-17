@@ -6041,6 +6041,40 @@ export interface CreatedApiKey {
   acts_as: string;
 }
 
+/** Where the hospital's events are sent (#224). The secret is never listed. */
+export interface WebhookSubscription {
+  id: string;
+  name: string;
+  url: string;
+  event_types: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Returned on create and rotate only: the secret, once. */
+export interface WebhookWithSecret extends WebhookSubscription {
+  signing_secret: string;
+}
+
+export interface WebhookInput {
+  name: string;
+  url: string;
+  event_types: string[];
+  is_active?: boolean;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  outbox_event_id: string;
+  event_type: string;
+  attempt: number;
+  status: "delivered" | "retrying" | "failed";
+  response_status: number | null;
+  error: string | null;
+  created_at: string;
+}
+
 export interface CreateApiKeyInput {
   name: string;
   description?: string;

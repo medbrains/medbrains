@@ -18,11 +18,12 @@
 //! it — losing it means issuing a new key, which is the correct outcome.
 
 mod docs;
+mod webhooks;
 
 use axum::{
     Json, Router,
     extract::{Path, State},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
@@ -40,6 +41,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/api-keys/{id}/revoke", post(revoke))
         .route("/api/admin/api-keys/{id}/usage", get(usage))
         .route("/api/openapi.json", get(docs::openapi))
+        .route("/api/admin/webhooks", get(webhooks::list).post(webhooks::create))
+        .route("/api/admin/webhooks/{id}", put(webhooks::update))
+        .route("/api/admin/webhooks/{id}/rotate-secret", post(webhooks::rotate_secret))
+        .route("/api/admin/webhooks/{id}/deliveries", get(webhooks::deliveries))
 }
 
 /// The longest a key may live.
