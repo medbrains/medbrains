@@ -5,7 +5,7 @@
 //! `document_outputs`, return a presigned download URL. Tenant rows in
 //! `document_templates` override the built-in system templates.
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -17,11 +17,11 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
-use medbrains_core::permissions;
 
 mod templates;
 pub(crate) use templates::{SYSTEM_TEMPLATES, SystemTemplate};
@@ -211,6 +211,7 @@ pub async fn render_document(
             )
         })
         .unwrap_or("none");
+    let watermark = sign_or_mark_draft(&mut context, watermark);
 
     if let Some(obj) = context.as_object_mut() {
         obj.insert(
@@ -316,6 +317,29 @@ pub async fn download_document(
         ],
         bytes,
     ))
+}
+
+/// A clinical document carries the list of its signatures. The first one
+/// is printed in the page's signature block; a document whose list is empty
+/// is unsigned and prints as a DRAFT, unless the caller asked for a stronger
+/// mark (cancelled, duplicate, ...). Documents with no signature list (bills,
+/// labels) are left alone.
+fn sign_or_mark_draft<'a>(context: &mut serde_json::Value, watermark: &'a str) -> &'a str {
+    let Some(obj) = context.as_object_mut() else {
+        return watermark;
+    };
+    let first = match obj.get("signatures").and_then(serde_json::Value::as_array) {
+        None => return watermark,
+        Some(list) => list.first().cloned(),
+    };
+    match first {
+        Some(signature) => {
+            obj.entry("signature").or_insert(signature);
+            watermark
+        }
+        None if watermark == "none" => "draft",
+        None => watermark,
+    }
 }
 
 /// GET /api/documents/templates/{code}/preview — render the template
@@ -531,28 +555,41 @@ pub async fn save_template(
 /// Document-render routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/documents/render",
-            post(render_document),
-        )
-        .route(
-            "/api/documents/{id}/download",
-            get(download_document),
-        )
-        .route(
-            "/api/documents/{id}/queue-print",
-            post(queue_print),
-        )
+        .route("/api/documents/render", post(render_document))
+        .route("/api/documents/{id}/download", get(download_document))
+        .route("/api/documents/{id}/queue-print", post(queue_print))
         .route(
             "/api/documents/render/templates/{code}/preview",
             get(preview_template),
         )
-        .route(
-            "/api/documents/render/templates",
-            get(list_templates),
-        )
-        .route(
-            "/api/documents/render/templates/{code}",
-            put(save_template),
-        )
+        .route("/api/documents/render/templates", get(list_templates))
+        .route("/api/documents/render/templates/{code}", put(save_template))
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use serde_json::json;
+
+    use super::sign_or_mark_draft;
+
+    #[test]
+    fn an_unsigned_clinical_document_prints_as_a_draft() {
+        let mut ctx = json!({ "signatures": [] });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "draft");
+        assert_eq!(sign_or_mark_draft(&mut ctx, "cancelled"), "cancelled");
+    }
+
+    #[test]
+    fn a_signed_document_prints_its_first_signature() {
+        let mut ctx = json!({ "signatures": [{ "verify_ref": "abc" }, { "verify_ref": "def" }] });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "none");
+        assert_eq!(ctx["signature"]["verify_ref"], "abc");
+    }
+
+    #[test]
+    fn a_bill_is_not_a_signed_document() {
+        let mut ctx = json!({ "total": 100 });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "none");
+        assert!(ctx.get("signature").is_none());
+    }
 }
