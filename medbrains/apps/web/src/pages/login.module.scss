@@ -3,120 +3,20 @@
 .wrapper {
   min-height: 100vh;
   display: flex;
-  background: var(--mb-bg-content);
+  // The whole page stands on the brand stage, like www.medbrains.in.
+  background: var(--mb-stage-bg);
   color: var(--mb-text-primary);
 }
 
-.manifesto {
-  flex: 1;
-  background: var(--mb-sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 64px;
-  position: relative;
-  overflow: hidden;
-  border-right: 1px solid var(--mb-border-subtle);
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: var(--mb-accent-gradient);
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: var(--mb-signature-spectrum-soft);
-    opacity: 0.9;
-    pointer-events: none;
-  }
-
-  @media (max-width: 900px) {
-    display: none;
-  }
-}
 
 
-.manifestoLogo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 48px;
-  position: relative;
-  z-index: 2;
-}
 
-.manifestoLogoText {
-  color: var(--mb-text-primary);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: var(--mb-letter-spacing);
-}
 
-.manifestoTitle {
-  font-family: var(--font-display);
-  font-size: 36px;
-  font-weight: var(--mb-font-weight-heading);
-  line-height: 1.15;
-  color: var(--mb-text-heading);
-  letter-spacing: var(--mb-letter-spacing);
-  margin-bottom: 24px;
-  position: relative;
-  z-index: 2;
 
-  em {
-    font-style: normal;
-    color: var(--fc-copper);
-  }
-}
 
-.manifestoBody {
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--mb-text-secondary);
-  max-width: 400px;
-  position: relative;
-  z-index: 2;
-}
 
-.manifestoStats {
-  display: flex;
-  gap: 32px;
-  margin-top: 40px;
-  padding-top: 32px;
-  border-top: 1px solid var(--mb-border-subtle);
-  position: relative;
-  z-index: 2;
-}
 
-.manifestoStat {
-  display: flex;
-  flex-direction: column;
-}
 
-.manifestoStatValue {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: var(--mb-font-weight-heading);
-  color: var(--mb-text-primary);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.manifestoStatLabel {
-  font-size: 11px;
-  font-weight: var(--mb-font-weight-label);
-  color: var(--mb-text-muted);
-  text-transform: uppercase;
-  letter-spacing: var(--mb-letter-spacing);
-  font-family: var(--font-mono);
-  margin-top: 4px;
-}
 
 .formSide {
   flex: 1;
@@ -125,7 +25,6 @@
   justify-content: center;
   padding: 48px;
   max-width: 560px;
-  background: var(--mb-bg-content);
 
   @media (max-width: 900px) {
     max-width: 100%;
