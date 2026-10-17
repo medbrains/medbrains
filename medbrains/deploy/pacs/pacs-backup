@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# /usr/local/bin/pacs-backup — nightly cloud copy of the on-site PACS.
+#
+# Orthanc keeps images as write-once files under /srv/orthanc/db and an
+# SQLite index beside them. The images are synced to S3 (only new files go
+# up each night); the index is copied with SQLite's online backup, so the
+# copy is consistent while Orthanc keeps running. The bucket is versioned,
+# so an image deleted or overwritten here is still recoverable there.
+set -euo pipefail
+# shellcheck disable=SC1091
+source /etc/medbrains-pacs/backup.env
+: "${PACS_BACKUP_BUCKET:?set PACS_BACKUP_BUCKET in /etc/medbrains-pacs/backup.env}"
+PREFIX="${PACS_BACKUP_PREFIX:-pacs}/$(hostname)"
+DB=/srv/orthanc/db
+STAGE=/srv/orthanc/backup
+DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+
+mkdir -p "$STAGE"
+# A consistent copy of the index while Orthanc writes to it.
+sqlite3 "$DB/index" ".backup '$STAGE/index-$DATE.sqlite'"
+gzip -f "$STAGE/index-$DATE.sqlite"
+aws s3 cp --only-show-errors --sse aws:kms "$STAGE/index-$DATE.sqlite.gz" \
+    "s3://$PACS_BACKUP_BUCKET/$PREFIX/index/index-$DATE.sqlite.gz"
+# Images: incremental, never deleting in the bucket.
+aws s3 sync --only-show-errors --sse aws:kms --exclude 'index*' \
+    "$DB" "s3://$PACS_BACKUP_BUCKET/$PREFIX/storage"
+# Keep a week of index copies locally for a quick restore.
+find "$STAGE" -name 'index-*.sqlite.gz' -mtime +7 -delete
+echo "pacs-backup: $DATE done ($(du -sh "$DB" | cut -f1) on disk)"

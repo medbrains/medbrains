@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly cloud copy of the on-site PACS
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pacs-backup
+Nice=10
+IOSchedulingClass=idle
