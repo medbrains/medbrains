@@ -33,6 +33,7 @@ import { StorageLocationsTab } from "@/components/Mrd/StorageLocationsTab";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./mrd.module.scss";
+import { MRD_PAGE_PERMISSIONS } from "./mrd-access";
 
 // Every rail section value, in priority order for default selection.
 const MRD_TAB_VALUES = [
@@ -46,14 +47,6 @@ const MRD_TAB_VALUES = [
   "storage",
   "retention",
   "stats",
-] as const;
-
-const MRD_PAGE_PERMISSIONS = [
-  P.MRD.RECORDS_LIST,
-  P.MRD.RECORDS_MANAGE,
-  P.MRD.CASE_SHEETS_VIEW,
-  P.MRD.BIRTHS_LIST,
-  P.MRD.DEATHS_LIST,
 ] as const;
 
 // ══════════════════════════════════════════════════════════

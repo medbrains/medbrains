@@ -942,6 +942,9 @@ import type {
   DoctorScheduleException,
   DocumentFormReviewSchedule,
   DeliverablePrintJob,
+  TestCaseResult,
+  TestCycle,
+  TestResultValue,
   DocumentOutput,
   DocumentOutputSignature,
   DocumentOutputStats,
@@ -11770,6 +11773,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** The open test cycle, if any (#4804). */
+  getOpenTestCycle: () => request<TestCycle | null>("/qa/cycle"),
+  listTestCycles: () => request<TestCycle[]>("/qa/cycles"),
+  openTestCycle: (name: string) =>
+    request<TestCycle>("/qa/cycles", { method: "POST", body: JSON.stringify({ name }) }),
+  closeTestCycle: (id: string) => request<TestCycle>(`/qa/cycles/${id}/close`, { method: "PUT" }),
+  /** A tester's own role's results, or everyone's for whoever runs the cycles. */
+  listTestResults: (cycleId: string) =>
+    request<TestCaseResult[]>(`/qa/results?cycle_id=${encodeURIComponent(cycleId)}`),
+  recordTestResult: (data: {
+    case_id: string;
+    result: TestResultValue;
+    note?: string | null;
+    tester_name?: string | null;
+    screen_path?: string | null;
+  }) => request<TestCaseResult>("/qa/results", { method: "PUT", body: JSON.stringify(data) }),
   /** Retire a printer (it stops receiving jobs) or bring it back. */
   setPrinterActive: (id: string, isActive: boolean) =>
     request<PrinterConfig>(`/documents/printers/${id}/active`, {

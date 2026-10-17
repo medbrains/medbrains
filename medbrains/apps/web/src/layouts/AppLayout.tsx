@@ -47,6 +47,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
+import { TestCasesPanel } from "@/components/qa/TestCasesPanel";
 import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
@@ -331,6 +332,9 @@ export function AppLayout() {
     </Tooltip>
   );
 
+  // Which parent entries (Administration → Admin) the user has opened.
+  const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
+
   // ── Render expanded nav item (with optional children) ──
   const renderExpandedItem = (item: ResolvedNavItem) => {
     if (item.children) {
@@ -340,10 +344,15 @@ export function AppLayout() {
       return (
         <div key={item.path}>
           <NavLink
+            // A real button, so the keyboard and screen readers can open it.
+            component="button"
+            type="button"
             label={item.label}
             leftSection={<span className={classes.navIcon}>{item.icon}</span>}
             active={isAdminActive}
-            defaultOpened={isAdminActive}
+            opened={openParents[item.path] ?? isAdminActive}
+            onChange={(opened) => setOpenParents((all) => ({ ...all, [item.path]: opened }))}
+            aria-expanded={openParents[item.path] ?? isAdminActive}
             className={isAdminActive ? classes.expandedItemActive : classes.expandedItem}
             aria-current={isAdminActive ? "page" : undefined}
             onFocus={() => handleNavigationIntent(item.path)}
@@ -710,6 +719,7 @@ export function AppLayout() {
       <LiveActivityIsland />
       <EmergencyCodeActivity />
       <StepUpGate />
+      <TestCasesPanel />
     </AppShell>
   );
 }

@@ -134,5 +134,6 @@
   "materials": "Materials",
   "approvals": "Approvals",
   "marketing": "Marketing",
-  "onboardingWorkbook": "Onboarding workbook"
+  "onboardingWorkbook": "Onboarding workbook",
+  "testCycles": "Test cycles"
 }
