@@ -3013,6 +3013,16 @@ pub mod devices {
         pub const RETRY: &str = "devices.messages.retry";
     }
 
+    pub mod orders {
+        /// Send lab orders to an analyzer.
+        ///
+        /// Lets a lab bridge read collected samples — barcode, test, and the
+        /// patient's name, birth date and sex — to load them onto its
+        /// analyzer's worklist, and record that it did. Grant it to the
+        /// bridge's API key, not to people.
+        pub const SEND: &str = "devices.orders.send";
+    }
+
     pub mod agents {
         pub const LIST: &str = "devices.agents.list";
         pub const MANAGE: &str = "devices.agents.manage";

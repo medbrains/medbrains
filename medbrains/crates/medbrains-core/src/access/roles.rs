@@ -1467,6 +1467,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::devices::CREATE,
             permissions::devices::INGEST,
             permissions::devices::LIST,
+            permissions::devices::orders::SEND,
             permissions::devices::messages::VIEW,
             permissions::devices::pairing::PAIRED_LIST,
             permissions::devices::pairing::PAIRED_REVOKE,
