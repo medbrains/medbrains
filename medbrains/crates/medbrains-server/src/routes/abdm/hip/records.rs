@@ -22,6 +22,10 @@ const NOT_SET_UP: &str = "ABDM is not set up for this hospital";
 const DHIS_THRESHOLD: i64 = 100;
 const DHIS_RATE_CATEGORY_1: i64 = 10;
 const DHIS_RATE_CATEGORY_2: i64 = 5;
+/// DHIS pays an HIU per granted consent that brought records from another
+/// facility. Every request here is patient-granted through the consent
+/// manager, so none is an auto-consent.
+const DHIS_RATE_HIU_CONSENT: i64 = 10;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AbdmCareContext {
@@ -219,6 +223,17 @@ pub struct AbdmSharingCounts {
     pub transfers: i64,
 }
 
+/// This hospital as an HIU, for the month.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AbdmHiuCounts {
+    pub requests: i64,
+    pub granted: i64,
+    pub denied: i64,
+    pub records_received: i64,
+    /// Granted consents that brought records from another facility.
+    pub dhis_eligible_consents: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct AbdmSharingSummary {
     pub month: NaiveDate,
@@ -229,7 +244,26 @@ pub struct AbdmSharingSummary {
     /// What the eligible links would earn once the threshold is passed.
     pub estimated_incentive_inr: i64,
     pub failures: Vec<AbdmSharingFailure>,
+    pub hiu: AbdmHiuCounts,
+    pub hiu_estimated_incentive_inr: i64,
 }
+
+const HIU_COUNTS_SQL: &str = "WITH asked AS ( \
+       SELECT r.id, r.status FROM abdm_consent_requests r \
+        WHERE r.tenant_id = $1 AND r.deleted_at IS NULL \
+          AND date_trunc('month', timezone('Asia/Kolkata', r.requested_at))::date = $2), \
+     received AS ( \
+       SELECT x.consent_artefact_id, x.source_hip_id, a.hiu_id FROM abdm_received_records x \
+         JOIN abdm_consent_artefacts a ON a.id = x.consent_artefact_id \
+        WHERE x.tenant_id = $1 AND x.deleted_at IS NULL \
+          AND date_trunc('month', timezone('Asia/Kolkata', x.received_at))::date = $2) \
+     SELECT (SELECT count(*) FROM asked) AS requests, \
+            (SELECT count(*) FROM asked WHERE EXISTS (SELECT 1 FROM abdm_consent_artefacts a \
+                WHERE a.tenant_id = $1 AND a.consent_request_id = asked.id)) AS granted, \
+            (SELECT count(*) FROM asked WHERE status = 'denied') AS denied, \
+            (SELECT count(*) FROM received) AS records_received, \
+            (SELECT count(DISTINCT consent_artefact_id) FROM received \
+                WHERE source_hip_id IS DISTINCT FROM hiu_id) AS dhis_eligible_consents";
 
 /// Counts for the month. "Eligible" applies DHIS's rules: KYC-verified ABHAs
 /// only, one link per ABHA per day (a category-1 record wins the day), at
@@ -302,6 +336,11 @@ pub async fn sharing_summary(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+    let hiu = sqlx::query_as::<_, AbdmHiuCounts>(HIU_COUNTS_SQL)
+        .bind(claims.tenant_id)
+        .bind(month)
+        .fetch_one(&mut *tx)
+        .await?;
     tx.commit().await?;
     let eligible = counts.eligible_category_1 + counts.eligible_category_2;
     Ok(Json(AbdmSharingSummary {
@@ -313,5 +352,7 @@ pub async fn sharing_summary(
             + counts.eligible_category_2 * DHIS_RATE_CATEGORY_2,
         counts,
         failures,
+        hiu_estimated_incentive_inr: hiu.dhis_eligible_consents * DHIS_RATE_HIU_CONSENT,
+        hiu,
     }))
 }

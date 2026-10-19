@@ -25,7 +25,7 @@ use crate::{error::AppError, state::AppState};
 /// Care contexts one transfer carries.
 const TRANSFER_LIMIT: i64 = 100;
 
-fn time(v: &Value) -> Option<DateTime<Utc>> {
+pub(crate) fn time(v: &Value) -> Option<DateTime<Utc>> {
     v.as_str()
         .and_then(|s| {
             DateTime::parse_from_rfc3339(s)
@@ -39,7 +39,7 @@ fn time(v: &Value) -> Option<DateTime<Utc>> {
         })
 }
 
-fn strings(v: &Value, field: Option<&str>) -> Vec<String> {
+pub(crate) fn strings(v: &Value, field: Option<&str>) -> Vec<String> {
     v.as_array()
         .into_iter()
         .flatten()

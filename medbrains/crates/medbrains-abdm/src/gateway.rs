@@ -1,4 +1,5 @@
-//! ABDM HIE-CM gateway (v3) — the calls a Health Information Provider makes.
+//! ABDM HIE-CM gateway (v3) — the calls a Health Information Provider (M2)
+//! and a Health Information User (M3) make.
 //!
 //! Every call is asynchronous at ABDM: the gateway answers `202 Accepted`
 //! and delivers the result later to one of our callback routes, matched by
@@ -46,6 +47,19 @@ pub const HI_NOTIFY_PATH: &str = "/api/hiecm/data-flow/v3/health-information/not
 /// The gateway's public keys (JWKS) its callback JWTs are signed with.
 pub const GATEWAY_CERTS_PATH: &str = "/api/hiecm/gateway/v3/certs";
 
+// ── Outbound (HIU → gateway) ─────────────────────────────────────────
+// Checked against NHA's ABDM wrapper (`application-v3.properties`), which
+// names them relative to the gateway's `/api/hiecm` base — the base every M2
+// path above uses. Not yet seen in the sandbox.
+/// Consent: ask the patient's consent manager for a consent.
+pub const CONSENT_INIT_PATH: &str = "/api/hiecm/consent/v3/request/init";
+/// Consent: acknowledge a consent notification (HIU side).
+pub const CONSENT_HIU_ON_NOTIFY_PATH: &str = "/api/hiecm/consent/v3/request/hiu/on-notify";
+/// Consent: fetch one granted consent artefact.
+pub const CONSENT_FETCH_PATH: &str = "/api/hiecm/consent/v3/fetch";
+/// Data flow: ask for the records a consent artefact covers.
+pub const HIU_HI_REQUEST_PATH: &str = "/api/hiecm/data-flow/v3/health-information/request";
+
 // ── Inbound (gateway → HIP), relative to the HIP's registered base URL ──
 pub const CB_ON_GENERATE_TOKEN: &str = "/api/v3/hip/token/on-generate-token";
 pub const CB_ON_LINK_CARE_CONTEXT: &str = "/api/v3/link/on_carecontext";
@@ -54,6 +68,15 @@ pub const CB_LINK_INIT: &str = "/api/v3/hip/link/care-context/init";
 pub const CB_LINK_CONFIRM: &str = "/api/v3/hip/link/care-context/confirm";
 pub const CB_CONSENT_NOTIFY: &str = "/api/v3/consent/request/hip/notify";
 pub const CB_HI_REQUEST: &str = "/api/v3/hip/health-information/request";
+
+// ── Inbound (gateway → HIU) — the wrapper's `GatewayURL` (v3) ──────────
+pub const CB_HIU_CONSENT_ON_INIT: &str = "/api/v3/hiu/consent/request/on-init";
+pub const CB_HIU_CONSENT_NOTIFY: &str = "/api/v3/hiu/consent/request/notify";
+pub const CB_HIU_CONSENT_ON_FETCH: &str = "/api/v3/hiu/consent/on-fetch";
+pub const CB_HIU_HI_ON_REQUEST: &str = "/api/v3/hiu/health-information/on-request";
+/// Where HIPs push encrypted records: our own path, sent as `dataPushUrl`
+/// (ABDM takes any URL the HIU names), so not an ABDM constant at all.
+pub const HIU_DATA_PUSH_PATH: &str = "/api/v3/hiu/data/push";
 
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -103,6 +126,34 @@ impl AbdmGatewayClient {
         link_token: Option<&str>,
         body: &Value,
     ) -> Result<Uuid, AbdmError> {
+        self.post(path, session, ("X-HIP-ID", hip_id), link_token, body)
+            .await
+    }
+
+    /// POST a v3 gateway call as HIU `hiu_id` (`X-HIU-ID`). Returns the
+    /// `REQUEST-ID` sent.
+    ///
+    /// # Errors
+    /// [`AbdmError`] when the gateway is unreachable or refuses the call.
+    pub async fn send_as_hiu(
+        &self,
+        path: &str,
+        session: &str,
+        hiu_id: &str,
+        body: &Value,
+    ) -> Result<Uuid, AbdmError> {
+        self.post(path, session, ("X-HIU-ID", hiu_id), None, body)
+            .await
+    }
+
+    async fn post(
+        &self,
+        path: &str,
+        session: &str,
+        (id_header, id): (&str, &str),
+        link_token: Option<&str>,
+        body: &Value,
+    ) -> Result<Uuid, AbdmError> {
         let request_id = Uuid::new_v4();
         let mut builder = self
             .http
@@ -114,7 +165,7 @@ impl AbdmGatewayClient {
                 Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
             )
             .header("X-CM-ID", self.cm_id)
-            .header("X-HIP-ID", hip_id)
+            .header(id_header, id)
             .json(body);
         if let Some(token) = link_token {
             builder = builder.header("X-LINK-TOKEN", token);

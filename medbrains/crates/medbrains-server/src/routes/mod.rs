@@ -100,6 +100,8 @@ pub fn build_router(state: AppState) -> Router {
         // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
         // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
         .merge(abdm::hip::public_router())
+        // ABDM HIU callbacks (X-HIU-ID) and the HIPs' data push to us.
+        .merge(abdm::hiu::public_router())
         .route(
             "/api/abdm/gateway/callback",
             post(abdm::hip_relay::receive_callback),
@@ -434,6 +436,18 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/abdm/sharing/summary",
             get(abdm::hip::records::sharing_summary),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/consent-requests",
+            post(abdm::hiu::requests::raise),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/received-records",
+            get(abdm::hiu::view::patient_view),
+        )
+        .route(
+            "/api/abdm/received-records/{id}",
+            get(abdm::hiu::view::received_record),
         )
         .route(
             "/api/abdm/gateway/callbacks/pending",

@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 792;
+pub const PERMISSION_COUNT: usize = 794;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3444,6 +3444,22 @@ pub mod abdm {
         /// Send a patient's finalised records to ABDM again after a failure,
         /// or link one that was captured before the ABHA was verified.
         pub const MANAGE: &str = "abdm.records.manage";
+    }
+    /// Records this hospital receives through ABDM as a Health Information
+    /// User: consent requests to see a patient's records held by other
+    /// facilities, and the copies those facilities send.
+    pub mod consent {
+        /// Request a patient's records from other hospitals.
+        ///
+        /// Ask, through ABDM, for the patient's consent to see their records
+        /// held elsewhere: purpose, record types, dates and how long the copy
+        /// may be kept. The request is made in the requester's name and HPR ID.
+        pub const REQUEST: &str = "abdm.consent.request";
+        /// View records received from other hospitals.
+        ///
+        /// The consent requests raised for a patient and the records other
+        /// facilities sent under them, until the consent is revoked or expires.
+        pub const VIEW: &str = "abdm.consent.view";
     }
     pub mod hpr {
         /// Record and verify doctors' HPR IDs.
