@@ -62,8 +62,15 @@ test("a store keeper receives a purchase order into a store", async ({ hospital,
     await page.getByRole("option", { name: store.name, exact: true }).click();
   }
   await expect(storePicker).toHaveValue(store.name);
-  await drawer.getByRole("button", { name: "Create GRN", exact: true }).click();
+  await drawer.getByRole("button", { name: "Save draft GRN", exact: true }).click();
   await expect(drawer).toBeHidden();
+
+  // A draft moves nothing; the store keeper posts it and only then is it stock.
+  const detail = page.getByRole("dialog", { name: "GRN Details" });
+  await expect(detail.getByText("No stock has moved")).toBeVisible();
+  await detail.getByRole("button", { name: "Post to stock" }).click();
+  await expect(detail.getByText("posted", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Post to stock" })).toBeHidden();
 
   const grns = await api<{ grns: { po_id: string; store_location_id: string | null }[] }>(
     admin,

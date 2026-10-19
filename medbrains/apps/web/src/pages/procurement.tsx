@@ -9,6 +9,7 @@ import {
   IconFileInvoice,
   IconPackage,
   IconReceipt,
+  IconScan,
   IconTruck,
   IconUsers,
 } from "@tabler/icons-react";
@@ -18,6 +19,7 @@ import { ConsignmentPanel } from "@/components/Procurement/ConsignmentPanel";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { BatchStockPanel } from "./procurement/batch-stock-panel";
 import { GrnPanel } from "./procurement/grn-panel";
+import { GrnScanPanel } from "./procurement/grn-scan-panel";
 import { PurchaseOrderPanel } from "./procurement/purchase-order-panel";
 import { RateContractPanel } from "./procurement/rate-contract-panel";
 import { StoreLocationPanel } from "./procurement/store-location-panel";
@@ -31,6 +33,7 @@ const PROCUREMENT_PAGE_PERMISSIONS: readonly string[] = [
   P.PROCUREMENT.VENDORS_LIST,
   P.PROCUREMENT.PO_LIST,
   P.PROCUREMENT.GRN_LIST,
+  P.PROCUREMENT.GRN_SCAN,
   P.PROCUREMENT.RC_LIST,
   P.PROCUREMENT.STORES_LIST,
   P.PROCUREMENT.STORES_MANAGE,
@@ -55,6 +58,7 @@ export function ProcurementPage() {
   const canViewVendors = useHasPermission(P.PROCUREMENT.VENDORS_LIST);
   const canViewPo = useHasPermission(P.PROCUREMENT.PO_LIST);
   const canViewGrn = useHasPermission(P.PROCUREMENT.GRN_LIST);
+  const canScanBills = useHasPermission(P.PROCUREMENT.GRN_SCAN);
   const canViewRc = useHasPermission(P.PROCUREMENT.RC_LIST);
   const canViewBatchStock = useHasPermission(P.INDENT.STOCK_MANAGE);
   const canViewStores = useHasAnyPermission([
@@ -96,6 +100,13 @@ export function ProcurementPage() {
       value: "grn",
       label: "GRN",
       icon: <IconPackage size={16} />,
+    });
+  }
+  if (canScanBills) {
+    visibleTabs.push({
+      value: "bill-scans",
+      label: "Bill scans",
+      icon: <IconScan size={16} />,
     });
   }
   if (canViewRc) {
@@ -177,6 +188,11 @@ export function ProcurementPage() {
         {canViewGrn && (
           <Tabs.Panel value="grn">
             <GrnPanel canCreate={canCreateGrn} />
+          </Tabs.Panel>
+        )}
+        {canScanBills && (
+          <Tabs.Panel value="bill-scans">
+            <GrnScanPanel />
           </Tabs.Panel>
         )}
         {canViewRc && (

@@ -3,6 +3,16 @@
 use axum::{Router, routing::{get,post,put}};
 use medbrains_server_core::state::AppState;
 
+pub mod catalog_merge;
+pub mod grn;
+pub mod grn_lines;
+pub mod grn_match;
+pub mod grn_post;
+pub mod grn_scan;
+pub mod grn_scan_commit;
+pub mod grn_scan_contract;
+pub mod grn_scan_review;
+pub mod grn_validate;
 pub mod housekeeping;
 pub mod procurement;
 pub mod ops;
@@ -47,7 +57,7 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/procurement/grns",
-            get(procurement::list_grns).post(procurement::create_grn),
+            get(procurement::list_grns).post(grn::create_grn),
         )
         .route(
             "/api/procurement/grns/{id}",
@@ -55,8 +65,24 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/procurement/grns/{id}/complete",
-            put(procurement::complete_grn),
+            put(grn_post::complete_grn),
         )
+        // ── Supplier-bill scans (#4861) ──────────────────────
+        .route(
+            "/api/procurement/grn-scans",
+            get(grn_scan::list_scans).post(grn_scan::create_scan),
+        )
+        .route("/api/procurement/grn-scans/claim", post(grn_scan::claim_scan))
+        .route("/api/procurement/grn-scans/accuracy", get(grn_scan_review::scan_accuracy))
+        .route("/api/procurement/grn-scans/item-search", get(grn_scan_review::item_search))
+        .route("/api/procurement/grn-scans/{id}/review", get(grn_scan_review::review_scan))
+        .route("/api/procurement/grn-scans/{id}/draft", put(grn_scan_review::save_draft))
+        .route("/api/procurement/grn-scans/{id}/submit", post(grn_scan::submit_scan))
+        .route("/api/procurement/grn-scans/{id}/discard", post(grn_scan::discard_scan))
+        .route("/api/procurement/grn-scans/{id}/parse-result", post(grn_scan::parse_result))
+        .route("/api/procurement/grn-scans/{id}/commit", post(grn_scan_commit::commit_scan))
+        .route("/api/pharmacy/catalog/duplicates", get(catalog_merge::list_duplicates))
+        .route("/api/pharmacy/catalog/merge", post(catalog_merge::merge_items))
         .route(
             "/api/procurement/rate-contracts",
             get(procurement::list_rate_contracts).post(procurement::create_rate_contract),

@@ -960,7 +960,10 @@ export async function createGoodsReceiptNote(
     store_location_id: storeLocationId,
     invoice_number: `INV-E2E-${String(Date.now()).slice(-8)}`,
     invoice_date: opts.invoiceDate ?? dateDaysFromNow(2),
-    invoice_amount: opts.invoiceAmount ?? "1250.00",
+    // The bill total must agree with its lines (within ₹1) or the GRN is refused.
+    invoice_amount:
+      opts.invoiceAmount ??
+      (opts.purchaseOrderItem.quantity_ordered * Number(opts.purchaseOrderItem.unit_price)).toFixed(2),
     notes: "Vendor delivery received and checked by store",
     items: [
       {

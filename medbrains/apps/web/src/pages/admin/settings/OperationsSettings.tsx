@@ -67,6 +67,21 @@ const NUMBER_SETTINGS: NumberSettingDef[] = [
     fallback: 2,
   },
   {
+    key: "grn_min_shelf_life_days",
+    category: "operations",
+    label: "Minimum shelf life at receipt (days)",
+    description:
+      "A batch expiring sooner is refused at GRN entry and posting. A contract term, not a statute.",
+    fallback: 180,
+  },
+  {
+    key: "grn_invoice_tolerance_inr",
+    category: "operations",
+    label: "Bill total tolerance (₹)",
+    description: "How far a supplier bill's total may differ from its lines (round-off).",
+    fallback: 1,
+  },
+  {
     key: "token_days",
     category: "retention",
     label: "Token retention (days)",

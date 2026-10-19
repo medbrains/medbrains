@@ -139,6 +139,13 @@ export interface CreateGrnItemInput {
   expiry_date?: string;
   manufacture_date?: string;
   unit_price: number;
+  mrp?: number;
+  ptr?: number;
+  /** Scheme units ("10+1"): stocked, never billed. */
+  free_quantity?: number;
+  discount_amount?: number;
+  gst_rate?: number;
+  hsn_code?: string;
   rejection_reason?: string;
   notes?: string;
 }
@@ -149,13 +156,23 @@ export interface CreateGrnRequest {
   invoice_number?: string;
   invoice_date?: string;
   invoice_amount?: number;
+  irn?: string;
   notes?: string;
   items: CreateGrnItemInput[];
+}
+
+/** A receiving check: `block` stops the GRN, `warn` travels with it. */
+export interface GrnIssue {
+  /** `items[i].mrp`, `invoice_amount`, … */
+  field: string;
+  severity: "block" | "warn";
+  message: string;
 }
 
 export interface GrnDetailResponse {
   grn: GoodsReceiptNote;
   items: GrnItem[];
+  warnings: GrnIssue[];
 }
 
 export interface GrnListResponse {
