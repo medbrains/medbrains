@@ -31,6 +31,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::forms::definitions::READ,
             // A department head decides the first step of their staff's leave;
             // the handler checks `departments.head_employee_id`, so a doctor
@@ -377,6 +378,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::forms::definitions::READ,
             // A nursing head approves her own department's leave; the department-head
             // check in medbrains-hr limits this to the departments she heads.
@@ -736,6 +738,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::VIEW,
@@ -792,6 +795,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::ARRANGE,
             permissions::pharmacy::deliveries::COMPLETE,
@@ -1135,6 +1139,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            permissions::terminology::snomed::ANALYTICS,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
@@ -1212,6 +1217,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            permissions::terminology::snomed::ANALYTICS,
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
@@ -1345,6 +1351,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::PRINT,
             permissions::clinical_notes::EXPORT,
@@ -1393,6 +1400,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Dietitian",
         description: "Diet templates, nutrition plans, kitchen inventory",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::clinical_notes::VIEW,
             permissions::clinical_notes::WRITE,
             permissions::clinical_notes::SIGN,
@@ -1507,6 +1515,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Radiology Technician",
         description: "Modality acquisition, study upload, technologist worklist",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::radiology::orders::LIST,
@@ -1552,6 +1561,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Blood Bank Technician",
         description: "Donor screening, inventory, crossmatch, transfusion records",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::blood_bank::donors::LIST,
@@ -1667,6 +1677,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Infection Control Officer",
         description: "HAI surveillance, antibiotic stewardship, biowaste, hand hygiene",
         permissions: &[
+            permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::infection_control::surveillance::LIST,

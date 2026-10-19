@@ -1,0 +1,2 @@
+id	effectiveTime	active	moduleId	conceptId	languageCode	typeId	term	caseSignificanceId
+1299999999112	20000101	1	19999999103	169999999108	hi	900000000000013009	सिंथेटिक बुखार	900000000000448009

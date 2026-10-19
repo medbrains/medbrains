@@ -14,6 +14,7 @@ members = [
     "crates/medbrains-approvals-store",
     "crates/medbrains-approvals",
     "crates/medbrains-snomed",
+    "crates/medbrains-terminology",
     "crates/medbrains-approvals-api",
     "crates/medbrains-api-keys",
     "crates/medbrains-api-keys-api",
@@ -214,6 +215,9 @@ base64 = "0.22"
 
 # Compression (cold-tier ObjectStore)
 flate2 = "1"
+# SNOMED CT RF2 release packages arrive as zip files. Read-only use: no
+# encryption, no legacy codecs.
+zip = { version = "4.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Validation
 regex = "1"

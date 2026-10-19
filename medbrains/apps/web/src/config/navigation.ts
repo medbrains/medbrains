@@ -3,6 +3,7 @@ import {
   IconAppWindow,
   IconBabyCarriage,
   IconBed,
+  IconBinaryTree,
   IconBoxSeam,
   IconBrain,
   IconBuildingFactory2,
@@ -189,6 +190,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconCalendarStats,
   IconHistory,
   IconFileAnalytics,
+  IconBinaryTree,
   IconDental,
   IconVideo,
 };
@@ -318,6 +320,7 @@ export function matchModuleBadge(pathname: string): ModuleBadge | undefined {
 
 const SETTINGS_NAV_PERMISSIONS = [
   "admin.settings.general.manage",
+  "terminology.snomed.manage",
   "admin.settings.facilities.list",
   "admin.settings.locations.list",
   "admin.settings.departments.list",
@@ -1193,6 +1196,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/audit",
         icon: "IconFileAnalytics",
         requiredPermission: "audit.log.view",
+      },
+      {
+        i18nKey: "snomed",
+        path: "/terminology/snomed",
+        icon: "IconBinaryTree",
+        requiredPermission: "terminology.snomed.view",
+        requiredPermissions: ["terminology.snomed.analytics"],
       },
       {
         i18nKey: "utilizationReview",

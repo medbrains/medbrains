@@ -78,6 +78,8 @@ import type {
   AmcContractPrintData,
   AmendResultRequest,
   AnalyticsDoctorRevenueRow,
+  AnalyzerOrderSent,
+  AnalyzerWorklist,
   AncVisit,
   AnesthesiaComplicationEntry,
   AnesthesiaRecordPrintData,
@@ -180,6 +182,7 @@ import type {
   BillingSummaryReport,
   BillingSummaryResponse,
   BillingThresholdStatus,
+  BillPayer,
   BiowasteRecord,
   BirthRegisterPrintData,
   BlogPost,
@@ -372,9 +375,6 @@ import type {
   ContrastScreeningResult,
   ConvertLeadRequest,
   ConvertLeadResponse,
-  BillPayer,
-  NonPayableRule,
-  PayerSplit,
   CorporateClient,
   CorporateEnrollment,
   CoSignatureRequest,
@@ -869,6 +869,7 @@ import type {
   DecideItemRequest,
   DecidePrivacyRequest,
   DeclineReferralRequest,
+  DeliverablePrintJob,
   DeliveryOptions,
   DeliveryRunner,
   DeliveryType,
@@ -892,8 +893,6 @@ import type {
   DeviceInfectionRate,
   DeviceInstance,
   DeviceMessage,
-  AnalyzerOrderSent,
-  AnalyzerWorklist,
   DeviceNodeKey,
   DevicePairingRequest,
   DeviceRoutingRule,
@@ -941,10 +940,6 @@ import type {
   DoctorSchedule,
   DoctorScheduleException,
   DocumentFormReviewSchedule,
-  DeliverablePrintJob,
-  TestCaseResult,
-  TestCycle,
-  TestResultValue,
   DocumentOutput,
   DocumentOutputSignature,
   DocumentOutputStats,
@@ -1422,6 +1417,7 @@ import type {
   NewsFeedArticle,
   NewsFeedListItem,
   NmcComplianceReportPrintData,
+  NonPayableRule,
   // Scheduling
   NoshowPredictionScore,
   NoshowRateRow,
@@ -1548,6 +1544,7 @@ import type {
   PatientTransfer,
   PatientTransferDisplay,
   PatientVisitRow,
+  PayerSplit,
   PayInstallmentRequest,
   PayInstallmentResponse,
   Payment,
@@ -1885,6 +1882,18 @@ import type {
   Sizing,
   SnfAdmission,
   SnomedCode,
+  SnomedConceptCount,
+  SnomedConceptDetail,
+  SnomedEclResult,
+  SnomedHierarchyResponse,
+  SnomedImportFiles,
+  SnomedImportStarted,
+  SnomedRelease,
+  SnomedRollup,
+  SnomedSearchParams,
+  SnomedSearchResponse,
+  SnomedStatus,
+  SnomedSubsumption,
   SofaRequest,
   SofaResult,
   SpcbBmwReturnsPrintData,
@@ -1950,7 +1959,10 @@ import type {
   TenantSummary,
   TerminologySearchResponse,
   TerminologySearchResult,
+  TestCaseResult,
+  TestCycle,
   Testimonial,
+  TestResultValue,
   ToggleChecklistItemRequest,
   TokenBoardMetrics,
   TokenSlipPrintData,
@@ -4861,6 +4873,55 @@ export const api = {
     qs.set("code", params.code);
     return request<TerminologySearchResult>(`/terminology/lookup?${qs}`);
   },
+
+  // ── SNOMED CT store (licensed RF2 releases; every result capped at 50) ──
+  getSnomedStatus: () => request<SnomedStatus>("/terminology/snomed/status"),
+  searchSnomedConcepts: (params: SnomedSearchParams) => {
+    const qs = new URLSearchParams();
+    qs.set("q", params.q);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.active_only !== undefined) qs.set("active_only", String(params.active_only));
+    if (params.semantic_tag) qs.set("semantic_tag", params.semantic_tag);
+    if (params.refset) qs.set("refset", params.refset);
+    if (params.lang) qs.set("lang", params.lang);
+    return request<SnomedSearchResponse>(`/terminology/snomed/search?${qs}`);
+  },
+  getSnomedConcept: (conceptId: string) =>
+    request<SnomedConceptDetail>(`/terminology/snomed/concepts/${encodeURIComponent(conceptId)}`),
+  getSnomedHierarchy: (conceptId: string, direction: "ancestors" | "descendants") =>
+    request<SnomedHierarchyResponse>(
+      `/terminology/snomed/concepts/${encodeURIComponent(conceptId)}/hierarchy?direction=${direction}`,
+    ),
+  checkSnomedSubsumption: (sub: string, sup: string) =>
+    request<SnomedSubsumption>(
+      `/terminology/snomed/subsumes?sub=${encodeURIComponent(sub)}&sup=${encodeURIComponent(sup)}`,
+    ),
+  evaluateSnomedEcl: (expression: string) =>
+    request<SnomedEclResult>(
+      `/terminology/snomed/ecl?expression=${encodeURIComponent(expression)}`,
+    ),
+  countSnomedCodedRecords: (conceptId: string) =>
+    request<SnomedConceptCount>(
+      `/terminology/snomed/analytics/count?concept=${encodeURIComponent(conceptId)}`,
+    ),
+  rollupSnomedCodedRecords: (parentId?: string) =>
+    request<SnomedRollup>(
+      `/terminology/snomed/analytics/rollup${parentId ? `?parent=${encodeURIComponent(parentId)}` : ""}`,
+    ),
+  listSnomedReleases: () => request<SnomedRelease[]>("/terminology/snomed/releases"),
+  getSnomedRelease: (id: string) => request<SnomedRelease>(`/terminology/snomed/releases/${id}`),
+  uploadSnomedRelease: (file: File) =>
+    request<SnomedImportStarted>("/terminology/snomed/releases/upload", {
+      method: "POST",
+      body: file,
+      headers: { "Content-Type": "application/zip", "X-File-Name": file.name },
+    }),
+  listSnomedImportFiles: () => request<SnomedImportFiles>("/terminology/snomed/import-files"),
+  importSnomedReleaseFromPath: (fileName: string) =>
+    request<SnomedImportStarted>("/terminology/snomed/releases/import-path", {
+      method: "POST",
+      body: JSON.stringify({ file_name: fileName }),
+    }),
 
   // ── SNOMED CT Search ──────────────────────────────────
   searchSnomed: (q: string, limit?: number) =>

@@ -112,6 +112,7 @@ medbrains-infra-utils = { path = "../medbrains-infra-utils" }
 medbrains-admin = { path = "../medbrains-admin" }
 medbrains-analytics = { path = "../medbrains-analytics" }
 medbrains-platform = { path = "../medbrains-platform" }
+medbrains-terminology = { path = "../medbrains-terminology" }
 medbrains-nursing = { path = "../medbrains-nursing" }
 medbrains-telehealth = { path = "../medbrains-telehealth" }
 medbrains-specialty = { path = "../medbrains-specialty" }
@@ -185,6 +186,7 @@ medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.27"
+zip = { workspace = true }
 
 [features]
 # Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).

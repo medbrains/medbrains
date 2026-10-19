@@ -959,69 +959,59 @@ fn strip_html(value: &str) -> String {
     output
 }
 
+/// SNOMED CT from the local RF2 store (`medbrains-terminology`), shaped as
+/// a terminology-facade result. Empty until a release is imported.
 async fn search_snomed_cache(
     state: &AppState,
     needle: &str,
     semantic_tag: Option<&str>,
     limit: i64,
 ) -> Result<Vec<TerminologySearchResult>, AppError> {
-    let contains = format!("%{needle}%");
-    let starts = format!("{needle}%");
-
-    let rows = sqlx::query_as::<_, TerminologySearchResult>(
-        "SELECT \
-            'snomed'::text AS system, \
-            code, \
-            display_name AS display, \
-            semantic_tag, \
-            'SNOMED CT official release cache'::text AS source, \
-            $3::text AS source_url, \
-            NULL::text AS source_version, \
-            is_active AS active, \
-            'official_release_cache'::text AS provider_mode, \
-            NULL::uuid AS corpus_entry_id \
-         FROM snomed_codes \
-         WHERE is_active = true \
-           AND ($4::text IS NULL OR semantic_tag = $4) \
-           AND (code ILIKE $1 OR display_name ILIKE $1) \
-         ORDER BY CASE WHEN code ILIKE $2 THEN 0 ELSE 1 END, display_name ASC \
-         LIMIT $5",
-    )
-    .bind(&contains)
-    .bind(&starts)
-    .bind(SNOMED_DISTRIBUTION_URL)
-    .bind(semantic_tag)
-    .bind(limit)
-    .fetch_all(&state.db)
-    .await?;
-
-    Ok(rows)
+    let params = medbrains_terminology::search::SearchParams {
+        q: needle.to_owned(),
+        limit,
+        active_only: true,
+        semantic_tag: semantic_tag.map(str::to_owned),
+        refset: None,
+        lang: "en".to_owned(),
+    };
+    let hits = medbrains_terminology::search::search(&state.db, &params).await?;
+    let version = snomed_release_version(state).await?;
+    Ok(hits
+        .into_iter()
+        .map(|hit| TerminologySearchResult {
+            system: "snomed".to_owned(),
+            display: hit
+                .preferred_term
+                .or(hit.fsn)
+                .unwrap_or_else(|| hit.concept_id.clone()),
+            code: hit.concept_id,
+            semantic_tag: hit.semantic_tag,
+            source: "SNOMED CT release store".to_owned(),
+            source_url: Some(SNOMED_DISTRIBUTION_URL.to_owned()),
+            source_version: version.clone(),
+            active: hit.active,
+            provider_mode: "official_release_cache".to_owned(),
+            corpus_entry_id: None,
+        })
+        .collect())
 }
 
 async fn lookup_snomed_cache(
     state: &AppState,
     code: &str,
 ) -> Result<Option<TerminologySearchResult>, AppError> {
-    let row = sqlx::query_as::<_, TerminologySearchResult>(
-        "SELECT \
-            'snomed'::text AS system, \
-            code, \
-            display_name AS display, \
-            semantic_tag, \
-            'SNOMED CT official release cache'::text AS source, \
-            $2::text AS source_url, \
-            NULL::text AS source_version, \
-            is_active AS active, \
-            'official_release_cache'::text AS provider_mode, \
-            NULL::uuid AS corpus_entry_id \
-         FROM snomed_codes \
-         WHERE is_active = true AND code = $1 \
-         LIMIT 1",
-    )
-    .bind(code)
-    .bind(SNOMED_DISTRIBUTION_URL)
-    .fetch_optional(&state.db)
-    .await?;
+    if medbrains_terminology::sctid::parse_sctid(code).is_none() {
+        return Ok(None);
+    }
+    let rows = search_snomed_cache(state, code, None, 1).await?;
+    Ok(rows.into_iter().next())
+}
 
-    Ok(row)
+/// The newest loaded release, e.g. `INT 2025-01-01`.
+async fn snomed_release_version(state: &AppState) -> Result<Option<String>, AppError> {
+    let loaded = medbrains_terminology::release::loaded(&state.db).await?;
+    Ok(loaded
+        .first()
+        .map(|r| format!("{} {}", r.edition, r.version_date)))
 }
