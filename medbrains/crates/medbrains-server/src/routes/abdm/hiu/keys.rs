@@ -110,47 +110,37 @@ pub async fn request_data(
         "keyMaterial": { "cryptoAlg": "ECDH", "curve": "Curve25519", "nonce": ours.nonce,
             "dhPublicKey": { "expiry": stamp(window.erase_at), "parameters": KEY_PARAMETERS,
                              "keyValue": ours.public_key } } } });
-    // Stored before sending, so a push that races the acknowledgement finds it.
+    // Stored before sending, with the REQUEST-ID the call carries: an
+    // on-request or a push that races the send finds its artefact.
+    let request_id = Uuid::new_v4();
+    let tenant_id = hiu.tenant_id;
+    let key = Some(sealed.as_str());
     set_key(
         state,
-        hiu.tenant_id,
-        artefact_id,
-        Some(&sealed),
+        (tenant_id, artefact_id),
+        key,
         "requesting",
-        None,
+        Some(request_id),
     )
     .await?;
-    match hiu.send_as_hiu(HIU_HI_REQUEST_PATH, &body).await {
-        Ok(request_id) => {
-            set_key(
-                state,
-                hiu.tenant_id,
-                artefact_id,
-                Some(&sealed),
-                "requested",
-                Some(request_id),
-            )
-            .await
-        }
-        Err(e) => {
-            set_key(
-                state,
-                hiu.tenant_id,
-                artefact_id,
-                None,
-                "request_failed",
-                None,
-            )
-            .await?;
-            Err(e)
-        }
-    }
+    let sent = hiu
+        .send_as_hiu_with_id(HIU_HI_REQUEST_PATH, request_id, &body)
+        .await;
+    let (key, hi_status) = match &sent {
+        Ok(()) => (key, "requested"),
+        Err(_) => (None, "request_failed"),
+    };
+    set_key(state, (tenant_id, artefact_id), key, hi_status, None).await?;
+    sent
 }
 
+/// Record the key and where the request stands. Only `requesting` is
+/// written unconditionally; every later step applies only while the
+/// artefact is still `requesting`, so an on-request that arrived first is
+/// never overwritten.
 async fn set_key(
     state: &AppState,
-    tenant_id: Uuid,
-    artefact_id: Uuid,
+    (tenant_id, artefact_id): (Uuid, Uuid),
     sealed: Option<&str>,
     hi_status: &str,
     request_id: Option<Uuid>,
@@ -161,7 +151,8 @@ async fn set_key(
     sqlx::query(
         "UPDATE abdm_consent_artefacts SET key_material_sealed = $3, hi_status = $4, \
                 hi_request_id = COALESCE($5, hi_request_id) \
-          WHERE tenant_id = $1 AND id = $2 AND role = 'hiu'",
+          WHERE tenant_id = $1 AND id = $2 AND role = 'hiu' \
+            AND ($4 = 'requesting' OR hi_status = 'requesting')",
     )
     .bind(tenant_id)
     .bind(artefact_id)

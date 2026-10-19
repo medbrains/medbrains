@@ -166,7 +166,7 @@ pub struct Refusal {
 /// (public key, nonce) from the push's key material.
 ///
 /// # Errors
-/// A [`Refusal`] naming why: no inline content, does not decrypt, checksum
+/// A [`Refusal`] naming why: no content, does not decrypt, checksum
 /// mismatch, not a FHIR bundle, or outside the consent.
 pub fn open_entry(
     entry: &Value,
@@ -182,11 +182,10 @@ pub fn open_entry(
         reference: reference.clone(),
         reason,
     };
-    // ponytail: inline `content` only; ABDM's `link` entries (large files
-    // fetched separately) are refused until a HIP is seen sending them.
+    // A `link` entry arrives here with its content already fetched (`link`).
     let content = entry["content"]
         .as_str()
-        .ok_or_else(|| refuse("Only inline content is accepted"))?;
+        .ok_or_else(|| refuse("The entry carries no content"))?;
     let plain = fidelius::decrypt(content, ours, sender.0, sender.1)
         .map_err(|_| refuse("Could not be decrypted with this request's key"))?;
     let expected =

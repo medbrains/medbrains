@@ -55,6 +55,9 @@ pub const GATEWAY_CERTS_PATH: &str = "/api/hiecm/gateway/v3/certs";
 pub const CONSENT_INIT_PATH: &str = "/api/hiecm/consent/v3/request/init";
 /// Consent: acknowledge a consent notification (HIU side).
 pub const CONSENT_HIU_ON_NOTIFY_PATH: &str = "/api/hiecm/consent/v3/request/hiu/on-notify";
+/// Consent: ask where a consent request stands, answered at `on-status`
+/// (the wrapper's `consentStatusPath`).
+pub const CONSENT_STATUS_PATH: &str = "/api/hiecm/consent/v3/request/status";
 /// Consent: fetch one granted consent artefact.
 pub const CONSENT_FETCH_PATH: &str = "/api/hiecm/consent/v3/fetch";
 /// Data flow: ask for the records a consent artefact covers.
@@ -71,6 +74,7 @@ pub const CB_HI_REQUEST: &str = "/api/v3/hip/health-information/request";
 
 // ── Inbound (gateway → HIU) — the wrapper's `GatewayURL` (v3) ──────────
 pub const CB_HIU_CONSENT_ON_INIT: &str = "/api/v3/hiu/consent/request/on-init";
+pub const CB_HIU_CONSENT_ON_STATUS: &str = "/api/v3/hiu/consent/request/on-status";
 pub const CB_HIU_CONSENT_NOTIFY: &str = "/api/v3/hiu/consent/request/notify";
 pub const CB_HIU_CONSENT_ON_FETCH: &str = "/api/v3/hiu/consent/on-fetch";
 pub const CB_HIU_HI_ON_REQUEST: &str = "/api/v3/hiu/health-information/on-request";
@@ -126,8 +130,16 @@ impl AbdmGatewayClient {
         link_token: Option<&str>,
         body: &Value,
     ) -> Result<Uuid, AbdmError> {
-        self.post(path, session, ("X-HIP-ID", hip_id), link_token, body)
-            .await
+        let request_id = Uuid::new_v4();
+        self.post(
+            path,
+            session,
+            ("X-HIP-ID", hip_id, request_id),
+            link_token,
+            body,
+        )
+        .await?;
+        Ok(request_id)
     }
 
     /// POST a v3 gateway call as HIU `hiu_id` (`X-HIU-ID`). Returns the
@@ -142,7 +154,25 @@ impl AbdmGatewayClient {
         hiu_id: &str,
         body: &Value,
     ) -> Result<Uuid, AbdmError> {
-        self.post(path, session, ("X-HIU-ID", hiu_id), None, body)
+        let request_id = Uuid::new_v4();
+        self.send_as_hiu_with_id(path, session, (hiu_id, request_id), body)
+            .await?;
+        Ok(request_id)
+    }
+
+    /// As [`Self::send_as_hiu`], with a `REQUEST-ID` the caller chose and
+    /// recorded first — the gateway may answer before this call returns.
+    ///
+    /// # Errors
+    /// [`AbdmError`] when the gateway is unreachable or refuses the call.
+    pub async fn send_as_hiu_with_id(
+        &self,
+        path: &str,
+        session: &str,
+        (hiu_id, request_id): (&str, Uuid),
+        body: &Value,
+    ) -> Result<(), AbdmError> {
+        self.post(path, session, ("X-HIU-ID", hiu_id, request_id), None, body)
             .await
     }
 
@@ -150,11 +180,10 @@ impl AbdmGatewayClient {
         &self,
         path: &str,
         session: &str,
-        (id_header, id): (&str, &str),
+        (id_header, id, request_id): (&str, &str, Uuid),
         link_token: Option<&str>,
         body: &Value,
-    ) -> Result<Uuid, AbdmError> {
-        let request_id = Uuid::new_v4();
+    ) -> Result<(), AbdmError> {
         let mut builder = self
             .http
             .post(format!("{}{path}", self.base_url))
@@ -170,8 +199,7 @@ impl AbdmGatewayClient {
         if let Some(token) = link_token {
             builder = builder.header("X-LINK-TOKEN", token);
         }
-        expect_success(builder).await?;
-        Ok(request_id)
+        expect_success(builder).await
     }
 
     /// The gateway's signing keys (a JWKS document). ABDM's docs ask for the

@@ -17062,6 +17062,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  checkAbdmConsentRequestStatus: (id: string) =>
+    request<AbdmConsentRequest>(`/abdm/consent-requests/${id}/check-status`, { method: "POST" }),
   getAbdmReceivedRecords: (patientId: string) =>
     request<AbdmHiuPatientView>(`/abdm/patients/${patientId}/received-records`),
   getAbdmReceivedRecord: (id: string) =>
