@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1099 permissions, one per constant in the Rust source. */
+/** 1102 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -680,6 +680,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.deliveries.complete",
     label: "Complete deliveries at the door",
     description: "Hand the medicines over against the patient's one-time code and record cash collected on delivery.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.storefront.verify",
+    label: "Verify online orders' prescriptions",
+    description: "Read the prescription a patient uploaded beside the order lines, then approve it, approve some lines, or reject it with a reason. Approval sends the order to fulfilment.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.storefront.manage",
+    label: "Run the online storefront",
+    description: "Choose which catalogue items patients may order online and set the online discount off MRP.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.h1_register.view",
+    label: "View the Schedule H1 register",
+    description: "Every H1 supply — prescriber, patient and address, drug, batch, expiry, quantity and bill — as Rule 65 requires it be kept and shown to an inspector.",
     module: "pharmacy",
   },
   {
@@ -9030,6 +9048,10 @@ export const P = {
     FULFILMENT_PICK: "pharmacy.fulfilment.pick",
     FULFILMENT_RELEASE: "pharmacy.fulfilment.release",
     FULFILMENT_VERIFY: "pharmacy.fulfilment.verify",
+    H1_REGISTER: {
+      VIEW: "pharmacy.h1_register.view",
+    },
+    H1_REGISTER_VIEW: "pharmacy.h1_register.view",
     NDPS: {
       LIST: "pharmacy.ndps.list",
       MANAGE: "pharmacy.ndps.manage",
@@ -9106,6 +9128,12 @@ export const P = {
       MANAGE: "pharmacy.stock.manage",
     },
     STOCK_MANAGE: "pharmacy.stock.manage",
+    STOREFRONT: {
+      MANAGE: "pharmacy.storefront.manage",
+      VERIFY: "pharmacy.storefront.verify",
+    },
+    STOREFRONT_MANAGE: "pharmacy.storefront.manage",
+    STOREFRONT_VERIFY: "pharmacy.storefront.verify",
     STORES: {
       INDENTS: {
         APPROVE: "pharmacy.stores.indents.approve",
@@ -10684,6 +10712,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.FULFILMENT.PICK,
       P.PHARMACY.FULFILMENT.RELEASE,
       P.PHARMACY.FULFILMENT.VERIFY,
+      P.PHARMACY.H1_REGISTER.VIEW,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.NDPS.MANAGE,
       P.PHARMACY.PATIENTS.SEARCH,
@@ -10707,6 +10736,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.SAFETY.VIEW,
       P.PHARMACY.STEWARDSHIP.APPROVE,
       P.PHARMACY.STOCK.MANAGE,
+      P.PHARMACY.STOREFRONT.MANAGE,
+      P.PHARMACY.STOREFRONT.VERIFY,
       P.PHARMACY.STORES.INDENTS.APPROVE,
       P.PHARMACY.STORES.INDENTS.CREATE,
       P.PHARMACY.STORES.INDENTS.ISSUE,

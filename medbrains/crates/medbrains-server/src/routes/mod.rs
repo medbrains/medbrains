@@ -14,9 +14,11 @@ pub mod portal;
 pub mod portal_deliveries;
 pub mod portal_privacy;
 pub mod portal_refills;
+pub mod portal_store;
 pub mod portal_tele;
 pub mod bill_verify;
 pub mod rx_verify;
+pub mod store_public;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
@@ -65,11 +67,18 @@ use crate::{
         client_ip::client_ip_middleware,
         csrf::csrf_middleware,
         ip_restrict::ip_restrict_middleware,
-        rate_limit::{RateLimiter, rate_limit_middleware, tiered_rate_limit_middleware},
+        rate_limit::{
+            RateLimiter, rate_limit_middleware, storefront_rate_limit_middleware,
+            tiered_rate_limit_middleware,
+        },
         system_state::system_state_layer,
     },
     state::AppState,
 };
+
+/// An uploaded prescription arrives base64 in JSON: 8 MB of photo is about
+/// 11 MB on the wire.
+const STORE_RX_BODY_LIMIT: usize = 12 * 1024 * 1024;
 
 /// Build the application router — auth + health + onboarding + setup + geo + patients.
 #[allow(clippy::too_many_lines, clippy::large_stack_frames)]
@@ -906,6 +915,28 @@ pub fn build_router(state: AppState) -> Router {
             get(portal_deliveries::portal_delivery_options),
         )
         .route("/api/portal/deliveries", get(portal_deliveries::portal_deliveries))
+        // The storefront, signed in: cart, prescription, checkout, orders.
+        .route("/api/portal/store/cart", get(portal_store::store_cart))
+        .route(
+            "/api/portal/store/cart/items/{id}",
+            put(portal_store::store_set_quantity),
+        )
+        .route(
+            "/api/portal/store/cart/prescription",
+            put(portal_store::store_upload_prescription)
+                .layer(axum::extract::DefaultBodyLimit::max(STORE_RX_BODY_LIMIT)),
+        )
+        .route(
+            "/api/portal/store/delivery-options",
+            get(portal_store::store_delivery_options),
+        )
+        .route("/api/portal/store/checkout", post(portal_store::store_checkout))
+        .route("/api/portal/store/orders", get(portal_store::store_orders))
+        .route("/api/portal/store/orders/{id}", get(portal_store::store_order))
+        .route(
+            "/api/portal/store/prescriptions/{id}/order",
+            post(portal_store::store_order_prescription),
+        )
         .route(
             "/api/portal/deliveries/{id}",
             get(portal_deliveries::portal_delivery),
@@ -918,6 +949,28 @@ pub fn build_router(state: AppState) -> Router {
             post(portal_privacy::portal_create_request),
         )
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
+
+    // ── The storefront before sign-in: browse, and sign in with a mobile.
+    //    Public, so bounded per IP; codes far more tightly than browsing.
+    let store_public_routes = Router::new()
+        .route("/api/store/{tenant_code}/about", get(store_public::store_about))
+        .route("/api/store/{tenant_code}/items", get(store_public::store_items))
+        .route(
+            "/api/store/{tenant_code}/items/{id}",
+            get(store_public::store_item),
+        )
+        .route(
+            "/api/store/{tenant_code}/otp",
+            post(store_public::store_request_code),
+        )
+        .route(
+            "/api/store/{tenant_code}/sign-in",
+            post(store_public::store_sign_in),
+        )
+        .layer(from_fn_with_state(
+            RateLimiter::new(),
+            storefront_rate_limit_middleware,
+        ));
 
     // ── Reminder config — protected, must run through the same auth +
     //    csrf + audit middleware stack as `protected`. Without these
@@ -939,6 +992,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(bridge_routes)
         .merge(public_booking)
         .merge(portal_routes)
+        .merge(store_public_routes)
         .merge(reminder_routes)
         // An API path nothing answers is a JSON 404, never the app's HTML:
         // the SPA fallback answers 200, so a mistyped call would otherwise

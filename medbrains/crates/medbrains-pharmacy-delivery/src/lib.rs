@@ -15,6 +15,8 @@ pub mod choice;
 pub mod door;
 pub mod facts;
 pub mod pay;
+pub mod release;
+pub mod source;
 pub mod tracking;
 
 /// A delivery as the screens see it. The code's hash never leaves the server.
@@ -45,6 +47,8 @@ pub struct Delivery {
     pub failure_reason: Option<String>,
     /// The patient's refill request, when they asked for it from the portal.
     pub refill_request_id: Option<Uuid>,
+    /// The patient's storefront order, when they ordered it online.
+    pub store_order_id: Option<Uuid>,
     /// "morning", "afternoon" or "evening", as the patient preferred.
     pub preferred_slot: Option<String>,
     pub created_at: DateTime<Utc>,

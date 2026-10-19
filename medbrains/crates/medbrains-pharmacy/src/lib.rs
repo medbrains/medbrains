@@ -41,10 +41,13 @@ use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
 mod expired;
+pub mod h1_register;
 pub mod pos_counter;
 pub mod pos_returns;
+mod pos_scheduled;
 mod return_rules;
 pub mod rx_safety;
+pub mod storefront;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -2338,12 +2341,15 @@ async fn decrement_batch_stock_for_dispense_in_tx(
     })
 }
 
+/// `min_shelf_days`: days of shelf life the batch must have left — the
+/// storefront's floor for an online order, 0 otherwise.
 async fn try_decrement_fefo_batch_stock_for_dispense_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     catalog_id: Uuid,
     store_location_id: Option<Uuid>,
     quantity: i32,
+    min_shelf_days: i32,
 ) -> Result<Option<BatchDispenseTrace>, AppError> {
     sqlx::query_as::<_, BatchDispenseTrace>(
         "UPDATE pharmacy_batches SET \
@@ -2354,7 +2360,7 @@ async fn try_decrement_fefo_batch_stock_for_dispense_in_tx(
            SELECT id FROM pharmacy_batches \
            WHERE tenant_id = $2 AND catalog_item_id = $3 \
              AND quantity_on_hand >= $1 \
-             AND expiry_date > CURRENT_DATE \
+             AND expiry_date > CURRENT_DATE + $5 \
              AND quarantine_status = 'cleared' \
              AND ($4::uuid IS NULL OR store_location_id = $4) \
            ORDER BY expiry_date ASC, created_at ASC, id ASC \
@@ -2367,6 +2373,7 @@ async fn try_decrement_fefo_batch_stock_for_dispense_in_tx(
     .bind(tenant_id)
     .bind(catalog_id)
     .bind(store_location_id)
+    .bind(min_shelf_days)
     .fetch_optional(&mut **tx)
     .await
     .map_err(AppError::from)
@@ -3100,6 +3107,11 @@ pub async fn dispense_order(
 
     // Did we leave any item short of its ordered quantity? → partially_dispensed.
     let mut all_fully_dispensed = true;
+    // An order placed online goes out only on batches with the storefront's
+    // shelf life left (research §3: 90 days by default).
+    let online_shelf_days =
+        storefront::settings::min_shelf_days_for_order(&mut tx, claims.tenant_id, order.id)
+            .await?;
     for item in &items {
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
@@ -3165,6 +3177,7 @@ pub async fn dispense_order(
                     catalog_id,
                     order.store_location_id,
                     dispense_qty,
+                    online_shelf_days,
                 )
                 .await?;
                 if trace.is_none() && stock.batch_tracking_required {
@@ -3419,26 +3432,36 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
+/// Prescription, encounter, ordering user, and whether a pharmacist verified an upload.
+type ComplianceOrderRow = (Option<Uuid>, Option<Uuid>, Option<Uuid>, bool);
+
 async fn enforce_schedule_compliance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
     order_id: Uuid,
     witnessed_by: Option<Uuid>,
 ) -> Result<(), AppError> {
-    let order: Option<(Option<Uuid>, Option<Uuid>, Uuid)> = sqlx::query_as(
-        "SELECT prescription_id, encounter_id, ordered_by \
-         FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    // An online order whose uploaded prescription a pharmacist verified is
+    // prescription-backed too.
+    let order: Option<ComplianceOrderRow> = sqlx::query_as(
+        "SELECT o.prescription_id, o.encounter_id, o.ordered_by, \
+                EXISTS (SELECT 1 FROM pharmacy_store_orders s \
+                         WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \
+                           AND s.rx_source = 'upload' AND s.verified_at IS NOT NULL \
+                           AND s.deleted_at IS NULL) \
+         FROM pharmacy_orders o WHERE o.id = $1 AND o.tenant_id = $2",
     )
     .bind(order_id)
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
 
-    let Some((prescription_id, encounter_id, ordered_by)) = order else {
+    let Some((prescription_id, encounter_id, ordered_by, verified_upload)) = order else {
         return Err(AppError::NotFound);
     };
 
-    let has_prescription = prescription_id.is_some() || encounter_id.is_some();
+    let has_prescription =
+        prescription_id.is_some() || encounter_id.is_some() || verified_upload;
 
     let scheduled_items: Vec<(String, Option<String>)> = sqlx::query_as(
         "SELECT c.name, c.drug_schedule::text \
@@ -3479,7 +3502,7 @@ async fn enforce_schedule_compliance(
         if witnessed_by.is_none() {
             blocks
                 .push("Schedule X dispense requires a witness signature (witnessed_by)".to_owned());
-        } else if witnessed_by == Some(ordered_by) {
+        } else if witnessed_by == ordered_by {
             blocks.push("Schedule X witness must differ from prescriber".to_owned());
         }
 
@@ -6938,7 +6961,7 @@ pub async fn review_prescription(
         .await?;
 
         // A refill the patient asked to have delivered goes on to delivery.
-        medbrains_pharmacy_delivery::choice::on_order_approved(
+        medbrains_pharmacy_delivery::release::on_order_approved(
             &mut tx,
             claims.tenant_id,
             claims.sub,
@@ -7229,7 +7252,7 @@ pub async fn select_fefo_batch(
 pub async fn create_pos_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreatePosSaleRequest>,
+    Json(mut body): Json<CreatePosSaleRequest>,
 ) -> Result<(axum::http::HeaderMap, Json<PharmacyPosSale>), AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
     // As with OTC — a counter sale may have no patient. Named, it lands on
@@ -7248,6 +7271,12 @@ pub async fn create_pos_sale(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Schedule H/H1 against a prescription the customer brings: X, NDPS and
+    // controlled drugs never; H and H1 only with the patient named (a light
+    // pharmacy-customer record when they aren't registered), and for H1 the
+    // prescriber and the patient's address recorded (Rule 65).
+    let rx_lines = pos_scheduled::check_scheduled_sale(&mut tx, claims.tenant_id, &mut body).await?;
 
     // Allergy guard — only when the sale is linked to a patient.
     let allergy_reason = body
@@ -7268,41 +7297,6 @@ pub async fn create_pos_sale(
         )));
     }
 
-    // A POS / OTC walk-in sale carries no prescription, NDPS register entry, or witnessed
-    // dual-lock, so a scheduled or controlled drug (Schedule H/H1/X or NDPS/controlled) must
-    // not be sold here — those are dispensed only through the prescription path (dispense_order),
-    // which enforces schedule compliance and records the register + dual-lock. This matches the
-    // sibling OTC endpoint create_otc_sale (D&C Act 1940 / NDPS Act 1985).
-    let catalog_ids: Vec<Uuid> = body
-        .items
-        .iter()
-        .filter_map(|i| i.catalog_item_id)
-        .collect();
-    if !catalog_ids.is_empty() {
-        let blocked_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM pharmacy_catalog \
-             WHERE tenant_id = $1 AND id = ANY($2) \
-               AND (is_controlled = true OR drug_schedule IN ('H', 'H1', 'X', 'NDPS')) \
-             LIMIT 1",
-        )
-        .bind(claims.tenant_id)
-        .bind(&catalog_ids)
-        .fetch_optional(&mut *tx)
-        .await?;
-        if let Some(bid) = blocked_id {
-            let drug = body
-                .items
-                .iter()
-                .find(|i| i.catalog_item_id == Some(bid))
-                .map_or("This item", |i| i.drug_name.as_str());
-            return Err(AppError::BadRequest(format!(
-                "'{drug}' is a scheduled / controlled drug and cannot be sold over the counter — \
-                 dispense it against a prescription so schedule compliance and the NDPS register \
-                 and dual-lock are recorded."
-            )));
-        }
-    }
-
     // Generate sale number
     let sale_num = format!(
         "PH-SALE-{}",
@@ -7316,6 +7310,11 @@ pub async fn create_pos_sale(
     // Price every line on the server: MRP of the batch FEFO will issue, GST
     // and HSN from the catalogue. The browser's numbers are a request, not a
     // price — it may sell below MRP (a discount), never above it.
+    let catalog_ids: Vec<Uuid> = body
+        .items
+        .iter()
+        .filter_map(|i| i.catalog_item_id)
+        .collect();
     let prices = pos_counter::line_prices_in_tx(&mut tx, claims.tenant_id, &catalog_ids).await?;
     let mut lines = Vec::with_capacity(body.items.len());
     for item in &body.items {
@@ -7530,6 +7529,9 @@ pub async fn create_pos_sale(
     .bind(shift.as_ref().map(|s| s.business_date))
     .fetch_one(&mut *tx)
     .await?;
+    if rx_lines {
+        pos_scheduled::record_scheduled_sale(&mut tx, claims.tenant_id, sale.id, &body).await?;
+    }
 
     // Create sale items + order items + deduct stock
     let mut billing_lines = Vec::with_capacity(body.items.len());
@@ -7574,6 +7576,7 @@ pub async fn create_pos_sale(
                     catalog_id,
                     body.store_location_id,
                     item.quantity,
+                    0,
                 )
                 .await?;
                 if trace.is_none() && stock.batch_tracking_required {
@@ -8257,6 +8260,11 @@ pub struct CreatePosSaleRequest {
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
     pub patient_phone: Option<String>,
+    /// Schedule H1: the patient's address, and the prescriber on the
+    /// prescription the customer brought.
+    pub patient_address: Option<String>,
+    pub prescriber_name: Option<String>,
+    pub prescriber_registration: Option<String>,
     pub items: Vec<PosSaleItemInput>,
     pub discount_percent: Option<Decimal>,
     /// Why, when the discount off MRP is over the hospital's limit.
@@ -8484,6 +8492,11 @@ pub struct AnalyticsDateQuery {
 /// Pharmacy (orders, dispensing, catalog, stock, transfers, analytics, finance) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .merge(storefront::router())
+        .route(
+            "/api/pharmacy/h1-register",
+            get(h1_register::h1_register),
+        )
         .route("/api/pharmacy/orders", get(list_orders).post(create_order))
         .route("/api/pharmacy/orders/{id}", get(get_order))
         .route(

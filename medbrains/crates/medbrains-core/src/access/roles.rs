@@ -820,6 +820,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // The pharmacy owns its formulary; cleaning duplicate drugs out
             // of it is the pharmacist's call (#4861).
             permissions::pharmacy::catalog::MERGE,
+            // A registered pharmacist verifies an uploaded prescription and
+            // runs the online storefront the hospital's pharmacy sells from.
+            permissions::pharmacy::storefront::VERIFY,
+            permissions::pharmacy::storefront::MANAGE,
+            permissions::pharmacy::h1_register::VIEW,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,

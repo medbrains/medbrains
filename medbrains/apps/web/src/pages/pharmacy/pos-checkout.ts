@@ -11,7 +11,7 @@ export interface PosCheckoutLine {
   drugName: string;
   quantity: number;
   unitPrice: number;
-  /** Catalogue schedule; H/H1/X/NDPS are refused over the counter by the server. */
+  /** Catalogue schedule: X/NDPS never at the counter; H/H1 against a prescription. */
   schedule?: string | null;
   isControlled?: boolean;
   /** Catalogue stock when the line was added; the server re-checks it. */
@@ -29,8 +29,33 @@ export interface PosDiscountCheck {
   reason: string;
 }
 
+/**
+ * The prescription a customer brings for a Schedule H or H1 medicine:
+ * the patient named (or a registered patient picked), and for H1 the
+ * prescriber and the patient's address (Rule 65).
+ */
+export interface CounterRx {
+  patientLinked: boolean;
+  name: string;
+  phone: string;
+  address: string;
+  prescriberName: string;
+  prescriberRegistration: string;
+}
+
+export const EMPTY_COUNTER_RX: CounterRx = {
+  patientLinked: false,
+  name: "",
+  phone: "",
+  address: "",
+  prescriberName: "",
+  prescriberRegistration: "",
+};
+
 export interface PosCheckoutState {
   canEditAmounts: boolean;
+  /** For Schedule H/H1 lines; absent where the counter doesn't capture it. */
+  rx?: CounterRx;
   lines: readonly PosCheckoutLine[];
   allergyBlocked: boolean;
   /** A server safety refusal stands and no override reason can clear it. */
@@ -38,15 +63,21 @@ export interface PosCheckoutState {
   discount?: PosDiscountCheck;
 }
 
-/** Mirrors the server's OTC rule in `create_pos_sale` (D&C Act / NDPS Act). */
+/** Mirrors the server's counter rule in `create_pos_sale` (D&C Act / NDPS Act). */
 const PRESCRIPTION_ONLY = new Set(["H", "H1", "X", "NDPS"]);
+const NEVER_AT_COUNTER = new Set(["X", "NDPS"]);
 
 export function isPrescriptionOnly(line: Pick<PosCheckoutLine, "schedule" | "isControlled">) {
   return Boolean(line.isControlled) || PRESCRIPTION_ONLY.has(line.schedule ?? "");
 }
 
+/** Schedule H or H1: sold here against the prescription the customer brings. */
+export function needsCounterRx(line: Pick<PosCheckoutLine, "schedule" | "isControlled">) {
+  return !line.isControlled && (line.schedule === "H" || line.schedule === "H1");
+}
+
 function lineBlocker(line: PosCheckoutLine): string | null {
-  if (isPrescriptionOnly(line)) {
+  if (line.isControlled || NEVER_AT_COUNTER.has(line.schedule ?? "")) {
     const label = line.schedule ? `Schedule ${line.schedule}` : "a controlled drug";
     return `${line.drugName} is ${label} — dispense it against a prescription from the Rx queue.`;
   }
@@ -85,6 +116,23 @@ export function offMrpPercent(mrpValue: number, netBeforeTax: number): number {
   return Math.max(0, Math.round(((mrpValue - netBeforeTax) * 10000) / mrpValue) / 100);
 }
 
+/** What the prescription record still lacks for the H/H1 lines in the basket. */
+export function counterRxBlocker(lines: readonly PosCheckoutLine[], rx?: CounterRx): string | null {
+  const scheduled = lines.filter(needsCounterRx);
+  if (scheduled.length === 0) return null;
+  const filled = (v?: string) => Boolean(v?.trim());
+  if (!rx || (!rx.patientLinked && !(filled(rx.name) && filled(rx.phone)))) {
+    return "Schedule H/H1: pick the patient, or enter their name and mobile from the prescription.";
+  }
+  if (scheduled.some((l) => l.schedule === "H1")) {
+    if (!filled(rx.prescriberName) || !filled(rx.prescriberRegistration)) {
+      return "Schedule H1: enter the prescriber's name and registration number.";
+    }
+    if (!filled(rx.address)) return "Schedule H1: enter the patient's address.";
+  }
+  return null;
+}
+
 export function posCheckoutBlocker(state: PosCheckoutState): string | null {
   if (!state.canEditAmounts)
     return "Your role cannot edit sale amounts, so it cannot take payment.";
@@ -93,6 +141,8 @@ export function posCheckoutBlocker(state: PosCheckoutState): string | null {
     const reason = lineBlocker(line);
     if (reason) return reason;
   }
+  const rxReason = counterRxBlocker(state.lines, state.rx);
+  if (rxReason) return rxReason;
   if (state.discount) {
     const reason = discountBlocker(state.discount);
     if (reason) return reason;

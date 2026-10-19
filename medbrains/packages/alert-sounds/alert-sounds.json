@@ -1,0 +1,34 @@
+{
+  "$comment": "Which sound a notification makes, for every surface. Web imports this file; iOS (AlertSound.swift) and Android (AlertSound.kt) mirror it, and their unit tests read it to catch drift. Rules, first match wins: a silent scope makes no sound; the patient audience gets patient_sound; an urgent kind is urgent; an urgent entity type is urgent unless its kind is calm (a code blue stand-down is info); an attention entity type is attention; a calm kind is calm; anything else is default_sound. Urgent is for critical values and emergency codes only.",
+  "sounds": [
+    "calm",
+    "attention",
+    "urgent"
+  ],
+  "silent_scopes": [
+    "board"
+  ],
+  "patient_sound": "calm",
+  "urgent_kinds": [
+    "danger",
+    "error",
+    "critical",
+    "emergency"
+  ],
+  "calm_kinds": [
+    "info",
+    "success"
+  ],
+  "urgent_entity_types": [
+    "code_blue",
+    "mass_casualty_event",
+    "bedside_nurse_request"
+  ],
+  "attention_entity_types": [
+    "lab_order",
+    "radiology_order"
+  ],
+  "default_sound": "attention",
+  "throttle_ms": 4000,
+  "urgent_volume_floor": 0.4
+}

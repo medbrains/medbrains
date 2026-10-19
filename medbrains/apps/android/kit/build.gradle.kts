@@ -17,6 +17,8 @@ android {
         compilerOptions { allWarningsAsErrors.set(true) }
     }
     buildFeatures { compose = true }
+    // Alert sounds shared with web and iOS: packages/alert-sounds/android/raw.
+    sourceSets { named("main") { res.directories.add("../../../packages/alert-sounds/android") } }
 }
 dependencies {
     api(project(":core"))

@@ -42,6 +42,12 @@ pub struct PharmacyCatalog {
     pub refill_policy: String,
     /// Needs refrigeration: delivered only by the hospital's runner, never by courier.
     pub needs_cold_chain: bool,
+    /// Patients may order it from the online storefront; off until a
+    /// pharmacist turns it on.
+    pub sold_online: bool,
+    /// Codeine syrups, benzodiazepines, pregabalin and the like: online they
+    /// are pickup only, a unit at a time.
+    pub habit_forming: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -55,7 +61,8 @@ pub struct PharmacyOrder {
     /// over-the-counter sale need not name anyone.
     pub patient_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
-    pub ordered_by: Uuid,
+    /// None for an order a patient placed online, until a pharmacist takes it on.
+    pub ordered_by: Option<Uuid>,
     pub status: String,
     pub notes: Option<String>,
     // Phase 2 fields

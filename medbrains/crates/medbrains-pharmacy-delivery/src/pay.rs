@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::choice::open_delivery;
 use crate::facts::bill_balance;
+use crate::source::Source;
 
 /// Pay-now requests one payment can settle, at most.
 const RELEASE_LIMIT: i64 = 20;
@@ -23,21 +24,22 @@ pub(crate) async fn payment_link(
     invoice_id: Option<Uuid>,
     amount: Decimal,
     phone: Option<&str>,
-    request_id: Uuid,
+    source: Source,
 ) -> Result<Uuid, AppError> {
     let txn: Uuid = sqlx::query_scalar(
         "INSERT INTO payment_gateway_transactions \
            (tenant_id, invoice_id, gateway, gateway_order_id, amount, currency, status, notes, \
             idempotency_key) \
          VALUES ($1, $2, 'razorpay', '', $3, 'INR', 'pending_gateway', \
-                 jsonb_build_object('purpose', 'pharmacy_delivery', 'refill_request_id', $4::uuid), \
+                 jsonb_build_object('purpose', 'pharmacy_delivery', $5::text, $4::uuid), \
                  'delivery:' || $4::uuid) \
          RETURNING id",
     )
     .bind(tenant_id)
     .bind(invoice_id)
     .bind(amount)
-    .bind(request_id)
+    .bind(source.id())
+    .bind(source.key())
     .fetch_one(&mut **tx)
     .await?;
     medbrains_outbox::queue::queue_in_tx(
@@ -60,6 +62,39 @@ pub(crate) async fn payment_link(
     Ok(txn)
 }
 
+/// Pay-now refill requests waiting on a payment to `invoice_id`: the
+/// request, its order, and the delivery fee billed for it.
+const WAITING_REFILLS: &str = "SELECT r.id, q.pharmacy_order_id, \
+        COALESCE((SELECT ii.unit_price FROM invoice_items ii \
+                   WHERE ii.tenant_id = r.tenant_id AND ii.source_id = r.id \
+                     AND ii.is_reversal = false LIMIT 1), 0) \
+   FROM prescription_refill_requests r \
+   JOIN payment_gateway_transactions t ON t.id = r.payment_txn_id \
+   JOIN pharmacy_prescriptions q ON q.id = r.rx_queue_id AND q.tenant_id = r.tenant_id \
+  WHERE r.tenant_id = $1 AND t.invoice_id = $2 AND r.deleted_at IS NULL \
+    AND q.pharmacy_order_id IS NOT NULL \
+    AND NOT EXISTS (SELECT 1 FROM pharmacy_deliveries d \
+                     WHERE d.tenant_id = r.tenant_id AND d.refill_request_id = r.id \
+                       AND d.deleted_at IS NULL) \
+  ORDER BY r.created_at LIMIT $3";
+
+/// The same for storefront orders.
+const WAITING_STORE_ORDERS: &str = "SELECT s.id, s.pharmacy_order_id, \
+        COALESCE((SELECT ii.unit_price FROM invoice_items ii \
+                   WHERE ii.tenant_id = s.tenant_id AND ii.source_id = s.id \
+                     AND ii.is_reversal = false LIMIT 1), 0) \
+   FROM pharmacy_store_orders s \
+   JOIN payment_gateway_transactions t ON t.id = s.payment_txn_id \
+  WHERE s.tenant_id = $1 AND t.invoice_id = $2 AND s.deleted_at IS NULL \
+    AND s.pharmacy_order_id IS NOT NULL \
+    AND NOT EXISTS (SELECT 1 FROM pharmacy_deliveries d \
+                     WHERE d.tenant_id = s.tenant_id AND d.store_order_id = s.id \
+                       AND d.deleted_at IS NULL) \
+  ORDER BY s.created_at LIMIT $3";
+
+/// Builds the delivery source from the waiting row's id.
+type SourceOf = fn(Uuid) -> Source;
+
 /// A payment landed on `invoice_id`: open each pay-now delivery whose order
 /// is now paid for. Called by every gateway path that records a payment.
 pub async fn release_paid(
@@ -67,38 +102,22 @@ pub async fn release_paid(
     tenant_id: Uuid,
     invoice_id: Uuid,
 ) -> Result<(), AppError> {
-    let waiting: Vec<(Uuid, Uuid, Decimal)> = sqlx::query_as(
-        "SELECT r.id, q.pharmacy_order_id, \
-                COALESCE((SELECT ii.unit_price FROM invoice_items ii \
-                           WHERE ii.tenant_id = r.tenant_id AND ii.source_id = r.id \
-                             AND ii.is_reversal = false LIMIT 1), 0) \
-           FROM prescription_refill_requests r \
-           JOIN payment_gateway_transactions t ON t.id = r.payment_txn_id \
-           JOIN pharmacy_prescriptions q ON q.id = r.rx_queue_id AND q.tenant_id = r.tenant_id \
-          WHERE r.tenant_id = $1 AND t.invoice_id = $2 AND r.deleted_at IS NULL \
-            AND q.pharmacy_order_id IS NOT NULL \
-            AND NOT EXISTS (SELECT 1 FROM pharmacy_deliveries d \
-                             WHERE d.tenant_id = r.tenant_id AND d.refill_request_id = r.id \
-                               AND d.deleted_at IS NULL) \
-          ORDER BY r.created_at LIMIT $3",
-    )
-    .bind(tenant_id)
-    .bind(invoice_id)
-    .bind(RELEASE_LIMIT)
-    .fetch_all(&mut **tx)
-    .await?;
-    for (request_id, order_id, fee) in waiting {
-        if bill_balance(tx, tenant_id, order_id).await? <= Decimal::ZERO {
-            open_delivery(
-                tx,
-                tenant_id,
-                request_id,
-                order_id,
-                fee,
-                Decimal::ZERO,
-                None,
-            )
+    let sources: [(&str, SourceOf); 2] = [
+        (WAITING_REFILLS, Source::Refill),
+        (WAITING_STORE_ORDERS, Source::Store),
+    ];
+    for (sql, source) in sources {
+        let waiting: Vec<(Uuid, Uuid, Decimal)> = sqlx::query_as(sql)
+            .bind(tenant_id)
+            .bind(invoice_id)
+            .bind(RELEASE_LIMIT)
+            .fetch_all(&mut **tx)
             .await?;
+        for (id, order_id, fee) in waiting {
+            if bill_balance(tx, tenant_id, order_id).await? <= Decimal::ZERO {
+                let src = source(id);
+                open_delivery(tx, tenant_id, src, order_id, fee, Decimal::ZERO, None).await?;
+            }
         }
     }
     Ok(())

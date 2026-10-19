@@ -25,6 +25,23 @@ export const portalService = {
   getPortalDeliveries: (token: string) => api.getPortalDeliveries(token),
   getPortalDelivery: (token: string, id: string) => api.getPortalDelivery(token, id),
   getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
+  // The storefront: public browsing and sign-in, then the patient's own cart.
+  getStoreAbout: (tenantCode: string) => api.getStoreAbout(tenantCode),
+  searchStore: (...args: Parameters<typeof api.searchStore>) => api.searchStore(...args),
+  getStoreItem: (tenantCode: string, id: string) => api.getStoreItem(tenantCode, id),
+  requestStoreCode: (tenantCode: string, phone: string) => api.requestStoreCode(tenantCode, phone),
+  storeSignIn: (...args: Parameters<typeof api.storeSignIn>) => api.storeSignIn(...args),
+  getStoreCart: (token: string) => api.getStoreCart(token),
+  setStoreCartQuantity: (...args: Parameters<typeof api.setStoreCartQuantity>) =>
+    api.setStoreCartQuantity(...args),
+  uploadStorePrescription: (token: string, dataBase64: string) =>
+    api.uploadStorePrescription(token, dataBase64),
+  getStoreDeliveryOptions: (token: string) => api.getStoreDeliveryOptions(token),
+  storeCheckout: (...args: Parameters<typeof api.storeCheckout>) => api.storeCheckout(...args),
+  getStoreOrders: (token: string) => api.getStoreOrders(token),
+  getStoreOrder: (token: string, id: string) => api.getStoreOrder(token, id),
+  orderPortalPrescription: (token: string, prescriptionId: string) =>
+    api.orderPortalPrescription(token, prescriptionId),
   getPortalExport: (token: string) => api.getPortalExport(token),
   setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
     api.setPortalDpdpConsent(...args),

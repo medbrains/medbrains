@@ -5,11 +5,12 @@ import { Group, NumberInput, Select, Stack, Switch, Text, TextInput } from "@man
 import { useDisclosure } from "@mantine/hooks";
 import type { PharmacyCatalogFormInput } from "@medbrains/schemas";
 import { pharmacyCatalogFormSchema } from "@medbrains/schemas";
-import { useFieldAccess } from "@medbrains/stores";
-import type {
-  ComplianceSettings,
-  CreatePharmacyCatalogRequest,
-  PharmacyCatalog,
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import {
+  type ComplianceSettings,
+  type CreatePharmacyCatalogRequest,
+  P,
+  type PharmacyCatalog,
 } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +29,7 @@ import {
 import { pharmacyService } from "@/services/pharmacy.service";
 import { CatalogDuplicatesButton } from "./catalog-duplicates";
 import { ColdChainSwitch } from "./cold-chain-switch";
+import { OnlineListingSwitch } from "./online-listing-switch";
 import { REFILL_POLICY_OPTIONS, RefillPolicySelect } from "./refill-policy-select";
 import { renderPharmacySensitiveCurrency } from "./shared";
 
@@ -58,6 +60,7 @@ export function PharmacyCatalogTab({
   compliance: ComplianceSettings;
 }) {
   const queryClient = useQueryClient();
+  const canManageStorefront = useHasPermission(P.PHARMACY.STOREFRONT.MANAGE);
   const [formOpened, formHandlers] = useDisclosure(false);
   const [importOpened, importHandlers] = useDisclosure(false);
   const [formularyFilter, setFormularyFilter] = useState<string | null>(null);
@@ -198,6 +201,20 @@ export function PharmacyCatalogTab({
       key: "needs_cold_chain",
       label: "Refrigerated",
       render: (row: PharmacyCatalog) => <ColdChainSwitch row={row} canManage={canManage} />,
+    },
+    {
+      key: "sold_online",
+      label: "Online",
+      render: (row: PharmacyCatalog) => (
+        <OnlineListingSwitch row={row} field="sold_online" canManage={canManageStorefront} />
+      ),
+    },
+    {
+      key: "habit_forming",
+      label: "Habit-forming",
+      render: (row: PharmacyCatalog) => (
+        <OnlineListingSwitch row={row} field="habit_forming" canManage={canManageStorefront} />
+      ),
     },
     {
       key: "refill_policy",

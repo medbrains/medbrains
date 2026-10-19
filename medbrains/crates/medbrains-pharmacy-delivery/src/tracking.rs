@@ -21,7 +21,7 @@ const LINK_FAILED: &str = "Online payment couldn't be set up. Ask the pharmacy h
 #[derive(sqlx::FromRow)]
 struct Row {
     id: Uuid,
-    prescription_id: Uuid,
+    prescription_id: Option<Uuid>,
     drugs: Vec<String>,
     request_status: String,
     requested_at: DateTime<Utc>,
@@ -47,9 +47,11 @@ struct Row {
 /// One delivery the patient asked for, as they see it.
 #[derive(Debug, Serialize)]
 pub struct PatientDelivery {
-    /// The refill request's id: it exists from the moment they ask.
+    /// The refill request's id, or the storefront order's: it exists from
+    /// the moment they ask.
     pub id: Uuid,
-    pub prescription_id: Uuid,
+    /// The prescription refilled; none for a storefront order.
+    pub prescription_id: Option<Uuid>,
     pub drugs: Vec<String>,
     /// requested, awaiting_payment, being_prepared, out_for_delivery,
     /// delivered, failed, cancelled, declined or not_deliverable.
@@ -116,6 +118,59 @@ fn present(row: Row) -> PatientDelivery {
     }
 }
 
+/// What follows a delivery the patient chose: the latest delivery made for
+/// it, who is bringing it, and its pay-now payment. `{key}` names the source.
+const FOLLOW: &str = "d.status AS delivery_status, d.created_at AS prepared_at, d.dispatched_at, \
+        d.delivered_at, d.failure_reason, \
+        NULLIF(split_part(u.full_name, ' ', 1), '') AS runner_first_name, \
+        d.courier_name, d.tracking_ref, d.amount_due, d.patient_code, \
+        t.status AS payment_status, t.notes->>'payment_link' AS payment_url, \
+        t.amount AS payment_amount";
+
+/// Refill requests and storefront orders the patient chose delivery for.
+/// A storefront order waiting for its prescription to be verified reads as
+/// requested; one the pharmacist rejected is on the orders list, not here.
+static PATIENT_DELIVERIES: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    format!(
+        "SELECT * FROM ( \
+         SELECT r.id, r.prescription_id, \
+                ARRAY(SELECT i.drug_name FROM prescription_items i \
+                       WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id \
+                         AND i.item_status = 'active' ORDER BY i.created_at LIMIT $4) AS drugs, \
+                r.status AS request_status, r.created_at AS requested_at, \
+                r.delivery_address AS address, r.delivery_slot AS preferred_slot, \
+                r.delivery_payment AS payment, r.delivery_note, {FOLLOW} \
+           FROM prescription_refill_requests r \
+           LEFT JOIN LATERAL (SELECT * FROM pharmacy_deliveries d \
+                 WHERE d.tenant_id = r.tenant_id AND d.refill_request_id = r.id \
+                   AND d.deleted_at IS NULL ORDER BY d.created_at DESC LIMIT 1) d ON true \
+           LEFT JOIN users u ON u.id = d.runner_id AND u.tenant_id = r.tenant_id \
+           LEFT JOIN payment_gateway_transactions t \
+                  ON t.id = r.payment_txn_id AND t.tenant_id = r.tenant_id \
+          WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.fulfilment = 'delivery' \
+            AND r.deleted_at IS NULL AND ($3::uuid IS NULL OR r.id = $3) \
+         UNION ALL \
+         SELECT s.id, NULL::uuid, \
+                ARRAY(SELECT l.drug_name FROM pharmacy_store_order_lines l \
+                       WHERE l.tenant_id = s.tenant_id AND l.store_order_id = s.id \
+                         AND l.status <> 'rejected' AND l.deleted_at IS NULL \
+                       ORDER BY l.created_at LIMIT $4), \
+                'sent_to_pharmacy', COALESCE(s.placed_at, s.created_at), \
+                s.delivery_address, s.delivery_slot, s.delivery_payment, s.delivery_note, {FOLLOW} \
+           FROM pharmacy_store_orders s \
+           LEFT JOIN LATERAL (SELECT * FROM pharmacy_deliveries d \
+                 WHERE d.tenant_id = s.tenant_id AND d.store_order_id = s.id \
+                   AND d.deleted_at IS NULL ORDER BY d.created_at DESC LIMIT 1) d ON true \
+           LEFT JOIN users u ON u.id = d.runner_id AND u.tenant_id = s.tenant_id \
+           LEFT JOIN payment_gateway_transactions t \
+                  ON t.id = s.payment_txn_id AND t.tenant_id = s.tenant_id \
+          WHERE s.tenant_id = $1 AND s.patient_id = $2 AND s.fulfilment = 'delivery' \
+            AND s.status IN ('awaiting_verification', 'released') \
+            AND s.deleted_at IS NULL AND ($3::uuid IS NULL OR s.id = $3) \
+         ) x ORDER BY requested_at DESC LIMIT $5"
+    )
+});
+
 /// The patient's own delivery requests, newest first; `only` narrows to one.
 /// Another patient's request is simply not among them.
 pub async fn patient_deliveries(
@@ -124,39 +179,13 @@ pub async fn patient_deliveries(
     patient_id: Uuid,
     only: Option<Uuid>,
 ) -> Result<Vec<PatientDelivery>, AppError> {
-    let rows = sqlx::query_as::<_, Row>(
-        "SELECT r.id, r.prescription_id, \
-                ARRAY(SELECT i.drug_name FROM prescription_items i \
-                       WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id \
-                         AND i.item_status = 'active' ORDER BY i.created_at LIMIT $4) AS drugs, \
-                r.status AS request_status, r.created_at AS requested_at, \
-                r.delivery_address AS address, r.delivery_slot AS preferred_slot, \
-                r.delivery_payment AS payment, r.delivery_note, \
-                d.status AS delivery_status, d.created_at AS prepared_at, d.dispatched_at, \
-                d.delivered_at, d.failure_reason, \
-                NULLIF(split_part(u.full_name, ' ', 1), '') AS runner_first_name, \
-                d.courier_name, d.tracking_ref, d.amount_due, d.patient_code, \
-                t.status AS payment_status, t.notes->>'payment_link' AS payment_url, \
-                t.amount AS payment_amount \
-           FROM prescription_refill_requests r \
-           LEFT JOIN LATERAL ( \
-                SELECT * FROM pharmacy_deliveries d \
-                 WHERE d.tenant_id = r.tenant_id AND d.refill_request_id = r.id \
-                   AND d.deleted_at IS NULL \
-                 ORDER BY d.created_at DESC LIMIT 1) d ON true \
-           LEFT JOIN users u ON u.id = d.runner_id AND u.tenant_id = r.tenant_id \
-           LEFT JOIN payment_gateway_transactions t \
-                  ON t.id = r.payment_txn_id AND t.tenant_id = r.tenant_id \
-          WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.fulfilment = 'delivery' \
-            AND r.deleted_at IS NULL AND ($3::uuid IS NULL OR r.id = $3) \
-          ORDER BY r.created_at DESC LIMIT $5",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .bind(only)
-    .bind(DRUG_LIMIT)
-    .bind(LIST_LIMIT)
-    .fetch_all(&mut **tx)
-    .await?;
+    let rows = sqlx::query_as::<_, Row>(PATIENT_DELIVERIES.as_str())
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(only)
+        .bind(DRUG_LIMIT)
+        .bind(LIST_LIMIT)
+        .fetch_all(&mut **tx)
+        .await?;
     Ok(rows.into_iter().map(present).collect())
 }

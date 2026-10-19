@@ -34,6 +34,13 @@ targets:
       # Shared with the web picker: one list of body regions for every surface.
       - path: ../../packages/anatomy/body-regions.json
         buildPhase: resources
+      # Alert sounds, shared with web and Android (packages/alert-sounds/NOTICE.md).
+      - path: ../../packages/alert-sounds/ios/alert_calm.wav
+        buildPhase: resources
+      - path: ../../packages/alert-sounds/ios/alert_attention.wav
+        buildPhase: resources
+      - path: ../../packages/alert-sounds/ios/alert_urgent.wav
+        buildPhase: resources
     dependencies:
       - package: MedBrainsCore
       - package: MedBrainsKit
@@ -67,6 +74,9 @@ targets:
       - path: MedBrainsPatient
       # Shared with the web: one DPDP privacy notice for every surface.
       - path: ../../packages/privacy/dpdp-notice.json
+        buildPhase: resources
+      # Patients only ever hear calm, so it is the only sound bundled.
+      - path: ../../packages/alert-sounds/ios/alert_calm.wav
         buildPhase: resources
     dependencies:
       - package: MedBrainsCore

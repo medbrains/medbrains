@@ -1,11 +1,9 @@
-//! A patient's choice, when they ask for a refill, of pickup or home
-//! delivery: what they are offered, recording it on the request, and turning
-//! it into a delivery once the pharmacist approves the refill — at once when
-//! they pay at the door, after the payment link is paid when they pay now
-//! (`crate::pay`).
+//! A patient's choice of pickup or home delivery, for a refill or a
+//! storefront order: what they are offered, recording it, and opening the
+//! delivery (`crate::release` decides when).
 
 use medbrains_core::pharmacy_delivery::{
-    DELIVERY_SLOTS, LineFacts, PAY_ON_DELIVERY, cash_on_delivery, patient_offer,
+    DELIVERY_SLOTS, LineFacts, cash_on_delivery, patient_offer,
 };
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
@@ -13,12 +11,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::arrange::charge_fee;
 use crate::facts::{
-    bill_balance, history, home_delivery_enabled, online_payment_ready, order_facts, order_invoice,
-    patient_contact, settings,
+    history, home_delivery_enabled, online_payment_ready, patient_contact, settings,
 };
-use crate::pay::payment_link;
+use crate::source::Source;
 
 /// Saved addresses offered besides the one on the patient's record.
 const SAVED_ADDRESS_LIMIT: i64 = 5;
@@ -158,13 +154,24 @@ pub async fn offer(
     prescription_id: Uuid,
 ) -> Result<DeliveryOffer, AppError> {
     let lines = prescription_lines(tx, tenant_id, patient_id, prescription_id).await?;
+    offer_for_lines(tx, tenant_id, patient_id, &lines).await
+}
+
+/// What a patient may choose for these medicines — a refill's, or a
+/// storefront cart's.
+pub async fn offer_for_lines(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    lines: &[LineFacts],
+) -> Result<DeliveryOffer, AppError> {
     let enabled = home_delivery_enabled(tx, tenant_id).await?;
     let (fee, cod_min) = settings(tx, tenant_id).await?;
     let record = history(tx, tenant_id, patient_id).await?;
     let online = online_payment_ready(tx, tenant_id).await?;
     let offer = patient_offer(
         enabled,
-        &lines,
+        lines,
         cash_on_delivery(record, cod_min).is_ok(),
         online,
     );
@@ -201,7 +208,19 @@ pub async fn check_choice(
     prescription_id: Uuid,
     choice: &DeliveryChoice,
 ) -> Result<CheckedChoice, AppError> {
-    let offered = offer(tx, tenant_id, patient_id, prescription_id).await?;
+    let lines = prescription_lines(tx, tenant_id, patient_id, prescription_id).await?;
+    check_choice_for_lines(tx, tenant_id, patient_id, &lines, choice).await
+}
+
+/// [`check_choice`] for any set of medicines.
+pub async fn check_choice_for_lines(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    lines: &[LineFacts],
+    choice: &DeliveryChoice,
+) -> Result<CheckedChoice, AppError> {
+    let offered = offer_for_lines(tx, tenant_id, patient_id, lines).await?;
     if !offered.available {
         return Err(AppError::BadRequest(offered.reason.unwrap_or_default()));
     }
@@ -235,21 +254,22 @@ pub async fn check_choice(
     })
 }
 
-/// Put the checked choice on the patient's refill request.
+/// Put the checked choice on the patient's refill request or store order.
 pub async fn record_choice(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    request_id: Uuid,
+    source: Source,
     choice: &CheckedChoice,
 ) -> Result<(), AppError> {
-    sqlx::query(
-        "UPDATE prescription_refill_requests \
+    sqlx::query(&format!(
+        "UPDATE {} \
             SET fulfilment = 'delivery', delivery_address = $3, delivery_landmark = $4, \
                 delivery_pincode = $5, delivery_phone = $6, delivery_slot = $7, \
                 delivery_payment = $8 \
           WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(request_id)
+        source.table()
+    ))
+    .bind(source.id())
     .bind(tenant_id)
     .bind(&choice.address)
     .bind(&choice.landmark)
@@ -267,111 +287,33 @@ pub async fn record_choice(
 pub(crate) async fn open_delivery(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
-    request_id: Uuid,
+    source: Source,
     order_id: Uuid,
     fee: Decimal,
     due: Decimal,
     arranged_by: Option<Uuid>,
 ) -> Result<(), AppError> {
-    sqlx::query(
+    sqlx::query(&format!(
         "INSERT INTO pharmacy_deliveries \
            (tenant_id, order_id, patient_id, mode, address, landmark, pincode, contact_phone, \
-            payment, delivery_fee, amount_due, arranged_by, refill_request_id, preferred_slot) \
+            payment, delivery_fee, amount_due, arranged_by, {key}, preferred_slot) \
          SELECT r.tenant_id, $3, r.patient_id, 'runner', r.delivery_address, r.delivery_landmark, \
                 r.delivery_pincode, r.delivery_phone, r.delivery_payment, $4, $5, $6, r.id, \
                 r.delivery_slot \
-           FROM prescription_refill_requests r \
+           FROM {table} r \
           WHERE r.id = $2 AND r.tenant_id = $1 AND r.fulfilment = 'delivery' \
          ON CONFLICT (tenant_id, order_id) \
             WHERE status IN ('arranged', 'out_for_delivery', 'delivered') AND deleted_at IS NULL \
          DO NOTHING",
-    )
+        key = source.key(),
+        table = source.table()
+    ))
     .bind(tenant_id)
-    .bind(request_id)
+    .bind(source.id())
     .bind(order_id)
     .bind(fee)
     .bind(due)
     .bind(arranged_by)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
-#[derive(sqlx::FromRow)]
-struct Chosen {
-    id: Uuid,
-    delivery_payment: Option<String>,
-    delivery_phone: Option<String>,
-}
-
-/// The pharmacist approved a refill and its order was made. If the patient
-/// chose delivery, bill the fee and either open the delivery (they pay at
-/// the door, or nothing is owed) or send them a payment link.
-pub async fn on_order_approved(
-    tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-    actor: Uuid,
-    rx_queue_id: Uuid,
-    order_id: Uuid,
-) -> Result<(), AppError> {
-    let Some(chosen) = sqlx::query_as::<_, Chosen>(
-        "SELECT id, delivery_payment, delivery_phone FROM prescription_refill_requests \
-          WHERE tenant_id = $1 AND rx_queue_id = $2 AND fulfilment = 'delivery' \
-            AND deleted_at IS NULL \
-          ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
-    )
-    .bind(tenant_id)
-    .bind(rx_queue_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    else {
-        return Ok(());
-    };
-    let order = order_facts(tx, tenant_id, order_id).await?;
-    // The order is what goes, as the pharmacist mapped it — checked again.
-    if let Some(reason) = patient_offer(true, &order.lines, true, true).reason {
-        sqlx::query(
-            "UPDATE prescription_refill_requests SET delivery_note = $3 \
-              WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(chosen.id)
-        .bind(tenant_id)
-        .bind(reason)
-        .execute(&mut **tx)
-        .await?;
-        return Ok(());
-    }
-    let (fee, _) = settings(tx, tenant_id).await?;
-    // Read before the fee is billed, so it isn't counted twice.
-    let due = bill_balance(tx, tenant_id, order_id).await? + fee;
-    let fee_invoice = if fee > Decimal::ZERO {
-        Some(charge_fee(tx, tenant_id, &order, chosen.id, fee).await?)
-    } else {
-        None
-    };
-    // Paid at the door, or nothing to pay: it goes on to the pharmacy now.
-    if chosen.delivery_payment.as_deref() == Some(PAY_ON_DELIVERY) || due <= Decimal::ZERO {
-        return open_delivery(tx, tenant_id, chosen.id, order_id, fee, due, Some(actor)).await;
-    }
-    let invoice = order_invoice(tx, tenant_id, order_id)
-        .await?
-        .or(fee_invoice);
-    let txn = payment_link(
-        tx,
-        tenant_id,
-        invoice,
-        due,
-        chosen.delivery_phone.as_deref(),
-        chosen.id,
-    )
-    .await?;
-    sqlx::query(
-        "UPDATE prescription_refill_requests SET payment_txn_id = $3 \
-          WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(chosen.id)
-    .bind(tenant_id)
-    .bind(txn)
     .execute(&mut **tx)
     .await?;
     Ok(())

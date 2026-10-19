@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 810;
+pub const PERMISSION_COUNT: usize = 813;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -420,6 +420,31 @@ pub mod pharmacy {
         /// Hand the medicines over against the patient's one-time code and
         /// record cash collected on delivery.
         pub const COMPLETE: &str = "pharmacy.deliveries.complete";
+    }
+
+    /// The patient storefront: medicines patients order online from this
+    /// hospital's own pharmacy.
+    pub mod storefront {
+        /// Verify online orders' prescriptions.
+        ///
+        /// Read the prescription a patient uploaded beside the order lines,
+        /// then approve it, approve some lines, or reject it with a reason.
+        /// Approval sends the order to fulfilment.
+        pub const VERIFY: &str = "pharmacy.storefront.verify";
+        /// Run the online storefront.
+        ///
+        /// Choose which catalogue items patients may order online and set
+        /// the online discount off MRP.
+        pub const MANAGE: &str = "pharmacy.storefront.manage";
+    }
+
+    pub mod h1_register {
+        /// View the Schedule H1 register.
+        ///
+        /// Every H1 supply — prescriber, patient and address, drug, batch,
+        /// expiry, quantity and bill — as Rule 65 requires it be kept and
+        /// shown to an inspector.
+        pub const VIEW: &str = "pharmacy.h1_register.view";
     }
 
     pub mod ndps {
