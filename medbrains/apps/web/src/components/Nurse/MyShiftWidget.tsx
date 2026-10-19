@@ -5,16 +5,39 @@ import {
   IconChevronDown,
   IconClockPause,
   IconClockPlay,
+  IconMapPin,
   IconPlayerStop,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
-import { Button, toast } from "@/components/ui";
+import { Badge, Button, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { FatigueAckModal } from "./FatigueAckModal";
+import { describePunch, isGeofenceRefusal, readPunchFix } from "./shiftLocation";
 
 const QK = ["my-shift"];
+
+async function currentFix() {
+  return (await readPunchFix(globalThis.navigator?.geolocation)).fix;
+}
+
+/** Say where an off-site or unlocated punch was made; on site needs no toast. */
+function notePunch(resp: MyShiftResponse, title: string) {
+  const state = describePunch(resp.punch);
+  if (state?.tone === "warning") {
+    toast.warning(`${state.label}. HR will see this punch flagged.`, { title });
+  }
+}
+
+/** A blocked punch stays on screen until read: it says what to do next. */
+function onPunchError(e: Error, title: string) {
+  if (isGeofenceRefusal(e)) {
+    toast.error(e.message, { title, autoClose: false });
+  } else {
+    toast.error(e.message, { title: "Shift" });
+  }
+}
 
 function hhmm(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -58,9 +81,12 @@ export function MyShiftWidget() {
   const onErr = (e: Error) => toast.error(e.message, { title: "Shift" });
 
   const start = useMutation({
-    mutationFn: () => hrService.startShift(),
-    onSuccess: apply,
-    onError: onErr,
+    mutationFn: async () => hrService.startShift(await currentFix()),
+    onSuccess: (resp) => {
+      apply(resp);
+      notePunch(resp, "Shift started");
+    },
+    onError: (e: Error) => onPunchError(e, "Shift not started"),
   });
   const extend = useMutation({
     mutationFn: (hours: number) => hrService.extendShift({ hours }),
@@ -78,14 +104,15 @@ export function MyShiftWidget() {
     onError: onErr,
   });
   const end = useMutation({
-    mutationFn: () => hrService.endShift(),
+    mutationFn: async () => hrService.endShift(await currentFix()),
     onSuccess: (resp) => {
       apply(resp);
+      notePunch(resp, "Shift ended");
       toast.info("Shift ended — complete any pending patient handoffs before you leave.", {
         title: "Handover",
       });
     },
-    onError: onErr,
+    onError: (e: Error) => onPunchError(e, "Shift not ended"),
   });
   const ack = useMutation({
     mutationFn: (reason: string) => hrService.acknowledgeFatigue({ reason }),
@@ -128,10 +155,11 @@ export function MyShiftWidget() {
   const rem = endIso ? remainingLabel(endIso, now) : null;
 
   const tone = fatigued ? "danger" : paused ? "secondary" : "primary";
+  const punchState = describePunch(session.check_in_location);
 
   return (
     <>
-      <Menu position="bottom-end" shadow="md" width={210}>
+      <Menu position="bottom-end" shadow="md" width={260}>
         <Menu.Target>
           <Button size="xs" tone={tone} rightSection={<IconChevronDown size={13} />} loading={busy}>
             <Group gap={6} wrap="nowrap">
@@ -145,6 +173,18 @@ export function MyShiftWidget() {
           </Button>
         </Menu.Target>
         <Menu.Dropdown>
+          {punchState && (
+            <>
+              <Menu.Label>Clocked in</Menu.Label>
+              <Group gap={6} px="sm" pb="xs" wrap="nowrap">
+                <IconMapPin size={14} aria-hidden />
+                <Badge size="sm" tone={punchState.tone}>
+                  {punchState.label}
+                </Badge>
+              </Group>
+              <Menu.Divider />
+            </>
+          )}
           {fatigued && (
             <>
               <Menu.Item
