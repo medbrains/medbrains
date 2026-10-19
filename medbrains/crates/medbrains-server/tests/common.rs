@@ -217,6 +217,11 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
     let authz: Arc<dyn medbrains_authz::AuthzBackend> =
         Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db.clone()));
 
+    // A test that needs PDFs points GOTENBERG_URL at its own stand-in.
+    let gotenberg = secrets
+        .0
+        .get("GOTENBERG_URL")
+        .map(|url| medbrains_print::gotenberg::GotenbergClient::new(url, reqwest::Client::new()));
     let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> = Arc::new(secrets);
 
     let state = AppState {
@@ -237,7 +242,7 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
         authz,
         secret_resolver,
         s3: None,
-        gotenberg: None,
+        gotenberg,
         documents_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
             std::env::temp_dir().join("medbrains-test-docs"),
         )),

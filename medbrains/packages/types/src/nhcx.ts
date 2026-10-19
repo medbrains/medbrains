@@ -61,6 +61,8 @@ export interface NhcxQueuedResponse {
   queued: boolean;
   correlation_id: string;
   outbox_event_id: string;
+  /** A final claim's documents: what went and what was left out. */
+  attachments?: NhcxClaimAttachments;
 }
 
 // ── Eligibility ──────────────────────────────────────────────
@@ -306,7 +308,59 @@ export interface ClaimNhcxView {
   claim_items: NhcxClaimItem[];
   adjudication: NhcxAdjudication | null;
   adjudicated_at: string | null;
+  /** What the last final claim carried, and what was left out and why. */
+  attachments: NhcxClaimAttachments | null;
   tasks: NhcxTask[];
+}
+
+// ── Final-claim documents ────────────────────────────────────
+
+export type NhcxClaimDocKind =
+  | "discharge_summary"
+  | "final_bill"
+  | "lab_report"
+  | "radiology_report"
+  | "patient_document";
+
+/** `rendered` = a `document_outputs` PDF; `stored` = a patient upload. */
+export type NhcxClaimDocSource = "rendered" | "stored";
+
+/** A document that goes with a final claim. */
+export interface NhcxClaimDocument {
+  kind: NhcxClaimDocKind;
+  source: NhcxClaimDocSource;
+  id: string;
+  title: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  preview_url: string | null;
+}
+
+/** A document that does not go, and why. */
+export interface NhcxLeftOutDocument {
+  kind: NhcxClaimDocKind;
+  title: string;
+  reason: string;
+}
+
+export interface NhcxClaimAttachments {
+  attached: NhcxClaimDocument[];
+  left_out: NhcxLeftOutDocument[];
+}
+
+/** The documents rendered for a final claim, before the desk chooses. */
+export interface NhcxPreparedClaimDocuments {
+  patient_id: string;
+  documents: NhcxClaimDocument[];
+  left_out: NhcxLeftOutDocument[];
+  max_file_bytes: number;
+  max_total_bytes: number;
+}
+
+export interface NhcxDocumentPick {
+  source: NhcxClaimDocSource;
+  id: string;
 }
 
 export interface NhcxClaimTaskRequest {

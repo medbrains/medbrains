@@ -178,14 +178,31 @@ async fn record_output(
     Ok(id)
 }
 
-/// POST /api/documents/render
-pub async fn render_document(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<RenderRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    let gotenberg = renderer(&state)?;
+/// A PDF rendered from a built-in template and stored as a document output.
+#[derive(Debug)]
+pub struct StoredPdf {
+    pub document_output_id: Uuid,
+    pub file_key: String,
+    pub title: &'static str,
+    pub pdf: Vec<u8>,
+    pub filed_to_mrd: bool,
+}
+
+/// Render `template_code` for `source_id` as `claims` — the template's
+/// print-data handler checks their permission and access — through
+/// Gotenberg, store the PDF and record it in `document_outputs`.
+///
+/// # Errors
+/// 503 when Gotenberg is unset or cannot render; the print-data handler's
+/// own 400/403/404; 400 for an unknown template.
+pub async fn render_stored(
+    state: &AppState,
+    claims: &Claims,
+    template_code: &str,
+    source_id: Uuid,
+    watermark: Option<&str>,
+) -> Result<StoredPdf, AppError> {
+    let gotenberg = renderer(state)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -193,20 +210,16 @@ pub async fn render_document(
 
     let template = SYSTEM_TEMPLATES
         .iter()
-        .find(|t| t.code == body.template_code)
-        .ok_or_else(|| {
-            AppError::BadRequest(format!("unknown template_code '{}'", body.template_code))
-        })?;
+        .find(|t| t.code == template_code)
+        .ok_or_else(|| AppError::BadRequest(format!("unknown template_code '{template_code}'")))?;
     let (html_template, paper, margins) =
-        resolve_template(&mut tx, claims.tenant_id, &body.template_code).await?;
+        resolve_template(&mut tx, claims.tenant_id, template_code).await?;
 
     // Bind live data — context builders reuse the print_data fetchers.
     let (mut context, patient_id) =
-        templates::build_context(&state, &claims, template.code, body.source_id).await?;
+        templates::build_context(state, claims, template.code, source_id).await?;
 
-    let watermark = body
-        .watermark
-        .as_deref()
+    let watermark = watermark
         .filter(|w| {
             matches!(
                 *w,
@@ -249,15 +262,7 @@ pub async fn render_document(
         .map_err(|e| AppError::Internal(format!("document store: {e}")))?;
 
     let document_output_id = record_output(
-        &mut tx,
-        &claims,
-        template,
-        body.source_id,
-        patient_id,
-        &file_key,
-        &pdf,
-        &context,
-        watermark,
+        &mut tx, claims, template, source_id, patient_id, &file_key, &pdf, &context, watermark,
     )
     .await?;
     // The printed case sheet is the visit's record: file it to MRD as it is made.
@@ -265,17 +270,41 @@ pub async fn render_document(
         && medbrains_clinical_notes::print::file_to_mrd(
             &mut tx,
             claims.tenant_id,
-            body.source_id,
+            source_id,
             document_output_id,
         )
         .await?;
     tx.commit().await?;
 
+    Ok(StoredPdf {
+        document_output_id,
+        file_key,
+        title: template.title,
+        pdf,
+        filed_to_mrd,
+    })
+}
+
+/// POST /api/documents/render
+pub async fn render_document(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<RenderRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+    let out = render_stored(
+        &state,
+        &claims,
+        &body.template_code,
+        body.source_id,
+        body.watermark.as_deref(),
+    )
+    .await?;
     Ok(Json(serde_json::json!({
-        "filed_to_mrd": filed_to_mrd,
-        "document_output_id": document_output_id,
-        "file_key": file_key,
-        "download_url": format!("/api/documents/{document_output_id}/download"),
+        "filed_to_mrd": out.filed_to_mrd,
+        "document_output_id": out.document_output_id,
+        "file_key": out.file_key,
+        "download_url": format!("/api/documents/{}/download", out.document_output_id),
     })))
 }
 

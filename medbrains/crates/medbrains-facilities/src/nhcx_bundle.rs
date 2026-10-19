@@ -16,7 +16,8 @@ use uuid::Uuid;
 use medbrains_core::nhcx::{
     BENEFIT_CATEGORY_SYSTEM, CLAIM_BUNDLE_PROFILE, CLAIM_INFO_CATEGORY_SYSTEM,
     COMMUNICATION_PROFILE, CONFIDENTIALITY_SYSTEM, COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
-    DIAGNOSIS_TYPE_SYSTEM, ICD11_SYSTEM, SNOMED_HEALTHCARE_PROFESSIONAL_CODE,
+    DIAGNOSIS_TYPE_SYSTEM, ICD11_SYSTEM, NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM,
+    NDHM_SUPPORTING_INFO_CODE_SYSTEM, SNOMED_HEALTHCARE_PROFESSIONAL_CODE,
     SNOMED_INSTITUTIONAL_CLAIM_CODE,
 };
 use medbrains_fhir::mapper::{
@@ -24,6 +25,7 @@ use medbrains_fhir::mapper::{
     SNOMED_SYSTEM, UHID_SYSTEM,
 };
 
+use crate::nhcx_claim_documents::DocKind;
 use crate::nhcx_common::{PatientParty, PolicyParty, ProviderParty};
 
 /// Who the message is about, from, and to.
@@ -55,10 +57,12 @@ pub(crate) struct DocumentRef {
     pub(crate) file_path: Option<String>,
     pub(crate) mime_type: Option<String>,
     pub(crate) created_at: chrono::DateTime<Utc>,
-    /// The content itself (base64), for a document the hospital renders
-    /// rather than stores — the discharge summary.
+    /// The content itself (base64) — a final claim's PDFs.
     #[sqlx(default)]
     pub(crate) data: Option<String>,
+    /// What it is, for the NRCeS supporting-information codes.
+    #[sqlx(skip)]
+    pub(crate) kind: Option<DocKind>,
 }
 
 /// One billed or estimated line.
@@ -260,14 +264,31 @@ fn supporting_note(seq: usize, note: &str) -> Value {
     json!({
         "sequence": seq,
         "category": { "coding": [{ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "info" }] },
+        "code": { "text": "Bill split" },
         "valueString": note,
     })
 }
 
+/// A document as `Claim.supportingInfo` — NRCeS category and code (both
+/// 1..1 in the IG 6.5.0 Claim profile) with the file as `valueAttachment`.
 fn supporting_info(seq: usize, doc: &DocumentRef) -> Value {
+    let (category, code) = doc.kind.map_or(
+        (
+            json!({ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "attachment" }),
+            None,
+        ),
+        |k| {
+            let (cat, code) = k.nrces_codes();
+            (
+                json!({ "system": NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM, "code": cat }),
+                code.map(|c| json!({ "system": NDHM_SUPPORTING_INFO_CODE_SYSTEM, "code": c })),
+            )
+        },
+    );
     json!({
         "sequence": seq,
-        "category": { "coding": [{ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "attachment" }], "text": doc.document_type },
+        "category": { "coding": [category], "text": doc.document_type },
+        "code": { "coding": code.into_iter().collect::<Vec<_>>(), "text": doc.document_type },
         "valueAttachment": attachment(doc),
     })
 }
@@ -412,3 +433,7 @@ pub(crate) fn communication(
         "payload": payload,
     })
 }
+
+#[cfg(test)]
+#[path = "nhcx_bundle_tests.rs"]
+mod tests;

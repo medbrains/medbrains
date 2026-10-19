@@ -9,10 +9,15 @@
 //!
 //! `recipient_code` is the payer's HCX participant code, chosen from the NHCX
 //! payer directory — which must hold the payer's encryption certificate.
+//!
+//! A final claim carries its documents as PDFs (`nhcx_claim_documents`): the
+//! ones the desk picked, or — when the caller picks none — the discharge
+//! summary, final bill and investigation reports rendered now.
 
 use axum::Json;
 use axum::extract::Extension;
 use axum::extract::{Path, State};
+use base64::Engine;
 use serde::Deserialize;
 use serde_json::Value;
 use sqlx::FromRow;
@@ -25,7 +30,8 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
-use crate::nhcx_bundle::{self, ClaimContent, ItemLine, Parties};
+use crate::nhcx_bundle::{self, ClaimContent, DocumentRef, ItemLine, Parties};
+use crate::nhcx_claim_documents::{self as docs, ClaimScope, DocumentPick, Loaded};
 use crate::nhcx_common::{self, Outbound, PolicyParty, Tx};
 use crate::nhcx_final_claim::{self, ClaimRef};
 
@@ -35,6 +41,9 @@ pub struct SubmitToNhcxRequest {
     pub recipient_code: String,
     /// `preauthorization` (default) or `claim`.
     pub r#use: Option<String>,
+    /// A final claim's documents, as the desk chose them. Absent: the
+    /// default set is rendered now.
+    pub documents: Option<Vec<DocumentPick>>,
 }
 
 #[derive(Debug, FromRow)]
@@ -59,10 +68,18 @@ struct InvoiceLineRow {
     line_total: Option<rust_decimal::Decimal>,
 }
 
-/// The bundle and, for a final claim, the lines it sent.
+/// The bundle and, for a final claim, the lines and documents it sent.
 struct Built {
     bundle: Value,
     sent_items: Option<Value>,
+    attachments: Option<Value>,
+}
+
+/// Who is sending, and what the desk picked.
+struct Sender<'a> {
+    state: &'a AppState,
+    claims: &'a Claims,
+    picks: Option<&'a [DocumentPick]>,
 }
 
 /// `POST /api/billing/insurance-claims/{id}/submit-to-nhcx`
@@ -104,12 +121,18 @@ pub async fn submit_claim_to_nhcx(
     medbrains_authz_gate::require_patient_billing_access(&state, &claims, claim.patient_id).await?;
     nhcx_common::require_payer_certificate(&mut tx, claims.tenant_id, recipient).await?;
 
-    let built = build(&mut tx, claims.tenant_id, &claim, recipient, use_).await?;
+    let sender = Sender {
+        state: &state,
+        claims: &claims,
+        picks: body.documents.as_deref(),
+    };
+    let built = build(&mut tx, &sender, &claim, (recipient, use_)).await?;
     let ids = (Uuid::new_v4(), Uuid::new_v4());
     let sending = Sending {
         recipient,
         use_,
         sent_items: built.sent_items.as_ref(),
+        attachments: built.attachments.as_ref(),
     };
     let workflow_id = mark_queued(&mut tx, &claims, &claim, &sending, ids).await?;
     let bundle = built.bundle;
@@ -124,18 +147,21 @@ pub async fn submit_claim_to_nhcx(
         payload: &bundle,
         hcx_status: None,
     };
-    let queued = nhcx_common::queue(&mut tx, &claims, &msg).await?;
+    let mut queued = nhcx_common::queue(&mut tx, &claims, &msg).await?;
     tx.commit().await?;
+    if let (Some(obj), Some(a)) = (queued.as_object_mut(), built.attachments) {
+        obj.insert("attachments".to_owned(), a);
+    }
     Ok(Json(queued))
 }
 
 async fn build(
     tx: &mut Tx<'_>,
-    tenant_id: Uuid,
+    sender: &Sender<'_>,
     claim: &ClaimRow,
-    recipient: &str,
-    use_: &str,
+    (recipient, use_): (&str, &str),
 ) -> Result<Built, AppError> {
+    let tenant_id = sender.claims.tenant_id;
     let patient = nhcx_common::load_patient(tx, tenant_id, claim.patient_id).await?;
     let policy = match claim.insurance_id {
         Some(pid) => nhcx_common::load_policy(tx, tenant_id, claim.patient_id, Some(pid)).await?,
@@ -168,13 +194,22 @@ async fn build(
             pre_auth_ref: claim.nhcx_pre_auth_ref.clone(),
         };
         let fin = nhcx_final_claim::load(tx, tenant_id, &claim_ref).await?;
+        let scope = ClaimScope {
+            tenant_id,
+            patient_id: claim.patient_id,
+            invoice_id: claim.invoice_id,
+            admission_id: claim.admission_id,
+            summary_final_at: fin.summary_final_at,
+        };
+        let (kept, left) = gather_documents(tx, sender, &scope).await?;
+        let documents: Vec<DocumentRef> = kept.iter().map(document_ref).collect();
         let content = ClaimContent {
             id: claim.id,
             use_,
             urgent: false,
             items: &fin.items,
             diagnoses: &diagnoses,
-            documents: &fin.documents,
+            documents: &documents,
             pre_auth_ref: fin.pre_auth_ref.as_deref(),
             total: Some(fin.total),
             notes: &fin.notes,
@@ -182,6 +217,7 @@ async fn build(
         return Ok(Built {
             bundle: nhcx_bundle::claim_bundle(&parties, &content),
             sent_items: Some(fin.sent_items()),
+            attachments: Some(docs::record(&kept, &left)),
         });
     }
     let lines = sqlx::query_as::<_, InvoiceLineRow>(
@@ -217,7 +253,37 @@ async fn build(
     Ok(Built {
         bundle: nhcx_bundle::claim_bundle(&parties, &content),
         sent_items: None,
+        attachments: None,
     })
+}
+
+/// The final claim's documents within the caps, refusing a stay's claim
+/// whose discharge summary would not go.
+async fn gather_documents(
+    tx: &mut Tx<'_>,
+    sender: &Sender<'_>,
+    scope: &ClaimScope,
+) -> Result<(Vec<Loaded>, Vec<docs::LeftOut>), AppError> {
+    let (found, mut left) = match sender.picks {
+        Some(picks) => crate::nhcx_claim_picks::load_picks(sender.state, tx, scope, picks).await?,
+        None => docs::render_defaults(sender.state, sender.claims, tx, scope).await?,
+    };
+    let (kept, capped) = docs::apply_caps(found, docs::MAX_TOTAL_BYTES);
+    left.extend(capped);
+    docs::require_discharge_summary(&kept, &left, scope)?;
+    Ok((kept, left))
+}
+
+fn document_ref(d: &Loaded) -> DocumentRef {
+    DocumentRef {
+        document_type: d.doc.title.clone(),
+        file_name: Some(d.doc.title.clone()),
+        file_path: None,
+        mime_type: Some(d.doc.mime_type.clone()),
+        created_at: d.doc.created_at,
+        data: Some(base64::engine::general_purpose::STANDARD.encode(&d.bytes)),
+        kind: Some(d.doc.kind),
+    }
 }
 
 /// What is being sent, as the claim records it.
@@ -225,6 +291,7 @@ struct Sending<'a> {
     recipient: &'a str,
     use_: &'a str,
     sent_items: Option<&'a Value>,
+    attachments: Option<&'a Value>,
 }
 
 /// Record the exchange ids on the claim. A message queued in the last 15
@@ -246,6 +313,7 @@ async fn mark_queued(
                 nhcx_response_payload = NULL, nhcx_response_at = NULL, \
                 nhcx_use = $7, \
                 nhcx_claim_items = COALESCE($8, nhcx_claim_items), \
+                nhcx_attachments = CASE WHEN $7 = 'claim' THEN $9 ELSE nhcx_attachments END, \
                 nhcx_adjudication = CASE WHEN $7 = 'claim' THEN NULL ELSE nhcx_adjudication END, \
                 nhcx_adjudicated_at = CASE WHEN $7 = 'claim' THEN NULL ELSE nhcx_adjudicated_at END, \
                 status = CASE WHEN status IN ('settled', 'partially_settled', 'cancelled') THEN status \
@@ -267,6 +335,7 @@ async fn mark_queued(
     .bind(claims.tenant_id)
     .bind(sending.use_)
     .bind(sending.sent_items)
+    .bind(sending.attachments)
     .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| {
