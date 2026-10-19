@@ -66,8 +66,8 @@ pub(crate) struct TaskParties<'a> {
 fn input(code: &str, value: Value) -> Value {
     let mut v =
         json!({ "type": { "coding": [{ "system": NDHM_TASK_INPUT_TYPE_SYSTEM, "code": code }] } });
-    if let (Some(obj), Some(val)) = (v.as_object_mut(), value.as_object()) {
-        obj.extend(val.clone());
+    if let (Some(obj), Value::Object(val)) = (v.as_object_mut(), value) {
+        obj.extend(val);
     }
     v
 }
