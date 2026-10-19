@@ -56,7 +56,7 @@ pub async fn hospital_hfr_id(n: &Nhcx) -> String {
                              AND hfr_facility_id IS NOT NULL AND deleted_at IS NULL)",
     )
     .bind(n.tenant)
-    .bind(format!("NHCX-{}", n.tag))
+    .bind(format!("NHCX-{}", n.tag.to_uppercase()))
     .bind(&hfr)
     .execute(&n.app.db)
     .await

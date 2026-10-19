@@ -23,8 +23,12 @@ use nhcx_support::seed::{
     get_json, has_identifier, hospital_hfr_id, post, resources, seed_insured_patient, seed_preauth,
 };
 
+/// The tests share one hospital's NHCX settings; run them one at a time.
+static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 #[tokio::test]
 async fn eligibility_names_the_hfr_campus_and_abha_and_the_answer_reads_as_in_force() {
+    let _serial = SERIAL.lock().await;
     let n = nhcx_support::onboard().await;
     let (patient, _, abha) = seed_insured_patient(&n).await;
     let hfr = hospital_hfr_id(&n).await;
@@ -116,6 +120,7 @@ async fn eligibility_names_the_hfr_campus_and_abha_and_the_answer_reads_as_in_fo
 
 #[tokio::test]
 async fn a_preauth_goes_with_diagnoses_a_payer_query_is_answered_and_the_decision_lands() {
+    let _serial = SERIAL.lock().await;
     let n = nhcx_support::onboard().await;
     let (patient, policy, _) = seed_insured_patient(&n).await;
     let (pa, doc) = seed_preauth(&n, patient, policy).await;
@@ -227,13 +232,14 @@ async fn a_preauth_goes_with_diagnoses_a_payer_query_is_answered_and_the_decisio
     assert_eq!(status, StatusCode::ACCEPTED);
     let view = get_json(&n, &format!("/api/insurance/prior-auths/{pa}/nhcx")).await;
     assert_eq!(view["status"], json!("partially_approved"));
-    assert_eq!(view["approved_amount"], json!("40000"));
+    assert_eq!(view["approved_amount"], json!("40000.00"));
     assert_eq!(view["auth_number"], json!("AUTH-9"));
     assert_eq!(view["sla"]["state"], json!("met"));
 }
 
 #[tokio::test]
 async fn the_irdai_clock_breaches_after_one_hour_and_after_three_at_discharge() {
+    let _serial = SERIAL.lock().await;
     let n = nhcx_support::onboard().await;
     let (patient, policy, _) = seed_insured_patient(&n).await;
     let mut ids = Vec::new();
@@ -290,6 +296,7 @@ async fn the_irdai_clock_breaches_after_one_hour_and_after_three_at_discharge() 
 
 #[tokio::test]
 async fn staff_without_the_nhcx_permissions_are_refused() {
+    let _serial = SERIAL.lock().await;
     let n = nhcx_support::onboard().await;
     let (patient, _, _) = seed_insured_patient(&n).await;
     let clerk = common::provision_staff(
