@@ -4,7 +4,14 @@
 //! record every call, the gateway's signing key, a campus with an HFR ID and a
 //! patient with a verified ABHA.
 
-use std::sync::{Arc, Mutex};
+pub mod hiu;
+
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
 use axum::{
     Json, Router,
@@ -27,21 +34,30 @@ pub struct Call {
 }
 
 pub type Calls = Arc<Mutex<Vec<Call>>>;
+/// Run while the gateway call is still open — ABDM answering before our
+/// call returns.
+pub type Hook = Arc<dyn Fn(Call) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+pub type Hooks = Arc<Mutex<HashMap<String, Hook>>>;
 
 /// The gateway (sessions + every HIP call, answered 202) and the HIU push URL.
-async fn spawn_mock(calls: Calls) -> String {
+async fn spawn_mock(calls: Calls, hooks: Hooks) -> String {
     async fn record(
-        State(c): State<Calls>,
+        State((c, hooks)): State<(Calls, Hooks)>,
         uri: Uri,
         headers: HeaderMap,
         body: Bytes,
     ) -> StatusCode {
         let body = serde_json::from_slice(&body).unwrap_or(Value::Null);
-        c.lock().expect("calls").push(Call {
+        let call = Call {
             path: uri.path().to_owned(),
             headers,
             body,
-        });
+        };
+        c.lock().expect("calls").push(call.clone());
+        let hook = hooks.lock().expect("hooks").get(&call.path).cloned();
+        if let Some(hook) = hook {
+            hook(call).await;
+        }
         StatusCode::ACCEPTED
     }
     let app = Router::new()
@@ -50,7 +66,7 @@ async fn spawn_mock(calls: Calls) -> String {
             post(|| async { Json(json!({ "accessToken": "session-token", "expiresIn": 1200 })) }),
         )
         .fallback(record)
-        .with_state(calls);
+        .with_state((calls, hooks));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind mock");
@@ -59,11 +75,11 @@ async fn spawn_mock(calls: Calls) -> String {
     format!("http://{addr}")
 }
 
-#[derive(Debug)]
 pub struct World {
     pub app: common::TestApp,
     pub csrf: String,
     pub calls: Calls,
+    pub hooks: Hooks,
     pub mock: String,
     pub gateway_key: Vec<u8>,
     pub hip_id: String,
@@ -72,7 +88,34 @@ pub struct World {
     pub address: String,
 }
 
+impl std::fmt::Debug for World {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("World")
+            .field("hip_id", &self.hip_id)
+            .field("patient_id", &self.patient_id)
+            .finish_non_exhaustive()
+    }
+}
+
 impl World {
+    /// Calls to `path` so far.
+    pub fn count(&self, path: &str) -> usize {
+        self.calls
+            .lock()
+            .expect("calls")
+            .iter()
+            .filter(|c| c.path == path)
+            .count()
+    }
+
+    /// Answer calls to `path` with `hook` before the gateway replies.
+    pub fn on(&self, path: &str, hook: Hook) {
+        self.hooks
+            .lock()
+            .expect("hooks")
+            .insert(path.to_owned(), hook);
+    }
+
     pub fn last(&self, path: &str) -> Call {
         let calls = self.calls.lock().expect("calls");
         let found = calls.iter().rev().find(|c| c.path == path).cloned();
@@ -128,7 +171,8 @@ impl World {
 
 pub async fn world() -> World {
     let calls: Calls = Arc::default();
-    let mock = spawn_mock(calls.clone()).await;
+    let hooks: Hooks = Arc::default();
+    let mock = spawn_mock(calls.clone(), hooks.clone()).await;
     let gateway = PKey::from_rsa(Rsa::generate(2048).expect("rsa")).expect("pkey");
     let public = String::from_utf8(gateway.public_key_to_pem().expect("pem")).expect("utf8");
     let app = common::spawn_app_with_secrets(
@@ -140,7 +184,9 @@ pub async fn world() -> World {
             )
             .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public)
             // Where HIPs are told to push records to us (M3).
-            .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test"),
+            .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test")
+            // A stand-in HIP serving linked entries on loopback (M3).
+            .with("ABDM_HIU_LINK_ALLOW_LOOPBACK", "true"),
     )
     .await;
     let csrf = app.login_admin().await;
@@ -224,6 +270,7 @@ pub async fn world() -> World {
         app,
         csrf,
         calls,
+        hooks,
         mock,
         gateway_key: gateway.private_key_to_pem_pkcs8().expect("private"),
         hip_id,
