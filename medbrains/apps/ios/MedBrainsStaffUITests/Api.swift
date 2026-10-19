@@ -227,8 +227,6 @@ final class Api {
         ((note?["sections"] as? [[String: Any]])?.first { $0["code"] as? String == code })?["text"] as? String
     }
     func responders() -> [[String: Any]] { list("/api/nurse/code-blue/responders") }
-    /// My sticky notes as the server holds them (call on an Api signed in as the author).
-    func myNotes() -> [[String: Any]] { (obj("GET", "/api/notes")["mine"] as? [[String: Any]]) ?? [] }
     /// One UHI request, read from the whole queue.
     func uhiRequest(_ id: String) -> [String: Any]? { list("/api/uhi/requests").first { ($0["id"] as? String) == id } }
 }

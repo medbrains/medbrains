@@ -1,13 +1,17 @@
 package com.medbrains.staff
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import android.content.Intent
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.medbrains.testkit.Evidence
@@ -32,7 +36,9 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ClinicalTeamJourneyTest {
-    val compose = createAndroidComposeRule<MainActivity>()
+    // Launched by hand so the app is pointed at the same server as the test's API (`baseUrl`).
+    val compose = createEmptyComposeRule()
+    private lateinit var scenario: ActivityScenario<MainActivity>
 
     @get:Rule
     val chain: RuleChain = RuleChain.outerRule(compose).around(Evidence { compose })
@@ -43,7 +49,9 @@ class ClinicalTeamJourneyTest {
 
     private fun has(tag: String) = with(Session) { compose.has(tag) }
     private fun seesText(t: String) = compose.onAllNodes(hasText(t, substring = true)).fetchSemanticsNodes().isNotEmpty()
-    private fun back() = compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+    private fun hasTestTagPrefix(prefix: String) =
+        SemanticsMatcher("test tag starts with $prefix") { it.config.getOrElseNullable(SemanticsProperties.TestTag) { null }?.startsWith(prefix) == true }
+    private fun back() { scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() } }
 
     @Before
     fun seed() {
@@ -51,11 +59,16 @@ class ClinicalTeamJourneyTest {
         // A doctor who also answers blood requests from patients' apps.
         doctor = api.provision("doctor", listOf("uhi.requests.view", "uhi.requests.respond", "blood_bank.inventory.manage"))
         patientId = checkNotNull(api.waitingVisit(doctor.id, "Journey")).first
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java).putExtra("baseUrl", Api.BACKEND))
         with(Session) { compose.signInAs(doctor.username, doctor.password, "module-home-doctor") }
     }
 
     @After
-    fun retire() { api.retire(doctor) }
+    fun retire() {
+        scenario.close()
+        api.retire(doctor)
+    }
 
     /** A module in the bar, or behind More when the role has more than fit. */
     private fun openModule(id: String) {
@@ -94,19 +107,23 @@ class ClinicalTeamJourneyTest {
         compose.onNodeWithTag("note-body").performTextInput(text)
         compose.onNodeWithTag("note-save").performClick()
         compose.waitUntil(10_000) { seesText(text) }
-        val doctorApi = Api.signIn(doctor.username, doctor.password)
-        val noteId = checkNotNull(doctorApi.myNotes().firstOrNull { it.optString("body") == text }?.optString("id")) { "the note was saved on the server" }
+        // Read from the screen, not by signing in as the doctor through the API:
+        // a second sign-in ends the app's session.
+        // The text alone could still be the closing editor's field: wait for the saved card.
+        compose.waitUntil(10_000) { !has("note-save") && compose.onAllNodes(hasTestTagPrefix("note-share-")).fetchSemanticsNodes().isNotEmpty() }
+        val shareTag = compose.onAllNodes(hasTestTagPrefix("note-share-")).fetchSemanticsNodes().first().config[SemanticsProperties.TestTag]
         val dept = checkNotNull(api.firstDepartment())
         val deptId = dept.optString("id")
-        compose.onNodeWithTag("note-share-$noteId").performScrollTo().performClick()
+        compose.onNodeWithTag(shareTag).performScrollTo().performClick()
         compose.waitUntil(10_000) { has("share-search") }
         compose.onNodeWithTag("share-search").performTextInput(dept.optString("name"))
         compose.waitUntil(10_000) { has("share-dept-$deptId") }
         compose.onNodeWithTag("share-dept-$deptId").performScrollTo().performClick()
         compose.onNodeWithTag("share-save").performScrollTo().performClick()
         compose.waitUntil(10_000) { !has("share-save") }
-        val shares = doctorApi.myNotes().firstOrNull { it.optString("id") == noteId }?.optJSONArray("shares")
-        check(shares?.optJSONObject(0)?.optString("department_id") == deptId) { "shared with the board on the server" }
+        // The board is the server's answer: the note is on it only once the share is saved.
+        compose.onNodeWithTag("notes-scope-boards").performClick()
+        compose.waitUntil(10_000) { seesText(text) }
 
         // UHI queue: accept the seeded blood request, or prove the queue loads.
         openModule("uhi")

@@ -80,9 +80,9 @@ Registry order decides where a role lands (`StaffModules` on both platforms mirr
 | security | TagAlertsScreen (Code Pink) | security/tag-alerts.tsx | GET /api/security/tag-alerts, POST …/{id}/resolve | ⬜ | ⬜ |
 | hr (5) | HrHome | modules/hr.tsx | — | 🟨 | 🟨 |
 | hr | AttendanceScreen | modules/hr.tsx | GET /api/hr/attendance | ⬜ | ⬜ |
-| doctor, nurse | OtherHospitalRecords (new, ABDM M3 — from queue detail / patient workspace) | — | GET /api/abdm/patients/{id}/received-records, POST …/consent-requests, POST /api/abdm/consent-requests/{id}/check-status, GET /api/abdm/received-records/{id} | 🟨 built, not yet run on a device | 🟨 built, not yet run on a device |
-| uhi (new) | UhiRequests queue (accept / decline with reason) | — | GET /api/uhi/requests, POST …/{id}/accept, POST …/{id}/decline | 🟨 built, not yet run on a device | 🟨 built, not yet run on a device |
-| notes (new) | Notes: mine / shared / boards, editor, share | — | GET/POST /api/notes, PUT/DELETE /api/notes/{id}, PUT …/shares, DELETE /api/notes/shares/{id}, PUT …/auto-resolve, GET /api/notes/recipients | 🟨 built, not yet run on a device | 🟨 built, not yet run on a device |
+| doctor, nurse | OtherHospitalRecords (new, ABDM M3 — from queue detail / patient workspace) | — | GET /api/abdm/patients/{id}/received-records, POST …/consent-requests, POST /api/abdm/consent-requests/{id}/check-status, GET /api/abdm/received-records/{id} | ✅ | ✅ |
+| uhi (new) | UhiRequests queue (accept / decline with reason) | — | GET /api/uhi/requests, POST …/{id}/accept, POST …/{id}/decline | ✅ | ✅ |
+| notes (new) | Notes: mine / shared / boards, editor, share | — | GET/POST /api/notes, PUT/DELETE /api/notes/{id}, PUT …/shares, DELETE /api/notes/shares/{id}, PUT …/auto-resolve, GET /api/notes/recipients | ✅ | ✅ |
 | device-sync (6) | SyncSetupScreen | mobile-shell/pairing/sync-setup-screen.tsx | local node keypair (Rust `generateNodeIdentity`) | 🟨 | 🟨 |
 | shell | StaffLoginGate | login-gate.tsx | POST /api/auth/login | ✅ | ✅ |
 | shell (2) | EmergencyFlash overlay (1 Hz cap, reduced-motion banner, triple-tap silence, Respond) | components/emergency-flash.tsx | GET /api/emergency/codes, /api/nurse/code-blue/* | ✅ | ✅ |

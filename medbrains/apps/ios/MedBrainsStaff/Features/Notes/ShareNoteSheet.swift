@@ -47,11 +47,15 @@ struct ShareNoteSheet: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search departments or names")
             .navigationTitle("Share note")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { Task { await save() } }.disabled(busy).accessibilityIdentifier("share-save")
-                }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            // Below the list, not in the bar: an active search hides the bar's buttons.
+            .safeAreaInset(edge: .bottom) {
+                Button("Save sharing") { Task { await save() } }
+                    .buttonStyle(.carbonPrimary)
+                    .disabled(busy)
+                    .padding(16)
+                    .background(MedBrainsTheme.canvas)
+                    .accessibilityIdentifier("share-save")
             }
             // Restarts on each keystroke and is cancelled with the sheet: no stray search outlives it.
             .task(id: query) {

@@ -184,8 +184,6 @@ class Api private constructor(private var token: String?) {
         (0 until s.length()).map { s.getJSONObject(it) }.firstOrNull { it.optString("code") == code }?.optString("text")
     }
     fun responders() = list("/api/nurse/code-blue/responders")
-    /** My sticky notes as the server holds them (call on an Api signed in as the author). */
-    fun myNotes(): List<JSONObject> = obj("GET", "/api/notes").optJSONArray("mine")?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } }.orEmpty()
     /** One UHI request, read from the whole queue. */
     fun uhiRequest(id: String): JSONObject? = list("/api/uhi/requests").firstOrNull { it.optString("id") == id }
 
@@ -194,7 +192,8 @@ class Api private constructor(private var token: String?) {
         const val SEED_BLOOD_GROUP = "o_positive"
         /** The five statutory TTI markers, all non-reactive: nothing is released otherwise. */
         val TTI_MARKERS = listOf("hiv", "hbsag", "hcv", "syphilis", "malaria")
-        const val BACKEND = "http://10.0.2.2:3000"
+        /** The emulator's view of the host's server; the instrumentation argument `baseUrl` points a run elsewhere. */
+        val BACKEND: String = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("baseUrl") ?: "http://10.0.2.2:3000"
         val RUN: String = (System.currentTimeMillis() / 1000 % 1_000_000).toString()
         private var serial = 0
         /** The API as a provisioned identity — what the desk itself can see and do. */

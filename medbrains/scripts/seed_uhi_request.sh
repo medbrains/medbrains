@@ -13,8 +13,11 @@
 #   ./gradlew :app-staff:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.uhiRequestId=$UHI_REQUEST_ID
 #
 # Local and CI databases only: it refuses a base URL that is not loopback.
+# A server on its own database (a journey run on :3100, say) is reached with
+# MEDBRAINS_BASE_URL=http://127.0.0.1:3100 MEDBRAINS_DB_NAME=medbrains_wt_journey.
 set -euo pipefail
 BASE="${MEDBRAINS_BASE_URL:-http://127.0.0.1:3000}"
+DB="${MEDBRAINS_DB_NAME:-medbrains}"
 case "$BASE" in http://127.0.0.1:*|http://localhost:*) ;; *) echo "refusing non-local $BASE" >&2; exit 2 ;; esac
 H=(-sf -H 'X-MedBrains-Client: mobile-staff' -H 'content-type: application/json')
 TOKEN=$(curl "${H[@]}" -d '{"username":"admin","password":"admin123"}' "$BASE/api/auth/login" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
@@ -28,7 +31,7 @@ if [ "$(curl "${H[@]}" "$BASE/api/uhi/settings" | json "d['configured']")" != "T
 fi
 
 TXN=$(python3 -c "import uuid; print(uuid.uuid4())")
-ID=$(docker compose exec -T postgres psql -U medbrains -d medbrains -v ON_ERROR_STOP=1 -qAt <<SQL | tail -1
+ID=$(docker compose exec -T postgres psql -U medbrains -d "$DB" -v ON_ERROR_STOP=1 -qAt <<SQL | tail -1
 SELECT set_config('app.tenant_id', '$TENANT', false);
 INSERT INTO uhi_transactions (tenant_id, service, domain, transaction_id, last_message_id, last_action,
        bap_id, bap_uri, state, customer_name, customer_phone, order_details, payload)

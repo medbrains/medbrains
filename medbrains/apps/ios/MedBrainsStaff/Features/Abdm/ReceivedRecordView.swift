@@ -51,28 +51,31 @@ struct ReceivedRecordView: View {
     @ViewBuilder
     private func content(_ read: ReadRecord) -> some View {
         let r = read.record, doc = read.document
-        CarbonPageHeader(
-            eyebrow: AbdmRecords.hiTypeLabel(r.hiType),
-            title: doc.title ?? AbdmRecords.hiTypeLabel(r.hiType),
-            subtitle: [r.sourceHipName ?? r.sourceHipId, ServerTime.dateOf(doc.date ?? r.receivedAt), doc.author].compactMap { $0 }.joined(separator: " · ")
-        )
-        Text("Shared through ABDM with the patient's consent; erased by \(ServerTime.dateOf(r.eraseAt)).")
-            .font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary).padding(.horizontal, 16)
-        if let openFailure {
-            CarbonNotification(kind: .error, title: "Could not open the document", message: openFailure).padding(16)
-        }
-        if doc.sections.isEmpty {
-            Text("This record has no sections this screen can read.")
-                .font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary).padding(16)
-                .accessibilityIdentifier("abdm-record-no-sections")
-        }
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(doc.sections) { section in
-                CarbonSectionTitle(section.title)
-                ForEach(section.items) { item in itemRow(item) }
+        VStack(alignment: .leading, spacing: 0) {
+            CarbonPageHeader(
+                eyebrow: AbdmRecords.hiTypeLabel(r.hiType),
+                title: doc.title ?? AbdmRecords.hiTypeLabel(r.hiType),
+                subtitle: [r.sourceHipName ?? r.sourceHipId, ServerTime.dateOf(doc.date ?? r.receivedAt), doc.author].compactMap { $0 }.joined(separator: " · ")
+            )
+            Text("Shared through ABDM with the patient's consent; erased by \(ServerTime.dateOf(r.eraseAt)).")
+                .font(CarbonType.helper).foregroundStyle(MedBrainsTheme.inkSecondary).padding(.horizontal, 16)
+            if let openFailure {
+                CarbonNotification(kind: .error, title: "Could not open the document", message: openFailure).padding(16)
             }
+            if doc.sections.isEmpty {
+                Text("This record has no sections this screen can read.")
+                    .font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.inkSecondary).padding(16)
+                    .accessibilityIdentifier("abdm-record-no-sections")
+            }
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(doc.sections) { section in
+                    CarbonSectionTitle(section.title)
+                    ForEach(section.items) { item in itemRow(item) }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("abdm-record-sections")
         }
-        .accessibilityIdentifier("abdm-record-sections")
     }
 
     private func itemRow(_ item: FhirSections.Item) -> some View {

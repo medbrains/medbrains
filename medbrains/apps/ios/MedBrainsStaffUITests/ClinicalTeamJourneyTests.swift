@@ -73,13 +73,13 @@ final class ClinicalTeamJourneyTests: JourneyCase {
         type("note-body", text)
         el("note-save").tap()
         XCTAssertTrue(sees(text, timeout: 10), "the note is on my list")
-        let doctorApi = Api.signIn(doctor.username, doctor.password)
-        guard let noteId = doctorApi.myNotes().first(where: { ($0["body"] as? String) == text })?["id"] as? String else {
-            return XCTFail("the note was saved on the server")
-        }
+        // Read from the screen, not by signing in as the doctor through the API:
+        // a second sign-in ends the app's session.
+        let share = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'note-share-'")).firstMatch
+        XCTAssertTrue(share.waitForExistence(timeout: 10), "my new note offers share")
         let dept = api.firstDepartment()
         let deptId = dept?["id"] as? String ?? ""
-        tapWhenReady(el("note-share-\(noteId)"))
+        tapWhenReady(share)
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
@@ -89,8 +89,10 @@ final class ClinicalTeamJourneyTests: JourneyCase {
         board.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
         el("share-save").tap()
         XCTAssertTrue(el("module-home-notes").waitForExistence(timeout: 10))
-        let shared = doctorApi.myNotes().first { ($0["id"] as? String) == noteId }
-        XCTAssertEqual((shared?["shares"] as? [[String: Any]])?.first?["department_id"] as? String, deptId, "shared with the board on the server")
+        // The board is the server's answer: the note is on it only once the share is saved.
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Boards'")).firstMatch.tap()
+        XCTAssertTrue(sees(text, timeout: 10), "the note is on the department board")
+        XCTAssertTrue(sees(dept?["name"] as? String ?? "", timeout: 5))
         shoot("journey-note-shared")
 
         // UHI queue: accept the seeded blood request, or prove the queue loads.
