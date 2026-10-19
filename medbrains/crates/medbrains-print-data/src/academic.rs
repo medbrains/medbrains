@@ -421,7 +421,11 @@ pub async fn get_hospital_branding(
            ('NMC', t.nmc_registration_number, NULL), \
            ('PCPNDT', t.pcpndt_registration_number, NULLIF(t.pcpndt_valid_until, '')), \
            ('PESO', t.peso_license_number, t.peso_valid_until), \
-           ('ABDM facility ID', t.abdm_facility_id, NULL), \
+           ('ABDM facility ID', (SELECT f.hfr_facility_id FROM facilities f \
+                      WHERE f.tenant_id = t.id AND f.deleted_at IS NULL \
+                        AND f.parent_id IS NULL AND f.hfr_facility_id IS NOT NULL \
+                      ORDER BY (f.facility_type = 'main_hospital') DESC, f.created_at \
+                      LIMIT 1), NULL), \
            ('GSTIN', (SELECT s.value #>> '{}' FROM tenant_settings s \
                       WHERE s.tenant_id = t.id AND s.category = 'billing' \
                         AND s.key = 'gst_number' AND s.deleted_at IS NULL), NULL) \

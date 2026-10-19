@@ -7,6 +7,7 @@ use axum::Json;
 use axum::extract::{Extension, Path, Query, State};
 use chrono::Utc;
 use medbrains_core::permissions;
+use medbrains_fhir::mapper::HPR_SYSTEM;
 use medbrains_fhir::r4::Resource;
 use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use medbrains_fhir::r4::coding::CodeableConcept;
@@ -55,7 +56,9 @@ pub fn to_composition(note: &Note, loinc: Option<&str>) -> Composition {
             })
         })
         .collect();
-    let author = Reference::to("Practitioner", note.author_id).with_display(&note.author_name);
+    let author = Reference::to("Practitioner", note.author_id)
+        .with_display(&note.author_name)
+        .with_identifier(HPR_SYSTEM, note.author_hpr_id.as_deref());
     let mut attester = Vec::new();
     if let Some(signed) = note.signed_at {
         attester.push(Attester {
@@ -70,6 +73,7 @@ pub fn to_composition(note: &Note, loinc: Option<&str>) -> Composition {
             time: note.cosigned_at.map(|t| t.to_rfc3339()),
             party: note.cosigner_name.as_ref().map(|n| Reference {
                 reference: String::new(),
+                identifier: None,
                 display: Some(n.clone()),
             }),
         });

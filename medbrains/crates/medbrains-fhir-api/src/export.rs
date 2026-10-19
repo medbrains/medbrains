@@ -16,6 +16,8 @@ use medbrains_server_core::error::AppError;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
+use crate::{ENCOUNTER_SELECT, EncounterRow};
+
 /// Bounds on what one export carries; a lifetime record fits well inside.
 const MAX_ENCOUNTERS: i64 = 2_000;
 const MAX_RESULTS: i64 = 10_000;
@@ -34,19 +36,6 @@ struct PatientRow {
     phone: Option<String>,
     email: Option<String>,
     is_active: bool,
-}
-
-#[derive(sqlx::FromRow)]
-struct EncounterRow {
-    id: Uuid,
-    patient_id: Uuid,
-    patient_display: Option<String>,
-    doctor_id: Option<Uuid>,
-    doctor_display: Option<String>,
-    encounter_type: String,
-    status: String,
-    started_at: DateTime<Utc>,
-    ended_at: Option<DateTime<Utc>>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -89,7 +78,6 @@ pub async fn patient_export(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    let display = format!("{} {}", p.first_name, p.last_name);
     let patient = PatientView {
         id: p.id,
         uhid: p.uhid,
@@ -109,19 +97,12 @@ pub async fn patient_export(
         resource: Resource::Patient(patient_to_fhir(&patient)),
     }];
 
-    let encounters = sqlx::query_as::<_, EncounterRow>(
-        "SELECT e.id, e.patient_id, $3::text AS patient_display, e.doctor_id, \
-                u.full_name AS doctor_display, e.encounter_type::text AS encounter_type, \
-                e.status::text AS status, e.created_at AS started_at, \
-                CASE WHEN e.status::text IN ('closed','completed','discharged') \
-                     THEN e.updated_at END AS ended_at \
-           FROM encounters e LEFT JOIN users u ON u.id = e.doctor_id \
-          WHERE e.patient_id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL \
-          ORDER BY e.created_at DESC LIMIT $4",
-    )
+    let encounters = sqlx::query_as::<_, EncounterRow>(&format!(
+        "{ENCOUNTER_SELECT} WHERE e.patient_id = $1 AND e.tenant_id = $2 \
+           AND e.deleted_at IS NULL ORDER BY e.created_at DESC LIMIT $3"
+    ))
     .bind(patient_id)
     .bind(tenant_id)
-    .bind(&display)
     .bind(MAX_ENCOUNTERS)
     .fetch_all(&mut **tx)
     .await?;
@@ -129,17 +110,7 @@ pub async fn patient_export(
         let id = r.id;
         BundleEntry {
             full_url: Some(format!("Encounter/{id}")),
-            resource: Resource::Encounter(encounter_to_fhir(&EncounterView {
-                id: r.id,
-                patient_id: r.patient_id,
-                patient_display: r.patient_display,
-                doctor_id: r.doctor_id,
-                doctor_display: r.doctor_display,
-                encounter_type: r.encounter_type,
-                status: r.status,
-                started_at: r.started_at,
-                ended_at: r.ended_at,
-            })),
+            resource: Resource::Encounter(encounter_to_fhir(&EncounterView::from(r))),
         }
     }));
 

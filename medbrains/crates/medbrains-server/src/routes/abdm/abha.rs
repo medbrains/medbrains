@@ -285,6 +285,22 @@ async fn read_abdm_config(
     ))
 }
 
+/// Whether this hospital has ABDM keys — saved on Settings → ABDM or in the
+/// server's environment — without signing in.
+///
+/// # Errors
+/// A database fault is an error, never "not configured".
+pub(crate) async fn abdm_configured(state: &AppState, tenant_id: Uuid) -> Result<bool, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let stored = stored_abdm_config(&mut tx, &tenant_id).await?;
+    tx.commit().await?;
+    let saved = stored.client_id.is_some() && stored.client_secret_sealed.is_some();
+    let in_env =
+        std::env::var("ABDM_CLIENT_ID").is_ok() && std::env::var("ABDM_CLIENT_SECRET").is_ok();
+    Ok(saved || in_env)
+}
+
 /// A mock ABDM for tests and rehearsals, when the secret store names one.
 async fn base_url_override(state: &AppState) -> Option<String> {
     state

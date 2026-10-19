@@ -1,9 +1,8 @@
 //! ABDM (Ayushman Bharat Digital Mission) integration routes.
 //!
-//! Phase 11 of the hybrid roadmap. Two distinct surfaces:
-//! - `hfr` — Health Facility Registry registration. One-time
-//!   setup per tenant; produces the facility ID +
-//!   HCX sender code that NHCX needs.
+//! Phase 11 of the hybrid roadmap.
+//! - `hfr` — Health Facility Registry, one HFR ID per campus.
+//! - `hpr` — Healthcare Professionals Registry IDs on doctor profiles.
 //! - `hip_relay` — Cloud-side relay for ABDM gateway callbacks.
 //!   The gateway POSTs here with NHCX results +
 //!   HIE bundle requests; we forward to the on-prem
@@ -18,4 +17,6 @@ pub mod abha_verify;
 pub mod hfr;
 pub mod hip_relay;
 pub mod settings;
+pub mod hpr;
+mod registry_access;
 pub mod signature;

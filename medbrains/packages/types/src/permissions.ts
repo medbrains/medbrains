@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1074 permissions, one per constant in the Rust source. */
+/** 1075 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6535,6 +6535,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
     module: "abdm",
   },
+  {
+    code: "abdm.hpr.manage",
+    label: "Record and verify doctors' HPR IDs",
+    description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
+    module: "abdm",
+  },
 ];
 
 /**
@@ -6555,6 +6561,10 @@ export const P = {
     },
     HFR_REGISTER: "abdm.hfr.register",
     HFR_VIEW: "abdm.hfr.view",
+    HPR: {
+      MANAGE: "abdm.hpr.manage",
+    },
+    HPR_MANAGE: "abdm.hpr.manage",
     RELAY: {
       PULL: "abdm.relay.pull",
     },
@@ -11263,6 +11273,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   hr_officer: {
     label: "HR Officer",
     permissions: [
+      P.ABDM.HPR.MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.HR.ATTENDANCE.LIST,

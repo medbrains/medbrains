@@ -8,6 +8,7 @@ pub mod abha;
 pub mod card;
 pub mod enrol;
 mod types;
+pub mod registry;
 
 pub use abha::{
     AADHAAR_VERIFY_SCOPE, ABDM_BASE_URL_OVERRIDE, ABHA_LOGIN_SCOPE, AbdmAbhaClient,

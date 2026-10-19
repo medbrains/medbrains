@@ -1792,6 +1792,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::employees::UPDATE,
             permissions::hr::credentials::LIST,
             permissions::hr::credentials::MANAGE,
+            // HPR IDs are professional credentials, kept with the rest of them.
+            permissions::abdm::hpr::MANAGE,
             permissions::hr::attendance::LIST,
             permissions::hr::attendance::MANAGE,
             permissions::hr::leave::LIST,
