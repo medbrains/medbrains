@@ -15,6 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.medbrains.kit.AlertAudience
+import com.medbrains.kit.AlertChannels
 import com.medbrains.kit.ApiClient
 import com.medbrains.kit.AuthState
 import com.medbrains.kit.AuthStore
@@ -33,6 +35,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Patients only ever hear calm, so only its channel exists.
+        AlertChannels.register(applicationContext, AlertAudience.PATIENT)
         val secrets = SecretStore(applicationContext)
         val client = ApiClient(baseUrl = AppConfig.baseUrl(intent), variant = "patient", secrets = secrets)
         val auth = AuthStore(applicationContext, client, secrets)

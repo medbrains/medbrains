@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medbrains.kit.AlertSound
+import com.medbrains.kit.AlertSoundPlayer
 import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
@@ -70,6 +72,7 @@ private const val POLL_MS = 10_000L
 @Composable
 fun EmergencyFlash() {
     val identity = LocalIdentity.current ?: return
+    val context = LocalContext.current
     val api = NurseApi(LocalApiClient.current)
     val codeBlues = remember { Remote<List<CodeBlueEvent>>() }
     val erCodes = remember { Remote<List<EmergencyCodeActivation>>() }
@@ -88,6 +91,15 @@ fun EmergencyFlash() {
         ers.value.orEmpty().map { EmergencyCodeRef(it.id, it.code_type, it.location) },
         silenced.toList(),
     )
+    // A code that newly opens sounds once, as an alarm; keys pruned to the open ones.
+    val player = remember(context) { AlertSoundPlayer(context.applicationContext) }
+    val sounded = remember { mutableSetOf<String>() }
+    val keys = open.map { it.key }.toSet()
+    LaunchedEffect(keys) {
+        if ((keys - sounded).isNotEmpty()) player.play(AlertSound.URGENT)
+        sounded.retainAll(keys)
+        sounded.addAll(keys)
+    }
     open.firstOrNull()?.let { current ->
         FlashBanner(api, current, open.size - 1, identity.can("nurse.code_blue.respond")) { silenced.add(current.key) }
     }
