@@ -8,8 +8,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { describePunch } from "@/components/Nurse/shiftLocation";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Switch, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { AebasImportDrawer } from "./aebas-import-drawer";
 
@@ -17,12 +18,22 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
-  const { data: records = [], isLoading } = useQuery({
-    queryKey: ["hr-attendance", dateFrom, dateTo],
+  const {
+    data: records = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["hr-attendance", dateFrom, dateTo, flaggedOnly],
     queryFn: () =>
-      hrService.listAttendance({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
+      hrService.listAttendance({
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        flagged: flaggedOnly || undefined,
+      }),
   });
 
   const [form, setForm] = useState({
@@ -75,6 +86,11 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
             onChange={(e) => setDateTo(e.currentTarget.value)}
             style={{ width: 160 }}
           />
+          <Switch
+            label="Flagged punches only"
+            checked={flaggedOnly}
+            onChange={(e) => setFlaggedOnly(e.currentTarget.checked)}
+          />
         </Group>
         <Group gap="xs">
           <PrintRegisterButton documentKey="aebas-attendance" period="month" />
@@ -90,6 +106,8 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
       <DataTable
         data={records}
         loading={isLoading}
+        error={error}
+        onRetry={() => void refetch()}
         rowKey={(r: AttendanceRecord) => r.id}
         columns={[
           {
@@ -154,6 +172,11 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
                   —
                 </Text>
               ),
+          },
+          {
+            key: "location",
+            label: "Location",
+            render: renderPunch,
           },
           {
             key: "source",
@@ -233,3 +256,22 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
 // ══════════════════════════════════════════════════════════
 //  Leave Tab
 // ══════════════════════════════════════════════════════════
+
+/** The punch HR should look at first: a flagged one, check-in before check-out. */
+function renderPunch(record: AttendanceRecord) {
+  const punches = [record.check_in_location, record.check_out_location];
+  const shown = punches.find((p) => p?.flagged) ?? record.check_in_location;
+  const state = describePunch(shown);
+  if (!state) {
+    return (
+      <Text size="sm" c="dimmed">
+        —
+      </Text>
+    );
+  }
+  return (
+    <Badge size="sm" tone={state.tone}>
+      {record.geofence_flagged ? `Flagged · ${state.label}` : state.label}
+    </Badge>
+  );
+}

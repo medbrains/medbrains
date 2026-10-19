@@ -254,6 +254,7 @@ import type {
   CampSyncInboundRequest,
   CampSyncInboundResponse,
   CampTeamMember,
+  CampusFence,
   CancelAppointmentRequest,
   CancelCampRequest,
   CancelOrderRequest,
@@ -1071,6 +1072,8 @@ import type {
   GenerateUpiQrRequest,
   GeoCountry,
   GeoDistrict,
+  GeofenceMode,
+  GeofenceSettings,
   GeoState,
   GeoSubdistrict,
   GeoTown,
@@ -1708,6 +1711,7 @@ import type {
   PublicTenant,
   PublicTokenLink,
   PublicTokenStatus,
+  PunchFix,
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
   PurchaseOrderPrintData,
@@ -1898,6 +1902,7 @@ import type {
   ServiceBondAgreementPrintData,
   ServiceRow,
   ServiceTimeStats,
+  SetCampusFenceRequest,
   SetDonorDeferralRequest,
   SetHprRequest,
   SetupUser,
@@ -10201,12 +10206,14 @@ export const api = {
     date_from?: string;
     date_to?: string;
     employee_id?: string;
+    flagged?: boolean;
   }) => {
     const qs = new URLSearchParams();
     if (params?.department_id) qs.set("department_id", params.department_id);
     if (params?.date_from) qs.set("date_from", params.date_from);
     if (params?.date_to) qs.set("date_to", params.date_to);
     if (params?.employee_id) qs.set("employee_id", params.employee_id);
+    if (params?.flagged) qs.set("flagged", "true");
     const q = qs.toString();
     return request<AttendanceRecord[]>(`/hr/attendance${q ? `?${q}` : ""}`);
   },
@@ -10218,12 +10225,32 @@ export const api = {
     }),
   listDutyHours: () => request<DutyHoursRow[]>("/hr/duty-hours"),
   getMyShift: () => request<MyShiftResponse>("/hr/my-shift"),
-  startShift: () => request<MyShiftResponse>("/hr/my-shift/start", { method: "POST" }),
+  getGeofenceSettings: () => request<GeofenceSettings>("/hr/attendance/geofence"),
+  setGeofenceMode: (mode: GeofenceMode) =>
+    request<{ mode: GeofenceMode }>("/hr/attendance/geofence/mode", {
+      method: "PUT",
+      body: JSON.stringify({ mode }),
+    }),
+  setCampusFence: (id: string, data: SetCampusFenceRequest) =>
+    request<CampusFence>(`/hr/attendance/geofence/campuses/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** A punch with no fix (location denied) still sends a body. */
+  startShift: (fix?: PunchFix | null) =>
+    request<MyShiftResponse>("/hr/my-shift/start", {
+      method: "POST",
+      body: JSON.stringify(fix ?? {}),
+    }),
   extendShift: (data: { hours: number; reason?: string }) =>
     request<MyShiftResponse>("/hr/my-shift/extend", { method: "POST", body: JSON.stringify(data) }),
   pauseShift: () => request<MyShiftResponse>("/hr/my-shift/pause", { method: "POST" }),
   resumeShift: () => request<MyShiftResponse>("/hr/my-shift/resume", { method: "POST" }),
-  endShift: () => request<MyShiftResponse>("/hr/my-shift/end", { method: "POST" }),
+  endShift: (fix?: PunchFix | null) =>
+    request<MyShiftResponse>("/hr/my-shift/end", {
+      method: "POST",
+      body: JSON.stringify(fix ?? {}),
+    }),
   acknowledgeFatigue: (data: { reason?: string }) =>
     request<MyShiftResponse>("/hr/my-shift/acknowledge-fatigue", {
       method: "POST",

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1091 permissions, one per constant in the Rust source. */
+/** 1092 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2763,6 +2763,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "hr.attendance.manage",
     label: "Manage Attendance",
     description: "Mark and modify attendance",
+    module: "hr",
+  },
+  {
+    code: "hr.attendance.geofence.manage",
+    label: "Set where staff may clock in from",
+    description: "Each facility's location and fence radius, and whether a punch from outside is flagged for HR or refused. Decides whether a nurse can start their shift, so it is held apart from marking attendance.",
     module: "hr",
   },
   {
@@ -7910,9 +7916,14 @@ export const P = {
     },
     APPRAISAL_MANAGE: "hr.appraisal.manage",
     ATTENDANCE: {
+      GEOFENCE: {
+        MANAGE: "hr.attendance.geofence.manage",
+      },
+      GEOFENCE_MANAGE: "hr.attendance.geofence.manage",
       LIST: "hr.attendance.list",
       MANAGE: "hr.attendance.manage",
     },
+    ATTENDANCE_GEOFENCE_MANAGE: "hr.attendance.geofence.manage",
     ATTENDANCE_LIST: "hr.attendance.list",
     ATTENDANCE_MANAGE: "hr.attendance.manage",
     CREDENTIALS: {
@@ -11450,6 +11461,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.HPR.MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.HR.ATTENDANCE.GEOFENCE.MANAGE,
       P.HR.ATTENDANCE.LIST,
       P.HR.ATTENDANCE.MANAGE,
       P.HR.CREDENTIALS.LIST,
