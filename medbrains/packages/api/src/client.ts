@@ -1416,6 +1416,11 @@ import type {
   News2Result,
   NewsFeedArticle,
   NewsFeedListItem,
+  NhcxConnectionTest,
+  NhcxParticipant,
+  NhcxQueuedResponse,
+  NhcxSettingsView,
+  NhcxStatus,
   NmcComplianceReportPrintData,
   // Scheduling
   NoshowPredictionScore,
@@ -1825,6 +1830,7 @@ import type {
   SaveAbdmSettings,
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
+  SaveNhcxSettings,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
   SchedulePmRequest,
@@ -2189,6 +2195,7 @@ import type {
   UpsertDisplayConfigRequest,
   UpsertMarketingAreaRequest,
   UpsertMarketingCampaignRequest,
+  UpsertNhcxParticipantRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
@@ -5209,42 +5216,43 @@ export const api = {
 
   /** Submit a claim/pre-auth to NHCX — assembles the FHIR Bundle + queues the exchange. */
   submitClaimToNhcx: (id: string, data: { recipient_code: string; use?: string }) =>
-    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
-      `/billing/insurance-claims/${id}/submit-to-nhcx`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/submit-to-nhcx`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   /** Queue an NHCX coverage-eligibility check for the claim's patient + policy. */
   checkCoverageEligibility: (id: string, data: { recipient_code: string }) =>
-    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
-      `/billing/insurance-claims/${id}/check-eligibility`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/check-eligibility`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   /** NHCX payer directory (the recipient_code source for claim submission). */
   listNhcxParticipants: (role?: string) =>
-    request<
-      Array<{
-        id: string;
-        participant_code: string;
-        participant_name: string;
-        role: string;
-        is_active: boolean;
-      }>
-    >(`/nhcx/participants${role ? `?role=${role}` : ""}`),
+    request<NhcxParticipant[]>(`/nhcx/participants${role ? `?role=${role}` : ""}`),
 
-  upsertNhcxParticipant: (data: {
-    participant_code: string;
-    participant_name: string;
-    role?: string;
-  }) =>
-    request<{
-      id: string;
-      participant_code: string;
-      participant_name: string;
-      role: string;
-      is_active: boolean;
-    }>("/nhcx/participants", { method: "POST", body: JSON.stringify(data) }),
+  upsertNhcxParticipant: (data: UpsertNhcxParticipantRequest) =>
+    request<NhcxParticipant>("/nhcx/participants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Whether claims can go to NHCX, and what is missing if not. */
+  getNhcxStatus: () => request<NhcxStatus>("/integrations/nhcx/status"),
+
+  /** Settings → NHCX. Never returns a secret. */
+  getNhcxSettings: () => request<NhcxSettingsView>("/integrations/nhcx/settings"),
+
+  saveNhcxSettings: (data: SaveNhcxSettings) =>
+    request<NhcxSettingsView>("/integrations/nhcx/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  /** Sign in to the NHCX gateway with the saved credentials. */
+  testNhcxConnection: () =>
+    request<NhcxConnectionTest>("/integrations/nhcx/settings/test", { method: "POST" }),
 
   /**
    * NHCX webhook receipt log. Optional filters: correlation_id (specific
@@ -17156,11 +17164,6 @@ export const api = {
     board_module?: string;
   }) =>
     request<DevicePairingRequest>("/admin/device-pairing/approve", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  receiveNhcxCallback: (data: Record<string, unknown>) =>
-    request<unknown>("/integrations/nhcx/callback", {
       method: "POST",
       body: JSON.stringify(data),
     }),

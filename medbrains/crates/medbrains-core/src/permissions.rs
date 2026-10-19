@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 782;
+pub const PERMISSION_COUNT: usize = 785;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -2409,6 +2409,25 @@ pub mod insurance {
 
     pub mod dashboard {
         pub const VIEW: &str = "insurance.dashboard.view";
+    }
+
+    /// NHCX — the National Health Claims Exchange.
+    pub mod nhcx {
+        /// Send claims to NHCX.
+        ///
+        /// Submit a claim or pre-authorisation, or check coverage
+        /// eligibility, with a payer through NHCX.
+        pub const SUBMIT: &str = "insurance.nhcx.submit";
+        /// See NHCX exchanges.
+        ///
+        /// What was sent to NHCX for a claim, whether this hospital is set
+        /// up for NHCX, and every response the payers sent back.
+        pub const VIEW: &str = "insurance.nhcx.view";
+        /// Set up the NHCX connection.
+        ///
+        /// The NHCX participant code, gateway keys and certificates, and
+        /// whether the hospital talks to the sandbox or production.
+        pub const CONFIGURE: &str = "insurance.nhcx.configure";
     }
 }
 

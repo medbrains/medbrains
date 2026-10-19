@@ -49,6 +49,7 @@ import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
+import { NhcxSettings } from "@/pages/admin/settings/NhcxSettings";
 import { OAuthIntegrationsSettings } from "@/pages/admin/settings/OAuthIntegrationsSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
@@ -240,6 +241,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconPlug",
     requiredPermission: "abdm.settings.manage",
     component: AbdmSettings,
+  },
+  {
+    value: "nhcx",
+    i18nKey: "settings.nhcx",
+    icon: "IconShieldCheck",
+    requiredPermission: "insurance.nhcx.configure",
+    component: NhcxSettings,
   },
   {
     value: "payment-terminals",

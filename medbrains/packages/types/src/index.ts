@@ -169,6 +169,7 @@ export * from "./medication-timing";
 export * from "./message-simulator";
 export * from "./mrd";
 export * from "./notes";
+export * from "./nhcx";
 export * from "./nurse-calls";
 export * from "./onboarding-masters";
 export * from "./onboarding-store";
