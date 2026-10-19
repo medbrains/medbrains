@@ -179,7 +179,7 @@ pub fn push_copy_row<'a>(
         });
     }
     for (i, (value, column)) in cols.iter().zip(header).enumerate() {
-        validate(kind, line_no, *column, value)?;
+        validate(kind, line_no, column, value)?;
         if i > 0 {
             out.push('\t');
         }
@@ -300,7 +300,7 @@ mod tests {
     #[test]
     fn copy_row_escapes_backslash_and_returns_module() {
         let mut out = String::new();
-        let line = "101\t20250101\t1\t900000000000207008\t22298006\ten\t900000000000013009\tA\\B\t900000000000448009\r\n";
+        let line = "100112\t20250101\t1\t900000000000207008\t22298006\ten\t900000000000013009\tA\\B\t900000000000448009\r\n";
         let module = push_copy_row(Rf2Kind::Description, 2, line, &mut out);
         assert_eq!(module, Ok("900000000000207008"));
         assert!(out.contains("A\\\\B"), "{out}");

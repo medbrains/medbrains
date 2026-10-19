@@ -317,7 +317,12 @@ async fn start(
                 max_unpacked_bytes: env_bytes("SNOMED_MAX_UNPACKED_BYTES", DEFAULT_UNPACKED_MAX),
             };
             let pool = state.db.clone();
-            tokio::spawn(async move { job::run(&pool, &job).await });
+            // ponytail: the import borrows across sqlx awaits in a way rustc
+            // cannot prove `Send` for every lifetime; a blocking-pool thread
+            // driving it on this runtime needs no `Send`, and a long batch
+            // job belongs off the request workers anyway.
+            let runtime = tokio::runtime::Handle::current();
+            tokio::task::spawn_blocking(move || runtime.block_on(job::run(&pool, &job)));
             Ok((
                 StatusCode::ACCEPTED,
                 Json(SnomedImportStarted {
