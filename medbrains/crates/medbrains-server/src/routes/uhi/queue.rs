@@ -1,8 +1,10 @@
-//! The UHI requests screen: what patient apps booked or asked for, and the
-//! staff answer to ambulance and blood requests.
+//! The UHI requests screen: what patient apps booked or asked for — with
+//! payment state and held or expired bookings — and the staff answer to
+//! ambulance, blood and lab requests.
 //!
 //! - `GET  /api/uhi/requests`              — orders, newest first (bounded)
-//! - `POST /api/uhi/requests/{id}/accept`  — ambulance: the trip is created
+//! - `POST /api/uhi/requests/{id}/accept`  — ambulance: the trip is created;
+//!   lab tests: the real lab orders (and home collection) are placed
 //! - `POST /api/uhi/requests/{id}/decline` — with the reason the patient sees
 //!
 //! Either answer is sent to the patient's app as a signed `on_status`.
@@ -18,9 +20,11 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
-    inbound::{Reply, answer_body, set_state},
-    outbox::{self, Callback},
-    protocol::{Context, STATE_CANCELLED, STATE_CONFIRMED},
+    inbound::set_state,
+    labs,
+    outbox::{self, Tell},
+    payment,
+    protocol::{STATE_CANCELLED, STATE_CONFIRMED},
     requests::pickup_address,
     settings,
 };
@@ -33,7 +37,8 @@ use crate::{
 const PAGE: i64 = 200;
 const COLUMNS: &str = "id, service, state, customer_name, customer_phone, customer_abha, \
     order_details, appointment_id, ambulance_trip_id, decline_reason, confirmed_at, \
-    responded_at, updated_at";
+    responded_at, updated_at, payment_type, payment_status, amount, hold_expires_at, \
+    lab_order_ids";
 
 #[derive(Debug, sqlx::FromRow)]
 struct Row {
@@ -50,6 +55,11 @@ struct Row {
     confirmed_at: Option<DateTime<Utc>>,
     responded_at: Option<DateTime<Utc>>,
     updated_at: DateTime<Utc>,
+    payment_type: Option<String>,
+    payment_status: Option<String>,
+    amount: Option<rust_decimal::Decimal>,
+    hold_expires_at: Option<DateTime<Utc>>,
+    lab_order_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -68,12 +78,24 @@ pub struct UhiRequest {
     pub confirmed_at: Option<DateTime<Utc>>,
     pub responded_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
+    /// `ON-ORDER` (paid online) or `ON-FULFILLMENT` (at the hospital).
+    pub payment_type: Option<String>,
+    /// `PAID` or `NOT-PAID`; paid on a cancelled or expired booking means a
+    /// refund is due.
+    pub payment_status: Option<String>,
+    pub amount: Option<rust_decimal::Decimal>,
+    /// A held booking lets go of its slot at this time unless paid.
+    pub hold_expires_at: Option<DateTime<Utc>>,
+    /// The lab orders an accepted lab request became.
+    pub lab_order_ids: Vec<Uuid>,
+    /// A lab request for a home collection (accepting it books one).
+    pub home_collection: bool,
 }
 
 fn summary(service: &str, order: &Value) -> String {
     let s = |p: &str| order.pointer(p).and_then(Value::as_str).unwrap_or_default();
     match service {
-        "teleconsultation" => format!(
+        "teleconsultation" | "physical_consultation" => format!(
             "{} at {}",
             s("/fulfillment/agent/name"),
             s("/fulfillment/start/time/timestamp").replace('T', " ")
@@ -82,6 +104,7 @@ fn summary(service: &str, order: &Value) -> String {
             "Pickup: {}",
             pickup_address(order).unwrap_or_else(|| "not given".to_owned())
         ),
+        "lab_tests" => labs::summary(order),
         _ => order
             .get("items")
             .and_then(Value::as_array)
@@ -107,6 +130,8 @@ impl From<Row> for UhiRequest {
             .as_ref()
             .map(|o| summary(&r.service, o))
             .unwrap_or_default();
+        let home_collection =
+            r.service == "lab_tests" && r.order_details.as_ref().is_some_and(labs::is_home);
         Self {
             id: r.id,
             service: r.service,
@@ -121,6 +146,12 @@ impl From<Row> for UhiRequest {
             confirmed_at: r.confirmed_at,
             responded_at: r.responded_at,
             updated_at: r.updated_at,
+            payment_type: r.payment_type,
+            payment_status: r.payment_status,
+            amount: r.amount,
+            hold_expires_at: r.hold_expires_at,
+            lab_order_ids: r.lab_order_ids,
+            home_collection,
         }
     }
 }
@@ -145,10 +176,15 @@ pub async fn list(
     let only_pending = q.state.as_deref() == Some("pending");
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // The screen never shows a hold that has already run out as held.
+    if let Some(sub) = settings::load(&mut tx, claims.tenant_id).await? {
+        payment::expire_holds(&mut tx, state.secret_resolver.as_ref(), &sub).await?;
+    }
     let rows = sqlx::query_as::<_, Row>(&format!(
         "SELECT {COLUMNS} FROM uhi_transactions \
           WHERE tenant_id = $1 AND deleted_at IS NULL \
-            AND state IN ('pending', 'confirmed', 'declined', 'cancelled') \
+            AND state IN ('awaiting_payment', 'pending', 'confirmed', 'declined', 'cancelled', \
+                          'expired') \
             AND (NOT $2 OR state = 'pending') \
           ORDER BY updated_at DESC LIMIT $3"
     ))
@@ -181,7 +217,12 @@ async fn pending(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    if row.state != "pending" || row.service == "teleconsultation" {
+    if row.state != "pending"
+        || matches!(
+            row.service.as_str(),
+            "teleconsultation" | "physical_consultation"
+        )
+    {
         return Err(AppError::Conflict(format!(
             "this request is {} and cannot be answered",
             row.state
@@ -205,23 +246,20 @@ async fn notify(
     let sub = settings::load(tx, tenant_id)
         .await?
         .ok_or_else(|| AppError::ServiceUnavailable("UHI is not set up".to_owned()))?;
-    let mut ctx = Context::parse(payload).map_err(|f| AppError::Internal(format!("ctx {f}")))?;
-    ctx.action = "status".to_owned();
-    ctx.message_id = Uuid::new_v4().to_string();
-    let url = format!("{}/on_status", ctx.consumer_uri.trim_end_matches('/'));
     let idempotency_key = format!(
         "staff|{}|{}",
         row.id,
         order["state"].as_str().unwrap_or_default()
     );
-    let body = answer_body(state, &sub, &ctx, Reply::message(json!({ "order": order }))).await;
-    outbox::queue(
+    outbox::tell(
         tx,
-        tenant_id,
-        Callback {
+        state.secret_resolver.as_ref(),
+        &sub,
+        Tell {
             transaction_row: row.id,
-            url,
-            body,
+            request: payload,
+            action: "status",
+            order,
             idempotency_key,
         },
     )
@@ -232,8 +270,9 @@ async fn notify(
 ///
 /// # Errors
 /// 403 without `uhi.requests.respond` — and `ambulance.trips.create` for an
-/// ambulance, `blood_bank.inventory.manage` for blood; 409 when it is not
-/// pending.
+/// ambulance, `blood_bank.inventory.manage` for blood, `lab.orders.direct`
+/// for lab tests (and `lab.samples.manage` for a home collection); 409 when
+/// it is not pending.
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn accept(
     State(state): State<AppState>,
@@ -245,9 +284,25 @@ pub async fn accept(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let (row, payload) = pending(&mut tx, claims.tenant_id, id).await?;
     let mut order = row.order_details.clone().unwrap_or_else(|| json!({}));
+    let mut placed = Vec::new();
     let trip = if row.service == "ambulance" {
         require_permission(&claims, permissions::ambulance::trips::CREATE)?;
         Some(create_trip(&mut tx, &claims, &row, &order).await?)
+    } else if row.service == "lab_tests" {
+        placed = labs::accept(
+            &mut tx,
+            &claims,
+            labs::Request {
+                id,
+                order: &order,
+                name: row.customer_name.as_deref(),
+                phone: row.customer_phone.as_deref(),
+                abha: row.customer_abha.as_deref(),
+            },
+        )
+        .await?;
+        order["fulfillment"]["tags"] = json!({ "instructions": labs::instructions(&order) });
+        None
     } else {
         require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
         order["fulfillment"]["tags"] = json!({ "instructions":
@@ -261,6 +316,9 @@ pub async fn accept(
     notify(&state, &mut tx, claims.tenant_id, (&row, &payload), order).await?;
     let view = reload(&mut tx, id).await?;
     tx.commit().await?;
+    for order_id in placed {
+        medbrains_lab::grant_lab_order_access(&state, &claims, order_id, "uhi_lab_request").await?;
+    }
     Ok(Json(view))
 }
 

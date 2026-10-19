@@ -58,7 +58,8 @@ async fn resolve_razorpay_config(
 ) -> Result<Option<ResolvedRazorpayConfig>, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'razorpay_config'",
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'razorpay_config' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
@@ -91,6 +92,24 @@ async fn resolve_razorpay_config(
     Ok(None)
 }
 
+/// Razorpay's key ID and secret when Razorpay is the hospital's active
+/// online provider and is configured — what a hosted payment link needs.
+/// `None` when the hospital takes no online payment this way.
+///
+/// # Errors
+/// A database fault, or a stored config that does not parse.
+pub async fn razorpay_link_credentials(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<Option<(String, String)>, AppError> {
+    if resolve_active_provider(tx, tenant_id).await? != "razorpay" {
+        return Ok(None);
+    }
+    Ok(resolve_razorpay_config(tx, tenant_id)
+        .await?
+        .map(|r| (r.config.key_id, r.config.key_secret)))
+}
+
 /// Read UPI VPA from `tenant_settings`.
 async fn get_upi_vpa(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -98,7 +117,8 @@ async fn get_upi_vpa(
 ) -> Result<Option<String>, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'upi_vpa'",
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'upi_vpa' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
@@ -360,7 +380,8 @@ async fn resolve_active_provider(
 ) -> Result<String, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'active_provider'",
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'active_provider' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
@@ -403,7 +424,8 @@ async fn peek_provider_config(
     let key = format!("{provider}_config");
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = $2",
+         WHERE tenant_id = $1 AND category = 'payments' AND key = $2 \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .bind(&key)
@@ -980,7 +1002,7 @@ pub async fn create_order(
                 aggregate_id: Some(txn.id),
                 event_type: "payment.create_order",
                 payload: serde_json::json!({
-                    "txn_id": txn.id,
+                    "internal_payment_id": txn.id,
                     "amount_paise": amount_paise,
                     "currency": currency,
                     "receipt": receipt,
@@ -1439,8 +1461,11 @@ pub async fn razorpay_webhook(
     let payload: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
 
-    let order_id = payload["payload"]["order"]["entity"]["id"]
+    // A payment link is filed under its own ID (`plink_…`); its payment
+    // carries an order Razorpay made for it, which nothing here knows.
+    let order_id = payload["payload"]["payment_link"]["entity"]["id"]
         .as_str()
+        .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["payment"]["entity"]["order_id"].as_str());
 
     let Some(order_id) = order_id else {
@@ -1501,7 +1526,7 @@ pub async fn razorpay_webhook(
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
-        "payment.captured" => {
+        "payment.captured" | "payment_link.paid" => {
             handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?;
         }
         "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, order_id, &payload).await?,
@@ -1572,6 +1597,43 @@ async fn handle_webhook_captured(
             .await?;
         }
     }
+    if txn_row.status != "captured" {
+        announce_capture(tx, txn_row).await?;
+    }
+    Ok(())
+}
+
+/// The outbox events a payment may ask to have queued when it is captured.
+/// An allowlist: a payment row never names an arbitrary event.
+pub const CAPTURE_EVENTS: [&str; 1] = ["uhi.payment_captured"];
+
+/// Tell whoever opened the payment that it is in: a payment raised for
+/// something other than a bill names, in `notes.on_captured`, the outbox
+/// event that finishes its work (a UHI booking: `uhi.payment_captured`).
+async fn announce_capture(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    txn_row: &PaymentGatewayTransaction,
+) -> Result<(), AppError> {
+    let named = txn_row
+        .notes
+        .get("on_captured")
+        .and_then(serde_json::Value::as_str);
+    let Some(event) = CAPTURE_EVENTS.into_iter().find(|e| Some(*e) == named) else {
+        return Ok(());
+    };
+    medbrains_outbox::queue_in_tx(
+        tx,
+        medbrains_outbox::OutboxRow {
+            tenant_id: txn_row.tenant_id,
+            aggregate_type: "payment_gateway_transaction",
+            aggregate_id: Some(txn_row.id),
+            event_type: event,
+            payload: serde_json::json!({ "payment_transaction_id": txn_row.id }),
+            idempotency_key: Some(format!("captured:{}", txn_row.id)),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
     Ok(())
 }
 
@@ -1638,7 +1700,8 @@ async fn get_cashfree_signing_secret(
 ) -> Result<String, AppError> {
     let cfg = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'cashfree_config'",
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'cashfree_config' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
@@ -2387,7 +2450,12 @@ async fn get_ccavenue_working_key(
 }
 
 /// Record a payment against an invoice and update its status.
-async fn record_invoice_payment(
+/// Post a gateway payment to its bill: the payment row and the bill's paid
+/// amount and status — how every online payment lands.
+///
+/// # Errors
+/// A database fault.
+pub async fn record_invoice_payment(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     invoice_id: Uuid,

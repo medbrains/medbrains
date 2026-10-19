@@ -19,31 +19,46 @@ import {
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { formatDateTime } from "@/lib/date-utils";
 import { uhiService } from "@/services/uhi.service";
+import { UhiPaymentCell } from "./uhi-payment-cell";
 
 const SERVICE_LABEL: Record<UhiService, string> = {
   teleconsultation: "Teleconsultation",
+  physical_consultation: "Visit",
+  lab_tests: "Lab tests",
   ambulance: "Ambulance",
   blood_bank: "Blood",
 };
 
 const STATE: Record<UhiRequestState, { label: string; tone: BadgeTone }> = {
+  awaiting_payment: { label: "Held — waiting for payment", tone: "warning" },
   pending: { label: "Waiting for us", tone: "warning" },
   confirmed: { label: "Confirmed", tone: "success" },
   declined: { label: "Declined", tone: "danger" },
   cancelled: { label: "Cancelled by patient", tone: "neutral" },
+  expired: { label: "Not paid in time", tone: "neutral" },
+};
+
+const IN_APPOINTMENTS: UhiService[] = ["teleconsultation", "physical_consultation"];
+
+const ACCEPT_LABEL: Partial<Record<UhiService, string>> = {
+  ambulance: "Accept and dispatch",
+  lab_tests: "Accept and order the tests",
 };
 
 /**
  * UHI requests: what patient apps booked or asked for through NHA's Unified
- * Health Interface. Teleconsultations are booked straight into the day's
- * appointments; ambulance and blood requests wait here for someone to say
- * whether the hospital can help, and that answer goes back to the app.
+ * Health Interface. Consultations are booked straight into the day's
+ * appointments (a teleconsultation paid online is held until it is paid);
+ * ambulance, blood and lab requests wait here for someone to say whether the
+ * hospital can help, and that answer goes back to the app.
  */
 export function UhiRequestsPage() {
   useRequirePermission(P.UHI.REQUESTS.VIEW);
   const canRespond = useHasPermission(P.UHI.REQUESTS.RESPOND);
   const canDispatch = useHasPermission(P.AMBULANCE.TRIPS.CREATE);
   const canIssueBlood = useHasPermission(P.BLOOD_BANK.INVENTORY.MANAGE);
+  const canOrderLab = useHasPermission(P.LAB.ORDERS.DIRECT);
+  const canBookCollection = useHasPermission(P.LAB.SAMPLES.MANAGE);
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [declining, setDeclining] = useState<UhiRequest | null>(null);
@@ -72,10 +87,14 @@ export function UhiRequestsPage() {
     onError: (e: Error) => toast.error(e.message, { title: "Could not decline" }),
   });
 
+  // Each service's accept needs its module's own permission as well.
+  const serviceGate: Partial<Record<UhiService, (r: UhiRequest) => boolean>> = {
+    ambulance: () => canDispatch,
+    blood_bank: () => canIssueBlood,
+    lab_tests: (r) => canOrderLab && (!r.home_collection || canBookCollection),
+  };
   const mayAnswer = (r: UhiRequest) =>
-    canRespond &&
-    r.state === "pending" &&
-    (r.service === "ambulance" ? canDispatch : r.service === "blood_bank" && canIssueBlood);
+    canRespond && r.state === "pending" && (serviceGate[r.service]?.(r) ?? false);
 
   return (
     <Stack>
@@ -116,6 +135,7 @@ export function UhiRequestsPage() {
                 <Table.Th>Patient</Table.Th>
                 <Table.Th>Asked for</Table.Th>
                 <Table.Th>State</Table.Th>
+                <Table.Th>Payment</Table.Th>
                 <Table.Th>Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -136,15 +156,28 @@ export function UhiRequestsPage() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">{r.summary || "—"}</Text>
-                    {r.service === "teleconsultation" && r.appointment_id && (
+                    {IN_APPOINTMENTS.includes(r.service) && r.appointment_id && (
                       <Text size="xs" c="dimmed">
                         In the OPD appointments for that day
+                      </Text>
+                    )}
+                    {r.lab_order_ids.length > 0 && (
+                      <Text size="xs" c="dimmed">
+                        {`${r.lab_order_ids.length} lab orders placed`}
                       </Text>
                     )}
                   </Table.Td>
                   <Table.Td>
                     <Badge tone={STATE[r.state].tone}>{STATE[r.state].label}</Badge>
                     {r.decline_reason && <Text size="xs">{r.decline_reason}</Text>}
+                    {r.state === "awaiting_payment" && r.hold_expires_at && (
+                      <Text size="xs" c="dimmed">
+                        {`Slot let go at ${formatDateTime(r.hold_expires_at)} unless paid`}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <UhiPaymentCell request={r} />
                   </Table.Td>
                   <Table.Td>
                     {mayAnswer(r) ? (
@@ -155,7 +188,7 @@ export function UhiRequestsPage() {
                           loading={accept.isPending && accept.variables === r.id}
                           onClick={() => accept.mutate(r.id)}
                         >
-                          {r.service === "ambulance" ? "Accept and dispatch" : "Accept"}
+                          {ACCEPT_LABEL[r.service] ?? "Accept"}
                         </Button>
                         <Button size="xs" tone="secondary" onClick={() => setDeclining(r)}>
                           Decline

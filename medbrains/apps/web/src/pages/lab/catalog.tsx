@@ -48,6 +48,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
     critical_high: "",
     delta_check_percent: "",
     synonyms: [],
+    is_patient_orderable: false,
   };
   const {
     control,
@@ -113,6 +114,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       critical_high: row.critical_high ?? "",
       delta_check_percent: row.delta_check_percent ?? "",
       synonyms: row.synonyms ?? [],
+      is_patient_orderable: row.is_patient_orderable,
     });
     formHandlers.open();
   };
@@ -136,6 +138,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       critical_high: labOptionalNumber(values.critical_high),
       delta_check_percent: labOptionalNumber(values.delta_check_percent),
       synonyms: values.synonyms,
+      is_patient_orderable: values.is_patient_orderable,
     });
   };
 
@@ -398,6 +401,18 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
                   error={errors.container?.message}
                   clearable
                   searchable
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="is_patient_orderable"
+              render={({ field }) => (
+                <Switch
+                  label="Patients may book it from an app"
+                  description="Offered to patient apps through UHI; the lab accepts each request."
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
                 />
               )}
             />

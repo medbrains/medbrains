@@ -14,7 +14,7 @@ pub use public::{
     kiosk_checkin, public_available_slots, public_book_appointment, public_bookable_doctors,
     public_token_status, queue_token_status_link, request_public_booking_otp,
 };
-pub(crate) use public::{OnlineBooking, book_online};
+pub(crate) use public::{Caller, OnlineBooking, book_online, find_or_register};
 pub use reminders::{get_reminder_config, update_reminder_config};
 pub use schedules::{
     create_exception, create_schedule, delete_exception, delete_schedule, get_available_slots,

@@ -80,6 +80,27 @@ pub async fn is_holiday(
     Ok(entries.iter().any(|entry| holiday_matches(entry, date)))
 }
 
+/// The days from `first` to `last` that are hospital holidays, read once.
+/// The caller bounds the window.
+pub async fn holidays_between(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    first: NaiveDate,
+    last: NaiveDate,
+) -> Result<std::collections::HashSet<NaiveDate>, AppError> {
+    let value = setting_value(tx, tenant_id, keys::HOLIDAYS).await?;
+    let entries = value
+        .as_ref()
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    Ok(first
+        .iter_days()
+        .take_while(|d| *d <= last)
+        .filter(|d| entries.iter().any(|entry| holiday_matches(entry, *d)))
+        .collect())
+}
+
 fn holiday_matches(entry: &serde_json::Value, date: NaiveDate) -> bool {
     let raw = entry
         .as_str()

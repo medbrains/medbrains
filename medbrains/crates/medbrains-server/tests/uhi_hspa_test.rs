@@ -320,8 +320,8 @@ async fn blood_search_tells_counts_never_donors() {
 }
 
 /// Each screen needs its permission: the desk sees the queue but cannot
-/// answer it; the blood bank cannot accept an ambulance; a lab technician
-/// sees nothing; only an administrator opens Settings → UHI.
+/// answer it; the blood bank cannot accept an ambulance; a pharmacist sees
+/// nothing; only an administrator opens Settings → UHI.
 #[tokio::test]
 async fn the_uhi_screens_need_their_permissions() {
     let _serial = SERIAL.lock().await;
@@ -391,10 +391,11 @@ async fn the_uhi_screens_need_their_permissions() {
         "accepting an ambulance needs ambulance.trips.create"
     );
 
-    let lab = common::provision_staff(&w.app, &w.csrf, "lab_technician", &[]).await;
+    let pharmacy = common::provision_staff(&w.app, &w.csrf, "pharmacist", &[]).await;
     assert_eq!(
         status(
-            lab.client
+            pharmacy
+                .client
                 .get(w.app.url("/api/uhi/requests"))
                 .send()
                 .await

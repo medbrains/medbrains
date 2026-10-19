@@ -6641,7 +6641,7 @@ export const PERMISSIONS: PermissionDef[] = [
   {
     code: "uhi.requests.respond",
     label: "Accept or decline UHI requests",
-    description: "Tell the patient's app whether the hospital can send the ambulance or has the blood. Accepting an ambulance request also needs ambulance trip creation, accepting a blood request blood inventory management.",
+    description: "Tell the patient's app whether the hospital can send the ambulance, has the blood or will do the lab tests. Accepting an ambulance request also needs ambulance trip creation, a blood request blood inventory management, a lab request walk-in lab ordering (and sample management for a home collection).",
     module: "uhi",
   },
 ];
@@ -10583,6 +10583,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.FIND,
       P.PATIENTS.VIEW,
       P.TERMINOLOGY.SNOMED.VIEW,
+      P.UHI.REQUESTS.RESPOND,
+      P.UHI.REQUESTS.VIEW,
     ],
   },
   pharmacist: {

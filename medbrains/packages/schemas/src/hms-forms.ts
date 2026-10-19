@@ -2511,6 +2511,7 @@ export const labCatalogFormSchema = z.object({
   delta_check_percent: optionalNumericFormValue("Delta check must be between 0 and 100", 0, 100),
   /** Short names searched by ("LFT", "hemogram"). */
   synonyms: z.array(z.string().trim().min(1).max(80)).max(20, "At most 20 short names"),
+  is_patient_orderable: z.boolean(),
 });
 
 export const labPanelFormSchema = z.object({
