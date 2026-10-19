@@ -1,0 +1,6 @@
+# Per-app identifiers are read from each app's app.json in the Fastfile, so
+# nothing app-specific belongs here. Only the team-wide values live in this file,
+# and they come from the environment rather than being committed.
+apple_id(ENV["APPLE_ID"]) if ENV["APPLE_ID"]
+team_id(ENV["APPLE_TEAM_ID"]) if ENV["APPLE_TEAM_ID"]
+itc_team_id(ENV["APPLE_ITC_TEAM_ID"]) if ENV["APPLE_ITC_TEAM_ID"]

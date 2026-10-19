@@ -1,0 +1,5 @@
+source "https://rubygems.org"
+
+# Pinned rather than floating: a fastlane minor bump has broken store uploads
+# before, and a release lane is a bad place to discover it.
+gem "fastlane", "~> 2.222"

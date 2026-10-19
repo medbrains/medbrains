@@ -37,7 +37,7 @@ Full-system audit: UI/UX, backend, database, infrastructure, security, module li
 | 12 | Single EC2, single AZ, no LB, no auto-recovery, Postgres in docker on single EBS — instance death = hospital down | `standalone-vm/aws-ec2/main.tf` | CloudWatch StatusCheckFailed alarm + recovery; document Starter limits; Growth tier for prod |
 | 13 | Root EBS deleted on instance termination (no `delete_on_termination=false`) — data loss | `aws-ec2/main.tf:150-161` | Set flag; separate data volume |
 | 14 | Zero CloudWatch alarms — downtime/disk-full unnoticed | terraform (no alarms) | StatusCheck, CPU>80%, disk>80%, 5xx alarms |
-| 15 | Terraform state local for standalone/alagappa — no lock, no encryption | `envs/standalone/alagappa/main.tf:25-27` | S3 + DynamoDB backend |
+| 15 | Terraform state local for standalone/alagappa — no lock, no encryption | `envs/clients/alagappa/main.tf:25-27` | S3 + DynamoDB backend |
 
 ### Clinical safety
 | # | Issue | Location | Fix |

@@ -66,7 +66,10 @@ pub async fn record_at_registration(
     (tenant_id, patient_id, recorded_by): (Uuid, Uuid, Uuid),
     prefs: &ContactPreferences,
 ) -> Result<(), AppError> {
-    for (channel, granted) in [("whatsapp", prefs.whatsapp_opt_in), ("email", prefs.email_opt_in)] {
+    for (channel, granted) in [
+        ("whatsapp", prefs.whatsapp_opt_in),
+        ("email", prefs.email_opt_in),
+    ] {
         if !granted {
             continue;
         }
@@ -145,7 +148,9 @@ pub async fn set_contact_consent(
     require_permission(&claims, permissions::patients::UPDATE)?;
     medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     if !["whatsapp", "email"].contains(&body.channel.as_str()) {
-        return Err(AppError::BadRequest("channel must be whatsapp or email".to_owned()));
+        return Err(AppError::BadRequest(
+            "channel must be whatsapp or email".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -206,7 +211,10 @@ async fn read_consents(
     )
     .fetch_all(&mut **tx)
     .await?;
-    Ok(PatientContactConsents { preferred_method, channels })
+    Ok(PatientContactConsents {
+        preferred_method,
+        channels,
+    })
 }
 
 #[cfg(test)]
@@ -229,7 +237,11 @@ mod tests {
 
     #[test]
     fn preferring_a_channel_needs_agreeing_to_it() {
-        assert!(prefs(Some("whatsapp"), false, false).validate(true).is_err());
+        assert!(
+            prefs(Some("whatsapp"), false, false)
+                .validate(true)
+                .is_err()
+        );
         assert!(prefs(Some("whatsapp"), true, false).validate(true).is_ok());
         assert!(prefs(Some("sms"), false, false).validate(false).is_ok());
     }

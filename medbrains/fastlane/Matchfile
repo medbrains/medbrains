@@ -1,0 +1,6 @@
+# Signing certificates live in their own private git repo, encrypted by match.
+# Never in this repo.
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+readonly(ENV["CI"] == "true")

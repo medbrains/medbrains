@@ -117,3 +117,14 @@ apps/*/artifacts/
 *.bak
 .env.bak.*
 infra/.env.bak.*
+# fastlane: build output and anything credential-bearing
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+apps/*/artifacts/*.ipa
+apps/*/artifacts/*.aab
+*.p8
+*.p12
+*.mobileprovision
+play-service-account*.json

@@ -1,0 +1,168 @@
+# Store lanes for the MedBrains mobile apps.
+#
+# One Fastfile for all of them. They are Expo apps with the same shape and the
+# same com.medbrains.* bundle scheme, so a per-app copy of this file would be
+# five copies of the same thing drifting apart. Every lane takes app:<name> and
+# reads that app's own app.json for the bundle id and package name — nothing
+# about an app is duplicated here, so adding a sixth app needs no edit.
+#
+#   bundle exec fastlane ios beta       app:staff
+#   bundle exec fastlane android beta   app:staff
+#   bundle exec fastlane ios release    app:camp
+#
+# Credentials come from the environment and are never written into the repo.
+# See fastlane/README.md for the list.
+
+APPS_DIR = File.expand_path("../apps", __dir__)
+
+# app:staff -> apps/mobile-staff. The apps are all mobile-*; the short name is
+# what an operator actually types.
+def app_dir(options)
+  name = options[:app]
+  UI.user_error!("which app? pass app:staff, app:camp, app:patient, app:vendor") if name.to_s.empty?
+  dir  = File.join(APPS_DIR, name.start_with?("mobile") ? name : "mobile-#{name}")
+  UI.user_error!("no such app: #{dir}") unless Dir.exist?(dir)
+  dir
+end
+
+# Read identifiers from the app's own config rather than restating them here,
+# so a bundle id can never be right in app.json and wrong in fastlane.
+def app_config(dir)
+  raw = JSON.parse(File.read(File.join(dir, "app.json")))
+  expo = raw["expo"] || raw
+  bundle  = expo.dig("ios", "bundleIdentifier")
+  package = expo.dig("android", "package")
+  UI.user_error!("no ios.bundleIdentifier in #{dir}/app.json") if bundle.to_s.empty?
+  UI.user_error!("no android.package in #{dir}/app.json") if package.to_s.empty?
+
+  { slug: expo["slug"], name: expo["name"], bundle: bundle, package: package }
+end
+
+# Expo generates the native projects; they are not all committed. Generate the
+# one we are about to build if it is missing, and leave a committed one alone —
+# `prebuild --clean` on a committed ios/ would throw away local native edits.
+def ensure_native(dir, platform)
+  native = File.join(dir, platform)
+  return UI.success("#{platform}/ present — using it as committed") if Dir.exist?(native)
+
+  UI.message("#{platform}/ absent — running expo prebuild")
+  Dir.chdir(dir) { sh("pnpm", "run", "build:native-plugin") }
+  Dir.chdir(dir) { sh("npx", "expo", "prebuild", "--platform", platform, "--no-install") }
+end
+
+# App Store Connect API key, from env. A key file on disk beats the interactive
+# Apple ID login: it works unattended in CI and carries no 2FA session to expire.
+def asc_key
+  %w[ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_PATH].each do |v|
+    UI.user_error!("#{v} is not set — see fastlane/README.md") if ENV[v].to_s.empty?
+  end
+  app_store_connect_api_key(
+    key_id:        ENV["ASC_KEY_ID"],
+    issuer_id:     ENV["ASC_ISSUER_ID"],
+    key_filepath:  ENV["ASC_KEY_PATH"],
+    in_house:      false,
+  )
+end
+
+platform :ios do
+  desc "Build and upload an iOS build to TestFlight"
+  lane :beta do |options|
+    dir = app_dir(options)
+    cfg = app_config(dir)
+    ensure_native(dir, "ios")
+    key = asc_key
+
+    # Let TestFlight decide the next build number rather than tracking it in
+    # git, where two people shipping on the same day collide.
+    build = latest_testflight_build_number(
+      api_key: key, app_identifier: cfg[:bundle], initial_build_number: 0,
+    ) + 1
+    increment_build_number(xcodeproj: File.join(dir, "ios", "#{cfg[:slug]}.xcodeproj"), build_number: build)
+
+    match(type: "appstore", app_identifier: cfg[:bundle], readonly: is_ci, api_key: key)
+    build_app(
+      workspace:      File.join(dir, "ios", "#{cfg[:slug]}.xcworkspace"),
+      scheme:         cfg[:slug],
+      configuration:  "Release",
+      export_method:  "app-store",
+      output_directory: File.join(dir, "artifacts"),
+      clean:          true,
+    )
+    upload_to_testflight(api_key: key, app_identifier: cfg[:bundle], skip_waiting_for_build_processing: true)
+    UI.success("#{cfg[:name]} build #{build} sent to TestFlight")
+  end
+
+  desc "Promote the current TestFlight build to the App Store"
+  lane :release do |options|
+    cfg = app_config(app_dir(options))
+    upload_to_app_store(
+      api_key:                    asc_key,
+      app_identifier:             cfg[:bundle],
+      submit_for_review:          true,
+      automatic_release:          false,
+      force:                      true,   # no HTML report prompt in CI
+      precheck_include_in_app_purchases: false,
+      submission_information:     { add_id_info_uses_idfa: false },
+    )
+  end
+end
+
+platform :android do
+  desc "Build and upload an Android build to the Play internal track"
+  lane :beta do |options|
+    dir = app_dir(options)
+    cfg = app_config(dir)
+    ensure_native(dir, "android")
+    json_key = ENV["PLAY_JSON_KEY_PATH"]
+    UI.user_error!("PLAY_JSON_KEY_PATH is not set — see fastlane/README.md") if json_key.to_s.empty?
+
+    build = google_play_track_version_codes(
+      package_name: cfg[:package], track: "internal", json_key: json_key,
+    ).max.to_i + 1
+
+    gradle(
+      project_dir: File.join(dir, "android"),
+      task:        "bundle",
+      build_type:  "Release",
+      properties:  { "versionCode" => build },
+    )
+    upload_to_play_store(
+      package_name: cfg[:package],
+      json_key:     json_key,
+      track:        "internal",
+      aab:          lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+    UI.success("#{cfg[:name]} versionCode #{build} sent to the Play internal track")
+  end
+
+  desc "Promote the internal track to production"
+  lane :release do |options|
+    cfg = app_config(app_dir(options))
+    upload_to_play_store(
+      package_name: cfg[:package],
+      json_key:     ENV["PLAY_JSON_KEY_PATH"],
+      track:        "internal",
+      track_promote_to: "production",
+      skip_upload_changelogs: true,
+    )
+  end
+end
+
+desc "Check credentials and app config without building anything"
+lane :doctor do |options|
+  dir = app_dir(options)
+  cfg = app_config(dir)
+  UI.message("app       #{cfg[:name]} (#{cfg[:slug]})")
+  UI.message("ios       #{cfg[:bundle]}#{Dir.exist?(File.join(dir, 'ios')) ? '' : '   (native project not committed — prebuild will generate it)'}")
+  UI.message("android   #{cfg[:package]}#{Dir.exist?(File.join(dir, 'android')) ? '' : '   (native project not committed — prebuild will generate it)'}")
+  {
+    "ASC_KEY_ID" => "App Store Connect key id",
+    "ASC_ISSUER_ID" => "App Store Connect issuer id",
+    "ASC_KEY_PATH" => "path to the .p8 key",
+    "MATCH_GIT_URL" => "match certificate repo",
+    "PLAY_JSON_KEY_PATH" => "path to the Play service-account json",
+  }.each do |var, what|
+    UI.message(format("%-20s %s", var, ENV[var].to_s.empty? ? "MISSING — #{what}" : "set"))
+  end
+end

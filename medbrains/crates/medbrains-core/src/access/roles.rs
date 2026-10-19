@@ -54,6 +54,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::cohorts::CLINICAL_DEFINE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::doctor::dashboard::VIEW_OWN,
             permissions::doctor::profile::VIEW_OWN,
             permissions::doctor::profile::UPDATE_OWN,
@@ -396,6 +397,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::LIST,
             permissions::patients::VIEW,
             permissions::opd::queue::LIST,
@@ -665,6 +667,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::SUPPRESSION_MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::LIST,
             // The desk's own lookup. `list` only reaches patients this
             // receptionist has a relationship with, which is every patient
@@ -738,6 +741,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::VIEW,
             permissions::lab::orders::LIST,
             permissions::lab::orders::VIEW,
@@ -799,6 +803,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::VIEW,
             permissions::pharmacy::prescriptions::LIST,
             permissions::pharmacy::prescriptions::VIEW,
@@ -895,6 +900,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::LIST,
             permissions::patients::VIEW,
             permissions::billing::invoices::LIST,
@@ -991,6 +997,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::housekeeping::cleaning::LIST,
             permissions::housekeeping::cleaning::CREATE,
             permissions::housekeeping::tasks::PERFORM,
@@ -1013,6 +1020,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::ipd::beds::MANAGE,
             permissions::ipd::wards::MANAGE,
             permissions::ipd::tariffs::LIST,
@@ -1137,6 +1145,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::patients::LIST,
             permissions::patients::VIEW,
             permissions::audit::VIEW,
@@ -1220,6 +1229,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::outreach::APPROVE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::lab::orders::LIST,
             permissions::lab::orders::VIEW,
@@ -1274,6 +1284,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::occ_health::screenings::LIST,
             permissions::occ_health::screenings::CREATE,
             permissions::occ_health::screenings::UPDATE,
@@ -1293,6 +1304,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::ur::reviews::LIST,
             permissions::ur::reviews::CREATE,
             permissions::ur::reviews::UPDATE,
@@ -1309,6 +1321,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::case_mgmt::assignments::LIST,
             permissions::case_mgmt::assignments::CREATE,
             permissions::case_mgmt::assignments::UPDATE,
@@ -1326,6 +1339,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::scheduling::predictions::LIST,
             permissions::scheduling::predictions::CREATE,
             permissions::scheduling::waitlist::LIST,
@@ -1350,6 +1364,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::EXPORT,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::mrd::records::LIST,
             permissions::mrd::records::CREATE,
             permissions::mrd::records::MANAGE,
@@ -1381,6 +1396,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::diet::orders::LIST,
             permissions::diet::orders::CREATE,
             permissions::diet::kitchen::LIST,
@@ -1399,6 +1415,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::clinical_notes::MARK_IN_ERROR,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::diet::orders::LIST,
             permissions::diet::orders::CREATE,
             permissions::diet::templates::LIST,
@@ -1421,6 +1438,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::visitor_logs::RECORD,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::security::access::LIST,
             permissions::security::cctv::LIST,
             permissions::security::incidents::LIST,
@@ -1447,6 +1465,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::bme::equipment::LIST,
             permissions::bme::equipment::CREATE,
             permissions::bme::equipment::UPDATE,
@@ -1488,6 +1507,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::ambulance::fleet::LIST,
             permissions::ambulance::drivers::LIST,
             permissions::ambulance::trips::LIST,
@@ -1509,6 +1529,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::radiology::orders::LIST,
             permissions::radiology::orders::VIEW,
             permissions::radiology::modalities::MANAGE,
@@ -1530,6 +1551,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::cssd::instruments::LIST,
             permissions::cssd::instruments::MANAGE,
             permissions::cssd::sets::LIST,
@@ -1554,6 +1576,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::blood_bank::donors::LIST,
             permissions::blood_bank::donors::CREATE,
             permissions::blood_bank::inventory::LIST,
@@ -1577,6 +1600,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::marketing::campaigns::LOOKUP,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             // Campaign attribution needs the enquiry list to be meaningful:
             // "which campaign produced revenue" is unanswerable from campaign
             // rows alone. It stops at the enquiry — no patients.* code here.
@@ -1630,6 +1654,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::SUPPRESSION_MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::front_office::visitors::LIST,
             permissions::front_office::visitors::CREATE,
             permissions::front_office::visitors::MANAGE,
@@ -1669,6 +1694,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::infection_control::surveillance::LIST,
             permissions::infection_control::surveillance::CREATE,
             permissions::infection_control::stewardship::LIST,
@@ -1696,6 +1722,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::procurement::vendors::LIST,
             permissions::procurement::vendors::CREATE,
             permissions::procurement::vendors::UPDATE,
@@ -1721,6 +1748,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::indent::LIST,
             permissions::indent::VIEW,
             permissions::indent::CREATE,
@@ -1755,6 +1783,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::hr::employees::LIST,
             permissions::hr::employees::CREATE,
             permissions::hr::employees::UPDATE,
@@ -1784,6 +1813,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::CREATE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::camp::LIST,
             permissions::camp::CREATE,
             permissions::camp::UPDATE,
@@ -1813,6 +1843,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::insurance::verification::LIST,
             permissions::insurance::verification::CREATE,
             permissions::insurance::prior_auth::LIST,
@@ -1843,6 +1874,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::ot::bookings::LIST,
             permissions::ot::bookings::CREATE,
             permissions::ot::bookings::UPDATE,
@@ -1872,6 +1904,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
+            permissions::notes::USE,
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::COMPLETE,
         ],

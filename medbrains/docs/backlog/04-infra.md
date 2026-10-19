@@ -43,7 +43,7 @@ Labels: P0-critical, area:infra · Milestone: M1 — Week 1: Critical security &
 - [ ] Documented in infra README
 
 **Audit ref:** P0 #15 (ENTERPRISE_READINESS_AUDIT.md)
-**Files:** `infra/terraform/envs/standalone/alagappa/main.tf:25-27`
+**Files:** `infra/terraform/envs/clients/alagappa/main.tf:25-27`
 **Effort:** S (<1 day)
 
 Labels: P0-critical, area:infra · Milestone: M1 — Week 1: Critical security & infra

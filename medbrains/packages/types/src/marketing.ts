@@ -576,6 +576,11 @@ export interface MarketingSendPolicy {
   timezone: string;
 }
 
+/** Whether the hospital's website enquiry form files leads here. */
+export interface MarketingWebFormSetting {
+  enabled: boolean;
+}
+
 /** Reasons a number lands on the do-not-contact list. */
 export const SUPPRESSION_REASONS = [
   { value: "opted_out", label: "Asked us to stop" },

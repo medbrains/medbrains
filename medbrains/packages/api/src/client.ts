@@ -1342,6 +1342,7 @@ import type {
   MarketingSendPolicy,
   MarketingSuppression,
   MarketingTouchpoint,
+  MarketingWebFormSetting,
   MarkIncentivePaidRequest,
   MarListRow,
   MarPrintData,
@@ -5981,6 +5982,14 @@ export const api = {
     }),
 
   marketingSendPolicy: () => request<MarketingSendPolicy>("/marketing/send-policy"),
+
+  marketingWebForm: () => request<MarketingWebFormSetting>("/marketing/web-form"),
+
+  updateMarketingWebForm: (data: MarketingWebFormSetting) =>
+    request<MarketingWebFormSetting>("/marketing/web-form", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   updateMarketingSendPolicy: (data: MarketingSendPolicy) =>
     request<MarketingSendPolicy>("/marketing/send-policy", {
@@ -16928,6 +16937,21 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteNewsArticle: (id: string) => request<void>(`/admin/news/${id}`, { method: "DELETE" }),
+  // ── Sticky notes ──
+  listStickyNotes: () => request<import("@medbrains/types").StickyNotesView>("/notes"),
+  createStickyNote: (data: import("@medbrains/types").SaveStickyNote) =>
+    request<{ id: string }>("/notes", { method: "POST", body: JSON.stringify(data) }),
+  updateStickyNote: (id: string, data: import("@medbrains/types").SaveStickyNote) =>
+    request<{ id: string }>(`/notes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteStickyNote: (id: string) => request<void>(`/notes/${id}`, { method: "DELETE" }),
+  setStickyNoteShares: (id: string, data: import("@medbrains/types").SetStickyNoteShares) =>
+    request<{ id: string }>(`/notes/${id}/shares`, { method: "PUT", body: JSON.stringify(data) }),
+  removeStickyNoteShare: (shareId: string) =>
+    request<void>(`/notes/shares/${shareId}`, { method: "DELETE" }),
+  listStickyNoteRecipients: (q: string) =>
+    request<import("@medbrains/types").NoteRecipients>(
+      `/notes/recipients?q=${encodeURIComponent(q)}`,
+    ),
   exportAuditLog: () => request<unknown>("/audit/export"),
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
   // ── Patient portal ────────────────────────────────────────────────

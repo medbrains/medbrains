@@ -344,7 +344,7 @@ EPICS = [
                 "state is encrypted, shared, and protected from concurrent applies",
                 ["Backend block + migration of existing state", "Documented in infra README"],
                 "P0 #15",
-                ["infra/terraform/envs/standalone/alagappa/main.tf:25-27"],
+                ["infra/terraform/envs/clients/alagappa/main.tf:25-27"],
                 "S", "P0-critical", "area:infra", M1,
             ),
             story(

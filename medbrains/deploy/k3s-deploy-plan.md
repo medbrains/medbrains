@@ -51,14 +51,14 @@ Same Kubernetes API as full EKS, ~₹4,500/mo.
 git tag v0.1.0 && git push --tags
 
 # Or: skip CI, build locally on the mac (ARM-native, fastest)
-make -C medbrains/infra/terraform/envs/standalone/alagappa build-image-local
+make -C medbrains/infra/terraform/envs/clients/alagappa build-image-local
 
 # Apply terraform — provisions everything
 TF_VAR_tier=enterprise-k3s \
-  make -C medbrains/infra/terraform/envs/standalone/alagappa apply
+  make -C medbrains/infra/terraform/envs/clients/alagappa apply
 
 # Watch the rollout
-make -C medbrains/infra/terraform/envs/standalone/alagappa kubeconfig
+make -C medbrains/infra/terraform/envs/clients/alagappa kubeconfig
 kubectl --kubeconfig=./kubeconfig get pods -A -w
 
 # Verify

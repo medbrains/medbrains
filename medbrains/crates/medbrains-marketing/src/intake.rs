@@ -33,9 +33,13 @@
 //! labelled for logistics rather than for complaints. What lands here is
 //! treated as enquiry text and never promoted into a clinical record.
 
-use axum::{Json, extract::State};
+use axum::{Extension, Json, extract::State};
+use medbrains_core::permissions;
 use medbrains_db::pool::set_tenant_context;
-use medbrains_server_core::{error::AppError, state::AppState};
+use medbrains_server_core::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -271,20 +275,74 @@ async fn require_enquiry_form_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<(), AppError> {
+    if web_form_enabled(tx, tenant_id).await? { Ok(()) } else { Err(AppError::NotFound) }
+}
+
+async fn web_form_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<bool, AppError> {
     let value: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'marketing' \
-           AND key = 'public_enquiry_form_enabled'",
+           AND key = 'public_enquiry_form_enabled' AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
 
-    let enabled = value
-        .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-        .unwrap_or(false);
+    Ok(value.is_some_and(|v| v.as_bool().unwrap_or(v.as_str() == Some("true"))))
+}
 
-    if enabled { Ok(()) } else { Err(AppError::NotFound) }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WebFormSetting {
+    pub enabled: bool,
+}
+
+/// `GET /api/marketing/web-form` — whether the website's enquiry form is on.
+///
+/// # Errors
+/// 403 without `marketing.consent.view`, the permission the rest of the
+/// settings tab reads under.
+pub async fn get_web_form(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<WebFormSetting>, AppError> {
+    require_permission(&claims, permissions::marketing::consent::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let enabled = web_form_enabled(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(WebFormSetting { enabled }))
+}
+
+/// `PUT /api/marketing/web-form` — switch the website's enquiry form on or off.
+///
+/// Off by default: until a hospital says so, `public_enquiry` answers 404.
+///
+/// # Errors
+/// 403 without `marketing.settings.manage`.
+pub async fn set_web_form(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<WebFormSetting>,
+) -> Result<Json<WebFormSetting>, AppError> {
+    require_permission(&claims, permissions::marketing::SETTINGS_MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'marketing', 'public_enquiry_form_enabled', $2) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(serde_json::Value::Bool(body.enabled))
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(body))
 }
 
 #[cfg(test)]

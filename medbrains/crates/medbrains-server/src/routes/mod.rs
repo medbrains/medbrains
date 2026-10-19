@@ -640,6 +640,7 @@ pub fn build_router(state: AppState) -> Router {
         // Medical news feed — global ingested articles (list/search + reader).
         // News / health advisories — public list (any auth'd role), admin CRUD.
         .merge(medbrains_news::router())
+        .merge(medbrains_notes::router())
         .route(
             "/api/audit/access-log/patient/{id}",
             get(audit::patient_access_log),

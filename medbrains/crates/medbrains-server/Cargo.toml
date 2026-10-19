@@ -82,6 +82,7 @@ medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
 medbrains-app-manifest = { path = "../medbrains-app-manifest" }
 medbrains-invitations = { path = "../medbrains-invitations" }
 medbrains-news = { path = "../medbrains-news" }
+medbrains-notes = { path = "../medbrains-notes" }
 medbrains-marketing = { path = "../medbrains-marketing" }
 medbrains-vte = { path = "../medbrains-vte" }
 medbrains-pharmacy-cash-drawer = { path = "../medbrains-pharmacy-cash-drawer" }

@@ -13,7 +13,7 @@ Use the canonical deploy path instead:
 
 or, for infra-only operations:
 
-  cd infra/terraform/envs/standalone/alagappa
+  cd infra/terraform/envs/clients/alagappa
   make plan
   make apply
 
