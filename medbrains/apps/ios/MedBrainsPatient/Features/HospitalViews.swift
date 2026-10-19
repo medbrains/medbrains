@@ -86,12 +86,14 @@ struct ResultsView: View {
 struct MedicinesView: View {
     @Environment(\.portalApi) private var portal
     @State private var remote = Remote<[PortalPrescriptionItem]>()
+    @State private var requested = 0
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 CarbonPageHeader(eyebrow: "Medicines", title: "Your prescriptions", subtitle: "What was prescribed, and how to take it.")
-                RefillsSection()
+                RefillsSection(onRequested: { requested += 1 })
+                DeliveriesSection(refresh: requested)
                 RemoteContentView(id: "prescriptions", state: remote.state, unavailableTitle: "Couldn't load your prescriptions", unavailableMessage: "Try again in a moment.", isEmpty: \.isEmpty, emptyTitle: "No prescriptions yet", emptyMessage: "Nothing has been prescribed to you.", retry: { Task { await load() } }) { rows in
                     let groups = Dictionary(grouping: rows.prefix(200), by: \.prescriptionId)
                     let ordered = groups.values.sorted { ($0.first?.prescribedAt ?? "") > ($1.first?.prescribedAt ?? "") }

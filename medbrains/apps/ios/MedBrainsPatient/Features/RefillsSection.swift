@@ -14,12 +14,15 @@ private let refillLimit = 20
 
 /// Refills, at the top of Medicines: each recent prescription says what
 /// asking would do — straight to the pharmacy, or to the doctor first — or
-/// why it can't be asked for now, and how the last request went. The server
+/// why it can't be asked for now, and how the last request went. Asking
+/// opens the choice of collecting it or having it delivered. The server
 /// decides all of it; the screen only shows it.
 struct RefillsSection: View {
+    /// Told when a refill was requested, so the deliveries list refreshes.
+    var onRequested: () -> Void = {}
     @Environment(\.portalApi) private var portal
     @State private var remote = Remote<[PortalRefill]>()
-    @State private var asking: String?
+    @State private var choosing: PortalRefill?
     @State private var outcome: (kind: CarbonNotification<EmptyView>.Kind, title: String, message: String)?
 
     var body: some View {
@@ -35,13 +38,16 @@ struct RefillsSection: View {
                 // list and each request button keeps its own.
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(rows.prefix(refillLimit)) { row in
-                        RefillRow(row: row, asking: asking == row.id) { Task { await ask(row) } }
+                        RefillRow(row: row) { choosing = row }
                     }
                 }
                 .accessibilityElement(children: .contain)
             }
         }
         .task { await load() }
+        .sheet(item: $choosing) { row in
+            RefillChoiceSheet(row: row) { delivery in await ask(row, delivery: delivery) }
+        }
     }
 
     private func load() async {
@@ -49,25 +55,27 @@ struct RefillsSection: View {
         await remote.load { try await portal.refills() }
     }
 
-    private func ask(_ row: PortalRefill) async {
-        guard let portal, asking == nil else { return }
-        asking = row.id
-        defer { asking = nil }
+    /// Nil when requested; otherwise the server's reason, shown on the sheet.
+    private func ask(_ row: PortalRefill, delivery: HomeDelivery.Choice?) async -> String? {
+        guard let portal else { return "Sign in again to ask for a refill." }
         do {
-            let request = try await portal.requestRefill(prescriptionId: row.prescriptionId)
+            let request = try await portal.requestRefill(prescriptionId: row.prescriptionId, delivery: delivery)
             outcome = request.status == "with_doctor"
                 ? (.success, "Refill requested", "Your doctor will look at it. Their answer shows here.")
-                : (.success, "Refill requested", "The pharmacy will have it ready.")
+                : delivery != nil
+                    ? (.success, "Refill requested", "Follow it under Deliveries.")
+                    : (.success, "Refill requested", "The pharmacy will have it ready.")
+            await load()
+            onRequested()
+            return nil
         } catch {
-            outcome = (.error, "Refill not requested", error.localizedDescription)
+            return error.localizedDescription
         }
-        await load()
     }
 }
 
 private struct RefillRow: View {
     let row: PortalRefill
-    let asking: Bool
     let onAsk: () -> Void
 
     var body: some View {
@@ -82,9 +90,8 @@ private struct RefillRow: View {
             }
             Text(row.message).font(CarbonType.body).foregroundStyle(MedBrainsTheme.ink)
             if row.goesTo != nil {
-                Button(asking ? "Requesting…" : "Request refill", action: onAsk)
+                Button("Request refill", action: onAsk)
                     .buttonStyle(CarbonPrimaryButtonStyle())
-                    .disabled(asking)
                     .accessibilityIdentifier("request-refill-\(row.prescriptionId)")
             }
         }

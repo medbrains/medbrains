@@ -156,12 +156,19 @@ class PatientJourneyTest {
         val seed = PortalSeed.admin()
         val patientId = checkNotNull(seed.patientId(phone)) { "the seeded phone belongs to a patient on DEFAULT" }
         seed.setModule("companion", enabled = false)
+        var deliveryWas: Any? = null
+        var codWas: Any? = null
         try {
             val bill = checkNotNull(seed.invoice(patientId, 1234.50)) { "the desk raises a bill through the real API" }
             check(bill.total == 1234.50) { "the server holds the charge" }
             val owed = seed.outstanding(patientId)
             val (rx, drug) = seed.dispensedPrescription(patientId)
             val waitingBefore = seed.refillRequestsAwaiting(drug)
+            // The hospital delivers, and offers pay-on-delivery to everyone — put back after.
+            deliveryWas = seed.pharmacySetting("home_delivery_enabled") ?: false
+            codWas = seed.pharmacySetting("cod_min_deliveries") ?: 2
+            seed.setPharmacySetting("home_delivery_enabled", true)
+            seed.setPharmacySetting("cod_min_deliveries", 0)
 
             launch(); signOutIfSignedIn()
             compose.onNodeWithTag("phone").performTextInput(phone)
@@ -189,9 +196,24 @@ class PatientJourneyTest {
             compose.waitUntil(10_000) { has("refill-$rx") }
             check(seesText("approves it first", sub = true)) { "told the doctor decides, before asking" }
             compose.onNodeWithTag("request-refill-$rx").performScrollTo().performClick()
+            // Asking opens the choice: they want it brought home, and pay at the door.
+            compose.waitUntil(10_000) { has("fulfilment-delivery") }
+            compose.onNodeWithTag("fulfilment-delivery").performScrollTo().performClick()
+            compose.waitUntil(5_000) { has("delivery-new-address") }
+            compose.onNodeWithTag("delivery-new-address").performScrollTo().performTextInput("14 Lake Road, Karaikudi")
+            check(has("pay-cash_on_delivery")) { "pay-on-delivery is offered" }
+            compose.onNodeWithTag("refill-send").performScrollTo().performClick()
             compose.waitUntil(10_000) { has("refill-outcome") }
             compose.waitUntil(10_000) { seesText("With your doctor") }
             check(seed.refillRequestsAwaiting(drug) == waitingBefore + 1) { "and it is in the prescriber's sign-offs" }
+            // Back and in again: the delivery is tracked, as the server holds it.
+            scenario?.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+            compose.waitUntil(10_000) { has("module-prescriptions") }
+            compose.onNodeWithTag("module-prescriptions").performClick()
+            compose.waitUntil(10_000) { has("deliveries-list") }
+            check(seesText("14 Lake Road", sub = true)) { "to the address they gave" }
+            check(seesText("Requested")) { "waiting for the doctor and the pharmacy" }
+            check(!has("delivery-code")) { "no handover code before it is on its way" }
             // Back to the record the way the walk does it: the session survives a relaunch.
             launch()
             compose.waitUntil(15_000) { has("module-consent") }
@@ -215,6 +237,10 @@ class PatientJourneyTest {
             launch()
             compose.waitUntil(10_000) { has("phone") || has("patient-home") }
             check(has("phone")) { "nothing of the session survives a sign-out" }
-        } finally { seed.setModule("companion", enabled = false) }
+        } finally {
+            seed.setModule("companion", enabled = false)
+            deliveryWas?.let { seed.setPharmacySetting("home_delivery_enabled", it) }
+            codWas?.let { seed.setPharmacySetting("cod_min_deliveries", it) }
+        }
     }
 }

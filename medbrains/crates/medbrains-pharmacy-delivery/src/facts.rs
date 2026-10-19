@@ -168,3 +168,58 @@ pub async fn bill_balance(
     .await?;
     Ok(balance.unwrap_or(Decimal::ZERO).max(Decimal::ZERO))
 }
+
+/// Whether patients may ask for home delivery themselves
+/// (`pharmacy.home_delivery_enabled`); off until the hospital turns it on.
+pub async fn home_delivery_enabled(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+) -> Result<bool, AppError> {
+    Ok(setting(tx, tenant_id, "home_delivery_enabled")
+        .await?
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false))
+}
+
+/// Whether the hospital can take a payment online by link. Razorpay is the
+/// one provider whose payment links are wired, so: Razorpay active (the
+/// gateway's default) and its keys set, in `payments.*` or the environment —
+/// the same reading the payment gateway makes.
+pub async fn online_payment_ready(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+) -> Result<bool, AppError> {
+    let (active, configured): (bool, bool) = sqlx::query_as(
+        "SELECT COALESCE((SELECT value #>> '{}' FROM tenant_settings \
+                           WHERE tenant_id = $1 AND category = 'payments' \
+                             AND key = 'active_provider' AND deleted_at IS NULL), \
+                         'razorpay') = 'razorpay', \
+                EXISTS (SELECT 1 FROM tenant_settings \
+                         WHERE tenant_id = $1 AND category = 'payments' \
+                           AND key = 'razorpay_config' AND deleted_at IS NULL)",
+    )
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let env =
+        std::env::var("RAZORPAY_KEY_ID").is_ok() && std::env::var("RAZORPAY_KEY_SECRET").is_ok();
+    Ok(active && (configured || env))
+}
+
+/// The bill an order is charged to, if it is billed.
+pub async fn order_invoice(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    order_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    Ok(sqlx::query_scalar(
+        "SELECT invoice_id FROM invoice_items \
+          WHERE tenant_id = $1 AND pharmacy_order_id = $2 \
+            AND reversal_of_id IS NULL AND is_reversal = false \
+          ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(order_id)
+    .fetch_optional(&mut **tx)
+    .await?)
+}

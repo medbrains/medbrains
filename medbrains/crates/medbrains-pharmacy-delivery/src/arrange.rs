@@ -188,15 +188,16 @@ pub async fn arrange(
     Ok(Json(delivery))
 }
 
-/// Bill the delivery fee with the order's visit, once per delivery.
-async fn charge_fee(
+/// Bill the delivery fee with the order's visit, once per `source_id` (the
+/// delivery, or the patient's request that chose it). Returns the bill.
+pub(crate) async fn charge_fee(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     order: &crate::facts::OrderFacts,
-    delivery_id: Uuid,
+    source_id: Uuid,
     fee: Decimal,
-) -> Result<(), AppError> {
-    auto_charge(
+) -> Result<Uuid, AppError> {
+    let charged = auto_charge(
         tx,
         &tenant_id,
         AutoChargeInput {
@@ -204,7 +205,7 @@ async fn charge_fee(
             encounter_id: order.encounter_id,
             charge_code: DELIVERY_CHARGE_CODE.to_owned(),
             source: "pharmacy".to_owned(),
-            source_id: delivery_id,
+            source_id,
             quantity: 1,
             description_override: Some("Home delivery of medicines".to_owned()),
             unit_price_override: Some(fee),
@@ -212,7 +213,7 @@ async fn charge_fee(
         },
     )
     .await?;
-    Ok(())
+    Ok(charged.invoice_id)
 }
 
 /// Refuse anyone but one of the hospital's active delivery runners.
@@ -313,4 +314,76 @@ pub async fn runners(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignRequest {
+    pub mode: String,
+    pub runner_id: Option<Uuid>,
+    pub courier_name: Option<String>,
+    pub tracking_ref: Option<String>,
+}
+
+/// `POST /api/pharmacy/deliveries/{id}/assign` — give a delivery waiting to
+/// go (one a patient asked for, or arranged without a runner) to a runner or
+/// a courier.
+pub async fn assign(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AssignRequest>,
+) -> Result<Json<Delivery>, AppError> {
+    require_permission(&claims, permissions::pharmacy::deliveries::ARRANGE)?;
+    let mode = Mode::parse(&body.mode)
+        .ok_or_else(|| AppError::BadRequest("Send it with a runner or by courier".to_owned()))?;
+    let courier = text(body.courier_name.as_deref());
+    let runner = body.runner_id.filter(|_| mode == Mode::Runner);
+    if mode == Mode::Runner && runner.is_none() {
+        return Err(AppError::BadRequest("Pick a runner".to_owned()));
+    }
+    if mode == Mode::Courier && courier.is_none() {
+        return Err(AppError::BadRequest("Name the courier".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let delivery = sqlx::query_as::<_, Delivery>(
+        "SELECT * FROM pharmacy_deliveries \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if delivery.status != "arranged" {
+        return Err(AppError::Conflict(format!(
+            "This delivery is {}",
+            delivery.status.replace('_', " ")
+        )));
+    }
+    let order = order_facts(&mut tx, claims.tenant_id, delivery.order_id).await?;
+    let refused = blockers(&order.lines, mode);
+    if !refused.is_empty() {
+        return Err(AppError::Conflict(refused.join(". ")));
+    }
+    if let Some(runner) = runner {
+        check_runner(&mut tx, claims.tenant_id, runner).await?;
+    }
+    let assigned = sqlx::query_as::<_, Delivery>(
+        "UPDATE pharmacy_deliveries \
+            SET mode = $3, runner_id = $4, courier_name = $5, tracking_ref = $6, \
+                arranged_by = COALESCE(arranged_by, $7) \
+          WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.mode.as_str())
+    .bind(runner)
+    .bind(courier.filter(|_| mode == Mode::Courier))
+    .bind(text(body.tracking_ref.as_deref()))
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(assigned))
 }

@@ -17,13 +17,15 @@
 use async_trait::async_trait;
 use medbrains_core::secrets::{SecretError, SecretResolver};
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
-use medbrains_outbox::handlers::razorpay::{CreateOrderHandler, RefundHandler};
+use medbrains_outbox::handlers::razorpay::{
+    CreateOrderHandler, CreatePaymentLinkHandler, RefundHandler,
+};
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
-use wiremock::matchers::{header, method, path};
+use wiremock::matchers::{body_partial_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 /// Test fixture: a SecretResolver that returns canned values.
@@ -338,4 +340,58 @@ async fn create_order_sends_basic_auth_and_idempotent_receipt() {
     } else {
         panic!("expected Permanent");
     }
+}
+
+/// A pay-now link asks Razorpay for the amount, keyed by our transaction so a
+/// retry can't make a second link, and texts nothing on Razorpay's side; its
+/// answer is then written back (here the DB is unreachable, so that write is
+/// the transient failure — proving the HTTP half succeeded).
+#[tokio::test]
+async fn payment_link_is_asked_for_once_per_transaction() {
+    let server = MockServer::start().await;
+    let txn_id = Uuid::new_v4();
+    Mock::given(method("POST"))
+        .and(path("/payment_links"))
+        .and(body_partial_json(json!({
+            "amount": 31000,
+            "reference_id": txn_id.to_string(),
+            "accept_partial": false,
+            "notify": { "sms": false, "email": false },
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id": "plink_TEST123", "short_url": "https://rzp.io/i/test", "status": "created"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let handler = CreatePaymentLinkHandler::with_api_base(server.uri());
+    let payload = json!({
+        "internal_payment_id": txn_id.to_string(),
+        "amount_paise": 31000_u64,
+        "contact": "9000000002",
+    });
+    let err = handler
+        .handle(&make_ctx(good_secrets()), &payload)
+        .await
+        .expect_err("the db write fails without a database");
+    assert!(
+        matches!(&err, HandlerError::Transient(m) if m.contains("db update")),
+        "{err:?}"
+    );
+
+    // A refusal from Razorpay is not retried.
+    let refused = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/payment_links"))
+        .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+            "error": { "description": "reference_id already attempted" }
+        })))
+        .mount(&refused)
+        .await;
+    let err = CreatePaymentLinkHandler::with_api_base(refused.uri())
+        .handle(&make_ctx(good_secrets()), &payload)
+        .await
+        .expect_err("400");
+    assert!(matches!(err, HandlerError::Permanent(_)), "{err:?}");
 }

@@ -783,6 +783,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
     registry.register(razorpay::CreateOrderHandler::new());
     registry.register(razorpay::RefundHandler::new());
+    registry.register(razorpay::CreatePaymentLinkHandler::new());
     // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
     registry.register(cashfree::CashfreeCreateOrderHandler::new());
     registry.register(cashfree::CashfreeRefundHandler::new());
@@ -1040,6 +1041,14 @@ mod tests {
         for event in ["sms.patient_portal_otp", "sms.pharmacy_delivery_code"] {
             assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
         }
+    }
+
+    /// A patient's pay-now delivery link is made, not dead-lettered.
+    #[test]
+    fn the_delivery_payment_link_has_a_maker() {
+        let registry = super::build_outbox_registry();
+        let event = medbrains_pharmacy_delivery::pay::PAYMENT_LINK_EVENT;
+        assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
     }
 }
 

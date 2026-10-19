@@ -1,19 +1,21 @@
 import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import { P, type PharmacyDelivery } from "@medbrains/types";
+import { type DeliveryRunner, P, type PharmacyDelivery } from "@medbrains/types";
 import { IconCheck, IconTruckDelivery, IconX } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, Input, Modal, NumberField, TextArea, toast } from "@/components/ui";
 import { deliveryService } from "@/services/delivery.service";
+import { AssignDelivery } from "./assign-delivery";
 
 interface DeliveryActionsProps {
   delivery: PharmacyDelivery;
+  runners: DeliveryRunner[];
 }
 
 /** What can be done next to a delivery, by whoever may do it. */
-export function DeliveryActions({ delivery }: DeliveryActionsProps) {
+export function DeliveryActions({ delivery, runners }: DeliveryActionsProps) {
   const canArrange = useHasPermission(P.PHARMACY.DELIVERIES.ARRANGE);
   const canComplete = useHasPermission(P.PHARMACY.DELIVERIES.COMPLETE);
   const queryClient = useQueryClient();
@@ -56,20 +58,26 @@ export function DeliveryActions({ delivery }: DeliveryActionsProps) {
   });
 
   const cod = delivery.payment === "cash_on_delivery";
+  // Nobody has it yet: a patient's request, or arranged without a runner.
+  const unassigned = delivery.mode === "runner" && !delivery.runner_id;
   return (
     <>
       <Group gap="xs" wrap="nowrap">
         {canArrange && delivery.status === "arranged" && (
           <>
-            <Button
-              size="xs"
-              tone="primary"
-              leftSection={<IconTruckDelivery size={14} />}
-              loading={dispatch.isPending}
-              onClick={() => dispatch.mutate()}
-            >
-              Dispatch
-            </Button>
+            {unassigned ? (
+              <AssignDelivery delivery={delivery} runners={runners} />
+            ) : (
+              <Button
+                size="xs"
+                tone="primary"
+                leftSection={<IconTruckDelivery size={14} />}
+                loading={dispatch.isPending}
+                onClick={() => dispatch.mutate()}
+              >
+                Dispatch
+              </Button>
+            )}
             <Button
               size="xs"
               tone="ghost"

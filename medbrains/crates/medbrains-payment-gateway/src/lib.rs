@@ -981,6 +981,8 @@ pub async fn create_order(
                 event_type: "payment.create_order",
                 payload: serde_json::json!({
                     "txn_id": txn.id,
+                    // What the Razorpay handler reads; without it every order dead-lettered.
+                    "internal_payment_id": txn.id,
                     "amount_paise": amount_paise,
                     "currency": currency,
                     "receipt": receipt,
@@ -1439,8 +1441,11 @@ pub async fn razorpay_webhook(
     let payload: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
 
-    let order_id = payload["payload"]["order"]["entity"]["id"]
+    // A payment link is known by its own id (`plink_…`), ahead of the order
+    // Razorpay opens behind it.
+    let order_id = payload["payload"]["payment_link"]["entity"]["id"]
         .as_str()
+        .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["payment"]["entity"]["order_id"].as_str());
 
     let Some(order_id) = order_id else {
@@ -1501,7 +1506,7 @@ pub async fn razorpay_webhook(
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
-        "payment.captured" => {
+        "payment.captured" | "payment_link.paid" => {
             handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?;
         }
         "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, order_id, &payload).await?,
@@ -2421,6 +2426,8 @@ async fn record_invoice_payment(
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
+    // A home delivery the patient paid for in advance goes out once paid.
+    medbrains_pharmacy_delivery::pay::release_paid(tx, tenant_id, invoice_id).await?;
     Ok(())
 }
 

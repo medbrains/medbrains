@@ -1,7 +1,7 @@
 //! Built-in handlers for outbound integrations.
 //!
 //! Real handlers (typed, hit external partners):
-//! - `razorpay`  — `payment.create_order`, payment.refund
+//! - `razorpay`  — `payment.create_order`, payment.refund, `payment.razorpay.create_link`
 //! - `twilio`    — sms.* (real Twilio REST; falls back to stub when creds unset)
 //! - `email_stub` — email.* (`SendGrid` HTTP API; SES pending `SigV4`)
 //! - `whatsapp`  — whatsapp.* (Meta Cloud API)

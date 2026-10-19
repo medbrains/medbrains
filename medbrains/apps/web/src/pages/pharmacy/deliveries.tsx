@@ -82,6 +82,11 @@ export function DeliveriesPage() {
           <Text size="xs" c="dimmed">
             {[d.landmark, d.pincode, d.contact_phone].filter(Boolean).join(" · ")}
           </Text>
+          {d.refill_request_id && (
+            <Text size="xs" c="dimmed">
+              Asked for by the patient{d.preferred_slot ? ` · ${d.preferred_slot}` : ""}
+            </Text>
+          )}
         </Stack>
       ),
     },
@@ -92,7 +97,9 @@ export function DeliveriesPage() {
         <Text size="sm">
           {d.mode === "courier"
             ? `${d.courier_name}${d.tracking_ref ? ` · ${d.tracking_ref}` : ""}`
-            : (runnerNames.get(d.runner_id ?? "") ?? "Runner")}
+            : d.runner_id
+              ? (runnerNames.get(d.runner_id) ?? "Runner")
+              : "Not given to anyone yet"}
         </Text>
       ),
     },
@@ -124,7 +131,7 @@ export function DeliveriesPage() {
     {
       key: "actions",
       label: "",
-      render: (d: PharmacyDelivery) => <DeliveryActions delivery={d} />,
+      render: (d: PharmacyDelivery) => <DeliveryActions delivery={d} runners={runners} />,
     },
   ];
 
