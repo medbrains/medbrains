@@ -67,7 +67,7 @@ impl AbdmEnvironment {
         }
     }
 
-    const fn cm_id(self) -> &'static str {
+    pub(crate) const fn cm_id(self) -> &'static str {
         match self {
             Self::Sandbox => "sbx",
             Self::Production => "abdm",

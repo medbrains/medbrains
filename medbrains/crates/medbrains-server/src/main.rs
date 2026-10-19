@@ -774,8 +774,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback,
-        razorpay, razorpayx, teams, twilio, whatsapp, zoom,
+        cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback, razorpay,
+        razorpayx, teams, twilio, whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
@@ -873,8 +873,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(whatsapp::WhatsAppSendHandler::new(
         "whatsapp.vaccination_reminder",
     ));
-    registry.register(abdm_stub::VerifyAbhaHandler);
-    registry.register(abdm_stub::HieBundlePushHandler);
+    // ABDM HIP: link a newly captured care context; the OTP for a PHR app's link.
+    registry.register(routes::abdm::hip::outbox::LinkCareContextHandler);
+    registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
     // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
     // answers, JWE to the payer.
     for operation in medbrains_core::nhcx::OPERATIONS {

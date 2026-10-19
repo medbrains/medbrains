@@ -14,6 +14,7 @@ import type {
   OnboardingUser,
 } from "./onboarding-store";
 
+export * from "./abdm-hip";
 export * from "./abdm-integration";
 export * from "./abdm-registry";
 export type {
@@ -169,8 +170,8 @@ export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./message-simulator";
 export * from "./mrd";
-export * from "./notes";
 export * from "./nhcx";
+export * from "./notes";
 export * from "./nurse-calls";
 export * from "./onboarding-masters";
 export * from "./onboarding-store";
