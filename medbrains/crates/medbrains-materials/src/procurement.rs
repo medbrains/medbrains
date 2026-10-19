@@ -6,6 +6,7 @@ use axum::{
 };
 use medbrains_core::inventory::{SupplierPayment, VendorComparisonRow, VendorPerformanceRow};
 use medbrains_core::permissions;
+use crate::grn::GrnDetailResponse;
 use medbrains_core::procurement::{
     BatchStock, GoodsReceiptNote, GrnItem, PurchaseOrder, PurchaseOrderItem, RateContract,
     RateContractItem, StoreLocation, Vendor,
@@ -190,38 +191,6 @@ pub struct GrnListResponse {
     pub per_page: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CreateGrnRequest {
-    pub po_id: Uuid,
-    pub store_location_id: Option<Uuid>,
-    pub invoice_number: Option<String>,
-    pub invoice_date: Option<String>,
-    pub invoice_amount: Option<Decimal>,
-    pub notes: Option<String>,
-    pub items: Vec<CreateGrnItemInput>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateGrnItemInput {
-    pub po_item_id: Option<Uuid>,
-    pub catalog_item_id: Option<Uuid>,
-    pub item_name: String,
-    pub quantity_received: i32,
-    pub quantity_accepted: i32,
-    pub quantity_rejected: Option<i32>,
-    pub batch_number: Option<String>,
-    pub expiry_date: Option<String>,
-    pub manufacture_date: Option<String>,
-    pub unit_price: Decimal,
-    pub rejection_reason: Option<String>,
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct GrnDetailResponse {
-    pub grn: GoodsReceiptNote,
-    pub items: Vec<GrnItem>,
-}
 
 // ── Rate Contracts ───────────────────────────────────────
 
@@ -1068,375 +1037,7 @@ pub async fn get_grn(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(GrnDetailResponse { grn, items }))
-}
-
-pub async fn create_grn(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateGrnRequest>,
-) -> Result<Json<GrnDetailResponse>, AppError> {
-    require_permission(&claims, permissions::procurement::grn::CREATE)?;
-
-    if body.items.is_empty() {
-        return Err(AppError::BadRequest("At least one item is required".into()));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    // Verify PO exists and is receivable
-    let po = sqlx::query_as::<_, PurchaseOrder>(
-        "SELECT * FROM purchase_orders WHERE id = $1 AND tenant_id = $2 \
-         AND status IN ('sent_to_vendor', 'partially_received')",
-    )
-    .bind(body.po_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::BadRequest("PO not found or not in receivable status".into()))?;
-
-    // Stock received where the hospital keeps stores must land in one: stock
-    // that belongs to no store can be neither issued from a store nor moved
-    // between them.
-    if body.store_location_id.is_none() {
-        let has_stores: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM store_locations \
-              WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL)",
-        )
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if has_stores {
-            let mut errors = medbrains_server_core::validation::ValidationErrors::new();
-            errors.add("store_location_id", "Choose the store receiving this stock");
-            return Err(AppError::ValidationFailed(errors));
-        }
-    }
-
-    let grn_number = generate_number(&mut tx, &claims.tenant_id, "GRN", "GRN").await?;
-
-    let invoice_date = body
-        .invoice_date
-        .as_deref()
-        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-    let grn = sqlx::query_as::<_, GoodsReceiptNote>(
-        "INSERT INTO goods_receipt_notes \
-         (tenant_id, grn_number, po_id, vendor_id, store_location_id, \
-          invoice_number, invoice_date, invoice_amount, notes, received_by) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(&grn_number)
-    .bind(body.po_id)
-    .bind(po.vendor_id)
-    .bind(body.store_location_id)
-    .bind(&body.invoice_number)
-    .bind(invoice_date)
-    .bind(body.invoice_amount)
-    .bind(&body.notes)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    for item in &body.items {
-        let qty_rejected = item.quantity_rejected.unwrap_or(0);
-        let total = item.unit_price * Decimal::from(item.quantity_accepted);
-        let expiry = item
-            .expiry_date
-            .as_deref()
-            .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-        let mfg = item
-            .manufacture_date
-            .as_deref()
-            .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-        let pharmacy_catalog_id: Option<Uuid> = match item.catalog_item_id {
-            Some(catalog_id) if item.quantity_accepted > 0 => sqlx::query_scalar(
-                "SELECT id FROM pharmacy_catalog \
-                 WHERE store_catalog_id = $1 AND tenant_id = $2",
-            )
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .flatten(),
-            _ => None,
-        };
-
-        if pharmacy_catalog_id.is_some() {
-            let has_batch = item
-                .batch_number
-                .as_deref()
-                .is_some_and(|b| !b.trim().is_empty());
-            if !has_batch {
-                return Err(AppError::BadRequest(format!(
-                    "Batch number is required for pharmacy GRN item {}",
-                    item.item_name
-                )));
-            }
-            if expiry.is_none() {
-                return Err(AppError::BadRequest(format!(
-                    "Expiry date is required for pharmacy GRN item {}",
-                    item.item_name
-                )));
-            }
-        }
-
-        sqlx::query(
-            "INSERT INTO grn_items \
-             (tenant_id, grn_id, po_item_id, catalog_item_id, item_name, \
-              quantity_received, quantity_accepted, quantity_rejected, \
-              batch_number, expiry_date, manufacture_date, \
-              unit_price, total_amount, rejection_reason, notes) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)",
-        )
-        .bind(claims.tenant_id)
-        .bind(grn.id)
-        .bind(item.po_item_id)
-        .bind(item.catalog_item_id)
-        .bind(&item.item_name)
-        .bind(item.quantity_received)
-        .bind(item.quantity_accepted)
-        .bind(qty_rejected)
-        .bind(&item.batch_number)
-        .bind(expiry)
-        .bind(mfg)
-        .bind(item.unit_price)
-        .bind(total)
-        .bind(&item.rejection_reason)
-        .bind(&item.notes)
-        .execute(&mut *tx)
-        .await?;
-
-        // Update PO item received quantity
-        if let Some(po_item_id) = item.po_item_id {
-            // Verify the line belongs to THIS PO and cap receipt at the ordered
-            // quantity — otherwise a GRN could over-receive (phantom stock) or
-            // credit received qty onto a different PO's line in the same tenant.
-            let updated = sqlx::query(
-                "UPDATE purchase_order_items \
-                 SET quantity_received = quantity_received + $1 \
-                 WHERE id = $2 AND tenant_id = $3 AND po_id = $4 \
-                   AND quantity_received + $1 <= quantity_ordered",
-            )
-            .bind(item.quantity_accepted)
-            .bind(po_item_id)
-            .bind(claims.tenant_id)
-            .bind(body.po_id)
-            .execute(&mut *tx)
-            .await?;
-            if updated.rows_affected() == 0 {
-                return Err(AppError::BadRequest(format!(
-                    "GRN line for '{}' exceeds the ordered quantity or references a line item \
-                     that is not on this purchase order.",
-                    item.item_name
-                )));
-            }
-        }
-
-        // Create batch stock for accepted items
-        if item.quantity_accepted > 0 {
-            if let Some(catalog_id) = item.catalog_item_id {
-                let batch_num = item.batch_number.as_deref().unwrap_or("N/A");
-                sqlx::query(
-                    "INSERT INTO batch_stock \
-                     (tenant_id, catalog_item_id, store_location_id, batch_number, \
-                      expiry_date, manufacture_date, quantity, unit_cost, grn_id, vendor_id) \
-                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-                )
-                .bind(claims.tenant_id)
-                .bind(catalog_id)
-                .bind(body.store_location_id)
-                .bind(batch_num)
-                .bind(expiry)
-                .bind(mfg)
-                .bind(item.quantity_accepted)
-                .bind(item.unit_price)
-                .bind(grn.id)
-                .bind(po.vendor_id)
-                .execute(&mut *tx)
-                .await?;
-
-                // Update store_catalog current_stock
-                sqlx::query(
-                    "UPDATE store_catalog SET current_stock = current_stock + $1, updated_at = now() \
-                     WHERE id = $2 AND tenant_id = $3",
-                )
-                .bind(item.quantity_accepted)
-                .bind(catalog_id)
-                .bind(claims.tenant_id)
-                .execute(&mut *tx)
-                .await?;
-
-                if let Some(pharm_id) = pharmacy_catalog_id {
-                    let pharmacy_batch_id = Uuid::new_v4();
-                    let batch_num = item.batch_number.as_deref().ok_or_else(|| {
-                        AppError::BadRequest(format!(
-                            "Batch number is required for pharmacy GRN item {}",
-                            item.item_name
-                        ))
-                    })?;
-                    sqlx::query(
-                        "INSERT INTO pharmacy_batches \
-                         (id, tenant_id, catalog_item_id, batch_number, expiry_date, \
-                          manufacture_date, quantity_received, quantity_on_hand, \
-                          vendor_id, grn_id, purchase_order_id, purchase_rate, \
-                          store_location_id) \
-                         VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10,$11,$12)",
-                    )
-                    .bind(pharmacy_batch_id)
-                    .bind(claims.tenant_id)
-                    .bind(pharm_id)
-                    .bind(batch_num)
-                    .bind(expiry)
-                    .bind(mfg)
-                    .bind(item.quantity_accepted)
-                    .bind(po.vendor_id)
-                    .bind(grn.id)
-                    .bind(body.po_id)
-                    .bind(item.unit_price)
-                    .bind(body.store_location_id)
-                    .execute(&mut *tx)
-                    .await?;
-
-                    // Update pharmacy_catalog stock
-                    sqlx::query(
-                        "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
-                         WHERE id = $2 AND tenant_id = $3",
-                    )
-                    .bind(item.quantity_accepted)
-                    .bind(pharm_id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-
-                    // Mark GRN item as pharmacy-synced
-                    sqlx::query(
-                        "UPDATE grn_items SET pharmacy_synced = true, \
-                         pharmacy_batch_id = $1 \
-                         WHERE grn_id = $2 AND catalog_item_id = $3 AND tenant_id = $4",
-                    )
-                    .bind(pharmacy_batch_id)
-                    .bind(grn.id)
-                    .bind(catalog_id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-
-                    // Link batch_stock to pharmacy_batch
-                    sqlx::query(
-                        "UPDATE batch_stock SET pharmacy_batch_id = $1 \
-                         WHERE grn_id = $2 AND catalog_item_id = $3 AND tenant_id = $4",
-                    )
-                    .bind(pharmacy_batch_id)
-                    .bind(grn.id)
-                    .bind(catalog_id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-                }
-            }
-        }
-    }
-
-    // Update GRN total
-    sqlx::query(
-        "UPDATE goods_receipt_notes SET \
-         total_amount = (SELECT COALESCE(SUM(total_amount), 0) FROM grn_items WHERE grn_id = $1 AND tenant_id = $2), \
-         updated_at = now() WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(grn.id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
-
-    // Check if all PO items are fully received
-    let pending_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM purchase_order_items \
-         WHERE po_id = $1 AND tenant_id = $2 AND quantity_received < quantity_ordered",
-    )
-    .bind(body.po_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let new_po_status = if pending_count == 0 {
-        "fully_received"
-    } else {
-        "partially_received"
-    };
-    sqlx::query(
-        "UPDATE purchase_orders SET status = $3::po_status, updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(body.po_id)
-    .bind(claims.tenant_id)
-    .bind(new_po_status)
-    .execute(&mut *tx)
-    .await?;
-
-    let grn = sqlx::query_as::<_, GoodsReceiptNote>(
-        "SELECT * FROM goods_receipt_notes WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(grn.id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let items = sqlx::query_as::<_, GrnItem>(
-        "SELECT * FROM grn_items WHERE grn_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
-    )
-    .bind(grn.id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(GrnDetailResponse { grn, items }))
-}
-
-pub async fn complete_grn(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<GoodsReceiptNote>, AppError> {
-    require_permission(&claims, permissions::procurement::grn::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let grn = sqlx::query_as::<_, GoodsReceiptNote>(
-        "UPDATE goods_receipt_notes SET \
-         status = 'completed', inspected_by = $3, inspected_at = now(), updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2 AND status IN ('draft', 'inspecting', 'accepted', 'partially_accepted') \
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some(grn) = grn else {
-        let exists: bool = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM goods_receipt_notes WHERE id = $1 AND tenant_id = $2) \
-             AS \"exists!\"",
-            id,
-            claims.tenant_id,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        if !exists {
-            return Err(AppError::NotFound);
-        }
-        return Err(AppError::BadRequest("GRN cannot be completed in its current status".into()));
-    };
-
-    tx.commit().await?;
-    Ok(Json(grn))
+    Ok(Json(GrnDetailResponse { grn, items, warnings: Vec::new() }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2072,34 +1673,37 @@ pub async fn vendor_ledger(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // GRNs = goods received → vendor credit (we owe them)
+    // Posted GRNs = goods received → vendor credit (we owe them). A draft
+    // is not yet owed.
     // Payments = money out → vendor debit (paid down)
     // Returns (supplier_return type credit notes) → debit (vendor owes us)
     let rows = sqlx::query_as::<_, LedgerRow>(
-        "SELECT received_at AS txn_date, 'grn'::text AS txn_type, \
+        "SELECT posted_at AS txn_date, 'grn'::text AS txn_type, \
                 grn_number AS reference_number, \
                 0::numeric(14,2) AS debit, \
-                COALESCE(total_value, 0) AS credit, \
-                notes AS note \
-         FROM goods_receipts \
+                total_amount AS credit, \
+                COALESCE(invoice_number, notes) AS note \
+         FROM goods_receipt_notes \
          WHERE vendor_id = $1 AND tenant_id = $2 \
+           AND posted_at IS NOT NULL AND deleted_at IS NULL \
          UNION ALL \
-         SELECT payment_date::timestamptz AS txn_date, 'payment'::text AS txn_type, \
+         SELECT COALESCE(payment_date::timestamptz, created_at) AS txn_date, \
+                'payment'::text AS txn_type, \
                 payment_number AS reference_number, \
                 paid_amount AS debit, \
                 0::numeric(14,2) AS credit, \
                 notes AS note \
          FROM supplier_payments \
-         WHERE vendor_id = $1 AND tenant_id = $2 \
+         WHERE vendor_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          UNION ALL \
          SELECT created_at AS txn_date, 'return'::text AS txn_type, \
                 credit_note_number AS reference_number, \
-                COALESCE(total_amount, 0) AS debit, \
+                total_amount AS debit, \
                 0::numeric(14,2) AS credit, \
-                reason AS note \
+                notes AS note \
          FROM pharmacy_credit_notes \
-         WHERE supplier_id = $1 AND tenant_id = $2 \
-           AND note_type = 'supplier_return' \
+         WHERE vendor_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+           AND note_type = 'supplier_return' AND status <> 'cancelled' \
          ORDER BY txn_date ASC LIMIT 5000",
     )
     .bind(vendor_id)

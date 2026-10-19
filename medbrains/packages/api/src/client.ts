@@ -271,6 +271,8 @@ import type {
   CaseSheetCoverPrintData,
   CaseSheetScan,
   CashlessClaimPrintData,
+  CatalogDuplicatePair,
+  CatalogMergeRecord,
   CathDevice,
   CathHemodynamic,
   CathPostMonitoring,
@@ -339,6 +341,7 @@ import type {
   CommComplaintRow,
   CommCriticalAlertRow,
   CommFeedbackSurveyRow,
+  CommitGrnScanRequest,
   CommitteeDashboard,
   CommMessageRow,
   CommTemplateRow,
@@ -574,6 +577,7 @@ import type {
   CreateFormTemplateRequest,
   CreateGlAccountRequest,
   CreateGrnRequest,
+  CreateGrnScanRequest,
   CreateGroupTemplate,
   CreateHandoverRequest,
   CreateHistopathReportRequest,
@@ -1084,8 +1088,13 @@ import type {
   GlasgowBlatchfordResult,
   GoodsReceiptNote,
   GrnDetailResponse,
+  GrnItemSuggestion,
   GrnListResponse,
   GrnPrintData,
+  GrnScanClaim,
+  GrnScanDraft,
+  GrnScanListItem,
+  GrnScanReview,
   GroupDashboard,
   GroupDrugMaster,
   GroupKpiSnapshot,
@@ -1383,6 +1392,7 @@ import type {
   MeldResult,
   MeowsRequest,
   MeowsResult,
+  MergeCatalogItemsRequest,
   MergePatientRequest,
   MgpsDailyLogPrintData,
   MicrositeConfig,
@@ -1719,6 +1729,7 @@ import type {
   PublicTokenLink,
   PublicTokenStatus,
   PunchFix,
+  PurchaseBillScan,
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
   PurchaseOrderPrintData,
@@ -1985,6 +1996,7 @@ import type {
   SubscribeRequest,
   SubscriptionWithBalance,
   SupplierPayment,
+  SupplierScanAccuracy,
   SurgeonCaseloadEntry,
   SurgicalProphylaxisRow,
   SurgicalSafetyChecklistPrintData,
@@ -9659,9 +9671,72 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /** Post a GRN to stock — the only moment received stock moves. */
   completeGrn: (id: string) =>
     request<GoodsReceiptNote>(`/procurement/grns/${id}/complete`, {
       method: "PUT",
+    }),
+
+  // Supplier-bill scans → draft GRNs (#4861)
+  listGrnScans: (params?: { status?: string }) =>
+    request<GrnScanListItem[]>(
+      `/procurement/grn-scans${params?.status ? `?${new URLSearchParams(params)}` : ""}`,
+    ),
+
+  createGrnScan: (data: CreateGrnScanRequest) =>
+    request<PurchaseBillScan>("/procurement/grn-scans", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getGrnScanReview: (id: string) => request<GrnScanReview>(`/procurement/grn-scans/${id}/review`),
+
+  saveGrnScanDraft: (id: string, draft: GrnScanDraft) =>
+    request<PurchaseBillScan>(`/procurement/grn-scans/${id}/draft`, {
+      method: "PUT",
+      body: JSON.stringify(draft),
+    }),
+
+  submitGrnScan: (id: string) =>
+    request<PurchaseBillScan>(`/procurement/grn-scans/${id}/submit`, { method: "POST" }),
+
+  discardGrnScan: (id: string) =>
+    request<PurchaseBillScan>(`/procurement/grn-scans/${id}/discard`, { method: "POST" }),
+
+  commitGrnScan: (id: string, data: CommitGrnScanRequest) =>
+    request<GrnDetailResponse>(`/procurement/grn-scans/${id}/commit`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  searchGrnScanItems: (q: string) =>
+    request<GrnItemSuggestion[]>(
+      `/procurement/grn-scans/item-search?${new URLSearchParams({ q })}`,
+    ),
+
+  getGrnScanAccuracy: () => request<SupplierScanAccuracy[]>("/procurement/grn-scans/accuracy"),
+
+  /** Bill-reader worker: take the oldest queued bill under a lease. */
+  claimGrnScan: (data: { scan_id?: string } = {}) =>
+    request<GrnScanClaim | null>("/procurement/grn-scans/claim", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Bill-reader worker: post what was read (see grn_scan_contract.rs). */
+  postGrnScanParseResult: (id: string, result: Record<string, unknown>) =>
+    request<PurchaseBillScan>(`/procurement/grn-scans/${id}/parse-result`, {
+      method: "POST",
+      body: JSON.stringify(result),
+    }),
+
+  listPharmacyCatalogDuplicates: () =>
+    request<CatalogDuplicatePair[]>("/pharmacy/catalog/duplicates"),
+
+  mergePharmacyCatalogItems: (data: MergeCatalogItemsRequest) =>
+    request<CatalogMergeRecord>("/pharmacy/catalog/merge", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   // Rate Contracts

@@ -26,6 +26,7 @@ import {
   optionalFormText,
 } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { CatalogDuplicatesButton } from "./catalog-duplicates";
 import { ColdChainSwitch } from "./cold-chain-switch";
 import { REFILL_POLICY_OPTIONS, RefillPolicySelect } from "./refill-policy-select";
 import { renderPharmacySensitiveCurrency } from "./shared";
@@ -284,6 +285,7 @@ export function PharmacyCatalogTab({
             Import CSV
           </Button>
         )}
+        <CatalogDuplicatesButton />
         <Select
           placeholder="Formulary filter"
           data={[

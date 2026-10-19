@@ -161,6 +161,7 @@ export * from "./form-master";
 export * from "./form-runtime";
 export * from "./form-templates";
 export * from "./form-versioning";
+export * from "./grn-scan";
 export * from "./housekeeping";
 export * from "./infection-control";
 export * from "./insurance-tpa";
@@ -594,6 +595,11 @@ export interface GoodsReceiptNote {
   inspected_by: string | null;
   inspected_at: string | null;
   notes: string | null;
+  /** GST e-invoice reference, when the bill carried one. */
+  irn: string | null;
+  /** When stock moved. A draft GRN has none. */
+  posted_at: string | null;
+  posted_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -615,6 +621,14 @@ export interface GrnItem {
   total_amount: number;
   rejection_reason: string | null;
   notes: string | null;
+  mrp: number | null;
+  ptr: number | null;
+  free_quantity: number;
+  discount_amount: number;
+  gst_rate: number | null;
+  hsn_code: string | null;
+  pharmacy_batch_id: string | null;
+  batch_stock_id: string | null;
   created_at: string;
 }
 

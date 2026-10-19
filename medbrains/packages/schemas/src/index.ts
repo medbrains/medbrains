@@ -4,6 +4,7 @@ import { z } from "zod";
 export * from "./blood-pressure.js";
 export { buildFormSchema, evaluateCondition } from "./dynamic-form.js";
 export * from "./form-primitives.js";
+export * from "./grn-scan.js";
 export * from "./guards.js";
 export * from "./hms-forms.js";
 export * from "./onboarding.js";

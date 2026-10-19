@@ -817,6 +817,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::ARRANGE,
             permissions::pharmacy::deliveries::COMPLETE,
+            // The pharmacy owns its formulary; cleaning duplicate drugs out
+            // of it is the pharmacist's call (#4861).
+            permissions::pharmacy::catalog::MERGE,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,
@@ -1780,6 +1783,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::procurement::purchase_orders::APPROVE,
             permissions::procurement::grn::LIST,
             permissions::procurement::grn::CREATE,
+            permissions::procurement::grn::POST,
+            permissions::procurement::grn::SCAN,
             permissions::procurement::payments::LIST,
             permissions::procurement::payments::MANAGE,
             permissions::procurement::PERFORMANCE_VIEW,
@@ -1807,6 +1812,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::procurement::purchase_orders::LIST,
             permissions::procurement::grn::LIST,
             permissions::procurement::grn::CREATE,
+            permissions::procurement::grn::POST,
+            permissions::procurement::grn::SCAN,
             permissions::procurement::stores::LIST,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.

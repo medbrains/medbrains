@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1095 permissions, one per constant in the Rust source. */
+/** 1099 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -614,6 +614,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.catalog.lookup",
     label: "Look up drugs by name in the formulary",
     description: "Read-only names, generics and schedules — enough to record what a patient is allergic to at registration without the pharmacy's prescription or dispensing access.",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.catalog.merge",
+    label: "Merge duplicate drugs in the catalogue",
+    description: "See likely duplicate drugs and merge one into another: batches, orders, prescriptions and every other reference move to the drug that stays. Drugs that differ in schedule or NDPS control are never merged.",
     module: "pharmacy",
   },
   {
@@ -2957,6 +2963,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "procurement.grn.create",
     label: "Create GRN",
     description: "Record goods receipt",
+    module: "procurement",
+  },
+  {
+    code: "procurement.grn.post",
+    label: "Post a GRN to stock",
+    description: "Completing a goods receipt is the moment stock moves: batches are created, store and pharmacy stock rise, and the purchase order is marked received. A draft GRN moves nothing.",
+    module: "procurement",
+  },
+  {
+    code: "procurement.grn.scan",
+    label: "Scan supplier bills into draft GRNs",
+    description: "Upload a photographed or PDF distributor bill, review the draft the reader produced against the image, correct it, and match the supplier's item names to the catalogue.",
+    module: "procurement",
+  },
+  {
+    code: "procurement.grn.scan_worker",
+    label: "Read supplier bills as the parsing worker",
+    description: "A machine permission for the on-prem bill reader: claim a queued scan, fetch its image, and post the extracted draft back. Grant it to the worker's service account, never to a person.",
     module: "procurement",
   },
   {
@@ -8960,8 +8984,10 @@ export const P = {
     BILLS_PRINT: "pharmacy.bills.print",
     CATALOG: {
       LOOKUP: "pharmacy.catalog.lookup",
+      MERGE: "pharmacy.catalog.merge",
     },
     CATALOG_LOOKUP: "pharmacy.catalog.lookup",
+    CATALOG_MERGE: "pharmacy.catalog.merge",
     DAY_CLOSE: {
       CLOSE: "pharmacy.day_close.close",
       REOPEN: "pharmacy.day_close.reopen",
@@ -9171,9 +9197,15 @@ export const P = {
     GRN: {
       CREATE: "procurement.grn.create",
       LIST: "procurement.grn.list",
+      POST: "procurement.grn.post",
+      SCAN: "procurement.grn.scan",
+      SCAN_WORKER: "procurement.grn.scan_worker",
     },
     GRN_CREATE: "procurement.grn.create",
     GRN_LIST: "procurement.grn.list",
+    GRN_POST: "procurement.grn.post",
+    GRN_SCAN: "procurement.grn.scan",
+    GRN_SCAN_WORKER: "procurement.grn.scan_worker",
     PAYMENTS: {
       LIST: "procurement.payments.list",
       MANAGE: "procurement.payments.manage",
@@ -10636,6 +10668,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
       P.PHARMACY.BILLS.PRINT,
+      P.PHARMACY.CATALOG.MERGE,
       P.PHARMACY.DAY_CLOSE.CLOSE,
       P.PHARMACY.DAY_CLOSE.VIEW,
       P.PHARMACY.DELIVERIES.ARRANGE,
@@ -11439,6 +11472,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
+      P.PROCUREMENT.GRN.POST,
+      P.PROCUREMENT.GRN.SCAN,
       P.PROCUREMENT.PAYMENTS.LIST,
       P.PROCUREMENT.PAYMENTS.MANAGE,
       P.PROCUREMENT.PERFORMANCE_VIEW,
@@ -11474,6 +11509,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
+      P.PROCUREMENT.GRN.POST,
+      P.PROCUREMENT.GRN.SCAN,
       P.PROCUREMENT.PO_LIST,
       P.PROCUREMENT.STORES.LIST,
       P.STORAGE.POLICIES.LIST,

@@ -181,6 +181,11 @@ pub struct GoodsReceiptNote {
     pub inspected_by: Option<Uuid>,
     pub inspected_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
+    /// GST e-invoice reference (64 hex chars) when the bill carried one.
+    pub irn: Option<String>,
+    /// When stock moved. A draft has none; posting sets it exactly once.
+    pub posted_at: Option<DateTime<Utc>>,
+    pub posted_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -205,6 +210,15 @@ pub struct GrnItem {
     pub total_amount: rust_decimal::Decimal,
     pub rejection_reason: Option<String>,
     pub notes: Option<String>,
+    pub mrp: Option<rust_decimal::Decimal>,
+    pub ptr: Option<rust_decimal::Decimal>,
+    /// Scheme units ("10+1"): stocked, never billed.
+    pub free_quantity: i32,
+    pub discount_amount: rust_decimal::Decimal,
+    pub gst_rate: Option<rust_decimal::Decimal>,
+    pub hsn_code: Option<String>,
+    pub pharmacy_batch_id: Option<Uuid>,
+    pub batch_stock_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
 

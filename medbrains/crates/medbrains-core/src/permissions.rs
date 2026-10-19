@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 806;
+pub const PERMISSION_COUNT: usize = 810;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -379,6 +379,13 @@ pub mod pharmacy {
         /// a patient is allergic to at registration without the pharmacy's
         /// prescription or dispensing access.
         pub const LOOKUP: &str = "pharmacy.catalog.lookup";
+        /// Merge duplicate drugs in the catalogue.
+        ///
+        /// See likely duplicate drugs and merge one into another: batches,
+        /// orders, prescriptions and every other reference move to the drug
+        /// that stays. Drugs that differ in schedule or NDPS control are
+        /// never merged.
+        pub const MERGE: &str = "pharmacy.catalog.merge";
     }
 
     pub mod prescriptions {
@@ -1504,6 +1511,24 @@ pub mod procurement {
     pub mod grn {
         pub const LIST: &str = "procurement.grn.list";
         pub const CREATE: &str = "procurement.grn.create";
+        /// Post a GRN to stock.
+        ///
+        /// Completing a goods receipt is the moment stock moves: batches are
+        /// created, store and pharmacy stock rise, and the purchase order is
+        /// marked received. A draft GRN moves nothing.
+        pub const POST: &str = "procurement.grn.post";
+        /// Scan supplier bills into draft GRNs.
+        ///
+        /// Upload a photographed or PDF distributor bill, review the draft the
+        /// reader produced against the image, correct it, and match the
+        /// supplier's item names to the catalogue.
+        pub const SCAN: &str = "procurement.grn.scan";
+        /// Read supplier bills as the parsing worker.
+        ///
+        /// A machine permission for the on-prem bill reader: claim a queued
+        /// scan, fetch its image, and post the extracted draft back. Grant it
+        /// to the worker's service account, never to a person.
+        pub const SCAN_WORKER: &str = "procurement.grn.scan_worker";
     }
 
     pub mod rate_contracts {
