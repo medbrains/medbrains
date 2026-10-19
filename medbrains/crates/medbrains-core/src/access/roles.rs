@@ -742,6 +742,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::abha::MANAGE,
             // Teleconsultations booked from UHI patient apps arrive at the desk.
             permissions::uhi::requests::VIEW,
+            // Scan & Share: the desk receives ABHA profiles shared at its counters.
+            permissions::abdm::scanshare::VIEW,
         ],
     },
     BuiltInRole {
@@ -1243,6 +1245,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // ABDM adoption and DHIS are measured as a compliance programme.
+            permissions::abdm::dashboard::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
             // compliance questions, which is this role's remit.
             permissions::marketing::outreach::APPROVE,
@@ -1410,6 +1414,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // MRD is the custodian of what leaves the hospital through ABDM.
             permissions::abdm::records::VIEW,
             permissions::abdm::records::MANAGE,
+            permissions::abdm::dashboard::VIEW,
         ],
     },
     BuiltInRole {
@@ -1701,6 +1706,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
             permissions::uhi::requests::VIEW,
+            // Scan & Share: the desk receives ABHA profiles shared at its counters.
+            permissions::abdm::scanshare::VIEW,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::communications::alerts::CREATE,

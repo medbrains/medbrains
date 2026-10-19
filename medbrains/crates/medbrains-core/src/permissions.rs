@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 799;
+pub const PERMISSION_COUNT: usize = 802;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3472,6 +3472,21 @@ pub mod abdm {
         /// facilities sent under them, until the consent is revoked or expires.
         pub const VIEW: &str = "abdm.consent.view";
     }
+    /// ABDM Scan & Share: patients scan a counter's QR with their ABHA app
+    /// and share their profile instead of queueing to register.
+    pub mod scanshare {
+        /// Work the Scan & Share registration queue.
+        ///
+        /// See the ABHA profiles patients shared at the registration counters
+        /// today, with their token numbers; open the matched patient, register
+        /// a new one from the profile, or dismiss a share.
+        pub const VIEW: &str = "abdm.scanshare.view";
+        /// Print the counters' Scan & Share QR codes.
+        ///
+        /// The QR poster for each registration counter, naming this
+        /// hospital's HFR facility ID and the counter.
+        pub const MANAGE: &str = "abdm.scanshare.manage";
+    }
     pub mod hpr {
         /// Record and verify doctors' HPR IDs.
         ///
@@ -3479,6 +3494,16 @@ pub mod abdm {
         /// records under, checked against the national registry, and the
         /// coverage report of active doctors still missing one.
         pub const MANAGE: &str = "abdm.hpr.manage";
+    }
+    pub mod dashboard {
+        /// View the ABDM management dashboard.
+        ///
+        /// The month's OPD visits with a verified ABHA, KYC, ABHAs created
+        /// here, records linked against the DHIS threshold and the estimated
+        /// incentive, consents, Scan & Share, HPR and HFR coverage, and the
+        /// records that failed to link with their reasons. Counts only, plus
+        /// the names on failed links.
+        pub const VIEW: &str = "abdm.dashboard.view";
     }
 }
 

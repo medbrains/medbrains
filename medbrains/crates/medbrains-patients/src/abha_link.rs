@@ -90,6 +90,8 @@ pub async fn link_verified_abha(
         ("abha_number", _) => "abha_mobile_otp",
         ("aadhaar_enrol", _) => "created_aadhaar_otp",
         ("abha_address", _) => "abha_address_otp",
+        // Shared from the patient's ABHA app through ABDM Scan & Share.
+        ("scan_share", _) => "scan_share",
         _ => "mobile_otp",
     };
     sqlx::query(

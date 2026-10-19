@@ -202,6 +202,20 @@ const CATALOG: &[WidgetSpec] = &[
         category: "Team",
         perm: "notes.use",
     },
+    WidgetSpec {
+        code: "abdm_dashboard",
+        name: "ABDM this month",
+        description: "OPD visits with a verified ABHA, records linked for DHIS and failed links",
+        wtype: "module_embed",
+        icon: "IconId",
+        color: "teal",
+        config: r#"{"module": "abdm_dashboard"}"#,
+        data_source: r#"{"type": "static"}"#,
+        width: 4,
+        height: 3,
+        category: "ABDM",
+        perm: "abdm.dashboard.view",
+    },
 ];
 
 /// The management KPIs (`medbrains-dashboard::management_kpis`), each a stat

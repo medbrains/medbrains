@@ -4,9 +4,12 @@ import type {
   AbdmConnectionTest,
   AbdmConsentPrintData,
   AbdmConsentRequest,
+  AbdmDashboard,
   AbdmHiuPatientView,
   AbdmPatientRecords,
+  AbdmProfileShare,
   AbdmReceivedRecord,
+  AbdmScanShareCounters,
   AbdmSettingsView,
   AbdmSharingSummary,
   AbhaAccountChange,
@@ -339,6 +342,7 @@ import type {
   CommTemplateRow,
   CompileRustRequest,
   CompileRustResult,
+  CompleteAbdmProfileShare,
   CompleteBedsideTransfusionRequest,
   CompletenessCheck,
   CompletePcpndtFormRequest,
@@ -17029,6 +17033,19 @@ export const api = {
     request<AbdmSharingSummary>(
       `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,
     ),
+  getAbdmDashboard: (month?: string) =>
+    request<AbdmDashboard>(`/abdm/dashboard${month ? `?month=${encodeURIComponent(month)}` : ""}`),
+  getAbdmScanShareCounters: () => request<AbdmScanShareCounters>("/abdm/scan-share/counters"),
+  listAbdmScanShares: () => request<AbdmProfileShare[]>("/abdm/scan-share/queue"),
+  createAbdmScanShareVerification: (id: string) =>
+    request<AbhaVerificationStep>(`/abdm/scan-share/${id}/verification`, { method: "POST" }),
+  completeAbdmScanShare: (id: string, data: CompleteAbdmProfileShare) =>
+    request<AbdmProfileShare>(`/abdm/scan-share/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  dismissAbdmScanShare: (id: string) =>
+    request<AbdmProfileShare>(`/abdm/scan-share/${id}/dismiss`, { method: "POST" }),
   raiseAbdmConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>
     request<AbdmConsentRequest>(`/abdm/patients/${patientId}/consent-requests`, {
       method: "POST",

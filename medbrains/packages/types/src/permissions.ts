@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1088 permissions, one per constant in the Rust source. */
+/** 1091 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6596,9 +6596,27 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.scanshare.view",
+    label: "Work the Scan & Share registration queue",
+    description: "See the ABHA profiles patients shared at the registration counters today, with their token numbers; open the matched patient, register a new one from the profile, or dismiss a share.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.scanshare.manage",
+    label: "Print the counters' Scan & Share QR codes",
+    description: "The QR poster for each registration counter, naming this hospital's HFR facility ID and the counter.",
+    module: "abdm",
+  },
+  {
     code: "abdm.hpr.manage",
     label: "Record and verify doctors' HPR IDs",
     description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.dashboard.view",
+    label: "View the ABDM management dashboard",
+    description: "The month's OPD visits with a verified ABHA, KYC, ABHAs created here, records linked against the DHIS threshold and the estimated incentive, consents, Scan & Share, HPR and HFR coverage, and the records that failed to link with their reasons. Counts only, plus the names on failed links.",
     module: "abdm",
   },
   // uhi
@@ -6640,6 +6658,10 @@ export const P = {
     },
     CONSENT_REQUEST: "abdm.consent.request",
     CONSENT_VIEW: "abdm.consent.view",
+    DASHBOARD: {
+      VIEW: "abdm.dashboard.view",
+    },
+    DASHBOARD_VIEW: "abdm.dashboard.view",
     HFR: {
       REGISTER: "abdm.hfr.register",
       VIEW: "abdm.hfr.view",
@@ -6660,6 +6682,12 @@ export const P = {
       PULL: "abdm.relay.pull",
     },
     RELAY_PULL: "abdm.relay.pull",
+    SCANSHARE: {
+      MANAGE: "abdm.scanshare.manage",
+      VIEW: "abdm.scanshare.view",
+    },
+    SCANSHARE_MANAGE: "abdm.scanshare.manage",
+    SCANSHARE_VIEW: "abdm.scanshare.view",
     SETTINGS: {
       MANAGE: "abdm.settings.manage",
     },
@@ -10429,6 +10457,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.ADMIN.SETTINGS.READ,
       P.BILLING.INVOICES.CANCEL,
@@ -10936,6 +10965,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   quality_officer: {
     label: "Quality Officer",
     permissions: [
+      P.ABDM.DASHBOARD.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
@@ -11055,6 +11085,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
@@ -11286,6 +11317,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,

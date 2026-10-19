@@ -89,6 +89,8 @@ interface PatientRegisterFormProps {
   ) => void | Promise<void>;
   onCancel: () => void;
   initialValues?: PatientRegistrationInitialValues;
+  /** An ABHA the server already verified for this registration (Scan & Share). */
+  initialAbhaVerificationId?: string;
 }
 
 function splitDrugAllergyTags(value: string | undefined): string[] {
@@ -297,6 +299,7 @@ export function PatientRegisterForm({
   onSubmit,
   onCancel,
   initialValues,
+  initialAbhaVerificationId,
 }: PatientRegisterFormProps) {
   const { t } = useTranslation("patients");
   const isEdit = mode === "edit";
@@ -370,6 +373,12 @@ export function PatientRegisterForm({
       camp_name: initialValues?.camp_name,
       initial_diagnosis_text: initialValues?.initial_diagnosis_text,
       icd11_code: initialValues?.icd11_code,
+      abha_number: initialValues?.abha_number,
+      abha_address: initialValues?.abha_address,
+      line1: initialValues?.line1,
+      district: initialValues?.district,
+      state: initialValues?.state,
+      postal_code: initialValues?.postal_code,
       allergy_status: initialValues?.allergy_status ?? "not_asked_yet",
       known_allergies: initialValues?.known_allergies,
       drug_allergies: initialValues?.drug_allergies,
@@ -388,7 +397,11 @@ export function PatientRegisterForm({
   const [abhaDrawerOpen, setAbhaDrawerOpen] = useState(false);
   const [abhaCreateOpen, setAbhaCreateOpen] = useState(false);
   /** The ABHA verified against ABDM; a later edit of the number unverifies it. */
-  const [verifiedAbha, setVerifiedAbha] = useState<{ id: string; digits: string } | null>(null);
+  const [verifiedAbha, setVerifiedAbha] = useState<{ id: string; digits: string } | null>(() =>
+    initialAbhaVerificationId && initialValues?.abha_number
+      ? { id: initialAbhaVerificationId, digits: initialValues.abha_number.replace(/\D/g, "") }
+      : null,
+  );
   const [stepError, setStepError] = useState<string | null>(null);
   const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
   const [dobEstimated, setDobEstimated] = useState(Boolean(initialValues?.is_dob_estimated));

@@ -137,5 +137,6 @@
   "marketing": "Marketing",
   "onboardingWorkbook": "Onboarding workbook",
   "testCycles": "Test cycles",
-  "snomed": "SNOMED CT"
+  "snomed": "SNOMED CT",
+  "abdmDashboard": "ABDM dashboard"
 }

@@ -6,6 +6,7 @@ export const abdmRecordsService = {
   patientRecords: (patientId: string) => api.getAbdmPatientRecords(patientId),
   link: (careContextId: string) => api.linkAbdmCareContext(careContextId),
   sharingSummary: (month?: string) => api.getAbdmSharingSummary(month),
+  dashboard: (month?: string) => api.getAbdmDashboard(month),
   raiseConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>
     api.raiseAbdmConsentRequest(patientId, data),
   receivedRecords: (patientId: string) => api.getAbdmReceivedRecords(patientId),

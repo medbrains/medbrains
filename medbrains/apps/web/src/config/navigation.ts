@@ -1186,6 +1186,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "regulatory.dashboard.view",
       },
       {
+        i18nKey: "abdmDashboard",
+        path: "/abdm/dashboard",
+        icon: "IconIdBadge2",
+        requiredPermission: "abdm.dashboard.view",
+      },
+      {
         i18nKey: "analytics",
         path: "/analytics",
         icon: "IconChartBar",

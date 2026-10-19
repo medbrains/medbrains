@@ -14,11 +14,13 @@ import type {
   OnboardingUser,
 } from "./onboarding-store";
 
+export * from "./abdm-dashboard";
 export * from "./abdm-hip";
 export * from "./abdm-hiu";
 export * from "./abdm-integration";
 export * from "./uhi";
 export * from "./abdm-registry";
+export * from "./abdm-scan-share";
 export type {
   AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
