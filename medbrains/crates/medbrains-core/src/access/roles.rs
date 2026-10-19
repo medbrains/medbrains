@@ -1243,6 +1243,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::qa::test_cycles::MANAGE,
             // Documentation completeness by doctor is a quality measure.
             permissions::analytics::management::VIEW,
+            // ABDM adoption and DHIS are measured as a compliance programme.
+            permissions::abdm::dashboard::VIEW,
             // NMC advertising and the Drugs and Magic Remedies Act are
             // compliance questions, which is this role's remit.
             permissions::marketing::outreach::APPROVE,
@@ -1410,6 +1412,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // MRD is the custodian of what leaves the hospital through ABDM.
             permissions::abdm::records::VIEW,
             permissions::abdm::records::MANAGE,
+            permissions::abdm::dashboard::VIEW,
         ],
     },
     BuiltInRole {
