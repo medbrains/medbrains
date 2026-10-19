@@ -39,6 +39,7 @@ const ALLOWED_CATEGORIES: &[&str] = &[
     "referral_letter",
     "operation_note",
     "nursing_assessment",
+    "purchase_bill",
     "general",
 ];
 
@@ -212,6 +213,7 @@ fn upload_permission_for_category(category: &str) -> &'static str {
         }
         "insurance_document" => permissions::insurance::verification::CREATE,
         "prescription" | "referral_letter" => permissions::opd::visit::UPDATE,
+        "purchase_bill" => permissions::procurement::grn::SCAN,
         _ => permissions::patients::UPDATE,
     }
 }

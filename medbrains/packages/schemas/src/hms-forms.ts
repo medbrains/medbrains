@@ -4754,10 +4754,28 @@ const procurementGrnItemFormSchema = z
     expiry_date: optionalIsoDateString,
     manufacture_date: optionalIsoDateString,
     unit_price: nonNegativeNumber("Unit price cannot be negative"),
+    mrp: optionalNumericFormValue("MRP cannot be negative", 0),
+    free_quantity: optionalNonNegativeIntegerNumber("Free quantity must be a whole number"),
+    discount_amount: optionalNumericFormValue("Discount cannot be negative", 0),
+    gst_rate: optionalNumericFormValue("GST must be between 0 and 40%", 0, 40),
+    hsn_code: z
+      .string()
+      .refine(
+        (value) => value.trim() === "" || /^\d{4,8}$/.test(value.trim()),
+        "HSN is 4–8 digits",
+      ),
     rejection_reason: z.string(),
     notes: z.string(),
   })
   .superRefine((value, ctx) => {
+    // The server blocks this too; MRP and rate are the columns most often swapped.
+    if (String(value.mrp).trim() !== "" && Number(value.mrp) < Number(value.unit_price)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["mrp"],
+        message: "MRP is below the rate — check the bill",
+      });
+    }
     const received = Number(value.quantity_received);
     const accepted = Number(value.quantity_accepted);
     const rejected = Number(value.quantity_rejected);
@@ -4784,14 +4802,21 @@ const procurementGrnItemFormSchema = z
     }
   });
 
-export const procurementGrnFormSchema = z.object({
-  po_id: requiredTrimmed("Purchase order is required"),
-  /** Required where the hospital keeps stores — checked by the form and the server. */
-  store_location_id: z.string(),
-  invoice_number: z.string(),
-  notes: z.string(),
-  items: z.array(procurementGrnItemFormSchema).min(1, "At least one item is required"),
-});
+export const procurementGrnFormSchema = z
+  .object({
+    po_id: requiredTrimmed("Purchase order is required"),
+    /** Required where the hospital keeps stores — checked by the form and the server. */
+    store_location_id: z.string(),
+    invoice_number: z.string(),
+    invoice_date: optionalIsoDateString,
+    invoice_amount: optionalNumericFormValue("Invoice amount cannot be negative", 0),
+    notes: z.string(),
+    items: z.array(procurementGrnItemFormSchema).min(1, "At least one item is required"),
+  })
+  .refine((value) => value.invoice_number.trim() === "" || value.invoice_date.trim() !== "", {
+    path: ["invoice_date"],
+    message: "Enter the invoice date printed on the bill",
+  });
 
 const procurementRateContractItemFormSchema = z.object({
   catalog_item_id: requiredTrimmed("Catalog item is required"),

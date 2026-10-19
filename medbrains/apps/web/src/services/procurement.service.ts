@@ -27,6 +27,7 @@ export const procurementService = {
   listGrns: (params?: ListGrnParams) => api.listGrns(params),
   getGrn: (id: string) => api.getGrn(id),
   createGrn: (data: CreateGrnInput) => api.createGrn(data),
+  completeGrn: (id: string) => api.completeGrn(id),
   listRateContracts: () => api.listRateContracts(),
   createRateContract: (data: CreateRateContractInput) => api.createRateContract(data),
   listBatchStock: () => api.listBatchStock(),
