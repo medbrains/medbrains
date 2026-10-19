@@ -164,6 +164,41 @@ pub async fn tiered_rate_limit_middleware(
     next.run(request).await
 }
 
+/// Browsing the public storefront, per IP per minute: generous for a person,
+/// tight for a scraper. Inferred, not from a spec.
+const STORE_BROWSE_PER_MINUTE: usize = 120;
+/// Sign-in codes asked for or tried, per IP per minute — each one may send
+/// an SMS.
+const STORE_SIGN_IN_PER_MINUTE: usize = 5;
+
+/// The public storefront: browsing is bounded, and asking for or trying a
+/// sign-in code far more so.
+pub async fn storefront_rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path();
+    let (class, max) = if path.ends_with("/otp") || path.ends_with("/sign-in") {
+        ("store_sign_in", STORE_SIGN_IN_PER_MINUTE)
+    } else {
+        ("store_browse", STORE_BROWSE_PER_MINUTE)
+    };
+    if let Some(ip) = extract_client_ip(&request) {
+        if !limiter.check_and_record_class(ip, class, max, WINDOW_SECS) {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                axum::Json(serde_json::json!({
+                    "error": "too_many_requests",
+                    "detail": "Too many requests. Please wait a minute and try again.",
+                })),
+            )
+                .into_response();
+        }
+    }
+    next.run(request).await
+}
+
 /// Extract client IP — tries `ConnectInfo`, `X-Forwarded-For`, `X-Real-IP`.
 fn extract_client_ip(request: &Request) -> Option<IpAddr> {
     // Try ConnectInfo (direct connection)

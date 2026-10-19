@@ -7,6 +7,7 @@ use axum::{
     extract::{Path, State},
 };
 use medbrains_pharmacy_delivery::choice::{DeliveryChoice, check_choice, record_choice};
+use medbrains_pharmacy_delivery::source::Source;
 use medbrains_pharmacy_repeats::requests::{
     PatientRefill, RefillRequest, create_request, patient_refills,
 };
@@ -71,7 +72,7 @@ pub async fn portal_request_refill(
     )
     .await?;
     if let Some(choice) = &delivery {
-        record_choice(&mut tx, claims.tenant_id, request.id, choice).await?;
+        record_choice(&mut tx, claims.tenant_id, Source::Refill(request.id), choice).await?;
     }
     tx.commit().await?;
     Ok(Json(request))

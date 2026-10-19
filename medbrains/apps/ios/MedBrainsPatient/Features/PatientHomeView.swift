@@ -33,7 +33,7 @@ struct PatientHomeView: View {
     }
 }
 
-enum HospitalRoute: Hashable { case appointments, results, medicines, bills, consent, familyShare }
+enum HospitalRoute: Hashable { case appointments, results, medicines, pharmacy, bills, consent, familyShare }
 
 /// The hospital's record of the patient, one row per module in the order the
 /// React Native registry kept.
@@ -51,6 +51,7 @@ struct HospitalTabView: View {
                 row("appointments", "Appointments", "Booked visits, newest first.", "calendar", .appointments)
                 row("lab-reports", "Results", "Released by the laboratory.", "testtube.2", .results)
                 row("prescriptions", "Medicines", "What was prescribed, and how to take it.", "pills", .medicines)
+                row("pharmacy", "Pharmacy", "Order your prescription or other medicines.", "cross.vial", .pharmacy)
                 row("bills", "Bills", "Invoices, payments and receipts.", "indianrupeesign.circle", .bills)
                 row("consent", "Privacy", "What you agree to, what we hold, and your requests.", "checkmark.shield", .consent)
                 row("family-share", "Family share", "Link family, share specific records, set expiry.", "person.2", .familyShare)
@@ -70,6 +71,7 @@ struct HospitalTabView: View {
             case .appointments: AppointmentsView()
             case .results: ResultsView()
             case .medicines: MedicinesView()
+            case .pharmacy: StoreView()
             case .bills: BillsView()
             case .consent: PrivacyView()
             case .familyShare: TilesView(id: "family-share", eyebrow: "Family", title: "Family share", subtitle: "Link family, share specific records, set expiry.", tiles: [

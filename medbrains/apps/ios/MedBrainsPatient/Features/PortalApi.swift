@@ -6,11 +6,20 @@ import MedBrainsKit
 // no id to pass and none to get wrong. Wire shapes mirror
 // crates/medbrains-server/src/routes/portal.rs.
 
-struct PortalSession: Decodable, Sendable {
-    let token: String
-    let patientId: String
-    let tenantId: String
-    let expiresInHours: Int
+/// A sign-in's answer: the session, or — when a family shares the mobile —
+/// who to choose between, asked again with the chosen `patientId`.
+struct PortalSignIn: Decodable, Sendable {
+    let token: String?
+    let patientId: String?
+    let tenantId: String?
+    let choose: [PortalPerson]?
+}
+
+/// Somebody a shared mobile belongs to: enough to pick themselves.
+struct PortalPerson: Decodable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let birthYear: Int?
 }
 
 struct PortalAppointment: Decodable, Identifiable, Sendable {
@@ -103,7 +112,8 @@ struct PortalDeliveryOffer: Decodable, Sendable {
 /// A delivery the patient asked for. Never carries the runner's phone.
 struct PortalDelivery: Decodable, Identifiable, Sendable {
     let id: String
-    let prescriptionId: String
+    /// The prescription refilled; nil for a storefront order.
+    let prescriptionId: String?
     let drugs: [String]
     let stage: String
     let address: String?
@@ -183,7 +193,7 @@ struct PrivacyRequestAsk: Encodable, Sendable {
 }
 
 private struct OtpRequest: Encodable { let tenantCode: String; let phone: String }
-private struct OtpVerify: Encodable { let tenantCode: String; let phone: String; let code: String }
+private struct OtpVerify: Encodable { let tenantCode: String; let phone: String; let code: String; let patientId: String? }
 
 struct PortalApi: Sendable {
     let client: ApiClient
@@ -194,8 +204,8 @@ struct PortalApi: Sendable {
         let _: Empty = try await client.request(.post, "/api/portal/auth/request-otp", body: OtpRequest(tenantCode: tenantCode, phone: phone))
     }
 
-    func verifyCode(tenantCode: String, phone: String, code: String) async throws -> PortalSession {
-        try await client.request(.post, "/api/portal/auth/verify", body: OtpVerify(tenantCode: tenantCode, phone: phone, code: code))
+    func verifyCode(tenantCode: String, phone: String, code: String, patientId: String? = nil) async throws -> PortalSignIn {
+        try await client.request(.post, "/api/portal/auth/verify", body: OtpVerify(tenantCode: tenantCode, phone: phone, code: code, patientId: patientId))
     }
 
     func appointments() async throws -> [PortalAppointment] { try await client.request(.get, "/api/portal/appointments") }

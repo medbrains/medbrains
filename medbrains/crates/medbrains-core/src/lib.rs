@@ -94,6 +94,7 @@ pub mod pharmacy;
 pub mod pharmacy_delivery;
 pub mod pharmacy_phase2;
 pub mod pharmacy_phase3;
+pub mod pharmacy_storefront;
 pub mod print_data;
 pub mod privacy;
 pub mod procurement;

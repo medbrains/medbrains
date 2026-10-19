@@ -7,6 +7,7 @@ pub mod contact_consent;
 pub mod dpdp_consent;
 pub mod privacy_requests;
 mod registration_rules;
+pub mod pharmacy_customer;
 
 use std::collections::HashMap;
 
@@ -696,17 +697,9 @@ pub struct MatchRequest {
     pub identifier_hash: Option<String>,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct MatchResult {
-    pub id: Uuid,
-    pub uhid: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub date_of_birth: Option<NaiveDate>,
-    pub phone: String,
-    pub gender: Gender,
-    pub score: f64,
-}
+/// The duplicate check's row; the check itself is shared with the
+/// storefront's sign-up (`medbrains_server_services::patient_match`).
+pub use medbrains_server_services::patient_match::MatchResult;
 
 // ══════════════════════════════════════════════════════════
 //  UHID generation
@@ -3321,19 +3314,18 @@ pub async fn match_patients(
 
     // Step 1: Check for exact identifier hash match (highest confidence)
     if let Some(ref hash) = body.identifier_hash {
-        let id_matches = sqlx::query_as_unchecked!(
-            MatchResult,
+        let id_matches = sqlx::query_as::<_, MatchResult>(
             "SELECT p.id, p.uhid, p.first_name, p.last_name, \
                     p.date_of_birth, p.phone, p.gender, \
-                    1.0::float8 AS score \
+                    1.0::float8 AS score, p.pharmacy_customer \
              FROM patients p \
              JOIN patient_identifiers pi ON pi.patient_id = p.id AND pi.tenant_id = p.tenant_id \
              WHERE p.tenant_id = $1 AND pi.id_number_hash = $2 \
                AND p.is_merged = false AND p.is_active = true \
              LIMIT 10",
-            claims.tenant_id,
-            hash,
         )
+        .bind(claims.tenant_id)
+        .bind(hash)
         .fetch_all(&mut *tx)
         .await?;
 
@@ -3347,46 +3339,22 @@ pub async fn match_patients(
         }
     }
 
-    // Step 2: Fuzzy match on name + DOB + phone using pg_trgm similarity()
-    // Build a scoring query that combines multiple signals
-    let first_name = body.first_name.clone().unwrap_or_default();
-    let last_name = body.last_name.clone().unwrap_or_default();
-    let phone = body.phone.clone().unwrap_or_default();
-
-    let matches = sqlx::query_as_unchecked!(
-        MatchResult,
-        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
-         ( \
-           COALESCE(similarity(first_name, $2), 0) * 0.3 + \
-           COALESCE(similarity(last_name, $3), 0) * 0.3 + \
-           CASE WHEN date_of_birth = $4 THEN 0.25 ELSE 0.0 END + \
-           CASE WHEN phone = $5 THEN 0.15 ELSE 0.0 END \
-         )::float8 AS score \
-         FROM patients \
-         WHERE tenant_id = $1 \
-           AND is_merged = false \
-           AND is_active = true \
-           AND ( \
-             similarity(first_name, $2) > 0.3 \
-             OR similarity(last_name, $3) > 0.3 \
-             OR date_of_birth = $4 \
-             OR phone = $5 \
-           ) \
-         ORDER BY score DESC \
-         LIMIT 20",
+    // Step 2: Fuzzy match on name + DOB + phone — the same check the
+    // storefront's sign-up runs before it makes a pharmacy-customer record.
+    let matches = medbrains_server_services::patient_match::fuzzy_matches(
+        &mut tx,
         claims.tenant_id,
-        &first_name,
-        &last_name,
-        body.date_of_birth,
-        &phone,
+        &medbrains_server_services::patient_match::MatchQuery {
+            first_name: body.first_name.clone().unwrap_or_default(),
+            last_name: body.last_name.clone().unwrap_or_default(),
+            date_of_birth: body.date_of_birth,
+            phone: body.phone.clone().unwrap_or_default(),
+        },
     )
-    .fetch_all(&mut *tx)
     .await?;
-
-    // Mask AFTER the phone-equality filter so masking doesn't break match scoring.
+    // Masked after matching, so masking doesn't break match scoring.
     let matches: Vec<MatchResult> = matches
         .into_iter()
-        .filter(|m| m.score >= 0.55 || (!phone.is_empty() && m.phone == phone))
         .map(|m| filter_match_result(m, &restricted))
         .collect();
 
@@ -3463,7 +3431,7 @@ pub async fn find_patients(
                 WHEN phone LIKE '%' || p.e || '%' THEN 0.75 \
                 ELSE COALESCE(word_similarity(p.q, first_name || ' ' || last_name), 0) * 0.7 \
            END \
-         )::float8 AS score \
+         )::float8 AS score, pharmacy_customer \
          FROM patients, p \
          WHERE tenant_id = $1 \
            AND is_merged = false \
@@ -5081,6 +5049,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/patients/find", get(find_patients))
         .route("/api/patients/match", post(match_patients))
+        .route(
+            "/api/patients/{id}/complete-registration",
+            post(pharmacy_customer::complete_registration),
+        )
         .route("/api/patients/merge", post(merge_patients))
         .route(
             "/api/patients/unmerge/{id}",

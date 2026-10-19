@@ -839,4 +839,6 @@ export interface MpiMatchResult {
   phone: string;
   gender: Gender;
   score: number;
+  /** A light record from the online pharmacy: complete it, don't register again. */
+  pharmacy_customer: boolean;
 }
