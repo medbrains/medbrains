@@ -18,7 +18,6 @@ export * from "./abdm-dashboard";
 export * from "./abdm-hip";
 export * from "./abdm-hiu";
 export * from "./abdm-integration";
-export * from "./uhi";
 export * from "./abdm-registry";
 export * from "./abdm-scan-share";
 export type {
@@ -357,6 +356,7 @@ export {
   tokenBoardSurfaceFilterFromParam,
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
+export * from "./uhi";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,
@@ -1260,8 +1260,57 @@ export interface AttendanceRecord {
   source: string;
   notes?: string;
   recorded_by: string;
+  check_in_location?: PunchLocation | null;
+  check_out_location?: PunchLocation | null;
+  geofence_flagged: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** What a hospital does with a punch from outside its campus fences. */
+export type GeofenceMode = "off" | "flag" | "block";
+
+export type PunchPlace = "inside" | "outside" | "no_location" | "uncertain" | "not_checked";
+
+/** Where a self-service punch was made, judged against the nearest fence. */
+export interface PunchLocation {
+  lat: number | null;
+  lng: number | null;
+  accuracy_m: number | null;
+  distance_m: number | null;
+  inside: boolean | null;
+  place: PunchPlace;
+  facility_id: string | null;
+  facility_name: string | null;
+  flagged: boolean;
+}
+
+/** The device's fix, sent with a start or end of shift. */
+export interface PunchFix {
+  latitude: number;
+  longitude: number;
+  accuracy_m: number;
+}
+
+export interface CampusFence {
+  id: string;
+  code: string;
+  name: string;
+  facility_type: string;
+  latitude: number | null;
+  longitude: number | null;
+  geofence_radius_m: number | null;
+}
+
+export interface GeofenceSettings {
+  mode: GeofenceMode;
+  campuses: CampusFence[];
+}
+
+export interface SetCampusFenceRequest {
+  latitude: number | null;
+  longitude: number | null;
+  radius_m: number | null;
 }
 
 export type ShiftSessionStatus = "off" | "on_duty" | "paused" | "ended";
@@ -1277,6 +1326,7 @@ export interface ShiftSession {
   paused_minutes: number;
   overtime_minutes: number;
   fatigue_ack_at: string | null;
+  check_in_location: PunchLocation | null;
 }
 
 export interface FatigueFlag {
@@ -1304,6 +1354,8 @@ export interface MyShiftResponse {
   scheduled: ScheduledShift | null;
   session: ShiftSession | null;
   fatigue: FatigueState;
+  /** Set by start and end of shift: where that punch was made. */
+  punch: PunchLocation | null;
 }
 
 export interface DutyHoursRow {

@@ -1,19 +1,15 @@
 //! Where a punch was made, and whether that is on site.
 //!
-//! A facility's fence is a circle: its location and a radius. A punch
+//! A campus's fence is a circle: its location and a radius. A punch
 //! carries the device's fix and how accurate the device says it is. A fix
-//! looser than [`MAX_ACCURACY_M`] cannot place anyone inside a fence, so it
-//! is "imprecise" rather than in or out; a punch with no fix at all is
-//! "no location". Whether a punch that is not inside is refused or only
+//! looser than the fence's own radius cannot say whether someone is inside,
+//! so it is "uncertain" — flagged, never refused; a punch with no fix at all
+//! is "no location". Whether a punch that is outside is refused or only
 //! flagged for HR is the hospital's [`GeofenceMode`].
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// The loosest fix that can still say someone is on site, in metres. Indoor
-/// GPS in a concrete building is often 30–80 m; Wi-Fi-only fixes run to
-/// several hundred.
-pub const MAX_ACCURACY_M: f64 = 150.0;
 /// Mean Earth radius, metres (IUGG).
 const EARTH_RADIUS_M: f64 = 6_371_008.8;
 
@@ -21,13 +17,15 @@ const EARTH_RADIUS_M: f64 = 6_371_008.8;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GeofenceMode {
-    /// Locations are not asked for or checked.
-    #[default]
+    /// The location is kept with the punch and nothing else.
     Off,
-    /// The punch is kept and marked for HR to review.
+    /// The punch is kept and marked for HR to review. The default: a
+    /// hospital sees who clocks in from where before it turns refusal on.
+    #[default]
     Flag,
-    /// The punch is refused.
-    Enforce,
+    /// A punch from outside, or with no location, is refused. An uncertain
+    /// fix is still only flagged — a weak GPS signal is not the nurse's fault.
+    Block,
 }
 
 /// A device's position at the punch.
@@ -55,7 +53,8 @@ pub enum PunchPlace {
     Inside,
     Outside,
     NoLocation,
-    Imprecise,
+    /// The fix is looser than the fence's radius.
+    Uncertain,
     /// Geofencing is off, or no facility has a fence.
     NotChecked,
 }
@@ -76,7 +75,8 @@ pub struct PunchCheck {
 pub fn distance_m(a: (f64, f64), b: (f64, f64)) -> f64 {
     let (lat1, lat2) = (a.0.to_radians(), b.0.to_radians());
     let (dlat, dlon) = ((b.0 - a.0).to_radians(), (b.1 - a.1).to_radians());
-    let h = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+    let h =
+        (lat1.cos() * lat2.cos()).mul_add((dlon / 2.0).sin().powi(2), (dlat / 2.0).sin().powi(2));
     2.0 * EARTH_RADIUS_M * h.sqrt().asin()
 }
 
@@ -115,8 +115,8 @@ pub fn check_punch(fix: Option<Fix>, fences: &[Fence]) -> PunchCheck {
     let Some((fence, d)) = nearest else {
         return not(PunchPlace::NotChecked);
     };
-    let place = if f.accuracy_m > MAX_ACCURACY_M {
-        PunchPlace::Imprecise
+    let place = if f.accuracy_m > fence.radius_m {
+        PunchPlace::Uncertain
     } else if d <= fence.radius_m {
         PunchPlace::Inside
     } else {
@@ -142,24 +142,29 @@ pub fn describe_distance(metres: f64) -> String {
 }
 
 impl GeofenceMode {
+    /// Whether HR should look at this punch.
+    #[must_use]
+    pub fn flags(self, check: &PunchCheck) -> bool {
+        self != Self::Off
+            && matches!(
+                check.place,
+                PunchPlace::Outside | PunchPlace::NoLocation | PunchPlace::Uncertain
+            )
+    }
+
     /// The words a refused punch gets — what is wrong and what to do — or
     /// `None` when this mode accepts the punch.
     #[must_use]
     pub fn refusal(self, check: &PunchCheck) -> Option<String> {
-        if self != Self::Enforce {
+        if self != Self::Block {
             return None;
         }
         match check.place {
-            PunchPlace::Inside | PunchPlace::NotChecked => None,
+            PunchPlace::Inside | PunchPlace::NotChecked | PunchPlace::Uncertain => None,
             PunchPlace::NoLocation => Some(
                 "Allow location access to clock in — this hospital checks that shifts start on site."
                     .to_owned(),
             ),
-            PunchPlace::Imprecise => Some(format!(
-                "Your location is too approximate (±{}) to confirm you are on site. \
-                 Move near a window or outside and try again.",
-                describe_distance(check.fix.map_or(0.0, |f| f.accuracy_m))
-            )),
             PunchPlace::Outside => Some(format!(
                 "You are {} from {}. Clock in on site.",
                 describe_distance(check.distance_m.unwrap_or_default()),
@@ -185,12 +190,12 @@ mod tests {
         }
     }
 
-    fn fix(latitude: f64, longitude: f64, accuracy_m: f64) -> Option<Fix> {
-        Some(Fix {
+    const fn fix(latitude: f64, longitude: f64, accuracy_m: f64) -> Fix {
+        Fix {
             latitude,
             longitude,
             accuracy_m,
-        })
+        }
     }
 
     #[test]
@@ -202,18 +207,18 @@ mod tests {
     #[test]
     fn a_punch_within_the_radius_is_inside() {
         // ~40 m north of the centre.
-        let check = check_punch(fix(13.08306, 80.2707, 20.0), &[fence()]);
+        let check = check_punch(Some(fix(13.08306, 80.2707, 20.0)), &[fence()]);
         assert_eq!(check.place, PunchPlace::Inside);
-        assert_eq!(GeofenceMode::Enforce.refusal(&check), None);
+        assert_eq!(GeofenceMode::Block.refusal(&check), None);
     }
 
     #[test]
-    fn a_punch_from_home_is_outside_and_enforce_says_how_far() {
+    fn a_punch_from_home_is_outside_and_block_says_how_far() {
         // ~6 km south.
-        let check = check_punch(fix(13.0287, 80.2707, 15.0), &[fence()]);
+        let check = check_punch(Some(fix(13.0287, 80.2707, 15.0)), &[fence()]);
         assert_eq!(check.place, PunchPlace::Outside);
         assert_eq!(
-            GeofenceMode::Enforce.refusal(&check).as_deref(),
+            GeofenceMode::Block.refusal(&check).as_deref(),
             Some("You are 6.0 km from Sunrise Hospital. Clock in on site.")
         );
         assert_eq!(
@@ -224,21 +229,32 @@ mod tests {
     }
 
     #[test]
-    fn a_loose_fix_cannot_say_inside_and_no_fix_is_no_location() {
-        let loose = check_punch(fix(13.0827, 80.2707, 900.0), &[fence()]);
-        assert_eq!(loose.place, PunchPlace::Imprecise, "even at the centre");
-        assert_eq!(check_punch(None, &[fence()]).place, PunchPlace::NoLocation);
+    fn a_fix_looser_than_the_fence_is_uncertain_flagged_never_refused() {
+        let loose = check_punch(Some(fix(13.0827, 80.2707, 900.0)), &[fence()]);
+        assert_eq!(loose.place, PunchPlace::Uncertain, "even at the centre");
+        assert!(GeofenceMode::Flag.flags(&loose));
+        assert!(GeofenceMode::Block.flags(&loose));
+        assert_eq!(GeofenceMode::Block.refusal(&loose), None);
+    }
+
+    #[test]
+    fn no_fix_is_no_location_flagged_and_refused_by_block() {
+        let none = check_punch(None, &[fence()]);
+        assert_eq!(none.place, PunchPlace::NoLocation);
+        assert!(GeofenceMode::Flag.flags(&none));
+        assert!(!GeofenceMode::Off.flags(&none), "off keeps the punch clean");
+        assert!(GeofenceMode::Block.refusal(&none).is_some());
         assert_eq!(
-            check_punch(fix(95.0, 80.0, 10.0), &[fence()]).place,
+            check_punch(Some(fix(95.0, 80.0, 10.0)), &[fence()]).place,
             PunchPlace::NoLocation
         );
     }
 
     #[test]
     fn without_fences_nothing_is_checked() {
-        let check = check_punch(fix(13.0287, 80.2707, 15.0), &[]);
+        let check = check_punch(Some(fix(13.0287, 80.2707, 15.0)), &[]);
         assert_eq!(check.place, PunchPlace::NotChecked);
-        assert_eq!(GeofenceMode::Enforce.refusal(&check), None);
+        assert_eq!(GeofenceMode::Block.refusal(&check), None);
     }
 
     #[test]
