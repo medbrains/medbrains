@@ -21,17 +21,19 @@ async fn without_nhcx_onboarding_nothing_is_queued() {
     .execute(&app.db)
     .await
     .expect("clear participant code");
-    let queued_before: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM outbox_events WHERE event_type = 'abdm.nhcx.claim_submit'",
-    )
-    .fetch_one(&app.db)
-    .await
-    .expect("count");
+    let queued_before: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM outbox_events WHERE event_type LIKE 'nhcx.%'")
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
 
     for action in ["submit-to-nhcx", "check-eligibility"] {
         let resp = app
             .client
-            .post(app.url(&format!("/api/billing/insurance-claims/{}/{action}", Uuid::new_v4())))
+            .post(app.url(&format!(
+                "/api/billing/insurance-claims/{}/{action}",
+                Uuid::new_v4()
+            )))
             .header("x-csrf-token", &csrf)
             .json(&json!({ "recipient_code": "payer-001" }))
             .send()
@@ -40,11 +42,10 @@ async fn without_nhcx_onboarding_nothing_is_queued() {
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE, "{action}");
     }
 
-    let queued_after: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM outbox_events WHERE event_type = 'abdm.nhcx.claim_submit'",
-    )
-    .fetch_one(&app.db)
-    .await
-    .expect("count");
+    let queued_after: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM outbox_events WHERE event_type LIKE 'nhcx.%'")
+            .fetch_one(&app.db)
+            .await
+            .expect("count");
     assert_eq!(queued_before, queued_after, "nothing may be queued");
 }

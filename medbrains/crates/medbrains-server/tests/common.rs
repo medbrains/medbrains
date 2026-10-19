@@ -134,7 +134,28 @@ impl TestApp {
 
 /// Spawn a test server on a random port.
 /// Uses the dev database (DATABASE_URL from .env or env var).
+/// Secrets a test hands the server, in front of the environment — so a test
+/// can point an integration at a local mock without touching process env.
+#[derive(Debug, Default)]
+pub struct TestSecrets(pub std::collections::HashMap<String, String>);
+
+#[async_trait::async_trait]
+impl medbrains_core::secrets::SecretResolver for TestSecrets {
+    async fn get(&self, key: &str) -> Result<String, medbrains_core::secrets::SecretError> {
+        if let Some(value) = self.0.get(key) {
+            return Ok(value.clone());
+        }
+        medbrains_core::secrets::EnvSecretResolver::new()
+            .get(key)
+            .await
+    }
+}
+
 pub async fn spawn_app() -> TestApp {
+    spawn_app_with_secrets(TestSecrets::default()).await
+}
+
+pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
     // Load .env
     let _ = dotenvy::dotenv();
 
@@ -186,8 +207,7 @@ pub async fn spawn_app() -> TestApp {
     let authz: Arc<dyn medbrains_authz::AuthzBackend> =
         Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db.clone()));
 
-    let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
-        Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+    let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> = Arc::new(secrets);
 
     let state = AppState {
         db: db.clone(),

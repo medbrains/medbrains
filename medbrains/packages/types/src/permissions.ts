@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1068 permissions, one per constant in the Rust source. */
+/** 1071 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4603,6 +4603,24 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "View insurance verification and PA dashboard",
     module: "insurance",
   },
+  {
+    code: "insurance.nhcx.submit",
+    label: "Send claims to NHCX",
+    description: "Submit a claim or pre-authorisation, or check coverage eligibility, with a payer through NHCX.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.view",
+    label: "See NHCX exchanges",
+    description: "What was sent to NHCX for a claim, whether this hospital is set up for NHCX, and every response the payers sent back.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.configure",
+    label: "Set up the NHCX connection",
+    description: "The NHCX participant code, gateway keys and certificates, and whether the hospital talks to the sandbox or production.",
+    module: "insurance",
+  },
   // regulatory
   {
     code: "regulatory.dashboard.view",
@@ -7903,6 +7921,14 @@ export const P = {
       VIEW: "insurance.dashboard.view",
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
+    NHCX: {
+      CONFIGURE: "insurance.nhcx.configure",
+      SUBMIT: "insurance.nhcx.submit",
+      VIEW: "insurance.nhcx.view",
+    },
+    NHCX_CONFIGURE: "insurance.nhcx.configure",
+    NHCX_SUBMIT: "insurance.nhcx.submit",
+    NHCX_VIEW: "insurance.nhcx.view",
     PRIOR_AUTH: {
       CREATE: "insurance.prior_auth.create",
       LIST: "insurance.prior_auth.list",
@@ -10501,6 +10527,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.SUBMIT,
+      P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
@@ -10693,6 +10721,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.PRINT,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.REPRINT,
       P.EMERGENCY.VISITS.LIST,
+      P.INSURANCE.NHCX.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.LAB.ORDERS.LIST,
@@ -11236,6 +11265,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.SUBMIT,
+      P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,

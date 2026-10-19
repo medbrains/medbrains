@@ -17,6 +17,9 @@ chrono = { workspace = true }
 rust_decimal = { workspace = true }
 tracing = { workspace = true }
 medbrains-crypto = { path = "../medbrains-crypto" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+base64 = { workspace = true }
+reqwest = { workspace = true }
 
 [lints]
 workspace = true

@@ -13,6 +13,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 medbrains-fhir = { path = "../medbrains-fhir" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-crypto = { path = "../medbrains-crypto" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

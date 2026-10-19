@@ -5,10 +5,10 @@
 //! - `twilio`    — sms.* (real Twilio REST; falls back to stub when creds unset)
 //! - `email_stub` — email.* (`SendGrid` HTTP API; SES pending `SigV4`)
 //! - `whatsapp`  — whatsapp.* (Meta Cloud API)
+//! - `nhcx`      — nhcx.* (HCX JWE exchange with the NHCX gateway)
 //!
 //! Stubs (Phase 1 — log only, return Ok; Phase 2 wires real protocol):
 //! - `abdm_stub`      — `abdm.verify_abha`, `abdm.hie_bundle_push`
-//! - `tpa_stub`       — `tpa.preauth_submit`
 //! - `hl7_stub`       — `lab.critical_value_notify`, hl7.*
 //!
 //! Pipeline fallback (catches unregistered `event_types)`:
@@ -30,7 +30,6 @@ pub mod phonepe;
 pub mod razorpay;
 pub mod razorpayx;
 pub mod teams;
-pub mod tpa_stub;
 pub mod twilio;
 pub mod webhook;
 pub mod whatsapp;

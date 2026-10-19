@@ -94,9 +94,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
-        // NHCX async-response webhook — gateway authenticates via JWS,
-        // not bearer token, so this lives on the public router.
-        .merge(medbrains_nhcx_callback::router())
+        // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
+        // not a user session, so they live on the public router.
+        .merge(medbrains_nhcx_callback::public_router())
         // Device pairing — gated by short-lived one-time token, not JWT
         .merge(medbrains_device_pairing::router())
         // Device-code pairing — a display has no credentials yet, so asking for a
@@ -308,7 +308,6 @@ pub fn build_router(state: AppState) -> Router {
         // ── Billing Phase 3 — Bank Reconciliation ────────
         // Static routes MUST be before {id}
         // ── TPA reconciliation (priority #4) ─────────────
-        // NHCX webhook history — read-only audit log of received callbacks
         // ── Billing Phase 3 — TDS ───────────────────────
         // ── Billing Phase 3 — GST Returns ────────────────
         // Static route MUST be before {id}
@@ -485,6 +484,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_communications::router())
         .merge(medbrains_analytics::router())
         .merge(medbrains_facilities::router())
+        // NHCX — callback history, status and Settings → NHCX.
+        .merge(medbrains_nhcx_callback::router())
         // ── Security Department ──────────────────────────────────
         .merge(medbrains_security::router())
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
