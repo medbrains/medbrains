@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files the staff app hands to another app: only the ABHA card or QR the desk chose to print or share, from its own cache. -->
+<paths>
+    <cache-path name="abha" path="abha/" />
+</paths>

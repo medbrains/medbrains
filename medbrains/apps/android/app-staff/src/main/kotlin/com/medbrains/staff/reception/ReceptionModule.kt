@@ -38,10 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.medbrains.kit.ApiClient
 import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
@@ -102,22 +104,31 @@ fun ReceptionModule() {
     LaunchedEffect(Unit) { session.load(api) { identity?.can(it) == true } }
     NavHost(nav, startDestination = "home") {
         composable("home") { ReceptionHome(nav, TokenApi(client, TokenModule.OPD), session) }
-        composable("register") { RegisterPatientScreen(nav, api, session) }
-        composable("find") { FindPatientScreen(nav, api, session) }
-        composable("patient/{id}") { ReceptionPatientScreen(nav, session.patients.getValue(it.arguments!!.getString("id")!!)) }
-        composable("start-visit/{id}") { StartVisitScreen(nav, api, session, session.patients.getValue(it.arguments!!.getString("id")!!)) }
-        composable("token/{id}") {
-            val id = it.arguments!!.getString("id")!!
-            TokenIssuedScreen(nav, session.patients.getValue(id), session.visits.getValue(id), session)
-        }
-        composable("board") { ReceptionQueueBoardScreen(TokenApi(client, TokenModule.OPD), session) }
-        composable("appointments") { AppointmentsTodayScreen(AppointmentsApi(client)) }
-        composable("book/{id}") { BookAppointmentScreen(nav, AppointmentsApi(client), session, session.patients.getValue(it.arguments!!.getString("id")!!)) }
-        composable("visitors") { VisitorDeskScreen(nav, FrontOfficeApi(client)) }
-        composable("register-visitor") { RegisterVisitorScreen(nav, FrontOfficeApi(client)) }
-        composable("enquiries") { EnquiryDeskScreen(nav, FrontOfficeApi(client)) }
-        composable("log-enquiry") { LogEnquiryScreen(nav, FrontOfficeApi(client)) }
+        receptionRoutes(nav, client, api, session)
     }
+}
+
+/**
+ * The desk's screens past its front door, shared by every module that
+ * reaches a patient (Reception, Scan & Share) so a record opened anywhere
+ * leads to the same visit, booking and registration screens.
+ */
+fun NavGraphBuilder.receptionRoutes(nav: NavHostController, client: ApiClient, api: ReceptionApi, session: ReceptionSession) {
+    composable("register") { RegisterPatientScreen(nav, api, session) }
+    composable("find") { FindPatientScreen(nav, api, session) }
+    composable("patient/{id}") { ReceptionPatientScreen(nav, session.patients.getValue(it.arguments!!.getString("id")!!)) }
+    composable("start-visit/{id}") { StartVisitScreen(nav, api, session, session.patients.getValue(it.arguments!!.getString("id")!!)) }
+    composable("token/{id}") {
+        val id = it.arguments!!.getString("id")!!
+        TokenIssuedScreen(nav, session.patients.getValue(id), session.visits.getValue(id), session)
+    }
+    composable("board") { ReceptionQueueBoardScreen(TokenApi(client, TokenModule.OPD), session) }
+    composable("appointments") { AppointmentsTodayScreen(AppointmentsApi(client)) }
+    composable("book/{id}") { BookAppointmentScreen(nav, AppointmentsApi(client), session, session.patients.getValue(it.arguments!!.getString("id")!!)) }
+    composable("visitors") { VisitorDeskScreen(nav, FrontOfficeApi(client)) }
+    composable("register-visitor") { RegisterVisitorScreen(nav, FrontOfficeApi(client)) }
+    composable("enquiries") { EnquiryDeskScreen(nav, FrontOfficeApi(client)) }
+    composable("log-enquiry") { LogEnquiryScreen(nav, FrontOfficeApi(client)) }
 }
 
 private data class Action(val id: String, val label: String, val detail: String, val icon: ImageVector, val route: String, val permission: String)

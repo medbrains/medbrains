@@ -12,6 +12,7 @@ struct PatientSummary: Decodable, Hashable, Identifiable, Sendable {
     let dateOfBirth: String?
     let phone: String
     let gender: String
+    var middleName: String? = nil
     var isMedicoLegal: Bool? = nil
     var mlcNumber: String? = nil
     var isVip: Bool? = nil
@@ -38,13 +39,18 @@ struct MatchCandidate: Decodable, Identifiable, Sendable {
     var asSummary: PatientSummary {
         PatientSummary(id: id, uhid: uhid, firstName: firstName, lastName: lastName, dateOfBirth: dateOfBirth, phone: phone, gender: "unknown")
     }
+
+    var asMatch: PatientMatch {
+        PatientMatch(id: id, uhid: uhid, firstName: firstName, lastName: lastName, dateOfBirth: dateOfBirth, phone: phone, score: score)
+    }
 }
 
 struct MatchQuery: Encodable {
     let firstName: String
     let lastName: String
     let dateOfBirth: String?
-    let phone: String
+    /// Absent when none is known (a share may carry none).
+    let phone: String?
 }
 
 struct DepartmentRow: Decodable, Hashable, Identifiable, Sendable {
@@ -138,6 +144,8 @@ struct ReceptionApi: Sendable {
         let q = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
         return try await client.request(.get, "/api/patients/find?q=\(q)")
     }
+    /// One record, for the desk's compare and open (`patients.view`).
+    func patient(_ id: String) async throws -> PatientSummary { try await client.request(.get, "/api/patients/\(id)") }
     func departments() async throws -> [DepartmentRow] { try await client.request(.get, "/api/setup/departments") }
     func doctors() async throws -> [DoctorRow] { try await client.request(.get, "/api/setup/doctors") }
     func camps() async throws -> [CampSummary] { try await client.request(.get, "/api/camp/camps") }

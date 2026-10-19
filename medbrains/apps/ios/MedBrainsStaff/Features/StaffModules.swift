@@ -12,6 +12,8 @@ enum StaffModules {
         AppModule(id: "doctor", displayName: "Doctor", symbol: "stethoscope", requiredPermissions: ["opd.visit.update"], appCodes: ["Mobile-Doctor"]) { AnyView(DoctorHomeView()) },
         AppModule(id: "nurse", displayName: "Nurse", symbol: "cross.case", requiredPermissions: ["nurse.dashboard.view"], appCodes: ["Mobile-Nurse"]) { AnyView(NurseHomeView()) },
         AppModule(id: "reception", displayName: "Reception", symbol: "person.badge.clock", requiredPermissions: ["front_office.queue.list"], appCodes: ["Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"]) { AnyView(ReceptionHomeView()) },
+        // Beside reception, never before it: the desk lands on its own work, and a front-office role without the registration queue still gets Scan & Share.
+        AppModule(id: "scan-share", displayName: "Scan & Share", symbol: "qrcode.viewfinder", requiredPermissions: [AbdmPermission.scanShareView], appCodes: ["Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin"]) { AnyView(ScanShareHomeView()) },
         module("pharmacy", "Pharmacy", "pills", ["pharmacy.prescriptions.list"], apps: ["Mobile-Pharmacist"], phase: 5),
         AppModule(id: "deliveries", displayName: "Deliveries", symbol: "shippingbox", requiredPermissions: ["pharmacy.deliveries.view", "pharmacy.deliveries.complete"], appCodes: ["Mobile-Pharmacist"]) { AnyView(DeliveriesHomeView()) },
         module("lab", "Lab", "testtube.2", ["lab.orders.list"], apps: ["Mobile-LabTech", "Mobile-Phlebo"], phase: 5),

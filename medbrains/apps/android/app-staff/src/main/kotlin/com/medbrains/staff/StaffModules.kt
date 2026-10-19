@@ -12,12 +12,15 @@ import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.medbrains.kit.AppModule
+import com.medbrains.staff.abdm.AbdmPermission
+import com.medbrains.staff.abdm.ScanShareModule
 import com.medbrains.staff.camp.CampModule
 import com.medbrains.staff.deliveries.DeliveriesModule
 import com.medbrains.staff.doctor.DoctorModule
@@ -37,6 +40,8 @@ object StaffModules {
         AppModule(id = "doctor", displayName = "Doctor", requiredPermissions = listOf("opd.visit.update"), appCodes = listOf("Mobile-Doctor"), icon = Icons.Filled.MonitorHeart) { DoctorModule() },
         AppModule(id = "nurse", displayName = "Nurse", requiredPermissions = listOf("nurse.dashboard.view"), appCodes = listOf("Mobile-Nurse"), icon = Icons.Filled.LocalHospital) { NurseModule() },
         AppModule(id = "reception", displayName = "Reception", requiredPermissions = listOf("front_office.queue.list"), appCodes = listOf("Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"), icon = Icons.Filled.SupportAgent) { ReceptionModule() },
+        // Beside reception, never before it: the desk lands on its own work, and a front-office role without the registration queue still gets Scan & Share.
+        AppModule(id = "scan-share", displayName = "Scan & Share", requiredPermissions = listOf(AbdmPermission.SCAN_SHARE_VIEW), appCodes = listOf("Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin"), icon = Icons.Filled.QrCodeScanner) { ScanShareModule() },
         module("pharmacy", "Pharmacy", Icons.Filled.Medication, listOf("pharmacy.prescriptions.list"), listOf("Mobile-Pharmacist"), 5),
         AppModule(id = "deliveries", displayName = "Deliveries", requiredPermissions = listOf("pharmacy.deliveries.view", "pharmacy.deliveries.complete"), appCodes = listOf("Mobile-Pharmacist"), icon = Icons.Filled.LocalShipping) { DeliveriesModule() },
         module("lab", "Lab", Icons.Filled.Science, listOf("lab.orders.list"), listOf("Mobile-LabTech", "Mobile-Phlebo"), 5),

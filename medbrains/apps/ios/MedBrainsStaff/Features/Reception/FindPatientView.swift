@@ -62,7 +62,10 @@ struct FindPatientView: View {
 /// owed — and the one thing to do with it here.
 struct ReceptionPatientView: View {
     @Environment(AuthStore.self) private var auth
+    @Environment(\.apiClient) private var client
     let patient: PatientSummary
+    @State private var abhaFlow: AbhaFlowSheet.Mode?
+    @State private var abhaLinked = false
 
     var body: some View {
         ScrollView {
@@ -81,6 +84,13 @@ struct ReceptionPatientView: View {
                     if let owed = patient.outstandingBalance, (Double(owed) ?? 0) > 0 { CarbonTag("₹\(owed) due", tone: .warning) }
                 }
                 if let last = patient.lastVisitDate { CarbonRow("Last visit", detail: last) }
+                if abhaLinked { CarbonNotification(kind: .success, title: "ABHA linked", message: "The ABHA is linked and verified on this record.").accessibilityIdentifier("patient-abha-linked") }
+                if auth.identity?.canLinkAbha ?? false {
+                    HStack(spacing: 8) {
+                        Button("Verify and link ABHA") { abhaFlow = .verify }.buttonStyle(.carbonTertiary).accessibilityIdentifier("patient-abha-verify")
+                        Button("Create ABHA") { abhaFlow = .create }.buttonStyle(.carbonGhost).accessibilityIdentifier("patient-abha-create")
+                    }
+                }
                 if auth.identity?.can("opd.visit.create") ?? false {
                     NavigationLink(value: ReceptionRoute.startVisit(patient)) {
                         HStack { Text("Start OPD visit"); Spacer(); Image(systemName: "arrow.right") }
@@ -99,5 +109,23 @@ struct ReceptionPatientView: View {
         .background(MedBrainsTheme.canvas)
         .navigationTitle(patient.uhid).navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("screen-reception-patient")
+        .sheet(item: $abhaFlow) { mode in
+            AbhaFlowSheet(mode: mode, ours: OurDetails(firstName: patient.firstName, middleName: patient.middleName, lastName: patient.lastName, dateOfBirth: patient.dateOfBirth, gender: patient.gender), mobile: patient.phone, confirmLabel: "Link to this patient", onConfirm: link)
+        }
+    }
+
+    /// Linked now, server-side, through the verified path — never by
+    /// writing the number onto the record from the phone.
+    private func link(_ c: AbhaConfirmation) async -> String? {
+        guard let client else { return "Not signed in." }
+        do {
+            try await AbhaApi(client: client).link(c.verificationId, patientId: patient.id, apply: c.apply)
+            abhaLinked = true
+            return nil
+        } catch let e as ApiError {
+            return e.message
+        } catch {
+            return "Could not reach the hospital server. Nothing was linked."
+        }
     }
 }
