@@ -32,6 +32,8 @@
   "pharmacyFulfilment": "Fulfilment Queue",
   "pharmacyDispatch": "Collection Counter",
   "pharmacyDeliveries": "Home Deliveries",
+  "pharmacyOnlineOrders": "Online orders",
+  "pharmacyH1Register": "H1 register",
   "radiology": "Radiology",
   "bloodBank": "Blood Bank",
   "billing": "Billing",

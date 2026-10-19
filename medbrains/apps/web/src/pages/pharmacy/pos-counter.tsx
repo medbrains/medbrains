@@ -45,8 +45,17 @@ import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
 import { CounterDrawer, useActiveCashDrawer } from "./counter-drawer";
 import { CounterPatientSelect } from "./counter-patient-select";
+import { CounterRxFields } from "./counter-rx-fields";
 import { CounterSettings } from "./counter-settings";
-import { isPrescriptionOnly, offMrpPercent, posCheckoutBlocker, posTotals } from "./pos-checkout";
+import {
+  type CounterRx,
+  EMPTY_COUNTER_RX,
+  isPrescriptionOnly,
+  needsCounterRx,
+  offMrpPercent,
+  posCheckoutBlocker,
+  posTotals,
+} from "./pos-checkout";
 import { PosReturnModal } from "./pos-return-modal";
 import { ReceiptReturnLookup } from "./receipt-return-lookup";
 import {
@@ -123,6 +132,8 @@ export function PosCounterTab({
   // `null` until a price lookup answers; unknown is not "no limit".
   const [discountLimit, setDiscountLimit] = useState<number | null>(null);
   const [discountReason, setDiscountReason] = useState("");
+  // The prescription behind a Schedule H/H1 line: prescriber and address.
+  const [counterRx, setCounterRx] = useState<CounterRx>(EMPTY_COUNTER_RX);
   const canApproveDiscount = useHasPermission(PERM_DISCOUNT_APPROVE);
   const canCounterSearch = useHasPermission(PERM_COUNTER_PATIENT_SEARCH);
   const canPrintPharmacyBill = useHasPermission(PERM_PHARMACY_BILL_PRINT);
@@ -212,6 +223,7 @@ export function PosCounterTab({
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => pharmacyService.createPosSale(data),
     onSuccess: (sale, variables) => {
+      setCounterRx(EMPTY_COUNTER_RX);
       const patientId = posSalePayloadPatientId(variables);
       const billingInvoiceId = sale.billing_invoice_id;
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
@@ -291,8 +303,17 @@ export function PosCounterTab({
   // Cash goes into a drawer; with none open (or none we can confirm), only
   // UPI and card are offered.
   const paymentModes = activeDrawer && !drawerUnknown ? POS_PAYMENT_MODES : NON_CASH_MODES;
+  const rxMeta = cart.map((item) => lineMeta[item.catalog_item_id]).filter(Boolean);
+  const hasRxLines = rxMeta.some((m) => m && needsCounterRx(m));
+  const hasH1Lines = rxMeta.some((m) => m?.schedule === "H1" && !m.isControlled);
   const checkoutBlocker = posCheckoutBlocker({
     canEditAmounts: canEditPosAmounts,
+    rx: {
+      ...counterRx,
+      patientLinked: Boolean(registeredPatientId),
+      name: watch("patient_name") ?? "",
+      phone: watch("patient_phone") ?? "",
+    },
     lines: cart.map((item) => ({
       drugName: item.drug_name,
       quantity: posSaleLineQuantity(item),
@@ -400,6 +421,13 @@ export function PosCounterTab({
       patient_phone: canEditWalkInPhone ? optionalFormText(values.patient_phone) : undefined,
       discount_percent: discountPercentValue || undefined,
       discount_reason: discountReason.trim() || undefined,
+      ...(hasRxLines
+        ? {
+            patient_address: counterRx.address.trim() || undefined,
+            prescriber_name: counterRx.prescriberName.trim() || undefined,
+            prescriber_registration: counterRx.prescriberRegistration.trim() || undefined,
+          }
+        : {}),
     });
   }
 
@@ -732,6 +760,9 @@ export function PosCounterTab({
                 />
               )}
             </Group>
+            {hasRxLines && (
+              <CounterRxFields h1={hasH1Lines} value={counterRx} onChange={setCounterRx} />
+            )}
 
             {posAllergyConflicts.length > 0 && (
               <Alert

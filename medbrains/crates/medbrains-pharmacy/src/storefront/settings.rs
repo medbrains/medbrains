@@ -189,17 +189,32 @@ pub async fn require_open(
     load(tx, tenant_id).await
 }
 
+/// The settings as the pharmacy edits them, with whether the storefront
+/// is open and what it still lacks.
+#[derive(Debug, Serialize)]
+pub struct SettingsView {
+    #[serde(flatten)]
+    pub settings: StoreSettings,
+    pub open: bool,
+    pub missing: Vec<&'static str>,
+}
+
 /// `GET /api/pharmacy/storefront/settings`
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<StoreSettings>, AppError> {
+) -> Result<Json<SettingsView>, AppError> {
     require_permission(&claims, permissions::pharmacy::storefront::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let settings = load(&mut tx, claims.tenant_id).await?;
+    let gate = about(&mut tx, claims.tenant_id).await?;
     tx.commit().await?;
-    Ok(Json(settings))
+    Ok(Json(SettingsView {
+        settings,
+        open: gate.open,
+        missing: gate.missing,
+    }))
 }
 
 /// `PUT /api/pharmacy/storefront/settings`
@@ -281,4 +296,37 @@ pub(crate) async fn min_shelf_days_for_order(
     } else {
         Ok(0)
     }
+}
+
+/// Who may be named pharmacist in charge.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Pharmacist {
+    pub id: Uuid,
+    pub full_name: String,
+    pub registration_number: Option<String>,
+}
+
+/// Pharmacists listed, at most.
+const PHARMACIST_LIMIT: i64 = 200;
+
+/// `GET /api/pharmacy/storefront/pharmacists` — the hospital's active
+/// pharmacists, for the storefront's pharmacist in charge.
+pub async fn pharmacists(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<Pharmacist>>, AppError> {
+    require_permission(&claims, permissions::pharmacy::storefront::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, Pharmacist>(
+        "SELECT id, full_name, NULLIF(registration_number, '') AS registration_number \
+           FROM users WHERE tenant_id = $1 AND role::text = 'pharmacist' AND is_active \
+          ORDER BY full_name LIMIT $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(PHARMACIST_LIMIT)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }

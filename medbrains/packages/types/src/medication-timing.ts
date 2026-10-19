@@ -3390,6 +3390,8 @@ export interface PharmacyCatalog {
   needs_cold_chain: boolean;
   /** Patients may order it from the online storefront. */
   sold_online: boolean;
+  /** Online: pickup only, a unit at a time. */
+  habit_forming: boolean;
   created_at: string;
   updated_at: string;
 }

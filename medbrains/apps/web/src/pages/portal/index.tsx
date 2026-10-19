@@ -16,11 +16,14 @@
  */
 
 import { Stack, Tabs, Text, TextInput, Title } from "@mantine/core";
+import type { PortalPerson } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Select } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
+import { StoreSignedIn } from "../store/store-signed-in";
+import { isChoose, personLabel } from "../store/storefront";
 import { PortalHome } from "./PortalHome";
 import { PortalDeliveries } from "./portal-deliveries";
 import { PortalPrivacy } from "./portal-privacy";
@@ -66,6 +69,7 @@ export function PatientPortalPage() {
         <Tabs.List grow>
           <Tabs.Tab value="reports">Results</Tabs.Tab>
           <Tabs.Tab value="prescriptions">Medicines</Tabs.Tab>
+          <Tabs.Tab value="pharmacy">Pharmacy</Tabs.Tab>
           <Tabs.Tab value="bills">Bills</Tabs.Tab>
           <Tabs.Tab value="visits">Visits</Tabs.Tab>
           <Tabs.Tab value="privacy">Privacy</Tabs.Tab>
@@ -80,6 +84,9 @@ export function PatientPortalPage() {
             <PortalDeliveries token={session.token} />
             <PortalPrescriptions token={session.token} />
           </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="pharmacy" pt="md">
+          <StoreSignedIn tenantCode={tenantCode} token={session.token} />
         </Tabs.Panel>
         <Tabs.Panel value="bills" pt="md">
           <PortalBills token={session.token} />
@@ -120,6 +127,9 @@ function SignIn({
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // A family sharing one mobile: who is signing in. Never picked for them.
+  const [people, setPeople] = useState<PortalPerson[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
 
   const sendCode = useMutation({
     mutationFn: () =>
@@ -141,8 +151,15 @@ function SignIn({
         tenant_code: tenantCode,
         phone: phone.trim(),
         code: code.replace(/\D/g, ""),
+        ...(chosen ? { patient_id: chosen } : {}),
       }),
-    onSuccess: (session) => onSignedIn(storePortalSession(session)),
+    onSuccess: (result) => {
+      if (isChoose(result)) {
+        setPeople(result.choose);
+        return;
+      }
+      onSignedIn(storePortalSession(result));
+    },
     onError: () =>
       // One message for a wrong code, an expired one and a phone with no
       // records. Anything more specific confirms who is a patient here.
@@ -191,11 +208,21 @@ function SignIn({
             maxLength={CODE_LENGTH + 2}
             w="100%"
           />
+          {people.length > 0 && (
+            <Select
+              label="Who is signing in?"
+              description="More than one person uses this mobile."
+              data={people.map((p) => ({ value: p.id, label: personLabel(p) }))}
+              value={chosen}
+              onChange={setChosen}
+              w="100%"
+            />
+          )}
           <Button
             tone="primary"
             fullWidth
             loading={verify.isPending}
-            disabled={verify.isPending || !canVerify}
+            disabled={verify.isPending || !canVerify || (people.length > 0 && !chosen)}
             onClick={() => {
               setFailure(null);
               verify.mutate();

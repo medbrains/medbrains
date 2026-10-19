@@ -1660,7 +1660,6 @@ import type {
   PortalPrivacyRequestInput,
   PortalRefill,
   PortalRefillRequest,
-  PortalSession,
   PortalTeleconsult,
   PosDaySummary,
   PosPricesResponse,
@@ -17316,8 +17315,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  verifyPortalOtp: (data: { tenant_code: string; phone: string; code: string }) =>
-    request<PortalSession>("/portal/auth/verify", {
+  /** A session, or — when a family shares the mobile — who to choose between. */
+  verifyPortalOtp: (data: {
+    tenant_code: string;
+    phone: string;
+    code: string;
+    patient_id?: string;
+  }) =>
+    request<import("@medbrains/types").PortalVerifyResult>("/portal/auth/verify", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -17367,6 +17372,104 @@ export const api = {
     request<PortalDelivery[]>("/portal/deliveries", portalAuth(token)),
   getPortalDelivery: (token: string, id: string) =>
     request<PortalDelivery>(`/portal/deliveries/${id}`, portalAuth(token)),
+  // ── Pharmacy storefront ───────────────────────────────────────────
+  // Browsing and sign-in are public (anyone, by tenant code); the cart,
+  // checkout and orders take the patient's token.
+  getStoreAbout: (tenantCode: string) =>
+    request<import("@medbrains/types").StoreAbout>(
+      `/store/${encodeURIComponent(tenantCode)}/about`,
+    ),
+  searchStore: (tenantCode: string, q?: string, category?: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (category) params.set("category", category);
+    return request<import("@medbrains/types").StoreSearchResult>(
+      `/store/${encodeURIComponent(tenantCode)}/items?${params.toString()}`,
+    );
+  },
+  getStoreItem: (tenantCode: string, id: string) =>
+    request<import("@medbrains/types").StoreItemPage>(
+      `/store/${encodeURIComponent(tenantCode)}/items/${id}`,
+    ),
+  requestStoreCode: (tenantCode: string, phone: string) =>
+    request<{ status: string; message: string }>(`/store/${encodeURIComponent(tenantCode)}/otp`, {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    }),
+  storeSignIn: (tenantCode: string, data: import("@medbrains/types").StoreSignInRequest) =>
+    request<import("@medbrains/types").StoreSignIn>(
+      `/store/${encodeURIComponent(tenantCode)}/sign-in`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  getStoreCart: (token: string) =>
+    request<import("@medbrains/types").StoreCart>("/portal/store/cart", portalAuth(token)),
+  setStoreCartQuantity: (token: string, itemId: string, quantity: number) =>
+    request<import("@medbrains/types").StoreCart>(`/portal/store/cart/items/${itemId}`, {
+      ...portalAuth(token),
+      method: "PUT",
+      body: JSON.stringify({ quantity }),
+    }),
+  uploadStorePrescription: (token: string, dataBase64: string) =>
+    request<import("@medbrains/types").StoreCart>("/portal/store/cart/prescription", {
+      ...portalAuth(token),
+      method: "PUT",
+      body: JSON.stringify({ data_base64: dataBase64 }),
+    }),
+  getStoreDeliveryOptions: (token: string) =>
+    request<PortalDeliveryOffer>("/portal/store/delivery-options", portalAuth(token)),
+  storeCheckout: (token: string, data: import("@medbrains/types").StoreCheckoutRequest) =>
+    request<import("@medbrains/types").StoreOrder>("/portal/store/checkout", {
+      ...portalAuth(token),
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getStoreOrders: (token: string) =>
+    request<import("@medbrains/types").StoreOrder[]>("/portal/store/orders", portalAuth(token)),
+  getStoreOrder: (token: string, id: string) =>
+    request<import("@medbrains/types").StoreOrder>(`/portal/store/orders/${id}`, portalAuth(token)),
+  /** "Order my prescription": the cart filled from one of the patient's prescriptions. */
+  orderPortalPrescription: (token: string, prescriptionId: string) =>
+    request<import("@medbrains/types").StoreOrderedPrescription>(
+      `/portal/store/prescriptions/${prescriptionId}/order`,
+      { ...portalAuth(token), method: "POST" },
+    ),
+  listStorefrontOrders: (status?: string) =>
+    request<import("@medbrains/types").StorefrontQueue>(
+      `/pharmacy/storefront/orders${status ? `?status=${status}` : ""}`,
+    ),
+  /** The uploaded prescription, read in the browser with the staff session. */
+  storefrontPrescriptionUrl: (id: string) =>
+    `${getApiBase()}/pharmacy/storefront/orders/${id}/prescription`,
+  verifyStorefrontOrder: (id: string, data: import("@medbrains/types").StorefrontVerifyRequest) =>
+    request<import("@medbrains/types").StoreOrder>(`/pharmacy/storefront/orders/${id}/verify`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  setStorefrontListing: (id: string, data: import("@medbrains/types").StorefrontListing) =>
+    request<PharmacyCatalog>(`/pharmacy/storefront/catalog/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listStorefrontPharmacists: () =>
+    request<{ id: string; full_name: string; registration_number: string | null }[]>(
+      "/pharmacy/storefront/pharmacists",
+    ),
+  getStorefrontSettings: () =>
+    request<import("@medbrains/types").StorefrontSettings>("/pharmacy/storefront/settings"),
+  updateStorefrontSettings: (data: import("@medbrains/types").StorefrontSettings) =>
+    request<import("@medbrains/types").StorefrontSettings>("/pharmacy/storefront/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getH1Register: (from: string, to: string) =>
+    request<import("@medbrains/types").H1RegisterEntry[]>(
+      `/pharmacy/h1-register?from=${from}&to=${to}`,
+    ),
+  /** The desk completes a pharmacy customer's light record into a registration. */
+  completePatientRegistration: (id: string) =>
+    request<{ id: string; uhid: string }>(`/patients/${id}/complete-registration`, {
+      method: "POST",
+    }),
   /** The prescriber approves (it goes to the pharmacy) or declines a patient's refill request. */
   decideRefillRequest: (requestId: string, data: { approve: boolean; note?: string }) =>
     request<PortalRefillRequest>(`/doctors/me/refill-requests/${requestId}/decide`, {

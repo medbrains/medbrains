@@ -29,6 +29,7 @@ const VerifyEmailPage = lazy(() =>
 const PatientPortalPage = lazy(() =>
   import("./pages/portal").then((m) => ({ default: m.PatientPortalPage })),
 );
+const StorePage = lazy(() => import("./pages/store").then((m) => ({ default: m.StorePage })));
 const PublicEnquiryPage = lazy(() =>
   import("./pages/public-enquiry").then((m) => ({ default: m.PublicEnquiryPage })),
 );
@@ -154,6 +155,12 @@ const VerifyPackPage = lazy(() =>
 );
 const DeliveriesPage = lazy(() =>
   import("./pages/pharmacy/deliveries").then((m) => ({ default: m.DeliveriesPage })),
+);
+const OnlineOrdersPage = lazy(() =>
+  import("./pages/pharmacy/online-orders").then((m) => ({ default: m.OnlineOrdersPage })),
+);
+const H1RegisterPage = lazy(() =>
+  import("./pages/pharmacy/h1-register").then((m) => ({ default: m.H1RegisterPage })),
 );
 const DispatchPage = lazy(() =>
   import("./pages/pharmacy/dispatch-view").then((m) => ({ default: m.DispatchPage })),
@@ -518,6 +525,8 @@ export function App() {
             <Route path="/enquire/:tenantCode" element={<PublicEnquiryPage />} />
             {/* A patient reading their own records — own session, not staff auth. */}
             <Route path="/portal/:tenantCode" element={<PatientPortalPage />} />
+            {/* The pharmacy storefront — browsing is public, ordering signs in. */}
+            <Route path="/store/:tenantCode" element={<StorePage />} />
             {/* Unattended self-service terminal in the lobby. */}
             <Route path="/kiosk/checkin" element={<KioskSelfCheckinPage />} />
             {/* A waiting-room TV: pairs by code, then shows its own board. */}
@@ -591,6 +600,8 @@ export function App() {
               <Route path="pharmacy/fulfilment/:orderId" element={<VerifyPackPage />} />
               <Route path="pharmacy/dispatch" element={<DispatchPage />} />
               <Route path="pharmacy/deliveries" element={<DeliveriesPage />} />
+              <Route path="pharmacy/online-orders" element={<OnlineOrdersPage />} />
+              <Route path="pharmacy/h1-register" element={<H1RegisterPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />

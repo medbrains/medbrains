@@ -14,6 +14,7 @@ export const patientsService = {
   createPatient: (data: CreatePatientInput) => api.createPatient(data),
   updatePatient: (...args: Parameters<typeof api.updatePatient>) => api.updatePatient(...args),
   matchPatients: (...args: Parameters<typeof api.matchPatients>) => api.matchPatients(...args),
+  completePatientRegistration: (id: string) => api.completePatientRegistration(id),
   listDepartments: () => api.listDepartments(),
   listDoctors: () => api.listDoctors(),
   listCamps: (params?: ListCampsInput) => api.listCamps(params),

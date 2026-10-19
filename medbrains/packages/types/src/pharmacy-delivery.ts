@@ -28,6 +28,8 @@ export interface PharmacyDelivery {
   failure_reason: string | null;
   /** The patient's refill request, when they asked for it from the portal. */
   refill_request_id: string | null;
+  /** The patient's storefront order, when they ordered it online. */
+  store_order_id: string | null;
   preferred_slot: DeliverySlot | null;
   created_at: string;
 }
@@ -120,9 +122,10 @@ export type PortalDeliveryStage =
 
 /** A delivery the patient asked for, as they follow it. */
 export interface PortalDelivery {
-  /** The refill request's id. */
+  /** The refill request's id, or the storefront order's. */
   id: string;
-  prescription_id: string;
+  /** The prescription refilled; null for a storefront order. */
+  prescription_id: string | null;
   drugs: string[];
   stage: PortalDeliveryStage;
   address: string | null;

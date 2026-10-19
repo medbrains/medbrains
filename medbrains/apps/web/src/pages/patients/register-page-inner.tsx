@@ -34,6 +34,7 @@ import { patientsService } from "@/services/patients.service";
 import type { ScanShareRegistrationState } from "../front-office/scan-share-tab";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
+import { PharmacyCustomerMatch } from "./pharmacy-customer-match";
 import { registrationAction } from "./registrationGate";
 
 const NO_MATCHES: MpiMatchResult[] = [];
@@ -588,16 +589,19 @@ export function PatientRegisterPageInner() {
               key: "actions",
               label: "",
               render: (m: MpiMatchResult) => (
-                <IconButton
-                  size={44}
-                  aria-label={t("aria.viewDetails")}
-                  onClick={() => {
-                    dupModalHandlers.close();
-                    navigate(`/patients/${m.id}`);
-                  }}
-                >
-                  <IconEye size={14} />
-                </IconButton>
+                <Group gap="xs" wrap="nowrap">
+                  <PharmacyCustomerMatch match={m} onCompleted={dupModalHandlers.close} />
+                  <IconButton
+                    size={44}
+                    aria-label={t("aria.viewDetails")}
+                    onClick={() => {
+                      dupModalHandlers.close();
+                      navigate(`/patients/${m.id}`);
+                    }}
+                  >
+                    <IconEye size={14} />
+                  </IconButton>
+                </Group>
               ),
             },
           ]}

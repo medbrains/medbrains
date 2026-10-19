@@ -41,6 +41,10 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/storefront/settings",
             get(settings::get_settings).put(settings::put_settings),
         )
+        .route(
+            "/api/pharmacy/storefront/pharmacists",
+            get(settings::pharmacists),
+        )
 }
 
 /// The patient's cart, if they have one.
