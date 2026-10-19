@@ -3,7 +3,6 @@
 //! Covers:
 //! - `payment.create_order`  → POST /v1/orders with `receipt = internal_payment_id`
 //! - `payment.refund`        → POST /v1/payments/{id}/refund
-//! - `payment.razorpay.create_link` → POST /v1/payment_links
 //!
 //! Idempotency: Razorpay deduplicates orders by `receipt`. We pass our
 //! `internal_payment_id` as the receipt so a worker retry after a network
@@ -139,99 +138,6 @@ impl Handler for CreateOrderHandler {
         // Non-2xx: classify
         let body_text = resp.text().await.unwrap_or_default();
         Err(classify_status(status, &body_text))
-    }
-}
-
-/// `payment.razorpay.create_link` — a pay-now link the patient opens on any
-/// device (`POST /v1/payment_links`). The link's id becomes the
-/// transaction's gateway order id, so its `payment_link.paid` webhook finds
-/// it; the short URL goes on the transaction's notes for the patient's app.
-/// Fields per Razorpay's Payment Links API as documented; not exercised
-/// against the live service (inferred).
-#[derive(Debug, Default)]
-pub struct CreatePaymentLinkHandler {
-    api_base: Option<String>,
-}
-
-impl CreatePaymentLinkHandler {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_api_base(api_base: impl Into<String>) -> Self {
-        Self {
-            api_base: Some(api_base.into()),
-        }
-    }
-
-    fn api_base(&self) -> &str {
-        self.api_base.as_deref().unwrap_or(RAZORPAY_API_BASE)
-    }
-}
-
-#[async_trait]
-impl Handler for CreatePaymentLinkHandler {
-    fn event_type(&self) -> &'static str {
-        "payment.razorpay.create_link"
-    }
-
-    async fn handle(&self, ctx: &HandlerCtx, payload: &Value) -> Result<Value, HandlerError> {
-        let txn_id: Uuid = payload["internal_payment_id"]
-            .as_str()
-            .and_then(|s| s.parse().ok())
-            .ok_or_else(|| HandlerError::Permanent("missing internal_payment_id".into()))?;
-        let amount = payload["amount_paise"]
-            .as_u64()
-            .ok_or_else(|| HandlerError::Permanent("missing amount_paise (u64)".into()))?;
-        let key_id = resolve_secret(ctx, "razorpay-key-id").await?;
-        let key_secret = resolve_secret(ctx, "razorpay-key-secret").await?;
-        let resp = ctx
-            .http_client
-            .post(format!("{}/payment_links", self.api_base()))
-            .basic_auth(&key_id, Some(&key_secret))
-            .json(&serde_json::json!({
-                "amount": amount,
-                "currency": payload["currency"].as_str().unwrap_or("INR"),
-                "accept_partial": false,
-                // Unique per link: a retry is refused rather than doubled.
-                "reference_id": txn_id.to_string(),
-                "description": payload["description"].as_str().unwrap_or("MedBrains payment"),
-                "customer": { "contact": payload["contact"].as_str().unwrap_or("") },
-                // The patient sees the link in their app; we send no texts of Razorpay's.
-                "notify": { "sms": false, "email": false },
-                "reminder_enable": false,
-                "notes": { "tenant_id": ctx.tenant_id.to_string(), "internal_payment_id": txn_id.to_string() },
-            }))
-            .send()
-            .await
-            .map_err(|e| classify_reqwest_err(&e))?;
-        let status = resp.status();
-        if !status.is_success() {
-            let body_text = resp.text().await.unwrap_or_default();
-            return Err(classify_status(status, &body_text));
-        }
-        let body: Value = resp
-            .json()
-            .await
-            .map_err(|e| HandlerError::Transient(format!("razorpay parse: {e}")))?;
-        let (Some(link_id), Some(url)) = (body["id"].as_str(), body["short_url"].as_str()) else {
-            return Err(HandlerError::Permanent(
-                "razorpay link response missing id or short_url".into(),
-            ));
-        };
-        sqlx::query(
-            "UPDATE payment_gateway_transactions \
-                SET status = 'created', gateway_order_id = $1, \
-                    notes = notes || jsonb_build_object('short_url', $2::text), updated_at = now() \
-              WHERE id = $3",
-        )
-        .bind(link_id)
-        .bind(url)
-        .bind(txn_id)
-        .execute(&ctx.pool)
-        .await
-        .map_err(|e| HandlerError::Transient(format!("db update: {e}")))?;
-        Ok(serde_json::json!({ "link_id": link_id, "status": "created" }))
     }
 }
 

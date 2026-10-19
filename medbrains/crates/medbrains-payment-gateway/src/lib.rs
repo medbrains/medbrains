@@ -1,3 +1,5 @@
+pub mod payment_link;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},

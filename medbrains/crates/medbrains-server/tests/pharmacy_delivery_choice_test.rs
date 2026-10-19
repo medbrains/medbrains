@@ -9,8 +9,8 @@ mod common;
 mod delivery_choice_world;
 
 use delivery_choice_world::{
-    WEBHOOK_SECRET, approve, choice, delivery_of, drug, earn_cash_on_delivery, new_patient,
-    patient_token, portal, prescription, setup, staff,
+    WEBHOOK_SECRET, approve, choice, delivery_of, drug, earn_cash_on_delivery, make_payment_link,
+    new_patient, patient_token, portal, prescription, setup, staff,
 };
 use hmac::{Hmac, Mac};
 use reqwest::StatusCode;
@@ -224,23 +224,13 @@ async fn a_pay_first_patient_gets_a_link_and_it_goes_once_paid() {
     .fetch_one(&app.db)
     .await
     .expect("a payment transaction");
-    assert_eq!(
-        app.outbox_rows("payment.razorpay.create_link", &txn.to_string())
-            .await
-            .len(),
-        1
-    );
-    // As the outbox worker records Razorpay's answer.
-    let link = format!("plink_{}", &Uuid::new_v4().simple().to_string()[..14]);
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET status = 'created', gateway_order_id = $1, \
-                notes = notes || jsonb_build_object('short_url', 'https://rzp.io/i/choice') WHERE id = $2",
-    )
-    .bind(&link)
-    .bind(txn)
-    .execute(&app.db)
-    .await
-    .expect("link made");
+    // The shared Razorpay client makes the link for the bill's balance.
+    let asked = make_payment_link(&app, &setup, txn).await;
+    assert_eq!(asked["reference_id"], json!(txn.to_string()), "{asked}");
+    assert!(asked["amount"].as_i64().is_some_and(|p| p > 0), "{asked}");
+    assert_eq!(asked["customer"]["contact"], json!("9000000002"), "{asked}");
+    let link = format!("plink_{}", txn.simple());
+    let url = format!("https://rzp.test/i/{}", txn.simple());
     let (_, tracked) = portal(
         &app,
         &token,
@@ -249,11 +239,7 @@ async fn a_pay_first_patient_gets_a_link_and_it_goes_once_paid() {
     )
     .await;
     assert_eq!(tracked["stage"], json!("awaiting_payment"), "{tracked}");
-    assert_eq!(
-        tracked["payment_url"],
-        json!("https://rzp.io/i/choice"),
-        "{tracked}"
-    );
+    assert_eq!(tracked["payment_url"], json!(url), "{tracked}");
 
     // Razorpay says the link was paid.
     let body = json!({ "event": "payment_link.paid", "payload": {
@@ -297,6 +283,12 @@ async fn a_pay_first_patient_gets_a_link_and_it_goes_once_paid() {
     .await;
     assert_eq!(tracked["stage"], json!("being_prepared"), "{tracked}");
     assert_eq!(tracked["payment_url"], Value::Null);
+    // The paid link was this delivery's alone: no UHI booking is confirmed by it.
+    assert!(
+        app.outbox_rows("uhi.payment_captured", &txn.to_string())
+            .await
+            .is_empty()
+    );
 }
 
 #[tokio::test]

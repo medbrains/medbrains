@@ -2,9 +2,9 @@
 //! pharmacist approves the refill, and the release of the delivery once a
 //! payment settles its bill.
 
+use medbrains_core::payment::RAZORPAY_LINK_EVENT;
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
@@ -13,11 +13,10 @@ use crate::facts::bill_balance;
 
 /// Pay-now requests one payment can settle, at most.
 const RELEASE_LIMIT: i64 = 20;
-/// Asks Razorpay for a payment link (`medbrains_outbox::handlers::razorpay`).
-pub const PAYMENT_LINK_EVENT: &str = "payment.razorpay.create_link";
 
-/// A pay-now link for `amount`, made off-thread through the payment
-/// provider's outbox; the link's URL lands on the transaction's notes.
+/// A pay-now payment row for `amount`, and its link made off-thread by the
+/// shared Razorpay client (`medbrains_payment_gateway::payment_link`), which
+/// reads the amount from the row and files the URL on its notes.
 pub(crate) async fn payment_link(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
@@ -26,10 +25,6 @@ pub(crate) async fn payment_link(
     phone: Option<&str>,
     request_id: Uuid,
 ) -> Result<Uuid, AppError> {
-    let paise = (amount * Decimal::ONE_HUNDRED)
-        .round()
-        .to_u64()
-        .ok_or_else(|| AppError::Internal(format!("payment amount out of range: {amount}")))?;
     let txn: Uuid = sqlx::query_scalar(
         "INSERT INTO payment_gateway_transactions \
            (tenant_id, invoice_id, gateway, gateway_order_id, amount, currency, status, notes, \
@@ -51,11 +46,9 @@ pub(crate) async fn payment_link(
             tenant_id,
             aggregate_type: "payment_gateway_transaction",
             aggregate_id: Some(txn),
-            event_type: PAYMENT_LINK_EVENT,
+            event_type: RAZORPAY_LINK_EVENT,
             payload: serde_json::json!({
                 "internal_payment_id": txn,
-                "amount_paise": paise,
-                "currency": "INR",
                 "description": "Medicines for home delivery",
                 "contact": phone,
             }),

@@ -783,7 +783,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
     registry.register(razorpay::CreateOrderHandler::new());
     registry.register(razorpay::RefundHandler::new());
-    registry.register(razorpay::CreatePaymentLinkHandler::new());
+    registry.register(medbrains_payment_gateway::payment_link::PaymentLinkHandler);
     // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
     registry.register(cashfree::CashfreeCreateOrderHandler::new());
     registry.register(cashfree::CashfreeRefundHandler::new());
@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn the_delivery_payment_link_has_a_maker() {
         let registry = super::build_outbox_registry();
-        let event = medbrains_pharmacy_delivery::pay::PAYMENT_LINK_EVENT;
+        let event = medbrains_core::payment::RAZORPAY_LINK_EVENT;
         assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
     }
 }

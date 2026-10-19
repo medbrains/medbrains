@@ -2,6 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+/// The outbox event that makes a Razorpay payment link for a payment row
+/// needing nothing more (a home delivery); handled by
+/// `medbrains_payment_gateway::payment_link::PaymentLinkHandler`.
+pub const RAZORPAY_LINK_EVENT: &str = "payment.razorpay.create_link";
+
 /// Payment gateway transaction record — maps to `payment_gateway_transactions` table.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PaymentGatewayTransaction {

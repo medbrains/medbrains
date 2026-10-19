@@ -15,6 +15,8 @@ use uuid::Uuid;
 const LIST_LIMIT: i64 = 20;
 /// Medicines named per request.
 const DRUG_LIMIT: i64 = 10;
+/// Shown when the payment link could not be made.
+const LINK_FAILED: &str = "Online payment couldn't be set up. Ask the pharmacy how to pay.";
 
 #[derive(sqlx::FromRow)]
 struct Row {
@@ -100,7 +102,10 @@ fn present(row: Row) -> PatientDelivery {
         prepared_at: row.prepared_at,
         dispatched_at: row.dispatched_at,
         delivered_at: row.delivered_at,
-        note: row.failure_reason.or(row.delivery_note),
+        note: row.failure_reason.or(row.delivery_note).or_else(|| {
+            (awaiting && row.payment_status.as_deref() == Some("failed"))
+                .then(|| LINK_FAILED.to_owned())
+        }),
         carrier: row.courier_name.or(row.runner_first_name),
         tracking_ref: row.tracking_ref,
         amount_due: row.amount_due.filter(|_| at_the_door),
@@ -131,7 +136,7 @@ pub async fn patient_deliveries(
                 d.delivered_at, d.failure_reason, \
                 NULLIF(split_part(u.full_name, ' ', 1), '') AS runner_first_name, \
                 d.courier_name, d.tracking_ref, d.amount_due, d.patient_code, \
-                t.status AS payment_status, t.notes->>'short_url' AS payment_url, \
+                t.status AS payment_status, t.notes->>'payment_link' AS payment_url, \
                 t.amount AS payment_amount \
            FROM prescription_refill_requests r \
            LEFT JOIN LATERAL ( \

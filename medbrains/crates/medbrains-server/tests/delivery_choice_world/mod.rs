@@ -4,7 +4,10 @@
 //! delivery on and Razorpay keys set, patients signed in to the portal the
 //! way patients are, and refills a pharmacist approves.
 
+use std::sync::{Arc, Mutex};
+
 use chrono::{Duration, Utc};
+use medbrains_outbox::Handler;
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -293,4 +296,69 @@ pub async fn earn_cash_on_delivery(
         .await
         .expect("history");
     }
+}
+
+/// A stand-in Razorpay that makes a link named after the payment row and
+/// keeps the request it was sent.
+async fn mock_razorpay(seen: Arc<Mutex<Vec<Value>>>) -> String {
+    let app = axum::Router::new().fallback(
+        move |uri: axum::http::Uri, axum::Json(body): axum::Json<Value>| {
+            let seen = Arc::clone(&seen);
+            async move {
+                assert!(uri.path().ends_with("/payment_links"), "{uri}");
+                let reference = body["reference_id"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .replace('-', "");
+                seen.lock().expect("seen").push(body);
+                axum::Json(json!({ "id": format!("plink_{reference}"),
+                                   "short_url": format!("https://rzp.test/i/{reference}") }))
+            }
+        },
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move { axum::serve(listener, app).await.ok() });
+    format!("http://{addr}/v1")
+}
+
+/// Run the queued payment-link event for `txn` as the outbox worker would,
+/// against a stand-in Razorpay. Returns what Razorpay was asked.
+pub async fn make_payment_link(app: &common::TestApp, setup: &Setup, txn: Uuid) -> Value {
+    let handler = medbrains_payment_gateway::payment_link::PaymentLinkHandler;
+    let (event_id, payload): (Uuid, Value) = sqlx::query_as(
+        "SELECT id, payload FROM outbox_events WHERE event_type = $1 AND aggregate_id = $2 \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(handler.event_type())
+    .bind(txn)
+    .fetch_one(&app.db)
+    .await
+    .expect("the link is queued");
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let base = mock_razorpay(Arc::clone(&seen)).await;
+    let ctx = medbrains_outbox::HandlerCtx {
+        pool: app.db.clone(),
+        tenant_id: setup.tenant,
+        event_id,
+        event_type: handler.event_type().to_owned(),
+        actor_user_id: None,
+        attempts: 0,
+        secret_resolver: Arc::new(common::TestSecrets::default().with(
+            medbrains_payment_gateway::payment_link::API_BASE_OVERRIDE,
+            base,
+        )),
+        http_client: reqwest::Client::new(),
+        object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-test-docs"),
+        )),
+    };
+    handler
+        .handle(&ctx, &payload)
+        .await
+        .expect("the link is made");
+    let asked = seen.lock().expect("seen").pop();
+    asked.expect("Razorpay was asked once")
 }
