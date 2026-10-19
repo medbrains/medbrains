@@ -17,7 +17,7 @@ use crate::binding::{binding_key, check_challenge, check_device};
 use crate::binding_token as token;
 
 #[derive(Debug, Deserialize)]
-pub struct RedeemRequest {
+pub(crate) struct RedeemRequest {
     pub token: String,
     pub device_label: String,
     pub app_variant: String,
@@ -26,7 +26,7 @@ pub struct RedeemRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct RedeemResponse {
+pub(crate) struct RedeemResponse {
     pub paired_device_id: Uuid,
     pub tenant: String,
     pub tenant_name: String,
@@ -47,7 +47,7 @@ fn refusal(revoked: bool, expires_at: DateTime<Utc>, used_up: bool) -> AppError 
     }
 }
 
-pub async fn redeem_binding_code(
+pub(crate) async fn redeem_binding_code(
     State(state): State<AppState>,
     Json(body): Json<RedeemRequest>,
 ) -> Result<Json<RedeemResponse>, AppError> {
