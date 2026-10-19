@@ -5,8 +5,10 @@
 //! `medbrains-server`, while UI code talks only to `MedBrains` backend APIs.
 
 pub mod abha;
+pub mod account;
 pub mod card;
 pub mod enrol;
+pub mod phr;
 mod types;
 pub mod registry;
 
@@ -18,7 +20,7 @@ pub use abha::{
     SessionTokenRequest, SessionTokenResponse, UserToken, VerifyOtpAuthData, VerifyOtpPayload,
     VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, VerifyUserResponse,
 };
-pub use card::AbhaCard;
+pub use card::{AbhaCard, AbhaImage};
 pub use enrol::{
     ABHA_ENROL_SCOPE, AddressSuggestions, CreateAddressRequest, CreateAddressResponse,
     ENROL_CONSENT_CODE, ENROL_CONSENT_VERSION, EnrolAuthData, EnrolAuthResponse,

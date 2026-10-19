@@ -33,7 +33,9 @@ type Cached = (String, Instant);
 // shared store if the API ever runs as several replicas.
 static SESSIONS: LazyLock<Mutex<HashMap<(Uuid, AbdmEnvironment), Cached>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-static PUBLIC_KEYS: LazyLock<Mutex<HashMap<AbdmEnvironment, Cached>>> =
+/// Keyed by the ABDM address, not just the environment, so a changed
+/// address (a rehearsal against a stand-in) never reuses another server's key.
+static PUBLIC_KEYS: LazyLock<Mutex<HashMap<String, Cached>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn cached<K: std::hash::Hash + Eq>(map: &Mutex<HashMap<K, Cached>>, key: &K) -> Option<String> {
@@ -116,7 +118,8 @@ pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError
         );
         fresh.access_token
     };
-    let public_key = if let Some(key) = cached(&PUBLIC_KEYS, &config.environment) {
+    let key_source = client.readiness().abha_base_url;
+    let public_key = if let Some(key) = cached(&PUBLIC_KEYS, &key_source) {
         key
     } else {
         let fetched = client
@@ -125,7 +128,7 @@ pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError
             .map_err(map_abdm_error)?;
         remember(
             &PUBLIC_KEYS,
-            config.environment,
+            key_source,
             &fetched.public_key,
             PUBLIC_KEY_TTL,
         );

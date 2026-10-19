@@ -3,6 +3,7 @@ import type {
   AbdmConnectionTest,
   AbdmConsentPrintData,
   AbdmSettingsView,
+  AbhaAccountChange,
   AbhaStatusResponse,
   AbhaVerificationStep,
   AccessAlert,
@@ -16796,6 +16797,23 @@ export const api = {
     request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/address`, {
       method: "POST",
       body: JSON.stringify({ abha_address: abhaAddress }),
+    }),
+  /** The ABHA QR image, for showing on screen (cookie-authenticated GET). */
+  abhaQrUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/qr`,
+  requestAbhaMobileChange: (id: string, mobile: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/mobile`, {
+      method: "POST",
+      body: JSON.stringify({ mobile }),
+    }),
+  verifyAbhaMobileChange: (id: string, otp: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/mobile/verify`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  requestAbhaEmailLink: (id: string, email: string) =>
+    request<AbhaAccountChange>(`/abdm/abha/verifications/${id}/email`, {
+      method: "POST",
+      body: JSON.stringify({ email }),
     }),
   /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
   abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,

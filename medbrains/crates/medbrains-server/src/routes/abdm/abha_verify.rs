@@ -17,15 +17,15 @@ use axum::{
     extract::{Path, State},
 };
 use medbrains_abdm::{
-    AADHAAR_VERIFY_SCOPE, ABHA_LOGIN_SCOPE, AbhaAccountSummary, LoginHint, MOBILE_VERIFY_SCOPE,
-    OtpSystem, RequestOtpRequest, VerifyOtpAuthData, VerifyOtpPayload, VerifyOtpRequest,
-    VerifyUserRequest,
+    AbhaAccountSummary, OtpSystem, RequestOtpRequest, VerifyOtpAuthData, VerifyOtpPayload,
+    VerifyOtpRequest, VerifyUserRequest,
 };
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use super::abha::{Abdm, connect, map_abdm_error};
+use super::abha_address::{full_address, hint, otp_system, request_otp, scope, verify_and_finish};
 use super::abha_common::{
     AccountChoice, RESEND_AFTER_SECONDS, VerificationStep, abha_number_display, digits, env_name,
     gender_name, keep_token, record_verified, take_token, to_profile, update,
@@ -39,13 +39,14 @@ use crate::{
 const VERIFICATION_LIFETIME_MINUTES: i32 = 30;
 /// Wrong OTPs allowed before the verification must start again.
 const MAX_OTP_ATTEMPTS: i32 = 5;
-/// ABDM's person tokens live at most 30 minutes.
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VerifyMethod {
     AbhaNumber,
     Mobile,
+    /// `name@abdm` — verified through the PHR APIs.
+    AbhaAddress,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -74,18 +75,11 @@ pub struct ChooseAccount {
     pub abha_number: String,
 }
 
-fn scope(method: VerifyMethod, via: OtpSystem) -> Vec<String> {
-    let second = match (method, via) {
-        (VerifyMethod::AbhaNumber, OtpSystem::Aadhaar) => AADHAAR_VERIFY_SCOPE,
-        _ => MOBILE_VERIFY_SCOPE,
-    };
-    vec![ABHA_LOGIN_SCOPE.to_owned(), second.to_owned()]
-}
-
 const fn method_name(method: VerifyMethod) -> &'static str {
     match method {
         VerifyMethod::AbhaNumber => "abha_number",
         VerifyMethod::Mobile => "mobile",
+        VerifyMethod::AbhaAddress => "abha_address",
     }
 }
 
@@ -101,15 +95,12 @@ pub async fn start(
     Json(body): Json<StartVerification>,
 ) -> Result<Json<VerificationStep>, AppError> {
     require_permission(&claims, permissions::abdm::abha::MANAGE)?;
-    let (hint, login_id, via) = match body.method {
+    let abdm = connect(&state, claims.tenant_id).await?;
+    let (login_id, via) = match body.method {
         VerifyMethod::AbhaNumber => {
             let number = abha_number_display(&body.value)
                 .ok_or_else(|| AppError::BadRequest("an ABHA number has 14 digits".to_owned()))?;
-            let via = match body.otp_via.unwrap_or(OtpVia::Aadhaar) {
-                OtpVia::Aadhaar => OtpSystem::Aadhaar,
-                OtpVia::Abdm => OtpSystem::Abdm,
-            };
-            (LoginHint::AbhaNumber, number, via)
+            (number, otp_system(body.otp_via))
         }
         VerifyMethod::Mobile => {
             let mobile = digits(&body.value);
@@ -118,25 +109,25 @@ pub async fn start(
                     "a mobile number has 10 digits".to_owned(),
                 ));
             }
-            (LoginHint::Mobile, mobile, OtpSystem::Abdm)
+            (mobile, OtpSystem::Abdm)
+        }
+        VerifyMethod::AbhaAddress => {
+            let address = full_address(&body.value, abdm.environment)
+                .ok_or_else(|| AppError::BadRequest("enter the ABHA address".to_owned()))?;
+            (address, otp_system(body.otp_via.or(Some(OtpVia::Abdm))))
         }
     };
-
-    let abdm = connect(&state, claims.tenant_id).await?;
     let cipher = abdm.encrypt(&login_id)?;
-    let sent = abdm
-        .client
-        .request_login_otp(
-            &abdm.session,
-            &RequestOtpRequest {
-                scope: scope(body.method, via),
-                login_hint: hint,
-                login_id: cipher.clone(),
-                otp_system: via,
-            },
-        )
-        .await
-        .map_err(map_abdm_error)?;
+    let sent = request_otp(
+        &abdm,
+        &RequestOtpRequest {
+            scope: scope(body.method, via),
+            login_hint: hint(body.method),
+            login_id: cipher.clone(),
+            otp_system: via,
+        },
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -218,23 +209,16 @@ pub async fn resend(
     }
     let (method, via) = parse_row_method(&row);
     let abdm = connect(&state, claims.tenant_id).await?;
-    let sent = abdm
-        .client
-        .request_login_otp(
-            &abdm.session,
-            &RequestOtpRequest {
-                scope: scope(method, via),
-                login_hint: if method == VerifyMethod::Mobile {
-                    LoginHint::Mobile
-                } else {
-                    LoginHint::AbhaNumber
-                },
-                login_id: row.login_id_cipher,
-                otp_system: via,
-            },
-        )
-        .await
-        .map_err(map_abdm_error)?;
+    let sent = request_otp(
+        &abdm,
+        &RequestOtpRequest {
+            scope: scope(method, via),
+            login_hint: hint(method),
+            login_id: row.login_id_cipher,
+            otp_system: via,
+        },
+    )
+    .await?;
     update(&state, &claims, id, |q| {
         q.push("abdm_txn_id = ").push_bind(sent.txn_id.clone());
         q.push(", otp_sent_at = now(), otp_attempts = 0");
@@ -244,10 +228,10 @@ pub async fn resend(
 }
 
 fn parse_row_method(row: &Row) -> (VerifyMethod, OtpSystem) {
-    let method = if row.method == "mobile" {
-        VerifyMethod::Mobile
-    } else {
-        VerifyMethod::AbhaNumber
+    let method = match row.method.as_str() {
+        "mobile" => VerifyMethod::Mobile,
+        "abha_address" => VerifyMethod::AbhaAddress,
+        _ => VerifyMethod::AbhaNumber,
     };
     let via = if row.otp_system == "aadhaar" {
         OtpSystem::Aadhaar
@@ -292,21 +276,22 @@ pub async fn submit_otp(
 
     let (method, via) = parse_row_method(&row);
     let abdm = connect(&state, claims.tenant_id).await?;
+    let request = VerifyOtpRequest {
+        scope: scope(method, via),
+        auth_data: VerifyOtpAuthData {
+            auth_methods: vec!["otp".to_owned()],
+            otp: VerifyOtpPayload {
+                txn_id: row.abdm_txn_id,
+                otp_value: abdm.encrypt(&otp)?,
+            },
+        },
+    };
+    if method == VerifyMethod::AbhaAddress {
+        return verify_and_finish(&state, &claims, id, &abdm, &request).await;
+    }
     let verified = abdm
         .client
-        .verify_login_otp(
-            &abdm.session,
-            &VerifyOtpRequest {
-                scope: scope(method, via),
-                auth_data: VerifyOtpAuthData {
-                    auth_methods: vec!["otp".to_owned()],
-                    otp: VerifyOtpPayload {
-                        txn_id: row.abdm_txn_id,
-                        otp_value: abdm.encrypt(&otp)?,
-                    },
-                },
-            },
-        )
+        .verify_login_otp(&abdm.session, &request)
         .await
         .map_err(map_abdm_error)?;
     let token = verified
