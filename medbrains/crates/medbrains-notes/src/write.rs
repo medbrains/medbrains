@@ -41,7 +41,10 @@ fn validate(body: &SaveStickyNote) -> Result<String, AppError> {
         )));
     }
     if !NOTE_COLOURS.contains(&body.colour.as_str()) {
-        return Err(AppError::BadRequest(format!("unknown note colour '{}'", body.colour)));
+        return Err(AppError::BadRequest(format!(
+            "unknown note colour '{}'",
+            body.colour
+        )));
     }
     if body.expires_at.is_some_and(|at| at <= Utc::now()) {
         return Err(AppError::BadRequest(
@@ -84,7 +87,8 @@ pub(crate) async fn create_note(
 /// `PUT /api/notes/{id}` — edit one of my notes.
 ///
 /// # Errors
-/// 404 when the note is not the caller's (or does not exist); 400 as for create.
+/// 404 when the note is not the caller's (or does not exist); 409 for a note
+/// made from a notification, whose text is the system's; 400 as for create.
 pub(crate) async fn update_note(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -97,7 +101,8 @@ pub(crate) async fn update_note(
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let updated = sqlx::query(
         "UPDATE sticky_notes SET body = $4, colour = $5, pinned = $6, expires_at = $7 \
-         WHERE id = $1 AND tenant_id = $2 AND author_id = $3 AND deleted_at IS NULL",
+         WHERE id = $1 AND tenant_id = $2 AND author_id = $3 AND deleted_at IS NULL \
+           AND NOT is_system",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -109,7 +114,7 @@ pub(crate) async fn update_note(
     .execute(&mut *tx)
     .await?;
     if updated.rows_affected() == 0 {
-        return Err(AppError::NotFound);
+        return Err(refusal(&mut tx, id, &claims).await?);
     }
     tx.commit().await?;
     Ok(Json(NoteId { id }))
@@ -148,9 +153,14 @@ pub(crate) async fn delete_note(
 /// Shares not in the list are withdrawn; new ones are added. Departments and
 /// colleagues must belong to the caller's hospital and be active.
 ///
+/// A note made from a notification is never shared: the notification was
+/// addressed to one person, and a critical value or an access request is not
+/// for a ward board.
+///
 /// # Errors
-/// 404 when the note is not the caller's; 400 for too many targets or one
-/// that is not an active department or colleague here.
+/// 404 when the note is not the caller's; 409 for a note from a notification;
+/// 400 for too many targets or one that is not an active department or
+/// colleague here.
 pub(crate) async fn set_shares(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -168,7 +178,8 @@ pub(crate) async fn set_shares(
 
     let owned: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM sticky_notes \
-         WHERE id = $1 AND tenant_id = $2 AND author_id = $3 AND deleted_at IS NULL FOR UPDATE",
+         WHERE id = $1 AND tenant_id = $2 AND author_id = $3 AND deleted_at IS NULL \
+           AND NOT is_system FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -176,7 +187,7 @@ pub(crate) async fn set_shares(
     .fetch_optional(&mut *tx)
     .await?;
     if owned.is_none() {
-        return Err(AppError::NotFound);
+        return Err(refusal(&mut tx, id, &claims).await?);
     }
 
     let (departments, users): (i64, i64) = sqlx::query_as(
@@ -234,6 +245,31 @@ pub(crate) async fn set_shares(
     Ok(Json(NoteId { id }))
 }
 
+/// Why one of the caller's notes could not be changed: a system note is the
+/// caller's but read-only (409); anything else is not theirs to see (404).
+async fn refusal(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+    claims: &Claims,
+) -> Result<AppError, AppError> {
+    let is_system: Option<bool> = sqlx::query_scalar(
+        "SELECT is_system FROM sticky_notes \
+         WHERE id = $1 AND tenant_id = $2 AND author_id = $3 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(if is_system == Some(true) {
+        AppError::Conflict(
+            "a note from a notification cannot be edited or shared — dismiss it instead".to_owned(),
+        )
+    } else {
+        AppError::NotFound
+    })
+}
+
 fn dedup_len(ids: &[Uuid]) -> usize {
     ids.iter().collect::<std::collections::HashSet<_>>().len()
 }
@@ -253,8 +289,11 @@ pub(crate) async fn remove_share(
     Path(share_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::notes::USE)?;
-    let can_moderate =
-        is_bypass_role(&claims) || claims.permissions.iter().any(|p| p == permissions::notes::MODERATE);
+    let can_moderate = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::notes::MODERATE);
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let removed = sqlx::query(

@@ -29,6 +29,16 @@ export interface StickyNote {
   share_id: string | null;
   /** Every share — on the reader's own notes only. */
   shares: StickyNoteShare[];
+  /** Made by the system from a notification: read-only, never shared, dismissible. */
+  is_system: boolean;
+  /** Where the item behind the note lives in the app. */
+  source_url: string | null;
+  /** Clears itself when the item behind it is resolved. */
+  auto_resolve: boolean;
+  /** Whether the item behind it is one the server can tell is resolved. */
+  can_auto_resolve: boolean;
+  /** When the item was resolved and the note cleared itself. */
+  resolved_at: string | null;
 }
 
 export interface StickyNoteBoard {
@@ -64,4 +74,15 @@ export interface NoteRecipient {
 export interface NoteRecipients {
   departments: NoteRecipient[];
   users: NoteRecipient[];
+}
+
+export interface NoteKindChoice {
+  key: string;
+  label: string;
+}
+
+/** Which kinds of notification always become a note for the reader. */
+export interface StickyNotePreferences {
+  kinds: string[];
+  choices: NoteKindChoice[];
 }

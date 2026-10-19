@@ -17,6 +17,9 @@ use medbrains_server_core::{
 };
 use uuid::Uuid;
 
+/// How long a note that cleared itself stays under the "Resolved" filter.
+const RESOLVED_KEPT_DAYS: i32 = 7;
+
 /// Rows read for one panel. A board is a wall, not an archive: past this the
 /// oldest unpinned notes simply do not show.
 const ROW_LIMIT: i64 = 600;
@@ -36,6 +39,11 @@ struct NoteRow {
     department_id: Option<Uuid>,
     share_user_id: Option<Uuid>,
     share_label: Option<String>,
+    is_system: bool,
+    source_url: Option<String>,
+    auto_resolve: bool,
+    can_auto_resolve: bool,
+    resolved_at: Option<DateTime<Utc>>,
 }
 
 impl NoteRow {
@@ -52,6 +60,11 @@ impl NoteRow {
             updated_at: self.updated_at,
             share_id,
             shares: Vec::new(),
+            is_system: self.is_system,
+            source_url: self.source_url.clone(),
+            auto_resolve: self.auto_resolve,
+            can_auto_resolve: self.can_auto_resolve,
+            resolved_at: self.resolved_at,
         }
     }
 }
@@ -61,7 +74,12 @@ impl NoteRow {
 /// One row per (note, share) the reader may see: all shares of the reader's
 /// own notes, and only the shares addressed to the reader or the reader's
 /// departments on anyone else's. A note that has cleared itself
-/// (`expires_at` passed) is not returned.
+/// (`expires_at` passed) is not returned; one whose source was resolved is
+/// returned for a week with `resolved_at` set, for the "Resolved" filter.
+///
+/// Auto-resolving notes are settled first, in the same transaction — the
+/// panel is the only place a note is seen, so it never shows one whose
+/// source is already resolved (see `resolve_sticky_notes`, migration 1119).
 ///
 /// # Errors
 /// 403 without `notes.use`.
@@ -72,6 +90,12 @@ pub(crate) async fn list_notes(
     require_permission(&claims, permissions::notes::USE)?;
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query("SELECT public.resolve_sticky_notes($1, $2)")
+        .bind(claims.tenant_id)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
 
     // The live column, not the token: a department added since sign-in shows
     // its board now, not at the next login.
@@ -91,7 +115,10 @@ pub(crate) async fn list_notes(
         "SELECT n.id, n.body, n.colour, n.pinned, n.expires_at, n.author_id, \
                 a.full_name AS author_name, n.created_at, n.updated_at, \
                 s.id AS share_id, s.department_id, s.user_id AS share_user_id, \
-                COALESCE(d.name, su.full_name) AS share_label \
+                COALESCE(d.name, su.full_name) AS share_label, \
+                n.is_system, n.source_url, n.auto_resolve, n.resolved_at, \
+                (n.source_id IS NOT NULL AND public.sticky_note_resolvable(n.source_kind)) \
+                    AS can_auto_resolve \
          FROM sticky_notes n \
          JOIN users a ON a.id = n.author_id \
          LEFT JOIN sticky_note_shares s ON s.note_id = n.id AND s.deleted_at IS NULL \
@@ -99,6 +126,7 @@ pub(crate) async fn list_notes(
          LEFT JOIN users su ON su.id = s.user_id \
          WHERE n.tenant_id = $1 AND n.deleted_at IS NULL \
            AND (n.expires_at IS NULL OR n.expires_at > now()) \
+           AND (n.resolved_at IS NULL OR n.resolved_at > now() - make_interval(days => $5)) \
            AND (n.author_id = $2 OR s.user_id = $2 OR s.department_id = ANY($3)) \
          ORDER BY n.pinned DESC, n.updated_at DESC \
          LIMIT $4",
@@ -107,13 +135,17 @@ pub(crate) async fn list_notes(
     .bind(claims.sub)
     .bind(&department_ids)
     .bind(ROW_LIMIT)
+    .bind(RESOLVED_KEPT_DAYS)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
 
     Ok(Json(StickyNotesView {
         can_moderate: is_bypass_role(&claims)
-            || claims.permissions.iter().any(|p| p == permissions::notes::MODERATE),
+            || claims
+                .permissions
+                .iter()
+                .any(|p| p == permissions::notes::MODERATE),
         ..group(&rows, claims.sub, &departments)
     }))
 }
@@ -131,8 +163,11 @@ fn group(rows: &[NoteRow], me: Uuid, departments: &[(Uuid, String)]) -> StickyNo
             notes: Vec::new(),
         })
         .collect();
-    let board_at: HashMap<Uuid, usize> =
-        departments.iter().enumerate().map(|(i, (id, _))| (*id, i)).collect();
+    let board_at: HashMap<Uuid, usize> = departments
+        .iter()
+        .enumerate()
+        .map(|(i, (id, _))| (*id, i))
+        .collect();
 
     for row in rows {
         if row.author_id == me {
@@ -155,7 +190,12 @@ fn group(rows: &[NoteRow], me: Uuid, departments: &[(Uuid, String)]) -> StickyNo
             boards[at].notes.push(row.note(row.share_id));
         }
     }
-    StickyNotesView { mine, shared_with_me, boards, can_moderate: false }
+    StickyNotesView {
+        mine,
+        shared_with_me,
+        boards,
+        can_moderate: false,
+    }
 }
 
 #[cfg(test)]
@@ -178,7 +218,14 @@ mod tests {
             share_id: (dept.is_some() || user.is_some()).then(Uuid::new_v4),
             department_id: dept,
             share_user_id: user,
-            share_label: dept.map(|_| "Ward 3".to_owned()).or(user.map(|_| "Dr Rao".to_owned())),
+            share_label: dept
+                .map(|_| "Ward 3".to_owned())
+                .or(user.map(|_| "Dr Rao".to_owned())),
+            is_system: false,
+            source_url: None,
+            auto_resolve: false,
+            can_auto_resolve: false,
+            resolved_at: None,
         }
     }
 
@@ -195,9 +242,16 @@ mod tests {
         ];
         let view = group(&rows, me, &[(ward, "Ward 3".to_owned())]);
         assert_eq!(view.mine.len(), 2);
-        assert_eq!(view.mine[0].shares.len(), 1, "the board share is on my note");
+        assert_eq!(
+            view.mine[0].shares.len(),
+            1,
+            "the board share is on my note"
+        );
         assert_eq!(view.shared_with_me.len(), 1);
         assert_eq!(view.boards[0].notes.len(), 1);
-        assert!(view.boards[0].notes[0].share_id.is_some(), "removable from the board");
+        assert!(
+            view.boards[0].notes[0].share_id.is_some(),
+            "removable from the board"
+        );
     }
 }

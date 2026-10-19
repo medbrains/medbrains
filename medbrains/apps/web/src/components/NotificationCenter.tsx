@@ -1,13 +1,24 @@
-import { Group, Indicator, Popover, ScrollArea, Tabs, Text, UnstyledButton } from "@mantine/core";
+import {
+  Box,
+  Group,
+  Indicator,
+  Popover,
+  ScrollArea,
+  Tabs,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
 import { api } from "@medbrains/api";
-import type { AppNotification } from "@medbrains/types";
-import { IconBell, IconChecks } from "@tabler/icons-react";
+import { useHasPermission } from "@medbrains/stores";
+import { type AppNotification, P } from "@medbrains/types";
+import { IconBell, IconChecks, IconNotes } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useEffectOnce } from "react-use";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, toast } from "@/components/ui";
 import { type NotificationStreamEvent, useNotificationStream } from "@/hooks/useNotificationStream";
+import { notesService } from "@/services/notes.service";
 import { boardSignalQueryKeys } from "./board-signal-invalidations";
 import styles from "./NotificationCenter.module.scss";
 
@@ -94,6 +105,15 @@ export function NotificationCenter() {
     mutationFn: (id: string) => api.markNotificationRead(id),
     onSuccess: invalidate,
   });
+  const canNote = useHasPermission(P.NOTES.USE);
+  const pinToNotes = useMutation({
+    mutationFn: (id: string) => notesService.pinNotification(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["notes"] });
+      toast.success("Pinned to your notes");
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not pin to notes" }),
+  });
   const markAll = useMutation({
     mutationFn: () => api.markAllNotificationsRead(),
     onSuccess: invalidate,
@@ -173,30 +193,51 @@ export function NotificationCenter() {
             </Text>
           ) : (
             items.map((notification) => (
-              <UnstyledButton
+              <Group
                 key={notification.id}
+                gap="xs"
+                wrap="nowrap"
+                align="flex-start"
                 className={styles.item}
                 data-unread={!notification.is_read || undefined}
-                onClick={() => handleItem(notification)}
               >
-                <Group gap="sm" wrap="nowrap" align="flex-start">
-                  <span className={styles.dot} data-tone={KIND_TONE[notification.kind] ?? "info"} />
-                  <div className={styles.body}>
-                    <Text size="sm" fw={notification.is_read ? 400 : 600} lineClamp={1}>
-                      {notification.title}
-                    </Text>
-                    {notification.body && (
-                      <Text size="xs" c="dimmed" lineClamp={2}>
-                        {notification.body}
+                <UnstyledButton
+                  className={styles.itemMain}
+                  onClick={() => handleItem(notification)}
+                >
+                  <Group gap="sm" wrap="nowrap" align="flex-start">
+                    <Box
+                      component="span"
+                      className={styles.dot}
+                      data-tone={KIND_TONE[notification.kind] ?? "info"}
+                    />
+                    <Box className={styles.body}>
+                      <Text size="sm" fw={notification.is_read ? 400 : 600} lineClamp={1}>
+                        {notification.title}
                       </Text>
-                    )}
-                    <Text size="xs" c="dimmed" mt={2}>
-                      {notification.category ? `${notification.category} · ` : ""}
-                      {timeAgo(notification.created_at)}
-                    </Text>
-                  </div>
-                </Group>
-              </UnstyledButton>
+                      {notification.body && (
+                        <Text size="xs" c="dimmed" lineClamp={2}>
+                          {notification.body}
+                        </Text>
+                      )}
+                      <Text size="xs" c="dimmed" mt={2}>
+                        {notification.category ? `${notification.category} · ` : ""}
+                        {timeAgo(notification.created_at)}
+                      </Text>
+                    </Box>
+                  </Group>
+                </UnstyledButton>
+                {canNote && (
+                  <IconButton
+                    aria-label={`Pin "${notification.title}" to my notes`}
+                    tone="default"
+                    loading={pinToNotes.isPending && pinToNotes.variables === notification.id}
+                    onClick={() => pinToNotes.mutate(notification.id)}
+                  >
+                    <IconNotes size={16} />
+                  </IconButton>
+                )}
+              </Group>
             ))
           )}
         </ScrollArea.Autosize>
