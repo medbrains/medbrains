@@ -262,6 +262,8 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconWorld",
     requiredPermission: "uhi.configure",
     component: UhiSettings,
+  },
+  {
     value: "abdm-scan-share",
     i18nKey: "settings.abdmScanShare",
     icon: "IconQrcode",
