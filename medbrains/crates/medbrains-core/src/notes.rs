@@ -37,6 +37,18 @@ pub struct StickyNote {
     pub share_id: Option<Uuid>,
     /// Every share, on the author's own notes only.
     pub shares: Vec<StickyNoteShare>,
+    /// Written by the system from a notification: its text cannot be edited
+    /// and it is never shared, only dismissed.
+    pub is_system: bool,
+    /// Where the item behind the note lives in the app.
+    pub source_url: Option<String>,
+    /// Whether the note clears itself when its source is resolved.
+    pub auto_resolve: bool,
+    /// Whether the source is one the server knows how to resolve — the
+    /// auto-resolve switch is offered only then.
+    pub can_auto_resolve: bool,
+    /// When the source was resolved and the note cleared itself.
+    pub resolved_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,4 +95,43 @@ pub struct NoteRecipient {
 pub struct NoteRecipients {
     pub departments: Vec<NoteRecipient>,
     pub users: Vec<NoteRecipient>,
+}
+
+/// Kinds of notification a person may choose to always turn into a note:
+/// `(key, label)`. `urgent` matches any notification of kind `danger`; the
+/// rest match the notification's category. The matching itself is the
+/// `sticky_notes_from_notification` trigger (migration 1119).
+pub const NOTE_FROM_NOTIFICATION_KINDS: &[(&str, &str)] = &[
+    ("urgent", "Urgent alerts — critical values and findings"),
+    ("lab", "Laboratory"),
+    ("radiology", "Radiology"),
+    ("clinical", "Clinical — orders and refills"),
+    ("nursing", "Nursing"),
+    ("emergency", "Emergency"),
+    ("access", "Access requests"),
+    ("security", "Security"),
+];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteKindChoice {
+    pub key: String,
+    pub label: String,
+}
+
+/// The kinds of notification that always become a note for the reader.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StickyNotePreferences {
+    pub kinds: Vec<String>,
+    pub choices: Vec<NoteKindChoice>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SaveStickyNotePreferences {
+    #[serde(default)]
+    pub kinds: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetStickyNoteAutoResolve {
+    pub auto_resolve: bool,
 }
