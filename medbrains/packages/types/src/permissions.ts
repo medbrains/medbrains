@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1068 permissions, one per constant in the Rust source. */
+/** 1069 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6469,6 +6469,12 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // abdm
   {
+    code: "abdm.settings.manage",
+    label: "Set up the ABDM connection",
+    description: "Enter the ABDM client ID and secret and switch between sandbox and production.",
+    module: "abdm",
+  },
+  {
     code: "abdm.relay.pull",
     label: "Pull and acknowledge ABDM gateway callbacks",
     description: "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
@@ -6522,6 +6528,10 @@ export const P = {
       PULL: "abdm.relay.pull",
     },
     RELAY_PULL: "abdm.relay.pull",
+    SETTINGS: {
+      MANAGE: "abdm.settings.manage",
+    },
+    SETTINGS_MANAGE: "abdm.settings.manage",
   },
   ADMIN: {
     ACCESS_REQUESTS: {

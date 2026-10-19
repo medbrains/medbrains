@@ -28,6 +28,7 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { AbdmSettings } from "@/pages/admin/settings/AbdmSettings";
 import { AccessMatrixSettings } from "@/pages/admin/settings/AccessMatrixSettings";
 import { BedTypesSettings } from "@/pages/admin/settings/BedTypesSettings";
 import { BillingTaxSettings } from "@/pages/admin/settings/BillingTaxSettings";
@@ -232,6 +233,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconCash",
     requiredPermission: "admin.settings.billing_tax.manage",
     component: BillingTaxSettings,
+  },
+  {
+    value: "abdm",
+    i18nKey: "settings.abdm",
+    icon: "IconPlug",
+    requiredPermission: "abdm.settings.manage",
+    component: AbdmSettings,
   },
   {
     value: "payment-terminals",

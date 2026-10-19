@@ -1,6 +1,8 @@
 import type {
   AbcAnalysisRow,
+  AbdmConnectionTest,
   AbdmConsentPrintData,
+  AbdmSettingsView,
   AbhaStatusResponse,
   AbhaVerificationStep,
   AccessAlert,
@@ -1819,6 +1821,7 @@ import type {
   // Pharmacy Phase 3
   RxQueueRow,
   SalaryStructure,
+  SaveAbdmSettings,
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   ScheduleAnalytics,
@@ -16727,6 +16730,11 @@ export const api = {
   debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
   listAuthRevocations: () => request<unknown>("/auth/revocations"),
   getAbhaStatus: () => request<AbhaStatusResponse>("/abdm/abha/status"),
+  getAbdmSettings: () => request<AbdmSettingsView>("/abdm/settings"),
+  saveAbdmSettings: (data: SaveAbdmSettings) =>
+    request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
+  testAbdmConnection: () =>
+    request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
   startAbhaVerification: (data: StartAbhaVerification) =>
     request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",

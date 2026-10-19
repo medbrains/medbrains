@@ -22,6 +22,27 @@ export interface AbhaStatusResponse {
   readiness: AbhaIntegrationReadiness;
 }
 
+/** Settings → ABDM. The client secret is never returned. */
+export interface AbdmSettingsView {
+  environment: AbdmEnvironment;
+  client_id: string | null;
+  has_secret: boolean;
+  /** "settings" when saved here, "env" when the server holds the keys, "none". */
+  source: "settings" | "env" | "none";
+}
+
+export interface SaveAbdmSettings {
+  environment: AbdmEnvironment;
+  client_id: string;
+  /** Blank keeps the saved secret. */
+  client_secret?: string;
+}
+
+export interface AbdmConnectionTest {
+  ok: boolean;
+  message: string;
+}
+
 /** How the desk finds the person's ABHA. */
 export type AbhaVerifyMethod = "abha_number" | "mobile";
 /** Where ABDM sends the OTP for an ABHA-number lookup. */

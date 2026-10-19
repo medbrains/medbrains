@@ -90,10 +90,13 @@ impl Abdm {
 pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let config = read_abdm_config(&mut tx, &tenant_id).await?;
+    let key = secret_key(state).await;
+    let config = read_abdm_config(&mut tx, &tenant_id, &key).await?;
     tx.commit().await?;
 
-    let client = AbdmAbhaClient::new(config.environment).map_err(map_abdm_error)?;
+    let base = base_url_override(state).await;
+    let client =
+        AbdmAbhaClient::new(config.environment, base.as_deref()).map_err(map_abdm_error)?;
     let session = if let Some(token) = cached(&SESSIONS, &(tenant_id, config.environment)) {
         token
     } else {
@@ -158,7 +161,8 @@ pub async fn status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // A missing configuration is an answer here ("not configured"), not a fault.
-    let config = match read_abdm_config(&mut tx, &claims.tenant_id).await {
+    let key = secret_key(&state).await;
+    let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
         Ok(config) => Some(config),
         Err(AppError::ServiceUnavailable(_)) => None,
         Err(other) => return Err(other),
@@ -179,24 +183,48 @@ pub async fn status(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct StoredAbdmConfig {
-    environment: Option<AbdmEnvironment>,
-    client_id: Option<String>,
-    client_secret: Option<String>,
+/// Where the ABDM client secret's encryption key lives in the secret store.
+const SECRET_KEY_NAME: &str = "MEDBRAINS_ABDM_SECRET_KEY";
+/// Development fallback only; production sets the key in the secret store.
+const DEV_SECRET_KEY: &[u8] = b"medbrains-dev-abdm-secret-key-32";
+const SECRET_CONTEXT: &[u8] = b"abdm-client-secret";
+
+pub(crate) async fn secret_key(state: &AppState) -> Vec<u8> {
+    match state.secret_resolver.get(SECRET_KEY_NAME).await {
+        Ok(value) if value.len() >= 32 => value.into_bytes(),
+        _ => DEV_SECRET_KEY.to_vec(),
+    }
 }
 
-struct ResolvedAbdmConfig {
-    environment: AbdmEnvironment,
+/// Encrypt the client secret for storage.
+///
+/// # Errors
+/// 500 when encryption fails.
+pub(crate) fn seal_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
+    medbrains_crypto::aead::encrypt_token(key, SECRET_CONTEXT, &secret)
+        .map_err(|_| AppError::Internal("could not encrypt the ABDM secret".to_owned()))
+}
+
+/// What `tenant_settings` holds for ABDM. The secret is only ever stored
+/// sealed; nothing returns it.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub(crate) struct StoredAbdmConfig {
+    pub environment: Option<AbdmEnvironment>,
+    pub client_id: Option<String>,
+    pub client_secret_sealed: Option<String>,
+}
+
+pub(crate) struct ResolvedAbdmConfig {
+    pub environment: AbdmEnvironment,
     client_id: String,
     client_secret: String,
-    source: &'static str,
+    pub source: &'static str,
 }
 
-async fn read_abdm_config(
+pub(crate) async fn stored_abdm_config(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
-) -> Result<ResolvedAbdmConfig, AppError> {
+) -> Result<StoredAbdmConfig, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'abdm' AND key = 'abha_config' AND deleted_at IS NULL",
@@ -204,18 +232,35 @@ async fn read_abdm_config(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
+    row.map_or_else(
+        || Ok(StoredAbdmConfig::default()),
+        |value| {
+            serde_json::from_value(value)
+                .map_err(|err| AppError::Internal(format!("invalid abha_config: {err}")))
+        },
+    )
+}
 
-    if let Some(value) = row {
-        let stored: StoredAbdmConfig = serde_json::from_value(value)
-            .map_err(|err| AppError::Internal(format!("invalid abha_config: {err}")))?;
-        if let (Some(client_id), Some(client_secret)) = (stored.client_id, stored.client_secret) {
-            return Ok(ResolvedAbdmConfig {
-                environment: stored.environment.unwrap_or(AbdmEnvironment::Sandbox),
-                client_id,
-                client_secret,
-                source: "tenant_settings",
-            });
-        }
+async fn read_abdm_config(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    key: &[u8],
+) -> Result<ResolvedAbdmConfig, AppError> {
+    let stored = stored_abdm_config(tx, tenant_id).await?;
+    if let (Some(client_id), Some(sealed)) = (stored.client_id, stored.client_secret_sealed) {
+        let client_secret: String =
+            medbrains_crypto::aead::decrypt_token(key, SECRET_CONTEXT, &sealed).map_err(|_| {
+                AppError::ServiceUnavailable(
+                    "the saved ABDM secret cannot be read — enter it again in Settings → ABDM"
+                        .to_owned(),
+                )
+            })?;
+        return Ok(ResolvedAbdmConfig {
+            environment: stored.environment.unwrap_or(AbdmEnvironment::Sandbox),
+            client_id,
+            client_secret,
+            source: "settings",
+        });
     }
 
     let client_id = std::env::var("ABDM_CLIENT_ID").ok();
@@ -238,6 +283,22 @@ async fn read_abdm_config(
         "ABDM is not set up for this hospital yet — ask an administrator to add the ABDM keys"
             .to_owned(),
     ))
+}
+
+/// A mock ABDM for tests and rehearsals, when the secret store names one.
+async fn base_url_override(state: &AppState) -> Option<String> {
+    state
+        .secret_resolver
+        .get(medbrains_abdm::ABDM_BASE_URL_OVERRIDE)
+        .await
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+}
+
+/// Drop the cached session so the next call signs in with the saved keys.
+pub(crate) fn forget_session(tenant_id: Uuid) {
+    let mut guard = SESSIONS.lock().unwrap_or_else(PoisonError::into_inner);
+    guard.retain(|(tenant, _), _| *tenant != tenant_id);
 }
 
 /// ABDM's refusal (wrong OTP, expired transaction) is the user's to fix and

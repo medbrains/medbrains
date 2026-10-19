@@ -101,21 +101,45 @@ pub enum UserToken<'a> {
 pub struct AbdmAbhaClient {
     http: reqwest::Client,
     environment: AbdmEnvironment,
+    abha_base_url: String,
+    session_url: String,
 }
+
+/// Secret-store key pointing every ABDM call at another server — a local mock
+/// in tests and staging rehearsals. Never set in production.
+pub const ABDM_BASE_URL_OVERRIDE: &str = "ABDM_BASE_URL_OVERRIDE";
 
 impl AbdmAbhaClient {
     /// # Errors
     /// When the HTTP client cannot be built (TLS backend unavailable).
-    pub fn new(environment: AbdmEnvironment) -> Result<Self, AbdmError> {
+    pub fn new(
+        environment: AbdmEnvironment,
+        base_url_override: Option<&str>,
+    ) -> Result<Self, AbdmError> {
         let http = reqwest::Client::builder().timeout(HTTP_TIMEOUT).build()?;
-        Ok(Self { http, environment })
+        let (abha_base_url, session_url) = match base_url_override.map(str::trim) {
+            Some(base) if !base.is_empty() => {
+                let base = base.trim().trim_end_matches('/').to_owned();
+                (base.clone(), format!("{base}/sessions"))
+            }
+            _ => (
+                environment.abha_base_url().to_owned(),
+                environment.session_url().to_owned(),
+            ),
+        };
+        Ok(Self {
+            http,
+            environment,
+            abha_base_url,
+            session_url,
+        })
     }
 
     pub fn readiness(&self) -> AbhaIntegrationReadiness {
         AbhaIntegrationReadiness {
             environment: self.environment,
-            abha_base_url: self.environment.abha_base_url().to_owned(),
-            session_url: self.environment.session_url().to_owned(),
+            abha_base_url: self.abha_base_url.clone(),
+            session_url: self.session_url.clone(),
         }
     }
 
@@ -127,7 +151,7 @@ impl AbdmAbhaClient {
     ) -> Result<SessionTokenResponse, AbdmError> {
         let builder = self
             .http
-            .post(self.environment.session_url())
+            .post(&self.session_url)
             .header("REQUEST-ID", Uuid::new_v4().to_string())
             .header("TIMESTAMP", timestamp(Utc::now()))
             .header("X-CM-ID", self.environment.cm_id())
@@ -202,11 +226,7 @@ impl AbdmAbhaClient {
     }
 
     fn url(&self, path: &str) -> String {
-        format!(
-            "{}/{}",
-            self.environment.abha_base_url(),
-            path.trim_start_matches('/')
-        )
+        format!("{}/{}", self.abha_base_url, path.trim_start_matches('/'))
     }
 
     pub(crate) fn get(

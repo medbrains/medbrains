@@ -17,4 +17,5 @@ pub mod abha_link;
 pub mod abha_verify;
 pub mod hfr;
 pub mod hip_relay;
+pub mod settings;
 pub mod signature;

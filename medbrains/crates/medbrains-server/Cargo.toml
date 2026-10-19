@@ -185,6 +185,8 @@ medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.27"
+# The ABDM mock in tests decrypts what the server encrypts for ABDM.
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 # Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).

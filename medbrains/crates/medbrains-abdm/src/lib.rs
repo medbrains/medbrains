@@ -10,7 +10,8 @@ pub mod enrol;
 mod types;
 
 pub use abha::{
-    AADHAAR_VERIFY_SCOPE, ABHA_LOGIN_SCOPE, AbdmAbhaClient, AbdmEnvironment, AbdmError,
+    AADHAAR_VERIFY_SCOPE, ABDM_BASE_URL_OVERRIDE, ABHA_LOGIN_SCOPE, AbdmAbhaClient,
+    AbdmEnvironment, AbdmError,
     AbhaAccountSummary, AbhaIntegrationReadiness, AbhaProfile, LoginHint, MOBILE_VERIFY_SCOPE,
     OtpSystem, PublicCertificateResponse, RequestOtpRequest, RequestOtpResponse,
     SessionTokenRequest, SessionTokenResponse, UserToken, VerifyOtpAuthData, VerifyOtpPayload,

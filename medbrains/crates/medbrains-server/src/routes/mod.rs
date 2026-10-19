@@ -343,6 +343,14 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hfr::get_tenant_facility),
         )
         .route(
+            "/api/abdm/settings",
+            get(abdm::settings::get_settings).put(abdm::settings::save_settings),
+        )
+        .route(
+            "/api/abdm/settings/test",
+            post(abdm::settings::test_connection),
+        )
+        .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
         )

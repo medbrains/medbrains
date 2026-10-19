@@ -2816,6 +2816,19 @@ pub struct SettingsQuery {
 /// hospital is defended and how long it keeps things.
 const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
 
+/// Categories with their own screen and endpoint, because they hold secrets
+/// the generic settings API would hand back verbatim.
+const OWN_ENDPOINT_CATEGORIES: &[&str] = &["abdm"];
+
+fn refuse_own_endpoint_category(category: &str) -> Result<(), AppError> {
+    if OWN_ENDPOINT_CATEGORIES.contains(&category) {
+        return Err(AppError::BadRequest(format!(
+            "'{category}' settings are managed on their own screen, not here"
+        )));
+    }
+    Ok(())
+}
+
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2828,6 +2841,7 @@ pub async fn get_settings(
     // non-critical and fall back to defaults, silently. A ward that configured
     // its vitals set had the configuration ignored for every nurse, and a
     // hospital on imperial units was shown metric.
+    refuse_own_endpoint_category(&params.category)?;
     if SENSITIVE_SETTING_CATEGORIES.contains(&params.category.as_str()) {
         require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     } else {
@@ -2866,6 +2880,7 @@ pub async fn update_setting(
     Json(body): Json<UpdateSettingRequest>,
 ) -> Result<Json<TenantSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    refuse_own_endpoint_category(&body.category)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
