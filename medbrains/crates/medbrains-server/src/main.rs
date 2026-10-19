@@ -876,12 +876,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // ABDM HIP: link a newly captured care context; the OTP for a PHR app's link.
     registry.register(medbrains_server::routes::abdm::hip::outbox::LinkCareContextHandler);
     registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
-    // NHCX claims exchange — eligibility, pre-auth and claim, JWE to the payer.
-    for operation in [
-        medbrains_core::nhcx::NhcxOperation::CoverageEligibility,
-        medbrains_core::nhcx::NhcxOperation::Preauth,
-        medbrains_core::nhcx::NhcxOperation::Claim,
-    ] {
+    // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
+    // answers, JWE to the payer.
+    for operation in medbrains_core::nhcx::OPERATIONS {
         registry.register(nhcx::NhcxHandler::new(operation));
     }
     registry.register(hl7_stub::CriticalValueHandler);

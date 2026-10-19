@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 791;
+pub const PERMISSION_COUNT: usize = 792;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -2428,6 +2428,12 @@ pub mod insurance {
         /// The NHCX participant code, gateway keys and certificates, and
         /// whether the hospital talks to the sandbox or production.
         pub const CONFIGURE: &str = "insurance.nhcx.configure";
+        /// Answer payer queries on NHCX.
+        ///
+        /// Reply to a payer's request for more information on a
+        /// pre-authorisation or claim, with text and supporting documents,
+        /// sent back through NHCX.
+        pub const RESPOND: &str = "insurance.nhcx.respond";
     }
 }
 

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1080 permissions, one per constant in the Rust source. */
+/** 1081 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4634,6 +4634,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "The NHCX participant code, gateway keys and certificates, and whether the hospital talks to the sandbox or production.",
     module: "insurance",
   },
+  {
+    code: "insurance.nhcx.respond",
+    label: "Answer payer queries on NHCX",
+    description: "Reply to a payer's request for more information on a pre-authorisation or claim, with text and supporting documents, sent back through NHCX.",
+    module: "insurance",
+  },
   // regulatory
   {
     code: "regulatory.dashboard.view",
@@ -7992,10 +7998,12 @@ export const P = {
     DASHBOARD_VIEW: "insurance.dashboard.view",
     NHCX: {
       CONFIGURE: "insurance.nhcx.configure",
+      RESPOND: "insurance.nhcx.respond",
       SUBMIT: "insurance.nhcx.submit",
       VIEW: "insurance.nhcx.view",
     },
     NHCX_CONFIGURE: "insurance.nhcx.configure",
+    NHCX_RESPOND: "insurance.nhcx.respond",
     NHCX_SUBMIT: "insurance.nhcx.submit",
     NHCX_VIEW: "insurance.nhcx.view",
     PRIOR_AUTH: {
@@ -10619,6 +10627,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,
@@ -11392,6 +11401,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,

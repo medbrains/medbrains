@@ -13,19 +13,21 @@
 //!    decrypted or stored;
 //! 3. is decrypted with the tenant's private key (the decryption authenticates
 //!    the routing headers, which are then re-read from the result);
-//! 4. is matched to its claim by correlation id *and* the payer it was sent
-//!    to, so one payer cannot answer for another's claim;
+//! 4. is matched to what it answers — an eligibility check, pre-authorisation
+//!    or claim — by correlation id *and* the payer it was sent to, so one
+//!    payer cannot answer for another's request (see [`crate::apply`]);
 //! 5. is logged, then acknowledged with `{timestamp, correlation_id, api_call_id}`.
 
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode, header::AUTHORIZATION};
 use base64::Engine;
-use rust_decimal::Decimal;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use medbrains_outbox::handlers::nhcx::config::{self, ConfigError};
+
+use crate::apply;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::state::AppState;
 
@@ -107,38 +109,16 @@ pub async fn receive_callback(
         .to_owned()
     });
 
-    let adjudication = action == "on_submit" || action == "on_check";
-    let claim_id: Option<Uuid> = if adjudication {
-        let approved = (resource != "coverageeligibility")
-            .then(|| approved_amount(&response))
-            .flatten();
-        sqlx::query_scalar(
-            "UPDATE insurance_claims SET nhcx_response_payload = $1, nhcx_response_at = now(), \
-                    nhcx_status = $2, nhcx_outcome = COALESCE($3, nhcx_outcome), \
-                    approved_amount = COALESCE($4, approved_amount), updated_at = now() \
-             WHERE tenant_id = $5 AND nhcx_correlation_id = $6 AND nhcx_recipient_code = $7 \
-               AND deleted_at IS NULL \
-             RETURNING id",
-        )
-        .bind(&response)
-        .bind(&status)
-        .bind(outcome(&response))
-        .bind(approved)
-        .bind(tenant_id)
-        .bind(correlation_id)
-        .bind(&sender)
-        .fetch_optional(&mut *tx)
-        .await?
-    } else {
-        sqlx::query_scalar(
-            "SELECT id FROM insurance_claims WHERE tenant_id = $1 AND nhcx_correlation_id = $2 \
-               AND deleted_at IS NULL",
-        )
-        .bind(tenant_id)
-        .bind(correlation_id)
-        .fetch_optional(&mut *tx)
-        .await?
+    let inbound = apply::Inbound {
+        tenant_id,
+        correlation_id,
+        workflow_id: text(&routing, "x-hcx-workflow_id").and_then(|w| Uuid::parse_str(&w).ok()),
+        api_call_id: api_call_id.as_deref().and_then(|a| Uuid::parse_str(a).ok()),
+        sender: &sender,
+        status: &status,
+        response: &response,
     };
+    let matched = apply::apply(&mut tx, &resource, &action, &inbound).await?;
 
     sqlx::query(
         "INSERT INTO nhcx_callback_log \
@@ -155,18 +135,18 @@ pub async fn receive_callback(
     .bind(format!("{resource}/{action}"))
     .bind(&body)
     .bind(&response)
-    .bind(claim_id.map(|_| "insurance_claims"))
-    .bind(claim_id)
+    .bind(matched.map(|(table, _)| table))
+    .bind(matched.map(|(_, id)| id))
     .bind(
-        claim_id
+        matched
             .is_none()
-            .then_some("no claim sent to this payer has this correlation id"),
+            .then_some("nothing sent to this payer has this correlation id"),
     )
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
 
-    tracing::info!(%tenant_id, %correlation_id, matched = claim_id.is_some(), "nhcx callback");
+    tracing::info!(%tenant_id, %correlation_id, matched = matched.is_some(), "nhcx callback");
     Ok((
         StatusCode::ACCEPTED,
         Json(json!({
@@ -218,74 +198,4 @@ fn config_error(e: ConfigError) -> AppError {
 
 fn text(map: &Map<String, Value>, key: &str) -> Option<String> {
     map.get(key).and_then(Value::as_str).map(str::to_owned)
-}
-
-/// The adjudicating resource — a `ClaimResponse` or
-/// `CoverageEligibilityResponse` inside the bundle, or the payload itself.
-fn response_resource(payload: &Value) -> Option<&Value> {
-    let is_response = |r: &Value| {
-        matches!(
-            r.get("resourceType").and_then(Value::as_str),
-            Some("ClaimResponse" | "CoverageEligibilityResponse")
-        )
-    };
-    if is_response(payload) {
-        return Some(payload);
-    }
-    payload
-        .get("entry")?
-        .as_array()?
-        .iter()
-        .filter_map(|e| e.get("resource"))
-        .find(|r| is_response(r))
-}
-
-/// FHIR `outcome` — `queued`, `complete`, `error` or `partial`.
-fn outcome(payload: &Value) -> Option<String> {
-    response_resource(payload)?
-        .get("outcome")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-}
-
-/// The payer's approved amount — `ClaimResponse.total` with category
-/// `benefit` (or `eligible`), read from the JSON number exactly.
-pub(crate) fn approved_amount(payload: &Value) -> Option<Decimal> {
-    let resource = response_resource(payload)?;
-    resource.get("total")?.as_array()?.iter().find_map(|total| {
-        let is_benefit = total
-            .get("category")?
-            .get("coding")?
-            .as_array()?
-            .iter()
-            .filter_map(|c| c.get("code").and_then(Value::as_str))
-            .any(|code| code == "benefit" || code == "eligible");
-        let value = total.get("amount")?.get("value")?;
-        is_benefit
-            .then(|| value.to_string().parse::<Decimal>().ok())
-            .flatten()
-    })
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reads_the_benefit_total_of_a_claim_response_in_a_bundle() {
-        let bundle = json!({ "entry": [{ "resource": {
-            "resourceType": "ClaimResponse", "outcome": "complete",
-            "total": [
-                { "category": { "coding": [{ "code": "submitted" }] }, "amount": { "value": 900 } },
-                { "category": { "coding": [{ "code": "benefit" }] }, "amount": { "value": 812.5 } }
-            ]
-        }}]});
-        assert_eq!(approved_amount(&bundle), "812.5".parse().ok());
-        assert_eq!(outcome(&bundle).as_deref(), Some("complete"));
-        assert_eq!(
-            approved_amount(&json!({ "x-hcx-status": "response.error" })),
-            None
-        );
-    }
 }

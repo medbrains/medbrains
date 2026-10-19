@@ -66,6 +66,8 @@ pub enum NhcxOperation {
     CoverageEligibility,
     Preauth,
     Claim,
+    /// The hospital's answer to a payer's `communication/request`.
+    Communication,
 }
 
 impl NhcxOperation {
@@ -76,6 +78,7 @@ impl NhcxOperation {
             Self::CoverageEligibility => "nhcx.coverage_eligibility_check",
             Self::Preauth => "nhcx.preauth_submit",
             Self::Claim => "nhcx.claim_submit",
+            Self::Communication => "nhcx.communication",
         }
     }
 
@@ -86,7 +89,112 @@ impl NhcxOperation {
             Self::CoverageEligibility => "/hcx/v1/coverageeligibility/check",
             Self::Preauth => "/hcx/v1/preauth/submit",
             Self::Claim => "/hcx/v1/claim/submit",
+            // HCX protocol v0.7.1 pairs `communication/request` (payer →
+            // provider) with `communication/on_request` (provider's reply).
+            // Not yet exercised against the NHCX sandbox.
+            Self::Communication => "/hcx/v1/communication/on_request",
         }
+    }
+}
+
+/// Every operation the outbox sends — one handler each.
+pub const OPERATIONS: [NhcxOperation; 4] = [
+    NhcxOperation::CoverageEligibility,
+    NhcxOperation::Preauth,
+    NhcxOperation::Claim,
+    NhcxOperation::Communication,
+];
+
+/// The record an outbound NHCX message belongs to — where the outbox marks
+/// it sent or refused. Each table carries `nhcx_status`,
+/// `nhcx_disposition`, `nhcx_submitted_at` and `nhcx_correlation_id`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NhcxRecord {
+    InsuranceClaim,
+    PriorAuth,
+    Verification,
+    PayerQuery,
+}
+
+impl NhcxRecord {
+    /// The table holding the record. A closed set, so it is safe to splice
+    /// into SQL.
+    #[must_use]
+    pub const fn table(self) -> &'static str {
+        match self {
+            Self::InsuranceClaim => "insurance_claims",
+            Self::PriorAuth => "prior_auth_requests",
+            Self::Verification => "insurance_verifications",
+            Self::PayerQuery => "nhcx_payer_queries",
+        }
+    }
+}
+
+// ── IRDAI turnaround (Master Circular on Health Insurance, 29 May 2024) ─────
+
+/// An insurer decides a cashless authorisation request within one hour of
+/// receiving it.
+pub const CASHLESS_DECISION_MINUTES: i64 = 60;
+/// An insurer grants final (discharge) authorisation within three hours of
+/// receiving the discharge request.
+pub const DISCHARGE_DECISION_MINUTES: i64 = 180;
+
+/// Where a pre-authorisation stands against its IRDAI turnaround.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SlaState {
+    /// Not yet sent to the payer — no clock.
+    NotStarted,
+    /// Waiting, within the limit.
+    Running,
+    /// Decided within the limit.
+    Met,
+    /// Over the limit — waiting or decided late.
+    Breached,
+}
+
+/// The clock on one pre-authorisation, computed from its timestamps.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PreauthSla {
+    pub limit_minutes: i64,
+    pub elapsed_minutes: Option<i64>,
+    pub state: SlaState,
+}
+
+/// The IRDAI clock: one hour for a cashless request, three for a discharge
+/// request; it runs from when the payer received the request until it
+/// decided, or until `now`. A payer query does not stop it — the circular
+/// names no pause.
+#[must_use]
+pub fn preauth_sla(
+    is_discharge: bool,
+    received_at: Option<chrono::DateTime<chrono::Utc>>,
+    decided_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> PreauthSla {
+    let limit_minutes = if is_discharge {
+        DISCHARGE_DECISION_MINUTES
+    } else {
+        CASHLESS_DECISION_MINUTES
+    };
+    let Some(start) = received_at else {
+        return PreauthSla {
+            limit_minutes,
+            elapsed_minutes: None,
+            state: SlaState::NotStarted,
+        };
+    };
+    let elapsed = (decided_at.unwrap_or(now) - start).num_minutes().max(0);
+    let state = match (elapsed > limit_minutes, decided_at.is_some()) {
+        (true, _) => SlaState::Breached,
+        (false, true) => SlaState::Met,
+        (false, false) => SlaState::Running,
+    };
+    PreauthSla {
+        limit_minutes,
+        elapsed_minutes: Some(elapsed),
+        state,
     }
 }
 
@@ -108,9 +216,62 @@ pub const CLAIM_BUNDLE_PROFILE: &str =
 /// NHCX `CoverageEligibilityRequestBundle` conformance profile.
 pub const COVERAGE_ELIGIBILITY_BUNDLE_PROFILE: &str =
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityRequestBundle";
+/// NHCX `Communication` profile — the provider's answer to a payer query
+/// (NRCeS lists no bundle profile for it, so the resource is the payload).
+pub const COMMUNICATION_PROFILE: &str =
+    "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Communication";
+/// ICD-11 MMS code system (the WHO release URI).
+pub const ICD11_SYSTEM: &str = "http://id.who.int/icd/release/11/mms";
+/// HL7 example benefit categories — the services an eligibility check asks about.
+pub const BENEFIT_CATEGORY_SYSTEM: &str =
+    "http://terminology.hl7.org/CodeSystem/ex-benefitcategory";
+/// The benefit categories a desk may ask about, `(code, display)`.
+pub const BENEFIT_CATEGORIES: &[(&str, &str)] = &[
+    ("1", "Medical Care"),
+    ("2", "Surgical"),
+    ("3", "Consultation"),
+    ("4", "Diagnostic XRay"),
+    ("5", "Diagnostic Lab"),
+    ("30", "Health Benefit Plan Coverage"),
+    ("49", "Hospital Room and Board"),
+    ("69", "Maternity"),
+    ("76", "Renal Dialysis"),
+];
+/// HL7 diagnosis types for `Claim.diagnosis.type`.
+pub const DIAGNOSIS_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/ex-diagnosistype";
+/// HL7 claim information categories for `Claim.supportingInfo.category`.
+pub const CLAIM_INFO_CATEGORY_SYSTEM: &str =
+    "http://terminology.hl7.org/CodeSystem/claiminformationcategory";
 /// HL7 v3 Confidentiality code system (for the bundle `meta.security` tag).
 pub const CONFIDENTIALITY_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/v3-Confidentiality";
 /// SNOMED institutional-claim code used for `Claim.type` (per the NHCX sample).
 pub const SNOMED_INSTITUTIONAL_CLAIM_CODE: &str = "737481003";
 /// SNOMED code for the careTeam role "Healthcare professional (occupation)".
 pub const SNOMED_HEALTHCARE_PROFESSIONAL_CODE: &str = "223366009";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, Utc};
+
+    #[test]
+    fn the_cashless_clock_breaches_after_an_hour_and_the_discharge_clock_after_three() {
+        let now = Utc::now();
+        let sent = Some(now - Duration::minutes(61));
+        assert_eq!(
+            preauth_sla(false, sent, None, now).state,
+            SlaState::Breached
+        );
+        assert_eq!(preauth_sla(true, sent, None, now).state, SlaState::Running);
+        let decided = Some(now - Duration::minutes(5));
+        assert_eq!(preauth_sla(false, sent, decided, now).state, SlaState::Met);
+        assert_eq!(
+            preauth_sla(false, sent, decided, now).elapsed_minutes,
+            Some(56)
+        );
+        assert_eq!(
+            preauth_sla(false, None, None, now).state,
+            SlaState::NotStarted
+        );
+    }
+}

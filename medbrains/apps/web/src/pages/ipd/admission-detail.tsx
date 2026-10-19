@@ -676,7 +676,7 @@ export function AdmissionDetail({
               <BillingTab admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="insurance-pa" pt="md">
-              <InsurancePaTab admissionId={admissionId} />
+              <InsurancePaTab admissionId={admissionId} patientId={adm.patient_id} />
             </Tabs.Panel>
             <Tabs.Panel value="mlc-tab" pt="md">
               <MlcTab admissionId={admissionId} canCreate={canCreate} />
