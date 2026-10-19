@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod abha_link;
 pub mod acquisition;
 pub mod contact_consent;
 pub mod dpdp_consent;
@@ -384,6 +385,9 @@ pub struct CreatePatientRequest {
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
     pub abha_address: Option<String>,
+    /// The desk's "Verify ABHA" record. With it the link is saved as verified;
+    /// without it a typed ABHA number stays unverified.
+    pub abha_verification_id: Option<Uuid>,
     pub aadhaar_number: Option<String>,
     pub referred_by_name: Option<String>,
     pub referred_by_phone: Option<String>,
@@ -1539,6 +1543,20 @@ pub async fn create_patient(
         aadhaar_digits.as_deref(),
     )
     .await?;
+    if let Some(verification_id) = body.abha_verification_id {
+        abha_link::link_verified_abha(
+            &mut tx,
+            abha_link::AbhaLinkRequest {
+                tenant_id: claims.tenant_id,
+                user_id: claims.sub,
+                patient_id: patient.id,
+                verification_id,
+                expected_abha: abha_number.as_deref(),
+                apply: &[],
+            },
+        )
+        .await?;
+    }
     contact_consent::record_at_registration(
         &mut tx,
         (claims.tenant_id, patient.id, claims.sub),

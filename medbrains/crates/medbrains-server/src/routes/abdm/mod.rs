@@ -10,6 +10,10 @@
 //!   server over the Headscale tailnet.
 
 pub mod abha;
+pub mod abha_card;
+pub mod abha_common;
+pub mod abha_link;
+pub mod abha_verify;
 pub mod hfr;
 pub mod hip_relay;
 pub mod signature;

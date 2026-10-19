@@ -1,17 +1,8 @@
 import type {
   AbcAnalysisRow,
   AbdmConsentPrintData,
-  AbhaAuthenticatedRequest,
-  AbhaProviderResponse,
-  AbhaPublicCertificateRequest,
-  AbhaPublicCertificateResponse,
-  AbhaRequestOtpRequest,
-  AbhaRequestOtpResponse,
-  AbhaSessionRequest,
-  AbhaSessionTokenResponse,
   AbhaStatusResponse,
-  AbhaVerifyOtpRequest,
-  AbhaVerifyOtpResponse,
+  AbhaVerificationStep,
   AccessAlert,
   AccessLogEntry,
   AccessLogQuery,
@@ -1285,6 +1276,7 @@ import type {
   LinenItem,
   LinenMovement,
   LinenParLevel,
+  LinkAbhaToPatient,
   LinkCampLabSampleRequest,
   LinkMlcRequest,
   ListAssetsParams,
@@ -1898,6 +1890,7 @@ import type {
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
   StaffLocationAssignment,
+  StartAbhaVerification,
   StartBedsideTransfusionRequest,
   StateFormularyRow,
   StateScheme,
@@ -16733,23 +16726,27 @@ export const api = {
   debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
   listAuthRevocations: () => request<unknown>("/auth/revocations"),
   getAbhaStatus: () => request<AbhaStatusResponse>("/abdm/abha/status"),
-  createAbhaSession: (data: AbhaSessionRequest) =>
-    request<AbhaProviderResponse<AbhaSessionTokenResponse>>("/abdm/abha/session", {
+  startAbhaVerification: (data: StartAbhaVerification) =>
+    request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAbhaPublicCertificate: (data: AbhaPublicCertificateRequest) =>
-    request<AbhaProviderResponse<AbhaPublicCertificateResponse>>("/abdm/abha/public-certificate", {
+  resendAbhaOtp: (id: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, { method: "POST" }),
+  submitAbhaOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/otp`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ otp }),
     }),
-  requestAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaRequestOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaRequestOtpResponse>>("/abdm/abha/login/request-otp", {
+  chooseAbhaAccount: (id: string, abhaNumber: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/account`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ abha_number: abhaNumber }),
     }),
-  verifyAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaVerifyOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaVerifyOtpResponse>>("/abdm/abha/login/verify", {
+  /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
+  abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,
+  linkAbhaToPatient: (id: string, data: LinkAbhaToPatient) =>
+    request<{ linked: boolean }>(`/abdm/abha/verifications/${id}/link`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

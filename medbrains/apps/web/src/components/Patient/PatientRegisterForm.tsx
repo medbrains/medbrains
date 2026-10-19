@@ -33,11 +33,12 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCalendarMonth } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { type AbhaVerified, AbhaVerifyDrawer } from "@/components/abha/AbhaVerifyDrawer";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
 import {
@@ -49,6 +50,7 @@ import {
   formatPhoneWithCountryCode,
   stripPhoneCountryCode,
 } from "@/components/inputs";
+import { toast } from "@/components/ui";
 import {
   bloodGroupOptions,
   campReferenceLabel,
@@ -64,6 +66,7 @@ import {
   registrationTypeOptions,
   trimOrUndefined,
 } from "@/forms/patientRegistration.form";
+import { abhaService } from "@/services/abha.service";
 import { lookupsService } from "@/services/lookups.service";
 import { patientsService } from "@/services/patients.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
@@ -75,6 +78,8 @@ import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
   mode?: "create" | "edit";
+  /** Set when editing: a verified ABHA is linked to this patient straight away. */
+  patientId?: string;
   submitLabel?: string;
   onSubmit: (
     req: CreatePatientRequest,
@@ -285,6 +290,7 @@ export interface PatientRegistrationLinkedServicesOptions {
 export function PatientRegisterForm({
   isSubmitting,
   mode = "create",
+  patientId,
   submitLabel,
   onSubmit,
   onCancel,
@@ -304,6 +310,7 @@ export function PatientRegisterForm({
   // the patient was registered, the queue step failed into a warning, and the
   // patient simply was not in the queue. Every time, because it is the default.
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
   const {
     register,
     control,
@@ -376,6 +383,9 @@ export function PatientRegisterForm({
     },
   });
   const [activeStep, setActiveStep] = useState(0);
+  const [abhaDrawerOpen, setAbhaDrawerOpen] = useState(false);
+  /** The ABHA verified against ABDM; a later edit of the number unverifies it. */
+  const [verifiedAbha, setVerifiedAbha] = useState<{ id: string; digits: string } | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
   const [dobEstimated, setDobEstimated] = useState(Boolean(initialValues?.is_dob_estimated));
@@ -575,7 +585,48 @@ export function PatientRegisterForm({
   const createOpdVisit = watch("create_opd_visit");
   const abhaNumber = watch("abha_number");
   const abhaAddress = watch("abha_address");
-  const abhaLinkStatus = abhaNumber?.trim() || abhaAddress?.trim() ? "ready" : "manual";
+  const abhaDigits = (abhaNumber ?? "").replace(/\D/g, "");
+  const abhaVerificationId =
+    verifiedAbha && verifiedAbha.digits === abhaDigits ? verifiedAbha.id : undefined;
+  const abhaLinkStatus = abhaVerificationId
+    ? "verified"
+    : abhaNumber?.trim() || abhaAddress?.trim()
+      ? "ready"
+      : "manual";
+  const applyVerifiedAbha = ({ verificationId, profile, apply }: AbhaVerified) => {
+    const opts = { shouldDirty: true, shouldValidate: true } as const;
+    setValue("abha_number", profile.abha_number, opts);
+    setValue("abha_address", profile.abha_address ?? "", opts);
+    if (apply.includes("name")) {
+      if (profile.first_name) setValue("first_name", profile.first_name, opts);
+      setValue("middle_name", profile.middle_name ?? "", opts);
+      if (profile.last_name) setValue("last_name", profile.last_name, opts);
+    }
+    if (apply.includes("date_of_birth") && profile.date_of_birth) {
+      setValue("date_of_birth", new Date(profile.date_of_birth), opts);
+    }
+    if (apply.includes("gender") && profile.gender) {
+      setValue("gender", toGenderFormValue(profile.gender), opts);
+    }
+    setVerifiedAbha({ id: verificationId, digits: profile.abha_number.replace(/\D/g, "") });
+    setAbhaDrawerOpen(false);
+  };
+  const queryClient = useQueryClient();
+  // Editing an existing patient: the link is saved now, server-side, rather
+  // than riding on a form the user may never save.
+  const linkAbha = useMutation({
+    mutationFn: (verified: AbhaVerified) =>
+      abhaService.link(verified.verificationId, {
+        patient_id: patientId ?? "",
+        apply: verified.apply,
+      }),
+    onSuccess: (_, verified) => {
+      applyVerifiedAbha(verified);
+      void queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+      toast.success("The ABHA is linked and verified", { title: "ABHA linked" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not link the ABHA" }),
+  });
   const tenantCountryPhoneCode = tenant?.phone_code
     ? tenant.phone_code
     : geoCountries.find((country) => country.id === tenant?.country_id)?.phone_code;
@@ -681,6 +732,7 @@ export function PatientRegisterForm({
       financial_class: values.financial_class,
       abha_number: trimOrUndefined(values.abha_number),
       abha_address: trimOrUndefined(values.abha_address),
+      abha_verification_id: abhaVerificationId,
       aadhaar_number: trimOrUndefined(values.aadhaar_number),
       referred_by_name: trimOrUndefined(values.referred_by_name),
       referred_by_phone: trimOrUndefined(values.referred_by_phone),
@@ -1207,6 +1259,13 @@ export function PatientRegisterForm({
             <FormRow label={t("registrationForm.row.abha")}>
               <AbhaLinkPanel
                 status={abhaLinkStatus}
+                onVerify={canVerifyAbha ? () => setAbhaDrawerOpen(true) : undefined}
+                onPrintCard={
+                  abhaVerificationId
+                    ? () =>
+                        window.open(abhaService.cardUrl(abhaVerificationId), "_blank", "noopener")
+                    : undefined
+                }
                 numberField={
                   <TextInput
                     aria-label={t("registrationForm.aria.abhaNumber")}
@@ -2028,6 +2087,20 @@ export function PatientRegisterForm({
             consultantName={optionLabel(consultantOptions, watch("consultant_id"))}
           />
         )}
+        <AbhaVerifyDrawer
+          opened={abhaDrawerOpen}
+          onClose={() => setAbhaDrawerOpen(false)}
+          ours={{
+            first_name: watch("first_name"),
+            middle_name: watch("middle_name"),
+            last_name: watch("last_name"),
+            date_of_birth: dateOfBirthValue ? isoDay(dateOfBirthValue) : null,
+            gender: watch("gender"),
+          }}
+          confirmLabel={patientId ? "Link to this patient" : "Use for this registration"}
+          confirming={linkAbha.isPending}
+          onConfirm={patientId ? (v) => linkAbha.mutate(v) : applyVerifiedAbha}
+        />
       </ClinicalForm>
 
       <Box

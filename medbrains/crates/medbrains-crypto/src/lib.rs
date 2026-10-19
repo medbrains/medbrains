@@ -17,6 +17,7 @@
 
 use thiserror::Error;
 
+pub mod abha;
 pub mod aead;
 pub mod hie;
 pub mod jwe;
