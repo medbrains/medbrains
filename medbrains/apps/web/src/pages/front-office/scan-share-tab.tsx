@@ -1,12 +1,13 @@
 /**
  * Front Office → Scan & Share: patients who scanned a counter's QR with their
  * ABHA app today, with the token they were given. The desk opens the patient
- * the ABHA already belongs to, registers a new one from the shared profile,
- * compares and links, or dismisses the share.
+ * the ABHA already belongs to, registers a new one from the shared profile
+ * (warned first when the person looks already registered), finds a patient
+ * registered before ABHA and links them, compares and links, or dismisses.
  */
 
 import { Group, Loader, Stack, Text } from "@mantine/core";
-import { useHasAllPermissions, useHasPermission } from "@medbrains/stores";
+import { useHasAllPermissions, useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import { type AbdmProfileShare, type AbhaVerificationStep, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -15,7 +16,18 @@ import {
   ScanShareCompareDrawer,
   type ScanShareCompareTarget,
 } from "@/components/abha/ScanShareCompareDrawer";
-import { isActionable, shareAge, shareName, shareStatus } from "@/components/abha/scanShare";
+import {
+  ScanShareFindDrawer,
+  type ScanShareFindTarget,
+  shareCandidatesQuery,
+} from "@/components/abha/ScanShareFindDrawer";
+import {
+  isActionable,
+  likelyDuplicates,
+  shareAge,
+  shareName,
+  shareStatus,
+} from "@/components/abha/scanShare";
 import { Alert, Badge, Button, Select, Table, toast } from "@/components/ui";
 import { abdmScanShareService } from "@/services/abdmScanShare.service";
 
@@ -36,8 +48,10 @@ export function ScanShareTab() {
   const canView = useHasPermission(P.ABDM.SCANSHARE.VIEW);
   const canRegister = useHasAllPermissions([P.PATIENTS.CREATE, P.ABDM.ABHA.MANAGE]);
   const canLink = useHasAllPermissions([P.PATIENTS.UPDATE, P.ABDM.ABHA.MANAGE]);
+  const canMatch = useHasAnyPermission([P.PATIENTS.VIEW, P.PATIENTS.CREATE]);
   const [counter, setCounter] = useState<string | null>(null);
   const [compare, setCompare] = useState<ScanShareCompareTarget | null>(null);
+  const [find, setFind] = useState<ScanShareFindTarget | null>(null);
   const { data, isLoading, isError } = useQuery({
     queryKey: QUEUE_KEY,
     queryFn: abdmScanShareService.queue,
@@ -55,10 +69,15 @@ export function ScanShareTab() {
   const rows = (data ?? []).filter((s) => !counter || s.station_id === counter);
 
   const verify = useMutation({
-    mutationFn: ({ share }: { share: AbdmProfileShare; intent: Intent }) =>
+    mutationFn: ({ share }: { share: AbdmProfileShare; intent: Intent; picked?: string }) =>
       abdmScanShareService.verify(share.id),
-    onSuccess: (step, { share, intent }) => {
-      const owner = share.patient_id ?? step.already_linked?.patient_id;
+    onSuccess: (step, { share, intent, picked }) => {
+      // The ABHA's own patient wins over one picked by search: it may have
+      // been linked at another counter since the queue loaded.
+      const owner = share.patient_id ?? step.already_linked?.patient_id ?? picked;
+      if (picked && owner !== picked) {
+        toast.info(`This ABHA is already on ${step.already_linked?.uhid}; compare that record.`);
+      }
       if (intent === "compare" || owner) {
         if (owner && intent === "register") {
           toast.info(`This ABHA is already on ${step.already_linked?.uhid}; compare and link.`);
@@ -93,6 +112,25 @@ export function ScanShareTab() {
     );
   }
 
+  // A registration that is really a returning patient makes a second UHID,
+  // so Register checks first. A failed check opens the drawer too: an
+  // outage must not read as "nobody matches".
+  const registerOrWarn = async (share: AbdmProfileShare) => {
+    if (canMatch) {
+      try {
+        const matches = await queryClient.fetchQuery(shareCandidatesQuery(share));
+        if (likelyDuplicates(share.profile, matches).length > 0) {
+          setFind({ share, mode: "register" });
+          return;
+        }
+      } catch {
+        setFind({ share, mode: "register" });
+        return;
+      }
+    }
+    verify.mutate({ share, intent: "register" });
+  };
+
   const busy = verify.isPending || open.isPending || dismiss.isPending;
   const actions = (s: AbdmProfileShare) => (
     <Group gap="xs" wrap="nowrap">
@@ -116,9 +154,19 @@ export function ScanShareTab() {
           tone="primary"
           size="xs"
           disabled={busy || !s.abha_number}
-          onClick={() => verify.mutate({ share: s, intent: "register" })}
+          onClick={() => void registerOrWarn(s)}
         >
           Register
+        </Button>
+      )}
+      {!s.patient_id && canLink && (
+        <Button
+          tone="secondary"
+          size="xs"
+          disabled={busy || !s.abha_number}
+          onClick={() => setFind({ share: s, mode: "find" })}
+        >
+          Find existing patient
         </Button>
       )}
       <Button tone="ghost" size="xs" disabled={busy} onClick={() => dismiss.mutate(s)}>
@@ -205,6 +253,18 @@ export function ScanShareTab() {
           </Table.Tbody>
         </Table>
       )}
+      <ScanShareFindDrawer
+        target={find}
+        onClose={() => setFind(null)}
+        onPick={(share, patientId) => {
+          setFind(null);
+          verify.mutate({ share, intent: "compare", picked: patientId });
+        }}
+        onRegister={(share) => {
+          setFind(null);
+          verify.mutate({ share, intent: "register" });
+        }}
+      />
       <ScanShareCompareDrawer
         target={compare}
         onClose={() => setCompare(null)}

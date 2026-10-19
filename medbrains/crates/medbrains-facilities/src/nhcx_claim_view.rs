@@ -47,6 +47,7 @@ struct ClaimNhcxRow {
     nhcx_claim_items: Option<Value>,
     nhcx_adjudication: Option<Value>,
     nhcx_adjudicated_at: Option<DateTime<Utc>>,
+    nhcx_attachments: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +62,9 @@ pub struct ClaimNhcxView {
     /// and per line, with reasons.
     pub adjudication: Option<Value>,
     pub adjudicated_at: Option<DateTime<Utc>>,
+    /// The documents the last final claim carried, and those left out with
+    /// the reason: `{ attached: [...], left_out: [...] }`.
+    pub attachments: Option<Value>,
     pub tasks: Vec<NhcxTask>,
 }
 
@@ -80,7 +84,7 @@ pub async fn get_claim_nhcx(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, ClaimNhcxRow>(
         "SELECT patient_id, nhcx_use, nhcx_pre_auth_ref, nhcx_claim_items, nhcx_adjudication, \
-                nhcx_adjudicated_at \
+                nhcx_adjudicated_at, nhcx_attachments \
            FROM insurance_claims WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
     .bind(id)
@@ -107,6 +111,7 @@ pub async fn get_claim_nhcx(
         claim_items: row.nhcx_claim_items.unwrap_or(Value::Array(Vec::new())),
         adjudication: row.nhcx_adjudication,
         adjudicated_at: row.nhcx_adjudicated_at,
+        attachments: row.nhcx_attachments,
         tasks,
     }))
 }

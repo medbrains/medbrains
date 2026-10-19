@@ -11503,6 +11503,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Insurance Officer",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.INVOICES.VIEW,
       P.DASHBOARD.VIEW,
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
@@ -11518,7 +11519,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.PRIOR_AUTH.UPDATE,
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
+      P.IPD.ADMISSIONS.VIEW,
+      P.LAB.REPORTS.VIEW,
       P.NOTES.USE,
+      P.PATIENTS.VIEW,
     ],
   },
   display_device: {

@@ -774,6 +774,13 @@ struct DischargeSummaryRow {
     discharge_type: Option<String>,
     discharge_summary: Option<String>,
     diagnosis: Option<String>,
+    final_diagnosis: Option<String>,
+    course_in_hospital: Option<String>,
+    treatment_given: Option<String>,
+    procedures_performed: Option<String>,
+    investigation_summary: Option<String>,
+    condition_at_discharge: Option<String>,
+    follow_up_instructions: Option<String>,
 }
 
 pub async fn get_discharge_print_data(
@@ -805,9 +812,16 @@ pub async fn get_discharge_print_data(
            w.name AS ward_name, \
            a.discharge_type::text AS discharge_type, \
            a.discharge_summary, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           s.final_diagnosis, s.course_in_hospital, s.treatment_given, \
+           (SELECT string_agg(COALESCE(pp->>'name', pp #>> '{}'), '; ') \
+              FROM jsonb_array_elements(s.procedures_performed) pp) AS procedures_performed, \
+           s.investigation_summary, s.condition_at_discharge, s.follow_up_instructions \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         LEFT JOIN ipd_discharge_summaries s ON s.admission_id = a.id \
+                                             AND s.tenant_id = a.tenant_id \
+                                             AND s.deleted_at IS NULL \
          LEFT JOIN encounters e ON e.id = a.encounter_id \
                                 AND e.tenant_id = a.tenant_id \
          LEFT JOIN departments dept ON dept.id = e.department_id \
@@ -856,6 +870,13 @@ pub async fn get_discharge_print_data(
         discharge_type: row.discharge_type,
         discharge_summary: row.discharge_summary,
         diagnosis: row.diagnosis,
+        final_diagnosis: row.final_diagnosis,
+        course_in_hospital: row.course_in_hospital,
+        treatment_given: row.treatment_given,
+        procedures_performed: row.procedures_performed,
+        investigation_summary: row.investigation_summary,
+        condition_at_discharge: row.condition_at_discharge,
+        follow_up_instructions: row.follow_up_instructions,
         signatures: sigs
             .into_iter()
             .map(|s| medbrains_core::print_data::PrintSignatureData {

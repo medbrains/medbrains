@@ -56,12 +56,15 @@ pub struct AbdmConsentRequest {
     pub requester_name: String,
     pub requested_at: DateTime<Utc>,
     pub status_at: DateTime<Utc>,
+    /// When ABDM was last asked where the request stands (`on-status`).
+    pub status_checked_at: Option<DateTime<Utc>>,
     pub records_received: i64,
     pub records_held: i64,
 }
 
 pub(super) const REQUEST_COLUMNS: &str = "r.id, r.purpose_code, r.hi_types, r.date_from, r.date_to, \
      r.data_erase_at, r.status, r.error, r.requester_name, r.requested_at, r.status_at, \
+     r.status_checked_at, \
      (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
          AND x.deleted_at IS NULL) AS records_received, \
      (SELECT count(*) FROM abdm_received_records x WHERE x.consent_request_id = r.id \
@@ -154,11 +157,14 @@ pub async fn raise(
     let Some((name, Some(hpr_id))) = requester else {
         return Err(AppError::BadRequest(NO_HPR.to_owned()));
     };
+    // The REQUEST-ID is stored with the row before the call goes out: ABDM's
+    // on-init can arrive before `send` returns, and must find its request.
+    let gateway_request_id = Uuid::new_v4();
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO abdm_consent_requests (tenant_id, patient_id, requested_by, requester_name, \
                 requester_hpr_id, abha_address, hiu_id, purpose_code, hi_types, date_from, date_to, \
-                data_erase_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id",
+                data_erase_at, gateway_request_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id",
     )
     .bind(claims.tenant_id)
     .bind(patient_id)
@@ -172,6 +178,7 @@ pub async fn raise(
     .bind(body.date_from)
     .bind(body.date_to)
     .bind(body.data_erase_at)
+    .bind(gateway_request_id)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -191,30 +198,32 @@ pub async fn raise(
     )
     .await
     {
-        Ok(hiu) => hiu.send_as_hiu(CONSENT_INIT_PATH, &consent).await,
+        Ok(hiu) => {
+            hiu.send_as_hiu_with_id(CONSENT_INIT_PATH, gateway_request_id, &consent)
+                .await
+        }
         Err(e) => Err(e),
     };
-    let (status, request_id, error) = match sent {
-        Ok(request_id) => ("requested", Some(request_id), None),
-        Err(e @ (AppError::BadRequest(_) | AppError::ServiceUnavailable(_))) => {
-            ("failed", None, Some(message(&e)))
-        }
+    let error = match sent {
+        Ok(()) => None,
+        Err(e @ (AppError::BadRequest(_) | AppError::ServiceUnavailable(_))) => Some(message(&e)),
         Err(other) => return Err(other),
     };
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
-    sqlx::query(
-        "UPDATE abdm_consent_requests SET status = $3, gateway_request_id = $4, error = $5, \
-                status_at = now() WHERE tenant_id = $1 AND id = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(id)
-    .bind(status)
-    .bind(request_id)
-    .bind(error)
-    .execute(&mut *tx)
-    .await?;
+    if let Some(error) = error {
+        // Only while still unanswered: an on-init that raced in stands.
+        // allow-raw-sql: binds tenant_id inside a set_tenant_context transaction
+        sqlx::query(
+            "UPDATE abdm_consent_requests SET status = 'failed', error = $3, status_at = now() \
+              WHERE tenant_id = $1 AND id = $2 AND status = 'requested'",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(error)
+        .execute(&mut *tx)
+        .await?;
+    }
     let row = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
         "SELECT {REQUEST_COLUMNS} FROM abdm_consent_requests r WHERE r.tenant_id = $1 AND r.id = $2"
     ))

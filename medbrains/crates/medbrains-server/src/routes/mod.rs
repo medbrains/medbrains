@@ -468,6 +468,10 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hiu::view::patient_view),
         )
         .route(
+            "/api/abdm/consent-requests/{id}/check-status",
+            post(abdm::hiu::status::check),
+        )
+        .route(
             "/api/abdm/received-records/{id}",
             get(abdm::hiu::view::received_record),
         )

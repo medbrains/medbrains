@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use super::purge::erase_due;
 use super::requests::{AbdmConsentRequest, REQUEST_COLUMNS};
+use super::status::{ask_later, claim_stale};
 use crate::{
     error::AppError,
     middleware::auth::Claims,
@@ -87,6 +88,12 @@ pub async fn patient_view(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     erase_due(&mut tx, claims.tenant_id).await?;
     let patient = load_patient(&mut tx, claims.tenant_id, patient_id).await?;
+    // A request whose notify never came is asked about here, bounded.
+    let stale = if configured {
+        claim_stale(&mut tx, claims.tenant_id, patient_id).await?
+    } else {
+        Vec::new()
+    };
     let requests = sqlx::query_as::<_, AbdmConsentRequest>(&format!(
         "SELECT {REQUEST_COLUMNS} FROM abdm_consent_requests r \
           WHERE r.tenant_id = $1 AND r.patient_id = $2 AND r.deleted_at IS NULL \
@@ -111,6 +118,7 @@ pub async fn patient_view(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
+    ask_later(&state, claims.tenant_id, stale);
     let blocked_reason = if !configured {
         Some("ABDM is not set up for this hospital".to_owned())
     } else if patient.abha_address.is_none() && patient.link_id.is_some() {

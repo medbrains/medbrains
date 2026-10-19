@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Alert, Badge, Card, Table } from "@/components/ui";
 import { adjudicationRows, rupees } from "./claimNhcx";
+import { NhcxClaimAttachmentsList } from "./NhcxClaimAttachmentsList";
 import { NhcxTaskList } from "./NhcxTaskList";
 
 interface NhcxAdjudicationCardProps {
@@ -110,6 +111,7 @@ export function NhcxAdjudicationCard({ claimId }: NhcxAdjudicationCardProps) {
             </Table.Tbody>
           </Table>
         )}
+        <NhcxClaimAttachmentsList attachments={view.data?.attachments ?? null} />
         <NhcxTaskList tasks={view.data?.tasks ?? []} />
       </Stack>
     </Card>

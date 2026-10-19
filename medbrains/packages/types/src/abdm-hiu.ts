@@ -34,6 +34,8 @@ export interface AbdmConsentRequest {
   requester_name: string;
   requested_at: string;
   status_at: string;
+  /** When ABDM was last asked where the request stands; null if never. */
+  status_checked_at: string | null;
   records_received: number;
   /** Copies still held — zero once the consent is revoked or expires. */
   records_held: number;
