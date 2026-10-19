@@ -81,15 +81,35 @@ pub async fn create_direct_orders(
     Json(body): Json<DirectOrderRequest>,
 ) -> Result<Json<DirectOrderResponse>, AppError> {
     require_permission(&claims, permissions::lab::orders::DIRECT)?;
-    let test_ids = distinct_tests(&body.test_ids)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let placed = place_direct_orders(&mut tx, &claims, &body).await?;
+    tx.commit().await?;
 
-    ensure_patient(&mut tx, claims.tenant_id, body.patient_id).await?;
-    let total = price_tests(&mut tx, claims.tenant_id, &test_ids).await?;
-    let referral = resolve_referral(&mut tx, claims.tenant_id, &body.referral).await?;
-    let encounter_id = open_visit(&mut tx, &claims, body.patient_id, &referral).await?;
+    for order in &placed.orders {
+        grant_lab_order_access(&state, &claims, order.id, "lab_direct_order").await?;
+    }
+    Ok(Json(placed))
+}
+
+/// The walk-in visit inside the caller's transaction: the caller holds
+/// `lab.orders.direct`, has set the tenant context, and grants access to
+/// the orders ([`grant_lab_order_access`]) once it commits.
+///
+/// # Errors
+/// 400 for no tests, too many, or one not in the catalogue; 404 for an
+/// unknown patient.
+pub async fn place_direct_orders(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &DirectOrderRequest,
+) -> Result<DirectOrderResponse, AppError> {
+    let test_ids = distinct_tests(&body.test_ids)?;
+    ensure_patient(tx, claims.tenant_id, body.patient_id).await?;
+    let total = price_tests(tx, claims.tenant_id, &test_ids).await?;
+    let referral = resolve_referral(tx, claims.tenant_id, &body.referral).await?;
+    let encounter_id = open_visit(tx, claims, body.patient_id, &referral).await?;
 
     let mut order_ids = Vec::with_capacity(test_ids.len());
     let mut invoice_id = None;
@@ -105,30 +125,25 @@ pub async fn create_direct_orders(
             is_dummy: None,
         };
         let order = create_order_in_tx_with_options(
-            &mut tx,
-            &claims,
+            tx,
+            claims,
             &request,
             CreateOrderOptions { auto_bill: false },
         )
         .await?;
-        invoice_id = charge_lab_order_in_tx(&mut tx, &claims, &order)
+        invoice_id = charge_lab_order_in_tx(tx, claims, &order)
             .await?
             .or(invoice_id);
         order_ids.push(order.id);
     }
 
-    let orders = stamp_referral(&mut tx, &claims, &order_ids, &referral, &body).await?;
-    tx.commit().await?;
-
-    for order in &orders {
-        grant_lab_order_access(&state, &claims, order.id, "lab_direct_order").await?;
-    }
-    Ok(Json(DirectOrderResponse {
+    let orders = stamp_referral(tx, claims, &order_ids, &referral, body).await?;
+    Ok(DirectOrderResponse {
         encounter_id,
         orders,
         invoice_id,
         total,
-    }))
+    })
 }
 
 fn distinct_tests(ids: &[Uuid]) -> Result<Vec<Uuid>, AppError> {

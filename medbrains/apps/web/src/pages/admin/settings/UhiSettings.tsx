@@ -20,6 +20,7 @@ import {
   toast,
 } from "@/components/ui";
 import { uhiService } from "@/services/uhi.service";
+import { UhiFeesCard } from "./UhiFeesCard";
 
 const KEY = ["uhi", "settings"];
 
@@ -28,6 +29,16 @@ const SERVICES: { value: UhiService; label: string; hint: string }[] = [
     value: "teleconsultation",
     label: "Teleconsultation",
     hint: "Doctors with an HPR ID and a weekly schedule; booking makes an appointment.",
+  },
+  {
+    value: "physical_consultation",
+    label: "Consultation at the hospital",
+    hint: "The same doctors and slots, booked as an OPD visit; paid at the desk.",
+  },
+  {
+    value: "lab_tests",
+    label: "Lab tests",
+    hint: "Tests the lab catalogue marks bookable by patients; the lab accepts each request.",
   },
   {
     value: "ambulance",
@@ -50,7 +61,9 @@ const schema = z.object({
   unique_key_id: z.string().trim().min(1, "Enter the unique key ID registered with NHA"),
   city_code: z.string().trim(),
   facility_id: z.string().nullable(),
-  services: z.array(z.enum(["teleconsultation", "blood_bank", "ambulance"])),
+  services: z.array(
+    z.enum(["teleconsultation", "physical_consultation", "lab_tests", "blood_bank", "ambulance"]),
+  ),
   is_active: z.boolean(),
 });
 type FormValues = z.infer<typeof schema>;
@@ -253,6 +266,7 @@ export function UhiSettings() {
           </Group>
         </Stack>
       </Card>
+      {data && <UhiFeesCard fees={data.fees} onlinePayment={data.online_payment} />}
       <Card>
         <Stack gap="xs">
           <Text fw={600}>Register with NHA</Text>

@@ -18,12 +18,30 @@ pub const CONSULTATION_DOMAIN: &str = "nic2004:85111";
 pub const BLOOD_BANK_DOMAIN: &str = "nic2008:86906";
 /// Ambulance — **inferred** from the same fixture; nothing else published.
 pub const AMBULANCE_DOMAIN: &str = "nic2008:86909";
+/// Diagnostic laboratories — **inferred**: NHA publishes no lab domain; this
+/// is the NIC-2008 code for independent diagnostic laboratories.
+pub const LAB_DOMAIN: &str = "nic2008:86903";
 /// The UHI core version every working example carries — verified.
 pub const CORE_VERSION: &str = "0.7.1";
 
 /// Fulfilment types — verified (`ConstantsUtils.java`).
 pub const FULFILMENT_ONLINE: &str = "Online";
+pub const FULFILMENT_PHYSICAL: &str = "Physical";
+pub const FULFILMENT_PHYSICAL_OPD: &str = "Physical-OPD";
 pub const FULFILMENT_BLOOD_STOCK: &str = "BloodStock";
+/// Lab sample collection at home or at the lab counter — **inferred**.
+pub const FULFILMENT_HOME_COLLECTION: &str = "HomeCollection";
+pub const FULFILMENT_WALK_IN: &str = "WalkIn";
+
+/// Payment stages and states — verified (`core.yml` `Payment`; NHA's
+/// reference HSPA books only on `PAID` or `FREE`).
+pub const PAYMENT_ON_ORDER: &str = "ON-ORDER";
+pub const PAYMENT_ON_FULFILMENT: &str = "ON-FULFILLMENT";
+pub const PAYMENT_PAID: &str = "PAID";
+pub const PAYMENT_NOT_PAID: &str = "NOT-PAID";
+/// How the patient app opens the payment link — verified (NHA's EUA sends
+/// `http/get`; `core.yml` lists `https`).
+pub const PAYMENT_TL_METHOD: &str = "http/get";
 
 /// Order states — `CONFIRMED`/`CANCELLED`/`FAILED` verified; `PENDING`
 /// (waiting for staff) **inferred**.
@@ -39,23 +57,33 @@ pub const ERR_INVALID_SIGNATURE: &str = "UHI-1405";
 pub const ERR_NOT_REGISTERED: &str = "UHI-1406";
 pub const ERR_INTERNAL: &str = "UHI-1407";
 
-/// What this hospital can offer over UHI. Physical consultation, lab tests
-/// and U-WIN are next; each is one more variant and its catalogue.
+/// What this hospital can offer over UHI; each is one variant and its
+/// catalogue. U-WIN is not here: NHA has published no U-WIN UHI spec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Service {
     Teleconsultation,
+    PhysicalConsultation,
+    LabTests,
     BloodBank,
     Ambulance,
 }
 
 impl Service {
-    pub const ALL: [Self; 3] = [Self::Teleconsultation, Self::BloodBank, Self::Ambulance];
+    pub const ALL: [Self; 5] = [
+        Self::Teleconsultation,
+        Self::PhysicalConsultation,
+        Self::LabTests,
+        Self::BloodBank,
+        Self::Ambulance,
+    ];
 
     /// The value stored in `uhi_subscriptions.services` / `uhi_transactions.service`.
     pub const fn code(self) -> &'static str {
         match self {
             Self::Teleconsultation => "teleconsultation",
+            Self::PhysicalConsultation => "physical_consultation",
+            Self::LabTests => "lab_tests",
             Self::BloodBank => "blood_bank",
             Self::Ambulance => "ambulance",
         }
@@ -73,6 +101,10 @@ impl Service {
                 Some(Self::BloodBank)
             }
             (AMBULANCE_DOMAIN, _) => Some(Self::Ambulance),
+            (LAB_DOMAIN, _) => Some(Self::LabTests),
+            (CONSULTATION_DOMAIN, Some(FULFILMENT_PHYSICAL | FULFILMENT_PHYSICAL_OPD)) => {
+                Some(Self::PhysicalConsultation)
+            }
             // A consultation search without a type is answered with what we
             // have: teleconsultations.
             (CONSULTATION_DOMAIN, None | Some(FULFILMENT_ONLINE)) => Some(Self::Teleconsultation),
@@ -195,9 +227,10 @@ mod tests {
         );
         assert_eq!(
             s(CONSULTATION_DOMAIN, Some("Physical")),
-            None,
-            "not offered yet"
+            Some(Service::PhysicalConsultation)
         );
+        assert_eq!(s(super::LAB_DOMAIN, None), Some(Service::LabTests));
+        assert_eq!(s(CONSULTATION_DOMAIN, Some("Vaccination")), None);
         assert_eq!(s(AMBULANCE_DOMAIN, None), Some(Service::Ambulance));
         assert_eq!(s("nic2004:00000", None), None);
     }

@@ -878,6 +878,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
     // UHI: the signed on_* answers to patient apps.
     registry.register(routes::uhi::outbox::UhiCallbackHandler);
+    // UHI online payment: the hosted link, and the booking once it is paid.
+    registry.register(routes::uhi::payment_events::UhiPaymentLinkHandler);
+    registry.register(routes::uhi::payment_events::UhiPaymentCapturedHandler);
     // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
     // answers, JWE to the payer.
     for operation in medbrains_core::nhcx::OPERATIONS {

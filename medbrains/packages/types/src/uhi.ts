@@ -1,7 +1,12 @@
 // UHI (Unified Health Interface) — this hospital as a provider (HSPA) that
 // patient apps book through. Mirrors `crates/medbrains-server/src/routes/uhi`.
 
-export type UhiService = "teleconsultation" | "blood_bank" | "ambulance";
+export type UhiService =
+  | "teleconsultation"
+  | "physical_consultation"
+  | "lab_tests"
+  | "blood_bank"
+  | "ambulance";
 export type UhiEnvironment = "sandbox" | "production";
 
 export interface UhiSettingsView {
@@ -19,8 +24,22 @@ export interface UhiSettingsView {
   is_active: boolean;
   /** The subscriber URL to register; null until the public address is set. */
   subscriber_url: string | null;
-  /** Active doctors with an HPR ID — the ones teleconsultation search offers. */
+  /** Active doctors with an HPR ID — the ones consultation search offers. */
   doctors_with_hpr: number;
+  /** Where quoted fees come from. */
+  fees: UhiFeeSources;
+  /** A teleconsultation with a fee is paid online when booked (Razorpay is the
+   * active online provider); otherwise everything is paid at the hospital. */
+  online_payment: boolean;
+}
+
+export interface UhiFeeSources {
+  /** Of the doctors with an HPR ID, those with their own consultation fee. */
+  doctors_with_fee: number;
+  /** The charge master's TELECONSULT rate, used when a doctor has none. */
+  teleconsult_charge: string | null;
+  /** Lab tests the catalogue lets patients book from an app. */
+  patient_orderable_tests: number;
 }
 
 export interface SaveUhiSettings {
@@ -33,7 +52,16 @@ export interface SaveUhiSettings {
   is_active: boolean;
 }
 
-export type UhiRequestState = "pending" | "confirmed" | "declined" | "cancelled";
+export type UhiRequestState =
+  | "awaiting_payment"
+  | "pending"
+  | "confirmed"
+  | "declined"
+  | "cancelled"
+  | "expired";
+
+export type UhiPaymentType = "ON-ORDER" | "ON-FULFILLMENT";
+export type UhiPaymentStatus = "PAID" | "NOT-PAID";
 
 export interface UhiRequest {
   id: string;
@@ -50,4 +78,15 @@ export interface UhiRequest {
   confirmed_at: string | null;
   responded_at: string | null;
   updated_at: string;
+  /** ON-ORDER (paid online) or ON-FULFILLMENT (at the hospital). */
+  payment_type: UhiPaymentType | null;
+  /** PAID on a cancelled or expired booking means a refund is due. */
+  payment_status: UhiPaymentStatus | null;
+  amount: string | null;
+  /** A held booking lets go of its slot at this time unless paid. */
+  hold_expires_at: string | null;
+  /** The lab orders an accepted lab request became. */
+  lab_order_ids: string[];
+  /** A lab request for a home collection (accepting it books one). */
+  home_collection: boolean;
 }

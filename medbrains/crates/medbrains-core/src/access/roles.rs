@@ -765,6 +765,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::FIND,
             permissions::patients::CREATE,
             permissions::lab::orders::DIRECT,
+            // Lab tests patients ask for from a patient app (UHI) wait on
+            // the UHI requests screen for the lab to accept or decline.
+            permissions::uhi::requests::VIEW,
+            permissions::uhi::requests::RESPOND,
             permissions::lab::results::CREATE,
             permissions::lab::results::UPDATE,
             // The single lab role releases as well as enters; the four-eyes
