@@ -3,7 +3,8 @@
 //! The hospital registers `{origin}/api/integrations/nhcx/hcx/v1` as its
 //! NHCX `endpoint_url`; the gateway then POSTs to `…/coverageeligibility/on_check`,
 //! `…/preauth/on_submit`, `…/claim/on_submit`, `…/communication/request`,
-//! `…/paymentnotice/request`, `…/hcx/on_status` and `…/hcx/on_search`.
+//! `…/paymentnotice/request`, `…/hcx/on_status`, `…/hcx/on_search`, and
+//! the cancel and reprocess replies `…/claim/on_cancel`, `…/claim/on_reprocess`.
 //!
 //! Each request:
 //! 1. names its recipient (`x-hcx-recipient_code`) in the JWE protected header
@@ -36,6 +37,10 @@ const CALLBACKS: &[(&str, &str)] = &[
     ("coverageeligibility", "on_check"),
     ("preauth", "on_submit"),
     ("claim", "on_submit"),
+    // INFERRED: the replies to the cancel and reprocess Tasks; see
+    // `medbrains_core::nhcx::PATH_CANCEL`.
+    ("claim", "on_cancel"),
+    ("claim", "on_reprocess"),
     ("communication", "request"),
     ("paymentnotice", "request"),
     ("hcx", "on_status"),

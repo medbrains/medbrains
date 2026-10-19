@@ -8,6 +8,7 @@ pub use accounting::*;
 // Insurance, TPA and co-pay — money that arrives from someone other than the
 // patient. Re-exported flat so `medbrains_billing::<handler>` paths stay unchanged.
 mod insurance;
+mod nhcx_recon;
 pub use insurance::*;
 
 // Advances and interim billing — money held before the bill exists.

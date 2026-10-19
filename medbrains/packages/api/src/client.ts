@@ -294,6 +294,7 @@ import type {
   ChronicProgram,
   CiwaArRequest,
   CiwaArResult,
+  ClaimNhcxView,
   // Housekeeping
   CleaningSchedule,
   CleaningTask,
@@ -1426,14 +1427,18 @@ import type {
   News2Result,
   NewsFeedArticle,
   NewsFeedListItem,
+  NhcxClaimTaskRequest,
   NhcxConnectionTest,
   NhcxEligibilityCheck,
   NhcxParticipant,
   NhcxPayerQuery,
+  NhcxPayment,
   NhcxQueuedResponse,
+  NhcxSearchRequest,
   NhcxSettingsView,
   NhcxSlaReport,
   NhcxStatus,
+  NhcxTask,
   NmcComplianceReportPrintData,
   NonPayableRule,
   // Scheduling
@@ -1648,6 +1653,7 @@ import type {
   PosPricesResponse,
   PosSaleRequest,
   PosSaleResponse,
+  PostNhcxPaymentRequest,
   PostnatalRecord,
   PostopOrdersPrintData,
   PreAuthorizationRequest,
@@ -5301,6 +5307,60 @@ export const api = {
   /** Submit a claim/pre-auth to NHCX — assembles the FHIR Bundle + queues the exchange. */
   submitClaimToNhcx: (id: string, data: { recipient_code: string; use?: string }) =>
     request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/submit-to-nhcx`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** A claim's NHCX state: the final claim's lines, the payer's adjudication, the Tasks asked. */
+  getClaimNhcx: (id: string) => request<ClaimNhcxView>(`/billing/insurance-claims/${id}/nhcx`),
+
+  /** Ask the payer where the claim stands (`hcx/status`). */
+  checkClaimNhcxStatus: (id: string) =>
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/nhcx/status`, {
+      method: "POST",
+    }),
+
+  /** Ask the payer to cancel the claim. */
+  cancelNhcxClaim: (id: string, data: NhcxClaimTaskRequest) =>
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/nhcx/cancel`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Ask the payer to reprocess the claim, after its deductions are answered. */
+  reprocessNhcxClaim: (id: string, data: NhcxClaimTaskRequest) =>
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/nhcx/reprocess`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Ask the payer where a pre-authorisation stands (`hcx/status`). */
+  checkPreauthNhcxStatus: (id: string) =>
+    request<NhcxQueuedResponse>(`/insurance/prior-auths/${id}/nhcx/status`, {
+      method: "POST",
+    }),
+
+  /** Ask a payer for its claims from this hospital in a date range (`hcx/search`). */
+  searchNhcxClaims: (data: NhcxSearchRequest) =>
+    request<NhcxQueuedResponse>("/insurance/nhcx/search", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** The latest searches sent to payers, with what each payer listed. */
+  listNhcxSearches: () => request<NhcxTask[]>("/insurance/nhcx/searches"),
+
+  /** Payments payers reported through NHCX — `open` (unmatched or mismatched) or `all`. */
+  listNhcxPayments: (filter: "open" | "all" = "open") =>
+    request<NhcxPayment[]>(`/insurance/nhcx/payments?filter=${filter}`),
+
+  /** A claim's NHCX payments. */
+  listClaimNhcxPayments: (id: string) =>
+    request<NhcxPayment[]>(`/billing/insurance-claims/${id}/nhcx/payments`),
+
+  /** Post a payment that named no claim here to the claim it pays. */
+  postNhcxPayment: (id: string, data: PostNhcxPaymentRequest) =>
+    request<NhcxPayment>(`/insurance/nhcx/payments/${id}/post`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

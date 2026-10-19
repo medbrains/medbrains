@@ -12,6 +12,7 @@ import { NhcxSetupAlert } from "./NhcxSetupAlert";
 import { NhcxSlaBadge } from "./NhcxSlaBadge";
 import { nhcxStatusLabel } from "./nhcxSummary";
 import { PayerQueryList } from "./PayerQueryList";
+import { PreauthStatusCheck } from "./PreauthStatusCheck";
 
 interface PreauthNhcxDrawerProps {
   priorAuthId: string | null;
@@ -172,6 +173,9 @@ export function PreauthNhcxDrawer({ priorAuthId, paNumber, onClose }: PreauthNhc
           ) : view.data ? (
             <>
               <ExchangeSummary view={view.data} />
+              {canSubmit && view.data.nhcx_recipient_code && (
+                <PreauthStatusCheck priorAuthId={priorAuthId} />
+              )}
               <Text fw={600} size="sm">
                 Timeline
               </Text>

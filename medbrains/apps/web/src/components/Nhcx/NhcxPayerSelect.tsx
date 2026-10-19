@@ -7,11 +7,13 @@ interface NhcxPayerSelectProps {
   value: string | null;
   onChange: (code: string | null, payer: NhcxParticipant | undefined) => void;
   enabled?: boolean;
+  /** A form's validation message. */
+  error?: string;
 }
 
 /** Pick the payer from the NHCX payer directory; payers without an
  * encryption certificate are listed but cannot be chosen. */
-export function NhcxPayerSelect({ value, onChange, enabled = true }: NhcxPayerSelectProps) {
+export function NhcxPayerSelect({ value, onChange, enabled = true, error }: NhcxPayerSelectProps) {
   const payers = useQuery({
     queryKey: ["nhcx-participants"],
     queryFn: () => api.listNhcxParticipants(),
@@ -37,7 +39,7 @@ export function NhcxPayerSelect({ value, onChange, enabled = true }: NhcxPayerSe
       }))}
       placeholder="Select the payer"
       searchable
-      error={payers.isError ? "Could not load the payer directory" : undefined}
+      error={error ?? (payers.isError ? "Could not load the payer directory" : undefined)}
       nothingFoundMessage="No payers — add one in the NHCX payer directory first"
     />
   );

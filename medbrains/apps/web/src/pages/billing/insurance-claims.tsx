@@ -29,6 +29,8 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { NhcxPayerDirectory } from "@/components/Nhcx/NhcxPayerDirectory";
+import { NhcxPaymentsPanel } from "@/components/Nhcx/NhcxPaymentsPanel";
+import { NhcxSearchPanel } from "@/components/Nhcx/NhcxSearchPanel";
 import { SubmitToNhcxModal } from "@/components/Nhcx/SubmitToNhcxModal";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
@@ -99,7 +101,10 @@ export function InsuranceClaimsTab({
     defaultValues: tpaRateCardDefaults,
   });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
-  const [nhcxClaimId, setNhcxClaimId] = useState<string | null>(null);
+  const [nhcxSend, setNhcxSend] = useState<{
+    claimId: string;
+    use: "preauthorization" | "claim";
+  } | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
@@ -513,17 +518,23 @@ export function InsuranceClaimsTab({
       <ClaimDetailDrawer
         claim={detailClaim}
         onClose={() => setDetailClaim(null)}
-        onSubmitToNhcx={(c) => {
+        onSubmitToNhcx={(c, use) => {
           setDetailClaim(null);
-          setNhcxClaimId(c.id);
+          setNhcxSend({ claimId: c.id, use });
         }}
       />
 
       <SubmitToNhcxModal
-        claimId={nhcxClaimId ?? ""}
-        opened={!!nhcxClaimId}
-        onClose={() => setNhcxClaimId(null)}
+        key={nhcxSend ? `${nhcxSend.claimId}-${nhcxSend.use}` : "closed"}
+        claimId={nhcxSend?.claimId ?? ""}
+        defaultUse={nhcxSend?.use ?? "preauthorization"}
+        opened={!!nhcxSend}
+        onClose={() => setNhcxSend(null)}
       />
+
+      <NhcxPaymentsPanel />
+
+      <NhcxSearchPanel />
 
       <NhcxPayerDirectory />
 

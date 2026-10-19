@@ -224,3 +224,127 @@ export interface NhcxSlaReport {
   rows: NhcxPreauthSlaRow[];
   by_payer: NhcxPayerSla[];
 }
+
+// ── Final claim, Tasks and payments ──────────────────────────
+
+/** A line the final claim sent, by the sequence the payer answers it under. */
+export interface NhcxClaimItem {
+  sequence: number;
+  code: string | null;
+  description: string;
+  quantity: number | null;
+  net: string | null;
+}
+
+/** One line of the payer's adjudication. */
+export interface NhcxAdjudicationLine {
+  sequence: number;
+  submitted: string | null;
+  approved: string | null;
+  deducted: string | null;
+  /** The payer's reasons, in its words; a fully covered line has none. */
+  reasons: string[];
+}
+
+/** The payer's adjudication of a final claim. */
+export interface NhcxAdjudication {
+  use_: string | null;
+  outcome: string | null;
+  disposition: string | null;
+  pre_auth_ref: string | null;
+  submitted: string | null;
+  approved: string | null;
+  deducted: string | null;
+  lines: NhcxAdjudicationLine[];
+}
+
+/** A claim a payer's search or status answer names. */
+export interface NhcxFoundClaim {
+  claim_ref: string | null;
+  outcome: string | null;
+  disposition: string | null;
+  submitted: string | null;
+  approved: string | null;
+  matched_claim_id: string | null;
+}
+
+export interface NhcxTaskResult {
+  task_status: string | null;
+  outcome: string | null;
+  description: string | null;
+  claims: NhcxFoundClaim[];
+  error: string | null;
+}
+
+export type NhcxTaskKind = "status" | "search" | "cancel" | "reprocess";
+
+/** A status, search, cancel or reprocess request and the payer's answer. */
+export interface NhcxTask {
+  id: string;
+  kind: NhcxTaskKind;
+  insurance_claim_id: string | null;
+  prior_auth_id: string | null;
+  recipient_code: string;
+  request: {
+    reason?: string;
+    from_date?: string;
+    to_date?: string;
+    claim_number?: string | null;
+  };
+  nhcx_status: string | null;
+  nhcx_disposition: string | null;
+  nhcx_submitted_at: string | null;
+  nhcx_response_at: string | null;
+  result: NhcxTaskResult | null;
+  created_at: string;
+}
+
+export interface ClaimNhcxView {
+  claim_id: string;
+  nhcx_use: "claim" | "preauthorization" | null;
+  pre_auth_ref: string | null;
+  claim_items: NhcxClaimItem[];
+  adjudication: NhcxAdjudication | null;
+  adjudicated_at: string | null;
+  tasks: NhcxTask[];
+}
+
+export interface NhcxClaimTaskRequest {
+  reason: string;
+}
+
+export interface NhcxSearchRequest {
+  recipient_code: string;
+  from_date: string;
+  to_date: string;
+  claim_number?: string;
+}
+
+/** One claim's share of a payer's payment notice. */
+export interface NhcxPayment {
+  id: string;
+  notice_id: string;
+  sender_code: string;
+  payer_name: string | null;
+  payment_reference: string | null;
+  payment_date: string | null;
+  received_at: string;
+  claim_reference: string | null;
+  insurance_claim_id: string | null;
+  claim_number: string | null;
+  /** Approved amount paid, before TDS. */
+  gross_amount: string;
+  tds_amount: string;
+  /** What reached the bank. */
+  net_amount: string;
+  approved_amount: string | null;
+  is_mismatch: boolean;
+  status: "posted" | "unmatched";
+  posted_at: string | null;
+  bank_matched: boolean;
+  ack_status: string | null;
+}
+
+export interface PostNhcxPaymentRequest {
+  insurance_claim_id: string;
+}
