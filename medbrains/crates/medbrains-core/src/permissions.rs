@@ -3528,9 +3528,10 @@ pub mod uhi {
         /// Accept or decline UHI requests.
         ///
         /// Tell the patient's app whether the hospital can send the
-        /// ambulance or has the blood. Accepting an ambulance request also
-        /// needs ambulance trip creation, accepting a blood request blood
-        /// inventory management.
+        /// ambulance, has the blood or will do the lab tests. Accepting an
+        /// ambulance request also needs ambulance trip creation, a blood
+        /// request blood inventory management, a lab request walk-in lab
+        /// ordering (and sample management for a home collection).
         pub const RESPOND: &str = "uhi.requests.respond";
     }
 }

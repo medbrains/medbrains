@@ -2138,6 +2138,8 @@ export interface LabTestCatalog {
   fasting_hours: number | null;
   /** Short names searched by ("LFT", "hemogram"). */
   synonyms: string[];
+  /** Patients may ask for it from a patient app (UHI); the lab still accepts each request. */
+  is_patient_orderable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -2224,6 +2226,7 @@ export interface CreateLabCatalogRequest {
   fasting_required?: boolean;
   fasting_hours?: number;
   synonyms?: string[];
+  is_patient_orderable?: boolean;
 }
 
 export interface UpdateLabCatalogRequest {
@@ -2249,6 +2252,7 @@ export interface UpdateLabCatalogRequest {
   fasting_required?: boolean;
   fasting_hours?: number;
   synonyms?: string[];
+  is_patient_orderable?: boolean;
 }
 
 // Lab Panels / Profiles

@@ -130,6 +130,11 @@ pub struct LabTestCatalog {
     #[sqlx(default)]
     #[serde(default)]
     pub synonyms: Vec<String>,
+    /// A patient may ask for this test from a patient app (UHI); lab staff
+    /// still accept each request. Defaulted like `synonyms`.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub is_patient_orderable: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

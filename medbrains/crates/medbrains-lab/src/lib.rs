@@ -223,6 +223,8 @@ pub struct CreateCatalogRequest {
     pub fasting_hours: Option<i32>,
     /// Short names searched by. `None` on update leaves them as they are.
     pub synonyms: Option<Vec<String>>,
+    /// Patients may ask for it from a patient app (UHI).
+    pub is_patient_orderable: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,6 +252,8 @@ pub struct UpdateCatalogRequest {
     pub fasting_hours: Option<i32>,
     /// Short names searched by. `None` on update leaves them as they are.
     pub synonyms: Option<Vec<String>>,
+    /// Patients may ask for it from a patient app (UHI).
+    pub is_patient_orderable: Option<bool>,
 }
 
 // Panel types
@@ -2035,11 +2039,11 @@ pub async fn create_catalog_entry(
           loinc_code, method, specimen_volume, \
           critical_low, critical_high, delta_check_percent, \
           auto_validation_rules, allows_add_on, \
-          container, fasting_required, fasting_hours, synonyms) \
+          container, fasting_required, fasting_hours, synonyms, is_patient_orderable) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
                  $10, $11, $12, $13, $14, $15, $16, \
                  COALESCE($17, false), $18, COALESCE($19, false), $20, \
-                 COALESCE($21, '{}'::text[])) \
+                 COALESCE($21, '{}'::text[]), COALESCE($22, false)) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2063,6 +2067,7 @@ pub async fn create_catalog_entry(
     .bind(body.fasting_required)
     .bind(body.fasting_hours)
     .bind(clean_synonyms(body.synonyms.as_deref()))
+    .bind(body.is_patient_orderable)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2103,6 +2108,7 @@ pub async fn update_catalog_entry(
          fasting_required = COALESCE($18, fasting_required), \
          fasting_hours = COALESCE($19, fasting_hours), \
          synonyms = COALESCE($22, synonyms), \
+         is_patient_orderable = COALESCE($23, is_patient_orderable), \
          updated_at = now() \
          WHERE id = $20 AND tenant_id = $21 \
          RETURNING *",
@@ -2133,6 +2139,7 @@ pub async fn update_catalog_entry(
             .as_deref()
             .map(|list| clean_synonyms(Some(list))),
     )
+    .bind(body.is_patient_orderable)
     .fetch_optional(&mut *tx)
     .await?;
 

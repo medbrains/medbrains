@@ -1,9 +1,10 @@
 #![allow(dead_code, unreachable_pub)]
 
-//! The stand-in UHI network the HSPA tests run in: a patient app (EUA) and
-//! gateway on one mock server that records every call, the app's signing
-//! key (named to the server as the registry's key), and a hospital whose
-//! UHI subscription is saved, keyed and switched on through the API.
+//! The stand-in UHI network the HSPA tests run in: a patient app (EUA),
+//! gateway and payment provider on one mock server that records every call,
+//! the app's signing key (named to the server as the registry's key), and a
+//! hospital whose UHI subscription is saved, keyed and switched on through
+//! the API.
 
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +16,9 @@ use axum::{
 };
 use medbrains_crypto::beckn::{KeyPair, SignatureHeader, generate, sign};
 use medbrains_outbox::Handler;
-use medbrains_server::routes::uhi::{auth, outbox::UhiCallbackHandler, protocol};
+use medbrains_server::routes::uhi::{
+    auth, outbox::UhiCallbackHandler, payment_events::RAZORPAY_API_BASE_OVERRIDE, protocol,
+};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -40,13 +43,25 @@ async fn spawn_mock(calls: Calls) -> String {
         headers: HeaderMap,
         raw: Bytes,
     ) -> Json<Value> {
+        let body: Value = serde_json::from_slice(&raw).unwrap_or(Value::Null);
+        // The payment provider: a hosted link named after our payment row.
+        let answer = if uri.path().ends_with("/payment_links") {
+            let reference = body["reference_id"]
+                .as_str()
+                .unwrap_or_default()
+                .replace('-', "");
+            json!({ "id": format!("plink_{reference}"),
+                    "short_url": format!("https://rzp.test/i/{reference}") })
+        } else {
+            protocol::ack()
+        };
         c.lock().expect("calls").push(Call {
             path: uri.path().to_owned(),
             headers,
-            body: serde_json::from_slice(&raw).unwrap_or(Value::Null),
+            body,
             raw: raw.to_vec(),
         });
-        Json(protocol::ack())
+        Json(answer)
     }
     let app = Router::new().fallback(record).with_state(calls);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -148,21 +163,8 @@ impl World {
         .fetch_one(&self.app.db)
         .await
         .expect("an on_* answer is queued for the transaction");
-        let ctx = medbrains_outbox::HandlerCtx {
-            pool: self.app.db.clone(),
-            tenant_id: self.tenant,
-            event_id,
-            event_type: "uhi.callback".to_owned(),
-            actor_user_id: None,
-            attempts: 0,
-            secret_resolver: Arc::new(secrets(&self.mock, &self.eua)),
-            http_client: reqwest::Client::new(),
-            object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
-                std::env::temp_dir().join("medbrains-test-docs"),
-            )),
-        };
         UhiCallbackHandler
-            .handle(&ctx, &payload)
+            .handle(&self.handler_ctx(event_id, "uhi.callback"), &payload)
             .await
             .expect("callback sent");
         let call = self
@@ -186,6 +188,91 @@ impl World {
         call
     }
 
+    fn handler_ctx(&self, event_id: Uuid, event_type: &str) -> medbrains_outbox::HandlerCtx {
+        medbrains_outbox::HandlerCtx {
+            pool: self.app.db.clone(),
+            tenant_id: self.tenant,
+            event_id,
+            event_type: event_type.to_owned(),
+            actor_user_id: None,
+            attempts: 0,
+            secret_resolver: Arc::new(secrets(&self.mock, &self.eua)),
+            http_client: reqwest::Client::new(),
+            object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+                std::env::temp_dir().join("medbrains-test-docs"),
+            )),
+        }
+    }
+
+    /// Run the latest queued `handler` event about `aggregate` as the worker
+    /// would.
+    pub async fn run(&self, handler: &dyn Handler, aggregate: Uuid) -> Value {
+        let event_type = handler.event_type();
+        let (event_id, payload): (Uuid, Value) = sqlx::query_as(
+            "SELECT id, payload FROM outbox_events WHERE event_type = $1 AND aggregate_id = $2 \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(event_type)
+        .bind(aggregate)
+        .fetch_one(&self.app.db)
+        .await
+        .expect("the event is queued");
+        handler
+            .handle(&self.handler_ctx(event_id, event_type), &payload)
+            .await
+            .expect("the event is handled")
+    }
+
+    /// The transaction row of the app's transaction `txn`.
+    pub async fn row(&self, txn: &str) -> Uuid {
+        sqlx::query_scalar("SELECT id FROM uhi_transactions WHERE transaction_id = $1")
+            .bind(txn)
+            .fetch_one(&self.app.db)
+            .await
+            .expect("the transaction is recorded")
+    }
+
+    /// Set a hospital setting (undoing a soft delete).
+    pub async fn set_setting(&self, category: &str, key: &str, value: Value) {
+        sqlx::query(
+            "INSERT INTO tenant_settings (tenant_id, category, key, value) VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (tenant_id, category, key) \
+             DO UPDATE SET value = EXCLUDED.value, deleted_at = NULL",
+        )
+        .bind(self.tenant)
+        .bind(category)
+        .bind(key)
+        .bind(value)
+        .execute(&self.app.db)
+        .await
+        .expect("setting");
+    }
+
+    /// Take a setting away again (a soft delete).
+    pub async fn clear_setting(&self, category: &str, key: &str) {
+        sqlx::query(
+            "DELETE FROM tenant_settings WHERE tenant_id = $1 AND category = $2 AND key = $3",
+        )
+        .bind(self.tenant)
+        .bind(category)
+        .bind(key)
+        .execute(&self.app.db)
+        .await
+        .expect("clear setting");
+    }
+
+    /// The department a doctor from [`doctor`] sees patients in: (id, code).
+    pub async fn department_of(&self, doctor: Uuid) -> (Uuid, String) {
+        sqlx::query_as(
+            "SELECT d.id, d.code FROM doctor_schedules s JOIN departments d ON d.id = s.department_id \
+              WHERE s.doctor_id = $1 LIMIT 1",
+        )
+        .bind(doctor)
+        .fetch_one(&self.app.db)
+        .await
+        .expect("department")
+    }
+
     pub async fn outbox_count(&self, txn: &str) -> i64 {
         sqlx::query_scalar(
             "SELECT count(*) FROM outbox_events WHERE event_type = 'uhi.callback' \
@@ -206,6 +293,7 @@ fn secrets(mock: &str, eua: &KeyPair) -> common::TestSecrets {
         )
         .with(auth::UHI_GATEWAY_BASE_URL_OVERRIDE, mock.to_owned())
         .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test")
+        .with(RAZORPAY_API_BASE_OVERRIDE, format!("{mock}/razorpay/v1"))
 }
 
 /// A hospital set up as a UHI provider of every service, against a fresh mock.
@@ -228,7 +316,8 @@ pub async fn world() -> World {
     let subscriber = format!("hspa-{}.test", &Uuid::new_v4().simple().to_string()[..8]);
     let save = |active: bool| {
         json!({ "environment": "sandbox", "subscriber_id": subscriber, "unique_key_id": "hspa.k1",
-                "services": ["teleconsultation", "blood_bank", "ambulance"], "city_code": "std:080",
+                "services": ["teleconsultation", "physical_consultation", "lab_tests",
+                             "blood_bank", "ambulance"], "city_code": "std:080",
                 "is_active": active })
     };
     let put = |body: Value| {
