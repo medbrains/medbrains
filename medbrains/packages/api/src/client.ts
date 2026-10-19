@@ -896,6 +896,7 @@ import type {
   // HR & Staff Management
   Designation,
   DeviceAdapterCatalog,
+  DeviceBindingCode,
   DeviceBoard,
   DeviceCodeResponse,
   DeviceConfigHistory,
@@ -1224,7 +1225,9 @@ import type {
   IpTypeConfiguration,
   IssueCampAssetRequest,
   IssueCredentialRequest,
+  IssueDeviceBindingCodeInput,
   IssueDialyzerRequest,
+  IssuedDeviceBindingCode,
   IssueIndentRequest,
   IssueMrdRecordRequest,
   IssueTokenInput,
@@ -16858,6 +16861,19 @@ export const api = {
       revoked_at: string | null;
     }>(`/admin/paired-devices/${id}`, {
       method: "DELETE",
+      body: JSON.stringify({ reason }),
+    }),
+
+  // ── Hospital binding QR codes (apps scan one to bind to this hospital) ──
+  listDeviceBindingCodes: () => request<DeviceBindingCode[]>("/admin/device-binding-codes"),
+  issueDeviceBindingCode: (data: IssueDeviceBindingCodeInput) =>
+    request<IssuedDeviceBindingCode>("/admin/device-binding-codes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  revokeDeviceBindingCode: (id: string, reason?: string) =>
+    request<DeviceBindingCode>(`/admin/device-binding-codes/${id}/revoke`, {
+      method: "POST",
       body: JSON.stringify({ reason }),
     }),
 

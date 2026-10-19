@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 803;
+pub const PERMISSION_COUNT: usize = 806;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3157,6 +3157,26 @@ pub mod devices {
         /// right means a leaked appliance token enumerates the whole
         /// estate. This is the one thing an appliance needs.
         pub const ROSTER_READ: &str = "devices.pairing.roster.read";
+    }
+
+    /// Signed QR codes that bind a staff or patient app to this hospital.
+    pub mod binding {
+        /// Issue hospital binding QR codes.
+        ///
+        /// Prints a signed, expiring QR that a staff or patient app scans to
+        /// bind itself to this hospital's server, so nobody types a hospital
+        /// code or server address.
+        pub const ISSUE: &str = "devices.binding.issue";
+        /// See hospital binding QR codes.
+        ///
+        /// Lists the binding codes issued here, how many times each was used
+        /// and whether it is still valid.
+        pub const LIST: &str = "devices.binding.list";
+        /// Revoke hospital binding QR codes.
+        ///
+        /// Stops a lost or leaked binding code from binding any more devices.
+        /// Devices it already bound are revoked from Paired devices.
+        pub const REVOKE: &str = "devices.binding.revoke";
     }
 }
 

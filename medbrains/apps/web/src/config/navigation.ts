@@ -40,6 +40,7 @@ import {
   IconIdBadge2,
   IconLayoutDashboard,
   IconLayoutGrid,
+  IconLink,
   IconListDetails,
   IconLockSquareRounded,
   IconMapPin,
@@ -193,6 +194,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconBinaryTree,
   IconDental,
   IconVideo,
+  IconLink,
 };
 
 export function resolveIcon(name: string, size = 20, stroke = 1.5): ReactNode {
@@ -296,6 +298,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
   "/admin/devices": { abbr: "Dev", color: "#198038" },
   "/admin/paired-devices": { abbr: "PD", color: "#9f1853" },
+  "/admin/hospital-binding": { abbr: "HB", color: "#9f1853" },
   "/lab": { abbr: "Lab", color: "#0072c3" },
   "/hr": { abbr: "HR", color: "#6929c4" },
 };
@@ -1461,6 +1464,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/paired-devices",
             icon: "IconQrcode",
             requiredPermission: "devices.pairing.paired.list",
+          },
+          {
+            i18nKey: "hospitalBinding",
+            path: "/admin/hospital-binding",
+            icon: "IconLink",
+            requiredPermission: "devices.binding.list",
           },
           {
             i18nKey: "queues",
