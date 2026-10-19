@@ -29,3 +29,7 @@ aes-gcm = "0.10"
 hkdf = "0.12"
 sha2.workspace = true
 rand = { version = "0.9" }
+
+# UHI (Beckn) HTTP signatures: ed25519 over a BLAKE2b-512 body digest.
+ed25519-dalek = { workspace = true }
+blake2 = "0.10"

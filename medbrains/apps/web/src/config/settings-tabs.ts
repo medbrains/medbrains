@@ -67,6 +67,7 @@ import { SnomedSettings } from "@/pages/admin/settings/SnomedSettings";
 import { StandardsSettings } from "@/pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "@/pages/admin/settings/SystemHealthSettings";
 import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
+import { UhiSettings } from "@/pages/admin/settings/UhiSettings";
 import { UnitsLocaleSettings } from "@/pages/admin/settings/UnitsLocaleSettings";
 
 export interface SettingsTabConfig {
@@ -254,6 +255,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconShare",
     requiredPermission: "abdm.records.view",
     component: AbdmSharingSettings,
+  },
+  {
+    value: "uhi",
+    i18nKey: "settings.uhi",
+    icon: "IconWorld",
+    requiredPermission: "uhi.configure",
+    component: UhiSettings,
   },
   {
     value: "abdm-scan-share",
