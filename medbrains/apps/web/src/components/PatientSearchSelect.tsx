@@ -23,6 +23,10 @@ interface PatientSearchSelectProps {
   selectedDisplay?: string;
   /** Patient IDs to exclude from results (e.g. current patient in merge) */
   excludeIds?: string[];
+  /** What the search box starts with, e.g. a name the patient shared. */
+  initialSearch?: string;
+  /** Offer "Register new patient" (default: when the caller may create). */
+  allowCreate?: boolean;
 }
 
 /** What both lookups return and all this picker ever renders: identity. */
@@ -65,8 +69,10 @@ export function PatientSearchSelect({
   error,
   selectedDisplay,
   excludeIds = [],
+  initialSearch = "",
+  allowCreate = true,
 }: PatientSearchSelectProps) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [debounced] = useDebouncedValue(search, 300);
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   // `patients.list` is relationship-scoped: it reaches the patients this user
@@ -141,7 +147,7 @@ export function PatientSearchSelect({
           ? "No patient in the hospital by that name, UHID or phone"
           : "No patients found among yours — a colleague's registration needs patients.find"
       }
-      canCreate={canCreatePatient}
+      canCreate={allowCreate && canCreatePatient}
       createButtonLabel="Register new patient"
       createButtonIcon={<IconUserPlus size={14} />}
       createModalTitle="Register new patient"

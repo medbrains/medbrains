@@ -6,11 +6,11 @@
 //! expired. A browser claiming "verified" carries no weight.
 
 use medbrains_server_core::error::AppError;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Demographics staff chose to take from ABHA on an existing patient.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AbhaField {
     Name,
@@ -36,8 +36,9 @@ struct Verified {
 ///
 /// # Errors
 /// 400 when the verification is unknown, unfinished, expired, already used,
-/// someone else's, or for a different ABHA number; 409 when that ABHA is
-/// already linked to another patient here.
+/// someone else's, or for a different ABHA number; 404 when the patient is
+/// not one of this hospital's; 409 when that ABHA is already linked to
+/// another patient here, or the patient already carries a different ABHA.
 pub async fn link_verified_abha(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     link: AbhaLinkRequest<'_>,
@@ -66,6 +67,33 @@ pub async fn link_verified_abha(
         return Err(AppError::BadRequest(
             "the ABHA number on the form is not the one that was verified".to_owned(),
         ));
+    }
+
+    // A person has one ABHA number. Overwriting the one on record would
+    // silently re-point their health records at someone else's account.
+    let current: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT (SELECT l.abha_number FROM patient_abha_links l \
+                  WHERE l.tenant_id = p.tenant_id AND l.patient_id = p.id \
+                    AND l.deleted_at IS NULL) \
+           FROM patients p WHERE p.id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL",
+    )
+    .bind(link.patient_id)
+    .bind(link.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    match current {
+        None => return Err(AppError::NotFound),
+        Some(Some(n)) if n != verified.abha_number => {
+            let tail: String = n
+                .chars()
+                .skip(n.chars().count().saturating_sub(4))
+                .collect();
+            return Err(AppError::Conflict(format!(
+                "this patient already has a different ABHA (ending {tail}) — \
+                 check you have the right patient"
+            )));
+        }
+        Some(_) => {}
     }
 
     let elsewhere: Option<String> = sqlx::query_scalar(
@@ -140,6 +168,25 @@ pub async fn link_verified_abha(
         .bind(link.patient_id)
         .execute(&mut **tx)
         .await?;
+    let audit = serde_json::json!({
+        "verification_id": link.verification_id,
+        "verification_method": method,
+        "applied": link.apply,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: link.tenant_id,
+            user_id: Some(link.user_id),
+            action: "patient.abha.linked",
+            entity_type: "patient",
+            entity_id: Some(link.patient_id),
+            old_values: None,
+            new_values: Some(&audit),
+            ip_address: None,
+        },
+    )
+    .await?;
     Ok(())
 }
 

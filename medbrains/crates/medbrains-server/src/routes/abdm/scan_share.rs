@@ -9,7 +9,8 @@
 //!   profile as an ABDM-verified ABHA, built from the stored share, so the
 //!   registration form can link it through `link_verified_abha`.
 //! - `POST /api/abdm/scan-share/{id}/complete` — the share is dealt with:
-//!   the patient is the one it matched or the one its verification linked.
+//!   the patient is the one it matched or the one its verification linked
+//!   (registered from it, or an existing patient found by search).
 //! - `POST /api/abdm/scan-share/{id}/dismiss` — not acted on; its token is
 //!   cancelled.
 
@@ -311,9 +312,12 @@ pub struct CompleteShare {
     pub patient_id: Uuid,
 }
 
-/// `POST /api/abdm/scan-share/{id}/complete` — the patient was opened or
-/// registered. Only the patient the share matched, or the one its
-/// verification was linked to, is accepted.
+/// `POST /api/abdm/scan-share/{id}/complete` — the patient was opened,
+/// registered, or found by search and linked. Only the patient the share
+/// matched, or the one its verification was linked to, is accepted: a patient
+/// found by search qualifies only after `POST /api/abdm/abha/verifications/
+/// {id}/link`, which checks the tenant, the caller's access to that patient
+/// and that it carries no other ABHA, and audits the link.
 ///
 /// # Errors
 /// 403 without `abdm.scanshare.view`; 404 for an unknown share; 400 for any

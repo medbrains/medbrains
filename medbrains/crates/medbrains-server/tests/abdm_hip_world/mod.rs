@@ -5,6 +5,7 @@
 //! patient with a verified ABHA.
 
 pub mod hiu;
+pub mod scan_share;
 
 use std::{
     collections::HashMap,

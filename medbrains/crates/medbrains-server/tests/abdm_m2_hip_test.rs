@@ -244,7 +244,8 @@ async fn a_consented_request_reaches_the_hiu_encrypted() {
     assert_eq!(ack["acknowledgement"]["status"], "OK", "{ack}");
 
     let hiu = medbrains_crypto::fidelius::generate().expect("hiu keys");
-    let request = json!({ "transactionId": "txn-hi", "hiRequest": { "consent": { "id": consent_id },
+    let txn = format!("txn-{}", Uuid::new_v4());
+    let request = json!({ "transactionId": txn, "hiRequest": { "consent": { "id": consent_id },
         "dateRange": { "from": "2000-01-01T00:00:00.000Z", "to": "2100-01-01T00:00:00.000Z" },
         "dataPushUrl": format!("{}/hiu/push", w.mock),
         "keyMaterial": { "cryptoAlg": "ECDH", "curve": "Curve25519", "nonce": hiu.nonce,
@@ -286,9 +287,10 @@ async fn a_consented_request_reaches_the_hiu_encrypted() {
         "TRANSFERRED"
     );
     let status: String = sqlx::query_scalar(
-        "SELECT status FROM abdm_health_transfers WHERE transaction_id = 'txn-hi' \
-          AND patient_id = $1",
+        "SELECT status FROM abdm_health_transfers WHERE transaction_id = $1 \
+          AND patient_id = $2",
     )
+    .bind(&txn)
     .bind(w.patient_id)
     .fetch_one(&w.app.db)
     .await
