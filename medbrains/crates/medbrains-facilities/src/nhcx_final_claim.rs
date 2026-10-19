@@ -1,9 +1,10 @@
 //! What a final claim (`Claim.use = claim`) carries beyond a
 //! pre-authorisation: the final bill line by line, the bill's split between
-//! payer and patient, the discharge summary, and the payer's authorisation
-//! number for the stay.
+//! payer and patient, the payer's authorisation number for the stay, and the
+//! proof that the stay's discharge summary is finalised (its PDF goes with
+//! the claim — `nhcx_claim_documents`).
 
-use base64::Engine;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use sqlx::FromRow;
@@ -11,7 +12,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
-use crate::nhcx_bundle::{DocumentRef, ItemLine};
+use crate::nhcx_bundle::ItemLine;
 use crate::nhcx_common::Tx;
 
 /// A live bill line: reversed lines and their reversals cancel out.
@@ -37,7 +38,9 @@ pub(crate) struct FinalClaim {
     pub(crate) items: Vec<ItemLine>,
     pub(crate) total: Decimal,
     pub(crate) notes: Vec<String>,
-    pub(crate) documents: Vec<DocumentRef>,
+    /// When the stay's discharge summary was finalised; `None` for a claim
+    /// with no stay.
+    pub(crate) summary_final_at: Option<DateTime<Utc>>,
     pub(crate) pre_auth_ref: Option<String>,
 }
 
@@ -105,7 +108,7 @@ pub(crate) async fn load(
     .fetch_one(&mut **tx)
     .await?;
     let total = money.claim_amount.unwrap_or(money.total_amount);
-    let documents = discharge_summary(tx, tenant_id, claim.admission_id).await?;
+    let summary_final_at = summary_finalised_at(tx, tenant_id, claim.admission_id).await?;
     let pre_auth_ref = match claim.pre_auth_ref.clone() {
         Some(r) => Some(r),
         None => preauth_number(tx, tenant_id, claim).await?,
@@ -124,7 +127,7 @@ pub(crate) async fn load(
         items,
         total,
         notes: vec![bill_note(&money, total)],
-        documents,
+        summary_final_at,
         pre_auth_ref,
     })
 }
@@ -143,35 +146,22 @@ fn bill_note(money: &BillMoney, claimed: Decimal) -> String {
     )
 }
 
-#[derive(Debug, FromRow)]
-struct SummaryRow {
-    final_diagnosis: Option<String>,
-    course_in_hospital: Option<String>,
-    treatment_given: Option<String>,
-    procedures: Option<String>,
-    condition_at_discharge: Option<String>,
-    follow_up_instructions: Option<String>,
-    legacy: Option<String>,
-    finalized_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-/// The stay's discharge summary as a text attachment. An OPD claim has no
-/// stay and needs none.
-async fn discharge_summary(
+/// When the stay's discharge summary was finalised — the structured summary,
+/// or the legacy text on the admission. An OPD claim has no stay.
+///
+/// # Errors
+/// 400 when the stay has no finalised summary.
+pub(crate) async fn summary_finalised_at(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     admission_id: Option<Uuid>,
-) -> Result<Vec<DocumentRef>, AppError> {
+) -> Result<Option<DateTime<Utc>>, AppError> {
     let Some(admission_id) = admission_id else {
-        return Ok(Vec::new());
+        return Ok(None);
     };
-    let row = sqlx::query_as::<_, SummaryRow>(
-        "SELECT s.final_diagnosis, s.course_in_hospital, s.treatment_given, \
-                s.procedures_performed::text AS procedures, s.condition_at_discharge, \
-                s.follow_up_instructions, NULLIF(btrim(a.discharge_summary), '') AS legacy, \
-                CASE WHEN s.status = 'finalized' THEN COALESCE(s.finalized_at, s.updated_at) \
+    let at: Option<Option<DateTime<Utc>>> = sqlx::query_scalar(
+        "SELECT CASE WHEN s.status = 'finalized' THEN COALESCE(s.finalized_at, s.updated_at) \
                      WHEN NULLIF(btrim(a.discharge_summary), '') IS NOT NULL THEN a.updated_at END \
-                     AS finalized_at \
            FROM admissions a \
            LEFT JOIN ipd_discharge_summaries s ON s.admission_id = a.id \
                 AND s.tenant_id = a.tenant_id AND s.deleted_at IS NULL \
@@ -181,41 +171,9 @@ async fn discharge_summary(
     .bind(tenant_id)
     .fetch_optional(&mut **tx)
     .await?;
-    let Some((row, at)) = row.and_then(|r| r.finalized_at.map(|at| (r, at))) else {
-        return Err(AppError::BadRequest(
-            "finalise the discharge summary before sending the final claim".into(),
-        ));
-    };
-    let text = summary_text(&row);
-    Ok(vec![DocumentRef {
-        document_type: "Discharge summary".to_owned(),
-        file_name: Some("discharge-summary.txt".to_owned()),
-        file_path: None,
-        mime_type: Some("text/plain".to_owned()),
-        created_at: at,
-        data: Some(base64::engine::general_purpose::STANDARD.encode(text)),
-    }])
-}
-
-fn summary_text(r: &SummaryRow) -> String {
-    let sections = [
-        ("Final diagnosis", &r.final_diagnosis),
-        ("Course in hospital", &r.course_in_hospital),
-        ("Treatment given", &r.treatment_given),
-        ("Procedures performed", &r.procedures),
-        ("Condition at discharge", &r.condition_at_discharge),
-        ("Follow-up", &r.follow_up_instructions),
-        ("Discharge summary", &r.legacy),
-    ];
-    sections
-        .iter()
-        .filter_map(|(label, v)| {
-            v.as_deref()
-                .filter(|t| !t.trim().is_empty() && *t != "[]")
-                .map(|t| format!("{label}: {t}"))
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    at.flatten().map(Some).ok_or_else(|| {
+        AppError::BadRequest("finalise the discharge summary before sending the final claim".into())
+    })
 }
 
 /// The payer's authorisation number from a pre-authorisation approved for

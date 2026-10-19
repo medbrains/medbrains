@@ -10,9 +10,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use axum::body::Bytes;
 use axum::extract::Path;
 use axum::http::{HeaderMap, StatusCode};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use medbrains_core::nhcx::NhcxOperation;
 use medbrains_outbox::Handler;
@@ -106,6 +107,62 @@ pub async fn spawn_mock_gateway(received: Received) -> String {
     format!("http://{addr}")
 }
 
+/// How the stand-in PDF service behaves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pdf {
+    /// Every document renders as a tiny PDF.
+    Tiny,
+    /// Lab reports render larger than one file may be; the rest are tiny.
+    BigLabReports,
+    /// Configured, but nothing answers.
+    Down,
+}
+
+/// The smallest thing a payer would open as a PDF.
+pub const TINY_PDF: &[u8] = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
+
+/// Every HTML document the stand-in Gotenberg was asked to print.
+pub type Rendered = Arc<Mutex<Vec<String>>>;
+
+/// A stand-in Gotenberg: `/forms/chromium/convert/html` answers with a PDF,
+/// keeping the request (the HTML is in its multipart body) in `rendered`.
+pub async fn spawn_mock_gotenberg(mode: Pdf, rendered: Rendered) -> String {
+    if mode == Pdf::Down {
+        // Port 9 (discard) is never served on the test host: connection refused.
+        return "http://127.0.0.1:9".to_owned();
+    }
+    let app = Router::new()
+        .route("/health", get(|| async { StatusCode::OK }))
+        .route(
+            "/forms/chromium/convert/html",
+            post(move |body: Bytes| {
+                rendered
+                    .lock()
+                    .expect("lock")
+                    .push(String::from_utf8_lossy(&body).into_owned());
+                // The lab report template's own CSS class marks its HTML.
+                let is_lab = body.windows(8).any(|w| w == b"lab-head");
+                async move {
+                    if mode == Pdf::BigLabReports && is_lab {
+                        let mut big = TINY_PDF.to_vec();
+                        big.resize(
+                            medbrains_facilities::nhcx_claim_documents::MAX_FILE_BYTES + 1,
+                            b' ',
+                        );
+                        return big;
+                    }
+                    TINY_PDF.to_vec()
+                }
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move { axum::serve(listener, app).await.expect("mock gotenberg") });
+    format!("http://{addr}")
+}
+
 /// A hospital set up for NHCX against the mock gateway, with one payer.
 pub struct Nhcx {
     pub app: common::TestApp,
@@ -120,6 +177,7 @@ pub struct Nhcx {
     pub payer_code: String,
     pub received: Received,
     pub mock: String,
+    pub rendered: Rendered,
 }
 
 impl Nhcx {
@@ -229,13 +287,21 @@ fn secrets_for(mock: &str) -> common::TestSecrets {
 /// A server whose NHCX calls go to a fresh mock gateway, signed in as admin,
 /// with the hospital's NHCX settings saved and one payer in the directory.
 pub async fn onboard() -> Nhcx {
+    onboard_with(Pdf::Tiny).await
+}
+
+/// [`onboard`], with the PDF service behaving as `pdf`.
+pub async fn onboard_with(pdf: Pdf) -> Nhcx {
     let hospital = key_pair();
     let hospital_cert = self_signed_cert(&hospital);
     let payer = key_pair();
     let gateway = key_pair();
     let received: Received = Arc::default();
     let mock = spawn_mock_gateway(Arc::clone(&received)).await;
-    let app = common::spawn_app_with_secrets(secrets_for(&mock)).await;
+    let rendered: Rendered = Arc::default();
+    let gotenberg = spawn_mock_gotenberg(pdf, Arc::clone(&rendered)).await;
+    let app =
+        common::spawn_app_with_secrets(secrets_for(&mock).with("GOTENBERG_URL", gotenberg)).await;
     let csrf = app.login_admin().await;
     let tenant: Uuid = sqlx::query_scalar("SELECT tenant_id FROM users WHERE username = 'admin'")
         .fetch_one(&app.db)
@@ -294,5 +360,6 @@ pub async fn onboard() -> Nhcx {
         payer_code,
         received,
         mock,
+        rendered,
     }
 }

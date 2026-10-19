@@ -1902,6 +1902,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::nhcx::RESPOND,
             permissions::insurance::nhcx::CANCEL,
             permissions::insurance::nhcx::PAYMENTS,
+            // A final claim carries the discharge summary, the itemised bill
+            // and the lab reports as PDFs, printed as the person sending —
+            // so the desk reads what it sends to the payer (#4844).
+            permissions::patients::VIEW,
+            permissions::ipd::admissions::VIEW,
+            permissions::billing::invoices::VIEW,
+            permissions::lab::reports::VIEW,
         ],
     },
     BuiltInRole {
