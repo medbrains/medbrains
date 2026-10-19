@@ -817,6 +817,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::ARRANGE,
             permissions::pharmacy::deliveries::COMPLETE,
+            // A registered pharmacist verifies an uploaded prescription and
+            // runs the online storefront the hospital's pharmacy sells from.
+            permissions::pharmacy::storefront::VERIFY,
+            permissions::pharmacy::storefront::MANAGE,
+            permissions::pharmacy::h1_register::VIEW,
             // Camp stations are staffed by the same clinicians.
             permissions::camp::queue::MANAGE,
             permissions::admin::settings::READ,

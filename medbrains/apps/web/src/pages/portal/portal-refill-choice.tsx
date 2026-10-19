@@ -136,7 +136,7 @@ function ChoiceForm({ token, row, offer, offerFailed, onDone }: ChoiceFormProps)
   );
 }
 
-function DeliveryFields({
+export function DeliveryFields({
   control,
   offer,
 }: {

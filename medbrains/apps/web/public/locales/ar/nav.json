@@ -31,6 +31,8 @@
   "pharmacyFulfilment": "قائمة التجهيز",
   "pharmacyDispatch": "منضدة الاستلام",
   "pharmacyDeliveries": "التوصيل المنزلي",
+  "pharmacyOnlineOrders": "الطلبات عبر الإنترنت",
+  "pharmacyH1Register": "سجل H1",
   "radiology": "الأشعة",
   "bloodBank": "بنك الدم",
   "billing": "الفوترة",

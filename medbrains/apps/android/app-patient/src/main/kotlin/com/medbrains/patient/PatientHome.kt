@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -99,6 +100,7 @@ fun PatientHome(auth: AuthStore) {
                 composable("lab-reports") { ResultsScreen(portal) }
                 composable("prescriptions") { MedicinesScreen(portal) }
                 composable("bills") { BillsScreen(portal) }
+                composable("pharmacy") { StoreScreen(portal) }
                 composable("bands") { BandsScreen() }
                 composable("consent") { PrivacyScreen(portal) }
                 composable("family-share") {
@@ -119,6 +121,7 @@ fun HospitalTab(open: (String) -> Unit) {
         Entry("appointments", "Appointments", "Booked visits, newest first.", Icons.Filled.CalendarMonth),
         Entry("lab-reports", "Results", "Released by the laboratory.", Icons.Filled.Science),
         Entry("prescriptions", "Medicines", "What was prescribed, and how to take it.", Icons.Filled.Medication),
+        Entry("pharmacy", "Pharmacy", "Order your prescription or other medicines.", Icons.Filled.LocalPharmacy),
         Entry("bills", "Bills", "Invoices, payments and receipts.", Icons.Filled.AccountBalanceWallet),
         Entry("consent", "Privacy", "What you agree to, what we hold, and your requests.", Icons.Filled.VerifiedUser),
         Entry("family-share", "Family share", "Link family, share specific records, set expiry.", Icons.Filled.Groups),

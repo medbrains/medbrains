@@ -195,7 +195,7 @@ async fn main() -> anyhow::Result<()> {
         &run,
         "pharmacy_order",
         "prescriber",
-        "SELECT id, ordered_by FROM pharmacy_orders",
+        "SELECT id, ordered_by FROM pharmacy_orders WHERE ordered_by IS NOT NULL",
         "",
         |(id, by)| (*id, Subject::User(*by)),
         "pharmacy_orders.ordered_by",

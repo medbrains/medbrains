@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EMPTY_COUNTER_RX,
   offMrpPercent,
   type PosCheckoutState,
   posCheckoutBlocker,
@@ -42,11 +43,31 @@ describe("posCheckoutBlocker", () => {
     );
   });
 
-  it("refuses Schedule H over the counter, as the server does", () => {
-    const telmisartan = { ...paracetamol, drugName: "Telmisartan 40", schedule: "H" };
-    expect(posCheckoutBlocker(state({ lines: [telmisartan] }))).toMatch(
-      /Telmisartan 40 is Schedule H .* Rx queue/,
+  it("never sells Schedule X or NDPS at the counter, as the server does", () => {
+    const x = { ...paracetamol, drugName: "Buprenorphine", schedule: "X" };
+    expect(posCheckoutBlocker(state({ lines: [x] }))).toMatch(
+      /Buprenorphine is Schedule X .* Rx queue/,
     );
+  });
+
+  it("sells Schedule H against the customer's prescription once the patient is named", () => {
+    const telmisartan = { ...paracetamol, drugName: "Telmisartan 40", schedule: "H" };
+    expect(posCheckoutBlocker(state({ lines: [telmisartan] }))).toMatch(/name and mobile/);
+    const named = { ...EMPTY_COUNTER_RX, name: "Ravi K", phone: "9000000001" };
+    expect(posCheckoutBlocker(state({ lines: [telmisartan], rx: named }))).toBeNull();
+    const linked = { ...EMPTY_COUNTER_RX, patientLinked: true };
+    expect(posCheckoutBlocker(state({ lines: [telmisartan], rx: linked }))).toBeNull();
+  });
+
+  it("records the prescriber and the address for Schedule H1", () => {
+    const h1 = { ...paracetamol, drugName: "Alprazolam", schedule: "H1" };
+    const named = { ...EMPTY_COUNTER_RX, name: "Ravi K", phone: "9000000001" };
+    expect(posCheckoutBlocker(state({ lines: [h1], rx: named }))).toMatch(/prescriber/);
+    const prescribed = { ...named, prescriberName: "Dr A", prescriberRegistration: "TN-1" };
+    expect(posCheckoutBlocker(state({ lines: [h1], rx: prescribed }))).toMatch(/address/);
+    expect(
+      posCheckoutBlocker(state({ lines: [h1], rx: { ...prescribed, address: "2 Bazaar St" } })),
+    ).toBeNull();
   });
 
   it("refuses a controlled drug with no schedule set", () => {
