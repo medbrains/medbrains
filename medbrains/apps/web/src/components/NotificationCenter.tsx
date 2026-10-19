@@ -18,6 +18,8 @@ import { useNavigate } from "react-router";
 import { useEffectOnce } from "react-use";
 import { Button, IconButton, toast } from "@/components/ui";
 import { type NotificationStreamEvent, useNotificationStream } from "@/hooks/useNotificationStream";
+import { playAlertSound } from "@/lib/alert-sound-player";
+import { alertSoundFor } from "@/lib/alert-sounds";
 import { notesService } from "@/services/notes.service";
 import { boardSignalQueryKeys } from "./board-signal-invalidations";
 import styles from "./NotificationCenter.module.scss";
@@ -100,6 +102,8 @@ export function NotificationCenter() {
     }
     invalidate();
     showBrowserNotification(event);
+    const sound = alertSoundFor(event, "staff");
+    if (sound !== "none") void playAlertSound(sound);
   });
   const markRead = useMutation({
     mutationFn: (id: string) => api.markNotificationRead(id),

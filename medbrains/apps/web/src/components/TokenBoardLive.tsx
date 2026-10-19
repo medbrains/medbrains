@@ -12,6 +12,8 @@ import {
   TokenDashboard,
   type TokenItem,
 } from "@/components/ui";
+import { playAlertSound } from "@/lib/alert-sound-player";
+import { alertSoundFor } from "@/lib/alert-sounds";
 import { announceCall, unspeakable, VOICE_LANGUAGES, type VoiceLanguage } from "@/lib/board-voice";
 import classes from "./token-board-alert.module.scss";
 
@@ -179,14 +181,24 @@ export function TokenBoardLive({
       if (mutedRef.current) return;
       try {
         const frame = classifyBoardFrame(JSON.parse(event.data));
+        // The chime finishes before the voice starts: the two never overlap.
+        // The board answers to its own mute button, not a person's settings.
         if (frame.kind === "token") {
-          announceCall(frame.tokenNumber, frame.where, {
-            languages: voiceRef.current?.voice_languages ?? ["en"],
-            repeat: voiceRef.current?.announce_repeat ?? 1,
-          });
+          const { tokenNumber, where } = frame;
+          void playAlertSound("calm", { ignorePrefs: true }).then(() =>
+            announceCall(tokenNumber, where, {
+              languages: voiceRef.current?.voice_languages ?? ["en"],
+              repeat: voiceRef.current?.announce_repeat ?? 1,
+            }),
+          );
         } else if (frame.kind === "alert") {
-          setAlert(frame.alert);
-          speak(frame.alert.message);
+          const { alert: announced } = frame;
+          setAlert(announced);
+          // Priority reads like a notification kind: emergency is urgent.
+          const sound = alertSoundFor({ kind: announced.priority }, "staff");
+          const chime =
+            sound === "none" ? Promise.resolve() : playAlertSound(sound, { ignorePrefs: true });
+          void chime.then(() => speak(announced.message));
         }
       } catch {
         // non-JSON frame — ignore

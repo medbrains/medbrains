@@ -8,6 +8,7 @@ import {
   useLiveActivityStore,
 } from "@/components/LiveActivityIsland/live-activity-store";
 import { toast } from "@/components/ui";
+import { playAlertSound } from "@/lib/alert-sound-player";
 
 interface WhisperPayload {
   type?: string;
@@ -48,6 +49,8 @@ function showWhisper(whisper: WhisperPayload) {
     dismissible: true,
   });
   toast.error(message, { title, actions: [{ label: "Ask AI", primary: true, onClick: askAi }] });
+  // Critical values and codes only arrive here, so this is always urgent.
+  void playAlertSound("urgent");
 }
 
 /**

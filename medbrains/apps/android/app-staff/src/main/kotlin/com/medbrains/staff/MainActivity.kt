@@ -14,6 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.medbrains.kit.AlertAudience
+import com.medbrains.kit.AlertChannels
 import com.medbrains.kit.ApiClient
 import com.medbrains.kit.AuthState
 import com.medbrains.kit.AuthStore
@@ -36,6 +38,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        AlertChannels.register(applicationContext, AlertAudience.STAFF)
         val secrets = SecretStore(applicationContext)
         val bindings = BindingStore(secrets)
         val binding = bindings.read()
