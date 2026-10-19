@@ -1,3 +1,5 @@
+pub mod payment_link;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -2489,6 +2491,8 @@ pub async fn record_invoice_payment(
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
+    // A home delivery the patient paid for in advance goes out once paid.
+    medbrains_pharmacy_delivery::pay::release_paid(tx, tenant_id, invoice_id).await?;
     Ok(())
 }
 

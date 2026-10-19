@@ -10,7 +10,9 @@ medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+async-trait = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

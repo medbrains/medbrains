@@ -106,6 +106,18 @@ class PortalSeed private constructor(private var token: String?) {
         return (0 until rows.length()).map { rows.getJSONObject(it) }.count { it.optString("record_type") == "refill_request" && it.optString("summary").contains(drug) }
     }
 
+    /** A pharmacy setting as the hospital holds it (null when never set). */
+    fun pharmacySetting(key: String): Any? {
+        val rows = runCatching { JSONArray(call("GET", "/api/setup/settings?category=pharmacy").second) }.getOrDefault(JSONArray())
+        return (0 until rows.length()).map { rows.getJSONObject(it) }.firstOrNull { it.optString("key") == key }?.opt("value")
+    }
+
+    /** The hospital changes a pharmacy setting, as its settings screen does. */
+    fun setPharmacySetting(key: String, value: Any) {
+        val (status, text) = call("PUT", "/api/setup/settings", JSONObject().put("category", "pharmacy").put("key", key).put("value", value))
+        check(status in 200..299) { "pharmacy.$key → $value: $status $text" }
+    }
+
     /** The hospital licenses (or drops) a module for every patient at once. */
     fun setModule(code: String, enabled: Boolean) {
         val (status, text) = call("PUT", "/api/setup/modules/$code", JSONObject().put("status", if (enabled) "enabled" else "disabled"))

@@ -13,4 +13,5 @@ export const deliveryService = {
     api.completeDelivery(...args),
   failDelivery: (...args: Parameters<typeof api.failDelivery>) => api.failDelivery(...args),
   cancelDelivery: (...args: Parameters<typeof api.cancelDelivery>) => api.cancelDelivery(...args),
+  assignDelivery: (...args: Parameters<typeof api.assignDelivery>) => api.assignDelivery(...args),
 };

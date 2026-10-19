@@ -6,6 +6,7 @@ import {
   IconClock,
   IconHeartbeat,
   IconIdBadge2,
+  IconMapPin,
   IconSchool,
   IconShieldCheck,
   IconUsers,
@@ -17,6 +18,7 @@ import { AttendanceTab } from "./hr/attendance-tab";
 import { ComplianceTab } from "./hr/compliance-tab";
 import { DutyHoursTab } from "./hr/duty-hours-tab";
 import { EmployeesTab } from "./hr/employees-tab";
+import { GeofenceTab } from "./hr/geofence-tab";
 import { LeaveTab } from "./hr/leave-tab";
 import { RosterTab } from "./hr/roster-tab";
 import { TrainingTab } from "./hr/training-tab";
@@ -34,6 +36,7 @@ export function HrPage() {
   const canManageOnCall = useHasPermission(P.HR.ON_CALL_MANAGE);
   const canManageTraining = useHasPermission(P.HR.TRAINING_MANAGE);
   const canManageAppraisal = useHasPermission(P.HR.APPRAISAL_MANAGE);
+  const canManageGeofence = useHasPermission(P.HR.ATTENDANCE_GEOFENCE_MANAGE);
 
   const [activeTab, setActiveTab] = useState<string | null>("employees");
 
@@ -66,6 +69,11 @@ export function HrPage() {
           <Tabs.Tab value="training" leftSection={<IconSchool size={16} />}>
             Training
           </Tabs.Tab>
+          {canManageGeofence && (
+            <Tabs.Tab value="geofence" leftSection={<IconMapPin size={16} />}>
+              Geofence
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="compliance" leftSection={<IconShieldCheck size={16} />}>
             Compliance
           </Tabs.Tab>
@@ -93,6 +101,11 @@ export function HrPage() {
         <Tabs.Panel value="training">
           <TrainingTab canManage={canManageTraining} />
         </Tabs.Panel>
+        {canManageGeofence && (
+          <Tabs.Panel value="geofence">
+            <GeofenceTab />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="compliance">
           <ComplianceTab
             canManageCredentials={canManageCredentials}

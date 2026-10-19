@@ -6936,6 +6936,16 @@ pub async fn review_prescription(
         .bind(rx.id)
         .execute(&mut *tx)
         .await?;
+
+        // A refill the patient asked to have delivered goes on to delivery.
+        medbrains_pharmacy_delivery::choice::on_order_approved(
+            &mut tx,
+            claims.tenant_id,
+            claims.sub,
+            rx.id,
+            order.id,
+        )
+        .await?;
     }
 
     let final_rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(

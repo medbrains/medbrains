@@ -28,6 +28,7 @@ use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
+pub mod geofence;
 pub mod leave;
 pub mod leave_approval;
 
@@ -204,6 +205,9 @@ pub struct ListAttendanceQuery {
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub employee_id: Option<Uuid>,
+    /// Only punches HR should review: outside a fence, uncertain or
+    /// without a location.
+    pub flagged: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1188,29 +1192,35 @@ pub async fn list_attendance(
         sqlx::query_as::<_, AttendanceRecord>(
             "SELECT * FROM attendance_records \
              WHERE tenant_id = $1 AND deleted_at IS NULL AND employee_id = $2 \
+               AND ($3::bool IS NOT TRUE OR geofence_flagged) \
              ORDER BY attendance_date DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
+        .bind(params.flagged)
         .fetch_all(&mut *tx)
         .await?
     } else if let (Some(from), Some(to)) = (&params.date_from, &params.date_to) {
         sqlx::query_as::<_, AttendanceRecord>(
             "SELECT * FROM attendance_records WHERE tenant_id = $1 AND deleted_at IS NULL \
              AND attendance_date BETWEEN $2::date AND $3::date \
+             AND ($4::bool IS NOT TRUE OR geofence_flagged) \
              ORDER BY attendance_date, employee_id LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
         .bind(to)
+        .bind(params.flagged)
         .fetch_all(&mut *tx)
         .await?
     } else {
         sqlx::query_as::<_, AttendanceRecord>(
             "SELECT * FROM attendance_records WHERE tenant_id = $1 AND deleted_at IS NULL \
+             AND ($2::bool IS NOT TRUE OR geofence_flagged) \
              ORDER BY attendance_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
+        .bind(params.flagged)
         .fetch_all(&mut *tx)
         .await?
     };
@@ -1309,6 +1319,9 @@ pub struct MyShiftResponse {
     scheduled: Option<ScheduledShift>,
     session: Option<AttendanceRecord>,
     fatigue: FatigueState,
+    /// Where the punch this response answers was made — set by start and
+    /// end of shift only.
+    punch: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1539,6 +1552,7 @@ async fn build_my_shift(
         scheduled,
         session,
         fatigue,
+        punch: None,
     })
 }
 
@@ -1574,16 +1588,19 @@ pub async fn get_my_shift(
                 week_h: 0.0,
                 acknowledged: false,
             },
+            punch: None,
         },
     };
     tx.commit().await?;
     Ok(Json(resp))
 }
 
-/// `POST /api/hr/my-shift/start` — clock in for an 8h shift session.
+/// `POST /api/hr/my-shift/start` — clock in for an 8h shift session, with
+/// the device's location judged against the campus fences.
 pub async fn start_shift(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    body: Option<Json<geofence::PunchRequest>>,
 ) -> Result<Json<MyShiftResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1598,22 +1615,31 @@ pub async fn start_shift(
         ));
     }
 
+    let location = geofence::judge_punch(&mut tx, &claims.tenant_id, body.as_deref()).await?;
     let planned_end = resolve_planned_end(&mut tx, &claims.tenant_id, employee_id).await?;
+    // The hospital's date, not the database server's: a night nurse in IST
+    // clocking in at 00:30 belongs to the new day, not yesterday in UTC.
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
 
     sqlx::query(
         "INSERT INTO attendance_records \
            (tenant_id, employee_id, attendance_date, check_in, status, source, \
-            session_status, planned_end, recorded_by) \
-         VALUES ($1, $2, CURRENT_DATE, now(), 'present', 'self', 'on_duty', $3, $4)",
+            session_status, planned_end, recorded_by, check_in_location) \
+         VALUES ($1, $2, $5, now(), 'present', 'self', 'on_duty', $3, $4, $6)",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
     .bind(planned_end)
     .bind(claims.sub)
+    .bind(today)
+    .bind(&location)
     .execute(&mut *tx)
     .await?;
 
-    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    let mut resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    resp.punch = Some(location);
     tx.commit().await?;
     Ok(Json(resp))
 }
@@ -1705,28 +1731,34 @@ pub async fn resume_shift(
     Ok(Json(resp))
 }
 
-/// `POST /api/hr/my-shift/end`
+/// `POST /api/hr/my-shift/end` — clock out, with the device's location
+/// judged against the campus fences as at the start.
 pub async fn end_shift(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    body: Option<Json<geofence::PunchRequest>>,
 ) -> Result<Json<MyShiftResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+    let location = geofence::judge_punch(&mut tx, &claims.tenant_id, body.as_deref()).await?;
 
     sqlx::query(
         "UPDATE attendance_records SET \
            paused_minutes = paused_minutes + CASE WHEN paused_at IS NOT NULL \
                THEN GREATEST(0, EXTRACT(EPOCH FROM (now() - paused_at)) / 60)::int ELSE 0 END, \
-           paused_at = NULL, check_out = now(), session_status = 'ended', updated_at = now() \
+           paused_at = NULL, check_out = now(), session_status = 'ended', \
+           check_out_location = $3, updated_at = now() \
          WHERE tenant_id = $1 AND employee_id = $2 AND session_status IN ('on_duty', 'paused')",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
+    .bind(&location)
     .execute(&mut *tx)
     .await?;
 
-    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    let mut resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    resp.punch = Some(location);
     tx.commit().await?;
     Ok(Json(resp))
 }
@@ -2363,6 +2395,18 @@ pub fn router() -> axum::Router<AppState> {
             get(list_attendance).post(create_attendance),
         )
         .route("/api/hr/duty-hours", get(list_duty_hours))
+        .route(
+            "/api/hr/attendance/geofence",
+            get(geofence::get_geofence_settings),
+        )
+        .route(
+            "/api/hr/attendance/geofence/mode",
+            put(geofence::set_geofence_mode),
+        )
+        .route(
+            "/api/hr/attendance/geofence/campuses/{id}",
+            put(geofence::set_campus_fence),
+        )
         .route("/api/hr/my-shift", get(get_my_shift))
         .route("/api/hr/my-shift/start", post(start_shift))
         .route("/api/hr/my-shift/extend", post(extend_shift))

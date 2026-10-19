@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -86,7 +88,9 @@ fun MedicinesScreen(portal: PortalApi) {
     val state by remote.state.collectAsState()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-prescriptions")) {
         CarbonPageHeader("Medicines", "Your prescriptions", "What was prescribed, and how to take it.")
-        RefillsSection(portal)
+        var requested by remember { mutableIntStateOf(0) }
+        RefillsSection(portal, onRequested = { requested++ })
+        DeliveriesSection(portal, requested)
         RemoteContent("prescriptions", state, "Couldn't load your prescriptions", "Try again in a moment.", { it.isEmpty() }, "No prescriptions yet", "Nothing has been prescribed to you.", { scope.launch { remote.load { portal.prescriptions() } } }) { rows ->
             Column {
                 rows.take(200).groupBy { it.prescription_id }.values.sortedByDescending { it.first().prescribed_at }.forEach { items ->

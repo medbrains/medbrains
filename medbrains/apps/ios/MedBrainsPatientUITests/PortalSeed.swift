@@ -140,6 +140,18 @@ final class PortalSeed {
         return rows.filter { ($0["record_type"] as? String) == "refill_request" && (($0["summary"] as? String) ?? "").contains(drug) }.count
     }
 
+    /// A pharmacy setting as the hospital holds it (nil when never set).
+    func pharmacySetting(_ key: String) -> Any? {
+        let rows = (call("GET", "/api/setup/settings?category=pharmacy").1 as? [[String: Any]]) ?? []
+        return rows.first { ($0["key"] as? String) == key }?["value"]
+    }
+
+    /// The hospital changes a pharmacy setting, as its settings screen does.
+    func setPharmacySetting(_ key: String, _ value: Any) {
+        let (status, _) = call("PUT", "/api/setup/settings", ["category": "pharmacy", "key": key, "value": value])
+        XCTAssertTrue((200..<300).contains(status), "pharmacy.\(key) → \(value)")
+    }
+
     /// The hospital licenses (or drops) a module for every patient at once.
     func setModule(_ code: String, enabled: Bool) {
         let (status, _) = call("PUT", "/api/setup/modules/\(code)", ["status": enabled ? "enabled" : "disabled"])

@@ -1,17 +1,20 @@
 /**
  * Refills a patient can ask for. Each recent prescription says what asking
  * would do — straight to the pharmacy, or to the doctor first — or why it
- * can't be asked for now, and how the last request went.
+ * can't be asked for now, and how the last request went. Asking opens the
+ * choice of collecting it or having it delivered.
  */
 
 import { Box, Group, Stack, Text, Title } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import type { PortalRefill, PortalRefillRequest } from "@medbrains/types";
 import { IconRepeat } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, type BadgeTone, Button, Card, toast } from "@/components/ui";
+import { useQuery } from "@tanstack/react-query";
+import { Badge, type BadgeTone, Button, Card } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { portalDate } from "./portal-format";
 import { PortalList } from "./portal-list";
+import { RefillChoiceModal } from "./portal-refill-choice";
 
 const REQUEST_STATUS: Record<PortalRefillRequest["status"], { label: string; tone: BadgeTone }> = {
   with_doctor: { label: "With your doctor", tone: "info" },
@@ -37,21 +40,7 @@ function LastRequest({ request }: { request: PortalRefillRequest }) {
 }
 
 function RefillCard({ row, token }: { row: PortalRefill; token: string }) {
-  const queryClient = useQueryClient();
-  const ask = useMutation({
-    mutationFn: () => portalService.requestPortalRefill(token, row.prescription_id, {}),
-    onSuccess: (request) => {
-      toast.success(
-        request.status === "with_doctor"
-          ? "Your doctor will look at it. We'll show their answer here."
-          : "The pharmacy will have it ready.",
-        { title: "Refill requested" },
-      );
-      void queryClient.invalidateQueries({ queryKey: ["portal-refills"] });
-    },
-    onError: (e: Error) => toast.error(e.message, { title: "Refill not requested" }),
-  });
-
+  const [choosing, choice] = useDisclosure(false);
   return (
     <Box component="section" aria-label={`Refill: ${row.drugs.join(", ")}`}>
       <Card>
@@ -71,8 +60,7 @@ function RefillCard({ row, token }: { row: PortalRefill; token: string }) {
                 size="sm"
                 tone="primary"
                 leftSection={<IconRepeat size={16} />}
-                loading={ask.isPending}
-                onClick={() => ask.mutate()}
+                onClick={choice.open}
               >
                 Request refill
               </Button>
@@ -80,6 +68,9 @@ function RefillCard({ row, token }: { row: PortalRefill; token: string }) {
           </Group>
         </Stack>
       </Card>
+      {row.goes_to && (
+        <RefillChoiceModal token={token} row={row} opened={choosing} onClose={choice.close} />
+      )}
     </Box>
   );
 }

@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 805;
+pub const PERMISSION_COUNT: usize = 806;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -1429,6 +1429,16 @@ pub mod hr {
     pub mod attendance {
         pub const LIST: &str = "hr.attendance.list";
         pub const MANAGE: &str = "hr.attendance.manage";
+
+        pub mod geofence {
+            /// Set where staff may clock in from.
+            ///
+            /// Each facility's location and fence radius, and whether a punch
+            /// from outside is flagged for HR or refused. Decides whether a
+            /// nurse can start their shift, so it is held apart from marking
+            /// attendance.
+            pub const MANAGE: &str = "hr.attendance.geofence.manage";
+        }
     }
 
     pub mod leave {

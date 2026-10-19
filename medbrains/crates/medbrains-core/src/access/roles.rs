@@ -1842,6 +1842,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::abdm::hpr::MANAGE,
             permissions::hr::attendance::LIST,
             permissions::hr::attendance::MANAGE,
+            permissions::hr::attendance::geofence::MANAGE,
             permissions::hr::leave::LIST,
             permissions::hr::leave::CREATE,
             permissions::hr::leave::APPROVE,
