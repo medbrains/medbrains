@@ -5,7 +5,8 @@
 //! it: the artefact named in the URL must be granted and unexpired, hold a
 //! key from our request, and the push's `transactionId` must be the one ABDM
 //! gave us for it (the first push binds it if `on-request` has not arrived).
-//! Each entry must then decrypt with that request's private key, match its
+//! An entry with a `link` instead of inline `content` is fetched first,
+//! guarded (`link`). Each entry must then decrypt with that request's private key, match its
 //! checksum, be a FHIR bundle and fall inside the consent; anything else is
 //! refused and reported to ABDM as ERRORED, never stored.
 
@@ -20,9 +21,9 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::keys;
 use super::purge::erase_due;
 use super::scope::{Refusal, Scope, open_entry};
+use super::{keys, link};
 use crate::{error::AppError, routes::abdm::hip::gateway::Hip, state::AppState};
 
 /// Entries read from one push; ABDM pages larger transfers.
@@ -80,22 +81,28 @@ pub async fn receive(
         km["dhPublicKey"]["keyValue"].as_str().unwrap_or_default(),
         km["nonce"].as_str().unwrap_or_default(),
     );
+    let entries = body["entries"].as_array().map_or(&[][..], Vec::as_slice);
+    let entries = &entries[..entries.len().min(MAX_ENTRIES)];
+    // Authenticated before any linked entry is fetched, and fetched before
+    // the artefact is locked: no row lock is held across the network.
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    load_held(&mut tx, tenant_id, artefact_id, transaction_id, "").await?;
+    let allow_loopback = link::loopback_allowed(&state, &mut tx, tenant_id).await?;
+    tx.commit().await?;
+    let entries = link::inline_all(entries, allow_loopback).await;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     erase_due(&mut tx, tenant_id).await?;
-    let held = sqlx::query_as::<_, Held>(
-        "SELECT id, consent_id, patient_id, consent_request_id, hiu_id, hip_id, hip_name, hi_types, \
-                care_context_refs, date_from, date_to, data_erase_at, transaction_id, key_material_sealed \
-           FROM abdm_consent_artefacts \
-          WHERE tenant_id = $1 AND id = $2 AND role = 'hiu' AND status = 'GRANTED' \
-            AND deleted_at IS NULL AND data_erase_at > now() FOR UPDATE",
+    let held = load_held(
+        &mut tx,
+        tenant_id,
+        artefact_id,
+        transaction_id,
+        " FOR UPDATE",
     )
-    .bind(tenant_id)
-    .bind(artefact_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .filter(|h| h.transaction_id.as_deref().is_none_or(|t| t == transaction_id))
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
     let sealed = held
         .key_material_sealed
         .as_deref()
@@ -107,11 +114,10 @@ pub async fn receive(
         from: held.date_from,
         to: held.date_to,
     };
-    let entries = body["entries"].as_array().map_or(&[][..], Vec::as_slice);
     let mut stored = Vec::new();
     let mut refused: Vec<Refusal> = Vec::new();
-    for entry in entries.iter().take(MAX_ENTRIES) {
-        match open_entry(entry, &ours, sender, &scope) {
+    for entry in entries {
+        match entry.and_then(|e| open_entry(&e, &ours, sender, &scope)) {
             Ok(r) => {
                 store(&mut tx, tenant_id, &held, transaction_id, &r).await?;
                 stored.push(r.reference);
@@ -145,6 +151,31 @@ pub async fn receive(
         ));
     }
     Ok(StatusCode::ACCEPTED)
+}
+
+/// The artefact a push names, while it may receive: granted, unexpired,
+/// holding a key, and under the push's transaction (or none bound yet).
+async fn load_held(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    artefact_id: Uuid,
+    transaction_id: &str,
+    lock: &str,
+) -> Result<Held, AppError> {
+    sqlx::query_as::<_, Held>(&format!(
+        "SELECT id, consent_id, patient_id, consent_request_id, hiu_id, hip_id, hip_name, hi_types, \
+                care_context_refs, date_from, date_to, data_erase_at, transaction_id, key_material_sealed \
+           FROM abdm_consent_artefacts \
+          WHERE tenant_id = $1 AND id = $2 AND role = 'hiu' AND status = 'GRANTED' \
+            AND deleted_at IS NULL AND data_erase_at > now() \
+            AND key_material_sealed IS NOT NULL{lock}"
+    ))
+    .bind(tenant_id)
+    .bind(artefact_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .filter(|h| h.transaction_id.as_deref().is_none_or(|t| t == transaction_id))
+    .ok_or(AppError::Unauthorized)
 }
 
 async fn store(
