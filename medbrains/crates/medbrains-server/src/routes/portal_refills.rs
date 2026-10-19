@@ -6,6 +6,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use medbrains_pharmacy_delivery::choice::{DeliveryChoice, check_choice, record_choice};
 use medbrains_pharmacy_repeats::requests::{
     PatientRefill, RefillRequest, create_request, patient_refills,
 };
@@ -32,6 +33,8 @@ pub async fn portal_refills(
 #[derive(Debug, Deserialize)]
 pub struct RefillRequestBody {
     pub note: Option<String>,
+    /// Home delivery; absent for pickup at the pharmacy.
+    pub delivery: Option<DeliveryChoice>,
 }
 
 /// `POST /api/portal/prescriptions/{id}/refill-request`
@@ -44,6 +47,21 @@ pub async fn portal_request_refill(
 ) -> Result<Json<RefillRequest>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // Delivery is checked first: when it isn't offered, the patient is told
+    // why and nothing is requested.
+    let delivery = match &body.delivery {
+        Some(choice) => Some(
+            check_choice(
+                &mut tx,
+                claims.tenant_id,
+                claims.pid,
+                prescription_id,
+                choice,
+            )
+            .await?,
+        ),
+        None => None,
+    };
     let request = create_request(
         &mut tx,
         claims.tenant_id,
@@ -52,6 +70,9 @@ pub async fn portal_request_refill(
         body.note.as_deref(),
     )
     .await?;
+    if let Some(choice) = &delivery {
+        record_choice(&mut tx, claims.tenant_id, request.id, choice).await?;
+    }
     tx.commit().await?;
     Ok(Json(request))
 }

@@ -11,6 +11,7 @@ pub mod debug;
 pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
+pub mod portal_deliveries;
 pub mod portal_privacy;
 pub mod portal_refills;
 pub mod portal_tele;
@@ -899,6 +900,15 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/portal/prescriptions/{id}/refill-request",
             post(portal_refills::portal_request_refill),
+        )
+        .route(
+            "/api/portal/prescriptions/{id}/delivery-options",
+            get(portal_deliveries::portal_delivery_options),
+        )
+        .route("/api/portal/deliveries", get(portal_deliveries::portal_deliveries))
+        .route(
+            "/api/portal/deliveries/{id}",
+            get(portal_deliveries::portal_delivery),
         )
         .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
         .route("/api/portal/privacy/export", get(portal_privacy::portal_export))

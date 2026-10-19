@@ -3,7 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button, Card, NumberField, toast } from "@/components/ui";
+import { Button, Card, NumberField, Switch, toast } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 /** Paid deliveries before cash on delivery is offered, when the hospital hasn't said. */
@@ -14,9 +14,15 @@ function numberSetting(rows: { key: string; value: unknown }[], key: string, fal
   return Number.isFinite(value) ? value : fallback;
 }
 
+/** Whether patients may ask for delivery themselves; off until turned on. */
+function homeDeliveryOn(rows: { key: string; value: unknown }[]) {
+  return rows.find((r) => r.key === "home_delivery_enabled")?.value === true;
+}
+
 /**
  * The hospital's delivery rules: the fee added to the bill, and how many paid
- * deliveries a patient completes before they may pay at the door.
+ * deliveries a patient completes before they may pay at the door, and
+ * whether patients may ask for delivery from the portal and the apps.
  */
 export function DeliverySettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS_GENERAL_MANAGE);
@@ -28,6 +34,7 @@ export function DeliverySettings() {
   });
   const [fee, setFee] = useState<number | string | null>(null);
   const [codMin, setCodMin] = useState<number | string | null>(null);
+  const [patientsAsk, setPatientsAsk] = useState<boolean | null>(null);
   const save = useMutation({
     mutationFn: async () => {
       await tenantSettingsService.updateTenantSetting({
@@ -39,6 +46,11 @@ export function DeliverySettings() {
         category: "pharmacy",
         key: "cod_min_deliveries",
         value: Number(codMin ?? numberSetting(rows ?? [], "cod_min_deliveries", DEFAULT_COD_MIN)),
+      });
+      await tenantSettingsService.updateTenantSetting({
+        category: "pharmacy",
+        key: "home_delivery_enabled",
+        value: patientsAsk ?? homeDeliveryOn(rows ?? []),
       });
     },
     onSuccess: () => {
@@ -72,6 +84,12 @@ export function DeliverySettings() {
           w={220}
           value={codMin ?? numberSetting(rows, "cod_min_deliveries", DEFAULT_COD_MIN)}
           onChange={setCodMin}
+        />
+        <Switch
+          label="Patients can ask for home delivery"
+          description="From the portal and the patient apps, when they request a refill"
+          checked={patientsAsk ?? homeDeliveryOn(rows)}
+          onChange={(e) => setPatientsAsk(e.currentTarget.checked)}
         />
         <Button tone="primary" loading={save.isPending} onClick={() => save.mutate()}>
           Save

@@ -16,9 +16,8 @@ use axum::{
 };
 use medbrains_crypto::beckn::{KeyPair, SignatureHeader, generate, sign};
 use medbrains_outbox::Handler;
-use medbrains_server::routes::uhi::{
-    auth, outbox::UhiCallbackHandler, payment_events::RAZORPAY_API_BASE_OVERRIDE, protocol,
-};
+use medbrains_payment_gateway::payment_link::API_BASE_OVERRIDE;
+use medbrains_server::routes::uhi::{auth, outbox::UhiCallbackHandler, protocol};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -293,7 +292,7 @@ fn secrets(mock: &str, eua: &KeyPair) -> common::TestSecrets {
         )
         .with(auth::UHI_GATEWAY_BASE_URL_OVERRIDE, mock.to_owned())
         .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test")
-        .with(RAZORPAY_API_BASE_OVERRIDE, format!("{mock}/razorpay/v1"))
+        .with(API_BASE_OVERRIDE, format!("{mock}/razorpay/v1"))
 }
 
 /// A hospital set up as a UHI provider of every service, against a fresh mock.

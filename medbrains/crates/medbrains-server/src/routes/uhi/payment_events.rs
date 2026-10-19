@@ -1,14 +1,16 @@
 //! The two outbox events of an online payment (see `payment`):
-//! `uhi.payment_link` asks Razorpay for the hosted link and sends it in
+//! `uhi.payment_link` asks Razorpay for the hosted link (through the shared
+//! `medbrains_payment_gateway::payment_link` client) and sends it in
 //! `on_confirm`; `uhi.payment_captured` — queued by the gateway's webhook —
 //! confirms the booking, bills it and says so in `on_confirm` and
 //! `on_status`.
 
 use async_trait::async_trait;
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
+use medbrains_payment_gateway::payment_link::{Link, LinkRequest, record_link, request_link};
 use medbrains_payment_gateway::{razorpay_link_credentials, record_invoice_payment};
 use medbrains_server_services::billing::{AutoChargeInput, auto_charge};
-use rust_decimal::{Decimal, prelude::ToPrimitive};
+use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -23,11 +25,6 @@ use super::{
     settings::{self, Subscription},
 };
 use crate::error::AppError;
-
-/// A stand-in Razorpay for tests and rehearsals.
-pub const RAZORPAY_API_BASE_OVERRIDE: &str = "RAZORPAY_API_BASE_OVERRIDE";
-/// Razorpay Payment Links (`POST /v1/payment_links`), per Razorpay's API docs.
-const RAZORPAY_API_BASE: &str = "https://api.razorpay.com/v1";
 
 fn transient(e: impl std::fmt::Display) -> HandlerError {
     HandlerError::Transient(e.to_string())
@@ -55,60 +52,19 @@ async fn subscription(tx: &mut Tx<'_>, tenant_id: Uuid) -> Result<Subscription, 
         .ok_or_else(|| HandlerError::Permanent("UHI is no longer set up".to_owned()))
 }
 
-/// What the provider said to a link request.
-#[derive(Debug)]
-enum Link {
-    Made { id: String, url: String },
-    Refused(String),
-}
-
-async fn make_link(
-    ctx: &HandlerCtx,
-    held: &Held,
-    (key_id, key_secret): (String, String),
-) -> Result<Link, HandlerError> {
-    let base = ctx
-        .secret_resolver
-        .get(RAZORPAY_API_BASE_OVERRIDE)
-        .await
-        .ok()
-        .filter(|b| b.starts_with("http"))
-        .unwrap_or_else(|| RAZORPAY_API_BASE.to_owned());
-    let paise = held
-        .amount
-        .and_then(|a| (a * Decimal::ONE_HUNDRED).to_i64())
-        .ok_or_else(|| HandlerError::Permanent("the held booking has no amount".to_owned()))?;
-    let paying = held.payment_transaction_id.unwrap_or_default();
-    let body = json!({
-        "amount": paise, "currency": "INR", "accept_partial": false,
-        "expire_by": held.hold_expires_at.map(|t| t.timestamp()),
-        "reference_id": paying.to_string(),
-        "description": "Teleconsultation booked through UHI",
-        "notify": { "sms": false, "email": false }, "reminder_enable": false,
-        "notes": { "tenant_id": ctx.tenant_id.to_string(), "uhi_transaction_id": held.id.to_string() },
-    });
-    let response = ctx
-        .http_client
-        .post(format!("{}/payment_links", base.trim_end_matches('/')))
-        .basic_auth(key_id, Some(key_secret))
-        .json(&body)
-        .send()
-        .await
-        .map_err(transient)?;
-    let status = response.status();
-    if status.as_u16() == 429 || status.is_server_error() {
-        return Err(transient(format!("razorpay payment link: {status}")));
-    }
-    let answer: Value = response.json().await.unwrap_or(Value::Null);
-    match (answer["id"].as_str(), answer["short_url"].as_str()) {
-        (Some(id), Some(url)) if status.is_success() => Ok(Link::Made {
-            id: id.to_owned(),
-            url: url.to_owned(),
-        }),
-        _ => Ok(Link::Refused(format!(
-            "razorpay payment link refused: {status}"
-        ))),
-    }
+/// The link for a held booking: its payment row, its amount, until the hold ends.
+fn link_request(ctx: &HandlerCtx, held: &Held) -> Result<LinkRequest, HandlerError> {
+    Ok(LinkRequest {
+        payment_transaction_id: held.payment_transaction_id.unwrap_or_default(),
+        amount: held
+            .amount
+            .ok_or_else(|| HandlerError::Permanent("the held booking has no amount".to_owned()))?,
+        description: "Teleconsultation booked through UHI".to_owned(),
+        expire_by: held.hold_expires_at.map(|t| t.timestamp()),
+        contact: None,
+        notes: json!({ "tenant_id": ctx.tenant_id.to_string(),
+                       "uhi_transaction_id": held.id.to_string() }),
+    })
 }
 
 /// `uhi.payment_link` — make the link, send `on_confirm` with it.
@@ -140,7 +96,7 @@ impl Handler for UhiPaymentLinkHandler {
         // The provider is called outside any transaction; what it answers is
         // applied only if the booking is still held.
         let link = match credentials {
-            Some(c) => make_link(ctx, &held, c).await?,
+            Some(c) => request_link(ctx, c, &link_request(ctx, &held)?).await?,
             None => Link::Refused("online payment is no longer set up".to_owned()),
         };
         let mut tx = begin(ctx).await?;
@@ -191,16 +147,7 @@ impl Handler for UhiPaymentLinkHandler {
 /// gets, with the link to pay at.
 async fn linked(tx: &mut Tx<'_>, held: &Held, link_id: &str, url: &str) -> Result<Value, AppError> {
     let paying = held.payment_transaction_id.unwrap_or_default();
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET gateway_order_id = $2, status = 'created', \
-                notes = notes || jsonb_build_object('payment_link', $3::text), updated_at = now() \
-          WHERE id = $1",
-    )
-    .bind(paying)
-    .bind(link_id)
-    .bind(url)
-    .execute(&mut **tx)
-    .await?;
+    record_link(tx, paying, link_id, url).await?;
     let mut order = held.order_details.clone().unwrap_or_else(|| json!({}));
     let amount = held.amount.map(money);
     order["payment"] = json!({ "type": PAYMENT_ON_ORDER, "status": PAYMENT_NOT_PAID,
