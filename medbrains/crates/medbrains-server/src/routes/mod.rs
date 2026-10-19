@@ -438,6 +438,23 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hip::records::sharing_summary),
         )
         .route(
+            "/api/abdm/scan-share/counters",
+            get(abdm::scan_share::counters),
+        )
+        .route("/api/abdm/scan-share/queue", get(abdm::scan_share::queue))
+        .route(
+            "/api/abdm/scan-share/{id}/verification",
+            post(abdm::scan_share::verification),
+        )
+        .route(
+            "/api/abdm/scan-share/{id}/complete",
+            post(abdm::scan_share::complete),
+        )
+        .route(
+            "/api/abdm/scan-share/{id}/dismiss",
+            post(abdm::scan_share::dismiss),
+        )
+        .route(
             "/api/abdm/patients/{patient_id}/consent-requests",
             post(abdm::hiu::requests::raise),
         )

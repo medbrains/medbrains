@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1085 permissions, one per constant in the Rust source. */
+/** 1087 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6596,6 +6596,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.scanshare.view",
+    label: "Work the Scan & Share registration queue",
+    description: "See the ABHA profiles patients shared at the registration counters today, with their token numbers; open the matched patient, register a new one from the profile, or dismiss a share.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.scanshare.manage",
+    label: "Print the counters' Scan & Share QR codes",
+    description: "The QR poster for each registration counter, naming this hospital's HFR facility ID and the counter.",
+    module: "abdm",
+  },
+  {
     code: "abdm.hpr.manage",
     label: "Record and verify doctors' HPR IDs",
     description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
@@ -6641,6 +6653,12 @@ export const P = {
       PULL: "abdm.relay.pull",
     },
     RELAY_PULL: "abdm.relay.pull",
+    SCANSHARE: {
+      MANAGE: "abdm.scanshare.manage",
+      VIEW: "abdm.scanshare.view",
+    },
+    SCANSHARE_MANAGE: "abdm.scanshare.manage",
+    SCANSHARE_VIEW: "abdm.scanshare.view",
     SETTINGS: {
       MANAGE: "abdm.settings.manage",
     },
@@ -10401,6 +10419,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.ADMIN.SETTINGS.READ,
       P.BILLING.INVOICES.CANCEL,
@@ -11253,6 +11272,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
+      P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,
