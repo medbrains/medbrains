@@ -1,18 +1,25 @@
 import { Loader, ScrollArea, Stack, Tabs, Text } from "@mantine/core";
 import { useAuthStore } from "@medbrains/stores";
 import type { StickyNote, StickyNotesView } from "@medbrains/types";
-import { IconEdit, IconPlus, IconShare, IconTrash, IconX } from "@tabler/icons-react";
+import { IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { Alert, IconButton, toast } from "@/components/ui";
 import { notesService } from "@/services/notes.service";
+import { MyNotes } from "./MyNotes";
 import { NoteCard } from "./NoteCard";
 import { type NoteDraft, NoteEditorModal } from "./NoteEditorModal";
+import { NotePreferencesModal } from "./NotePreferencesModal";
+import { filterMine } from "./notes-logic";
 import { ShareNoteModal } from "./ShareNoteModal";
 
 export const NOTES_KEY = ["notes"];
 
-type Dialog = { kind: "edit"; note?: StickyNote } | { kind: "share"; note: StickyNote } | null;
+type Dialog =
+  | { kind: "edit"; note?: StickyNote }
+  | { kind: "share"; note: StickyNote }
+  | { kind: "settings" }
+  | null;
 
 function useNoteMutations(onDone: () => void) {
   const queryClient = useQueryClient();
@@ -38,6 +45,11 @@ function useNoteMutations(onDone: () => void) {
       mutationFn: (id: string) => notesService.remove(id),
       onSuccess: refresh,
       onError: fail("Could not remove the note"),
+    }),
+    autoResolve: useMutation({
+      mutationFn: ({ id, on }: { id: string; on: boolean }) => notesService.setAutoResolve(id, on),
+      onSuccess: refresh,
+      onError: fail("Could not change auto-resolve"),
     }),
     unshare: useMutation({
       mutationFn: (shareId: string) => notesService.removeShare(shareId),
@@ -95,6 +107,7 @@ export function NotesPanel() {
           onClose={close}
         />
       )}
+      {dialog?.kind === "settings" && <NotePreferencesModal onClose={close} />}
     </>
   );
 }
@@ -107,6 +120,7 @@ interface NotesTabsProps {
 
 function NotesTabs({ view, onDialog, m }: NotesTabsProps) {
   const me = useAuthStore((s) => s.user?.id);
+  const activeMine = filterMine(view.mine, "active").length;
   const takeOff = (note: StickyNote, label: string) =>
     note.share_id ? (
       <IconButton
@@ -120,7 +134,7 @@ function NotesTabs({ view, onDialog, m }: NotesTabsProps) {
   return (
     <Tabs defaultValue="mine" keepMounted={false}>
       <Tabs.List>
-        <Tabs.Tab value="mine">Mine ({view.mine.length})</Tabs.Tab>
+        <Tabs.Tab value="mine">Mine ({activeMine})</Tabs.Tab>
         <Tabs.Tab value="shared">Shared with me ({view.shared_with_me.length})</Tabs.Tab>
         {view.boards.map((b) => (
           <Tabs.Tab key={b.department_id} value={b.department_id}>
@@ -130,48 +144,17 @@ function NotesTabs({ view, onDialog, m }: NotesTabsProps) {
       </Tabs.List>
       <ScrollArea.Autosize mah="calc(100dvh - 180px)" mt="md">
         <Tabs.Panel value="mine">
-          <Stack>
-            <Button
-              tone="primary"
-              leftSection={<IconPlus size={16} />}
-              onClick={() => onDialog({ kind: "edit" })}
-            >
-              New note
-            </Button>
-            {view.mine.length === 0 && (
-              <Empty>No notes yet. Write one, then share it to a board or a colleague.</Empty>
-            )}
-            {view.mine.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                showAuthor={false}
-                actions={
-                  <>
-                    <IconButton
-                      aria-label="Edit note"
-                      onClick={() => onDialog({ kind: "edit", note })}
-                    >
-                      <IconEdit size={16} />
-                    </IconButton>
-                    <IconButton
-                      aria-label="Share note"
-                      onClick={() => onDialog({ kind: "share", note })}
-                    >
-                      <IconShare size={16} />
-                    </IconButton>
-                    <IconButton
-                      aria-label="Delete note"
-                      tone="danger"
-                      onClick={() => m.remove.mutate(note.id)}
-                    >
-                      <IconTrash size={16} />
-                    </IconButton>
-                  </>
-                }
-              />
-            ))}
-          </Stack>
+          <MyNotes
+            notes={view.mine}
+            handlers={{
+              onNew: () => onDialog({ kind: "edit" }),
+              onSettings: () => onDialog({ kind: "settings" }),
+              onEdit: (note) => onDialog({ kind: "edit", note }),
+              onShare: (note) => onDialog({ kind: "share", note }),
+              onRemove: (id) => m.remove.mutate(id),
+              onAutoResolve: (id, on) => m.autoResolve.mutate({ id, on }),
+            }}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="shared">
           <Stack>

@@ -8,17 +8,21 @@
 //! - `PUT    /api/notes/{id}/shares`      — set where one of my notes is shared
 //! - `DELETE /api/notes/shares/{share_id}` — take a note off a board or my list
 //! - `GET    /api/notes/recipients`       — departments and colleagues to share with
+//! - `POST   /api/notes/from-notification/{notification_id}` — pin a notification
+//! - `GET/PUT /api/notes/preferences`     — kinds of notification that always become notes
+//! - `PUT    /api/notes/{id}/auto-resolve` — whether a note clears with its source
 //!
 //! A note nobody may see answers 404, never 403: a refusal must not confirm
 //! that a colleague's private note exists.
 
+mod from_notifications;
 mod view;
 mod write;
 
 use axum::{
     Extension, Json, Router,
     extract::{Query, State},
-    routing::{delete, get, put},
+    routing::{delete, get, post, put},
 };
 use medbrains_core::{
     notes::{NoteRecipient, NoteRecipients},
@@ -38,7 +42,22 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/api/notes", get(view::list_notes).post(write::create_note))
         .route("/api/notes/recipients", get(list_recipients))
-        .route("/api/notes/{id}", put(write::update_note).delete(write::delete_note))
+        .route(
+            "/api/notes/preferences",
+            get(from_notifications::get_preferences).put(from_notifications::set_preferences),
+        )
+        .route(
+            "/api/notes/from-notification/{notification_id}",
+            post(from_notifications::pin_notification),
+        )
+        .route(
+            "/api/notes/{id}/auto-resolve",
+            put(from_notifications::set_auto_resolve),
+        )
+        .route(
+            "/api/notes/{id}",
+            put(write::update_note).delete(write::delete_note),
+        )
         .route("/api/notes/{id}/shares", put(write::set_shares))
         .route("/api/notes/shares/{share_id}", delete(write::remove_share))
 }
