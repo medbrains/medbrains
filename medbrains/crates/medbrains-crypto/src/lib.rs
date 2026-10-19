@@ -11,6 +11,9 @@
 //!    for the HIU with Fidelius (`fidelius`): ECDH on Curve25519 in
 //!    Weierstrass form, HKDF from the two nonces, AES-256-GCM.
 //!
+//! 3. **UHI (Beckn)** — every UHI call is signed with ed25519 over a
+//!    BLAKE2b-512 digest of the body (`beckn`).
+//!
 //! Errors are intentionally opaque (`CryptoError`) so signing-key
 //! material can never leak through error paths.
 
@@ -18,6 +21,7 @@ use thiserror::Error;
 
 pub mod abha;
 pub mod aead;
+pub mod beckn;
 pub mod fidelius;
 pub mod jwe;
 pub mod jws;

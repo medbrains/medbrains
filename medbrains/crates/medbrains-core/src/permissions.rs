@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 799;
+pub const PERMISSION_COUNT: usize = 802;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3504,5 +3504,33 @@ pub mod abdm {
         /// records that failed to link with their reasons. Counts only, plus
         /// the names on failed links.
         pub const VIEW: &str = "abdm.dashboard.view";
+    }
+}
+
+/// UHI (Unified Health Interface): patient apps find and book this hospital's
+/// teleconsultations, ambulances and blood availability through the NHA
+/// gateway, with this hospital as the provider (HSPA).
+pub mod uhi {
+    /// Set up UHI.
+    ///
+    /// The subscriber ID and key the hospital is registered under, its
+    /// signing key pair, the services it offers and the campus it offers
+    /// them from.
+    pub const CONFIGURE: &str = "uhi.configure";
+    /// Requests that arrived from patient apps through UHI.
+    pub mod requests {
+        /// View UHI requests.
+        ///
+        /// Teleconsultations booked, and ambulance and blood requests made,
+        /// from patient apps — with the patient's name, phone and ABHA
+        /// address as the app sent them.
+        pub const VIEW: &str = "uhi.requests.view";
+        /// Accept or decline UHI requests.
+        ///
+        /// Tell the patient's app whether the hospital can send the
+        /// ambulance or has the blood. Accepting an ambulance request also
+        /// needs ambulance trip creation, accepting a blood request blood
+        /// inventory management.
+        pub const RESPOND: &str = "uhi.requests.respond";
     }
 }

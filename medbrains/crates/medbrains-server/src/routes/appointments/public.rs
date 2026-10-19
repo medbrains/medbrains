@@ -48,25 +48,16 @@ pub async fn public_book_appointment(
     )
     .await?;
 
-    let patient_id = find_or_create_patient(&body, tenant_id, &mut tx).await?;
-    ensure_public_slot_capacity(&body, &mut tx).await?;
-
-    let appointment = sqlx::query_as::<_, Appointment>( // allow-raw-sql: public appointment booking inserts with caller-supplied slot data
-        "INSERT INTO appointments \
-         (tenant_id, patient_id, doctor_id, department_id, appointment_date, slot_start, \
-          slot_end, appointment_type, reason, status, booking_source) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'new_visit', $8, 'confirmed', 'online') \
-         RETURNING *",
+    let appointment = book_online(
+        &mut tx,
+        tenant_id,
+        OnlineBooking {
+            request: &body,
+            patient_id: None,
+            registration_source: "online_portal",
+            booking_source: "online",
+        },
     )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .bind(body.doctor_id)
-    .bind(body.department_id)
-    .bind(body.appointment_date)
-    .bind(body.slot_start)
-    .bind(body.slot_end)
-    .bind(&body.reason)
-    .fetch_one(&mut *tx)
     .await?;
 
     let doctor_name: String = sqlx::query_scalar("SELECT full_name FROM users WHERE id = $1") // allow-raw-sql: public appointment booking resolves display names
@@ -458,10 +449,60 @@ struct QueueTokenStatusRow {
     department_name: String,
 }
 
+/// A booking made from outside the hospital — the public booking page, or a
+/// patient app through UHI.
+pub(crate) struct OnlineBooking<'a> {
+    pub request: &'a PublicBookingRequest,
+    /// The patient, when the caller already knows them (UHI: by ABHA address).
+    /// Otherwise found by phone and first name, or registered.
+    pub patient_id: Option<Uuid>,
+    /// `patients.registration_source` for a newly registered patient.
+    pub registration_source: &'a str,
+    /// `appointments.booking_source`.
+    pub booking_source: &'a str,
+}
+
+/// Book an online appointment: the patient, the slot's capacity, the row.
+/// The caller has verified the requester and set the tenant context.
+///
+/// # Errors
+/// 409 when the slot is full.
+pub(crate) async fn book_online(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    booking: OnlineBooking<'_>,
+) -> Result<Appointment, AppError> {
+    let body = booking.request;
+    let patient_id = match booking.patient_id {
+        Some(id) => id,
+        None => find_or_create_patient(body, tenant_id, tx, booking.registration_source).await?,
+    };
+    ensure_public_slot_capacity(body, tx).await?;
+    Ok(sqlx::query_as::<_, Appointment>( // allow-raw-sql: online booking inserts with caller-supplied slot data
+        "INSERT INTO appointments \
+         (tenant_id, patient_id, doctor_id, department_id, appointment_date, slot_start, \
+          slot_end, appointment_type, reason, status, booking_source) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'new_visit', $8, 'confirmed', $9) \
+         RETURNING *",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .bind(body.doctor_id)
+    .bind(body.department_id)
+    .bind(body.appointment_date)
+    .bind(body.slot_start)
+    .bind(body.slot_end)
+    .bind(&body.reason)
+    .bind(booking.booking_source)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
 async fn find_or_create_patient(
     body: &PublicBookingRequest,
     tenant_id: Uuid,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    registration_source: &str,
 ) -> Result<Uuid, AppError> {
     // Family members share phones — phone alone booked into the wrong
     // record (audit P1). Match phone + first name; anything else gets a
@@ -489,7 +530,7 @@ async fn find_or_create_patient(
     let patient_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient creation
         "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth, \
                                registration_source) \
-         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6, 'online_portal') \
+         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6, $7::registration_source) \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -498,6 +539,7 @@ async fn find_or_create_patient(
     .bind(&last_name)
     .bind(&body.patient_phone)
     .bind(body.patient_dob)
+    .bind(registration_source)
     .fetch_one(&mut **tx)
     .await?;
 

@@ -1114,6 +1114,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconPackage",
         requiredPermission: "ipd.transfers.create",
       },
+      {
+        i18nKey: "uhiRequests",
+        path: "/uhi-requests",
+        icon: "IconDeviceMobileMessage",
+        requiredPermission: "uhi.requests.view",
+      },
     ],
   },
   {

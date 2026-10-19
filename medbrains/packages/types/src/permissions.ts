@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1088 permissions, one per constant in the Rust source. */
+/** 1091 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6619,6 +6619,25 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "The month's OPD visits with a verified ABHA, KYC, ABHAs created here, records linked against the DHIS threshold and the estimated incentive, consents, Scan & Share, HPR and HFR coverage, and the records that failed to link with their reasons. Counts only, plus the names on failed links.",
     module: "abdm",
   },
+  // uhi
+  {
+    code: "uhi.configure",
+    label: "Set up UHI",
+    description: "The subscriber ID and key the hospital is registered under, its signing key pair, the services it offers and the campus it offers them from.",
+    module: "uhi",
+  },
+  {
+    code: "uhi.requests.view",
+    label: "View UHI requests",
+    description: "Teleconsultations booked, and ambulance and blood requests made, from patient apps — with the patient's name, phone and ABHA address as the app sent them.",
+    module: "uhi",
+  },
+  {
+    code: "uhi.requests.respond",
+    label: "Accept or decline UHI requests",
+    description: "Tell the patient's app whether the hospital can send the ambulance or has the blood. Accepting an ambulance request also needs ambulance trip creation, accepting a blood request blood inventory management.",
+    module: "uhi",
+  },
 ];
 
 /**
@@ -9838,6 +9857,15 @@ export const P = {
     SNOMED_MANAGE: "terminology.snomed.manage",
     SNOMED_VIEW: "terminology.snomed.view",
   },
+  UHI: {
+    CONFIGURE: "uhi.configure",
+    REQUESTS: {
+      RESPOND: "uhi.requests.respond",
+      VIEW: "uhi.requests.view",
+    },
+    REQUESTS_RESPOND: "uhi.requests.respond",
+    REQUESTS_VIEW: "uhi.requests.view",
+  },
   UR: {
     COMMUNICATIONS: {
       CREATE: "ur.communications.create",
@@ -10500,6 +10528,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.CATALOG.LOOKUP,
       P.SPECIALTY.HEALTH_PACKAGES.LIST,
       P.TERMINOLOGY.SEARCH,
+      P.UHI.REQUESTS.VIEW,
     ],
   },
   lab_technician: {
@@ -11200,6 +11229,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AMBULANCE.TRIPS.UPDATE,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
+      P.UHI.REQUESTS.RESPOND,
+      P.UHI.REQUESTS.VIEW,
     ],
   },
   radiology_tech: {
@@ -11258,6 +11289,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.TERMINOLOGY.SNOMED.VIEW,
+      P.UHI.REQUESTS.RESPOND,
+      P.UHI.REQUESTS.VIEW,
     ],
   },
   marketing_executive: {
@@ -11330,6 +11363,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
       P.PATIENTS.PRIVACY_REQUESTS.LIST,
+      P.UHI.REQUESTS.VIEW,
     ],
   },
   infection_control_officer: {

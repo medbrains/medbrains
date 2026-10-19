@@ -17,6 +17,7 @@
   "settings.paymentTerminals": "Payment Terminals",
   "settings.abdm": "ABDM (ABHA & health records)",
   "settings.abdmSharing": "ABDM sharing",
+  "settings.uhi": "UHI (patient apps)",
   "settings.abdmScanShare": "ABDM Scan & Share",
   "settings.nhcx": "NHCX",
   "settings.paymentExceptions": "Payment Reconciliation",
