@@ -875,12 +875,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     ));
     registry.register(abdm_stub::VerifyAbhaHandler);
     registry.register(abdm_stub::HieBundlePushHandler);
-    // NHCX claims exchange — eligibility, pre-auth and claim, JWE to the payer.
-    for operation in [
-        medbrains_core::nhcx::NhcxOperation::CoverageEligibility,
-        medbrains_core::nhcx::NhcxOperation::Preauth,
-        medbrains_core::nhcx::NhcxOperation::Claim,
-    ] {
+    // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
+    // answers, JWE to the payer.
+    for operation in medbrains_core::nhcx::OPERATIONS {
         registry.register(nhcx::NhcxHandler::new(operation));
     }
     registry.register(hl7_stub::CriticalValueHandler);

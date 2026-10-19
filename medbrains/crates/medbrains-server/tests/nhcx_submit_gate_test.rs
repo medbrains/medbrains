@@ -27,19 +27,31 @@ async fn without_nhcx_onboarding_nothing_is_queued() {
             .await
             .expect("count");
 
-    for action in ["submit-to-nhcx", "check-eligibility"] {
+    let id = Uuid::new_v4();
+    let attempts = [
+        (
+            format!("/api/billing/insurance-claims/{id}/submit-to-nhcx"),
+            json!({ "recipient_code": "payer-001" }),
+        ),
+        (
+            format!("/api/insurance/prior-auths/{id}/submit-to-nhcx"),
+            json!({ "recipient_code": "payer-001" }),
+        ),
+        (
+            "/api/insurance/verifications/nhcx".to_owned(),
+            json!({ "recipient_code": "payer-001", "patient_id": id }),
+        ),
+    ];
+    for (path, body) in attempts {
         let resp = app
             .client
-            .post(app.url(&format!(
-                "/api/billing/insurance-claims/{}/{action}",
-                Uuid::new_v4()
-            )))
+            .post(app.url(&path))
             .header("x-csrf-token", &csrf)
-            .json(&json!({ "recipient_code": "payer-001" }))
+            .json(&body)
             .send()
             .await
-            .expect(action);
-        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE, "{action}");
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE, "{path}");
     }
 
     let queued_after: i64 =

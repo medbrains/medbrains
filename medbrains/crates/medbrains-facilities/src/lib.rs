@@ -7,7 +7,13 @@ use medbrains_server_core::state::AppState;
 pub mod facilities;
 pub mod icu;
 pub mod insurance;
+mod nhcx_bundle;
+mod nhcx_common;
+pub mod nhcx_eligibility;
 pub mod nhcx_participants;
+pub mod nhcx_preauth;
+pub mod nhcx_queries;
+pub mod nhcx_sla;
 pub mod nhcx_submit;
 
 pub fn router() -> Router<AppState> {
@@ -207,9 +213,26 @@ pub fn router() -> Router<AppState> {
             post(nhcx_submit::submit_claim_to_nhcx),
         )
         .route(
-            "/api/billing/insurance-claims/{id}/check-eligibility",
-            post(nhcx_submit::check_coverage_eligibility),
+            "/api/insurance/verifications/nhcx",
+            post(nhcx_eligibility::check_nhcx_eligibility),
         )
+        .route(
+            "/api/insurance/nhcx/eligibility",
+            get(nhcx_eligibility::list_nhcx_eligibility),
+        )
+        .route(
+            "/api/insurance/prior-auths/{id}/submit-to-nhcx",
+            post(nhcx_preauth::submit_preauth_to_nhcx),
+        )
+        .route(
+            "/api/insurance/prior-auths/{id}/nhcx",
+            get(nhcx_preauth::get_preauth_nhcx),
+        )
+        .route(
+            "/api/insurance/nhcx/queries/{id}/answer",
+            post(nhcx_queries::answer_payer_query),
+        )
+        .route("/api/insurance/nhcx/sla", get(nhcx_sla::list_nhcx_sla))
         .route(
             "/api/nhcx/participants",
             get(nhcx_participants::list_nhcx_participants)

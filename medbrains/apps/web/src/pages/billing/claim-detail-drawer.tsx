@@ -6,6 +6,7 @@ import type { InsuranceClaim } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconShieldCheck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { NhcxEligibilityCard } from "@/components/Nhcx/NhcxEligibilityCard";
 import { NhcxExchangeCard } from "@/components/Nhcx/NhcxExchangeCard";
 import { NhcxSetupAlert } from "@/components/Nhcx/NhcxSetupAlert";
 import { Alert, Badge, Button, Table } from "@/components/ui";
@@ -15,11 +16,11 @@ import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 export function ClaimDetailDrawer({
   claim,
   onClose,
-  onNhcxAction,
+  onSubmitToNhcx,
 }: {
   claim: InsuranceClaim | null;
   onClose: () => void;
-  onNhcxAction: (claim: InsuranceClaim, mode: "submit" | "eligibility") => void;
+  onSubmitToNhcx: (claim: InsuranceClaim) => void;
 }) {
   const canSubmit = useHasPermission(P.INSURANCE.NHCX.SUBMIT);
   const canView = useHasPermission(P.INSURANCE.NHCX.VIEW);
@@ -62,17 +63,9 @@ export function ClaimDetailDrawer({
             <Group justify="flex-end">
               <Button
                 size="xs"
-                tone="secondary"
-                disabled={!nhcxReady}
-                onClick={() => onNhcxAction(claim, "eligibility")}
-              >
-                Check eligibility
-              </Button>
-              <Button
-                size="xs"
                 leftSection={<IconShieldCheck size={14} />}
                 disabled={!nhcxReady}
-                onClick={() => onNhcxAction(claim, "submit")}
+                onClick={() => onSubmitToNhcx(claim)}
               >
                 Submit to NHCX
               </Button>
@@ -110,6 +103,12 @@ export function ClaimDetailDrawer({
               {claim.submitted_at ? new Date(claim.submitted_at).toLocaleString() : "—"}
             </Text>
           </SimpleGrid>
+
+          <NhcxEligibilityCard
+            patientId={claim.patient_id}
+            triggerPoint="claim"
+            triggerEntityId={claim.id}
+          />
 
           <NhcxExchangeCard claim={claim} />
 

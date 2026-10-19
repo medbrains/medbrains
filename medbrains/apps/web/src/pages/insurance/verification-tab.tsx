@@ -9,6 +9,7 @@ import { IconAlertTriangle, IconFileText, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { NhcxEligibilityCard } from "@/components/Nhcx/NhcxEligibilityCard";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
@@ -168,6 +169,13 @@ export function VerificationTab() {
           <Button tone="primary" loading={runMut.isPending} onClick={() => runMut.mutate(form)}>
             Verify
           </Button>
+          {form.patient_id && (
+            <NhcxEligibilityCard
+              patientId={form.patient_id}
+              triggerPoint={form.trigger_point}
+              serviceCategories={["30", "3"]}
+            />
+          )}
         </Stack>
       </Drawer>
 
@@ -278,6 +286,11 @@ export function VerificationTab() {
                 <Text size="sm">{detail.notes}</Text>
               </>
             )}
+            <NhcxEligibilityCard
+              patientId={detail.patient_id}
+              triggerPoint={detail.trigger_point}
+              triggerEntityId={detail.trigger_entity_id ?? undefined}
+            />
           </Stack>
         )}
       </Drawer>
