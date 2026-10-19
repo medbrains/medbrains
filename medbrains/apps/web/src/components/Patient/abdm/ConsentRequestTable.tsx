@@ -1,11 +1,23 @@
-import { Text } from "@mantine/core";
+import { Stack, Text } from "@mantine/core";
 import type { AbdmConsentRequest } from "@medbrains/types";
 import { Badge, Table } from "@/components/ui";
 import { formatDate, formatDateTime } from "@/lib/date-utils";
 import { CONSENT_REQUEST_STATUS, HI_TYPE_LABEL, PURPOSE_LABEL } from "./abdmStatus";
+import { CheckConsentStatusButton } from "./CheckConsentStatusButton";
 
-/** Consent requests raised for this patient, each with what its state means. */
-export function ConsentRequestTable({ requests }: { requests: AbdmConsentRequest[] }) {
+interface ConsentRequestTableProps {
+  patientId: string;
+  requests: AbdmConsentRequest[];
+  /** Holds `abdm.consent.request` — may ask ABDM where a request stands. */
+  canCheck: boolean;
+}
+
+/**
+ * Consent requests raised for this patient, each with what its state means.
+ * One still waiting for the patient shows when ABDM was last asked about it,
+ * and can be checked again.
+ */
+export function ConsentRequestTable({ patientId, requests, canCheck }: ConsentRequestTableProps) {
   if (requests.length === 0) {
     return (
       <Text size="sm" c="dimmed">
@@ -45,13 +57,25 @@ export function ConsentRequestTable({ requests }: { requests: AbdmConsentRequest
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge tone={status.tone}>{status.label}</Badge>
-                <Text size="xs">{r.error ?? status.hint}</Text>
-                {r.records_received > 0 && (
-                  <Text size="xs" c="dimmed">
-                    {r.records_held} of {r.records_received} records held
-                  </Text>
-                )}
+                <Stack gap={4} align="flex-start">
+                  <Badge tone={status.tone}>{status.label}</Badge>
+                  <Text size="xs">{r.error ?? status.hint}</Text>
+                  {r.records_received > 0 && (
+                    <Text size="xs" c="dimmed">
+                      {r.records_held} of {r.records_received} records held
+                    </Text>
+                  )}
+                  {r.status === "awaiting_patient" && (
+                    <Text size="xs" c="dimmed">
+                      {r.status_checked_at
+                        ? `Last checked ${formatDateTime(r.status_checked_at)}`
+                        : "Not checked with ABDM yet"}
+                    </Text>
+                  )}
+                  {canCheck && r.status === "awaiting_patient" && (
+                    <CheckConsentStatusButton patientId={patientId} requestId={r.id} />
+                  )}
+                </Stack>
               </Table.Td>
             </Table.Tr>
           );

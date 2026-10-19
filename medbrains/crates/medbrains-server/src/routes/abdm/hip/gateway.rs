@@ -106,6 +106,30 @@ impl Hip {
             .await
             .map_err(map_abdm_error)
     }
+
+    /// As [`Hip::send_as_hiu`], with a `REQUEST-ID` recorded before sending:
+    /// the gateway's answer can arrive before this call returns, and must
+    /// find the row it answers.
+    ///
+    /// # Errors
+    /// As [`Hip::send`].
+    #[tracing::instrument(skip_all, fields(tenant_id = %self.tenant_id))]
+    pub async fn send_as_hiu_with_id(
+        &self,
+        path: &str,
+        request_id: Uuid,
+        body: &Value,
+    ) -> Result<(), AppError> {
+        self.gateway
+            .send_as_hiu_with_id(
+                path,
+                &self.session,
+                (self.hip_id.as_str(), request_id),
+                body,
+            )
+            .await
+            .map_err(map_abdm_error)
+    }
 }
 
 /// Who a verified callback is for.

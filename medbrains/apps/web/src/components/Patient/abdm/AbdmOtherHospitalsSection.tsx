@@ -59,7 +59,11 @@ export function AbdmOtherHospitalsSection({ patientId }: AbdmOtherHospitalsSecti
             </Alert>
           )}
           <Panel title="Requests" bare>
-            <ConsentRequestTable requests={data.requests} />
+            <ConsentRequestTable
+              patientId={patientId}
+              requests={data.requests}
+              canCheck={canRequest}
+            />
           </Panel>
           <Panel title="Records received" bare>
             <ReceivedRecordsList records={data.records} onOpen={setOpenId} />
