@@ -1,20 +1,26 @@
-//! Open teleconsultation slots, from the doctors' real weekly schedules,
-//! leave days and bookings — and how a slot looks on the wire.
+//! Open consultation slots (online or at the hospital), from the doctors'
+//! real weekly schedules, leave days, hospital holidays and bookings — with
+//! each slot's fee — and how a slot looks on the wire.
 //!
-//! Three queries for any window (schedules, bookings, leave), however many
-//! doctors and days: no query per doctor, per day or per slot. Everything is
-//! bounded: the window to a week, schedule rows and slots to fixed caps.
+//! A fixed handful of queries for any window (schedules, bookings, leave,
+//! holidays, fees), however many doctors and days: no query per doctor, per
+//! day or per slot. Everything is bounded: the window to a week, schedule
+//! rows and slots to fixed caps.
 
 use std::collections::{HashMap, HashSet};
 
 use chrono::{
     DateTime, Datelike, Duration, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, Utc,
 };
+use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::protocol::FULFILMENT_ONLINE;
-use crate::error::AppError;
+use super::{
+    fees::{self, Fee},
+    protocol::{FULFILMENT_ONLINE, FULFILMENT_PHYSICAL, Service},
+};
+use crate::{error::AppError, tenant_config};
 
 /// Schedules are kept in hospital (Indian) time.
 const IST_SECONDS: i32 = 19_800;
@@ -58,6 +64,23 @@ pub struct Filter {
     pub doctor_name: Option<String>,
     pub hpr_id: Option<String>,
     pub doctor_id: Option<Uuid>,
+    /// A visit at the hospital rather than online.
+    pub physical: bool,
+    /// A speciality by name: a department's name or code, or the doctor's
+    /// specialisation, matched whole and case-blind.
+    pub speciality: Option<String>,
+    /// A category ID from our own catalogue (a department).
+    pub department_id: Option<Uuid>,
+}
+
+impl Filter {
+    const fn service(&self) -> Service {
+        if self.physical {
+            Service::PhysicalConsultation
+        } else {
+            Service::Teleconsultation
+        }
+    }
 }
 
 /// One bookable slot.
@@ -71,6 +94,9 @@ pub struct Slot {
     pub date: NaiveDate,
     pub start: NaiveTime,
     pub end: NaiveTime,
+    /// `None`: no fee is set; it is paid at the hospital.
+    pub fee: Option<Fee>,
+    pub physical: bool,
 }
 
 impl Slot {
@@ -88,7 +114,7 @@ impl Slot {
     pub fn fulfillment(&self) -> Value {
         json!({
             "id": self.id(),
-            "type": FULFILMENT_ONLINE,
+            "type": if self.physical { FULFILMENT_PHYSICAL } else { FULFILMENT_ONLINE },
             "agent": {
                 "id": self.hpr_id,
                 "name": self.doctor_name,
@@ -103,9 +129,7 @@ impl Slot {
         json!({
             "id": self.id(),
             "descriptor": { "name": "Consultation", "code": "CONSULTATION" },
-            // ponytail: no tariff per doctor exists yet; the consultation is
-            // billed at the hospital. Quote the fee once doctors carry one.
-            "price": { "currency": "INR", "value": "0.0" },
+            "price": fees::item_price(self.fee.as_ref()),
             "fulfillment_id": self.id(),
             "category_id": self.department_id,
         })
@@ -126,6 +150,8 @@ struct ScheduleRow {
     doctor_id: Uuid,
     department_id: Uuid,
     department: String,
+    department_code: String,
+    consultation_fee: Option<Decimal>,
     day_of_week: i32,
     start_time: NaiveTime,
     end_time: NaiveTime,
@@ -152,7 +178,8 @@ pub async fn open_slots(
         return Ok(Vec::new());
     }
     let schedules = sqlx::query_as::<_, ScheduleRow>(
-        "SELECT ds.doctor_id, ds.department_id, d.name AS department, ds.day_of_week, \
+        "SELECT ds.doctor_id, ds.department_id, d.name AS department, \
+                d.code AS department_code, u.consultation_fee, ds.day_of_week, \
                 ds.start_time, ds.end_time, ds.slot_duration_mins, ds.max_patients, \
                 COALESCE(NULLIF(dp.display_name, ''), u.full_name) AS doctor_name, dp.hpr_id \
            FROM doctor_schedules ds \
@@ -165,6 +192,9 @@ pub async fn open_slots(
             AND ($2::text IS NULL OR COALESCE(dp.display_name, u.full_name) ILIKE '%' || $2 || '%') \
             AND ($3::text IS NULL OR dp.hpr_id = $3) \
             AND ($4::uuid IS NULL OR ds.doctor_id = $4) \
+            AND ($6::text IS NULL OR lower(d.name) = lower($6) OR lower(d.code) = lower($6) \
+                 OR lower(u.specialization) = lower($6)) \
+            AND ($7::uuid IS NULL OR ds.department_id = $7) \
           ORDER BY ds.doctor_id, ds.day_of_week, ds.start_time \
           LIMIT $5",
     )
@@ -173,6 +203,8 @@ pub async fn open_slots(
     .bind(filter.hpr_id.as_deref())
     .bind(filter.doctor_id)
     .bind(MAX_SCHEDULE_ROWS)
+    .bind(filter.speciality.as_deref())
+    .bind(filter.department_id)
     .fetch_all(&mut **tx)
     .await?;
     if schedules.is_empty() {
@@ -202,27 +234,48 @@ pub async fn open_slots(
         .into_iter()
         .map(|(d, date, start, n)| ((d, date, start), n))
         .collect();
-    let away: HashSet<(Uuid, NaiveDate)> = sqlx::query_as::<_, (Uuid, NaiveDate)>(
-        "SELECT doctor_id, exception_date FROM doctor_schedule_exceptions \
-          WHERE tenant_id = $1 AND doctor_id = ANY($2) AND NOT is_available \
-            AND exception_date BETWEEN $3 AND $4 AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .bind(&doctors)
-    .bind(first)
-    .bind(last)
-    .fetch_all(&mut **tx)
-    .await?
-    .into_iter()
-    .collect();
+    // A doctor's own exception wins: away on leave, or in on a holiday.
+    let exceptions: HashMap<(Uuid, NaiveDate), bool> =
+        sqlx::query_as::<_, (Uuid, NaiveDate, bool)>(
+            "SELECT doctor_id, exception_date, is_available FROM doctor_schedule_exceptions \
+              WHERE tenant_id = $1 AND doctor_id = ANY($2) \
+                AND exception_date BETWEEN $3 AND $4 AND deleted_at IS NULL",
+        )
+        .bind(tenant_id)
+        .bind(&doctors)
+        .bind(first)
+        .bind(last)
+        .fetch_all(&mut **tx)
+        .await?
+        .into_iter()
+        .map(|(d, date, available)| ((d, date), available))
+        .collect();
+    let holidays = tenant_config::holidays_between(tx, &tenant_id, first, last).await?;
+    let service = filter.service();
+    let codes: Vec<String> = schedules
+        .iter()
+        .filter(|s| s.consultation_fee.is_none_or(|f| f <= Decimal::ZERO))
+        .map(|s| fees::charge_code(service, &s.department_code))
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    let rates = fees::charge_rates(tx, tenant_id, &codes).await?;
 
     let mut slots = Vec::new();
     for date in first.iter_days().take_while(|d| *d <= last) {
         let weekday = date.weekday().num_days_from_sunday() as i32;
         for s in schedules.iter().filter(|s| s.day_of_week == weekday) {
-            if away.contains(&(s.doctor_id, date)) {
+            let working = exceptions
+                .get(&(s.doctor_id, date))
+                .copied()
+                .unwrap_or(!holidays.contains(&date));
+            if !working {
                 continue;
             }
+            let fee = fees::pick(
+                s.consultation_fee,
+                rates.get(&fees::charge_code(service, &s.department_code)),
+            );
             let step = Duration::minutes(i64::from(s.slot_duration_mins));
             let mut start = s.start_time;
             while start + step <= s.end_time && start + step > start {
@@ -241,6 +294,8 @@ pub async fn open_slots(
                         date,
                         start,
                         end: start + step,
+                        fee,
+                        physical: filter.physical,
                     });
                 }
                 start += step;
@@ -257,6 +312,7 @@ pub async fn find_slot(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     id: &str,
+    physical: bool,
 ) -> Result<Option<Slot>, AppError> {
     let Some((doctor_id, date, start)) = parse_slot_id(id) else {
         return Ok(None);
@@ -266,6 +322,7 @@ pub async fn find_slot(
         from: Some(at),
         to: Some(at + Duration::minutes(1)),
         doctor_id: Some(doctor_id),
+        physical,
         ..Filter::default()
     };
     Ok(open_slots(tx, tenant_id, &filter)

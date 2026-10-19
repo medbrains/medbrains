@@ -17,12 +17,15 @@ use axum::{
     http::HeaderMap,
     response::{IntoResponse, Response},
 };
+use medbrains_core::secrets::SecretResolver;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
     auth::{self, Nack},
+    labs,
     outbox::{self, Callback},
+    payment,
     protocol::{ACTIONS, Context, ERR_INVALID_SIGNATURE, ERR_NOT_REGISTERED, Service, ack},
     requests, settings, teleconsult,
 };
@@ -36,6 +39,7 @@ pub struct Txn {
     pub state: String,
     pub order_details: Option<Value>,
     pub appointment_id: Option<Uuid>,
+    pub payment_transaction_id: Option<Uuid>,
 }
 
 /// What to send back: the `message` of the `on_*` call, or an error.
@@ -157,6 +161,10 @@ async fn process(
     medbrains_db::pool::set_tenant_context(&mut tx, &sub.tenant_id)
         .await
         .map_err(fault)?;
+    // Unpaid holds that ran out are let go first, so their slots read free.
+    payment::expire_holds(&mut tx, state.secret_resolver.as_ref(), sub)
+        .await
+        .map_err(fault)?;
     let known: Option<String> = sqlx::query_scalar(
         "SELECT service FROM uhi_transactions \
           WHERE tenant_id = $1 AND bap_id = $2 AND transaction_id = $3 AND deleted_at IS NULL",
@@ -182,7 +190,10 @@ async fn process(
     };
     let txn = record(&mut tx, sub.tenant_id, ctx, service, body).await?;
     let reply = match service {
-        Service::Teleconsultation => teleconsult::answer(&mut tx, sub, ctx, body, &txn).await,
+        Service::Teleconsultation | Service::PhysicalConsultation => {
+            teleconsult::answer(&mut tx, sub, ctx, body, &txn).await
+        }
+        Service::LabTests => labs::answer(&mut tx, sub, ctx, body, &txn).await,
         Service::BloodBank | Service::Ambulance => {
             requests::answer(&mut tx, sub, ctx, body, &txn).await
         }
@@ -201,7 +212,7 @@ async fn process(
                 ctx.action
             )
         };
-        let body = answer_body(state, sub, ctx, reply).await;
+        let body = answer_body(state.secret_resolver.as_ref(), sub, ctx, reply).await;
         let callback = Callback {
             transaction_row: txn.id,
             url,
@@ -220,14 +231,14 @@ async fn process(
 }
 
 pub async fn answer_body(
-    state: &AppState,
+    secrets: &dyn SecretResolver,
     sub: &settings::Subscription,
     ctx: &Context,
     reply: Reply,
 ) -> Value {
     // Without the public address the context names us without a URI; the
     // settings screen says the address is missing.
-    let uri = settings::provider_uri(state.secret_resolver.as_ref(), &sub.subscriber_id)
+    let uri = settings::provider_uri(secrets, &sub.subscriber_id)
         .await
         .unwrap_or_default();
     let mut body = json!({
@@ -256,7 +267,7 @@ async fn record(
          ON CONFLICT (tenant_id, bap_id, transaction_id) WHERE deleted_at IS NULL DO UPDATE SET \
             last_message_id = EXCLUDED.last_message_id, last_action = EXCLUDED.last_action, \
             bap_uri = EXCLUDED.bap_uri, payload = EXCLUDED.payload \
-         RETURNING id, service, state, order_details, appointment_id",
+         RETURNING id, service, state, order_details, appointment_id, payment_transaction_id",
     )
     .bind(tenant_id)
     .bind(service.code())
@@ -284,7 +295,7 @@ pub async fn set_state(
 ) -> Result<(), AppError> {
     sqlx::query(
         "UPDATE uhi_transactions SET state = $2, order_details = $3, \
-                confirmed_at = CASE WHEN $2 IN ('pending', 'confirmed') \
+                confirmed_at = CASE WHEN $2 IN ('awaiting_payment', 'pending', 'confirmed') \
                                     THEN COALESCE(confirmed_at, now()) ELSE confirmed_at END \
           WHERE id = $1",
     )
