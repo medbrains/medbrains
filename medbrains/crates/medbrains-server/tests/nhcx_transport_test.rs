@@ -46,6 +46,18 @@ fn self_signed_cert(pair: &KeyPair) -> String {
     let mut cert = openssl::x509::X509Builder::new().expect("cert");
     cert.set_subject_name(&name).expect("subject");
     cert.set_issuer_name(&name).expect("issuer");
+    cert.set_version(2).expect("cert fields");
+    cert.set_serial_number(
+        &openssl::bn::BigNum::from_u32(1)
+            .expect("cert fields")
+            .to_asn1_integer()
+            .expect("cert fields"),
+    )
+    .expect("cert fields");
+    cert.set_not_before(&openssl::asn1::Asn1Time::days_from_now(0).expect("cert fields"))
+        .expect("cert fields");
+    cert.set_not_after(&openssl::asn1::Asn1Time::days_from_now(365).expect("cert fields"))
+        .expect("cert fields");
     cert.set_pubkey(&pair.key).expect("pubkey");
     cert.sign(&pair.key, openssl::hash::MessageDigest::sha256())
         .expect("sign");

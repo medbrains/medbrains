@@ -148,7 +148,7 @@ pub async fn verify_hpr_id(
     };
     let found = registry::hpr_search(&access.http, &access.base_url, &access.token, &hpr_id)
         .await
-        .map_err(registry_fault)?;
+        .map_err(|e| registry_fault(&e))?;
     if found.is_none() {
         return Err(AppError::Conflict(format!("HPR does not list {hpr_id}")));
     }

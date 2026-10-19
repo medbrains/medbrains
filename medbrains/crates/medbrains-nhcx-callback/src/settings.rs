@@ -67,7 +67,7 @@ pub struct NhcxStatus {
 async fn load(state: &AppState, claims: &Claims) -> Result<StoredSettings, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let stored = config::stored(&mut *tx, claims.tenant_id)
+    let stored = config::stored(&mut tx, claims.tenant_id)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     tx.commit().await?;
@@ -211,7 +211,7 @@ pub async fn save_settings(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
-    let stored = config::stored(&mut *tx, claims.tenant_id)
+    let stored = config::stored(&mut tx, claims.tenant_id)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     tx.commit().await?;

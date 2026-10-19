@@ -90,7 +90,7 @@ impl Handler for NhcxHandler {
 impl NhcxHandler {
     async fn send(&self, ctx: &HandlerCtx, msg: &Message) -> Result<Value, HandlerError> {
         let mut tx = tenant_tx(ctx).await?;
-        let stored = config::stored(&mut *tx, ctx.tenant_id)
+        let stored = config::stored(&mut tx, ctx.tenant_id)
             .await
             .map_err(from_config)?;
         let cert = sqlx::query_scalar::<_, Option<String>>(

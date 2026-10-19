@@ -20,7 +20,7 @@
 
 use serde_json::{Value, json};
 
-use crate::abha::{AbdmEnvironment, AbdmError};
+use crate::abha::{AbdmEnvironment, AbdmError, abdm_message};
 
 pub const HFR_SANDBOX_BASE_URL: &str = "https://facilitysbx.abdm.gov.in";
 pub const HFR_PRODUCTION_BASE_URL: &str = "https://facility.abdm.gov.in";
@@ -143,7 +143,7 @@ async fn post(
     }
     if !status.is_success() {
         let body = response.text().await?;
-        return Err(AbdmError::Status { status, body });
+        return Err(AbdmError::Status { status, message: abdm_message(&body) });
     }
     Ok(response.json::<Value>().await?)
 }

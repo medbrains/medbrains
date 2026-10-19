@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
+tracing = { workspace = true }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-server-core = { path = "../medbrains-server-core" }

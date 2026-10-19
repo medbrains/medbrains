@@ -6,7 +6,8 @@
 //! is no inner JWS and no unprotected header: the recipient's public key
 //! encrypts the bundle, and the gateway routes on the protected header alone.
 
-use josekit::jwe::{self, JweHeader, RSA_OAEP_256, RsaesJweAlgorithm};
+use josekit::jwe::alg::rsaes::RsaesJweAlgorithm;
+use josekit::jwe::{self, JweHeader, RSA_OAEP_256};
 use serde_json::{Map, Value};
 
 use crate::CryptoError;
@@ -124,6 +125,18 @@ mod tests {
         let mut cert = openssl::x509::X509Builder::new().unwrap();
         cert.set_subject_name(&name).unwrap();
         cert.set_issuer_name(&name).unwrap();
+        cert.set_version(2).unwrap();
+        cert.set_serial_number(
+            &openssl::bn::BigNum::from_u32(1)
+                .unwrap()
+                .to_asn1_integer()
+                .unwrap(),
+        )
+        .unwrap();
+        cert.set_not_before(&openssl::asn1::Asn1Time::days_from_now(0).unwrap())
+            .unwrap();
+        cert.set_not_after(&openssl::asn1::Asn1Time::days_from_now(365).unwrap())
+            .unwrap();
         cert.set_pubkey(&key).unwrap();
         cert.sign(&key, openssl::hash::MessageDigest::sha256())
             .unwrap();
@@ -133,6 +146,17 @@ mod tests {
         assert_eq!(
             decrypt_hcx(&token, &private).unwrap().1,
             json!({ "ok": true })
+        );
+    }
+
+    /// Settings probe a new key pair with no routing headers at all.
+    #[test]
+    fn a_probe_without_routing_headers_round_trips() {
+        let (private, public) = key_pair();
+        let token = encrypt_hcx(&json!({ "probe": true }), &Map::new(), &public).unwrap();
+        assert_eq!(
+            decrypt_hcx(&token, &private).unwrap().1,
+            json!({ "probe": true })
         );
     }
 

@@ -72,7 +72,7 @@ pub async fn receive_callback(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let stored = config::stored(&mut *tx, tenant_id)
+    let stored = config::stored(&mut tx, tenant_id)
         .await
         .map_err(config_error)?;
     verify_gateway_jwt(&headers, &stored)?;

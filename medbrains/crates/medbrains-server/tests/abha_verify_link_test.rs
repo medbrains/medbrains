@@ -87,8 +87,14 @@ async fn a_registration_with_its_verification_is_linked_verified_once() {
         (true, Some("abha_aadhaar_otp".to_owned()), true)
     );
 
-    let (again, _) = register(&app, &csrf, Some(&abha), Some(verification)).await;
-    assert_eq!(again, StatusCode::BAD_REQUEST, "a verification is used once");
+    // Without the number, so the refusal is the spent verification — not the
+    // ABHA already being on the first patient (that is a 409 of its own).
+    let (again, _) = register(&app, &csrf, None, Some(verification)).await;
+    assert_eq!(
+        again,
+        StatusCode::BAD_REQUEST,
+        "a verification is used once"
+    );
 }
 
 /// A typed ABHA number without a verification is kept, but unverified; and a
@@ -101,11 +107,18 @@ async fn a_typed_or_mismatched_abha_stays_unverified() {
     let typed = abha_digits();
     let (status, patient) = register(&app, &csrf, Some(&typed), None).await;
     assert!(status.is_success(), "{patient}");
-    assert_eq!(link_row(&app, patient["id"].as_str().expect("id")).await, (false, None, false));
+    assert_eq!(
+        link_row(&app, patient["id"].as_str().expect("id")).await,
+        (false, None, false)
+    );
 
     let other = verified(&app, &abha_digits()).await;
     let (mismatch, _) = register(&app, &csrf, Some(&abha_digits()), Some(other)).await;
-    assert_eq!(mismatch, StatusCode::BAD_REQUEST, "the verified number must be the one submitted");
+    assert_eq!(
+        mismatch,
+        StatusCode::BAD_REQUEST,
+        "the verified number must be the one submitted"
+    );
 }
 
 /// Given an existing patient, When staff link a verified ABHA and choose to
@@ -146,7 +159,10 @@ async fn linking_an_existing_patient_applies_only_the_chosen_details() {
     .await
     .expect("patient");
     assert_eq!((first.as_str(), gender.as_str()), ("Priya", "female"));
-    assert_eq!(dob, "1990-01-01", "a detail staff did not choose is left alone");
+    assert_eq!(
+        dob, "1990-01-01",
+        "a detail staff did not choose is left alone"
+    );
 
     let (_, second) = register(&app, &csrf, None, None).await;
     let again = verified(&app, &abha).await;

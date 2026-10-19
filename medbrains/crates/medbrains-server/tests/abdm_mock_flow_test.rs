@@ -117,11 +117,7 @@ async fn spawn_mock() -> String {
     format!("http://{addr}")
 }
 
-async fn send(
-    app: &common::TestApp,
-    csrf: &str,
-    req: reqwest::RequestBuilder,
-) -> (StatusCode, Value) {
+async fn send(csrf: &str, req: reqwest::RequestBuilder) -> (StatusCode, Value) {
     let resp = req
         .header("x-csrf-token", csrf)
         .send()
@@ -146,21 +142,16 @@ async fn an_abha_is_verified_end_to_end_against_abdm() {
     .await;
     let csrf = app.login_admin().await;
 
-    let (status, _) = send(&app, &csrf, app.client.put(app.url("/api/abdm/settings"))
+    let (status, _) = send(&csrf, app.client.put(app.url("/api/abdm/settings"))
         .json(&json!({ "environment": "sandbox", "client_id": "sbx-client", "client_secret": "wrong" }))).await;
     assert_eq!(status, StatusCode::OK);
-    let (_, test) = send(
-        &app,
-        &csrf,
-        app.client.post(app.url("/api/abdm/settings/test")),
-    )
-    .await;
+    let (_, test) = send(&csrf, app.client.post(app.url("/api/abdm/settings/test"))).await;
     assert_eq!(
         test["ok"], false,
         "wrong keys are reported, not hidden: {test}"
     );
 
-    let (_, saved) = send(&app, &csrf, app.client.put(app.url("/api/abdm/settings"))
+    let (_, saved) = send(&csrf, app.client.put(app.url("/api/abdm/settings"))
         .json(&json!({ "environment": "sandbox", "client_id": "sbx-client", "client_secret": "sbx-secret" }))).await;
     assert_eq!(saved["has_secret"], true);
     assert!(
@@ -178,21 +169,15 @@ async fn an_abha_is_verified_end_to_end_against_abdm() {
         !stored.to_string().contains("sbx-secret"),
         "the secret is stored sealed"
     );
-    let (_, test) = send(
-        &app,
-        &csrf,
-        app.client.post(app.url("/api/abdm/settings/test")),
-    )
-    .await;
+    let (_, test) = send(&csrf, app.client.post(app.url("/api/abdm/settings/test"))).await;
     assert_eq!(test["ok"], true, "{test}");
 
-    let (status, step) = send(&app, &csrf, app.client.post(app.url("/api/abdm/abha/verifications"))
+    let (status, step) = send(&csrf, app.client.post(app.url("/api/abdm/abha/verifications"))
         .json(&json!({ "method": "abha_number", "value": "91 1111 2222 3333", "otp_via": "aadhaar" }))).await;
     assert_eq!(status, StatusCode::OK, "{step}");
     let id = step["id"].as_str().expect("id").to_owned();
 
     let (wrong, _) = send(
-        &app,
         &csrf,
         app.client
             .post(app.url(&format!("/api/abdm/abha/verifications/{id}/otp")))
@@ -206,7 +191,6 @@ async fn an_abha_is_verified_end_to_end_against_abdm() {
     );
 
     let (status, done) = send(
-        &app,
         &csrf,
         app.client
             .post(app.url(&format!("/api/abdm/abha/verifications/{id}/otp")))
@@ -225,7 +209,7 @@ async fn an_abha_is_verified_end_to_end_against_abdm() {
         .expect("card");
     assert_eq!(card.status().as_u16(), 200);
 
-    let (status, patient) = send(&app, &csrf, app.client.post(app.url("/api/patients")).json(&json!({
+    let (status, patient) = send(&csrf, app.client.post(app.url("/api/patients")).json(&json!({
         "first_name": "Priya", "last_name": "Varude", "gender": "female", "date_of_birth": "1989-11-26",
         "phone": format!("9{:09}", uuid::Uuid::new_v4().as_u128() % 1_000_000_000),
         "abha_number": "91111122223333", "abha_verification_id": id,

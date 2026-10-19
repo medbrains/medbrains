@@ -172,7 +172,8 @@ pub async fn status(
     let environment = config
         .as_ref()
         .map_or(AbdmEnvironment::Sandbox, |c| c.environment);
-    let readiness = AbdmAbhaClient::new(environment)
+    let base = base_url_override(&state).await;
+    let readiness = AbdmAbhaClient::new(environment, base.as_deref())
         .map_err(map_abdm_error)?
         .readiness();
     Ok(Json(AbhaStatusResponse {

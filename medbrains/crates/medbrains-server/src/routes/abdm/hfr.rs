@@ -194,7 +194,7 @@ async fn verify_hfr_id(
     };
     let found = registry::hfr_search(&access.http, &access.base_url, &access.token, facility_id)
         .await
-        .map_err(registry_fault)?;
+        .map_err(|e| registry_fault(&e))?;
     if found.is_none() {
         return Err(AppError::Conflict(format!(
             "HFR does not list facility ID {facility_id}"
@@ -283,10 +283,10 @@ async fn record_registration(
     if let Err(e) = outcome {
         tx.commit().await?;
         return Err(match e {
-            AbdmError::Status { status, body } if status.is_client_error() => {
-                AppError::BadRequest(format!("HFR refused the registration: {body}"))
+            AbdmError::Status { status, message } if status.is_client_error() => {
+                AppError::BadRequest(format!("HFR refused the registration: {message}"))
             }
-            other => registry_fault(other),
+            other => registry_fault(&other),
         });
     }
     let issued = nha_id.and_then(|v| normalize_hfr_id(&v).ok());

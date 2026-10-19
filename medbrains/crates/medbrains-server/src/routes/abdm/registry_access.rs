@@ -14,7 +14,7 @@
 //! error, never "no keys".
 
 use medbrains_abdm::AbdmEnvironment;
-use medbrains_core::secrets::{SecretError, SecretResolver};
+use medbrains_core::secrets::SecretError;
 use uuid::Uuid;
 
 use super::abha::{abdm_configured, connect};
@@ -100,6 +100,6 @@ async fn secret(state: &AppState, key: &str) -> Result<Option<String>, AppError>
 }
 
 /// A registry that could not answer is an outage (503), never "not found".
-pub(crate) fn registry_fault(error: medbrains_abdm::AbdmError) -> AppError {
+pub(crate) fn registry_fault(error: &medbrains_abdm::AbdmError) -> AppError {
     AppError::ServiceUnavailable(format!("ABDM registry unavailable: {error}"))
 }
