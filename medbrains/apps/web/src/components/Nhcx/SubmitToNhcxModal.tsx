@@ -10,17 +10,24 @@ import { NhcxSetupAlert } from "./NhcxSetupAlert";
 
 interface SubmitToNhcxModalProps {
   claimId: string;
+  /** `claim` for the final claim from the final bill. */
+  defaultUse?: "preauthorization" | "claim";
   opened: boolean;
   onClose: () => void;
 }
 
 /** Submit a claim / pre-authorisation to NHCX: pick the payer from the
  * directory and the message type, then queue the exchange. */
-export function SubmitToNhcxModal({ claimId, opened, onClose }: SubmitToNhcxModalProps) {
+export function SubmitToNhcxModal({
+  claimId,
+  defaultUse = "preauthorization",
+  opened,
+  onClose,
+}: SubmitToNhcxModalProps) {
   const queryClient = useQueryClient();
   const [recipientCode, setRecipientCode] = useState<string | null>(null);
   const [payer, setPayer] = useState<NhcxParticipant | undefined>();
-  const [use, setUse] = useState("preauthorization");
+  const [use, setUse] = useState<string>(defaultUse);
 
   const status = useQuery({
     queryKey: ["nhcx", "status"],
@@ -32,6 +39,7 @@ export function SubmitToNhcxModal({ claimId, opened, onClose }: SubmitToNhcxModa
     mutationFn: () => api.submitClaimToNhcx(claimId, { recipient_code: recipientCode ?? "", use }),
     onSuccess: (queued) => {
       void queryClient.invalidateQueries({ queryKey: ["insurance-claims"] });
+      void queryClient.invalidateQueries({ queryKey: ["claim-nhcx", claimId] });
       toast.success(
         `Waiting to send — correlation ID ${queued.correlation_id}. The payer's answer will appear on the claim.`,
         { title: "Queued for NHCX" },
@@ -44,7 +52,11 @@ export function SubmitToNhcxModal({ claimId, opened, onClose }: SubmitToNhcxModa
   const ready = status.data?.ready === true;
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Submit to NHCX">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={use === "claim" ? "Submit final claim" : "Submit to NHCX"}
+    >
       <Stack gap="sm">
         <NhcxSetupAlert status={status.data} isError={status.isError} />
         <NhcxPayerSelect
@@ -68,6 +80,12 @@ export function SubmitToNhcxModal({ claimId, opened, onClose }: SubmitToNhcxModa
             ]}
           />
         </Stack>
+        {use === "claim" && (
+          <Text size="xs" c="dimmed">
+            Sends the final bill line by line, the bill's split between payer and patient, the
+            finalised discharge summary and the pre-auth reference.
+          </Text>
+        )}
         <Group justify="flex-end">
           <Button tone="secondary" onClick={onClose}>
             Cancel

@@ -1,7 +1,10 @@
 //! NHCX (National Health Claims Exchange) outbound — coverage eligibility,
-//! pre-authorisation, claim submission and answers to payer queries, one
-//! handler per operation: `nhcx.coverage_eligibility_check`,
-//! `nhcx.preauth_submit`, `nhcx.claim_submit`, `nhcx.communication`.
+//! pre-authorisation, claim submission, answers to payer queries, the
+//! status / search / cancel / reprocess Tasks and payment acknowledgements,
+//! one handler per operation (`medbrains_core::nhcx::OPERATIONS`):
+//! `nhcx.coverage_eligibility_check`, `nhcx.preauth_submit`,
+//! `nhcx.claim_submit`, `nhcx.communication`, `nhcx.status`, `nhcx.search`,
+//! `nhcx.cancel`, `nhcx.reprocess`, `nhcx.payment_ack`.
 //!
 //! Each message follows the HCX open protocol (v0.7.1): the FHIR bundle is
 //! the plaintext of a JWE encrypted for the payer's certificate (from the
@@ -11,7 +14,8 @@
 //!
 //! The queueing route records the correlation, api-call and workflow ids on
 //! the record the message belongs to (a claim, pre-authorisation,
-//! eligibility check or payer query) in the same transaction; this handler
+//! eligibility check, payer query, Task or payment notice) in the same
+//! transaction; this handler
 //! marks that record `sent` when the gateway accepts, or `send_failed` (with
 //! the reason) when it refuses for good.
 //!

@@ -3,7 +3,11 @@
 //! `medbrains_outbox::handlers::nhcx`.
 
 mod apply;
+mod apply_claim;
 mod parse;
+mod parse_claim;
+mod payments;
+pub mod payments_api;
 pub mod receive;
 pub mod settings;
 
@@ -106,5 +110,17 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/integrations/nhcx/settings/test",
             post(settings::test_connection),
+        )
+        .route(
+            "/api/insurance/nhcx/payments",
+            get(payments_api::list_payments),
+        )
+        .route(
+            "/api/insurance/nhcx/payments/{id}/post",
+            post(payments_api::post_payment),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx/payments",
+            get(payments_api::claim_payments),
         )
 }

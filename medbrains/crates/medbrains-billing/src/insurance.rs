@@ -902,8 +902,12 @@ pub async fn auto_match_bank_transactions(
     .fetch_all(&mut *tx)
     .await?;
 
-    let mut matched = 0i64;
-    let mut variance_flagged = 0i64;
+    // Credits a payer already reported through NHCX match by their UTR, and
+    // their claims are already settled — they must not be settled again.
+    let txn_ids: Vec<Uuid> = unmatched.iter().map(|t| t.id).collect();
+    let nhcx = crate::nhcx_recon::match_nhcx_credits(&mut tx, &claims, &txn_ids).await?;
+    let mut matched = nhcx.transactions.len() as i64;
+    let mut variance_flagged = nhcx.variance_flagged;
     let processed = unmatched.len() as i64;
 
     // Strategies 1 and 2 both resolve a claim_number, so they are one query
@@ -941,7 +945,10 @@ pub async fn auto_match_bank_transactions(
         .collect()
     };
 
-    for txn in &unmatched {
+    for txn in unmatched
+        .iter()
+        .filter(|t| !nhcx.transactions.contains(&t.id))
+    {
         // Strategy 1 — exact reference match against claim_number.
         let claim_by_ref = txn
             .reference_number

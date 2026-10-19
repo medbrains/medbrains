@@ -10,9 +10,10 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 
+use crate::apply_claim::{claim, task};
 use crate::parse;
 
-type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+pub(crate) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 /// The record a callback landed on: `(table, id)`.
 pub(crate) type Matched = Option<(&'static str, Uuid)>;
 
@@ -42,41 +43,19 @@ pub(crate) async fn apply(
             // A pre-auth sent from the claim desk lives on the claim.
             None => claim(tx, m).await,
         },
-        ("claim", "on_submit") => claim(tx, m).await,
+        ("claim", "on_submit") => match claim(tx, m).await? {
+            Some(found) => Ok(Some(found)),
+            // A reprocessed claim's new decision may come as an on_submit.
+            None => task(tx, m, "reprocess").await,
+        },
         ("communication", "request") => payer_query(tx, m).await,
-        _ => {
-            let id: Option<Uuid> = sqlx::query_scalar(
-                "SELECT id FROM insurance_claims WHERE tenant_id = $1 \
-                   AND nhcx_correlation_id = $2 AND deleted_at IS NULL",
-            )
-            .bind(m.tenant_id)
-            .bind(m.correlation_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-            Ok(id.map(|id| ("insurance_claims", id)))
-        }
+        ("hcx", "on_status") => task(tx, m, "status").await,
+        ("hcx", "on_search") => task(tx, m, "search").await,
+        ("claim", "on_cancel") => task(tx, m, "cancel").await,
+        ("claim", "on_reprocess") => task(tx, m, "reprocess").await,
+        ("paymentnotice", "request") => crate::payments::receive(tx, m).await,
+        _ => Ok(None),
     }
-}
-
-async fn claim(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, AppError> {
-    let id: Option<Uuid> = sqlx::query_scalar(
-        "UPDATE insurance_claims SET nhcx_response_payload = $1, nhcx_response_at = now(), \
-                nhcx_status = $2, nhcx_outcome = COALESCE($3, nhcx_outcome), \
-                approved_amount = COALESCE($4, approved_amount), updated_at = now() \
-         WHERE tenant_id = $5 AND nhcx_correlation_id = $6 AND nhcx_recipient_code = $7 \
-           AND deleted_at IS NULL \
-         RETURNING id",
-    )
-    .bind(m.response)
-    .bind(m.status)
-    .bind(parse::outcome(m.response))
-    .bind(parse::approved_amount(m.response))
-    .bind(m.tenant_id)
-    .bind(m.correlation_id)
-    .bind(m.sender)
-    .fetch_optional(&mut **tx)
-    .await?;
-    Ok(id.map(|id| ("insurance_claims", id)))
 }
 
 fn date(s: Option<&str>) -> Option<NaiveDate> {
@@ -151,9 +130,35 @@ async fn preauth(tx: &mut Tx<'_>, m: &Inbound<'_>) -> Result<Matched, AppError> 
     .bind(m.sender)
     .fetch_optional(&mut **tx)
     .await?;
-    let Some((id, current, requested)) = found else {
+    let Some(found) = found else {
         return Ok(None);
     };
+    decide(tx, m, found).await
+}
+
+/// A payer's answer about a pre-authorisation reached through one of the
+/// hospital's Tasks (a status reply).
+pub(crate) async fn preauth_by_id(
+    tx: &mut Tx<'_>,
+    m: &Inbound<'_>,
+    id: Uuid,
+) -> Result<Matched, AppError> {
+    let found: (Uuid, String, Option<Decimal>) = sqlx::query_as(
+        "SELECT id, status::text, estimated_cost FROM prior_auth_requests \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(m.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    decide(tx, m, found).await
+}
+
+async fn decide(
+    tx: &mut Tx<'_>,
+    m: &Inbound<'_>,
+    (id, current, requested): (Uuid, String, Option<Decimal>),
+) -> Result<Matched, AppError> {
     let outcome = parse::outcome(m.response);
     let approved = parse::approved_amount(m.response);
     // A cancelled request stays cancelled whatever the payer says later.

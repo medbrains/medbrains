@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1081 permissions, one per constant in the Rust source. */
+/** 1083 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4640,6 +4640,18 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Reply to a payer's request for more information on a pre-authorisation or claim, with text and supporting documents, sent back through NHCX.",
     module: "insurance",
   },
+  {
+    code: "insurance.nhcx.cancel",
+    label: "Cancel or reprocess NHCX claims",
+    description: "Ask a payer through NHCX to cancel a claim, or to reprocess one after its deductions or rejection have been answered.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.payments",
+    label: "See and post NHCX payments",
+    description: "The payment notices payers send through NHCX — amount, UTR and TDS against each claim — and posting an unmatched one to its claim.",
+    module: "insurance",
+  },
   // regulatory
   {
     code: "regulatory.dashboard.view",
@@ -7997,12 +8009,16 @@ export const P = {
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
     NHCX: {
+      CANCEL: "insurance.nhcx.cancel",
       CONFIGURE: "insurance.nhcx.configure",
+      PAYMENTS: "insurance.nhcx.payments",
       RESPOND: "insurance.nhcx.respond",
       SUBMIT: "insurance.nhcx.submit",
       VIEW: "insurance.nhcx.view",
     },
+    NHCX_CANCEL: "insurance.nhcx.cancel",
     NHCX_CONFIGURE: "insurance.nhcx.configure",
+    NHCX_PAYMENTS: "insurance.nhcx.payments",
     NHCX_RESPOND: "insurance.nhcx.respond",
     NHCX_SUBMIT: "insurance.nhcx.submit",
     NHCX_VIEW: "insurance.nhcx.view",
@@ -10627,6 +10643,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,
@@ -11401,6 +11418,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.CANCEL,
+      P.INSURANCE.NHCX.PAYMENTS,
       P.INSURANCE.NHCX.RESPOND,
       P.INSURANCE.NHCX.SUBMIT,
       P.INSURANCE.NHCX.VIEW,

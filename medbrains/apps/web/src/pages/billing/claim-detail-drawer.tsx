@@ -4,12 +4,14 @@ import { Card, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { InsuranceClaim } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconShieldCheck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { NhcxAdjudicationCard } from "@/components/Nhcx/NhcxAdjudicationCard";
+import { NhcxClaimActions } from "@/components/Nhcx/NhcxClaimActions";
+import { NhcxClaimPayments } from "@/components/Nhcx/NhcxClaimPayments";
 import { NhcxEligibilityCard } from "@/components/Nhcx/NhcxEligibilityCard";
 import { NhcxExchangeCard } from "@/components/Nhcx/NhcxExchangeCard";
 import { NhcxSetupAlert } from "@/components/Nhcx/NhcxSetupAlert";
-import { Alert, Badge, Button, Table } from "@/components/ui";
+import { Alert, Badge, Table } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 
@@ -20,9 +22,8 @@ export function ClaimDetailDrawer({
 }: {
   claim: InsuranceClaim | null;
   onClose: () => void;
-  onSubmitToNhcx: (claim: InsuranceClaim) => void;
+  onSubmitToNhcx: (claim: InsuranceClaim, use: "preauthorization" | "claim") => void;
 }) {
-  const canSubmit = useHasPermission(P.INSURANCE.NHCX.SUBMIT);
   const canView = useHasPermission(P.INSURANCE.NHCX.VIEW);
   const { data: nhcxStatus, isError: isStatusError } = useQuery({
     queryKey: ["nhcx", "status"],
@@ -59,18 +60,7 @@ export function ClaimDetailDrawer({
       {claim && (
         <Stack gap="md">
           {canView && <NhcxSetupAlert status={nhcxStatus} isError={isStatusError} />}
-          {canSubmit && (
-            <Group justify="flex-end">
-              <Button
-                size="xs"
-                leftSection={<IconShieldCheck size={14} />}
-                disabled={!nhcxReady}
-                onClick={() => onSubmitToNhcx(claim)}
-              >
-                Submit to NHCX
-              </Button>
-            </Group>
-          )}
+          <NhcxClaimActions claim={claim} isReady={nhcxReady} onSubmit={onSubmitToNhcx} />
           <SimpleGrid cols={2} spacing="xs">
             <Text size="xs" c="dimmed">
               Status
@@ -111,6 +101,10 @@ export function ClaimDetailDrawer({
           />
 
           <NhcxExchangeCard claim={claim} />
+
+          <NhcxAdjudicationCard claimId={claim.id} />
+
+          <NhcxClaimPayments claimId={claim.id} />
 
           {canView && (
             <Card withBorder padding="sm" radius="md">
