@@ -107,15 +107,16 @@ async fn a_final_claim_goes_from_the_bill_and_its_adjudication_lands_line_by_lin
     let info = claim["supportingInfo"].as_array().expect("supporting info");
     let summary = info
         .iter()
-        .find_map(|i| i["valueAttachment"]["data"].as_str())
+        .find(|i| i["category"]["coding"][0]["code"] == json!("HDS"))
         .expect("the discharge summary goes");
-    let text = base64::engine::general_purpose::STANDARD
-        .decode(summary)
-        .expect("base64");
-    assert!(
-        String::from_utf8_lossy(&text).contains("Final diagnosis: Acute appendicitis"),
-        "the summary's content goes"
+    assert_eq!(
+        summary["valueAttachment"]["contentType"],
+        json!("application/pdf")
     );
+    let pdf = base64::engine::general_purpose::STANDARD
+        .decode(summary["valueAttachment"]["data"].as_str().expect("data"))
+        .expect("base64");
+    assert!(pdf.starts_with(b"%PDF"), "the summary goes as a PDF");
     assert!(
         info.iter().any(|i| i["valueString"]
             .as_str()

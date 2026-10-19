@@ -309,6 +309,14 @@ pub const DIAGNOSIS_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/e
 /// HL7 claim information categories for `Claim.supportingInfo.category`.
 pub const CLAIM_INFO_CATEGORY_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/claiminformationcategory";
+/// NRCeS supporting-information categories (`HDS` discharge summary, `MB`
+/// medical bill, `INV` investigation, `ATT` attachment) — IG 6.5.0.
+pub const NDHM_SUPPORTING_INFO_CATEGORY_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-supportinginfo-category";
+/// NRCeS supporting-information codes (`DCR` discharge summary report, `FB`
+/// final bill, `LIR` lab investigation report) — IG 6.5.0.
+pub const NDHM_SUPPORTING_INFO_CODE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-supportinginfo-code";
 /// HL7 v3 Confidentiality code system (for the bundle `meta.security` tag).
 pub const CONFIDENTIALITY_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/v3-Confidentiality";
 /// SNOMED institutional-claim code used for `Claim.type` (per the NHCX sample).

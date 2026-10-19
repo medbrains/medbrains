@@ -555,6 +555,13 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
 <h3 class="brand" style="margin-top:8px;">Course in Hospital & Summary</h3>
 <p style="white-space:pre-wrap;">{{ discharge.discharge_summary }}</p>
 {% endif %}
+{% if discharge.final_diagnosis %}<p><strong>Final diagnosis:</strong> {{ discharge.final_diagnosis }}</p>{% endif %}
+{% if discharge.course_in_hospital %}<p style="white-space:pre-wrap;"><strong>Course in hospital:</strong> {{ discharge.course_in_hospital }}</p>{% endif %}
+{% if discharge.procedures_performed %}<p><strong>Procedures performed:</strong> {{ discharge.procedures_performed }}</p>{% endif %}
+{% if discharge.treatment_given %}<p style="white-space:pre-wrap;"><strong>Treatment given:</strong> {{ discharge.treatment_given }}</p>{% endif %}
+{% if discharge.investigation_summary %}<p style="white-space:pre-wrap;"><strong>Investigations:</strong> {{ discharge.investigation_summary }}</p>{% endif %}
+{% if discharge.condition_at_discharge %}<p><strong>Condition at discharge:</strong> {{ discharge.condition_at_discharge }}</p>{% endif %}
+{% if discharge.follow_up_instructions %}<p style="white-space:pre-wrap;"><strong>Follow-up:</strong> {{ discharge.follow_up_instructions }}</p>{% endif %}
 {% endblock content %}"#;
 
 const DISCHARGE_SAMPLE: &str = r#"{
@@ -829,7 +836,7 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
     {% if lab.nabl_certificate_number %}
     <td class="accred" rowspan="2">Reg. No. {{ lab.nabl_certificate_number }}</td>
     {% endif %}
-    <td class="accred">{{ lab.department | default(value="Laboratory") }}</td>
+    <td class="accred">{% if lab.department %}{{ lab.department }}{% else %}Laboratory{% endif %}</td>
   </tr>
   <tr><td class="accred">Report: {{ lab.report_date }}</td></tr>
 </table>
@@ -901,7 +908,9 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
   <tbody>
   {% set_global current_section = "" %}
   {% for r in lab.parameters %}
-    {% set sec = r.section | default(value="Investigations") %}
+    {# `default` only fills a missing key; a test with no department sends
+       null, and `upper` on null fails the whole report. #}
+    {% if r.section %}{% set sec = r.section %}{% else %}{% set sec = "Investigations" %}{% endif %}
     {% if sec != current_section %}
       <tr class="section"><td colspan="5">{{ sec | upper }}</td></tr>
       {% set_global current_section = sec %}
