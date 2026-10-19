@@ -723,7 +723,7 @@ pub async fn create_employee(
     .bind(&body.esi_number)
     .bind(&body.uan_number)
     .bind(&body.pan_number)
-    .bind(&body.aadhaar_number)
+    .bind(stored_aadhaar(body.aadhaar_number.as_deref())?)
     .bind(effective_user_id)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -799,7 +799,7 @@ pub async fn update_employee(
     .bind(&body.esi_number)
     .bind(&body.uan_number)
     .bind(&body.pan_number)
-    .bind(&body.aadhaar_number)
+    .bind(stored_aadhaar(body.aadhaar_number.as_deref())?)
     .bind(body.user_id)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -2403,4 +2403,51 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/hr/appraisals", post(create_appraisal))
         .route("/api/hr/statutory-records", post(create_statutory_record))
         .route("/api/hr/training/compliance", get(training_compliance))
+}
+
+/// An employee's Aadhaar is kept masked — `XXXX-XXXX-1234` — never whole. HR
+/// needs to recognise the card, not hold the number (UIDAI Circular 14/2025);
+/// AEBAS keeps its own records. An already-masked value passes through, so an
+/// edit form that sends back what it was shown does not fail.
+fn stored_aadhaar(value: Option<&str>) -> Result<Option<String>, AppError> {
+    let Some(raw) = value.map(str::trim).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+    let digits: String = raw.chars().filter(char::is_ascii_digit).collect();
+    let masked_already = raw.to_ascii_uppercase().starts_with("XXXX") && digits.len() == 4;
+    if digits.len() != 12 && !masked_already {
+        return Err(AppError::BadRequest(
+            "an Aadhaar number has 12 digits".to_owned(),
+        ));
+    }
+    let last4 = digits
+        .get(digits.len().saturating_sub(4)..)
+        .unwrap_or_default();
+    Ok(Some(format!("XXXX-XXXX-{last4}")))
+}
+
+#[cfg(test)]
+mod aadhaar_tests {
+    use super::stored_aadhaar;
+
+    #[test]
+    fn an_employee_aadhaar_is_stored_masked() {
+        assert_eq!(
+            stored_aadhaar(Some("2345 6789 0123"))
+                .ok()
+                .flatten()
+                .as_deref(),
+            Some("XXXX-XXXX-0123")
+        );
+        assert_eq!(
+            stored_aadhaar(Some("XXXX-XXXX-0123"))
+                .ok()
+                .flatten()
+                .as_deref(),
+            Some("XXXX-XXXX-0123"),
+            "an edit form sending back the masked value is accepted"
+        );
+        assert!(stored_aadhaar(Some("12345")).is_err());
+        assert_eq!(stored_aadhaar(Some("  ")).ok().flatten(), None);
+    }
 }
