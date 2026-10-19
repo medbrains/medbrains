@@ -24,9 +24,15 @@ pub struct LinkToPatient {
 /// `POST /api/abdm/abha/verifications/{id}/link` — link the verified ABHA to an
 /// existing patient, taking the demographics staff chose from it.
 ///
+/// Scan & Share's "Find existing patient" links through here too, for a
+/// patient the desk found by search; the share's `complete` then accepts that
+/// patient because this verification names it.
+///
 /// # Errors
-/// 403 without `abdm.abha.manage` and `patients.update`; 409 when the ABHA is
-/// on another patient; 400 when the verification cannot be used.
+/// 403 without `abdm.abha.manage` and `patients.update`; 404 for a patient the
+/// caller cannot reach (503 when that cannot be decided); 409 when the ABHA is
+/// on another patient or the patient has a different ABHA; 400 when the
+/// verification cannot be used.
 #[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn link(
     State(state): State<AppState>,
@@ -36,6 +42,7 @@ pub async fn link(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::abdm::abha::MANAGE)?;
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     link_verified_abha(
