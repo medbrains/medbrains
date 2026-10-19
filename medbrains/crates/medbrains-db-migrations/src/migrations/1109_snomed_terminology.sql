@@ -1,5 +1,5 @@
 -- ====================================================================
--- Migration: 1105_snomed_terminology.sql
+-- Migration: 1109_snomed_terminology.sql
 -- RLS-Posture: catalog
 -- Tenant-Column: N/A
 -- New-Tables: snomed_release, snomed_concept, snomed_description, snomed_relationship, snomed_refset_member, snomed_transitive_closure
