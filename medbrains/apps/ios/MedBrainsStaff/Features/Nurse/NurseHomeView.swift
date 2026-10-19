@@ -71,6 +71,7 @@ struct NurseHomeView: View {
             case .bedside(let a, let m): BedsideActionView(admission: a, mode: m)
             }
         }
+        .abdmRecordsDestinations()
         .task {
             guard let api else { return }
             async let a: () = admissions.load { try await api.listActiveAdmissions() }

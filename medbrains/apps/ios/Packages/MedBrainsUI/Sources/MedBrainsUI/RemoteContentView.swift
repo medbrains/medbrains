@@ -59,7 +59,9 @@ public struct RemoteContentView<T: Sendable, Content: View>: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("\(id)-empty")
             } else {
-                content(value).accessibilityIdentifier("\(id)-list")
+                // A container, so the rows inside keep their own identifiers:
+                // an identifier on a plain stack is handed down to every child.
+                content(value).accessibilityElement(children: .contain).accessibilityIdentifier("\(id)-list")
             }
         }
     }

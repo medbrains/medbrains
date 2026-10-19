@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files the app hands to a viewer: only a document another hospital sent, from its own cache, removed when the record closes. -->
+<paths>
+    <cache-path name="abdm_documents" path="abdm-documents/" />
+</paths>
