@@ -20,6 +20,10 @@ export const portalService = {
   getPortalRefills: (token: string) => api.getPortalRefills(token),
   requestPortalRefill: (...args: Parameters<typeof api.requestPortalRefill>) =>
     api.requestPortalRefill(...args),
+  getPortalDeliveryOptions: (token: string, prescriptionId: string) =>
+    api.getPortalDeliveryOptions(token, prescriptionId),
+  getPortalDeliveries: (token: string) => api.getPortalDeliveries(token),
+  getPortalDelivery: (token: string, id: string) => api.getPortalDelivery(token, id),
   getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
   getPortalExport: (token: string) => api.getPortalExport(token),
   setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>

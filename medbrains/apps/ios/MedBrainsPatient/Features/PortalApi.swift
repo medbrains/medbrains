@@ -76,7 +76,52 @@ struct PortalRefill: Decodable, Identifiable, Sendable {
     var id: String { prescriptionId }
 }
 
-private struct RefillAsk: Encodable { let note: String? }
+private struct RefillAsk: Encodable {
+    let note: String?
+    /// Home delivery; nil for pickup at the pharmacy.
+    let delivery: HomeDelivery.Choice?
+}
+
+struct PortalSavedAddress: Decodable, Sendable {
+    let label: String
+    let address: String
+    let pincode: String?
+}
+
+/// What the patient may choose for a refill of one prescription; the server decides.
+struct PortalDeliveryOffer: Decodable, Sendable {
+    let available: Bool
+    /// Why home delivery isn't offered, in the patient's words.
+    let reason: String?
+    let payments: [String]
+    let addresses: [PortalSavedAddress]
+    let contactPhone: String
+    let deliveryFee: String
+    let slots: [String]
+}
+
+/// A delivery the patient asked for. Never carries the runner's phone.
+struct PortalDelivery: Decodable, Identifiable, Sendable {
+    let id: String
+    let prescriptionId: String
+    let drugs: [String]
+    let stage: String
+    let address: String?
+    let preferredSlot: String?
+    let payment: String?
+    let requestedAt: String
+    let preparedAt: String?
+    let dispatchedAt: String?
+    let deliveredAt: String?
+    let note: String?
+    let carrier: String?
+    let trackingRef: String?
+    let amountDue: String?
+    let payAmount: String?
+    let paymentUrl: String?
+    /// The code to give the runner, only while it is on its way.
+    let handoverCode: String?
+}
 
 /// What the tenant has licensed for this patient, beyond their record.
 struct PortalEntitlements: Decodable, Sendable {
@@ -160,9 +205,15 @@ struct PortalApi: Sendable {
     func bills() async throws -> [PortalInvoice] { try await client.request(.get, "/api/portal/bills") }
     func refills() async throws -> [PortalRefill] { try await client.request(.get, "/api/portal/refills") }
     /// The server decides where it goes and refuses, with the reason, when it can't be asked for.
-    func requestRefill(prescriptionId: String) async throws -> PortalRefillRequest {
-        try await client.request(.post, "/api/portal/prescriptions/\(prescriptionId)/refill-request", body: RefillAsk(note: nil))
+    func requestRefill(prescriptionId: String, delivery: HomeDelivery.Choice? = nil) async throws -> PortalRefillRequest {
+        try await client.request(.post, "/api/portal/prescriptions/\(prescriptionId)/refill-request", body: RefillAsk(note: nil, delivery: delivery))
     }
+    /// Home delivery or not for this prescription, the ways to pay, saved addresses.
+    func deliveryOptions(prescriptionId: String) async throws -> PortalDeliveryOffer {
+        try await client.request(.get, "/api/portal/prescriptions/\(prescriptionId)/delivery-options")
+    }
+    /// The patient's own deliveries, newest first.
+    func deliveries() async throws -> [PortalDelivery] { try await client.request(.get, "/api/portal/deliveries") }
     func entitlements() async throws -> PortalEntitlements { try await client.request(.get, "/api/portal/entitlements") }
     func privacy() async throws -> PortalPrivacy { try await client.request(.get, "/api/portal/privacy") }
     /// The patient's own record as a FHIR R4 bundle, as the server sent it.

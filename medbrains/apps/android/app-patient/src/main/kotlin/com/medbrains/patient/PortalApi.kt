@@ -2,6 +2,7 @@ package com.medbrains.patient
 
 import androidx.compose.runtime.compositionLocalOf
 import com.medbrains.kit.ApiClient
+import com.medbrains.kit.HomeDelivery
 import kotlinx.serialization.Serializable
 
 // The patient portal — the only endpoints this app calls. Every read is
@@ -26,6 +27,41 @@ import kotlinx.serialization.Serializable
     val goes_to: String? = null,
     val message: String,
     val latest_request: PortalRefillRequest? = null,
+)
+/** Home delivery rides on the refill request; null for pickup at the pharmacy. */
+@Serializable private data class RefillAsk(val note: String? = null, val delivery: HomeDelivery.Choice? = null)
+@Serializable data class PortalSavedAddress(val label: String, val address: String, val pincode: String? = null)
+/** What the patient may choose for a refill of one prescription; the server decides. */
+@Serializable data class PortalDeliveryOffer(
+    val available: Boolean,
+    val reason: String? = null,
+    val payments: List<String> = emptyList(),
+    val addresses: List<PortalSavedAddress> = emptyList(),
+    val contact_phone: String = "",
+    val delivery_fee: String = "0",
+    val slots: List<String> = emptyList(),
+)
+/** A delivery the patient asked for. Never carries the runner's phone. */
+@Serializable data class PortalDelivery(
+    val id: String,
+    val prescription_id: String,
+    val drugs: List<String> = emptyList(),
+    val stage: String,
+    val address: String? = null,
+    val preferred_slot: String? = null,
+    val payment: String? = null,
+    val requested_at: String,
+    val prepared_at: String? = null,
+    val dispatched_at: String? = null,
+    val delivered_at: String? = null,
+    val note: String? = null,
+    val carrier: String? = null,
+    val tracking_ref: String? = null,
+    val amount_due: String? = null,
+    val pay_amount: String? = null,
+    val payment_url: String? = null,
+    /** The code to give the runner, only while it is on its way. */
+    val handover_code: String? = null,
 )
 /** One decision on the patient's DPDP consent ledger; the newest is current. */
 @Serializable data class DpdpConsentRecord(val purposes: List<String>, val notice_language: String? = null, val source: String, val created_at: String)
@@ -53,7 +89,12 @@ class PortalApi(private val client: ApiClient) {
     suspend fun entitlements(): PortalEntitlements = client.get("/api/portal/entitlements")
     suspend fun refills(): List<PortalRefill> = client.get("/api/portal/refills")
     /** The server decides where it goes and refuses, with the reason, when it can't be asked for. */
-    suspend fun requestRefill(prescriptionId: String): PortalRefillRequest = client.post("/api/portal/prescriptions/$prescriptionId/refill-request")
+    suspend fun requestRefill(prescriptionId: String, delivery: HomeDelivery.Choice? = null): PortalRefillRequest =
+        client.post("/api/portal/prescriptions/$prescriptionId/refill-request", RefillAsk(delivery = delivery))
+    /** Home delivery or not for this prescription, the ways to pay, saved addresses. */
+    suspend fun deliveryOptions(prescriptionId: String): PortalDeliveryOffer = client.get("/api/portal/prescriptions/$prescriptionId/delivery-options")
+    /** The patient's own deliveries, newest first. */
+    suspend fun deliveries(): List<PortalDelivery> = client.get("/api/portal/deliveries")
     suspend fun privacy(): PortalPrivacy = client.get("/api/portal/privacy")
     /** The patient's own record as a FHIR R4 bundle, exactly as the server sent it. */
     suspend fun exportRecord(): String = client.call("GET", "/api/portal/privacy/export")

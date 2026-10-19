@@ -114,12 +114,13 @@ pub async fn dispatch(
     };
     let out = sqlx::query_as::<_, Delivery>(
         "UPDATE pharmacy_deliveries SET status = 'out_for_delivery', dispatched_at = now(), \
-                otp_hash = $3, otp_attempts = 0 \
+                otp_hash = $3, otp_attempts = 0, patient_code = $4 \
           WHERE id = $1 AND tenant_id = $2 RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(hash_code(&code))
+    .bind(&code)
     .fetch_one(&mut *tx)
     .await?;
     medbrains_outbox::queue::queue_in_tx(
@@ -199,7 +200,7 @@ pub async fn complete(
     };
     let done = sqlx::query_as::<_, Delivery>(
         "UPDATE pharmacy_deliveries SET status = 'delivered', delivered_at = now(), \
-                delivered_by = $3, cash_collected = $4 \
+                delivered_by = $3, cash_collected = $4, patient_code = NULL \
           WHERE id = $1 AND tenant_id = $2 RETURNING *",
     )
     .bind(id)
@@ -240,7 +241,8 @@ pub async fn fail(
         return Err(AppError::NotFound);
     }
     let failed = sqlx::query_as::<_, Delivery>(
-        "UPDATE pharmacy_deliveries SET status = 'failed', failure_reason = $3 \
+        "UPDATE pharmacy_deliveries SET status = 'failed', failure_reason = $3, \
+                patient_code = NULL \
           WHERE id = $1 AND tenant_id = $2 RETURNING *",
     )
     .bind(id)

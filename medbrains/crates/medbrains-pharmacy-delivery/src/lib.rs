@@ -11,8 +11,11 @@ use uuid::Uuid;
 use medbrains_server_core::state::AppState;
 
 pub mod arrange;
+pub mod choice;
 pub mod door;
 pub mod facts;
+pub mod pay;
+pub mod tracking;
 
 /// A delivery as the screens see it. The code's hash never leaves the server.
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -40,6 +43,10 @@ pub struct Delivery {
     pub delivered_at: Option<DateTime<Utc>>,
     pub cash_collected: Option<Decimal>,
     pub failure_reason: Option<String>,
+    /// The patient's refill request, when they asked for it from the portal.
+    pub refill_request_id: Option<Uuid>,
+    /// "morning", "afternoon" or "evening", as the patient preferred.
+    pub preferred_slot: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -65,4 +72,8 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/pharmacy/deliveries/{id}/fail", post(door::fail))
         .route("/api/pharmacy/deliveries/{id}/cancel", post(door::cancel))
+        .route(
+            "/api/pharmacy/deliveries/{id}/assign",
+            post(arrange::assign),
+        )
 }

@@ -12,6 +12,8 @@ import XCTest
 ///   step, and no wording that says which it was.
 /// - A wrong code is refused with the number kept, so the patient corrects the
 ///   code rather than starting over.
+/// - Asking for a refill offers home delivery when the hospital delivers; the
+///   choice survives going back and coming in again, tracked as "Requested".
 /// - The seeded code opens the hospital record; a bill the desk raised this
 ///   run appears with the server's total, the outstanding figure is the sum of
 ///   the server's balances, the Health tab appears only after the hospital
@@ -182,6 +184,15 @@ final class PatientJourneyTests: XCTestCase {
         let owed = seed.outstanding(patientId: patientId)
         guard let rx = seed.dispensedPrescription(patientId: patientId) else { return XCTFail("a prescription written and dispensed through the real API") }
         let waitingBefore = seed.refillRequestsAwaiting(drug: rx.drug)
+        // The hospital delivers, and offers pay-on-delivery to everyone — put back after.
+        let deliveryWas = seed.pharmacySetting("home_delivery_enabled") ?? false
+        let codWas = seed.pharmacySetting("cod_min_deliveries") ?? 2
+        seed.setPharmacySetting("home_delivery_enabled", true)
+        seed.setPharmacySetting("cod_min_deliveries", 0)
+        defer {
+            seed.setPharmacySetting("home_delivery_enabled", deliveryWas)
+            seed.setPharmacySetting("cod_min_deliveries", codWas)
+        }
 
         launch()
         signOutIfSignedIn()
@@ -216,10 +227,29 @@ final class PatientJourneyTests: XCTestCase {
         let ask = el("request-refill-\(rx.id)")
         XCTAssertTrue(sees("approves it first"), "told the doctor decides, before asking")
         ask.tap()
+        // Asking opens the choice: they want it brought home, and pay at the door.
+        XCTAssertTrue(waitOrDump("refill-fulfilment"), "home delivery is offered")
+        app.segmentedControls["refill-fulfilment"].buttons["Home delivery"].tap()
+        XCTAssertTrue(waitOrDump("delivery-new-address"), "no address on record: they type one")
+        el("delivery-new-address").tap()
+        el("delivery-new-address").typeText("14 Lake Road, Karaikudi")
+        XCTAssertTrue(app.segmentedControls["delivery-payment"].buttons["Pay on delivery"].exists, "pay-on-delivery is offered")
+        shoot("patient-06a-delivery-chosen")
+        app.buttons["refill-send"].firstMatch.tap()
         XCTAssertTrue(el("refill-outcome").waitForExistence(timeout: 10))
         XCTAssertTrue(sees("With your doctor"), "the request shows where it is")
         XCTAssertEqual(seed.refillRequestsAwaiting(drug: rx.drug), waitingBefore + 1, "and it is in the prescriber's sign-offs")
         shoot("patient-06b-refill-requested")
+        // Back home and in again: the delivery is tracked, as the server holds it.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(el("module-prescriptions").waitForExistence(timeout: 10))
+        el("module-prescriptions").tap()
+        XCTAssertTrue(el("screen-prescriptions").waitForExistence(timeout: 10))
+        XCTAssertTrue(waitOrDump("deliveries-list"), "the delivery survives leaving the screen")
+        XCTAssertTrue(sees("14 Lake Road"), "to the address they gave")
+        XCTAssertTrue(sees("Requested"), "waiting for the doctor and the pharmacy")
+        XCTAssertFalse(sees("Give this code"), "no handover code before it is on its way")
+        shoot("patient-06e-delivery-tracked")
         app.navigationBars.buttons.element(boundBy: 0).tap()
         privacyStep(seed, patientId: patientId)
 

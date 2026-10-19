@@ -116,6 +116,7 @@ import type {
   AssetClassification,
   AssetMovement,
   AssignBedToWardRequest,
+  AssignDeliveryRequest,
   AssignHospitalToGroup,
   AssignIncentivePlanRequest,
   AssignTransportRequest,
@@ -1649,6 +1650,9 @@ import type {
   PoListResponse,
   PolypharmacyInteractionAlert,
   PortalAppointment,
+  PortalDelivery,
+  PortalDeliveryChoice,
+  PortalDeliveryOffer,
   PortalInvoice,
   PortalLabReport,
   PortalPrescriptionItem,
@@ -6681,6 +6685,11 @@ export const api = {
     }),
   cancelDelivery: (id: string) =>
     request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/cancel`, { method: "POST", body: "{}" }),
+  assignDelivery: (id: string, data: AssignDeliveryRequest) =>
+    request<PharmacyDelivery>(`/pharmacy/deliveries/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   updatePharmacyCatalog: (id: string, data: UpdatePharmacyCatalogRequest) =>
     request<PharmacyCatalog>(`/pharmacy/catalog/${id}`, {
@@ -17339,12 +17348,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  requestPortalRefill: (token: string, prescriptionId: string, data: { note?: string }) =>
+  requestPortalRefill: (
+    token: string,
+    prescriptionId: string,
+    data: { note?: string; delivery?: PortalDeliveryChoice },
+  ) =>
     request<PortalRefillRequest>(`/portal/prescriptions/${prescriptionId}/refill-request`, {
       ...portalAuth(token),
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getPortalDeliveryOptions: (token: string, prescriptionId: string) =>
+    request<PortalDeliveryOffer>(
+      `/portal/prescriptions/${prescriptionId}/delivery-options`,
+      portalAuth(token),
+    ),
+  getPortalDeliveries: (token: string) =>
+    request<PortalDelivery[]>("/portal/deliveries", portalAuth(token)),
+  getPortalDelivery: (token: string, id: string) =>
+    request<PortalDelivery>(`/portal/deliveries/${id}`, portalAuth(token)),
   /** The prescriber approves (it goes to the pharmacy) or declines a patient's refill request. */
   decideRefillRequest: (requestId: string, data: { approve: boolean; note?: string }) =>
     request<PortalRefillRequest>(`/doctors/me/refill-requests/${requestId}/decide`, {
