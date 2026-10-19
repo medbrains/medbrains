@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.medbrains.kit.ApiError
+import com.medbrains.staff.abdm.OtherHospitalRecordsLink
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.ServerTime
@@ -157,6 +158,7 @@ fun QueueDetailScreen(nav: NavHostController, api: TokenApi, initial: WorklistTo
                 CarbonTag(token.priority, CarbonTone.Info, mono = true)
             }
         }
+        OtherHospitalRecordsLink(nav, token.patient_id, token.displayName)
         error?.let { CarbonNotification(NotificationKind.Error, "Action failed", it, Modifier.padding(horizontal = 16.dp)) }
         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (token.status == TokenStatus.WAITING && canWork) CarbonPrimaryButton("Call patient", enabled = !busy, modifier = Modifier.testTag("queue-call-patient"), onClick = { run { api.call(token.id) } })

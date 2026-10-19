@@ -54,6 +54,7 @@ struct PatientWorkspaceView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("workspace-\(action.id)")
                 }
+                OtherHospitalRecordsLink(patientId: admission.patientId, patientName: admission.patientName)
             }
         }
         .background(MedBrainsTheme.canvas)

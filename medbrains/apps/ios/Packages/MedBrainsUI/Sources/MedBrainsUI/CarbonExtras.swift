@@ -1,3 +1,4 @@
+import MedBrainsKit
 import SwiftUI
 
 /// Carbon's tag: a small filled label. The word is always there — colour
@@ -36,6 +37,19 @@ public enum CarbonTone: Sendable {
         case .warning: Carbon.amber[2]
         case .danger: Carbon.rose[5]
         case .highAlert: Carbon.ochre[5]
+        }
+    }
+}
+
+public extension CarbonTone {
+    /// The kit's design-free tone, drawn in Carbon.
+    init(_ tone: Tone) {
+        switch tone {
+        case .neutral: self = .neutral
+        case .info: self = .info
+        case .success: self = .success
+        case .warning: self = .warning
+        case .danger: self = .danger
         }
     }
 }

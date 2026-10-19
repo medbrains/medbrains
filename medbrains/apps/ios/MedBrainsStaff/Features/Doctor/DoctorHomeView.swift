@@ -55,6 +55,7 @@ struct DoctorHomeView: View {
             case .myClinic: MyClinicView()
             }
         }
+        .abdmRecordsDestinations()
         .task {
             guard let client else { return }
             await queue.load { try await TokenApi(client: client, module: .opd).worklist(.mine) }
