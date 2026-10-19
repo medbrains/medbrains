@@ -128,16 +128,20 @@ pub async fn resolve(
     channel: Channel,
 ) -> Result<Found, AppError> {
     let people = people_with_phone(tx, tenant_id, phone).await?;
-    match (people.as_slice(), chosen) {
-        ([only], None) => return Ok(Found::Patient(only.id)),
-        ([], _) => {}
-        (_, Some(id)) if people.iter().any(|p| p.id == id) => return Ok(Found::Patient(id)),
-        (_, Some(_)) => {
-            return Err(AppError::BadRequest(
+    if let Some(id) = chosen {
+        return if people.iter().any(|p| p.id == id) {
+            Ok(Found::Patient(id))
+        } else {
+            Err(AppError::BadRequest(
                 "Choose one of the people shown".to_owned(),
-            ));
-        }
-        (_, None) => return Ok(Found::Choose(people)),
+            ))
+        };
+    }
+    if people.len() > 1 {
+        return Ok(Found::Choose(people));
+    }
+    if let Some(only) = people.first() {
+        return Ok(Found::Patient(only.id));
     }
     let Some(details) = details else {
         return Ok(Found::NeedsDetails);

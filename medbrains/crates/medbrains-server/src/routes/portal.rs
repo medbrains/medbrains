@@ -360,14 +360,13 @@ pub async fn verify_portal_otp(
         &mut tx, tenant_id, phone,
     )
     .await?;
-    let patient_id = match (people.as_slice(), body.patient_id) {
-        ([], _) => None,
-        ([only], None) => Some(only.id),
-        (_, Some(id)) => people.iter().find(|p| p.id == id).map(|p| p.id),
-        (_, None) => {
-            tx.commit().await?;
-            return Ok(Json(PortalVerifyResponse::Choose { choose: people }));
-        }
+    let patient_id = if let Some(id) = body.patient_id {
+        people.iter().find(|p| p.id == id).map(|p| p.id)
+    } else if people.len() > 1 {
+        tx.commit().await?;
+        return Ok(Json(PortalVerifyResponse::Choose { choose: people }));
+    } else {
+        people.first().map(|p| p.id)
     };
     let patient_id = patient_id.ok_or_else(denied)?;
 
