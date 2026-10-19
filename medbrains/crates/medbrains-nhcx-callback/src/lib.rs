@@ -1,271 +1,24 @@
-//! NHCX async-callback receiver.
-//!
-//! NHCX gateway POSTs payer responses (preauth approval, claim
-//! settlement, eligibility check result) to this endpoint after the
-//! corresponding `submit_to_nhcx` call. The wire shape is the same
-//! envelope the hospital sent — JWS-signed by the payer, JWE-encrypted
-//! for the hospital.
-//!
-//! Flow:
-//!   1. POST `/api/integrations/nhcx/callback` (no auth — gateway
-//!      authenticates via JWS signature, not bearer token).
-//!   2. Decrypt the JWE with our private key.
-//!   3. Verify the JWS with the sender's public key (looked up from
-//!      `nhcx_recipient_code`).
-//!   4. Match `x-hcx-correlation_id` to local row.
-//!   5. Update status + persist full response.
-//!
-//! Idempotency: a duplicate webhook for the same `correlation_id` is
-//! treated as a no-op (the `WHERE nhcx_correlation_id = $1` UPDATE
-//! returns 0 rows when status was already terminal).
+//! NHCX — the gateway's callback receiver, the callback history, and
+//! Settings → NHCX. Outbound messages are sent by the outbox handlers in
+//! `medbrains_outbox::handlers::nhcx`.
 
+pub mod receive;
+pub mod settings;
+
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Query, State},
-    http::StatusCode,
 };
-use axum::routing::{get,post};
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
-
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct NhcxEnvelope {
-    /// Outer JWE — encrypted JWS containing the actual payload.
-    pub payload: String,
-
-    #[serde(rename = "x-hcx-sender_code")]
-    pub sender_code: String,
-
-    #[serde(rename = "x-hcx-recipient_code")]
-    pub recipient_code: Option<String>,
-
-    #[serde(rename = "x-hcx-correlation_id")]
-    pub correlation_id: Uuid,
-
-    #[serde(rename = "x-hcx-api_call_id")]
-    pub api_call_id: Option<Uuid>,
-
-    #[serde(rename = "x-hcx-status")]
-    pub status: Option<String>,
-}
-
-/// Handler — public route, no auth middleware.
-pub async fn receive_callback(
-    State(state): State<AppState>,
-    Json(envelope): Json<NhcxEnvelope>,
-) -> Result<(StatusCode, Json<Value>), AppError> {
-    // 1. Resolve our private key + the sender's public key.
-    //    Both are tenant-scoped — but the webhook arrives without
-    //    auth, so we infer tenant from the correlation_id. Look up
-    //    the claim row first, get its tenant, then resolve secrets.
-    let tenant_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT tenant_id FROM insurance_claims WHERE nhcx_correlation_id = $1 \
-         UNION ALL SELECT tenant_id FROM prior_auth_requests WHERE nhcx_correlation_id = $1 \
-         LIMIT 1",
-    )
-    .bind(envelope.correlation_id)
-    .fetch_optional(&state.db)
-    .await?;
-
-    let raw_envelope = serde_json::to_value(&envelope).unwrap_or(Value::Null);
-
-    let Some(tenant_id) = tenant_id else {
-        // Unknown correlation_id. ACK 200 to avoid the gateway retrying
-        // forever, but persist + log so ops can investigate.
-        let _ = sqlx::query(
-            "INSERT INTO nhcx_callback_log \
-             (tenant_id, correlation_id, sender_code, raw_envelope, \
-              verification_status, error_detail) \
-             VALUES (NULL, $1, $2, $3, 'unknown_correlation', 'no matching local row')",
-        )
-        .bind(envelope.correlation_id)
-        .bind(&envelope.sender_code)
-        .bind(&raw_envelope)
-        .execute(&state.db)
-        .await;
-
-        tracing::warn!(
-            correlation_id = %envelope.correlation_id,
-            sender = %envelope.sender_code,
-            "nhcx callback: unknown correlation_id — ACKing to drop"
-        );
-        return Ok((
-            StatusCode::OK,
-            Json(serde_json::json!({ "status": "unknown_correlation" })),
-        ));
-    };
-
-    // 2. Resolve crypto material via secret_resolver, scoped to tenant.
-    let private_key_pem = state
-        .secret_resolver
-        .get("NHCX_PRIVATE_KEY_PEM")
-        .await
-        .map_err(|e| AppError::Internal(format!("NHCX_PRIVATE_KEY_PEM: {e}")))?;
-    let sender_pub_pem = state
-        .secret_resolver
-        .get(&format!("NHCX_SENDER_PUBLIC_KEY:{}", envelope.sender_code))
-        .await
-        .map_err(|e| {
-            AppError::Internal(format!(
-                "NHCX_SENDER_PUBLIC_KEY for {}: {e}",
-                envelope.sender_code
-            ))
-        })?;
-
-    // 3. Decrypt the JWE → JSON containing the JWS.
-    let participant_code = state
-        .secret_resolver
-        .get("NHCX_PARTICIPANT_CODE")
-        .await
-        .map_err(|e| AppError::Internal(format!("NHCX_PARTICIPANT_CODE: {e}")))?;
-    let decrypted: Value = medbrains_crypto::jwe::decrypt_from_payer(
-        &envelope.payload,
-        &participant_code,
-        private_key_pem.as_bytes(),
-    )
-    .map_err(|e| AppError::BadRequest(format!("nhcx jwe decrypt: {e}")))?;
-
-    // 4. Verify the JWS with the sender's public key.
-    let jws_token = decrypted
-        .get("jws")
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::BadRequest("decrypted payload missing 'jws'".to_owned()))?;
-    let signed_payload: Value = medbrains_crypto::jws::verify_rs256(
-        jws_token,
-        &envelope.sender_code,
-        sender_pub_pem.as_bytes(),
-    )
-    .map_err(|e| AppError::BadRequest(format!("nhcx jws verify: {e}")))?;
-
-    // 5. Persist the full response and update status. We update
-    //    whichever table the correlation matches.
-    let new_status = envelope.status.as_deref().unwrap_or("response_received");
-
-    // Gateway transport status is NOT the claim lifecycle — it lands in
-    // nhcx_status; lifecycle transitions happen via adjudication flows.
-    let updated_claims: u64 = sqlx::query(
-        "UPDATE insurance_claims \
-         SET nhcx_response_payload = $1, nhcx_response_at = now(), \
-             nhcx_status = COALESCE($2, nhcx_status), updated_at = now() \
-         WHERE nhcx_correlation_id = $3 AND tenant_id = $4",
-    )
-    .bind(&signed_payload)
-    .bind(new_status)
-    .bind(envelope.correlation_id)
-    .bind(tenant_id)
-    .execute(&state.db)
-    .await?
-    .rows_affected();
-
-    // Lift the payer's adjudicated amount out of the response bundle into the structured
-    // approved_amount column (it was only landing in the JSONB). The claim LIFECYCLE
-    // status stays human-reviewed per the TPA-pipeline design — we surface the number so
-    // the operator doesn't re-key it, but they still confirm the transition.
-    if updated_claims > 0 {
-        if let Some(approved) =
-            claim_response_benefit(&signed_payload).and_then(Decimal::from_f64_retain)
-        {
-            let _ = sqlx::query(
-                "UPDATE insurance_claims SET approved_amount = $1, updated_at = now() \
-                 WHERE nhcx_correlation_id = $2 AND tenant_id = $3",
-            )
-            .bind(approved)
-            .bind(envelope.correlation_id)
-            .bind(tenant_id)
-            .execute(&state.db)
-            .await;
-        }
-    }
-
-    let updated_preauths: u64 = if updated_claims == 0 {
-        sqlx::query(
-            "UPDATE prior_auth_requests \
-             SET nhcx_response_payload = $1, nhcx_response_at = now(), \
-                 status = COALESCE($2::prior_auth_status, status), updated_at = now() \
-             WHERE nhcx_correlation_id = $3 AND tenant_id = $4",
-        )
-        .bind(&signed_payload)
-        .bind(new_status)
-        .bind(envelope.correlation_id)
-        .bind(tenant_id)
-        .execute(&state.db)
-        .await
-        .map(|r| r.rows_affected())
-        .unwrap_or(0)
-    } else {
-        0
-    };
-
-    let (matched_table, matched_id_query): (Option<&str>, Option<Uuid>) = if updated_claims > 0 {
-        let row: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM insurance_claims WHERE nhcx_correlation_id = $1 AND tenant_id = $2",
-        )
-        .bind(envelope.correlation_id)
-        .bind(tenant_id)
-        .fetch_optional(&state.db)
-        .await?;
-        (Some("insurance_claims"), row)
-    } else if updated_preauths > 0 {
-        let row: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM prior_auth_requests \
-             WHERE nhcx_correlation_id = $1 AND tenant_id = $2",
-        )
-        .bind(envelope.correlation_id)
-        .bind(tenant_id)
-        .fetch_optional(&state.db)
-        .await?;
-        (Some("prior_auth_requests"), row)
-    } else {
-        (None, None)
-    };
-
-    let _ = sqlx::query(
-        "INSERT INTO nhcx_callback_log \
-         (tenant_id, correlation_id, api_call_id, sender_code, recipient_code, \
-          callback_type, raw_envelope, decrypted_payload, verification_status, \
-          matched_table, matched_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'verified', $9, $10)",
-    )
-    .bind(tenant_id)
-    .bind(envelope.correlation_id)
-    .bind(envelope.api_call_id)
-    .bind(&envelope.sender_code)
-    .bind(envelope.recipient_code.as_deref())
-    .bind(envelope.status.as_deref())
-    .bind(&raw_envelope)
-    .bind(&signed_payload)
-    .bind(matched_table)
-    .bind(matched_id_query)
-    .execute(&state.db)
-    .await;
-
-    tracing::info!(
-        tenant_id = %tenant_id,
-        correlation_id = %envelope.correlation_id,
-        sender = %envelope.sender_code,
-        new_status,
-        claims_updated = updated_claims,
-        preauths_updated = updated_preauths,
-        "nhcx callback processed"
-    );
-
-    Ok((
-        StatusCode::OK,
-        Json(serde_json::json!({
-            "status": "accepted",
-            "correlation_id": envelope.correlation_id,
-        })),
-    ))
-}
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct NhcxCallbackRow {
@@ -293,14 +46,18 @@ pub struct ListCallbacksQuery {
 }
 
 /// `GET /api/integrations/nhcx/callbacks` — recent callbacks for the
-/// caller's tenant. Optional filters: correlation_id, matched_id.
+/// caller's tenant. Optional filters: `correlation_id`, `matched_id`.
+///
+/// # Errors
+/// 403 without `insurance.nhcx.view`.
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_callbacks(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListCallbacksQuery>,
 ) -> Result<Json<Vec<NhcxCallbackRow>>, AppError> {
+    require_permission(&claims, permissions::insurance::nhcx::VIEW)?;
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
 
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
 
@@ -326,41 +83,26 @@ pub async fn list_callbacks(
     Ok(Json(rows))
 }
 
-/// Extract the payer's adjudicated benefit amount from a verified NHCX response bundle —
-/// FHIR `ClaimResponse.total[category = benefit | eligible].amount.value`. Returns `None`
-/// if the bundle has no ClaimResponse or no benefit/eligible total (e.g. an error/queued
-/// outcome), leaving `approved_amount` untouched.
-fn claim_response_benefit(bundle: &Value) -> Option<f64> {
-    let entries = bundle.get("entry")?.as_array()?;
-    let claim_response = entries.iter().find_map(|entry| {
-        let resource = entry.get("resource")?;
-        (resource.get("resourceType")?.as_str()? == "ClaimResponse").then_some(resource)
-    })?;
-    let totals = claim_response.get("total")?.as_array()?;
-    totals.iter().find_map(|total| {
-        let code = total
-            .get("category")?
-            .get("coding")?
-            .as_array()?
-            .iter()
-            .find_map(|coding| coding.get("code")?.as_str())?;
-        if code == "benefit" || code == "eligible" {
-            total.get("amount")?.get("value")?.as_f64()
-        } else {
-            None
-        }
-    })
+/// The gateway's callbacks — public: each is authenticated by the gateway's
+/// JWT, not a user session. The base path is the hospital's NHCX `endpoint_url`.
+pub fn public_router() -> axum::Router<AppState> {
+    axum::Router::new().route(
+        "/api/integrations/nhcx/hcx/v1/{resource}/{action}",
+        post(receive::receive_callback),
+    )
 }
 
-/// nhcx_callback routes.
+/// Signed-in routes: callback history, NHCX status and settings.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route("/api/integrations/nhcx/callbacks", get(list_callbacks))
+        .route("/api/integrations/nhcx/status", get(settings::get_status))
         .route(
-            "/api/integrations/nhcx/callback",
-            post(receive_callback),
+            "/api/integrations/nhcx/settings",
+            get(settings::get_settings).put(settings::save_settings),
         )
         .route(
-            "/api/integrations/nhcx/callbacks",
-            get(list_callbacks),
+            "/api/integrations/nhcx/settings/test",
+            post(settings::test_connection),
         )
 }

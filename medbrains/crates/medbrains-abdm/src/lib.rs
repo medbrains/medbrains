@@ -5,14 +5,23 @@
 //! `medbrains-server`, while UI code talks only to `MedBrains` backend APIs.
 
 pub mod abha;
+pub mod card;
+pub mod enrol;
+mod types;
+pub mod registry;
 
 pub use abha::{
-    AADHAAR_VERIFY_SCOPE, ABDM_PRODUCTION_ABHA_BASE_URL, ABDM_PRODUCTION_SESSION_URL,
-    ABDM_PROFILE_LOGIN_REQUEST_OTP_PATH, ABDM_PROFILE_LOGIN_VERIFY_PATH,
-    ABDM_PROFILE_PUBLIC_CERTIFICATE_PATH, ABDM_SANDBOX_ABHA_BASE_URL, ABDM_SANDBOX_SESSION_URL,
-    ABHA_LOGIN_SCOPE, ABHA_PROFILE_SCOPE, AbdmAbhaClient, AbdmAbhaConfig, AbdmEnvironment,
-    AbdmError, AbdmRequestContext, AbhaAccountSummary, AbhaIntegrationReadiness, AbhaProfile,
-    AuthMethod, AuthToken, LoginHint, MOBILE_VERIFY_SCOPE, OtpSystem, ProfileTokenResponse,
-    PublicCertificateResponse, RequestOtpRequest, RequestOtpResponse, SessionTokenRequest,
-    SessionTokenResponse, VerifyOtpAuthData, VerifyOtpPayload, VerifyOtpRequest, VerifyOtpResponse,
+    AADHAAR_VERIFY_SCOPE, ABDM_BASE_URL_OVERRIDE, ABHA_LOGIN_SCOPE, AbdmAbhaClient,
+    AbdmEnvironment, AbdmError,
+    AbhaAccountSummary, AbhaIntegrationReadiness, AbhaProfile, LoginHint, MOBILE_VERIFY_SCOPE,
+    OtpSystem, PublicCertificateResponse, RequestOtpRequest, RequestOtpResponse,
+    SessionTokenRequest, SessionTokenResponse, UserToken, VerifyOtpAuthData, VerifyOtpPayload,
+    VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, VerifyUserResponse,
+};
+pub use card::AbhaCard;
+pub use enrol::{
+    ABHA_ENROL_SCOPE, AddressSuggestions, CreateAddressRequest, CreateAddressResponse,
+    ENROL_CONSENT_CODE, ENROL_CONSENT_VERSION, EnrolAuthData, EnrolAuthResponse,
+    EnrolByAadhaarRequest, EnrolConsent, EnrolMobileVerifyRequest, EnrolOtp, EnrolOtpRequest,
+    EnrolOtpResponse, EnrolProfile, EnrolResponse, EnrolTokens,
 };

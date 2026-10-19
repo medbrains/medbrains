@@ -1,31 +1,41 @@
 // Billing ClaimDetailDrawer — split from billing.tsx (pure move).
 
 import { Card, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { InsuranceClaim } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconShieldCheck } from "@tabler/icons-react";
-import { Badge, Button, Table } from "@/components/ui";
-
-interface NhcxCallbackRow {
-  id: string;
-  received_at: string;
-  correlation_id: string | null;
-  sender_code: string | null;
-  callback_type: string | null;
-  verification_status: string;
-  decrypted_payload: unknown;
-}
+import { useQuery } from "@tanstack/react-query";
+import { NhcxExchangeCard } from "@/components/Nhcx/NhcxExchangeCard";
+import { NhcxSetupAlert } from "@/components/Nhcx/NhcxSetupAlert";
+import { Alert, Badge, Button, Table } from "@/components/ui";
+import { billingService } from "@/services/billing.service";
+import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 
 export function ClaimDetailDrawer({
   claim,
-  callbacks,
   onClose,
   onNhcxAction,
 }: {
   claim: InsuranceClaim | null;
-  callbacks: NhcxCallbackRow[];
   onClose: () => void;
   onNhcxAction: (claim: InsuranceClaim, mode: "submit" | "eligibility") => void;
 }) {
+  const canSubmit = useHasPermission(P.INSURANCE.NHCX.SUBMIT);
+  const canView = useHasPermission(P.INSURANCE.NHCX.VIEW);
+  const { data: nhcxStatus, isError: isStatusError } = useQuery({
+    queryKey: ["nhcx", "status"],
+    queryFn: nhcxSettingsService.status,
+    enabled: !!claim && canView,
+  });
+  const callbacksQuery = useQuery({
+    queryKey: ["nhcx-callbacks", claim?.id],
+    queryFn: () => billingService.listNhcxCallbacks({ matched_id: claim?.id }),
+    enabled: !!claim && canView,
+  });
+  const callbacks = callbacksQuery.data ?? [];
+  // Without the view permission the status is unknown; the server still refuses.
+  const nhcxReady = !canView || nhcxStatus?.ready === true;
   return (
     <Drawer
       opened={!!claim}
@@ -47,18 +57,27 @@ export function ClaimDetailDrawer({
     >
       {claim && (
         <Stack gap="md">
-          <Group justify="flex-end">
-            <Button size="xs" tone="secondary" onClick={() => onNhcxAction(claim, "eligibility")}>
-              Check eligibility
-            </Button>
-            <Button
-              size="xs"
-              leftSection={<IconShieldCheck size={14} />}
-              onClick={() => onNhcxAction(claim, "submit")}
-            >
-              Submit to NHCX
-            </Button>
-          </Group>
+          {canView && <NhcxSetupAlert status={nhcxStatus} isError={isStatusError} />}
+          {canSubmit && (
+            <Group justify="flex-end">
+              <Button
+                size="xs"
+                tone="secondary"
+                disabled={!nhcxReady}
+                onClick={() => onNhcxAction(claim, "eligibility")}
+              >
+                Check eligibility
+              </Button>
+              <Button
+                size="xs"
+                leftSection={<IconShieldCheck size={14} />}
+                disabled={!nhcxReady}
+                onClick={() => onNhcxAction(claim, "submit")}
+              >
+                Submit to NHCX
+              </Button>
+            </Group>
+          )}
           <SimpleGrid cols={2} spacing="xs">
             <Text size="xs" c="dimmed">
               Status
@@ -92,114 +111,55 @@ export function ClaimDetailDrawer({
             </Text>
           </SimpleGrid>
 
-          <Card withBorder padding="sm" radius="md">
-            <Text fw={600} size="sm" mb="xs">
-              NHCX exchange
-            </Text>
-            {claim.nhcx_correlation_id ? (
-              <Stack gap={4}>
-                <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
-                    Correlation ID
-                  </Text>
-                  <Text size="xs" ff="monospace">
-                    {claim.nhcx_correlation_id}
-                  </Text>
-                </Group>
-                <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
-                    API call ID
-                  </Text>
-                  <Text size="xs" ff="monospace">
-                    {claim.nhcx_api_call_id ?? "—"}
-                  </Text>
-                </Group>
-                <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
-                    Recipient code
-                  </Text>
-                  <Text size="xs" ff="monospace">
-                    {claim.nhcx_recipient_code ?? "—"}
-                  </Text>
-                </Group>
-                <Group gap="xs" wrap="nowrap">
-                  <Text size="xs" c="dimmed" style={{ minWidth: 140 }}>
-                    Last response at
-                  </Text>
-                  <Text size="xs">
-                    {claim.nhcx_response_at
-                      ? new Date(claim.nhcx_response_at).toLocaleString()
-                      : "—"}
-                  </Text>
-                </Group>
-                {claim.nhcx_response_payload != null && (
-                  <Card withBorder padding="xs" radius="sm" mt="xs" bg="gray.0">
-                    <Text size="xs" c="dimmed" mb={4}>
-                      Decrypted response payload
-                    </Text>
-                    <pre
-                      style={{
-                        margin: 0,
-                        fontSize: 11,
-                        maxHeight: 220,
-                        overflow: "auto",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-all",
-                      }}
-                    >
-                      {JSON.stringify(claim.nhcx_response_payload, null, 2)}
-                    </pre>
-                  </Card>
-                )}
-              </Stack>
-            ) : (
-              <Text size="sm" c="dimmed">
-                Not yet exchanged with NHCX gateway.
-              </Text>
-            )}
-          </Card>
+          <NhcxExchangeCard claim={claim} />
 
-          <Card withBorder padding="sm" radius="md">
-            <Group justify="space-between" mb="xs">
-              <Text fw={600} size="sm">
-                Webhook callbacks
-              </Text>
-              <Badge tone="neutral">{callbacks.length}</Badge>
-            </Group>
-            {callbacks.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No callbacks received yet.
-              </Text>
-            ) : (
-              <Table verticalSpacing={4} fz="xs">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>When</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Sender</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {callbacks.map((cb) => (
-                    <Table.Tr key={cb.id}>
-                      <Table.Td>{new Date(cb.received_at).toLocaleString()}</Table.Td>
-                      <Table.Td>{cb.callback_type ?? "—"}</Table.Td>
-                      <Table.Td>{cb.sender_code ?? "—"}</Table.Td>
-                      <Table.Td>
-                        <Badge
-                          size="xs"
-                          tone={cb.verification_status === "verified" ? "success" : "warning"}
-                        >
-                          {cb.verification_status}
-                        </Badge>
-                      </Table.Td>
+          {canView && (
+            <Card withBorder padding="sm" radius="md">
+              <Group justify="space-between" mb="xs">
+                <Text fw={600} size="sm">
+                  Payer responses received
+                </Text>
+                <Badge tone="neutral">{callbacks.length}</Badge>
+              </Group>
+              {callbacksQuery.isError ? (
+                <Alert tone="warning" title="Could not load the responses">
+                  Whether the payer has answered is unknown right now — try again in a minute.
+                </Alert>
+              ) : callbacks.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  No callbacks received yet.
+                </Text>
+              ) : (
+                <Table verticalSpacing={4} fz="xs">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>When</Table.Th>
+                      <Table.Th>Type</Table.Th>
+                      <Table.Th>Sender</Table.Th>
+                      <Table.Th>Status</Table.Th>
                     </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            )}
-          </Card>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {callbacks.map((cb) => (
+                      <Table.Tr key={cb.id}>
+                        <Table.Td>{new Date(cb.received_at).toLocaleString()}</Table.Td>
+                        <Table.Td>{cb.callback_type ?? "—"}</Table.Td>
+                        <Table.Td>{cb.sender_code ?? "—"}</Table.Td>
+                        <Table.Td>
+                          <Badge
+                            size="xs"
+                            tone={cb.verification_status === "verified" ? "success" : "warning"}
+                          >
+                            {cb.verification_status}
+                          </Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+            </Card>
+          )}
         </Stack>
       )}
     </Drawer>

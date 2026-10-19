@@ -115,18 +115,9 @@ pub async fn read_encounter(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let row: Option<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
-        "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
-                e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS encounter_type, e.status::text AS status, \
-                e.created_at AS started_at, \
-                CASE WHEN e.status::text IN ('closed','completed','discharged') \
-                     THEN e.updated_at ELSE NULL END AS ended_at \
-         FROM encounters e \
-         LEFT JOIN patients p ON p.id = e.patient_id \
-         LEFT JOIN users u ON u.id = e.doctor_id \
-         WHERE e.id = $1 AND e.tenant_id = $2",
-    )
+    let row: Option<EncounterRow> = sqlx::query_as::<_, EncounterRow>(&format!(
+        "{ENCOUNTER_SELECT} WHERE e.id = $1 AND e.tenant_id = $2"
+    ))
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
@@ -134,31 +125,64 @@ pub async fn read_encounter(
     tx.commit().await?;
 
     let row = row.ok_or(AppError::NotFound)?;
-    let view = EncounterView {
-        id: row.id,
-        patient_id: row.patient_id,
-        patient_display: row.patient_display,
-        doctor_id: row.doctor_id,
-        doctor_display: row.doctor_display,
-        encounter_type: row.encounter_type,
-        status: row.status,
-        started_at: row.started_at,
-        ended_at: row.ended_at,
-    };
-    Ok(Json(Resource::Encounter(encounter_to_fhir(&view))))
+    Ok(Json(Resource::Encounter(encounter_to_fhir(&row.into()))))
 }
 
+/// Encounters carry no campus, so the serviceProvider is the tenant's
+/// registered main campus.
+// ponytail: one campus per bundle; join the encounter's own campus once
+// encounters record which campus they happened at.
+pub(crate) const ENCOUNTER_SELECT: &str = "SELECT e.id, e.patient_id, \
+        p.first_name || ' ' || p.last_name AS patient_display, \
+        e.doctor_id, u.full_name AS doctor_display, dp.hpr_id AS doctor_hpr_id, \
+        mc.id AS facility_id, mc.hfr_facility_id AS facility_hfr_id, \
+        e.encounter_type::text AS encounter_type, e.status::text AS status, \
+        e.created_at AS started_at, \
+        CASE WHEN e.status::text IN ('closed','completed','discharged') \
+             THEN e.updated_at ELSE NULL END AS ended_at \
+     FROM encounters e \
+     LEFT JOIN patients p ON p.id = e.patient_id \
+     LEFT JOIN users u ON u.id = e.doctor_id \
+     LEFT JOIN doctor_profiles dp ON dp.user_id = e.doctor_id \
+          AND dp.tenant_id = e.tenant_id AND dp.deleted_at IS NULL \
+     LEFT JOIN LATERAL (SELECT f.id, f.hfr_facility_id FROM facilities f \
+          WHERE f.tenant_id = e.tenant_id AND f.deleted_at IS NULL AND f.parent_id IS NULL \
+          ORDER BY (f.hfr_facility_id IS NOT NULL) DESC, \
+                   (f.facility_type = 'main_hospital') DESC, f.created_at \
+          LIMIT 1) mc ON true";
+
 #[derive(sqlx::FromRow)]
-struct EncounterRow {
+pub(crate) struct EncounterRow {
     id: Uuid,
     patient_id: Uuid,
     patient_display: Option<String>,
     doctor_id: Option<Uuid>,
     doctor_display: Option<String>,
+    doctor_hpr_id: Option<String>,
+    facility_id: Option<Uuid>,
+    facility_hfr_id: Option<String>,
     encounter_type: String,
     status: String,
     started_at: chrono::DateTime<Utc>,
     ended_at: Option<chrono::DateTime<Utc>>,
+}
+
+impl From<EncounterRow> for EncounterView {
+    fn from(r: EncounterRow) -> Self {
+        Self {
+            id: r.id,
+            patient_id: r.patient_id,
+            patient_display: r.patient_display,
+            doctor_id: r.doctor_id,
+            doctor_display: r.doctor_display,
+            doctor_hpr_id: r.doctor_hpr_id,
+            facility: r.facility_id.map(|id| (id, r.facility_hfr_id)),
+            encounter_type: r.encounter_type,
+            status: r.status,
+            started_at: r.started_at,
+            ended_at: r.ended_at,
+        }
+    }
 }
 
 // ── Patient $everything (Bundle) ──────────────────────────────────
@@ -195,20 +219,11 @@ pub async fn patient_everything(
     let patient_resource = patient_to_fhir(&patient_view);
 
     // Recent encounters (last 90 days, max 50)
-    let encs: Vec<EncounterRow> = sqlx::query_as::<_, EncounterRow>(
-        "SELECT e.id, e.patient_id, p.first_name || ' ' || p.last_name AS patient_display, \
-                e.doctor_id, u.full_name AS doctor_display, \
-                e.encounter_type::text AS encounter_type, e.status::text AS status, \
-                e.created_at AS started_at, \
-                CASE WHEN e.status::text IN ('closed','completed','discharged') \
-                     THEN e.updated_at ELSE NULL END AS ended_at \
-         FROM encounters e \
-         LEFT JOIN patients p ON p.id = e.patient_id \
-         LEFT JOIN users u ON u.id = e.doctor_id \
-         WHERE e.patient_id = $1 AND e.tenant_id = $2 \
-           AND e.created_at >= now() - interval '90 days' \
-         ORDER BY e.created_at DESC LIMIT 50",
-    )
+    let encs: Vec<EncounterRow> = sqlx::query_as::<_, EncounterRow>(&format!(
+        "{ENCOUNTER_SELECT} WHERE e.patient_id = $1 AND e.tenant_id = $2 \
+               AND e.created_at >= now() - interval '90 days' \
+             ORDER BY e.created_at DESC LIMIT 50"
+    ))
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -224,17 +239,7 @@ pub async fn patient_everything(
         resource: Resource::Patient(patient_resource),
     }];
     for r in encs {
-        let v = EncounterView {
-            id: r.id,
-            patient_id: r.patient_id,
-            patient_display: r.patient_display,
-            doctor_id: r.doctor_id,
-            doctor_display: r.doctor_display,
-            encounter_type: r.encounter_type,
-            status: r.status,
-            started_at: r.started_at,
-            ended_at: r.ended_at,
-        };
+        let v: EncounterView = r.into();
         let enc_id = v.id;
         entries.push(BundleEntry {
             full_url: Some(format!("Encounter/{enc_id}")),

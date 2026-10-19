@@ -38,6 +38,7 @@ import {
   linkedDoctorUserFormSchema,
   signatureCredentialIssueFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDoctorRequest,
   DoctorProfile,
@@ -48,6 +49,7 @@ import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCircleCheck,
+  IconId,
   IconKey,
   IconPhoto,
   IconPlus,
@@ -60,10 +62,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { DoctorHprModal, HPR_COVERAGE_KEY } from "@/components/admin/DoctorHprModal";
+import { HprCoveragePanel } from "@/components/admin/HprCoveragePanel";
 import { PageHeader } from "@/components/PageHeader";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { abdmRegistryService } from "@/services/abdmRegistry.service";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 
 export function AdminDoctorsPage() {
@@ -74,6 +79,13 @@ export function AdminDoctorsPage() {
   const pacedSearch = usePacedQueryValue(search.trim(), 350);
   const [createOpen, createHandlers] = useDisclosure(false);
   const [credentialDoctor, setCredentialDoctor] = useState<DoctorProfile | null>(null);
+  const canManageHpr = useHasPermission(P.ABDM.HPR.MANAGE);
+  const [hprDoctor, setHprDoctor] = useState<DoctorProfile | null>(null);
+  const hprCoverage = useQuery({
+    queryKey: HPR_COVERAGE_KEY,
+    queryFn: () => abdmRegistryService.getHprCoverage(),
+    enabled: canManageHpr,
+  });
 
   const { data: doctors = [], isLoading } = useQuery({
     queryKey: ["admin-doctors", pacedSearch],
@@ -160,6 +172,8 @@ export function AdminDoctorsPage() {
         <MetricCard label="Credential missing" value={signingBlockedCount} tone="warning" />
       </SimpleGrid>
 
+      {canManageHpr && <HprCoveragePanel />}
+
       {signingBlockedCount > 0 && (
         <Alert tone="warning" icon={<IconAlertTriangle size={16} />} mb="md">
           <Text size="sm">
@@ -200,6 +214,7 @@ export function AdminDoctorsPage() {
               hasDefaultCredential={Boolean(defaultCredential)}
               activeCredentialCount={activeCredentialCount}
               onOpenCredentials={() => setCredentialDoctor(doctor)}
+              onOpenHpr={canManageHpr ? () => setHprDoctor(doctor) : undefined}
             />
           );
         })}
@@ -218,6 +233,14 @@ export function AdminDoctorsPage() {
       {credentialDoctor && (
         <CredentialsModal doctor={credentialDoctor} onClose={() => setCredentialDoctor(null)} />
       )}
+
+      {hprDoctor && (
+        <DoctorHprModal
+          doctor={hprDoctor}
+          registryConfigured={hprCoverage.data?.registry_configured ?? false}
+          onClose={() => setHprDoctor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -228,12 +251,15 @@ function DoctorProfileCard({
   hasDefaultCredential,
   activeCredentialCount,
   onOpenCredentials,
+  onOpenHpr,
 }: {
   doctor: DoctorProfile;
   credentialsLoading: boolean;
   hasDefaultCredential: boolean;
   activeCredentialCount: number;
   onOpenCredentials: () => void;
+  /** Present only for holders of `abdm.hpr.manage`. */
+  onOpenHpr?: () => void;
 }) {
   const displayName = `${doctor.prefix ? `${doctor.prefix} ` : ""}${doctor.display_name}`;
 
@@ -294,6 +320,13 @@ function DoctorProfileCard({
           <ProfileFact label="State council" value={doctor.state_council_number} />
           <ProfileFact label="Council name" value={doctor.state_council_name} />
           <ProfileFact
+            label="HPR ID (ABDM)"
+            value={
+              doctor.hpr_id &&
+              `${doctor.hpr_id} · ${doctor.hpr_verified_at ? "verified" : "not verified"}`
+            }
+          />
+          <ProfileFact
             label="Registration valid until"
             value={
               doctor.registration_valid_until
@@ -346,6 +379,12 @@ function DoctorProfileCard({
             onClick={onOpenCredentials}
           >
             Set up signature
+          </Button>
+        )}
+
+        {onOpenHpr && (
+          <Button tone="ghost" leftSection={<IconId size={16} />} onClick={onOpenHpr}>
+            {doctor.hpr_id ? "HPR ID" : "Add HPR ID"}
           </Button>
         )}
       </Stack>

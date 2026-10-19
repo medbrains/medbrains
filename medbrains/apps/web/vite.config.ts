@@ -104,7 +104,14 @@ function websiteAtRoot(): PluginOption {
       if (!isBuild || !fs.existsSync(home)) return;
       const outDir = path.resolve(__dirname, "dist");
       // ponytail: the app's own file wins any name clash (logo/, favicon).
-      fs.cpSync(WEBSITE_DIST, outDir, { recursive: true, force: false, filter: (src) => src !== home });
+      // The blog editor (admin/) loads its script from a CDN the app's CSP
+      // refuses, so it lives on www only.
+      const admin = path.join(WEBSITE_DIST, "admin");
+      fs.cpSync(WEBSITE_DIST, outDir, {
+        recursive: true,
+        force: false,
+        filter: (src) => src !== home && src !== admin,
+      });
       fs.copyFileSync(home, path.join(outDir, "home.html"));
     },
   };

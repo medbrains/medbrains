@@ -94,9 +94,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
-        // NHCX async-response webhook — gateway authenticates via JWS,
-        // not bearer token, so this lives on the public router.
-        .merge(medbrains_nhcx_callback::router())
+        // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
+        // not a user session, so they live on the public router.
+        .merge(medbrains_nhcx_callback::public_router())
         // Device pairing — gated by short-lived one-time token, not JWT
         .merge(medbrains_device_pairing::router())
         // Device-code pairing — a display has no credentials yet, so asking for a
@@ -308,7 +308,6 @@ pub fn build_router(state: AppState) -> Router {
         // ── Billing Phase 3 — Bank Reconciliation ────────
         // Static routes MUST be before {id}
         // ── TPA reconciliation (priority #4) ─────────────
-        // NHCX webhook history — read-only audit log of received callbacks
         // ── Billing Phase 3 — TDS ───────────────────────
         // ── Billing Phase 3 — GST Returns ────────────────
         // Static route MUST be before {id}
@@ -333,34 +332,71 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────
         .merge(medbrains_pharmacy_payments::router())
-        // ── ABDM (Phase 11): HFR registration + gateway HIP relay ─
+        // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
+        .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
+        .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
+        .route("/api/abdm/hfr/facilities/{id}", put(abdm::hfr::link_facility))
         .route(
-            "/api/abdm/hfr",
-            get(abdm::hfr::list_registrations).post(abdm::hfr::register),
+            "/api/abdm/hfr/facilities/{id}/register",
+            post(abdm::hfr::register_facility),
+        )
+        .route("/api/abdm/hpr/coverage", get(abdm::hpr::coverage))
+        .route("/api/abdm/hpr/doctors/{id}", put(abdm::hpr::set_hpr_id))
+        .route(
+            "/api/abdm/hpr/doctors/{id}/verify",
+            post(abdm::hpr::verify_hpr_id),
         )
         .route(
-            "/api/abdm/hfr/tenant",
-            get(abdm::hfr::get_tenant_facility),
+            "/api/abdm/settings",
+            get(abdm::settings::get_settings).put(abdm::settings::save_settings),
+        )
+        .route(
+            "/api/abdm/settings/test",
+            post(abdm::settings::test_connection),
         )
         .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
         )
         .route(
-            "/api/abdm/abha/session",
-            post(abdm::abha::create_session),
+            "/api/abdm/abha/verifications",
+            post(abdm::abha_verify::start),
         )
         .route(
-            "/api/abdm/abha/public-certificate",
-            post(abdm::abha::public_certificate),
+            "/api/abdm/abha/verifications/{id}/resend",
+            post(abdm::abha_verify::resend),
         )
         .route(
-            "/api/abdm/abha/login/request-otp",
-            post(abdm::abha::request_login_otp),
+            "/api/abdm/abha/verifications/{id}/otp",
+            post(abdm::abha_verify::submit_otp),
         )
         .route(
-            "/api/abdm/abha/login/verify",
-            post(abdm::abha::verify_login_otp),
+            "/api/abdm/abha/verifications/{id}/account",
+            post(abdm::abha_verify::choose_account),
+        )
+        .route(
+            "/api/abdm/abha/enrolments",
+            post(abdm::abha_enrol::start),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/otp",
+            post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/mobile-otp",
+            post(abdm::abha_enrol::submit_mobile_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/address",
+            post(abdm::abha_enrol::choose_address),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/card",
+            get(abdm::abha_card::card),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/link",
+            post(abdm::abha_link::link),
         )
         .route(
             "/api/abdm/gateway/callback",
@@ -485,6 +521,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_communications::router())
         .merge(medbrains_analytics::router())
         .merge(medbrains_facilities::router())
+        // NHCX — callback history, status and Settings → NHCX.
+        .merge(medbrains_nhcx_callback::router())
         // ── Security Department ──────────────────────────────────
         .merge(medbrains_security::router())
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
@@ -640,6 +678,7 @@ pub fn build_router(state: AppState) -> Router {
         // Medical news feed — global ingested articles (list/search + reader).
         // News / health advisories — public list (any auth'd role), admin CRUD.
         .merge(medbrains_news::router())
+        .merge(medbrains_notes::router())
         .route(
             "/api/audit/access-log/patient/{id}",
             get(audit::patient_access_log),

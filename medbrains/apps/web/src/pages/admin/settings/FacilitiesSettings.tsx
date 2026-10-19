@@ -20,14 +20,17 @@ import {
 import { useHasPermission } from "@medbrains/stores";
 import type { Facility } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconId, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CreateFacilityModal, SelectLabel } from "@/components";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
+import { abdmRegistryService } from "@/services/abdmRegistry.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
+import { FacilityHfrCell } from "./FacilityHfrCell";
+import { FacilityHfrModal, HFR_QUERY_KEY } from "./FacilityHfrModal";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -442,13 +445,26 @@ export function FacilitiesSettings() {
   const canCreate = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.CREATE);
   const canUpdate = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.UPDATE);
   const canDelete = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.DELETE);
+  const canViewHfr = useHasPermission(P.ABDM.HFR_VIEW);
+  const canRegisterHfr = useHasPermission(P.ABDM.HFR_REGISTER);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
+  const [hfrFacilityId, setHfrFacilityId] = useState<string | null>(null);
 
   const { data: facilities, isLoading } = useQuery({
     queryKey: ["setup-facilities"],
     queryFn: () => settingsSetupService.listFacilities(),
   });
+  const hfrQuery = useQuery({
+    queryKey: HFR_QUERY_KEY,
+    queryFn: () => abdmRegistryService.listFacilityHfr(),
+    enabled: canViewHfr,
+  });
+  const hfrById = useMemo(
+    () => new Map((hfrQuery.data?.facilities ?? []).map((f) => [f.id, f])),
+    [hfrQuery.data],
+  );
+  const hfrFacility = hfrFacilityId ? hfrById.get(hfrFacilityId) : undefined;
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => settingsSetupService.deleteFacility(id),
@@ -525,8 +541,22 @@ export function FacilitiesSettings() {
           {facility.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
+      {canViewHfr && (
+        <Table.Td>
+          <FacilityHfrCell hfr={hfrById.get(facility.id)} isError={hfrQuery.isError} />
+        </Table.Td>
+      )}
       <Table.Td>
         <Group gap={4}>
+          {canViewHfr && canRegisterHfr && hfrById.has(facility.id) && (
+            <IconButton
+              tone="primary"
+              onClick={() => setHfrFacilityId(facility.id)}
+              aria-label={`Register or link ${facility.name} in HFR`}
+            >
+              <IconId size={16} />
+            </IconButton>
+          )}
           {canUpdate && (
             <IconButton tone="primary" onClick={() => openEdit(facility)} aria-label="Edit">
               <IconPencil size={16} />
@@ -574,7 +604,8 @@ export function FacilitiesSettings() {
             <Table.Th>City</Table.Th>
             <Table.Th>Beds</Table.Th>
             <Table.Th>Status</Table.Th>
-            <Table.Th w={80} />
+            {canViewHfr && <Table.Th>HFR</Table.Th>}
+            <Table.Th w={112} />
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -582,7 +613,7 @@ export function FacilitiesSettings() {
             rows
           ) : (
             <Table.Tr>
-              <Table.Td colSpan={7}>
+              <Table.Td colSpan={canViewHfr ? 8 : 7}>
                 <Text ta="center" c="dimmed" py="lg">
                   No facilities configured. Click "Add Facility" to get started.
                 </Text>
@@ -591,6 +622,14 @@ export function FacilitiesSettings() {
           )}
         </Table.Tbody>
       </Table>
+
+      {hfrFacility && (
+        <FacilityHfrModal
+          facility={hfrFacility}
+          registryConfigured={hfrQuery.data?.registry_configured ?? false}
+          onClose={() => setHfrFacilityId(null)}
+        />
+      )}
 
       <FacilityModal
         opened={modalOpen}

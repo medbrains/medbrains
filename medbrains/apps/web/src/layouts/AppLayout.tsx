@@ -44,6 +44,7 @@ import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivity
 import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { NotesButton } from "@/components/notes/NotesButton";
 import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
@@ -534,6 +535,8 @@ export function AppLayout() {
             </ActionIcon>
 
             <HelpButton />
+
+            <NotesButton />
 
             <NotificationCenter />
 

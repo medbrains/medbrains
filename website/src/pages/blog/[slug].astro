@@ -52,6 +52,10 @@ const schema = [
       <div class="body">
         <div class="wrap narrow prose">
           <Content />
+          <aside class="cta" aria-label="MedBrains for hospitals">
+            <p><strong>Run a hospital or clinic?</strong> MedBrains puts OPD, wards, lab, pharmacy and billing on one system.</p>
+            <a class="btn btn-primary" href="/?from=blog#demo">Book a demo <span aria-hidden="true">→</span></a>
+          </aside>
           <aside class="sources" aria-label="Sources">
             <h2>Sources</h2>
             <ul>{sources.map((s) => <li><a href={s.url} target="_blank" rel="noopener">{s.title}</a></li>)}</ul>
@@ -83,6 +87,12 @@ const schema = [
     :global(strong) { color: var(--ink); }
     :global(a) { color: var(--blue-deep); }
     :global(code) { font: 500 .92em var(--mono); background: var(--paper-2); padding: 1px 6px; border-radius: 4px; }
+  }
+  .cta {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px;
+    margin-top: 48px; padding: 24px 28px; border-radius: var(--radius); background: var(--blue-tint);
+    p { margin: 0; flex: 1 1 320px; }
+    :global(a.btn) { color: #fff; }
   }
   .sources {
     margin-top: 48px; padding: 24px 28px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2);

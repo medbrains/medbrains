@@ -1,17 +1,10 @@
 import type {
   AbcAnalysisRow,
+  AbdmConnectionTest,
   AbdmConsentPrintData,
-  AbhaAuthenticatedRequest,
-  AbhaProviderResponse,
-  AbhaPublicCertificateRequest,
-  AbhaPublicCertificateResponse,
-  AbhaRequestOtpRequest,
-  AbhaRequestOtpResponse,
-  AbhaSessionRequest,
-  AbhaSessionTokenResponse,
+  AbdmSettingsView,
   AbhaStatusResponse,
-  AbhaVerifyOtpRequest,
-  AbhaVerifyOtpResponse,
+  AbhaVerificationStep,
   AccessAlert,
   AccessLogEntry,
   AccessLogQuery,
@@ -78,6 +71,8 @@ import type {
   AmcContractPrintData,
   AmendResultRequest,
   AnalyticsDoctorRevenueRow,
+  AnalyzerOrderSent,
+  AnalyzerWorklist,
   AncVisit,
   AnesthesiaComplicationEntry,
   AnesthesiaRecordPrintData,
@@ -180,6 +175,7 @@ import type {
   BillingSummaryReport,
   BillingSummaryResponse,
   BillingThresholdStatus,
+  BillPayer,
   BiowasteRecord,
   BirthRegisterPrintData,
   BlogPost,
@@ -372,9 +368,6 @@ import type {
   ContrastScreeningResult,
   ConvertLeadRequest,
   ConvertLeadResponse,
-  BillPayer,
-  NonPayableRule,
-  PayerSplit,
   CorporateClient,
   CorporateEnrollment,
   CoSignatureRequest,
@@ -869,6 +862,7 @@ import type {
   DecideItemRequest,
   DecidePrivacyRequest,
   DeclineReferralRequest,
+  DeliverablePrintJob,
   DeliveryOptions,
   DeliveryRunner,
   DeliveryType,
@@ -892,8 +886,6 @@ import type {
   DeviceInfectionRate,
   DeviceInstance,
   DeviceMessage,
-  AnalyzerOrderSent,
-  AnalyzerWorklist,
   DeviceNodeKey,
   DevicePairingRequest,
   DeviceRoutingRule,
@@ -929,6 +921,7 @@ import type {
   DnrOrder,
   // Post-Consultation
   DoctorDocket,
+  DoctorHpr,
   DoctorIncentiveAssignment,
   // Doctor Packages + Patient Subs + Coverage
   DoctorPackage,
@@ -941,10 +934,6 @@ import type {
   DoctorSchedule,
   DoctorScheduleException,
   DocumentFormReviewSchedule,
-  DeliverablePrintJob,
-  TestCaseResult,
-  TestCycle,
-  TestResultValue,
   DocumentOutput,
   DocumentOutputSignature,
   DocumentOutputStats,
@@ -1023,6 +1012,8 @@ import type {
   ExpectedDischargeRow,
   ExpiredBatchRow,
   Facility,
+  FacilityHfr,
+  FacilityHfrList,
   FallRiskAssessmentPrintData,
   FamilyLinkRow,
   FamilyMessage,
@@ -1093,6 +1084,7 @@ import type {
   HealthPackage,
   HealthResponse,
   HemovigilanceReport,
+  HfrRegistration,
   HistopathReportPrintData,
   HomeCarePackage,
   HomeCareReferral,
@@ -1112,6 +1104,7 @@ import type {
   HospitalRegion,
   HostelAllotmentOrderPrintData,
   HourlyFlowRow,
+  HprCoverage,
   HsnSummaryRow,
   HypoglycemiaRecheckRequest,
   HypoglycemiaView,
@@ -1285,7 +1278,9 @@ import type {
   LinenItem,
   LinenMovement,
   LinenParLevel,
+  LinkAbhaToPatient,
   LinkCampLabSampleRequest,
+  LinkHfrRequest,
   LinkMlcRequest,
   ListAssetsParams,
   ListCampAssetCandidatesParams,
@@ -1342,6 +1337,7 @@ import type {
   MarketingSendPolicy,
   MarketingSuppression,
   MarketingTouchpoint,
+  MarketingWebFormSetting,
   MarkIncentivePaidRequest,
   MarListRow,
   MarPrintData,
@@ -1421,7 +1417,13 @@ import type {
   News2Result,
   NewsFeedArticle,
   NewsFeedListItem,
+  NhcxConnectionTest,
+  NhcxParticipant,
+  NhcxQueuedResponse,
+  NhcxSettingsView,
+  NhcxStatus,
   NmcComplianceReportPrintData,
+  NonPayableRule,
   // Scheduling
   NoshowPredictionScore,
   NoshowRateRow,
@@ -1548,6 +1550,7 @@ import type {
   PatientTransfer,
   PatientTransferDisplay,
   PatientVisitRow,
+  PayerSplit,
   PayInstallmentRequest,
   PayInstallmentResponse,
   Payment,
@@ -1768,6 +1771,7 @@ import type {
   RefundAdvanceRequest,
   RefundGatewayResponse,
   RefundReceiptPrintData,
+  RegisterHfrRequest,
   RegistrationCardPrintData,
   RegulatoryBody,
   RegulatorySubmission,
@@ -1827,8 +1831,10 @@ import type {
   // Pharmacy Phase 3
   RxQueueRow,
   SalaryStructure,
+  SaveAbdmSettings,
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
+  SaveNhcxSettings,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
   SchedulePmRequest,
@@ -1866,6 +1872,7 @@ import type {
   ServiceRow,
   ServiceTimeStats,
   SetDonorDeferralRequest,
+  SetHprRequest,
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
@@ -1898,6 +1905,8 @@ import type {
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
   StaffLocationAssignment,
+  StartAbhaEnrolment,
+  StartAbhaVerification,
   StartBedsideTransfusionRequest,
   StateFormularyRow,
   StateScheme,
@@ -1950,7 +1959,10 @@ import type {
   TenantSummary,
   TerminologySearchResponse,
   TerminologySearchResult,
+  TestCaseResult,
+  TestCycle,
   Testimonial,
+  TestResultValue,
   ToggleChecklistItemRequest,
   TokenBoardMetrics,
   TokenSlipPrintData,
@@ -2191,6 +2203,7 @@ import type {
   UpsertDisplayConfigRequest,
   UpsertMarketingAreaRequest,
   UpsertMarketingCampaignRequest,
+  UpsertNhcxParticipantRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
@@ -5211,42 +5224,43 @@ export const api = {
 
   /** Submit a claim/pre-auth to NHCX — assembles the FHIR Bundle + queues the exchange. */
   submitClaimToNhcx: (id: string, data: { recipient_code: string; use?: string }) =>
-    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
-      `/billing/insurance-claims/${id}/submit-to-nhcx`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/submit-to-nhcx`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   /** Queue an NHCX coverage-eligibility check for the claim's patient + policy. */
   checkCoverageEligibility: (id: string, data: { recipient_code: string }) =>
-    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
-      `/billing/insurance-claims/${id}/check-eligibility`,
-      { method: "POST", body: JSON.stringify(data) },
-    ),
+    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/check-eligibility`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   /** NHCX payer directory (the recipient_code source for claim submission). */
   listNhcxParticipants: (role?: string) =>
-    request<
-      Array<{
-        id: string;
-        participant_code: string;
-        participant_name: string;
-        role: string;
-        is_active: boolean;
-      }>
-    >(`/nhcx/participants${role ? `?role=${role}` : ""}`),
+    request<NhcxParticipant[]>(`/nhcx/participants${role ? `?role=${role}` : ""}`),
 
-  upsertNhcxParticipant: (data: {
-    participant_code: string;
-    participant_name: string;
-    role?: string;
-  }) =>
-    request<{
-      id: string;
-      participant_code: string;
-      participant_name: string;
-      role: string;
-      is_active: boolean;
-    }>("/nhcx/participants", { method: "POST", body: JSON.stringify(data) }),
+  upsertNhcxParticipant: (data: UpsertNhcxParticipantRequest) =>
+    request<NhcxParticipant>("/nhcx/participants", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Whether claims can go to NHCX, and what is missing if not. */
+  getNhcxStatus: () => request<NhcxStatus>("/integrations/nhcx/status"),
+
+  /** Settings → NHCX. Never returns a secret. */
+  getNhcxSettings: () => request<NhcxSettingsView>("/integrations/nhcx/settings"),
+
+  saveNhcxSettings: (data: SaveNhcxSettings) =>
+    request<NhcxSettingsView>("/integrations/nhcx/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  /** Sign in to the NHCX gateway with the saved credentials. */
+  testNhcxConnection: () =>
+    request<NhcxConnectionTest>("/integrations/nhcx/settings/test", { method: "POST" }),
 
   /**
    * NHCX webhook receipt log. Optional filters: correlation_id (specific
@@ -5981,6 +5995,14 @@ export const api = {
     }),
 
   marketingSendPolicy: () => request<MarketingSendPolicy>("/marketing/send-policy"),
+
+  marketingWebForm: () => request<MarketingWebFormSetting>("/marketing/web-form"),
+
+  updateMarketingWebForm: (data: MarketingWebFormSetting) =>
+    request<MarketingWebFormSetting>("/marketing/web-form", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   updateMarketingSendPolicy: (data: MarketingSendPolicy) =>
     request<MarketingSendPolicy>("/marketing/send-policy", {
@@ -16733,33 +16755,75 @@ export const api = {
   debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
   listAuthRevocations: () => request<unknown>("/auth/revocations"),
   getAbhaStatus: () => request<AbhaStatusResponse>("/abdm/abha/status"),
-  createAbhaSession: (data: AbhaSessionRequest) =>
-    request<AbhaProviderResponse<AbhaSessionTokenResponse>>("/abdm/abha/session", {
+  getAbdmSettings: () => request<AbdmSettingsView>("/abdm/settings"),
+  saveAbdmSettings: (data: SaveAbdmSettings) =>
+    request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
+  testAbdmConnection: () =>
+    request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  startAbhaVerification: (data: StartAbhaVerification) =>
+    request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAbhaPublicCertificate: (data: AbhaPublicCertificateRequest) =>
-    request<AbhaProviderResponse<AbhaPublicCertificateResponse>>("/abdm/abha/public-certificate", {
+  resendAbhaOtp: (id: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, { method: "POST" }),
+  submitAbhaOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  chooseAbhaAccount: (id: string, abhaNumber: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/account`, {
+      method: "POST",
+      body: JSON.stringify({ abha_number: abhaNumber }),
+    }),
+  startAbhaEnrolment: (data: StartAbhaEnrolment) =>
+    request<AbhaVerificationStep>("/abdm/abha/enrolments", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  requestAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaRequestOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaRequestOtpResponse>>("/abdm/abha/login/request-otp", {
+  submitAbhaEnrolmentOtp: (id: string, otp: string, mobile: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp, mobile }),
+    }),
+  submitAbhaEnrolmentMobileOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/mobile-otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  chooseAbhaAddress: (id: string, abhaAddress: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/address`, {
+      method: "POST",
+      body: JSON.stringify({ abha_address: abhaAddress }),
+    }),
+  /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
+  abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,
+  linkAbhaToPatient: (id: string, data: LinkAbhaToPatient) =>
+    request<{ linked: boolean }>(`/abdm/abha/verifications/${id}/link`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  verifyAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaVerifyOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaVerifyOtpResponse>>("/abdm/abha/login/verify", {
+  getAbdmHfr: () => request<HfrRegistration[]>("/abdm/hfr"),
+  listFacilityHfr: () => request<FacilityHfrList>("/abdm/hfr/facilities"),
+  linkFacilityHfr: (id: string, data: LinkHfrRequest) =>
+    request<FacilityHfr>(`/abdm/hfr/facilities/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  registerFacilityHfr: (id: string, data: RegisterHfrRequest) =>
+    request<FacilityHfr>(`/abdm/hfr/facilities/${id}/register`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAbdmHfr: () => request<unknown>("/abdm/hfr"),
-  createAbdmHfr: (data: Record<string, unknown>) =>
-    request<unknown>("/abdm/hfr", {
-      method: "POST",
+  getHprCoverage: () => request<HprCoverage>("/abdm/hpr/coverage"),
+  setDoctorHprId: (id: string, data: SetHprRequest) =>
+    request<DoctorHpr>(`/abdm/hpr/doctors/${id}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
-  getTenantAbdmHfr: () => request<unknown>("/abdm/hfr/tenant"),
+  verifyDoctorHprId: (id: string) =>
+    request<DoctorHpr>(`/abdm/hpr/doctors/${id}/verify`, { method: "POST" }),
   receiveAbdmGatewayCallback: (data: Record<string, unknown>) =>
     request<unknown>("/abdm/gateway/callback", {
       method: "POST",
@@ -16928,6 +16992,21 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteNewsArticle: (id: string) => request<void>(`/admin/news/${id}`, { method: "DELETE" }),
+  // ── Sticky notes ──
+  listStickyNotes: () => request<import("@medbrains/types").StickyNotesView>("/notes"),
+  createStickyNote: (data: import("@medbrains/types").SaveStickyNote) =>
+    request<{ id: string }>("/notes", { method: "POST", body: JSON.stringify(data) }),
+  updateStickyNote: (id: string, data: import("@medbrains/types").SaveStickyNote) =>
+    request<{ id: string }>(`/notes/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteStickyNote: (id: string) => request<void>(`/notes/${id}`, { method: "DELETE" }),
+  setStickyNoteShares: (id: string, data: import("@medbrains/types").SetStickyNoteShares) =>
+    request<{ id: string }>(`/notes/${id}/shares`, { method: "PUT", body: JSON.stringify(data) }),
+  removeStickyNoteShare: (shareId: string) =>
+    request<void>(`/notes/shares/${shareId}`, { method: "DELETE" }),
+  listStickyNoteRecipients: (q: string) =>
+    request<import("@medbrains/types").NoteRecipients>(
+      `/notes/recipients?q=${encodeURIComponent(q)}`,
+    ),
   exportAuditLog: () => request<unknown>("/audit/export"),
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
   // ── Patient portal ────────────────────────────────────────────────
@@ -17106,11 +17185,6 @@ export const api = {
     board_module?: string;
   }) =>
     request<DevicePairingRequest>("/admin/device-pairing/approve", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  receiveNhcxCallback: (data: Record<string, unknown>) =>
-    request<unknown>("/integrations/nhcx/callback", {
       method: "POST",
       body: JSON.stringify(data),
     }),

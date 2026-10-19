@@ -76,6 +76,7 @@ pub mod mar_schedule;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod news;
+pub mod notes;
 pub mod nhcx;
 pub mod object_store;
 pub mod occ_health;

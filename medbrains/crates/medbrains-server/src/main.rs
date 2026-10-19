@@ -774,8 +774,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, cashfree, email_stub, google_meet, hl7_stub, pinelabs, pipeline_fallback,
-        razorpay, razorpayx, teams, tpa_stub, twilio, whatsapp, zoom,
+        abdm_stub, cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback,
+        razorpay, razorpayx, teams, twilio, whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
@@ -875,9 +875,14 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     ));
     registry.register(abdm_stub::VerifyAbhaHandler);
     registry.register(abdm_stub::HieBundlePushHandler);
-    registry.register(tpa_stub::PreauthSubmitHandler);
-    registry.register(tpa_stub::ClaimSubmitHandler);
-    registry.register(tpa_stub::CoverageEligibilityHandler);
+    // NHCX claims exchange — eligibility, pre-auth and claim, JWE to the payer.
+    for operation in [
+        medbrains_core::nhcx::NhcxOperation::CoverageEligibility,
+        medbrains_core::nhcx::NhcxOperation::Preauth,
+        medbrains_core::nhcx::NhcxOperation::Claim,
+    ] {
+        registry.register(nhcx::NhcxHandler::new(operation));
+    }
     registry.register(hl7_stub::CriticalValueHandler);
     // Outbound webhooks to subscribed partners (#224).
     registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
