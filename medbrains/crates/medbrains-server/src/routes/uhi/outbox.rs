@@ -15,7 +15,14 @@ use medbrains_outbox::{
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::{auth, settings};
+use medbrains_core::secrets::SecretResolver;
+
+use super::{
+    auth,
+    inbound::{Reply, answer_body},
+    protocol::Context,
+    settings::{self, Subscription},
+};
 use crate::error::AppError;
 
 pub const EVENT: &str = "uhi.callback";
@@ -54,6 +61,55 @@ pub async fn queue(
     .await
     .map_err(|e| AppError::Internal(format!("queue uhi callback: {e}")))?;
     Ok(())
+}
+
+/// An answer the hospital sends of its own accord — staff accepted a
+/// request, a payment came in, a hold ran out.
+#[derive(Debug)]
+pub struct Tell<'a> {
+    pub transaction_row: Uuid,
+    /// The last message the app sent in the transaction (its `payload`):
+    /// it names the app and the transaction.
+    pub request: &'a Value,
+    /// `confirm` or `status` — we send `on_confirm` / `on_status`.
+    pub action: &'a str,
+    pub order: Value,
+    /// One answer per (row, what happened).
+    pub idempotency_key: String,
+}
+
+/// Queue `tell` inside the caller's transaction.
+///
+/// # Errors
+/// A database fault, or a stored request with no context.
+pub async fn tell(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    secrets: &dyn SecretResolver,
+    sub: &Subscription,
+    tell: Tell<'_>,
+) -> Result<(), AppError> {
+    let mut ctx = Context::parse(tell.request)
+        .map_err(|f| AppError::Internal(format!("uhi context: {f}")))?;
+    tell.action.clone_into(&mut ctx.action);
+    ctx.message_id = Uuid::new_v4().to_string();
+    let url = format!(
+        "{}/on_{}",
+        ctx.consumer_uri.trim_end_matches('/'),
+        tell.action
+    );
+    let reply = Reply::message(json!({ "order": tell.order }));
+    let body = answer_body(secrets, sub, &ctx, reply).await;
+    queue(
+        tx,
+        sub.tenant_id,
+        Callback {
+            transaction_row: tell.transaction_row,
+            url,
+            body,
+            idempotency_key: tell.idempotency_key,
+        },
+    )
+    .await
 }
 
 #[derive(Debug)]

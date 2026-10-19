@@ -1,18 +1,27 @@
-//! Teleconsultation over UHI: find a doctor's open slots, quote one, book
-//! it, report on it, cancel it.
+//! Consultations over UHI — online (teleconsultation) or at the hospital
+//! (physical): find a doctor's open slots, quote one with its fee, book it,
+//! report on it, cancel it.
 //!
 //! A booking is a real appointment, made by the same function the public
-//! booking page uses (`appointments::book_online`), with its video session
-//! the way the telemedicine screen opens one. It appears in the day's
-//! appointments like any other. Confirm is idempotent per transaction: a
-//! repeated confirm answers with the booking already made.
+//! booking page uses (`appointments::book_online`); a teleconsultation also
+//! gets its video session the way the telemedicine screen opens one, a
+//! physical one gets none. It appears in the day's appointments like any
+//! other. Confirm is idempotent per transaction: a repeated confirm answers
+//! with the booking already made.
+//!
+//! A teleconsultation with a fee, at a hospital that takes payment online,
+//! is paid `ON-ORDER`: the booking is held until the payment comes in
+//! (`payment`). Everything else is paid at the hospital (`ON-FULFILLMENT`);
+//! a physical visit always is, at the desk where OPD bills it.
 
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{
+    fees,
     inbound::{Reply, Txn, set_state},
-    protocol::{Context, STATE_CANCELLED, STATE_CONFIRMED},
+    payment,
+    protocol::{Context, STATE_CANCELLED, STATE_CONFIRMED, Service},
     settings::Subscription,
     slots::{self, Filter, Slot},
 };
@@ -24,11 +33,13 @@ use crate::{
 /// Where the video link rides in the fulfilment — **inferred**; UHI
 /// publishes no field for it.
 const TAG_TELECONF_URL: &str = "@abdm/gov.in/teleconf_url";
+const TAG_SPECIALITY: &str = "@abdm~1gov.in~1speciality";
 const REASON: &str = "Teleconsultation booked through UHI";
+const REASON_PHYSICAL: &str = "Consultation booked through UHI";
 
 type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
-fn text<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
+pub(super) fn text<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
     v.pointer(pointer)
         .and_then(Value::as_str)
         .map(str::trim)
@@ -51,13 +62,34 @@ pub async fn answer(
     body: &Value,
     txn: &Txn,
 ) -> Result<Option<Reply>, AppError> {
+    let physical = txn.service == Service::PhysicalConsultation.code();
     match ctx.action.as_str() {
-        "search" => search(tx, sub, body).await,
-        "select" | "init" => quote(tx, sub, ctx, body).await.map(Some),
-        "confirm" => confirm(tx, sub, body, txn).await.map(Some),
+        "search" => search(tx, sub, body, physical).await,
+        "select" | "init" => quote(tx, sub, ctx, body, physical).await.map(Some),
+        "confirm" => confirm(tx, sub, body, txn, physical).await,
         "cancel" => cancel(tx, txn).await.map(Some),
         "status" | "update" => Ok(Some(current(txn))),
         _ => Ok(None),
+    }
+}
+
+/// What a search intent narrows to. The speciality comes from the
+/// category (NHA's app sends `intent.category.descriptor.name`) or the
+/// doctor's speciality tag — both verified in NHA's code; a category ID is
+/// one of our own departments, as our catalogue names them.
+fn filter(intent: &Value, physical: bool) -> Filter {
+    Filter {
+        from: text(intent, "/fulfillment/start/time/timestamp").and_then(slots::parse_timestamp),
+        to: text(intent, "/fulfillment/end/time/timestamp").and_then(slots::parse_timestamp),
+        doctor_name: text(intent, "/fulfillment/agent/name").map(str::to_owned),
+        hpr_id: text(intent, "/fulfillment/agent/tags/@abdm~1gov.in~1hpr_id").map(str::to_owned),
+        doctor_id: None,
+        physical,
+        speciality: text(intent, "/category/descriptor/name")
+            .or_else(|| text(intent, "/category/descriptor/code"))
+            .or_else(|| text(intent, &format!("/fulfillment/agent/tags/{TAG_SPECIALITY}")))
+            .map(str::to_owned),
+        department_id: text(intent, "/category/id").and_then(|id| Uuid::parse_str(id).ok()),
     }
 }
 
@@ -65,15 +97,10 @@ async fn search(
     tx: &mut Tx<'_>,
     sub: &Subscription,
     body: &Value,
+    physical: bool,
 ) -> Result<Option<Reply>, AppError> {
     let intent = body.pointer("/message/intent").unwrap_or(&Value::Null);
-    let filter = Filter {
-        from: text(intent, "/fulfillment/start/time/timestamp").and_then(slots::parse_timestamp),
-        to: text(intent, "/fulfillment/end/time/timestamp").and_then(slots::parse_timestamp),
-        doctor_name: text(intent, "/fulfillment/agent/name").map(str::to_owned),
-        hpr_id: text(intent, "/fulfillment/agent/tags/@abdm~1gov.in~1hpr_id").map(str::to_owned),
-        doctor_id: None,
-    };
+    let filter = filter(intent, physical);
     let open = slots::open_slots(tx, sub.tenant_id, &filter).await?;
     if open.is_empty() {
         return Ok(None);
@@ -110,10 +137,7 @@ fn order(sub: &Subscription, slot: &Slot, body: &Value) -> Value {
         "provider": { "id": sub.provider_id() },
         "item": slot.item(),
         "fulfillment": slot.fulfillment(),
-        "quote": {
-            "price": { "currency": "INR", "value": "0.0" },
-            "breakup": [{ "title": "Consultation", "price": { "currency": "INR", "value": "0.0" } }],
-        },
+        "quote": fees::quote("Consultation", slot.fee.as_ref()),
     });
     for key in ["customer", "billing"] {
         if let Some(v) = given.get(key) {
@@ -128,17 +152,18 @@ async fn quote(
     sub: &Subscription,
     ctx: &Context,
     body: &Value,
+    physical: bool,
 ) -> Result<Reply, AppError> {
     let Some(id) = slot_id(body) else {
         return Ok(Reply::failed("the order names no slot"));
     };
-    let Some(slot) = slots::find_slot(tx, sub.tenant_id, id).await? else {
+    let Some(slot) = slots::find_slot(tx, sub.tenant_id, id, physical).await? else {
         return Ok(Reply::failed("that slot is no longer available"));
     };
     let mut order = order(sub, &slot, body);
     if ctx.action == "init" {
-        // Paid at the hospital — UHI's ON-ORDER payment is not offered yet.
-        order["payment"] = json!({ "type": "ON-FULFILLMENT", "status": "NOT-PAID" });
+        let online = payment::pays_online(tx, sub.tenant_id, &slot).await?;
+        order["payment"] = fees::payment(online, slot.fee.as_ref());
     }
     Ok(Reply::message(json!({ "order": order })))
 }
@@ -165,28 +190,29 @@ async fn confirm(
     sub: &Subscription,
     body: &Value,
     txn: &Txn,
-) -> Result<Reply, AppError> {
+    physical: bool,
+) -> Result<Option<Reply>, AppError> {
     if txn.appointment_id.is_some() {
-        return Ok(current(txn));
+        // Booked already; a held booking answers once its payment link is out.
+        return Ok(txn.order_details.is_some().then(|| current(txn)));
     }
+    let failed = |m: &str| Ok(Some(Reply::failed(m)));
     let p = patient(body);
     let (Some(name), Some(phone)) = (p.name, p.phone) else {
-        return Ok(Reply::failed(
-            "the patient's name and phone are needed to book",
-        ));
+        return failed("the patient's name and phone are needed to book");
     };
     let Some(slot) = slot_id(body) else {
-        return Ok(Reply::failed("the order names no slot"));
+        return failed("the order names no slot");
     };
-    let Some(slot) = slots::find_slot(tx, sub.tenant_id, slot).await? else {
-        return Ok(Reply::failed("that slot is no longer available"));
+    let Some(slot) = slots::find_slot(tx, sub.tenant_id, slot, physical).await? else {
+        return failed("that slot is no longer available");
     };
     let known = match p.abha {
         Some(abha) => patient_by_abha(tx, sub.tenant_id, abha).await?,
         None => None,
     };
     if let Some((_, true)) = known {
-        return Ok(Reply::failed("this hospital cannot book for that patient"));
+        return failed("this hospital cannot book for that patient");
     }
     let request = PublicBookingRequest {
         tenant_code: String::new(),
@@ -198,30 +224,40 @@ async fn confirm(
         patient_name: name.to_owned(),
         patient_phone: phone.to_owned(),
         patient_dob: None,
-        reason: Some(REASON.to_owned()),
+        reason: Some(if physical { REASON_PHYSICAL } else { REASON }.to_owned()),
         otp: None,
         campaign_code: None,
     };
     let booking = OnlineBooking {
         request: &request,
         patient_id: known.map(|(id, _)| id),
-        registration_source: "telemedicine",
+        registration_source: if physical {
+            "mobile_app"
+        } else {
+            "telemedicine"
+        },
         booking_source: "uhi",
     };
     let appointment = match book_online(tx, sub.tenant_id, booking).await {
         Ok(a) => a,
-        Err(AppError::Conflict(_)) => return Ok(Reply::failed("that slot has just been taken")),
+        Err(AppError::Conflict(_)) => return failed("that slot has just been taken"),
         Err(e) => return Err(e),
     };
-    let (tele_id, url) = open_video_session(tx, sub.tenant_id, &appointment, &slot).await?;
     let mut order = order(sub, &slot, body);
     order["id"] = json!(txn.id);
-    order["state"] = json!(STATE_CONFIRMED);
-    order["fulfillment"]["tags"] = json!({ TAG_TELECONF_URL: url });
-    order["payment"] = json!({ "type": "ON-FULFILLMENT", "status": "NOT-PAID" });
+    let tele_id = if physical {
+        None
+    } else {
+        let (id, url) = open_video_session(tx, sub.tenant_id, &appointment, &slot).await?;
+        order["fulfillment"]["tags"] = json!({ TAG_TELECONF_URL: url });
+        Some(id)
+    };
+    let online = !physical && payment::pays_online(tx, sub.tenant_id, &slot).await?;
+    order["payment"] = fees::payment(online, slot.fee.as_ref());
     sqlx::query(
         "UPDATE uhi_transactions SET appointment_id = $2, tele_consultation_id = $3, \
-                customer_name = $4, customer_phone = $5, customer_abha = $6 WHERE id = $1",
+                customer_name = $4, customer_phone = $5, customer_abha = $6, \
+                payment_type = $7, payment_status = 'NOT-PAID', amount = $8 WHERE id = $1",
     )
     .bind(txn.id)
     .bind(appointment.id)
@@ -229,15 +265,29 @@ async fn confirm(
     .bind(name)
     .bind(phone)
     .bind(p.abha)
+    .bind(order["payment"]["type"].as_str())
+    .bind(slot.fee.as_ref().map(fees::Fee::total))
     .execute(&mut **tx)
     .await?;
+    if let (true, Some(fee)) = (online, slot.fee) {
+        let hold = payment::Hold {
+            txn_id: txn.id,
+            appointment_id: appointment.id,
+            fee,
+            name,
+            phone,
+        };
+        payment::hold(tx, sub.tenant_id, &hold, &mut order).await?;
+        return Ok(None);
+    }
+    order["state"] = json!(STATE_CONFIRMED);
     set_state(tx, txn.id, "confirmed", &order).await?;
-    Ok(Reply::message(json!({ "order": order })))
+    Ok(Some(Reply::message(json!({ "order": order }))))
 }
 
 /// The patient whose verified ABHA address this is, and whether they are
 /// recorded as deceased.
-async fn patient_by_abha(
+pub(super) async fn patient_by_abha(
     tx: &mut Tx<'_>,
     tenant_id: Uuid,
     abha_address: &str,
@@ -309,7 +359,7 @@ async fn cancel(tx: &mut Tx<'_>, txn: &Txn) -> Result<Reply, AppError> {
         .bind(appointment)
         .execute(&mut **tx)
         .await?;
-        if moved.rows_affected() == 0 && txn.state != "cancelled" {
+        if moved.rows_affected() == 0 && !matches!(txn.state.as_str(), "cancelled" | "expired") {
             return Ok(Reply::failed("the consultation has already started"));
         }
         sqlx::query(
@@ -320,6 +370,9 @@ async fn cancel(tx: &mut Tx<'_>, txn: &Txn) -> Result<Reply, AppError> {
         .bind(appointment)
         .execute(&mut **tx)
         .await?;
+    }
+    if let Some(paying) = txn.payment_transaction_id {
+        payment::release(tx, paying).await?;
     }
     order["state"] = json!(STATE_CANCELLED);
     set_state(tx, txn.id, "cancelled", &order).await?;

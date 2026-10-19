@@ -167,7 +167,8 @@ fn quote(sub: &Subscription, ctx: &Context, body: &Value) -> Reply {
         .cloned()
         .unwrap_or_else(|| json!({}));
     order["provider"] = json!({ "id": sub.provider_id() });
-    order["quote"] = json!({ "price": { "currency": "INR", "value": "0.0" } });
+    // No price yet — never ₹0: the hospital prices it when it accepts.
+    order["quote"] = json!({ "price": { "currency": "INR" } });
     if ctx.action == "init" {
         order["payment"] = json!({ "type": "ON-FULFILLMENT", "status": "NOT-PAID" });
     }

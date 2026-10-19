@@ -504,44 +504,16 @@ async fn find_or_create_patient(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     registration_source: &str,
 ) -> Result<Uuid, AppError> {
-    // Family members share phones — phone alone booked into the wrong
-    // record (audit P1). Match phone + first name; anything else gets a
-    // fresh patient record that MRD can merge later.
-    let (first_name_match, _) = split_public_patient_name(&body.patient_name);
-    let existing = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient lookup
-        "SELECT id FROM patients \
-         WHERE tenant_id = $1 AND phone = $2 AND lower(first_name) = lower($3) \
-         LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(&body.patient_phone)
-    .bind(&first_name_match)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    if let Some(patient_id) = existing {
+    let caller = Caller {
+        name: &body.patient_name,
+        phone: &body.patient_phone,
+        dob: body.patient_dob,
+        registration_source,
+    };
+    let (patient_id, registered) = find_or_register(tx, tenant_id, &caller).await?;
+    if !registered {
         return Ok(patient_id);
     }
-
-    let uhid = crate::routes::patients::generate_uhid(tx, &tenant_id).await?;
-
-    let (first_name, last_name) = split_public_patient_name(&body.patient_name);
-
-    let patient_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient creation
-        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth, \
-                               registration_source) \
-         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6, $7::registration_source) \
-         RETURNING id",
-    )
-    .bind(tenant_id)
-    .bind(&uhid)
-    .bind(&first_name)
-    .bind(&last_name)
-    .bind(&body.patient_phone)
-    .bind(body.patient_dob)
-    .bind(registration_source)
-    .fetch_one(&mut **tx)
-    .await?;
 
     // Arrived through a campaign link: that is where this patient came from.
     // An unknown code is ignored — a stale link must not stop a booking.
@@ -561,6 +533,58 @@ async fn find_or_create_patient(
         }
     }
     Ok(patient_id)
+}
+
+/// Someone outside the hospital asking for care: who they say they are.
+pub(crate) struct Caller<'a> {
+    pub name: &'a str,
+    pub phone: &'a str,
+    pub dob: Option<chrono::NaiveDate>,
+    /// `patients.registration_source` if they are registered now.
+    pub registration_source: &'a str,
+}
+
+/// The patient with this phone and first name, or a new record; `true` when
+/// it is new.
+pub(crate) async fn find_or_register(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    caller: &Caller<'_>,
+) -> Result<(Uuid, bool), AppError> {
+    // Family members share phones — phone alone booked into the wrong
+    // record (audit P1). Match phone + first name; anything else gets a
+    // fresh patient record that MRD can merge later.
+    let (first_name, last_name) = split_public_patient_name(caller.name);
+    let existing = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient lookup
+        "SELECT id FROM patients \
+         WHERE tenant_id = $1 AND phone = $2 AND lower(first_name) = lower($3) \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(caller.phone)
+    .bind(&first_name)
+    .fetch_optional(&mut **tx)
+    .await?;
+    if let Some(patient_id) = existing {
+        return Ok((patient_id, false));
+    }
+    let uhid = crate::routes::patients::generate_uhid(tx, &tenant_id).await?;
+    let patient_id = sqlx::query_scalar::<_, Uuid>( // allow-raw-sql: public booking patient creation
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth, \
+                               registration_source) \
+         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6, $7::registration_source) \
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(&uhid)
+    .bind(&first_name)
+    .bind(&last_name)
+    .bind(caller.phone)
+    .bind(caller.dob)
+    .bind(caller.registration_source)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok((patient_id, true))
 }
 
 fn split_public_patient_name(name: &str) -> (String, String) {
