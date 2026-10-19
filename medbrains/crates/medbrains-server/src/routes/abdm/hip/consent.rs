@@ -156,7 +156,6 @@ async fn store(
 
 #[derive(sqlx::FromRow)]
 struct Artefact {
-    id: Uuid,
     patient_id: Option<Uuid>,
     hi_types: Vec<String>,
     care_context_refs: Vec<String>,

@@ -1,7 +1,7 @@
 //! ABDM Milestone 2 — this hospital as a Health Information Provider (HIP).
 //!
 //! - `gateway`   — the signed-in gateway client for one hospital, and the
-//!                 authentication every gateway callback goes through.
+//!   authentication every gateway callback goes through.
 //! - `linking`   — HIP-initiated linking: link token, then link.
 //! - `link_callbacks` — the gateway's `on_*` answers to that linking.
 //! - `discovery` — user-initiated discovery and linking (PHR app → us).

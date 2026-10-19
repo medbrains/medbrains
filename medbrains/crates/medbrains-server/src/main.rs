@@ -874,7 +874,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
         "whatsapp.vaccination_reminder",
     ));
     // ABDM HIP: link a newly captured care context; the OTP for a PHR app's link.
-    registry.register(medbrains_server::routes::abdm::hip::outbox::LinkCareContextHandler);
+    registry.register(routes::abdm::hip::outbox::LinkCareContextHandler);
     registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
     // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
     // answers, JWE to the payer.

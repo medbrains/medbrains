@@ -114,7 +114,7 @@ fn profile(name: &str) -> Value {
     json!({ "profile": [format!("{NRCES_PROFILE_BASE}{name}")] })
 }
 
-fn entry(resource: Value) -> Value {
+fn entry(resource: &Value) -> Value {
     let id = resource["id"].as_str().unwrap_or_default().to_owned();
     json!({ "fullUrl": urn(&id), "resource": resource })
 }
@@ -232,11 +232,11 @@ pub fn document_bundle(input: &DocumentInput<'_>) -> Value {
             .collect(),
     );
 
-    let mut entries = vec![entry(composition), entry(patient)];
-    entries.extend(author.into_iter().map(entry));
-    entries.extend(custodian.into_iter().map(entry));
-    entries.extend(encounter.into_iter().map(entry));
-    entries.extend(section_resources.into_iter().map(entry));
+    let mut entries = vec![entry(&composition), entry(&patient)];
+    entries.extend(author.iter().map(entry));
+    entries.extend(custodian.iter().map(entry));
+    entries.extend(encounter.iter().map(entry));
+    entries.extend(section_resources.iter().map(entry));
 
     json!({
         "resourceType": "Bundle",

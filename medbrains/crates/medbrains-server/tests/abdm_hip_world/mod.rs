@@ -1,3 +1,5 @@
+#![allow(dead_code, unreachable_pub)]
+
 //! The stand-in world the ABDM M2 tests run in: a mock gateway and HIU that
 //! record every call, the gateway's signing key, a campus with an HFR ID and a
 //! patient with a verified ABHA.

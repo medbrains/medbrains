@@ -66,7 +66,8 @@ fn curve() -> Result<(EcGroup, BigNumContext), CryptoError> {
     let mut group = EcGroup::from_components(bn(P)?, bn(A)?, bn(B)?, &mut ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
     let mut g = EcPoint::new(&group).map_err(|_| CryptoError::InvalidKey)?;
-    g.set_affine_coordinates_gfp(&group, &bn(GX)?, &bn(GY)?, &mut ctx)
+    let (gx, gy) = (bn(GX)?, bn(GY)?);
+    g.set_affine_coordinates_gfp(&group, &gx, &gy, &mut ctx)
         .map_err(|_| CryptoError::InvalidKey)?;
     group
         .set_generator(
