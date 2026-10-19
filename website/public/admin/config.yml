@@ -1,0 +1,42 @@
+# Blog editor. Sign in with a GitHub token that can write to the repo; every
+# save is a commit, and the post goes live on the next website deploy.
+backend:
+  name: github
+  repo: DomnicAmalan/MedBrains
+  branch: master
+
+media_folder: website/public/images/blog
+public_folder: /images/blog
+
+collections:
+  - name: blog
+    label: Blog posts
+    label_singular: Post
+    # Must match website/src/content.config.ts — the build refuses a post that doesn't.
+    folder: website/src/content/blog
+    extension: md
+    format: frontmatter
+    create: true
+    slug: "{{slug}}"
+    summary: "{{date}} — {{title}}"
+    sortable_fields: [date, title]
+    fields:
+      - { name: title, label: Title, widget: string }
+      - { name: description, label: Summary, widget: text, hint: "One or two sentences. Shown on the blog list and in Google." }
+      - { name: date, label: Date, widget: datetime, time_format: false, date_format: "YYYY-MM-DD" }
+      - name: tags
+        label: Topics
+        widget: select
+        multiple: true
+        min: 1
+        options: ["Public health", "Climate", "First aid", "Nutrition", "Mental health", "Women and children", "Health tech", "ABDM", "Hospital management"]
+      - name: sources
+        label: Sources
+        label_singular: Source
+        widget: list
+        min: 1
+        hint: "Health advice must cite where it comes from — WHO, ICMR, MoHFW, NCDC and the like."
+        fields:
+          - { name: title, label: Name, widget: string }
+          - { name: url, label: Link, widget: string, pattern: ["^https://", "Must be an https:// link"] }
+      - { name: body, label: Article, widget: markdown }

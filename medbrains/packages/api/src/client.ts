@@ -1342,6 +1342,7 @@ import type {
   MarketingSendPolicy,
   MarketingSuppression,
   MarketingTouchpoint,
+  MarketingWebFormSetting,
   MarkIncentivePaidRequest,
   MarListRow,
   MarPrintData,
@@ -5981,6 +5982,14 @@ export const api = {
     }),
 
   marketingSendPolicy: () => request<MarketingSendPolicy>("/marketing/send-policy"),
+
+  marketingWebForm: () => request<MarketingWebFormSetting>("/marketing/web-form"),
+
+  updateMarketingWebForm: (data: MarketingWebFormSetting) =>
+    request<MarketingWebFormSetting>("/marketing/web-form", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   updateMarketingSendPolicy: (data: MarketingSendPolicy) =>
     request<MarketingSendPolicy>("/marketing/send-policy", {
