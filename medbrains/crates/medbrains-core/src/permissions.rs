@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 781;
+pub const PERMISSION_COUNT: usize = 782;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3349,6 +3349,12 @@ pub mod pharmacy_finance {
 /// access, because the codes never reached the catalogue the admin UI renders.
 /// The frontend guarded on the same literal, so the control was hidden too.
 pub mod abdm {
+    /// Connecting this hospital to ABDM.
+    pub mod settings {
+        /// Set up the ABDM connection.
+        /// Enter the ABDM client ID and secret and switch between sandbox and production.
+        pub const MANAGE: &str = "abdm.settings.manage";
+    }
     pub mod relay {
         /// Pull and acknowledge ABDM gateway callbacks.
         ///

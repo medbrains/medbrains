@@ -343,24 +343,56 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hfr::get_tenant_facility),
         )
         .route(
+            "/api/abdm/settings",
+            get(abdm::settings::get_settings).put(abdm::settings::save_settings),
+        )
+        .route(
+            "/api/abdm/settings/test",
+            post(abdm::settings::test_connection),
+        )
+        .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
         )
         .route(
-            "/api/abdm/abha/session",
-            post(abdm::abha::create_session),
+            "/api/abdm/abha/verifications",
+            post(abdm::abha_verify::start),
         )
         .route(
-            "/api/abdm/abha/public-certificate",
-            post(abdm::abha::public_certificate),
+            "/api/abdm/abha/verifications/{id}/resend",
+            post(abdm::abha_verify::resend),
         )
         .route(
-            "/api/abdm/abha/login/request-otp",
-            post(abdm::abha::request_login_otp),
+            "/api/abdm/abha/verifications/{id}/otp",
+            post(abdm::abha_verify::submit_otp),
         )
         .route(
-            "/api/abdm/abha/login/verify",
-            post(abdm::abha::verify_login_otp),
+            "/api/abdm/abha/verifications/{id}/account",
+            post(abdm::abha_verify::choose_account),
+        )
+        .route(
+            "/api/abdm/abha/enrolments",
+            post(abdm::abha_enrol::start),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/otp",
+            post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/mobile-otp",
+            post(abdm::abha_enrol::submit_mobile_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/address",
+            post(abdm::abha_enrol::choose_address),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/card",
+            get(abdm::abha_card::card),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/link",
+            post(abdm::abha_link::link),
         )
         .route(
             "/api/abdm/gateway/callback",

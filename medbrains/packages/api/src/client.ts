@@ -1,17 +1,10 @@
 import type {
   AbcAnalysisRow,
+  AbdmConnectionTest,
   AbdmConsentPrintData,
-  AbhaAuthenticatedRequest,
-  AbhaProviderResponse,
-  AbhaPublicCertificateRequest,
-  AbhaPublicCertificateResponse,
-  AbhaRequestOtpRequest,
-  AbhaRequestOtpResponse,
-  AbhaSessionRequest,
-  AbhaSessionTokenResponse,
+  AbdmSettingsView,
   AbhaStatusResponse,
-  AbhaVerifyOtpRequest,
-  AbhaVerifyOtpResponse,
+  AbhaVerificationStep,
   AccessAlert,
   AccessLogEntry,
   AccessLogQuery,
@@ -1285,6 +1278,7 @@ import type {
   LinenItem,
   LinenMovement,
   LinenParLevel,
+  LinkAbhaToPatient,
   LinkCampLabSampleRequest,
   LinkMlcRequest,
   ListAssetsParams,
@@ -1828,6 +1822,7 @@ import type {
   // Pharmacy Phase 3
   RxQueueRow,
   SalaryStructure,
+  SaveAbdmSettings,
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   ScheduleAnalytics,
@@ -1899,6 +1894,8 @@ import type {
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
   StaffLocationAssignment,
+  StartAbhaEnrolment,
+  StartAbhaVerification,
   StartBedsideTransfusionRequest,
   StateFormularyRow,
   StateScheme,
@@ -16742,23 +16739,52 @@ export const api = {
   debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
   listAuthRevocations: () => request<unknown>("/auth/revocations"),
   getAbhaStatus: () => request<AbhaStatusResponse>("/abdm/abha/status"),
-  createAbhaSession: (data: AbhaSessionRequest) =>
-    request<AbhaProviderResponse<AbhaSessionTokenResponse>>("/abdm/abha/session", {
+  getAbdmSettings: () => request<AbdmSettingsView>("/abdm/settings"),
+  saveAbdmSettings: (data: SaveAbdmSettings) =>
+    request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
+  testAbdmConnection: () =>
+    request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  startAbhaVerification: (data: StartAbhaVerification) =>
+    request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getAbhaPublicCertificate: (data: AbhaPublicCertificateRequest) =>
-    request<AbhaProviderResponse<AbhaPublicCertificateResponse>>("/abdm/abha/public-certificate", {
+  resendAbhaOtp: (id: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/resend`, { method: "POST" }),
+  submitAbhaOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  chooseAbhaAccount: (id: string, abhaNumber: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/account`, {
+      method: "POST",
+      body: JSON.stringify({ abha_number: abhaNumber }),
+    }),
+  startAbhaEnrolment: (data: StartAbhaEnrolment) =>
+    request<AbhaVerificationStep>("/abdm/abha/enrolments", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  requestAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaRequestOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaRequestOtpResponse>>("/abdm/abha/login/request-otp", {
+  submitAbhaEnrolmentOtp: (id: string, otp: string, mobile: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/otp`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ otp, mobile }),
     }),
-  verifyAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaVerifyOtpRequest>) =>
-    request<AbhaProviderResponse<AbhaVerifyOtpResponse>>("/abdm/abha/login/verify", {
+  submitAbhaEnrolmentMobileOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/mobile-otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  chooseAbhaAddress: (id: string, abhaAddress: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/address`, {
+      method: "POST",
+      body: JSON.stringify({ abha_address: abhaAddress }),
+    }),
+  /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
+  abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,
+  linkAbhaToPatient: (id: string, data: LinkAbhaToPatient) =>
+    request<{ linked: boolean }>(`/abdm/abha/verifications/${id}/link`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
