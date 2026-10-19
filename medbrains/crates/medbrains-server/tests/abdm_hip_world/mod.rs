@@ -138,7 +138,9 @@ pub async fn world() -> World {
                 medbrains_abdm::gateway::ABDM_GATEWAY_BASE_URL_OVERRIDE,
                 mock.clone(),
             )
-            .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public),
+            .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public)
+            // Where HIPs are told to push records to us (M3).
+            .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test"),
     )
     .await;
     let csrf = app.login_admin().await;
@@ -154,6 +156,16 @@ pub async fn world() -> World {
 
     let tag = Uuid::new_v4().simple().to_string().to_uppercase();
     let hip_id = format!("IN{}", &tag[..10]);
+    // A fresh database has no campus yet.
+    sqlx::query(
+        "INSERT INTO facilities (tenant_id, code, name, facility_type) \
+           SELECT tenant_id, 'MAIN', 'Main hospital', 'main_hospital' FROM users \
+           WHERE username = 'admin' AND NOT EXISTS (SELECT 1 FROM facilities f \
+             WHERE f.tenant_id = users.tenant_id AND f.deleted_at IS NULL AND f.parent_id IS NULL)",
+    )
+    .execute(&app.db)
+    .await
+    .expect("campus");
     // The campus records are shared as: the one the server would pick.
     sqlx::query(
         "UPDATE facilities SET hfr_facility_id = $1 WHERE id = (SELECT id FROM facilities \

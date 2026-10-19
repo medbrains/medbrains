@@ -293,6 +293,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::certificates::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::records::VIEW,
+            // ABDM M3: ask for, and read, the patient's records held elsewhere.
+            permissions::abdm::consent::REQUEST,
+            permissions::abdm::consent::VIEW,
             // Intensive care. No built-in role named a single `icu.*` code, so
             // every ICU endpoint answered 403 to the staff who use it — an ICU
             // nurse could not record a ventilator setting. Granted on the
@@ -381,6 +384,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
             permissions::abdm::records::VIEW,
+            permissions::abdm::consent::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::forms::definitions::READ,
             // A nursing head approves her own department's leave; the department-head

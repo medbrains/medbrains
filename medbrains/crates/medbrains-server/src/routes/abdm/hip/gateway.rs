@@ -3,7 +3,8 @@
 //! Every gateway callback must carry the gateway's RS256 JWT, checked against
 //! the keys at the gateway's `/certs` (cached, refetched once when a key does
 //! not verify, for rotation). The hospital is the one whose campus holds the
-//! HFR facility ID in `X-HIP-ID` — never a query string, never a session.
+//! HFR facility ID in `X-HIP-ID` (or `X-HIU-ID`, on the M3 callbacks: the
+//! campus is both) — never a query string, never a session.
 
 use std::{
     collections::HashMap,
@@ -92,6 +93,19 @@ impl Hip {
             .await
             .map_err(map_abdm_error)
     }
+
+    /// One gateway call as a Health Information User, the same HFR facility
+    /// ID sent as `X-HIU-ID`. Returns the `REQUEST-ID` it was sent with.
+    ///
+    /// # Errors
+    /// As [`Hip::send`].
+    #[tracing::instrument(skip_all, fields(tenant_id = %self.tenant_id))]
+    pub async fn send_as_hiu(&self, path: &str, body: &Value) -> Result<Uuid, AppError> {
+        self.gateway
+            .send_as_hiu(path, &self.session, &self.hip_id, body)
+            .await
+            .map_err(map_abdm_error)
+    }
 }
 
 /// Who a verified callback is for.
@@ -116,7 +130,8 @@ fn header(headers: &HeaderMap, name: &str) -> Option<String> {
 /// Authenticate a gateway callback.
 ///
 /// # Errors
-/// 401 without a gateway JWT that verifies; 404 for an `X-HIP-ID` no
+/// 401 without a gateway JWT that verifies; 404 for an `X-HIP-ID` (or
+/// `X-HIU-ID`) no
 /// hospital holds; 409 for one two hospitals both claim; 503 when the
 /// gateway's keys cannot be fetched (an outage, not a refusal).
 #[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
@@ -126,7 +141,9 @@ pub async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<Calle
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .ok_or(AppError::Unauthorized)?;
-    let hip_id = header(headers, "x-hip-id").ok_or(AppError::Unauthorized)?;
+    let hip_id = header(headers, "x-hip-id")
+        .or_else(|| header(headers, "x-hiu-id"))
+        .ok_or(AppError::Unauthorized)?;
     let owners = sqlx::query_as::<_, (Uuid, Uuid)>(
         "SELECT tenant_id, facility_id FROM app_abdm_hip_tenant($1) LIMIT 2",
     )

@@ -3456,6 +3456,22 @@ pub mod abdm {
         /// or link one that was captured before the ABHA was verified.
         pub const MANAGE: &str = "abdm.records.manage";
     }
+    /// Records this hospital receives through ABDM as a Health Information
+    /// User: consent requests to see a patient's records held by other
+    /// facilities, and the copies those facilities send.
+    pub mod consent {
+        /// Request a patient's records from other hospitals.
+        ///
+        /// Ask, through ABDM, for the patient's consent to see their records
+        /// held elsewhere: purpose, record types, dates and how long the copy
+        /// may be kept. The request is made in the requester's name and HPR ID.
+        pub const REQUEST: &str = "abdm.consent.request";
+        /// View records received from other hospitals.
+        ///
+        /// The consent requests raised for a patient and the records other
+        /// facilities sent under them, until the consent is revoked or expires.
+        pub const VIEW: &str = "abdm.consent.view";
+    }
     pub mod hpr {
         /// Record and verify doctors' HPR IDs.
         ///
