@@ -76,6 +76,7 @@ const routePreloaders: Record<string, RoutePreloader> = {
   "/admin/documents": () => import("@/pages/documents"),
   "/admin/devices": () => import("@/pages/admin/devices"),
   "/admin/paired-devices": () => import("@/pages/admin/paired-devices"),
+  "/admin/hospital-binding": () => import("@/pages/admin/hospital-binding"),
 };
 
 const routePreloads = new Map<string, Promise<unknown>>();

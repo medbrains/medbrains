@@ -285,6 +285,16 @@ schema-db: guard-sqlx-nonprod ## Build a migrated schema DB (for prepare-sqlx, s
 prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI schema DB only
 	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
 
+safe-prepare-sqlx: guard-sqlx-nonprod ## prepare-sqlx that refuses unless the workspace compiles, and restores .sqlx if prepare fails
+	bash scripts/safe_prepare_sqlx.sh "$(SQLX_DATABASE_URL)" $(SQLX_PREPARE_CARGO_ARGS)
+
+.PHONY: doctor gate safe-prepare-sqlx
+doctor: ## Find dev traps (root-owned caches, disk, stale master, busy cargo, .env, DB); prints fixes, changes nothing
+	@bash scripts/doctor.sh
+
+gate: ## Strict pre-merge gate: biome, packages+typecheck, check-all, targeted clippy+tests (CRATES=, TESTS=)
+	CRATES="$(CRATES)" TESTS="$(TESTS)" bash scripts/gate.sh
+
 check-sqlx: guard-sqlx-nonprod ## Verify SQLx offline metadata matches local/CI schema DB only
 	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --check --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
 
