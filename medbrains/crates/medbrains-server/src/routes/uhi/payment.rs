@@ -126,7 +126,8 @@ pub async fn hold(
         },
     )
     .await
-    .map_err(|e| AppError::Internal(format!("queue uhi payment link: {e}")))
+    .map_err(|e| AppError::Internal(format!("queue uhi payment link: {e}")))?;
+    Ok(())
 }
 
 /// A payment that will not be taken any more is closed, unless it is in.

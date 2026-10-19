@@ -1002,7 +1002,7 @@ pub async fn create_order(
                 aggregate_id: Some(txn.id),
                 event_type: "payment.create_order",
                 payload: serde_json::json!({
-                    "txn_id": txn.id,
+                    "internal_payment_id": txn.id,
                     "amount_paise": amount_paise,
                     "currency": currency,
                     "receipt": receipt,

@@ -168,7 +168,9 @@ async fn a_physical_consultation_books_an_opd_visit_without_video() {
     assert_eq!(slots[0]["type"], "Physical");
     let slot = slots[0]["id"].clone();
     let id = txn();
-    let order = json!({ "order": { "items": [{ "id": slot }], "fulfillment": { "id": slot },
+    // The app echoes the fulfilment it was offered, type included.
+    let order = json!({ "order": { "items": [{ "id": slot }],
+        "fulfillment": { "id": slot, "type": "Physical" },
         "billing": { "name": "Kiran Das", "phone": "9876500055" } } });
     w.call(
         "confirm",
