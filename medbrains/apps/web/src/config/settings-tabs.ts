@@ -2,6 +2,7 @@ import {
   IconAlertTriangle,
   IconApps,
   IconBed,
+  IconBinaryTree,
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
@@ -58,6 +59,7 @@ import { PaymentTerminalsSettings } from "@/pages/admin/settings/PaymentTerminal
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "@/pages/admin/settings/ServicesSettings";
+import { SnomedSettings } from "@/pages/admin/settings/SnomedSettings";
 import { StandardsSettings } from "@/pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "@/pages/admin/settings/SystemHealthSettings";
 import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
@@ -292,6 +294,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: StandardsSettings,
   },
   {
+    value: "snomed",
+    i18nKey: "settings.snomed",
+    icon: "IconBinaryTree",
+    requiredPermission: "terminology.snomed.manage",
+    component: SnomedSettings,
+  },
+  {
     value: "print-templates",
     i18nKey: "settings.printTemplates",
     icon: "IconPrinter",
@@ -364,6 +373,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconBinaryTree,
   IconClockCog,
   IconSettings,
   IconWorld,

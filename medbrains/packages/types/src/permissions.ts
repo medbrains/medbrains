@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1075 permissions, one per constant in the Rust source. */
+/** 1078 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4822,6 +4822,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "terminology.search",
     label: "Search clinical terminologies (ICD-11, SNOMED)",
     description: "Read-only lookup of codes and their display terms, for recording a provisional diagnosis at registration or a camp desk — not access to any patient's record.",
+    module: "terminology",
+  },
+  {
+    code: "terminology.snomed.manage",
+    label: "Load SNOMED CT releases",
+    description: "Upload or import an RF2 release package and watch its progress. The release replaces terminology every user of the deployment sees, so no built-in role holds it.",
+    module: "terminology",
+  },
+  {
+    code: "terminology.snomed.view",
+    label: "Search and browse SNOMED CT concepts",
+    description: "Find a concept by any of its terms, see its parents and children, and run bounded hierarchy queries. Results are capped so the licensed content cannot be extracted in bulk.",
+    module: "terminology",
+  },
+  {
+    code: "terminology.snomed.analytics",
+    label: "Count records by SNOMED CT hierarchy",
+    description: "See how many of the hospital's coded diagnoses fall under a concept or any of its descendants, and the roll-up by top-level category.",
     module: "terminology",
   },
   // ckb
@@ -9723,6 +9741,14 @@ export const P = {
   },
   TERMINOLOGY: {
     SEARCH: "terminology.search",
+    SNOMED: {
+      ANALYTICS: "terminology.snomed.analytics",
+      MANAGE: "terminology.snomed.manage",
+      VIEW: "terminology.snomed.view",
+    },
+    SNOMED_ANALYTICS: "terminology.snomed.analytics",
+    SNOMED_MANAGE: "terminology.snomed.manage",
+    SNOMED_VIEW: "terminology.snomed.view",
   },
   UR: {
     COMMUNICATIONS: {
@@ -10074,6 +10100,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.MANAGE,
       P.TERMINOLOGY.SEARCH,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   nurse: {
@@ -10301,6 +10328,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.PSYCHIATRY.PATIENTS.LIST,
       P.SPECIALTY.PSYCHIATRY.RESTRAINT.LIST,
       P.TERMINOLOGY.SEARCH,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   receptionist: {
@@ -10420,6 +10448,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.VIEW,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   pharmacist: {
@@ -10511,6 +10540,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.ADR.CREATE,
       P.REGULATORY.ADR.LIST,
       P.REGULATORY.DASHBOARD.VIEW,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   billing_clerk: {
@@ -10804,6 +10834,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SECURITY.DEBRIEFS.LIST,
       P.SECURITY.INCIDENTS.LIST,
       P.SECURITY.PATIENT_SAFETY.LIST,
+      P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
   },
   quality_officer: {
@@ -10855,6 +10886,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.PCPNDT.CREATE,
       P.REGULATORY.PCPNDT.LIST,
       P.SPECIALTY.CLINICAL_TRIALS.LIST,
+      P.TERMINOLOGY.SNOMED.ANALYTICS,
     ],
   },
   occ_health_officer: {
@@ -10953,6 +10985,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.VIEW,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   canteen_staff: {
@@ -10987,6 +11020,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DIET.TEMPLATES.LIST,
       P.DIET.TEMPLATES.MANAGE,
       P.NOTES.USE,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   security_guard: {
@@ -11083,6 +11117,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.RADIOLOGY.ORDERS.VIEW,
       P.RADIOLOGY.REPORTS.CREATE,
       P.RADIOLOGY.REPORTS.VERIFY,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   cssd_technician: {
@@ -11122,6 +11157,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BLOOD_BANK.TTI.VIEW,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   marketing_executive: {
@@ -11215,6 +11251,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INFECTION_CONTROL.SURVEILLANCE.CREATE,
       P.INFECTION_CONTROL.SURVEILLANCE.LIST,
       P.NOTES.USE,
+      P.TERMINOLOGY.SNOMED.VIEW,
     ],
   },
   procurement_officer: {
