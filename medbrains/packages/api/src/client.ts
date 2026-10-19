@@ -1,8 +1,11 @@
 import type {
   AbcAnalysisRow,
+  AbdmCareContext,
   AbdmConnectionTest,
   AbdmConsentPrintData,
+  AbdmPatientRecords,
   AbdmSettingsView,
+  AbdmSharingSummary,
   AbhaAccountChange,
   AbhaStatusResponse,
   AbhaVerificationStep,
@@ -16820,8 +16823,7 @@ export const api = {
   getAbdmSettings: () => request<AbdmSettingsView>("/abdm/settings"),
   saveAbdmSettings: (data: SaveAbdmSettings) =>
     request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
-  testAbdmConnection: () =>
-    request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  testAbdmConnection: () => request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
   startAbhaVerification: (data: StartAbhaVerification) =>
     request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",
@@ -16903,6 +16905,14 @@ export const api = {
     }),
   verifyDoctorHprId: (id: string) =>
     request<DoctorHpr>(`/abdm/hpr/doctors/${id}/verify`, { method: "POST" }),
+  getAbdmPatientRecords: (patientId: string) =>
+    request<AbdmPatientRecords>(`/abdm/patients/${patientId}/records`),
+  linkAbdmCareContext: (id: string) =>
+    request<AbdmCareContext>(`/abdm/care-contexts/${id}/link`, { method: "POST" }),
+  getAbdmSharingSummary: (month?: string) =>
+    request<AbdmSharingSummary>(
+      `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,
+    ),
   receiveAbdmGatewayCallback: (data: Record<string, unknown>) =>
     request<unknown>("/abdm/gateway/callback", {
       method: "POST",
