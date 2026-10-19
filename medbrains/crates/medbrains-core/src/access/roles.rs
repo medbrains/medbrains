@@ -928,6 +928,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::corporate::UPDATE,
             permissions::insurance::nhcx::SUBMIT,
             permissions::insurance::nhcx::VIEW,
+            permissions::insurance::nhcx::RESPOND,
             permissions::billing::corporate::ENROLL,
             permissions::billing::corporate::UNENROLL,
             permissions::billing::reports::VIEW,
@@ -1871,6 +1872,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::dashboard::VIEW,
             permissions::insurance::nhcx::SUBMIT,
             permissions::insurance::nhcx::VIEW,
+            permissions::insurance::nhcx::RESPOND,
         ],
     },
     BuiltInRole {

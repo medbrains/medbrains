@@ -79,6 +79,7 @@ import type {
   AnesthesiaRecordPrintData,
   AnionGapRequest,
   AnionGapResult,
+  AnswerPayerQueryRequest,
   AnthracyclineCumulativeResult,
   AntibioticConsumptionRecord,
   AntibioticStewardshipRequest,
@@ -277,6 +278,7 @@ import type {
   // CDS
   CheckDrugInteractionsRequest,
   ChecklistItemInput,
+  CheckNhcxEligibilityRequest,
   CheckPaRequiredRequest,
   ChemoProtocol,
   ChiefComplaintMaster,
@@ -1419,9 +1421,12 @@ import type {
   NewsFeedArticle,
   NewsFeedListItem,
   NhcxConnectionTest,
+  NhcxEligibilityCheck,
   NhcxParticipant,
+  NhcxPayerQuery,
   NhcxQueuedResponse,
   NhcxSettingsView,
+  NhcxSlaReport,
   NhcxStatus,
   NmcComplianceReportPrintData,
   NonPayableRule,
@@ -1640,6 +1645,7 @@ import type {
   PostnatalRecord,
   PostopOrdersPrintData,
   PreAuthorizationRequest,
+  PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
   PrescriptionAuditEntry,
@@ -1943,6 +1949,7 @@ import type {
   StudentAdmissionFormPrintData,
   SubmitBedsideFeedbackRequest,
   SubmitPostForReview,
+  SubmitPreauthToNhcxRequest,
   SubscribeRequest,
   SubscriptionWithBalance,
   SupplierPayment,
@@ -5291,12 +5298,41 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  /** Queue an NHCX coverage-eligibility check for the claim's patient + policy. */
-  checkCoverageEligibility: (id: string, data: { recipient_code: string }) =>
-    request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/check-eligibility`, {
+  /** Ask the payer through NHCX whether the patient's policy is in force. */
+  checkNhcxEligibility: (data: CheckNhcxEligibilityRequest) =>
+    request<NhcxEligibilityCheck>("/insurance/verifications/nhcx", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  /** The patient's latest NHCX eligibility checks, newest first. */
+  listNhcxEligibility: (patientId: string) =>
+    request<NhcxEligibilityCheck[]>(
+      `/insurance/nhcx/eligibility?patient_id=${encodeURIComponent(patientId)}`,
+    ),
+
+  /** Send a pre-authorisation to the payer through NHCX. */
+  submitPreauthToNhcx: (id: string, data: SubmitPreauthToNhcxRequest) =>
+    request<NhcxQueuedResponse>(`/insurance/prior-auths/${id}/submit-to-nhcx`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** A pre-authorisation's NHCX timeline, payer queries and IRDAI clock. */
+  getPreauthNhcx: (id: string) => request<PreauthNhcxView>(`/insurance/prior-auths/${id}/nhcx`),
+
+  /** Answer a payer's query through NHCX. */
+  answerNhcxPayerQuery: (id: string, data: AnswerPayerQueryRequest) =>
+    request<NhcxPayerQuery>(`/insurance/nhcx/queries/${id}/answer`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Pre-authorisations against the IRDAI clock, and breaches by payer. */
+  getNhcxSla: (patientId?: string) =>
+    request<NhcxSlaReport>(
+      `/insurance/nhcx/sla${patientId ? `?patient_id=${encodeURIComponent(patientId)}` : ""}`,
+    ),
 
   /** NHCX payer directory (the recipient_code source for claim submission). */
   listNhcxParticipants: (role?: string) =>
@@ -16820,8 +16856,7 @@ export const api = {
   getAbdmSettings: () => request<AbdmSettingsView>("/abdm/settings"),
   saveAbdmSettings: (data: SaveAbdmSettings) =>
     request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
-  testAbdmConnection: () =>
-    request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  testAbdmConnection: () => request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
   startAbhaVerification: (data: StartAbhaVerification) =>
     request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",

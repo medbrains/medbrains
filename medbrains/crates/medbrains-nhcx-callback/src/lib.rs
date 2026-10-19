@@ -2,6 +2,8 @@
 //! Settings → NHCX. Outbound messages are sent by the outbox handlers in
 //! `medbrains_outbox::handlers::nhcx`.
 
+mod apply;
+mod parse;
 pub mod receive;
 pub mod settings;
 

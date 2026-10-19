@@ -6,6 +6,7 @@ import type { InsuranceDashboard } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components";
+import { NhcxSlaBreaches } from "@/components/Nhcx/NhcxSlaBreaches";
 import { Badge } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
 
@@ -169,6 +170,8 @@ export function DashboardTab() {
           </Paper>
         </Grid.Col>
       </Grid>
+
+      <NhcxSlaBreaches />
     </Stack>
   );
 }
