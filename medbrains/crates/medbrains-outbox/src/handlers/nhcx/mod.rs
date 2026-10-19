@@ -1,6 +1,7 @@
 //! NHCX (National Health Claims Exchange) outbound — coverage eligibility,
-//! pre-authorisation and claim submission, one handler per operation:
-//! `nhcx.coverage_eligibility_check`, `nhcx.preauth_submit`, `nhcx.claim_submit`.
+//! pre-authorisation, claim submission and answers to payer queries, one
+//! handler per operation: `nhcx.coverage_eligibility_check`,
+//! `nhcx.preauth_submit`, `nhcx.claim_submit`, `nhcx.communication`.
 //!
 //! Each message follows the HCX open protocol (v0.7.1): the FHIR bundle is
 //! the plaintext of a JWE encrypted for the payer's certificate (from the
@@ -9,9 +10,10 @@
 //! gateway session token. The payer answers later, at the callback receiver.
 //!
 //! The queueing route records the correlation, api-call and workflow ids on
-//! the claim in the same transaction; this handler marks the claim `sent`
-//! when the gateway accepts, or `send_failed` (with the reason) when it
-//! refuses for good.
+//! the record the message belongs to (a claim, pre-authorisation,
+//! eligibility check or payer query) in the same transaction; this handler
+//! marks that record `sent` when the gateway accepts, or `send_failed` (with
+//! the reason) when it refuses for good.
 //!
 //! Status mapping: 2xx → sent; 401 → drop the session, retry; 400/403/404/422
 //! → permanent; 429/5xx/network → retry with backoff.
@@ -20,7 +22,7 @@ pub mod config;
 pub mod session;
 
 use async_trait::async_trait;
-use medbrains_core::nhcx::NhcxOperation;
+use medbrains_core::nhcx::{NhcxOperation, NhcxRecord};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
@@ -45,12 +47,17 @@ impl NhcxHandler {
 /// What the queueing route puts in the outbox payload.
 #[derive(Debug, Deserialize)]
 struct Message {
-    claim_id: Uuid,
+    /// Which table the message belongs to.
+    record: NhcxRecord,
+    record_id: Uuid,
     recipient_code: String,
     correlation_id: Uuid,
     api_call_id: Uuid,
     workflow_id: Uuid,
     bundle: Value,
+    /// `x-hcx-status` — set on replies (`on_*`), absent on requests.
+    #[serde(default)]
+    hcx_status: Option<String>,
 }
 
 #[async_trait]
@@ -72,15 +79,15 @@ impl Handler for NhcxHandler {
         // would retry it and reach the payer twice. The claim's status is the
         // casualty, and the log says so.
         let marked = match outcome {
-            Some((status, reason)) => mark_claim(ctx, &msg, status, reason).await,
+            Some((status, reason)) => mark_record(ctx, &msg, status, reason).await,
             None => Ok(()),
         };
         if let Err(e) = marked {
             tracing::error!(
                 tenant_id = %ctx.tenant_id,
-                claim_id = %msg.claim_id,
+                record_id = %msg.record_id,
                 error = %e,
-                "nhcx: could not record the send outcome on the claim"
+                "nhcx: could not record the send outcome"
             );
         }
         result
@@ -181,31 +188,38 @@ fn protected_headers(sender: &str, msg: &Message) -> Map<String, Value> {
         "x-hcx-timestamp".into(),
         json!(chrono::Utc::now().to_rfc3339()),
     );
+    if let Some(status) = &msg.hcx_status {
+        headers.insert("x-hcx-status".into(), json!(status));
+    }
     headers
 }
 
-/// Record the send outcome on the claim — only while this message is still
-/// the claim's latest, so an old retry never overwrites a newer submission.
-async fn mark_claim(
+/// Record the send outcome on the message's record — only while this message
+/// is still the record's latest, so an old retry never overwrites a newer
+/// submission.
+async fn mark_record(
     ctx: &HandlerCtx,
     msg: &Message,
     status: &str,
     reason: Option<&str>,
 ) -> Result<(), HandlerError> {
     let mut tx = tenant_tx(ctx).await?;
-    sqlx::query(
-        "UPDATE insurance_claims SET nhcx_status = $1, nhcx_disposition = $2, \
+    // The table name comes from a closed enum, never from the payload text.
+    let sql = format!(
+        "UPDATE {} SET nhcx_status = $1, nhcx_disposition = $2, \
                 nhcx_submitted_at = CASE WHEN $1 = 'sent' THEN now() ELSE nhcx_submitted_at END \
          WHERE id = $3 AND tenant_id = $4 AND nhcx_correlation_id = $5",
-    )
-    .bind(status)
-    .bind(reason.map(|r| r.chars().take(500).collect::<String>()))
-    .bind(msg.claim_id)
-    .bind(ctx.tenant_id)
-    .bind(msg.correlation_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| transient(&e))?;
+        msg.record.table()
+    );
+    sqlx::query(&sql)
+        .bind(status)
+        .bind(reason.map(|r| r.chars().take(500).collect::<String>()))
+        .bind(msg.record_id)
+        .bind(ctx.tenant_id)
+        .bind(msg.correlation_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| transient(&e))?;
     tx.commit().await.map_err(|e| transient(&e))
 }
 

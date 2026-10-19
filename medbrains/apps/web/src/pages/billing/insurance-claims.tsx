@@ -99,10 +99,7 @@ export function InsuranceClaimsTab({
     defaultValues: tpaRateCardDefaults,
   });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
-  const [nhcxAction, setNhcxAction] = useState<{
-    id: string;
-    mode: "submit" | "eligibility";
-  } | null>(null);
+  const [nhcxClaimId, setNhcxClaimId] = useState<string | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
@@ -516,17 +513,16 @@ export function InsuranceClaimsTab({
       <ClaimDetailDrawer
         claim={detailClaim}
         onClose={() => setDetailClaim(null)}
-        onNhcxAction={(c, mode) => {
+        onSubmitToNhcx={(c) => {
           setDetailClaim(null);
-          setNhcxAction({ id: c.id, mode });
+          setNhcxClaimId(c.id);
         }}
       />
 
       <SubmitToNhcxModal
-        claimId={nhcxAction?.id ?? ""}
-        mode={nhcxAction?.mode ?? "submit"}
-        opened={!!nhcxAction}
-        onClose={() => setNhcxAction(null)}
+        claimId={nhcxClaimId ?? ""}
+        opened={!!nhcxClaimId}
+        onClose={() => setNhcxClaimId(null)}
       />
 
       <NhcxPayerDirectory />
