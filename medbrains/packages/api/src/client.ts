@@ -3,7 +3,10 @@ import type {
   AbdmCareContext,
   AbdmConnectionTest,
   AbdmConsentPrintData,
+  AbdmConsentRequest,
+  AbdmHiuPatientView,
   AbdmPatientRecords,
+  AbdmReceivedRecord,
   AbdmSettingsView,
   AbdmSharingSummary,
   AbhaAccountChange,
@@ -1747,6 +1750,7 @@ import type {
   RadiologyReportFullPrintData,
   RadiologyReportPrintData,
   RadiologyTatRow,
+  RaiseAbdmConsentRequest,
   RaiseApprovalRequest,
   RaisedApprovalRequest,
   RateContract,
@@ -16949,6 +16953,15 @@ export const api = {
     request<AbdmSharingSummary>(
       `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,
     ),
+  raiseAbdmConsentRequest: (patientId: string, data: RaiseAbdmConsentRequest) =>
+    request<AbdmConsentRequest>(`/abdm/patients/${patientId}/consent-requests`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getAbdmReceivedRecords: (patientId: string) =>
+    request<AbdmHiuPatientView>(`/abdm/patients/${patientId}/received-records`),
+  getAbdmReceivedRecord: (id: string) =>
+    request<AbdmReceivedRecord>(`/abdm/received-records/${id}`),
   receiveAbdmGatewayCallback: (data: Record<string, unknown>) =>
     request<unknown>("/abdm/gateway/callback", {
       method: "POST",

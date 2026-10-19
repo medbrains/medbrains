@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1081 permissions, one per constant in the Rust source. */
+/** 1083 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6572,6 +6572,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.consent.request",
+    label: "Request a patient's records from other hospitals",
+    description: "Ask, through ABDM, for the patient's consent to see their records held elsewhere: purpose, record types, dates and how long the copy may be kept. The request is made in the requester's name and HPR ID.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.consent.view",
+    label: "View records received from other hospitals",
+    description: "The consent requests raised for a patient and the records other facilities sent under them, until the consent is revoked or expires.",
+    module: "abdm",
+  },
+  {
     code: "abdm.hpr.manage",
     label: "Record and verify doctors' HPR IDs",
     description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
@@ -6591,6 +6603,12 @@ export const P = {
     },
     ABHA_MANAGE: "abdm.abha.manage",
     ABHA_VIEW: "abdm.abha.view",
+    CONSENT: {
+      REQUEST: "abdm.consent.request",
+      VIEW: "abdm.consent.view",
+    },
+    CONSENT_REQUEST: "abdm.consent.request",
+    CONSENT_VIEW: "abdm.consent.view",
     HFR: {
       REGISTER: "abdm.hfr.register",
       VIEW: "abdm.hfr.view",
@@ -9825,6 +9843,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Doctor",
     permissions: [
       P.ABDM.ABHA.VIEW,
+      P.ABDM.CONSENT.REQUEST,
+      P.ABDM.CONSENT.VIEW,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AI.ASSISTANT.USE,
@@ -10133,6 +10153,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   nurse: {
     label: "Nurse",
     permissions: [
+      P.ABDM.CONSENT.VIEW,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AI.ASSISTANT.USE,

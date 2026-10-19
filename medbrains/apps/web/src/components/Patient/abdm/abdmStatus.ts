@@ -1,4 +1,4 @@
-import type { AbdmLinkStatus } from "@medbrains/types";
+import type { AbdmConsentRequestStatus, AbdmLinkStatus, AbdmPurposeCode } from "@medbrains/types";
 import type { BadgeTone } from "@/components/ui";
 
 /** How each link status reads on screen — label and tone, never colour alone. */
@@ -33,4 +33,44 @@ export const CONSENT_STATUS: Record<string, BadgeTone> = {
   REVOKED: "warning",
   EXPIRED: "neutral",
   DENIED: "danger",
+};
+
+/** A consent request's state, and what it means for the records. */
+export const CONSENT_REQUEST_STATUS: Record<
+  AbdmConsentRequestStatus,
+  { label: string; tone: BadgeTone; hint: string }
+> = {
+  requested: { label: "Sent to ABDM", tone: "info", hint: "Waiting for ABDM to accept it." },
+  awaiting_patient: {
+    label: "Waiting for the patient",
+    tone: "info",
+    hint: "The patient approves or declines it in their ABHA app.",
+  },
+  granted: {
+    label: "Granted",
+    tone: "success",
+    hint: "Records appear as each hospital sends them.",
+  },
+  denied: { label: "Denied", tone: "danger", hint: "The patient declined. Nothing was shared." },
+  revoked: {
+    label: "Revoked",
+    tone: "warning",
+    hint: "The patient withdrew consent. The records received were erased.",
+  },
+  expired: {
+    label: "Expired",
+    tone: "neutral",
+    hint: "The consent ended. The records received were erased.",
+  },
+  failed: { label: "Not sent", tone: "danger", hint: "ABDM did not accept the request." },
+};
+
+/** ABDM's consent purposes in words. */
+export const PURPOSE_LABEL: Record<AbdmPurposeCode, string> = {
+  CAREMGT: "Care management",
+  BTG: "Break the glass (emergency)",
+  PUBHLTH: "Public health",
+  HPAYMT: "Healthcare payment",
+  DSRCH: "Disease-specific research",
+  PATRQT: "Requested by the patient",
 };

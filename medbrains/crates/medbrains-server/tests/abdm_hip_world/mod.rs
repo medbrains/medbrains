@@ -138,7 +138,9 @@ pub async fn world() -> World {
                 medbrains_abdm::gateway::ABDM_GATEWAY_BASE_URL_OVERRIDE,
                 mock.clone(),
             )
-            .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public),
+            .with("ABDM_GATEWAY_JWT_PUBLIC_KEY_OVERRIDE", public)
+            // Where HIPs are told to push records to us (M3).
+            .with("MEDBRAINS_PUBLIC_BASE_URL", "https://hospital.test"),
     )
     .await;
     let csrf = app.login_admin().await;

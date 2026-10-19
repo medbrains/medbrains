@@ -1,6 +1,8 @@
 // ABDM Milestone 2 — records this hospital shares as a Health Information
 // Provider. Mirrors crates/medbrains-server/src/routes/abdm/hip/records.rs.
 
+import type { AbdmHiuCounts } from "./abdm-hiu";
+
 export type AbdmLinkStatus = "not_linked" | "linking" | "linked" | "failed";
 
 export interface AbdmCareContext {
@@ -83,4 +85,8 @@ export interface AbdmSharingSummary {
   threshold_met: boolean;
   estimated_incentive_inr: number;
   failures: AbdmSharingFailure[];
+  /** This hospital as an HIU (records requested from other facilities). */
+  hiu: AbdmHiuCounts;
+  /** ₹10 per eligible HIU consent, as DHIS pays it. */
+  hiu_estimated_incentive_inr: number;
 }
