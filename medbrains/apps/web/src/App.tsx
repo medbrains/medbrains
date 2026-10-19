@@ -476,6 +476,9 @@ const ComponentsInputsPage = lazy(() =>
 const PairedDevicesPage = lazy(() =>
   import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
 );
+const HospitalBindingPage = lazy(() =>
+  import("./pages/admin/hospital-binding").then((m) => ({ default: m.HospitalBindingPage })),
+);
 
 const OnboardingWorkbookPage = lazy(() =>
   import("./pages/admin/workbook").then((m) => ({ default: m.OnboardingWorkbookPage })),
@@ -736,6 +739,7 @@ export function App() {
                 <Route path="documents" element={<DocumentsPage />} />
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="paired-devices" element={<PairedDevicesPage />} />
+                <Route path="hospital-binding" element={<HospitalBindingPage />} />
               </Route>
             </Route>
           </Routes>

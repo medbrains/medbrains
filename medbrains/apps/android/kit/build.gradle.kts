@@ -25,6 +25,9 @@ dependencies {
     api(libs.compose.ui)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.okhttp)
+    // api: ApiClient and BindingApi.pinnedClient take and return OkHttpClient.
+    api(libs.okhttp)
+    // Ed25519 for the hospital QR: JCA has it only from API 33, minSdk is 28.
+    implementation(libs.bouncycastle.prov)
     testImplementation(libs.junit)
 }

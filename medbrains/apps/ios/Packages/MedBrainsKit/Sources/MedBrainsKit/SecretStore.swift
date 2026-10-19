@@ -7,6 +7,10 @@ public enum SecretKey: String, Sendable {
     case refreshToken = "medbrains.refresh_token"
     case nodeSecret = "medbrains.node_secret"
     case campKey = "medbrains.camp_key"
+    /// The hospital this app is bound to by its signed QR (JSON).
+    case hospitalBinding = "medbrains.hospital_binding"
+    /// This device's binding key (private half, Secure Enclave blob or raw).
+    case deviceKey = "medbrains.device_key"
 }
 
 /// Keychain-backed secrets, `WhenUnlockedThisDeviceOnly`: readable only while

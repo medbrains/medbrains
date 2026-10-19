@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1091 permissions, one per constant in the Rust source. */
+/** 1094 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6010,6 +6010,24 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Separate from `PAIRED_LIST` on purpose. An edge appliance polls the roster unattended and holds its credential on disk for months; giving it the operator's device-listing right means a leaked appliance token enumerates the whole estate. This is the one thing an appliance needs.",
     module: "devices",
   },
+  {
+    code: "devices.binding.issue",
+    label: "Issue hospital binding QR codes",
+    description: "Prints a signed, expiring QR that a staff or patient app scans to bind itself to this hospital's server, so nobody types a hospital code or server address.",
+    module: "devices",
+  },
+  {
+    code: "devices.binding.list",
+    label: "See hospital binding QR codes",
+    description: "Lists the binding codes issued here, how many times each was used and whether it is still valid.",
+    module: "devices",
+  },
+  {
+    code: "devices.binding.revoke",
+    label: "Revoke hospital binding QR codes",
+    description: "Stops a lost or leaked binding code from binding any more devices. Devices it already bound are revoked from Paired devices.",
+    module: "devices",
+  },
   // qa
   {
     code: "qa.test_cases.record",
@@ -7537,6 +7555,14 @@ export const P = {
     },
     AGENTS_LIST: "devices.agents.list",
     AGENTS_MANAGE: "devices.agents.manage",
+    BINDING: {
+      ISSUE: "devices.binding.issue",
+      LIST: "devices.binding.list",
+      REVOKE: "devices.binding.revoke",
+    },
+    BINDING_ISSUE: "devices.binding.issue",
+    BINDING_LIST: "devices.binding.list",
+    BINDING_REVOKE: "devices.binding.revoke",
     CATALOG: {
       LIST: "devices.catalog.list",
       MANAGE: "devices.catalog.manage",
@@ -11197,6 +11223,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BME.PM.MANAGE,
       P.DASHBOARD.VIEW,
       P.DEVICES.AGENTS.LIST,
+      P.DEVICES.BINDING.ISSUE,
+      P.DEVICES.BINDING.LIST,
+      P.DEVICES.BINDING.REVOKE,
       P.DEVICES.CATALOG.LIST,
       P.DEVICES.CREATE,
       P.DEVICES.INGEST,

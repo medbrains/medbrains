@@ -17,10 +17,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.medbrains.kit.ApiClient
 import com.medbrains.kit.AuthState
 import com.medbrains.kit.AuthStore
+import com.medbrains.kit.BindingApi
+import com.medbrains.kit.BindingStore
 import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalAuthStore
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.SecretStore
+import com.medbrains.kit.StoredBinding
 import com.medbrains.ui.MedBrainsTheme
 
 /**
@@ -34,12 +37,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val secrets = SecretStore(applicationContext)
-        val client = ApiClient(baseUrl = AppConfig.baseUrl(intent), variant = "staff", secrets = secrets)
+        val bindings = BindingStore(secrets)
+        val binding = bindings.read()
+        val baseUrl = AppConfig.baseUrl(intent, binding)
+        // A bound hospital is reached only through its pinned TLS key.
+        val http = BindingApi.pinnedClient(baseUrl, binding?.takeIf { it.api_base == baseUrl }?.spki)
+        val client = ApiClient(baseUrl = baseUrl, variant = "staff", secrets = secrets, http = http)
         val auth = AuthStore(applicationContext, client, secrets)
+        // Binding or forgetting a hospital changes the server: start over against it.
+        val binder = StaffBinder(auth, bindings, binding, onChanged = { recreate() })
         setContent {
             MedBrainsTheme {
                 CompositionLocalProvider(LocalApiClient provides client, LocalAuthStore provides auth) {
-                    Root(auth = auth, initialModule = intent?.getStringExtra("module"))
+                    Root(auth = auth, binder = binder, initialModule = intent?.getStringExtra("module"))
                 }
             }
         }
@@ -53,20 +63,23 @@ class MainActivity : ComponentActivity() {
  * token — at its own server.
  */
 object AppConfig {
-    fun baseUrl(intent: android.content.Intent?): String =
-        debugExtra(intent, "baseUrl") ?: "http://10.0.2.2:3000"
+    /** Debug override, else the hospital this device was bound to by its QR. */
+    fun baseUrl(intent: android.content.Intent?, binding: StoredBinding?): String =
+        debugExtra(intent, "baseUrl") ?: binding?.api_base ?: DEFAULT_BASE_URL
+
+    private const val DEFAULT_BASE_URL = "http://10.0.2.2:3000"
 
     private fun debugExtra(intent: android.content.Intent?, key: String): String? =
         if (BuildConfig.DEBUG) intent?.getStringExtra(key) else null
 }
 
 @Composable
-private fun Root(auth: AuthStore, initialModule: String?) {
+private fun Root(auth: AuthStore, binder: StaffBinder, initialModule: String?) {
     val state by auth.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { auth.hydrate() }
     when (val s = state) {
         AuthState.Hydrating -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        AuthState.SignedOut -> LoginScreen(auth)
+        AuthState.SignedOut -> LoginScreen(auth, binder)
         is AuthState.SignedIn -> CompositionLocalProvider(LocalIdentity provides s.identity) {
             Box(Modifier.fillMaxSize()) {
                 ModuleHome(auth = auth, identity = s.identity, modules = StaffModules.registry, initialModule = initialModule)

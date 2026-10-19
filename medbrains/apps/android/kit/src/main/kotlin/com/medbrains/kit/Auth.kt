@@ -176,6 +176,11 @@ class AuthStore(context: Context, private val client: ApiClient, private val sec
         }
     }
 
+    /** A hospital this device was bound to by its QR: sign-in starts there. */
+    fun rememberHospital(code: String) {
+        prefs.edit().putString(HOSPITAL_CODE, code).apply()
+    }
+
     /** "Change hospital": the next sign-in starts from the code again. */
     fun forgetHospital() {
         prefs.edit().remove(HOSPITAL_CODE).apply()

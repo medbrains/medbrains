@@ -18,7 +18,6 @@ export * from "./abdm-dashboard";
 export * from "./abdm-hip";
 export * from "./abdm-hiu";
 export * from "./abdm-integration";
-export * from "./uhi";
 export * from "./abdm-registry";
 export * from "./abdm-scan-share";
 export type {
@@ -115,6 +114,7 @@ export { buildDashboardReportPath, DASHBOARD_STAT_INTENTS } from "./dashboard-in
 // print line is reachable as `IndentFormPrintData["items"][number]`.
 export type { IndentItem } from "./dashboard-widget-builder";
 export * from "./dashboard-widget-builder";
+export * from "./device-binding";
 export * from "./device-integration";
 export * from "./documents-module";
 export * from "./emergency";
@@ -357,6 +357,7 @@ export {
   tokenBoardSurfaceFilterFromParam,
   tokenBoardSurfaceFlowLabelKey,
 } from "./token-board-surfaces.js";
+export * from "./uhi";
 export type {
   WorkflowSignalShape,
   WorkflowSignalShapeDefinition,

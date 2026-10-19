@@ -34,4 +34,8 @@ export const adminDevicesService = {
   updateStation: (id: string, data: Parameters<typeof api.updateStation>[1]) =>
     api.updateStation(id, data),
   deleteStation: (id: string) => api.deleteStation(id),
+  listDeviceBindingCodes: () => api.listDeviceBindingCodes(),
+  issueDeviceBindingCode: (data: Parameters<typeof api.issueDeviceBindingCode>[0]) =>
+    api.issueDeviceBindingCode(data),
+  revokeDeviceBindingCode: (id: string, reason?: string) => api.revokeDeviceBindingCode(id, reason),
 };

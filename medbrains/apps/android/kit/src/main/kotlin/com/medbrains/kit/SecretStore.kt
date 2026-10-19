@@ -15,6 +15,7 @@ enum class SecretKey(val key: String) {
     REFRESH_TOKEN("medbrains.refresh_token"),
     NODE_SECRET("medbrains.node_secret"),
     CAMP_KEY("medbrains.camp_key"),
+    HOSPITAL_BINDING("medbrains.hospital_binding"),
 }
 
 /**
