@@ -1,8 +1,9 @@
-import { Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { AbhaField, AbhaVerificationStep, AbhaVerifiedProfile } from "@medbrains/types";
 import { useState } from "react";
 import { Alert, Button } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
+import { AbhaAccountUpdate } from "./AbhaAccountUpdate";
 import { AbhaCompare, compareRows, type OurDetails } from "./AbhaCompare";
 
 export interface AbhaVerified {
@@ -46,12 +47,21 @@ export function AbhaVerifiedStep({
     <Stack>
       {step.message && <Text size="sm">{step.message}</Text>}
       <AbhaCompare profile={profile} ours={ours} apply={apply} onApplyChange={setApply} />
-      <Button
-        tone="secondary"
-        onClick={() => window.open(abhaService.cardUrl(step.id), "_blank", "noopener")}
-      >
-        Print ABHA card
-      </Button>
+      <Group>
+        <Button
+          tone="secondary"
+          onClick={() => window.open(abhaService.cardUrl(step.id), "_blank", "noopener")}
+        >
+          Print ABHA card
+        </Button>
+        <Button
+          tone="ghost"
+          onClick={() => window.open(abhaService.qrUrl(step.id), "_blank", "noopener")}
+        >
+          Show QR
+        </Button>
+      </Group>
+      <AbhaAccountUpdate verificationId={step.id} />
       {step.already_linked ? (
         <Alert tone="warning" title="This ABHA is already on another patient">
           It belongs to {step.already_linked.name} ({step.already_linked.uhid}). Open that record

@@ -9,6 +9,8 @@
 //!   server over the Headscale tailnet.
 
 pub mod abha;
+pub mod abha_account;
+pub mod abha_address;
 pub mod abha_card;
 pub mod abha_common;
 pub mod abha_enrol;

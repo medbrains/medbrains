@@ -89,6 +89,7 @@ pub async fn link_verified_abha(
         ("abha_number", "aadhaar") => "abha_aadhaar_otp",
         ("abha_number", _) => "abha_mobile_otp",
         ("aadhaar_enrol", _) => "created_aadhaar_otp",
+        ("abha_address", _) => "abha_address_otp",
         _ => "mobile_otp",
     };
     sqlx::query(

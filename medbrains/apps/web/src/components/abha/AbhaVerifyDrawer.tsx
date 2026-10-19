@@ -41,7 +41,7 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
   };
   const start = useMutation({
     mutationFn: () =>
-      abhaService.start({ method, value, otp_via: method === "abha_number" ? via : undefined }),
+      abhaService.start({ method, value, otp_via: method === "mobile" ? undefined : via }),
     onSuccess: advance,
   });
   const resend = useMutation({
@@ -79,17 +79,24 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
             data={[
               { value: "abha_number", label: "ABHA number" },
               { value: "mobile", label: "Mobile number" },
+              { value: "abha_address", label: "ABHA address" },
             ]}
           />
           <Input
-            label={method === "abha_number" ? "ABHA number (14 digits)" : "Mobile number"}
-            inputMode="numeric"
+            label={
+              method === "abha_number"
+                ? "ABHA number (14 digits)"
+                : method === "mobile"
+                  ? "Mobile number"
+                  : "ABHA address (e.g. priya.v@abdm)"
+            }
+            inputMode={method === "abha_address" ? "text" : "numeric"}
             autoComplete="off"
             value={value}
             onChange={(e) => setValue(e.currentTarget.value)}
             data-autofocus
           />
-          {method === "abha_number" && (
+          {method !== "mobile" && (
             <Radio.Group
               label="Send the OTP to"
               value={via}

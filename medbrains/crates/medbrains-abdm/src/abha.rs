@@ -60,6 +60,13 @@ impl AbdmEnvironment {
     }
 
     /// The gateway's consent-manager id; the v3 gateway reads it on sessions.
+    const fn phr_base_url(self) -> &'static str {
+        match self {
+            Self::Sandbox => "https://abhasbx.abdm.gov.in/abha/api/v3/phr/web",
+            Self::Production => "https://phr.abdm.gov.in/api/phr/web/v3",
+        }
+    }
+
     const fn cm_id(self) -> &'static str {
         match self {
             Self::Sandbox => "sbx",
@@ -103,6 +110,9 @@ pub struct AbdmAbhaClient {
     environment: AbdmEnvironment,
     abha_base_url: String,
     session_url: String,
+    /// ABHA-address (PHR) APIs: under the ABHA host in the sandbox, their own
+    /// host in production (SOP §12).
+    phr_base_url: String,
 }
 
 /// Secret-store key pointing every ABDM call at another server — a local mock
@@ -117,14 +127,19 @@ impl AbdmAbhaClient {
         base_url_override: Option<&str>,
     ) -> Result<Self, AbdmError> {
         let http = reqwest::Client::builder().timeout(HTTP_TIMEOUT).build()?;
-        let (abha_base_url, session_url) = match base_url_override.map(str::trim) {
+        let (abha_base_url, session_url, phr_base_url) = match base_url_override.map(str::trim) {
             Some(base) if !base.is_empty() => {
-                let base = base.trim().trim_end_matches('/').to_owned();
-                (base.clone(), format!("{base}/sessions"))
+                let base = base.trim_end_matches('/').to_owned();
+                (
+                    base.clone(),
+                    format!("{base}/sessions"),
+                    format!("{base}/v3/phr/web"),
+                )
             }
             _ => (
                 environment.abha_base_url().to_owned(),
                 environment.session_url().to_owned(),
+                environment.phr_base_url().to_owned(),
             ),
         };
         Ok(Self {
@@ -132,6 +147,7 @@ impl AbdmAbhaClient {
             environment,
             abha_base_url,
             session_url,
+            phr_base_url,
         })
     }
 
@@ -245,6 +261,26 @@ impl AbdmAbhaClient {
         user: Option<UserToken<'_>>,
     ) -> reqwest::RequestBuilder {
         with_headers(self.http.post(self.url(path)), session, user)
+    }
+
+    pub(crate) fn phr_get(
+        &self,
+        path: &str,
+        session: &str,
+        user: Option<UserToken<'_>>,
+    ) -> reqwest::RequestBuilder {
+        let url = format!("{}/{}", self.phr_base_url, path.trim_start_matches('/'));
+        with_headers(self.http.get(url), session, user)
+    }
+
+    pub(crate) fn phr_post(
+        &self,
+        path: &str,
+        session: &str,
+        user: Option<UserToken<'_>>,
+    ) -> reqwest::RequestBuilder {
+        let url = format!("{}/{}", self.phr_base_url, path.trim_start_matches('/'));
+        with_headers(self.http.post(url), session, user)
     }
 }
 

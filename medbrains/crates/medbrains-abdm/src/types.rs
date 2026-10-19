@@ -27,6 +27,8 @@ pub struct PublicCertificateResponse {
 pub enum LoginHint {
     AbhaNumber,
     Mobile,
+    AbhaAddress,
+    Email,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
