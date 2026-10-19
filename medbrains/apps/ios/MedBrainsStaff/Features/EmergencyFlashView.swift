@@ -18,6 +18,8 @@ struct EmergencyFlashOverlay: View {
     @State private var codeBlues = Remote<[CodeBlueEvent]>()
     @State private var erCodes = Remote<[EmergencyCodeActivation]>()
     @State private var silenced: [String] = []
+    /// Codes this phone has already sounded for; pruned to the open ones.
+    @State private var sounded: Set<String> = []
 
     var body: some View {
         let open = emergencyOpenCodes(
@@ -33,6 +35,13 @@ struct EmergencyFlashOverlay: View {
                     silenced.append(current.key)
                 }
             }
+        }
+        // A code that newly opens sounds once; silencing stops the flash, and
+        // the sound has already finished by then.
+        .onChange(of: open.map(\.key), initial: true) { _, keys in
+            let current = Set(keys)
+            if !current.subtracting(sounded).isEmpty { AlertSoundPlayer.shared.play(.urgent) }
+            sounded = current
         }
         .task(id: auth.identity?.userId) {
             guard let client, let who = auth.identity else { return }

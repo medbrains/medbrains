@@ -8,6 +8,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
 import { Alert, Badge, Button, Input, Select } from "@/components/ui";
+import { AlertSoundsCard } from "./profile/alert-sounds-card";
 import { MyLeaveCard } from "./profile/my-leave-card";
 import { TeamLeaveCard } from "./profile/team-leave-card";
 
@@ -148,6 +149,8 @@ export function ProfilePage() {
           Your account isn't linked to an employee record yet. Contact HR to set one up.
         </Alert>
       )}
+
+      <AlertSoundsCard />
 
       {employee && (
         <>
