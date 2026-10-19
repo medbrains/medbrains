@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 779;
+pub const PERMISSION_COUNT: usize = 781;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -27,6 +27,20 @@ pub const fn all_codes() -> Vec<&'static str> {
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
+}
+
+/// Sticky notes: a person's own notes, shared to department boards or colleagues.
+///
+/// Notes are for the ward's logistics — rotas, reminders, a broken monitor —
+/// never for patient information, which belongs in the chart where it is
+/// audited and consented.
+pub mod notes {
+    /// Keep notes and share them.
+    /// Write your own notes and share them to department boards or with colleagues.
+    pub const USE: &str = "notes.use";
+    /// Take notes off a department board.
+    /// Remove a note from the board of a department you belong to, whoever wrote it.
+    pub const MODERATE: &str = "notes.moderate";
 }
 
 /// Workflow automation.

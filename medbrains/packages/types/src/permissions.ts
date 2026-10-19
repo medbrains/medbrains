@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1068 permissions, one per constant in the Rust source. */
+/** 1070 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -25,6 +25,19 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "View Dashboard",
     description: "Access the main dashboard",
     module: "dashboard",
+  },
+  // notes
+  {
+    code: "notes.use",
+    label: "Keep notes and share them",
+    description: "Write your own notes and share them to department boards or with colleagues.",
+    module: "notes",
+  },
+  {
+    code: "notes.moderate",
+    label: "Take notes off a department board",
+    description: "Remove a note from the board of a department you belong to, whoever wrote it.",
+    module: "notes",
   },
   // automation
   {
@@ -8342,6 +8355,10 @@ export const P = {
     },
     STORAGE_MANAGE: "mrd.storage.manage",
   },
+  NOTES: {
+    MODERATE: "notes.moderate",
+    USE: "notes.use",
+  },
   NURSE: {
     CODE_BLUE: {
       RECORD: "nurse.code_blue.record",
@@ -9850,6 +9867,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
       P.OPD.CERTIFICATES.CREATE,
       P.OPD.CERTIFICATES.LIST,
@@ -10123,6 +10141,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.NURSE.CODE_BLUE.RECORD,
       P.NURSE.CODE_BLUE.RESPOND,
       P.NURSE.CODE_BLUE.VIEW,
@@ -10290,6 +10309,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.NOTES.USE,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,
       P.OPD.APPOINTMENT.LIST,
@@ -10350,6 +10370,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.VIEW,
@@ -10374,6 +10395,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
       P.PHARMACY.BILLS.PRINT,
@@ -10520,6 +10542,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENT_PACKAGES.REFUND,
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
@@ -10548,6 +10571,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
     ],
   },
   facilities_manager: {
@@ -10656,6 +10680,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.LMS.QUIZZES.CREATE,
       P.LMS.QUIZZES.LIST,
+      P.NOTES.USE,
       P.REGULATORY.CALENDAR.MANAGE,
       P.REGULATORY.CHECKLISTS.CREATE,
       P.REGULATORY.CHECKLISTS.LIST,
@@ -10708,6 +10733,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.MRD.DEATHS.LIST,
       P.MRD.RECORDS.LIST,
+      P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
@@ -10747,6 +10773,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
       P.MARKETING.OUTREACH.APPROVE,
+      P.NOTES.USE,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -10786,6 +10813,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OCC_HEALTH.DRUG_SCREENS.LIST,
       P.OCC_HEALTH.DRUG_SCREENS.MANAGE,
       P.OCC_HEALTH.INJURIES.CREATE,
@@ -10803,6 +10831,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.UR.COMMUNICATIONS.CREATE,
       P.UR.COMMUNICATIONS.LIST,
       P.UR.CONVERSIONS.CREATE,
@@ -10825,6 +10854,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CASE_MGMT.REFERRALS.LIST,
       P.CASE_MGMT.REFERRALS.MANAGE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   scheduling_admin: {
@@ -10832,6 +10862,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OPD.SCHEDULE.LIST,
       P.OPD.SCHEDULE.MANAGE,
       P.SCHEDULING.ANALYTICS.VIEW,
@@ -10868,6 +10899,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.MANAGE,
       P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
+      P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
@@ -10884,6 +10916,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DIET.KITCHEN.MANAGE,
       P.DIET.ORDERS.CREATE,
       P.DIET.ORDERS.LIST,
+      P.NOTES.USE,
     ],
   },
   dietitian: {
@@ -10904,6 +10937,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DIET.ORDERS.LIST,
       P.DIET.TEMPLATES.LIST,
       P.DIET.TEMPLATES.MANAGE,
+      P.NOTES.USE,
     ],
   },
   security_guard: {
@@ -10915,6 +10949,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.PASSES.VERIFY,
       P.FRONT_OFFICE.VISITOR_LOGS.RECORD,
       P.FRONT_OFFICE.VISITORS.LIST,
+      P.NOTES.USE,
       P.SECURITY.ACCESS.LIST,
       P.SECURITY.ACCESS.MANAGE,
       P.SECURITY.CCTV.LIST,
@@ -10963,6 +10998,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DEVICES.VIEW,
       P.FACILITIES.WORK_ORDERS.LIST,
       P.FACILITIES.WORK_ORDERS.PERFORM,
+      P.NOTES.USE,
     ],
   },
   ambulance_driver: {
@@ -10980,6 +11016,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AMBULANCE.TRIPS.LIST,
       P.AMBULANCE.TRIPS.UPDATE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   radiology_tech: {
@@ -10987,6 +11024,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PATIENTS.FIND,
       P.RADIOLOGY.EXAMS.MANAGE,
       P.RADIOLOGY.MODALITIES.MANAGE,
@@ -11014,6 +11052,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CSSD.STERILIZATION.LIST,
       P.CSSD.STERILIZATION.RECALL,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   blood_bank_tech: {
@@ -11033,6 +11072,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BLOOD_BANK.TTI.RECORD,
       P.BLOOD_BANK.TTI.VIEW,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   marketing_executive: {
@@ -11051,6 +11091,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.OUTREACH.SEND,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.REPORTS_VIEW,
+      P.NOTES.USE,
     ],
   },
   front_office_staff: {
@@ -11098,6 +11139,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.NOTES.USE,
       P.OPD.VISIT.TRANSFER,
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
@@ -11123,6 +11165,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INFECTION_CONTROL.STEWARDSHIP.LIST,
       P.INFECTION_CONTROL.SURVEILLANCE.CREATE,
       P.INFECTION_CONTROL.SURVEILLANCE.LIST,
+      P.NOTES.USE,
     ],
   },
   procurement_officer: {
@@ -11130,6 +11173,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
       P.PROCUREMENT.PAYMENTS.LIST,
@@ -11164,6 +11208,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INDENT.VIEW,
       P.INVENTORY.DISPOSE,
       P.INVENTORY.VIEW,
+      P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
       P.PROCUREMENT.PO_LIST,
@@ -11196,6 +11241,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HR.PAYROLL.RUNS.LIST,
       P.HR.PAYROLL.STRUCTURES.LIST,
       P.HR.PAYROLL.STRUCTURES.MANAGE,
+      P.NOTES.USE,
     ],
   },
   camp_coordinator: {
@@ -11223,6 +11269,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CAMP.SCREENINGS.MANAGE,
       P.CAMP.UPDATE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PATIENTS.CREATE,
       P.PHARMACY.CATALOG.LOOKUP,
       P.TERMINOLOGY.SEARCH,
@@ -11242,6 +11289,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.PRIOR_AUTH.UPDATE,
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
+      P.NOTES.USE,
     ],
   },
   display_device: {
@@ -11255,6 +11303,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OT.ANESTHESIA.CREATE,
       P.OT.ANESTHESIA.LIST,
       P.OT.BOOKINGS.CREATE,
@@ -11280,6 +11329,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PHARMACY.DELIVERIES.COMPLETE,
       P.PHARMACY.DELIVERIES.VIEW,
     ],
