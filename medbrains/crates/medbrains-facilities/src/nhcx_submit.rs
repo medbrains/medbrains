@@ -78,6 +78,7 @@ pub async fn submit_claim_to_nhcx(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_nhcx_onboarded(&mut tx, claims.tenant_id).await?;
 
     let claim = sqlx::query_as::<_, ClaimRow>(
         "SELECT id, patient_id, invoice_id, insurance_provider, member_id \
@@ -272,6 +273,7 @@ pub async fn check_coverage_eligibility(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_nhcx_onboarded(&mut tx, claims.tenant_id).await?;
     let claim = sqlx::query_as::<_, ClaimRow>(
         "SELECT id, patient_id, invoice_id, insurance_provider, member_id \
          FROM insurance_claims WHERE id = $1 AND tenant_id = $2",
@@ -393,4 +395,26 @@ pub async fn check_coverage_eligibility(
         "queued": true,
         "outbox_event_id": event_id,
     })))
+}
+
+/// Refuse to queue anything for NHCX until this hospital holds an NHCX
+/// participant code. Without it nothing can be sent — and a claim accepted
+/// here that never reaches the payer is worse than one the desk knows to file
+/// on the payer's portal.
+async fn require_nhcx_onboarded(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    let code: Option<String> =
+        sqlx::query_scalar("SELECT abdm_hcx_sender_code FROM tenants WHERE id = $1")
+            .bind(tenant_id)
+            .fetch_one(&mut **tx)
+            .await?;
+    if code.as_deref().is_none_or(|c| c.trim().is_empty()) {
+        return Err(AppError::ServiceUnavailable(
+            "NHCX is not set up for this hospital yet — file this on the payer's portal for now"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
