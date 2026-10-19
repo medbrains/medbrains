@@ -1855,6 +1855,7 @@ import type {
   SaveBasketDraftRequest,
   SaveDialysisMachineRequest,
   SaveNhcxSettings,
+  SaveUhiSettings,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
   SchedulePmRequest,
@@ -2033,6 +2034,8 @@ import type {
   TvAnnouncement,
   // TV Displays & Queue
   TvDisplay,
+  UhiRequest,
+  UhiSettingsView,
   UnifiedAsset,
   UnreadCountResponse,
   UnsignedNote,
@@ -16924,6 +16927,19 @@ export const api = {
   saveAbdmSettings: (data: SaveAbdmSettings) =>
     request<AbdmSettingsView>("/abdm/settings", { method: "PUT", body: JSON.stringify(data) }),
   testAbdmConnection: () => request<AbdmConnectionTest>("/abdm/settings/test", { method: "POST" }),
+  getUhiSettings: () => request<UhiSettingsView>("/uhi/settings"),
+  saveUhiSettings: (data: SaveUhiSettings) =>
+    request<UhiSettingsView>("/uhi/settings", { method: "PUT", body: JSON.stringify(data) }),
+  generateUhiKeys: () => request<UhiSettingsView>("/uhi/settings/keys", { method: "POST" }),
+  listUhiRequests: (state?: "pending") =>
+    request<UhiRequest[]>(state ? `/uhi/requests?state=${state}` : "/uhi/requests"),
+  acceptUhiRequest: (id: string) =>
+    request<UhiRequest>(`/uhi/requests/${id}/accept`, { method: "POST" }),
+  declineUhiRequest: (id: string, reason: string) =>
+    request<UhiRequest>(`/uhi/requests/${id}/decline`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
   startAbhaVerification: (data: StartAbhaVerification) =>
     request<AbhaVerificationStep>("/abdm/abha/verifications", {
       method: "POST",

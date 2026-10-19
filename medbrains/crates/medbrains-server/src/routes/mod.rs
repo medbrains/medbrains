@@ -1,4 +1,5 @@
 pub mod abdm;
+pub mod uhi;
 pub mod access;
 pub mod admin;
 pub mod admin_simulator;
@@ -102,6 +103,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(abdm::hip::public_router())
         // ABDM HIU callbacks (X-HIU-ID) and the HIPs' data push to us.
         .merge(abdm::hiu::public_router())
+        // UHI calls from patient apps — each signed, naming its hospital by
+        // the subscriber ID in the path.
+        .merge(uhi::public_router())
         .route(
             "/api/abdm/gateway/callback",
             post(abdm::hip_relay::receive_callback),
@@ -449,6 +453,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/received-records/{id}",
             get(abdm::hiu::view::received_record),
         )
+        .route(
+            "/api/uhi/settings",
+            get(uhi::settings::get_settings).put(uhi::settings::save_settings),
+        )
+        .route("/api/uhi/settings/keys", post(uhi::settings::generate_keys))
+        .route("/api/uhi/requests", get(uhi::queue::list))
+        .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
+        .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
         .route(
             "/api/abdm/gateway/callbacks/pending",
             get(abdm::hip_relay::list_pending_callbacks),

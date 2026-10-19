@@ -740,6 +740,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // were consts inside the route file, so nobody could hold them.
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // Teleconsultations booked from UHI patient apps arrive at the desk.
+            permissions::uhi::requests::VIEW,
         ],
     },
     BuiltInRole {
@@ -1542,6 +1544,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ambulance::fleet::UPDATE,
             permissions::ambulance::maintenance::LIST,
             permissions::ambulance::maintenance::MANAGE,
+            // Ambulance requests from UHI patient apps: dispatch accepts or declines.
+            permissions::uhi::requests::VIEW,
+            permissions::uhi::requests::RESPOND,
         ],
     },
     BuiltInRole {
@@ -1615,6 +1620,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::blood_bank::tti::VIEW,
             permissions::blood_bank::tti::RECORD,
             permissions::blood_bank::transfusion::EMERGENCY_RELEASE,
+            // Blood availability enquiries from UHI patient apps: the bank says
+            // whether it can help; issue still follows a cross-match here.
+            permissions::uhi::requests::VIEW,
+            permissions::uhi::requests::RESPOND,
         ],
     },
     BuiltInRole {
@@ -1691,6 +1700,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            permissions::uhi::requests::VIEW,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::communications::alerts::CREATE,

@@ -17,6 +17,7 @@ import type {
 export * from "./abdm-hip";
 export * from "./abdm-hiu";
 export * from "./abdm-integration";
+export * from "./uhi";
 export * from "./abdm-registry";
 export type {
   AccessMatrixMaskingBehavior,
