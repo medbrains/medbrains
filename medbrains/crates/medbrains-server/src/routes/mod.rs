@@ -333,14 +333,19 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────
         .merge(medbrains_pharmacy_payments::router())
-        // ── ABDM (Phase 11): HFR registration + gateway HIP relay ─
+        // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
+        .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
+        .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
+        .route("/api/abdm/hfr/facilities/{id}", put(abdm::hfr::link_facility))
         .route(
-            "/api/abdm/hfr",
-            get(abdm::hfr::list_registrations).post(abdm::hfr::register),
+            "/api/abdm/hfr/facilities/{id}/register",
+            post(abdm::hfr::register_facility),
         )
+        .route("/api/abdm/hpr/coverage", get(abdm::hpr::coverage))
+        .route("/api/abdm/hpr/doctors/{id}", put(abdm::hpr::set_hpr_id))
         .route(
-            "/api/abdm/hfr/tenant",
-            get(abdm::hfr::get_tenant_facility),
+            "/api/abdm/hpr/doctors/{id}/verify",
+            post(abdm::hpr::verify_hpr_id),
         )
         .route(
             "/api/abdm/abha/status",

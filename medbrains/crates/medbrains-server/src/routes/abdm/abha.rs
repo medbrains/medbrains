@@ -20,7 +20,6 @@ use crate::{
     state::AppState,
 };
 
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AbhaSessionRequest {
@@ -71,7 +70,7 @@ pub async fn status(
     require_permission(&claims, medbrains_core::permissions::abdm::abha::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let config = read_abdm_config(&mut tx, &claims.tenant_id).await.ok();
+    let config = abdm_credentials(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
 
     let environment = config
@@ -170,17 +169,37 @@ struct StoredAbdmConfig {
 }
 
 #[derive(Debug)]
-struct ResolvedAbdmConfig {
-    environment: AbdmEnvironment,
+pub(crate) struct ResolvedAbdmConfig {
+    pub(crate) environment: AbdmEnvironment,
     client_id: String,
     client_secret: String,
     source: String,
+}
+
+impl ResolvedAbdmConfig {
+    pub(crate) fn session_request(&self) -> SessionTokenRequest {
+        SessionTokenRequest {
+            client_id: self.client_id.clone(),
+            client_secret: self.client_secret.clone(),
+        }
+    }
 }
 
 async fn read_abdm_config(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<ResolvedAbdmConfig, AppError> {
+    abdm_credentials(tx, tenant_id).await?.ok_or_else(|| {
+        AppError::ServiceUnavailable("ABDM ABHA credentials are not configured".to_owned())
+    })
+}
+
+/// The tenant's ABDM gateway credentials, or `None` when none are configured
+/// (tenant settings first, then env). A database fault stays an error.
+pub(crate) async fn abdm_credentials(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<Option<ResolvedAbdmConfig>, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'abdm' AND key = 'abha_config'",
@@ -193,39 +212,38 @@ async fn read_abdm_config(
         let stored: StoredAbdmConfig = serde_json::from_value(value)
             .map_err(|err| AppError::Internal(format!("invalid abha_config: {err}")))?;
         if let (Some(client_id), Some(client_secret)) = (stored.client_id, stored.client_secret) {
-            return Ok(ResolvedAbdmConfig {
+            return Ok(Some(ResolvedAbdmConfig {
                 environment: stored.environment.unwrap_or(AbdmEnvironment::Sandbox),
                 client_id,
                 client_secret,
                 source: "tenant_settings".to_owned(),
-            });
+            }));
         }
     }
 
     let client_id = std::env::var("ABDM_CLIENT_ID").ok();
     let client_secret = std::env::var("ABDM_CLIENT_SECRET").ok();
     if let (Some(client_id), Some(client_secret)) = (client_id, client_secret) {
-        let environment = match std::env::var("ABDM_ENVIRONMENT")
-            .unwrap_or_else(|_| "sandbox".to_owned())
-            .as_str()
-        {
-            "production" => AbdmEnvironment::Production,
-            _ => AbdmEnvironment::Sandbox,
-        };
-        return Ok(ResolvedAbdmConfig {
-            environment,
+        return Ok(Some(ResolvedAbdmConfig {
+            environment: env_environment(),
             client_id,
             client_secret,
             source: "env".to_owned(),
-        });
+        }));
     }
 
-    Err(AppError::ServiceUnavailable(
-        "ABDM ABHA credentials are not configured".to_owned(),
-    ))
+    Ok(None)
 }
 
-fn client_for(environment: &AbdmEnvironment) -> AbdmAbhaClient {
+/// `ABDM_ENVIRONMENT` — `production`, anything else is the sandbox.
+pub(crate) fn env_environment() -> AbdmEnvironment {
+    match std::env::var("ABDM_ENVIRONMENT").as_deref() {
+        Ok("production") => AbdmEnvironment::Production,
+        _ => AbdmEnvironment::Sandbox,
+    }
+}
+
+pub(crate) fn client_for(environment: &AbdmEnvironment) -> AbdmAbhaClient {
     let config = match environment {
         AbdmEnvironment::Sandbox => AbdmAbhaConfig::sandbox(),
         AbdmEnvironment::Production => AbdmAbhaConfig::production(),

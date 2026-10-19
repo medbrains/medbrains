@@ -44,6 +44,8 @@ pub struct DoctorProfile {
     pub photo_url: Option<String>,
     pub languages_spoken: Vec<String>,
     pub is_active: bool,
+    pub hpr_id: Option<String>,
+    pub hpr_verified_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

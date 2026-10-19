@@ -98,13 +98,6 @@ function isPacsConfigured(value: unknown): boolean {
   );
 }
 
-function abdmFacilityStatus(value: unknown): "active" | "registered" | "missing" {
-  if (!isRecord(value)) return "missing";
-  if (value.abdm_facility_active === true && hasText(value.abdm_facility_id)) return "active";
-  if (hasText(value.abdm_facility_id) || hasText(value.abdm_hcx_sender_code)) return "registered";
-  return "missing";
-}
-
 function statusFromCoverage(total: number, mapped: number): ReadinessStatus {
   if (total === 0) return "missing";
   if (mapped === 0) return "missing";
@@ -218,16 +211,9 @@ export function StandardsSettings() {
     staleTime: 300_000,
   });
 
-  const abdmTenantQuery = useQuery({
-    queryKey: ["standards", "abdm-tenant-hfr"],
-    queryFn: () => standardsService.getTenantAbdmHfr(),
-    enabled: canReadAbdm,
-    staleTime: 300_000,
-  });
-
-  const abdmRegistrationsQuery = useQuery({
-    queryKey: ["standards", "abdm-hfr-registrations"],
-    queryFn: () => standardsService.getAbdmHfr(),
+  const hfrQuery = useQuery({
+    queryKey: ["abdm-hfr-facilities"],
+    queryFn: () => standardsService.listFacilityHfr(),
     enabled: canReadAbdm,
     staleTime: 300_000,
   });
@@ -294,17 +280,18 @@ export function StandardsSettings() {
               ? "partial"
               : "missing";
 
-    const facilityStatus = abdmFacilityStatus(abdmTenantQuery.data);
-    const registrations = asArray(abdmRegistrationsQuery.data);
+    const campuses = (hfrQuery.data?.facilities ?? []).filter((f) => f.is_active);
+    const linkedCampuses = campuses.filter((f) => f.hfr_facility_id !== null).length;
+    const verifiedCampuses = campuses.filter((f) => f.hfr_status === "verified").length;
     const abdmStatus: ReadinessStatus = !canReadAbdm
       ? "blocked"
-      : abdmTenantQuery.isLoading || abdmRegistrationsQuery.isLoading
+      : hfrQuery.isLoading
         ? "loading"
-        : abdmTenantQuery.isError || abdmRegistrationsQuery.isError
+        : hfrQuery.isError
           ? "missing"
-          : facilityStatus === "active"
+          : campuses.length > 0 && verifiedCampuses === campuses.length
             ? "ready"
-            : facilityStatus === "registered" || registrations.length > 0
+            : linkedCampuses > 0
               ? "partial"
               : "missing";
 
@@ -369,23 +356,19 @@ export function StandardsSettings() {
         title: "ABDM Facility Setup",
         standard: "ABDM HFR/HIP readiness",
         status: abdmStatus,
-        metric:
-          facilityStatus === "active"
-            ? "HFR active"
-            : registrations.length > 0
-              ? `${registrations.length} registration rows`
-              : "Not registered",
+        metric: hfrQuery.isError
+          ? "Could not load HFR status"
+          : `${verifiedCampuses}/${campuses.length} campuses verified in HFR`,
         description:
-          "ABDM exchange requires facility registration, consent flow, audit logging, and FHIR-compatible care-context exports.",
+          "Each campus needs its own HFR facility ID. ABDM exchange also needs consent flow, audit logging, and FHIR-compatible care-context exports.",
+        actionLabel: "Facilities",
+        actionHref: "#facilities",
       },
     ];
   }, [
-    abdmRegistrationsQuery.data,
-    abdmRegistrationsQuery.isError,
-    abdmRegistrationsQuery.isLoading,
-    abdmTenantQuery.data,
-    abdmTenantQuery.isError,
-    abdmTenantQuery.isLoading,
+    hfrQuery.data,
+    hfrQuery.isError,
+    hfrQuery.isLoading,
     canReadAbdm,
     canReadLab,
     canReadPharmacy,
@@ -425,8 +408,7 @@ export function StandardsSettings() {
     pharmacyCatalogQuery.refetch();
     pacsConfigQuery.refetch();
     dicomStudiesQuery.refetch();
-    abdmTenantQuery.refetch();
-    abdmRegistrationsQuery.refetch();
+    hfrQuery.refetch();
   };
 
   return (

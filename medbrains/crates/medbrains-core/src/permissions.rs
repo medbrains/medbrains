@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 779;
+pub const PERMISSION_COUNT: usize = 780;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3357,5 +3357,13 @@ pub mod abdm {
         ///
         /// A facility-level administrative act, not a clinical one.
         pub const REGISTER: &str = "abdm.hfr.register";
+    }
+    pub mod hpr {
+        /// Record and verify doctors' HPR IDs.
+        ///
+        /// The Healthcare Professionals Registry ID each doctor signs FHIR
+        /// records under, checked against the national registry, and the
+        /// coverage report of active doctors still missing one.
+        pub const MANAGE: &str = "abdm.hpr.manage";
     }
 }

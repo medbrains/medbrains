@@ -5,6 +5,7 @@
 //! `medbrains-server`, while UI code talks only to `MedBrains` backend APIs.
 
 pub mod abha;
+pub mod registry;
 
 pub use abha::{
     AADHAAR_VERIFY_SCOPE, ABDM_PRODUCTION_ABHA_BASE_URL, ABDM_PRODUCTION_SESSION_URL,

@@ -15,6 +15,7 @@ import type {
 } from "./onboarding-store";
 
 export * from "./abdm-integration";
+export * from "./abdm-registry";
 export type {
   AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
