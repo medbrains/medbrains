@@ -30,10 +30,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.medbrains.kit.ApiError
 import com.medbrains.kit.AuthStore
+import com.medbrains.kit.Storefront
 import com.medbrains.kit.TenantIdentity
+import com.medbrains.ui.CarbonPicker
 import com.medbrains.ui.CarbonPrimaryButton
 import com.medbrains.ui.CarbonTextField
 import com.medbrains.ui.BrandWordmark
+import com.medbrains.ui.PickerOption
 import kotlinx.coroutines.launch
 
 /**
@@ -50,6 +53,9 @@ fun PatientLoginScreen(auth: AuthStore) {
     var codeStep by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // A family sharing one mobile picks who is signing in; never picked for them.
+    var people by remember { mutableStateOf<List<PortalPerson>>(emptyList()) }
+    var chosen by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val phoneOk = phone.trim().length >= 6
 
@@ -64,18 +70,27 @@ fun PatientLoginScreen(auth: AuthStore) {
             Spacer(Modifier.height(40.dp))
             if (codeStep) {
                 CarbonTextField(code, { code = it }, "Sign-in code", Modifier.testTag("code"), error = error, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
+                if (people.isNotEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    CarbonPicker("Who is signing in?", people.map { PickerOption(it.id, Storefront.personLabel(it.name, it.birth_year)) }, chosen, { chosen = it }, allowNone = false, tag = "choose-person")
+                }
             } else {
                 CarbonTextField(phone, { phone = it }, "Phone number", Modifier.testTag("phone"), error = error, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
             }
             Spacer(Modifier.height(32.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (codeStep) {
-                    CarbonPrimaryButton("Sign in", enabled = !busy && code.length >= 6, modifier = Modifier.testTag("verify"), onClick = {
+                    CarbonPrimaryButton("Sign in", enabled = !busy && code.length >= 6 && (people.isEmpty() || chosen != null), modifier = Modifier.testTag("verify"), onClick = {
                         scope.launch {
                             busy = true; error = null
                             try {
-                                val s = portal.verifyCode(hospital, phone.trim(), code)
-                                auth.adopt(s.token, who = TenantIdentity(s.tenant_id, s.patient_id, phone, "You", null, emptyList(), emptyList()))
+                                val s = portal.verifyCode(hospital, phone.trim(), code, chosen)
+                                val token = s.token
+                                if (token == null || s.tenant_id == null || s.patient_id == null) {
+                                    people = s.choose
+                                } else {
+                                    auth.adopt(token, who = TenantIdentity(s.tenant_id, s.patient_id, phone, "You", null, emptyList(), emptyList()))
+                                }
                             } catch (e: ApiError) {
                                 error = if (e.status in listOf(400, 401, 403)) "That code did not work. Check it, or ask for a new one." else e.message
                             } catch (e: Exception) { error = "Could not reach the hospital server." } finally { busy = false }

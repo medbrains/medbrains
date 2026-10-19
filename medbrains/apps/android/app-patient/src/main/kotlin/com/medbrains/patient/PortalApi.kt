@@ -8,7 +8,6 @@ import kotlinx.serialization.Serializable
 // The patient portal — the only endpoints this app calls. Every read is
 // subject-locked at the backend: the patient comes from the token.
 
-@Serializable data class PortalSession(val token: String, val patient_id: String, val tenant_id: String, val expires_in_hours: Int = 0)
 @Serializable data class PortalAppointment(val id: String, val appointment_date: String, val status: String, val department_name: String? = null)
 @Serializable data class PortalLabReport(val order_id: String, val test_name: String, val parameter_name: String, val value: String, val unit: String? = null, val normal_range: String? = null, val flag: String? = null, val reported_at: String)
 @Serializable data class PortalPrescriptionItem(val prescription_id: String, val drug_name: String, val dosage: String, val frequency: String, val duration: String, val prescribed_at: String)
@@ -44,7 +43,8 @@ import kotlinx.serialization.Serializable
 /** A delivery the patient asked for. Never carries the runner's phone. */
 @Serializable data class PortalDelivery(
     val id: String,
-    val prescription_id: String,
+    /** The prescription refilled; null for a storefront order. */
+    val prescription_id: String? = null,
     val drugs: List<String> = emptyList(),
     val stage: String,
     val address: String? = null,
@@ -75,13 +75,14 @@ import kotlinx.serialization.Serializable
 @Serializable data class DpdpConsentChoice(val notice_version: String, val notice_language: String, val purposes: List<String>)
 @Serializable data class PrivacyRequestAsk(val request_type: String, val details: String, val nominee_name: String? = null)
 @Serializable private data class OtpRequest(val tenant_code: String, val phone: String)
-@Serializable private data class OtpVerify(val tenant_code: String, val phone: String, val code: String)
 @Serializable data class Ack(val ok: Boolean = true)
 
 class PortalApi(private val client: ApiClient) {
     /** The reply is the same whether or not the number is registered — do not branch on it. */
     suspend fun requestCode(tenantCode: String, phone: String) { client.call("POST", "/api/portal/auth/request-otp", client.json.encodeToString(OtpRequest.serializer(), OtpRequest(tenantCode, phone))) }
-    suspend fun verifyCode(tenantCode: String, phone: String, code: String): PortalSession = client.post("/api/portal/auth/verify", OtpVerify(tenantCode, phone, code))
+    /** A session, or — when a family shares the mobile — who to choose between; then again with [patientId]. */
+    suspend fun verifyCode(tenantCode: String, phone: String, code: String, patientId: String? = null): PortalSignIn =
+        client.post("/api/portal/auth/verify", OtpChoose(tenantCode, phone, code, patientId))
     suspend fun appointments(): List<PortalAppointment> = client.get("/api/portal/appointments")
     suspend fun labReports(): List<PortalLabReport> = client.get("/api/portal/lab-reports")
     suspend fun prescriptions(): List<PortalPrescriptionItem> = client.get("/api/portal/prescriptions")
@@ -96,6 +97,20 @@ class PortalApi(private val client: ApiClient) {
     /** The patient's own deliveries, newest first. */
     suspend fun deliveries(): List<PortalDelivery> = client.get("/api/portal/deliveries")
     suspend fun privacy(): PortalPrivacy = client.get("/api/portal/privacy")
+    /** The storefront: what the pharmacy sells online, by brand or generic name. */
+    suspend fun searchStore(tenantCode: String, q: String): StoreSearchResult =
+        client.get("/api/store/$tenantCode/items?q=${java.net.URLEncoder.encode(q, "UTF-8")}")
+    suspend fun cart(): StoreCart = client.get("/api/portal/store/cart")
+    /** 0 takes it out. */
+    suspend fun setQuantity(itemId: String, quantity: Int): StoreCart = client.put("/api/portal/store/cart/items/$itemId", SetQuantity(quantity))
+    /** A photo of the prescription, JPEG, base64. */
+    suspend fun uploadPrescription(base64: String): StoreCart = client.put("/api/portal/store/cart/prescription", RxUpload(base64))
+    suspend fun storeDeliveryOptions(): PortalDeliveryOffer = client.get("/api/portal/store/delivery-options")
+    suspend fun checkout(source: String, prescriptionId: String?, delivery: HomeDelivery.Choice?): StoreOrder =
+        client.post("/api/portal/store/checkout", CheckoutAsk(source, prescriptionId, delivery))
+    suspend fun storeOrders(): List<StoreOrder> = client.get("/api/portal/store/orders")
+    /** "Order my prescription": the cart filled from one of the patient's prescriptions. */
+    suspend fun orderPrescription(prescriptionId: String): StoreOrderedPrescription = client.post("/api/portal/store/prescriptions/$prescriptionId/order")
     /** The patient's own record as a FHIR R4 bundle, exactly as the server sent it. */
     suspend fun exportRecord(): String = client.call("GET", "/api/portal/privacy/export")
     /** The patient's own change of mind — a new decision on the ledger. */

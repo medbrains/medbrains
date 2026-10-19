@@ -16,6 +16,9 @@ struct PatientLoginView: View {
     @State private var codeStep = false
     @State private var busy = false
     @State private var error: String?
+    /// A family sharing one mobile picks who is signing in; never picked for them.
+    @State private var people: [PortalPerson] = []
+    @State private var chosen: String?
     @FocusState private var focus: String?
 
     var body: some View {
@@ -34,6 +37,10 @@ struct PatientLoginView: View {
                                 .focused($focus, equals: "code")
                                 .accessibilityIdentifier("code")
                         }
+                        if !people.isEmpty {
+                            CarbonPicker("Who is signing in?", options: people.map { .init(id: $0.id, label: Storefront.personLabel(name: $0.name, birthYear: $0.birthYear)) }, selection: $chosen)
+                                .accessibilityIdentifier("choose-person")
+                        }
                     } else {
                         CarbonField("Phone number", error: error, isFocused: focus == "phone") {
                             TextField("Phone number", text: $phone)
@@ -48,7 +55,7 @@ struct PatientLoginView: View {
                 VStack(spacing: 8) {
                     if codeStep {
                         Button { Task { await verify() } } label: { HStack { Text("Sign in"); Spacer(); Image(systemName: "arrow.right") } }
-                            .buttonStyle(.carbonPrimary).disabled(busy || code.count < 6).accessibilityIdentifier("verify")
+                            .buttonStyle(.carbonPrimary).disabled(busy || code.count < 6 || (!people.isEmpty && chosen == nil)).accessibilityIdentifier("verify")
                         Button("Use a different number") { codeStep = false; code = ""; error = nil }
                             .buttonStyle(.carbonGhost).disabled(busy).accessibilityIdentifier("changePhone")
                     } else {
@@ -92,10 +99,14 @@ struct PatientLoginView: View {
         error = nil
         defer { busy = false }
         do {
-            let session = try await portal.verifyCode(tenantCode: AppConfig.hospitalCode, phone: phone.trimmingCharacters(in: .whitespaces), code: code)
+            let session = try await portal.verifyCode(tenantCode: AppConfig.hospitalCode, phone: phone.trimmingCharacters(in: .whitespaces), code: code, patientId: chosen)
+            guard let token = session.token, let tenantId = session.tenantId, let patientId = session.patientId else {
+                people = session.choose ?? []
+                return
+            }
             // A patient has neither role nor permissions; left empty so nothing mistakes this for staff.
-            let who = TenantIdentity(tenantId: session.tenantId, userId: session.patientId, username: phone, fullName: "You", role: nil, permissions: [], departmentIds: [])
-            try await auth.adopt(token: session.token, identity: who)
+            let who = TenantIdentity(tenantId: tenantId, userId: patientId, username: phone, fullName: "You", role: nil, permissions: [], departmentIds: [])
+            try await auth.adopt(token: token, identity: who)
         } catch let e as ApiError where e.status == 401 || e.status == 400 || e.status == 403 {
             self.error = "That code did not work. Check it, or ask for a new one."
         } catch {
