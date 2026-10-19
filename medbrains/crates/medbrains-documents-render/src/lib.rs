@@ -34,6 +34,22 @@ pub struct RenderRequest {
     pub watermark: Option<String>,
 }
 
+/// An error with every cause behind it. Tera's own message ("Failed to
+/// render 'doc.html'") names no field; the cause under it does, and
+/// `AppError::Internal` logs whatever it is given.
+fn error_chain(e: &dyn std::error::Error) -> String {
+    const MAX_DEPTH: usize = 8;
+    let mut out = e.to_string();
+    let mut cause = e.source();
+    for _ in 0..MAX_DEPTH {
+        let Some(c) = cause else { break };
+        out.push_str(": ");
+        out.push_str(&c.to_string());
+        cause = c.source();
+    }
+    out
+}
+
 fn renderer(state: &AppState) -> Result<&medbrains_print::gotenberg::GotenbergClient, AppError> {
     state.gotenberg.as_ref().ok_or_else(|| {
         AppError::ServiceUnavailable(
@@ -242,7 +258,7 @@ pub async fn render_stored(
     }
 
     let html = medbrains_print::engine::render_html(&html_template, &context)
-        .map_err(|e| AppError::Internal(format!("template render: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("template render: {}", error_chain(&e))))?;
     let pdf = gotenberg
         .html_to_pdf(&html, paper, margins)
         .await
@@ -405,7 +421,7 @@ pub async fn preview_template(
     tx.commit().await?;
 
     let html = medbrains_print::engine::render_html(&html_template, &context)
-        .map_err(|e| AppError::Internal(format!("template render: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("template render: {}", error_chain(&e))))?;
     let pdf = gotenberg
         .html_to_pdf(&html, paper, margins)
         .await

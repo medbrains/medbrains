@@ -11518,7 +11518,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
       P.IPD.ADMISSIONS.VIEW,
-      P.LAB.ORDERS.VIEW,
+      P.LAB.REPORTS.VIEW,
       P.NOTES.USE,
       P.PATIENTS.VIEW,
     ],

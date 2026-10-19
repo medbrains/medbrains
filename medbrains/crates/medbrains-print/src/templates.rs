@@ -836,7 +836,7 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
     {% if lab.nabl_certificate_number %}
     <td class="accred" rowspan="2">Reg. No. {{ lab.nabl_certificate_number }}</td>
     {% endif %}
-    <td class="accred">{{ lab.department | default(value="Laboratory") }}</td>
+    <td class="accred">{% if lab.department %}{{ lab.department }}{% else %}Laboratory{% endif %}</td>
   </tr>
   <tr><td class="accred">Report: {{ lab.report_date }}</td></tr>
 </table>
@@ -908,7 +908,9 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
   <tbody>
   {% set_global current_section = "" %}
   {% for r in lab.parameters %}
-    {% set sec = r.section | default(value="Investigations") %}
+    {# `default` only fills a missing key; a test with no department sends
+       null, and `upper` on null fails the whole report. #}
+    {% if r.section %}{% set sec = r.section %}{% else %}{% set sec = "Investigations" %}{% endif %}
     {% if sec != current_section %}
       <tr class="section"><td colspan="5">{{ sec | upper }}</td></tr>
       {% set_global current_section = sec %}

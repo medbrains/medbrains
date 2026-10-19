@@ -221,7 +221,7 @@ pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
     let gotenberg = secrets
         .0
         .get("GOTENBERG_URL")
-        .map(|url| medbrains_print::gotenberg::GotenbergClient::new(url, reqwest::Client::new()));
+        .map(|url| medbrains_print::gotenberg::GotenbergClient::new(url, Client::new()));
     let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> = Arc::new(secrets);
 
     let state = AppState {

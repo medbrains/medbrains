@@ -1908,7 +1908,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::patients::VIEW,
             permissions::ipd::admissions::VIEW,
             permissions::billing::invoices::VIEW,
-            permissions::lab::orders::VIEW,
+            permissions::lab::reports::VIEW,
         ],
     },
     BuiltInRole {

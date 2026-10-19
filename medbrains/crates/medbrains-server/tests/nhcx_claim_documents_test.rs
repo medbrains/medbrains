@@ -40,18 +40,27 @@ async fn stay(n: &nhcx_support::Nhcx) -> (ClaimSeed, Uuid) {
     .fetch_one(db)
     .await
     .expect("lab test");
-    sqlx::query(
+    let order: Uuid = sqlx::query_scalar(
         "INSERT INTO lab_orders (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
              status, verified_at) \
          SELECT a.tenant_id, a.encounter_id, a.patient_id, $2, a.admitting_doctor, \
                 'verified', now() \
-           FROM admissions a WHERE a.id = $1",
+           FROM admissions a WHERE a.id = $1 RETURNING id",
     )
     .bind(seeded.admission)
     .bind(test)
-    .execute(db)
+    .fetch_one(db)
     .await
     .expect("lab order");
+    sqlx::query(
+        "INSERT INTO lab_results (tenant_id, order_id, parameter_name, value, unit, flag) \
+         VALUES ($1, $2, 'Haemoglobin', '10.2', 'g/dL', 'low')",
+    )
+    .bind(n.tenant)
+    .bind(order)
+    .execute(db)
+    .await
+    .expect("lab result");
     let stored: Uuid = sqlx::query_scalar(
         "INSERT INTO patient_documents (tenant_id, patient_id, document_type, document_name, \
              file_url, file_size, mime_type) \
@@ -125,6 +134,19 @@ async fn the_desk_prepares_previews_and_sends_the_claims_documents_as_pdfs() {
         summary_html.contains("Acute appendicitis")
             && summary_html.contains("Laparoscopic appendicectomy"),
         "the PDF carries the finalised summary's diagnosis and course"
+    );
+
+    let lab_html = n
+        .rendered
+        .lock()
+        .expect("lock")
+        .iter()
+        .find(|h| h.contains("lab-head"))
+        .cloned()
+        .expect("the lab report was printed");
+    assert!(
+        lab_html.contains("10.2"),
+        "the lab report carries its result"
     );
 
     let preview = docs[0]["preview_url"].as_str().expect("preview");
