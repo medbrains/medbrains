@@ -66,6 +66,7 @@ struct LoginView: View {
             }
             primaryButton(isLooking ? "Checking…" : "Continue", busy: isLooking, id: "hospitalContinue") { await lookUp() }
                 .disabled(hospitalCode.trimmingCharacters(in: .whitespaces).isEmpty || isLooking)
+            HospitalBindingSection()
         }
     }
 
@@ -114,6 +115,7 @@ struct LoginView: View {
             }
             .buttonStyle(.carbonGhost)
             .accessibilityIdentifier("changeHospital")
+            HospitalBindingSection()
         }
         .onAppear { focus = .username }
     }

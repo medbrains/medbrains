@@ -5,7 +5,7 @@ import { useAuthStore } from "@medbrains/stores";
 import type { SignInOptions } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, Navigate } from "react-router";
+import { Link, Navigate, useSearchParams } from "react-router";
 import { Brand } from "@/components/Brand";
 import { DesktopConnection } from "@/components/login/DesktopConnection";
 import { HospitalCodeStep } from "@/components/login/HospitalCodeStep";
@@ -17,6 +17,9 @@ import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
 import classes from "./login.module.scss";
 
+/** `/login?hospital=AMH` — the hospital step 1 chose. */
+const HOSPITAL_PARAM = "hospital";
+
 /**
  * Sign-in starts with the hospital. Its code (remembered on this device), or
  * the hospital's own domain the page is on, names it; the server answers with
@@ -25,8 +28,14 @@ import classes from "./login.module.scss";
  */
 export function LoginPage() {
   const user = useAuthStore((s) => s.user);
+  // The hospital being signed in to lives in the URL, not in component
+  // state: a remount of this page (a dev-server reload, a Suspense or
+  // error-boundary reset) used to drop a refused attempt back to step 1.
   // null: no code yet — the server tries the hospital's own domain.
-  const [code, setCode] = useState<string | null>(() => getRememberedHospitalCode() || null);
+  const [params, setParams] = useSearchParams();
+  const code = params.get(HOSPITAL_PARAM) || getRememberedHospitalCode() || null;
+  const setCode = (next: string | null) =>
+    setParams(next ? { [HOSPITAL_PARAM]: next } : {}, { replace: true });
   const [choosing, setChoosing] = useState(false);
   const options = useQuery({
     queryKey: ["sign-in-options", code ?? "@domain"],
@@ -82,6 +91,7 @@ export function LoginPage() {
               hospital={hospital}
               onChangeHospital={() => {
                 rememberHospitalCode("");
+                setCode(null);
                 setChoosing(true);
               }}
             />

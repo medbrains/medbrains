@@ -53,8 +53,9 @@ import kotlinx.coroutines.launch
  * (imePadding).
  */
 @Composable
-fun LoginScreen(auth: AuthStore) {
-    var hospitalCode by remember { mutableStateOf(auth.rememberedHospitalCode) }
+fun LoginScreen(auth: AuthStore, binder: StaffBinder) {
+    // A device bound by the hospital's QR opens that hospital directly.
+    var hospitalCode by remember { mutableStateOf(binder.current?.tenant ?: auth.rememberedHospitalCode) }
     var hospital by remember { mutableStateOf<SignInOptions?>(null) }
     var lookupProblem by remember { mutableStateOf<String?>(null) }
     var looking by remember { mutableStateOf(false) }
@@ -114,6 +115,7 @@ fun LoginScreen(auth: AuthStore) {
                     enabled = hospitalCode.isNotBlank() && !looking,
                     modifier = Modifier.testTag("continue"),
                 )
+                HospitalBindingSection(binder)
             } else {
                 if (chosen.password || breakGlass) {
                     PasswordForm(auth, chosen.code)
@@ -133,6 +135,7 @@ fun LoginScreen(auth: AuthStore) {
                     onClick = { auth.forgetHospital(); hospital = null; breakGlass = false; hospitalCode = "" },
                     modifier = Modifier.fillMaxWidth().testTag("changeHospital"),
                 )
+                if (binder.current != null) HospitalBindingSection(binder)
             }
         }
     }

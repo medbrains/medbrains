@@ -114,6 +114,7 @@ export { buildDashboardReportPath, DASHBOARD_STAT_INTENTS } from "./dashboard-in
 // print line is reachable as `IndentFormPrintData["items"][number]`.
 export type { IndentItem } from "./dashboard-widget-builder";
 export * from "./dashboard-widget-builder";
+export * from "./device-binding";
 export * from "./device-integration";
 export * from "./documents-module";
 export * from "./emergency";

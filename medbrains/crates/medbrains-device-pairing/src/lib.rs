@@ -31,6 +31,9 @@ use axum::{
     extract::{Path, State},
 };
 
+pub mod binding;
+mod binding_redeem;
+pub mod binding_token;
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
@@ -70,7 +73,7 @@ pub struct MintTokenRequest {
 /// A valid surface code: a legacy coarse variant, or `<Factor>` / `<Factor>-<Name>` where Factor is
 /// one of the known form-factors. Fine surfaces (TV-Ward, Mobile-Doctor, Desktop-Kiosk) are the
 /// 34-surface catalog; validated by shape here, not a fixed DB enum.
-fn is_valid_app_variant(v: &str) -> bool {
+pub(crate) fn is_valid_app_variant(v: &str) -> bool {
     matches!(v, "staff" | "tv" | "vendor" | "Web")
         || v.split_once('-').is_some_and(|(f, rest)| {
             matches!(f, "TV" | "Mobile" | "Desktop" | "Kiosk") && !rest.is_empty()
@@ -470,7 +473,13 @@ pub(crate) fn sha256_hex(input: &[u8]) -> String {
 /// Gated by the short-lived one-time pairing token in the body, not by a JWT —
 /// a device presenting itself for the first time has nothing else to present.
 pub fn router() -> axum::Router<AppState> {
-    axum::Router::new().route("/api/device-pairing/pair", post(pair_device))
+    axum::Router::new()
+        .route("/api/device-pairing/pair", post(pair_device))
+        // Gated by the signed binding QR in the body, as pairing is by its token.
+        .route(
+            "/api/device-binding/redeem",
+            post(binding_redeem::redeem_binding_code),
+        )
 }
 
 /// Device administration, all of which requires an authenticated operator.
@@ -493,6 +502,14 @@ pub fn admin_router() -> axum::Router<AppState> {
         .route(
             "/api/admin/paired-devices/{id}",
             delete(revoke_paired_device),
+        )
+        .route(
+            "/api/admin/device-binding-codes",
+            get(binding::list_binding_codes).post(binding::issue_binding_code),
+        )
+        .route(
+            "/api/admin/device-binding-codes/{id}/revoke",
+            post(binding::revoke_binding_code),
         )
 }
 

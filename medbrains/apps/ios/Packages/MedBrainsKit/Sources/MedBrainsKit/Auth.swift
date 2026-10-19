@@ -170,6 +170,12 @@ public final class AuthStore {
         return false
     }
 
+    /// A hospital named by something other than a sign-in — the bound QR.
+    public func rememberHospital(_ code: String) {
+        UserDefaults.standard.set(code, forKey: Self.hospitalCodeKey)
+        rememberedHospitalCode = code
+    }
+
     /// "Change hospital": the next sign-in starts from the code again.
     public func forgetHospital() {
         UserDefaults.standard.removeObject(forKey: Self.hospitalCodeKey)
