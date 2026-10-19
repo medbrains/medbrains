@@ -12,6 +12,7 @@ pub mod gateway;
 pub mod phr;
 mod types;
 pub mod registry;
+pub mod scan_share;
 
 pub use abha::{
     AADHAAR_VERIFY_SCOPE, ABDM_BASE_URL_OVERRIDE, ABHA_LOGIN_SCOPE, AbdmAbhaClient,

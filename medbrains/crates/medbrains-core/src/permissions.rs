@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 796;
+pub const PERMISSION_COUNT: usize = 798;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3471,6 +3471,21 @@ pub mod abdm {
         /// The consent requests raised for a patient and the records other
         /// facilities sent under them, until the consent is revoked or expires.
         pub const VIEW: &str = "abdm.consent.view";
+    }
+    /// ABDM Scan & Share: patients scan a counter's QR with their ABHA app
+    /// and share their profile instead of queueing to register.
+    pub mod scanshare {
+        /// Work the Scan & Share registration queue.
+        ///
+        /// See the ABHA profiles patients shared at the registration counters
+        /// today, with their token numbers; open the matched patient, register
+        /// a new one from the profile, or dismiss a share.
+        pub const VIEW: &str = "abdm.scanshare.view";
+        /// Print the counters' Scan & Share QR codes.
+        ///
+        /// The QR poster for each registration counter, naming this
+        /// hospital's HFR facility ID and the counter.
+        pub const MANAGE: &str = "abdm.scanshare.manage";
     }
     pub mod hpr {
         /// Record and verify doctors' HPR IDs.

@@ -19,6 +19,7 @@ import {
   IconPill,
   IconPlug,
   IconPrinter,
+  IconQrcode,
   IconRuler2,
   IconSettings,
   IconShare,
@@ -30,6 +31,7 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { AbdmScanShareSettings } from "@/pages/admin/settings/AbdmScanShareSettings";
 import { AbdmSettings } from "@/pages/admin/settings/AbdmSettings";
 import { AbdmSharingSettings } from "@/pages/admin/settings/AbdmSharingSettings";
 import { AccessMatrixSettings } from "@/pages/admin/settings/AccessMatrixSettings";
@@ -254,6 +256,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: AbdmSharingSettings,
   },
   {
+    value: "abdm-scan-share",
+    i18nKey: "settings.abdmScanShare",
+    icon: "IconQrcode",
+    requiredPermission: "abdm.scanshare.manage",
+    component: AbdmScanShareSettings,
+  },
+  {
     value: "nhcx",
     i18nKey: "settings.nhcx",
     icon: "IconShieldCheck",
@@ -401,6 +410,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconPalette,
   IconPlug,
   IconPrinter,
+  IconQrcode,
   IconShare,
   IconShieldCheck,
   IconShieldLock,

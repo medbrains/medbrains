@@ -5,6 +5,8 @@
 //! - `hpr` — Healthcare Professionals Registry IDs on doctor profiles.
 //! - `hip` — ABDM Milestone 2: this hospital as a Health Information Provider.
 //! - `hiu` — ABDM Milestone 3: this hospital as a Health Information User.
+//! - `scan_share` — Scan & Share: counter QR codes and the desk's queue of
+//!   shared ABHA profiles (the gateway side is `hip::profile_share`).
 //! - `hip_relay` — Cloud-side relay: verified gateway callbacks kept for the
 //!   on-premises server to pull.
 
@@ -20,6 +22,7 @@ pub mod hfr;
 pub mod hip;
 pub mod hiu;
 pub mod hip_relay;
+pub mod scan_share;
 pub mod settings;
 pub mod hpr;
 mod registry_access;

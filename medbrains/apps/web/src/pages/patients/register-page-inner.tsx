@@ -20,15 +20,18 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { DataTable, PageHeader, useClinicalEmit } from "@/components";
+import { shareRegistrationValues } from "@/components/abha/scanShare";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
-import { Alert, Badge, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
+import { abdmScanShareService } from "@/services/abdmScanShare.service";
 import { campService } from "@/services/camp.service";
 import { opdService } from "@/services/opd.service";
 import { patientsService } from "@/services/patients.service";
+import type { ScanShareRegistrationState } from "../front-office/scan-share-tab";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
 import { registrationAction } from "./registrationGate";
@@ -106,6 +109,8 @@ export function PatientRegisterPageInner() {
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  // Arrived from Front Office → Scan & Share: the profile the server verified.
+  const scanShare = (useLocation().state as ScanShareRegistrationState | null)?.scanShare;
   const queryClient = useQueryClient();
   const source = params.get("source");
   const sourceCampId = params.get("campId") ?? "";
@@ -144,6 +149,14 @@ export function PatientRegisterPageInner() {
         open_opd_after_registration: true,
       }
     : undefined;
+  const shareProfile = scanShare?.step.profile;
+  const initialValues = shareProfile ? shareRegistrationValues(shareProfile) : campInitialValues;
+  const completeShare = useMutation({
+    mutationFn: ({ shareId, patientId }: { shareId: string; patientId: string }) =>
+      abdmScanShareService.complete(shareId, { patient_id: patientId }),
+    onError: (e: Error) =>
+      toast.error(e.message, { title: "Registered, but the Scan & Share entry is still open" }),
+  });
   const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
   const pendingRegistrationRef = useRef<RegisterPatientMutationInput | null>(null);
   const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
@@ -261,6 +274,7 @@ export function PatientRegisterPageInner() {
         returnTo: resultReturnTo,
       } = result;
       emit("patient.created", { patient_id: patient.id });
+      if (scanShare) completeShare.mutate({ shareId: scanShare.shareId, patientId: patient.id });
       if (campId && campRegistrationId) {
         emit("camp.registration.created", {
           camp_id: campId,
@@ -456,7 +470,8 @@ export function PatientRegisterPageInner() {
                   onCancel={() => navigate(backTarget)}
                   isSubmitting={createMutation.isPending}
                   submitLabel={t("actions.register")}
-                  initialValues={campInitialValues}
+                  initialValues={initialValues}
+                  initialAbhaVerificationId={shareProfile ? scanShare?.step.id : undefined}
                 />
               </Card>
             )}

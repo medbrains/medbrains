@@ -7,6 +7,8 @@
 //! - `discovery` — user-initiated discovery and linking (PHR app → us).
 //! - `consent`   — consent notifications and health-information requests.
 //! - `bundles`   — the NRCeS FHIR bundles a transfer carries.
+//! - `profile_share` — Scan & Share: a patient shares their ABHA profile at a
+//!   counter and is given a token.
 //! - `records`   — the staff screens: a patient's ABDM records, sharing totals.
 //! - `outbox`    — the outbox handler that links a newly captured record.
 //!
@@ -20,6 +22,7 @@ pub mod gateway;
 pub mod link_callbacks;
 pub mod linking;
 pub mod outbox;
+pub mod profile_share;
 pub mod records;
 
 use axum::{Router, routing::post};
@@ -40,6 +43,10 @@ pub fn public_router() -> Router<AppState> {
             post(link_callbacks::on_link_care_context),
         )
         .route(paths::CB_DISCOVER, post(discovery::discover))
+        .route(
+            medbrains_abdm::scan_share::CB_PROFILE_SHARE,
+            post(profile_share::share),
+        )
         .route(paths::CB_LINK_INIT, post(discovery::link_init))
         .route(paths::CB_LINK_CONFIRM, post(discovery::link_confirm))
         .route(paths::CB_CONSENT_NOTIFY, post(consent::notify))
