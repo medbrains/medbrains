@@ -15,6 +15,7 @@ use axum::{Extension, Json, extract::State};
 use medbrains_abdm::{
     AbdmAbhaClient, AbdmEnvironment, AbdmError, AbhaIntegrationReadiness, SessionTokenRequest,
 };
+use medbrains_core::secrets::SecretResolver;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -85,21 +86,34 @@ impl Abdm {
     }
 }
 
-/// Connect to ABDM for the caller's hospital.
+/// A signed-in gateway session for one hospital.
+pub(crate) struct Session {
+    pub client: AbdmAbhaClient,
+    pub environment: AbdmEnvironment,
+    pub token: String,
+}
+
+/// The gateway session for `tenant_id`, from the cache or freshly signed in.
+/// Takes the pool and secret store rather than `AppState` so the outbox
+/// worker can use it too.
 ///
 /// # Errors
 /// 503 when credentials are missing or ABDM is unreachable.
-pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError> {
-    let mut tx = state.db.begin().await?;
+pub(crate) async fn session(
+    db: &sqlx::PgPool,
+    secrets: &dyn SecretResolver,
+    tenant_id: Uuid,
+) -> Result<Session, AppError> {
+    let mut tx = db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let key = secret_key(state).await;
+    let key = secret_key(secrets).await;
     let config = read_abdm_config(&mut tx, &tenant_id, &key).await?;
     tx.commit().await?;
 
-    let base = base_url_override(state).await;
+    let base = base_url_override(secrets).await;
     let client =
         AbdmAbhaClient::new(config.environment, base.as_deref()).map_err(map_abdm_error)?;
-    let session = if let Some(token) = cached(&SESSIONS, &(tenant_id, config.environment)) {
+    let token = if let Some(token) = cached(&SESSIONS, &(tenant_id, config.environment)) {
         token
     } else {
         let fresh = client
@@ -118,6 +132,23 @@ pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError
         );
         fresh.access_token
     };
+    Ok(Session {
+        client,
+        environment: config.environment,
+        token,
+    })
+}
+
+/// Connect to ABDM for the caller's hospital.
+///
+/// # Errors
+/// 503 when credentials are missing or ABDM is unreachable.
+pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError> {
+    let Session {
+        client,
+        environment,
+        token: session,
+    } = session(&state.db, state.secret_resolver.as_ref(), tenant_id).await?;
     let key_source = client.readiness().abha_base_url;
     let public_key = if let Some(key) = cached(&PUBLIC_KEYS, &key_source) {
         key
@@ -136,7 +167,7 @@ pub async fn connect(state: &AppState, tenant_id: Uuid) -> Result<Abdm, AppError
     };
     Ok(Abdm {
         client,
-        environment: config.environment,
+        environment,
         session,
         public_key,
     })
@@ -164,7 +195,7 @@ pub async fn status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // A missing configuration is an answer here ("not configured"), not a fault.
-    let key = secret_key(&state).await;
+    let key = secret_key(state.secret_resolver.as_ref()).await;
     let config = match read_abdm_config(&mut tx, &claims.tenant_id, &key).await {
         Ok(config) => Some(config),
         Err(AppError::ServiceUnavailable(_)) => None,
@@ -175,7 +206,7 @@ pub async fn status(
     let environment = config
         .as_ref()
         .map_or(AbdmEnvironment::Sandbox, |c| c.environment);
-    let base = base_url_override(&state).await;
+    let base = base_url_override(state.secret_resolver.as_ref()).await;
     let readiness = AbdmAbhaClient::new(environment, base.as_deref())
         .map_err(map_abdm_error)?
         .readiness();
@@ -193,8 +224,8 @@ const SECRET_KEY_NAME: &str = "MEDBRAINS_ABDM_SECRET_KEY";
 const DEV_SECRET_KEY: &[u8] = b"medbrains-dev-abdm-secret-key-32";
 const SECRET_CONTEXT: &[u8] = b"abdm-client-secret";
 
-pub(crate) async fn secret_key(state: &AppState) -> Vec<u8> {
-    match state.secret_resolver.get(SECRET_KEY_NAME).await {
+pub(crate) async fn secret_key(secrets: &dyn SecretResolver) -> Vec<u8> {
+    match secrets.get(SECRET_KEY_NAME).await {
         Ok(value) if value.len() >= 32 => value.into_bytes(),
         _ => DEV_SECRET_KEY.to_vec(),
     }
@@ -306,9 +337,8 @@ pub(crate) async fn abdm_configured(state: &AppState, tenant_id: Uuid) -> Result
 }
 
 /// A mock ABDM for tests and rehearsals, when the secret store names one.
-async fn base_url_override(state: &AppState) -> Option<String> {
-    state
-        .secret_resolver
+async fn base_url_override(secrets: &dyn SecretResolver) -> Option<String> {
+    secrets
         .get(medbrains_abdm::ABDM_BASE_URL_OVERRIDE)
         .await
         .ok()

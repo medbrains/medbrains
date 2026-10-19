@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1079 permissions, one per constant in the Rust source. */
+/** 1081 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6560,6 +6560,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "abdm",
   },
   {
+    code: "abdm.records.view",
+    label: "View records shared through ABDM",
+    description: "Which of a patient's records are linked to their ABHA, why one is not, the consents received and every transfer made, and the hospital's monthly DHIS counts.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.records.manage",
+    label: "Link or retry linking records to ABHA",
+    description: "Send a patient's finalised records to ABDM again after a failure, or link one that was captured before the ABHA was verified.",
+    module: "abdm",
+  },
+  {
     code: "abdm.hpr.manage",
     label: "Record and verify doctors' HPR IDs",
     description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
@@ -6589,6 +6601,12 @@ export const P = {
       MANAGE: "abdm.hpr.manage",
     },
     HPR_MANAGE: "abdm.hpr.manage",
+    RECORDS: {
+      MANAGE: "abdm.records.manage",
+      VIEW: "abdm.records.view",
+    },
+    RECORDS_MANAGE: "abdm.records.manage",
+    RECORDS_VIEW: "abdm.records.view",
     RELAY: {
       PULL: "abdm.relay.pull",
     },
@@ -9807,6 +9825,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Doctor",
     permissions: [
       P.ABDM.ABHA.VIEW,
+      P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AI.ASSISTANT.USE,
       P.AUDIT.BREAK_GLASS_START,
@@ -10114,6 +10133,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   nurse: {
     label: "Nurse",
     permissions: [
+      P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.AI.ASSISTANT.USE,
       P.AUDIT.BREAK_GLASS_START,
@@ -10968,6 +10988,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ABDM.RECORDS.MANAGE,
+      P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.CLINICAL_NOTES.EXPORT,
       P.CLINICAL_NOTES.PRINT,

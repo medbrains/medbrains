@@ -48,6 +48,7 @@ import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspa
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "@/components/PageHeader";
 import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSection";
+import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -578,6 +579,7 @@ export function PatientDetailPageInner() {
               <Tabs.Panel id="patient-documents" value="documents" pt="md">
                 <Stack>
                   <DetailDocumentsTab patientId={patient.id} />
+                  <AbdmRecordsSection patientId={patient.id} />
                   <PatientAccessLogSection patientId={patient.id} />
                 </Stack>
               </Tabs.Panel>

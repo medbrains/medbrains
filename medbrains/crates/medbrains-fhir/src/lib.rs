@@ -13,6 +13,7 @@
 //! internal `MedBrains` domain types live in `mapper.rs`.
 
 pub mod mapper;
+pub mod nrces;
 pub mod r4;
 
 pub use r4::{

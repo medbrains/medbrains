@@ -22,12 +22,10 @@ josekit = "0.8"
 # source instead of requiring a cross-arch libssl-dev sysroot.
 openssl = { version = "0.10", features = ["vendored"] }
 
-# Base64url helpers + raw AES-GCM for the inner ABDM HIE payload
-# (NHCX uses JOSE end-to-end, but ABDM HIE wraps clinical Bundle
-# inside an additional encrypted blob keyed via ECDH).
+# Base64 + AES-GCM + HKDF for ABDM's Fidelius transfer encryption
+# (ECDH on Weierstrass Curve25519 runs on the openssl dependency above).
 base64 = "0.22"
 aes-gcm = "0.10"
 hkdf = "0.12"
 sha2.workspace = true
-p256 = { version = "0.13", features = ["ecdh"] }
 rand = { version = "0.9" }

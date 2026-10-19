@@ -97,6 +97,13 @@ pub fn build_router(state: AppState) -> Router {
         // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
         // not a user session, so they live on the public router.
         .merge(medbrains_nhcx_callback::public_router())
+        // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
+        // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
+        .merge(abdm::hip::public_router())
+        .route(
+            "/api/abdm/gateway/callback",
+            post(abdm::hip_relay::receive_callback),
+        )
         // Device pairing — gated by short-lived one-time token, not JWT
         .merge(medbrains_device_pairing::router())
         // Device-code pairing — a display has no credentials yet, so asking for a
@@ -417,8 +424,16 @@ pub fn build_router(state: AppState) -> Router {
             post(abdm::abha_link::link),
         )
         .route(
-            "/api/abdm/gateway/callback",
-            post(abdm::hip_relay::receive_callback),
+            "/api/abdm/patients/{patient_id}/records",
+            get(abdm::hip::records::patient_records),
+        )
+        .route(
+            "/api/abdm/care-contexts/{id}/link",
+            post(abdm::hip::records::link_now),
+        )
+        .route(
+            "/api/abdm/sharing/summary",
+            get(abdm::hip::records::sharing_summary),
         )
         .route(
             "/api/abdm/gateway/callbacks/pending",

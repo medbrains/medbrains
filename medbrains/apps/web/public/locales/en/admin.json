@@ -16,6 +16,7 @@
   "settings.billing": "Billing & Tax",
   "settings.paymentTerminals": "Payment Terminals",
   "settings.abdm": "ABDM (ABHA & health records)",
+  "settings.abdmSharing": "ABDM sharing",
   "settings.nhcx": "NHCX",
   "settings.paymentExceptions": "Payment Reconciliation",
   "settings.branding": "Branding",

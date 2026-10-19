@@ -21,6 +21,7 @@ import {
   IconPrinter,
   IconRuler2,
   IconSettings,
+  IconShare,
   IconShieldCheck,
   IconShieldLock,
   IconSitemap,
@@ -30,6 +31,7 @@ import {
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 import { AbdmSettings } from "@/pages/admin/settings/AbdmSettings";
+import { AbdmSharingSettings } from "@/pages/admin/settings/AbdmSharingSettings";
 import { AccessMatrixSettings } from "@/pages/admin/settings/AccessMatrixSettings";
 import { BedTypesSettings } from "@/pages/admin/settings/BedTypesSettings";
 import { BillingTaxSettings } from "@/pages/admin/settings/BillingTaxSettings";
@@ -245,6 +247,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: AbdmSettings,
   },
   {
+    value: "abdm-sharing",
+    i18nKey: "settings.abdmSharing",
+    icon: "IconShare",
+    requiredPermission: "abdm.records.view",
+    component: AbdmSharingSettings,
+  },
+  {
     value: "nhcx",
     i18nKey: "settings.nhcx",
     icon: "IconShieldCheck",
@@ -392,6 +401,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconPalette,
   IconPlug,
   IconPrinter,
+  IconShare,
   IconShieldCheck,
   IconShieldLock,
   IconPill,

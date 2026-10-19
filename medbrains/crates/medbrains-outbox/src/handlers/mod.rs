@@ -8,13 +8,11 @@
 //! - `nhcx`      — nhcx.* (HCX JWE exchange with the NHCX gateway)
 //!
 //! Stubs (Phase 1 — log only, return Ok; Phase 2 wires real protocol):
-//! - `abdm_stub`      — `abdm.verify_abha`, `abdm.hie_bundle_push`
 //! - `hl7_stub`       — `lab.critical_value_notify`, hl7.*
 //!
 //! Pipeline fallback (catches unregistered `event_types)`:
 //! - `pipeline_fallback` — delegates to existing `events::dispatch_to_pipelines`
 
-pub mod abdm_stub;
 pub mod cashfree;
 pub mod ccavenue;
 pub mod email_stub;
