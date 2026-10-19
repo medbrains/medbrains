@@ -38,6 +38,7 @@ import com.medbrains.kit.LocalApiClient
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
+import com.medbrains.staff.abdm.AbdmRoutes.abdmRecordsRoutes
 import com.medbrains.staff.nurse.AdmissionRow
 import com.medbrains.staff.nurse.NurseApi
 import com.medbrains.ui.CarbonActionRow
@@ -71,6 +72,7 @@ fun DoctorModule() {
         composable("ipd-rounds") { IpdRoundsScreen(nav, NurseApi(client), session) }
         composable("round/{id}") { IpdRoundDetailScreen(session.admissions.getValue(it.arguments!!.getString("id")!!)) }
         composable("my-clinic") { MyClinicScreen(api) }
+        abdmRecordsRoutes(nav)
     }
 }
 

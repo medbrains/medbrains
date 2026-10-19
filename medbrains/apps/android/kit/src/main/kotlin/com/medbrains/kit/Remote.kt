@@ -37,6 +37,12 @@ class Remote<T> {
     private val _staleSince = MutableStateFlow<Instant?>(null)
     /** Set when a refresh failed but an earlier answer is still shown. */
     val staleSince: StateFlow<Instant?> = _staleSince.asStateFlow()
+    private val _failedStatus = MutableStateFlow<Int?>(null)
+    /**
+     * The HTTP status of the failure shown, when the server answered: a 404 or
+     * 403 is "not available to you", which a screen says differently from an outage.
+     */
+    val failedStatus: StateFlow<Int?> = _failedStatus.asStateFlow()
 
     val value: T? get() = _state.value.value
 
@@ -44,6 +50,7 @@ class Remote<T> {
         try {
             _state.value = RemoteState.Loaded(op())
             _staleSince.value = null
+            _failedStatus.value = null
         } catch (e: Exception) {
             // The class and message, never the body: a decode failure names a
             // field, an outage names a host, and both are what a support call needs.
@@ -54,6 +61,7 @@ class Remote<T> {
                 if (_staleSince.value == null) _staleSince.value = Instant.now()
             } else {
                 _state.value = RemoteState.Failed((e as? ApiError)?.message ?: "Could not reach the hospital server.")
+                _failedStatus.value = (e as? ApiError)?.status
             }
         }
     }
@@ -73,6 +81,8 @@ object ServerTime {
     private val short = DateTimeFormatter.ofPattern("d MMM, HH:mm")
     /** "12 Sep, 14:05" in the device's zone. */
     fun short(text: String?): String = parse(text)?.let { short.format(it.atZone(ZoneId.systemDefault())) } ?: "—"
+    /** "9 Nov 2026" for a timestamp, on the device's calendar day. */
+    fun dateOf(text: String?): String = parse(text)?.let { day.format(it.atZone(ZoneId.systemDefault())) } ?: "—"
     private val day = DateTimeFormatter.ofPattern("d MMM yyyy")
     /** "9 Nov 2026" for a calendar date the server sends as YYYY-MM-DD: no time, no zone to shift it. */
     fun day(text: String?): String = text?.let { runCatching { day.format(LocalDate.parse(it)) }.getOrNull() } ?: "—"
@@ -82,3 +92,6 @@ object ServerTime {
 val LocalApiClient = compositionLocalOf<ApiClient> { error("ApiClient not provided") }
 val LocalAuthStore = compositionLocalOf<AuthStore> { error("AuthStore not provided") }
 val LocalIdentity = compositionLocalOf<TenantIdentity?> { null }
+
+/** Refused or gone (403/404): a screen says "not available", never "none". */
+fun isNotAvailable(failedStatus: Int?): Boolean = failedStatus == 403 || failedStatus == 404

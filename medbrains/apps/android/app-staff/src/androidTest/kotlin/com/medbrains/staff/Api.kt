@@ -42,11 +42,13 @@ class Api private constructor(private var token: String?) {
         return (0 until arr.length()).map { arr.getJSONObject(it) }
     }
 
-    fun provision(role: String): Identity {
+    /** [extra] grants codes beyond the role (the access matrix), for a journey that crosses modules. */
+    fun provision(role: String, extra: List<String> = emptyList()): Identity {
         val username = "e2e_${role.replace("_", "")}_$RUN${++serial}"
         val password = "E2eTemp#${RUN}Aa9"
         val payload = JSONObject().put("username", username).put("email", "$username@e2e.medbrains.localhost").put("password", password).put("full_name", "E2E $role $RUN").put("role", role)
         if (role in setOf("doctor", "nurse")) firstDepartmentId()?.let { payload.put("department_ids", JSONArray().put(it)) }
+        if (extra.isNotEmpty()) payload.put("access_matrix", JSONObject().put("extra", JSONArray(extra)).put("denied", JSONArray()))
         if (role == "doctor") payload.put("specialization", "General Medicine").put("medical_registration_number", "E2E-$RUN").put("qualification", "MBBS")
         val (status, text) = call("POST", "/api/setup/users", payload)
         check(status in 200..299) { "provisioning $role failed: $status $text" }
@@ -76,9 +78,12 @@ class Api private constructor(private var token: String?) {
         .put("caller_name", "Caller $RUN").put("caller_phone", "94$RUN").put("enquiry_type", "general").put("response_text", said))
     fun enquiries(): List<JSONObject> = list("/api/front-office/enquiries")
 
-    fun firstDepartmentId(): String? {
+    fun firstDepartmentId(): String? = firstDepartment()?.optString("id")
+
+    /** The clinical department provisioned staff join (General Medicine when it exists). */
+    fun firstDepartment(): JSONObject? {
         val rows = list("/api/setup/departments")
-        return (rows.firstOrNull { it.optString("code") == "GEN-MEDICINE" } ?: rows.firstOrNull())?.optString("id")
+        return rows.firstOrNull { it.optString("code") == "GEN-MEDICINE" } ?: rows.firstOrNull()
     }
 
     fun patient(last: String, phone: String = "98" + RUN.padEnd(8, '0')): JSONObject = obj("POST", "/api/patients", JSONObject()
@@ -179,13 +184,16 @@ class Api private constructor(private var token: String?) {
         (0 until s.length()).map { s.getJSONObject(it) }.firstOrNull { it.optString("code") == code }?.optString("text")
     }
     fun responders() = list("/api/nurse/code-blue/responders")
+    /** One UHI request, read from the whole queue. */
+    fun uhiRequest(id: String): JSONObject? = list("/api/uhi/requests").firstOrNull { it.optString("id") == id }
 
     companion object {
         /** The group every seeded transfusion uses: O-positive donor and patient, compatible by rule. */
         const val SEED_BLOOD_GROUP = "o_positive"
         /** The five statutory TTI markers, all non-reactive: nothing is released otherwise. */
         val TTI_MARKERS = listOf("hiv", "hbsag", "hcv", "syphilis", "malaria")
-        const val BACKEND = "http://10.0.2.2:3000"
+        /** The emulator's view of the host's server; the instrumentation argument `baseUrl` points a run elsewhere. */
+        val BACKEND: String = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("baseUrl") ?: "http://10.0.2.2:3000"
         val RUN: String = (System.currentTimeMillis() / 1000 % 1_000_000).toString()
         private var serial = 0
         /** The API as a provisioned identity — what the desk itself can see and do. */

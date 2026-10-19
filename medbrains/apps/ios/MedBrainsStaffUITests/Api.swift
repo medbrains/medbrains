@@ -67,12 +67,14 @@ final class Api {
     private static let clinicalRoles: Set<String> = ["doctor", "nurse"]
 
     /// `e2e_<role>_<run>` with the department real staff have, as the web suite does.
-    func provision(_ role: String) -> Identity {
+    /// `extra` grants codes beyond the role (the access matrix), for a journey that crosses modules.
+    func provision(_ role: String, extra: [String] = []) -> Identity {
         Self.serial += 1
         let username = "e2e_\(role.replacingOccurrences(of: "_", with: ""))_\(Self.runId)\(Self.serial)"
         let password = "E2eTemp#\(Self.runId)Aa9"
         var payload: [String: Any] = ["username": username, "email": "\(username)@e2e.medbrains.localhost", "password": password, "full_name": "E2E \(role) \(Self.runId)", "role": role]
         if Self.clinicalRoles.contains(role), let dept = firstDepartmentId() { payload["department_ids"] = [dept] }
+        if !extra.isEmpty { payload["access_matrix"] = ["extra": extra, "denied": [String]()] }
         if role == "doctor" { payload["specialization"] = "General Medicine"; payload["medical_registration_number"] = "E2E-\(Self.runId)"; payload["qualification"] = "MBBS" }
         let (status, body) = call("POST", "/api/setup/users", payload)
         let id = (body as? [String: Any])?["id"] as? String ?? ""
@@ -94,9 +96,12 @@ final class Api {
         }
     }
 
-    func firstDepartmentId() -> String? {
+    func firstDepartmentId() -> String? { firstDepartment()?["id"] as? String }
+
+    /// The clinical department provisioned staff join (General Medicine when it exists).
+    func firstDepartment() -> [String: Any]? {
         let rows = list("/api/setup/departments")
-        return (rows.first { ($0["code"] as? String) == "GEN-MEDICINE" } ?? rows.first)?["id"] as? String
+        return rows.first { ($0["code"] as? String) == "GEN-MEDICINE" } ?? rows.first
     }
 
     // MARK: seeds
@@ -222,4 +227,6 @@ final class Api {
         ((note?["sections"] as? [[String: Any]])?.first { $0["code"] as? String == code })?["text"] as? String
     }
     func responders() -> [[String: Any]] { list("/api/nurse/code-blue/responders") }
+    /// One UHI request, read from the whole queue.
+    func uhiRequest(_ id: String) -> [String: Any]? { list("/api/uhi/requests").first { ($0["id"] as? String) == id } }
 }

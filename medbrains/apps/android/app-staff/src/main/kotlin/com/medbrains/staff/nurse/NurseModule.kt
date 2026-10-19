@@ -34,6 +34,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.medbrains.kit.LocalApiClient
+import com.medbrains.staff.abdm.AbdmRoutes.abdmRecordsRoutes
 import com.medbrains.kit.LocalIdentity
 import com.medbrains.kit.Remote
 import com.medbrains.kit.value
@@ -74,6 +75,7 @@ fun NurseModule() {
         composable("handover/{id}") { ShiftHandoverScreen(api, session.admissions.getValue(it.arguments!!.getString("id")!!)) }
         composable("transfusions/{id}") { TransfusionMonitorScreen(api, session.admissions.getValue(it.arguments!!.getString("id")!!)) }
         composable("bedside/{id}/{mode}") { BedsideActionScreen(api, session.admissions.getValue(it.arguments!!.getString("id")!!), it.arguments!!.getString("mode")!!) }
+        abdmRecordsRoutes(nav)
     }
 }
 

@@ -42,6 +42,16 @@ enum class CarbonTone(val fill: Color, val ink: Color, val bar: Color) {
     HighAlert(Carbon.ochre[1], Carbon.ochre[8], Carbon.ochre[5]),
 }
 
+/** The kit's design-free tone, drawn in Carbon. */
+val com.medbrains.kit.Tone.carbon: CarbonTone
+    get() = when (this) {
+        com.medbrains.kit.Tone.Neutral -> CarbonTone.Neutral
+        com.medbrains.kit.Tone.Info -> CarbonTone.Info
+        com.medbrains.kit.Tone.Success -> CarbonTone.Success
+        com.medbrains.kit.Tone.Warning -> CarbonTone.Warning
+        com.medbrains.kit.Tone.Danger -> CarbonTone.Danger
+    }
+
 @Composable
 fun CarbonTag(text: String, tone: CarbonTone = CarbonTone.Neutral, mono: Boolean = false, modifier: Modifier = Modifier) {
     Text(
