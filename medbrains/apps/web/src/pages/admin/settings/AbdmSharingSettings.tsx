@@ -36,7 +36,8 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 
 /**
  * Settings → ABDM sharing: this month's links by DHIS category, what DHIS
- * would count, and every record that failed to link, with a retry.
+ * would count, every record that failed to link, with a retry, and the
+ * records requested from other hospitals (HIU).
  */
 export function AbdmSharingSettings() {
   const canManage = useHasPermission(P.ABDM.RECORDS.MANAGE);
@@ -112,6 +113,23 @@ export function AbdmSharingSettings() {
         <Stat label="Waiting for ABDM" value={c.linking} />
         <Stat label="Not linked" value={c.not_linked} />
         <Stat label="Records sent under consent" value={c.transfers} />
+      </SimpleGrid>
+      <Text fw={600}>Records received from other hospitals</Text>
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+        <Stat label="Requests" value={data.hiu.requests} hint="Raised by doctors this month" />
+        <Stat
+          label="Granted"
+          value={
+            data.hiu.requests ? `${Math.round((data.hiu.granted / data.hiu.requests) * 100)}%` : "—"
+          }
+          hint={`${data.hiu.granted} granted, ${data.hiu.denied} denied`}
+        />
+        <Stat label="Records received" value={data.hiu.records_received} />
+        <Stat
+          label="Estimated HIU incentive"
+          value={`₹${data.hiu_estimated_incentive_inr.toLocaleString("en-IN")}`}
+          hint={`${data.hiu.dhis_eligible_consents} consents brought records from another facility`}
+        />
       </SimpleGrid>
       <Card>
         <Stack gap="xs">
