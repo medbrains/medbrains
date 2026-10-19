@@ -363,6 +363,22 @@ pub fn build_router(state: AppState) -> Router {
             post(abdm::abha_verify::choose_account),
         )
         .route(
+            "/api/abdm/abha/enrolments",
+            post(abdm::abha_enrol::start),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/otp",
+            post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/mobile-otp",
+            post(abdm::abha_enrol::submit_mobile_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/address",
+            post(abdm::abha_enrol::choose_address),
+        )
+        .route(
             "/api/abdm/abha/verifications/{id}/card",
             get(abdm::abha_card::card),
         )

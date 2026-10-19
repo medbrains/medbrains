@@ -218,7 +218,7 @@ impl AbdmAbhaClient {
         with_headers(self.http.get(self.url(path)), session, user)
     }
 
-    fn post(
+    pub(crate) fn post(
         &self,
         path: &str,
         session: &str,
@@ -249,7 +249,7 @@ fn with_headers(
     }
 }
 
-async fn send_json<T>(builder: reqwest::RequestBuilder) -> Result<T, AbdmError>
+pub(crate) async fn send_json<T>(builder: reqwest::RequestBuilder) -> Result<T, AbdmError>
 where
     T: for<'de> Deserialize<'de>,
 {

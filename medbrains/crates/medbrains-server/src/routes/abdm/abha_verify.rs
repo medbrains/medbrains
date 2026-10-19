@@ -373,6 +373,7 @@ async fn offer_accounts(
         accounts: choices,
         profile: None,
         already_linked: None,
+        suggestions: Vec::new(),
     }))
 }
 

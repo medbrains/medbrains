@@ -38,7 +38,9 @@ import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { type AbhaVerified, AbhaVerifyDrawer } from "@/components/abha/AbhaVerifyDrawer";
+import { AbhaCreateDrawer } from "@/components/abha/AbhaCreateDrawer";
+import type { AbhaVerified } from "@/components/abha/AbhaVerifiedStep";
+import { AbhaVerifyDrawer } from "@/components/abha/AbhaVerifyDrawer";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
 import {
@@ -384,6 +386,7 @@ export function PatientRegisterForm({
   });
   const [activeStep, setActiveStep] = useState(0);
   const [abhaDrawerOpen, setAbhaDrawerOpen] = useState(false);
+  const [abhaCreateOpen, setAbhaCreateOpen] = useState(false);
   /** The ABHA verified against ABDM; a later edit of the number unverifies it. */
   const [verifiedAbha, setVerifiedAbha] = useState<{ id: string; digits: string } | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -610,6 +613,7 @@ export function PatientRegisterForm({
     }
     setVerifiedAbha({ id: verificationId, digits: profile.abha_number.replace(/\D/g, "") });
     setAbhaDrawerOpen(false);
+    setAbhaCreateOpen(false);
   };
   const queryClient = useQueryClient();
   // Editing an existing patient: the link is saved now, server-side, rather
@@ -1260,6 +1264,7 @@ export function PatientRegisterForm({
               <AbhaLinkPanel
                 status={abhaLinkStatus}
                 onVerify={canVerifyAbha ? () => setAbhaDrawerOpen(true) : undefined}
+                onCreate={canVerifyAbha ? () => setAbhaCreateOpen(true) : undefined}
                 onPrintCard={
                   abhaVerificationId
                     ? () =>
@@ -2090,6 +2095,21 @@ export function PatientRegisterForm({
         <AbhaVerifyDrawer
           opened={abhaDrawerOpen}
           onClose={() => setAbhaDrawerOpen(false)}
+          ours={{
+            first_name: watch("first_name"),
+            middle_name: watch("middle_name"),
+            last_name: watch("last_name"),
+            date_of_birth: dateOfBirthValue ? isoDay(dateOfBirthValue) : null,
+            gender: watch("gender"),
+          }}
+          confirmLabel={patientId ? "Link to this patient" : "Use for this registration"}
+          confirming={linkAbha.isPending}
+          onConfirm={patientId ? (v) => linkAbha.mutate(v) : applyVerifiedAbha}
+        />
+        <AbhaCreateDrawer
+          opened={abhaCreateOpen}
+          onClose={() => setAbhaCreateOpen(false)}
+          mobile={watch("phone")}
           ours={{
             first_name: watch("first_name"),
             middle_name: watch("middle_name"),

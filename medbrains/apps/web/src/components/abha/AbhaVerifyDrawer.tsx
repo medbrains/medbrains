@@ -1,34 +1,15 @@
 import { Radio, Stack, Text } from "@mantine/core";
-import type {
-  AbhaField,
-  AbhaOtpVia,
-  AbhaVerificationStep,
-  AbhaVerifiedProfile,
-  AbhaVerifyMethod,
-} from "@medbrains/types";
+import type { AbhaOtpVia, AbhaVerificationStep, AbhaVerifyMethod } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useInterval } from "react-use";
 import { Alert, Button, Drawer, Input, SegmentedControl } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
-import { AbhaCompare, compareRows, type OurDetails } from "./AbhaCompare";
+import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
 
-export interface AbhaVerified {
-  verificationId: string;
-  profile: AbhaVerifiedProfile;
-  /** Details staff chose to take from ABHA. */
-  apply: AbhaField[];
-}
-
-interface AbhaVerifyDrawerProps {
+interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
   opened: boolean;
   onClose: () => void;
-  /** The patient's details as they are now, for the side-by-side check. */
-  ours: OurDetails;
-  /** Label for the final button: "Use for this registration" / "Link to patient". */
-  confirmLabel: string;
-  confirming?: boolean;
-  onConfirm: (verified: AbhaVerified) => void;
 }
 
 /**
@@ -51,21 +32,12 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<AbhaVerificationStep | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [apply, setApply] = useState<AbhaField[]>([]);
   const [wait, setWait] = useState(0);
   useInterval(() => setWait((w) => w - 1), wait > 0 ? 1000 : null);
 
   const advance = (next: AbhaVerificationStep) => {
     setStep(next);
     setWait(next.resend_after_seconds ?? 0);
-    if (next.profile) {
-      // Default: take ABHA's value wherever ours is blank or different.
-      setApply(
-        compareRows(next.profile, ours)
-          .filter((r) => r.abha && r.abha.toLowerCase() !== r.ours.toLowerCase())
-          .map((r) => r.field),
-      );
-    }
   };
   const start = useMutation({
     mutationFn: () =>
@@ -200,31 +172,14 @@ function VerifyFlow({ ours, confirmLabel, confirming, onConfirm }: AbhaVerifyDra
       )}
 
       {step?.stage === "verified" && step.profile && (
-        <Stack>
-          <AbhaCompare profile={step.profile} ours={ours} apply={apply} onApplyChange={setApply} />
-          <Button
-            tone="secondary"
-            onClick={() => window.open(abhaService.cardUrl(step.id), "_blank", "noopener")}
-          >
-            Print ABHA card
-          </Button>
-          {step.already_linked ? (
-            <Alert tone="warning" title="This ABHA is already on another patient">
-              It belongs to {step.already_linked.name} ({step.already_linked.uhid}). Open that
-              record instead of registering the patient again.
-            </Alert>
-          ) : (
-            <Button
-              tone="primary"
-              loading={confirming}
-              onClick={() =>
-                step.profile && onConfirm({ verificationId: step.id, profile: step.profile, apply })
-              }
-            >
-              {confirmLabel}
-            </Button>
-          )}
-        </Stack>
+        <AbhaVerifiedStep
+          step={step}
+          profile={step.profile}
+          ours={ours}
+          confirmLabel={confirmLabel}
+          confirming={confirming}
+          onConfirm={onConfirm}
+        />
       )}
     </Stack>
   );

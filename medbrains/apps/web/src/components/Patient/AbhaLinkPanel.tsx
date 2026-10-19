@@ -11,6 +11,8 @@ export interface AbhaLinkPanelProps {
   status?: AbhaLinkStatus;
   /** Opens "Verify ABHA"; absent for staff who may not verify. */
   onVerify?: () => void;
+  /** Opens "Create ABHA" (by Aadhaar OTP) for a patient who has none. */
+  onCreate?: () => void;
   /** Opens the ABHA card to print, while ABDM's session for the patient lasts. */
   onPrintCard?: () => void;
 }
@@ -33,6 +35,7 @@ export function AbhaLinkPanel({
   addressField,
   status = "manual",
   onVerify,
+  onCreate,
   onPrintCard,
 }: AbhaLinkPanelProps) {
   const meta = statusMeta[status];
@@ -57,6 +60,11 @@ export function AbhaLinkPanel({
           {status === "verified" && onPrintCard && (
             <Button tone="ghost" size="xs" onClick={onPrintCard}>
               Print ABHA card
+            </Button>
+          )}
+          {onCreate && status !== "verified" && (
+            <Button tone="ghost" size="xs" onClick={onCreate}>
+              Create ABHA
             </Button>
           )}
           {onVerify && (

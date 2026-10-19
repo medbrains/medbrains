@@ -70,9 +70,16 @@ export interface AbhaLinkedPatient {
   name: string;
 }
 
+export interface StartAbhaEnrolment {
+  /** Sent once, encrypted to ABDM on the server; never stored. */
+  aadhaar: string;
+  /** The patient agreed to create an ABHA with their Aadhaar. */
+  consent: boolean;
+}
+
 export interface AbhaVerificationStep {
   id: string;
-  stage: "otp_sent" | "choose_account" | "verified";
+  stage: "otp_sent" | "mobile_otp_sent" | "choose_account" | "choose_address" | "verified";
   /** ABDM's note, e.g. which masked mobile the OTP went to. */
   message: string | null;
   resend_after_seconds: number | null;
@@ -80,6 +87,8 @@ export interface AbhaVerificationStep {
   profile: AbhaVerifiedProfile | null;
   /** Another patient here already carries this ABHA. */
   already_linked: AbhaLinkedPatient | null;
+  /** ABHA addresses ABDM suggests, when creating an ABHA. */
+  suggestions: string[];
 }
 
 /** Demographics staff may take from ABHA onto an existing patient. */

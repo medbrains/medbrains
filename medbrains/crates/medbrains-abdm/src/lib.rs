@@ -6,6 +6,7 @@
 
 pub mod abha;
 pub mod card;
+pub mod enrol;
 mod types;
 
 pub use abha::{
@@ -16,3 +17,9 @@ pub use abha::{
     VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest, VerifyUserResponse,
 };
 pub use card::AbhaCard;
+pub use enrol::{
+    ABHA_ENROL_SCOPE, AddressSuggestions, CreateAddressRequest, CreateAddressResponse,
+    ENROL_CONSENT_CODE, ENROL_CONSENT_VERSION, EnrolAuthData, EnrolAuthResponse,
+    EnrolByAadhaarRequest, EnrolConsent, EnrolMobileVerifyRequest, EnrolOtp, EnrolOtpRequest,
+    EnrolOtpResponse, EnrolProfile, EnrolResponse, EnrolTokens,
+};

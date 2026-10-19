@@ -88,6 +88,7 @@ pub async fn link_verified_abha(
     let method = match (verified.method.as_str(), verified.otp_system.as_str()) {
         ("abha_number", "aadhaar") => "abha_aadhaar_otp",
         ("abha_number", _) => "abha_mobile_otp",
+        ("aadhaar_enrol", _) => "created_aadhaar_otp",
         _ => "mobile_otp",
     };
     sqlx::query(

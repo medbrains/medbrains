@@ -1890,6 +1890,7 @@ import type {
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
   StaffLocationAssignment,
+  StartAbhaEnrolment,
   StartAbhaVerification,
   StartBedsideTransfusionRequest,
   StateFormularyRow,
@@ -16742,6 +16743,26 @@ export const api = {
     request<AbhaVerificationStep>(`/abdm/abha/verifications/${id}/account`, {
       method: "POST",
       body: JSON.stringify({ abha_number: abhaNumber }),
+    }),
+  startAbhaEnrolment: (data: StartAbhaEnrolment) =>
+    request<AbhaVerificationStep>("/abdm/abha/enrolments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  submitAbhaEnrolmentOtp: (id: string, otp: string, mobile: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp, mobile }),
+    }),
+  submitAbhaEnrolmentMobileOtp: (id: string, otp: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/mobile-otp`, {
+      method: "POST",
+      body: JSON.stringify({ otp }),
+    }),
+  chooseAbhaAddress: (id: string, abhaAddress: string) =>
+    request<AbhaVerificationStep>(`/abdm/abha/enrolments/${id}/address`, {
+      method: "POST",
+      body: JSON.stringify({ abha_address: abhaAddress }),
     }),
   /** The ABHA card image, for opening in a tab to print (cookie-authenticated GET). */
   abhaCardUrl: (id: string) => `${getApiBase()}/abdm/abha/verifications/${id}/card`,

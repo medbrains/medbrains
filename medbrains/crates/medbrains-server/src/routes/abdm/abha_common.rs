@@ -111,6 +111,8 @@ pub struct VerificationStep {
     pub profile: Option<VerifiedProfile>,
     /// Another patient here already carries this ABHA.
     pub already_linked: Option<LinkedPatient>,
+    /// ABHA addresses ABDM suggests, when creating an ABHA.
+    pub suggestions: Vec<String>,
 }
 
 impl VerificationStep {
@@ -123,6 +125,7 @@ impl VerificationStep {
             accounts: Vec::new(),
             profile: None,
             already_linked: None,
+            suggestions: Vec::new(),
         }
     }
 }
@@ -218,6 +221,7 @@ pub(crate) async fn record_verified(
         accounts: Vec::new(),
         profile: Some(profile),
         already_linked,
+        suggestions: Vec::new(),
     }))
 }
 

@@ -160,3 +160,28 @@ async fn linking_an_existing_patient_applies_only_the_chosen_details() {
         .expect("second link");
     assert_eq!(resp.status(), StatusCode::CONFLICT, "one ABHA, one patient");
 }
+
+/// An ABHA created at the desk links the same way, and the link records that
+/// it was created here — management counts ABHAs created by the hospital.
+#[tokio::test]
+async fn an_abha_created_here_is_linked_as_created() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let abha = abha_digits();
+    let verification = verified(&app, &abha).await;
+    sqlx::query(
+        "UPDATE abha_verifications SET method = 'aadhaar_enrol', created_here = true, \
+           login_id_cipher = NULL WHERE id = $1",
+    )
+    .bind(verification)
+    .execute(&app.db)
+    .await
+    .expect("mark as created here");
+
+    let (status, patient) = register(&app, &csrf, Some(&abha), Some(verification)).await;
+    assert!(status.is_success(), "{patient}");
+    assert_eq!(
+        link_row(&app, patient["id"].as_str().expect("id")).await,
+        (true, Some("created_aadhaar_otp".to_owned()), true)
+    );
+}
