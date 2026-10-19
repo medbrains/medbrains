@@ -58,6 +58,7 @@ pub(crate) fn note_select(me: usize) -> String {
                 n.author_role, \
                 COALESCE(u.medical_registration_number, u.registration_number) \
                   AS author_registration, \
+                adp.hpr_id AS author_hpr_id, \
                 d.name AS department_name, n.status, n.service_at, n.signed_at, \
                 n.locked_at, n.late_entry_reason, n.current_version, n.amends_note_id, \
                 n.migrated_from, n.entered_in_error_at, n.entered_in_error_reason, \
@@ -74,7 +75,9 @@ pub(crate) fn note_select(me: usize) -> String {
            JOIN users u ON u.id = n.author_id \
            LEFT JOIN users cu ON cu.id = n.cosigner_id \
            JOIN note_versions v ON v.note_id = n.id AND v.version = n.current_version \
-           LEFT JOIN departments d ON d.id = n.service_department_id"
+           LEFT JOIN departments d ON d.id = n.service_department_id \
+           LEFT JOIN doctor_profiles adp ON adp.user_id = n.author_id \
+                AND adp.tenant_id = n.tenant_id AND adp.deleted_at IS NULL"
     )
 }
 

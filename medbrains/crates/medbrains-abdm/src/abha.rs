@@ -1,6 +1,23 @@
-use chrono::{DateTime, Utc};
+//! ABHA V3 client (ABDM "ABHA V3 APIs SOP" v1.2).
+//!
+//! Every call carries `REQUEST-ID`, `TIMESTAMP` and the gateway session token;
+//! calls made on a person's behalf also carry their `X-token` (or, choosing
+//! between several accounts after a mobile login, a `T-token`). Sensitive
+//! fields — ABHA number, mobile, OTP — are RSA-OAEP encrypted by the caller
+//! before they reach this client.
+
+use std::time::Duration;
+
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+pub use crate::types::{
+    AbhaAccountSummary, AbhaProfile, LoginHint, OtpSystem, PublicCertificateResponse,
+    RequestOtpRequest, RequestOtpResponse, SessionTokenRequest, SessionTokenResponse,
+    VerifyOtpAuthData, VerifyOtpPayload, VerifyOtpRequest, VerifyOtpResponse, VerifyUserRequest,
+    VerifyUserResponse,
+};
 
 pub const ABDM_SANDBOX_ABHA_BASE_URL: &str = "https://abhasbx.abdm.gov.in/abha/api";
 pub const ABDM_PRODUCTION_ABHA_BASE_URL: &str = "https://abha.abdm.gov.in/api/abha";
@@ -10,40 +27,43 @@ pub const ABDM_PRODUCTION_SESSION_URL: &str =
 pub const ABDM_PROFILE_PUBLIC_CERTIFICATE_PATH: &str = "/v3/profile/public/certificate";
 pub const ABDM_PROFILE_LOGIN_REQUEST_OTP_PATH: &str = "/v3/profile/login/request/otp";
 pub const ABDM_PROFILE_LOGIN_VERIFY_PATH: &str = "/v3/profile/login/verify";
+pub const ABDM_PROFILE_LOGIN_VERIFY_USER_PATH: &str = "/v3/profile/login/verify/user";
+pub const ABDM_PROFILE_ACCOUNT_PATH: &str = "/v3/profile/account";
 
 pub const ABHA_LOGIN_SCOPE: &str = "abha-login";
-pub const ABHA_PROFILE_SCOPE: &str = "abha-profile";
 pub const AADHAAR_VERIFY_SCOPE: &str = "aadhaar-verify";
 pub const MOBILE_VERIFY_SCOPE: &str = "mobile-verify";
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+/// ABDM answers slowly at times; a desk must not wait on it for ever.
+const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AbdmEnvironment {
     Sandbox,
     Production,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AbdmAbhaConfig {
-    pub environment: AbdmEnvironment,
-    pub abha_base_url: String,
-    pub session_url: String,
-}
-
-impl AbdmAbhaConfig {
-    pub fn sandbox() -> Self {
-        Self {
-            environment: AbdmEnvironment::Sandbox,
-            abha_base_url: ABDM_SANDBOX_ABHA_BASE_URL.to_owned(),
-            session_url: ABDM_SANDBOX_SESSION_URL.to_owned(),
+impl AbdmEnvironment {
+    const fn abha_base_url(self) -> &'static str {
+        match self {
+            Self::Sandbox => ABDM_SANDBOX_ABHA_BASE_URL,
+            Self::Production => ABDM_PRODUCTION_ABHA_BASE_URL,
         }
     }
 
-    pub fn production() -> Self {
-        Self {
-            environment: AbdmEnvironment::Production,
-            abha_base_url: ABDM_PRODUCTION_ABHA_BASE_URL.to_owned(),
-            session_url: ABDM_PRODUCTION_SESSION_URL.to_owned(),
+    const fn session_url(self) -> &'static str {
+        match self {
+            Self::Sandbox => ABDM_SANDBOX_SESSION_URL,
+            Self::Production => ABDM_PRODUCTION_SESSION_URL,
+        }
+    }
+
+    /// The gateway's consent-manager id; the v3 gateway reads it on sessions.
+    const fn cm_id(self) -> &'static str {
+        match self {
+            Self::Sandbox => "sbx",
+            Self::Production => "abdm",
         }
     }
 }
@@ -53,273 +73,289 @@ pub struct AbhaIntegrationReadiness {
     pub environment: AbdmEnvironment,
     pub abha_base_url: String,
     pub session_url: String,
-    pub public_certificate_path: String,
-    pub login_request_otp_path: String,
-    pub login_verify_path: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AbdmRequestContext {
-    pub request_id: Uuid,
-    pub timestamp: DateTime<Utc>,
-    pub access_token: String,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum AbdmError {
     #[error("ABDM HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-    #[error("ABDM returned status {status}: {body}")]
+    /// ABDM refused the call. `message` is ABDM's own explanation when it
+    /// sent one (wrong OTP, expired transaction), safe to show to staff.
+    #[error("ABDM returned status {status}: {message}")]
     Status {
         status: reqwest::StatusCode,
-        body: String,
+        message: String,
     },
+}
+
+/// The person-level token a call is made with, when there is one.
+#[derive(Clone, Copy, Debug)]
+pub enum UserToken<'a> {
+    /// Full access to the person's ABHA profile.
+    X(&'a str),
+    /// Short-lived: only good for choosing among accounts after a mobile login.
+    T(&'a str),
 }
 
 #[derive(Clone, Debug)]
 pub struct AbdmAbhaClient {
     http: reqwest::Client,
-    config: AbdmAbhaConfig,
+    environment: AbdmEnvironment,
+    abha_base_url: String,
+    session_url: String,
 }
 
+/// Secret-store key pointing every ABDM call at another server — a local mock
+/// in tests and staging rehearsals. Never set in production.
+pub const ABDM_BASE_URL_OVERRIDE: &str = "ABDM_BASE_URL_OVERRIDE";
+
 impl AbdmAbhaClient {
-    pub const fn new(http: reqwest::Client, config: AbdmAbhaConfig) -> Self {
-        Self { http, config }
+    /// # Errors
+    /// When the HTTP client cannot be built (TLS backend unavailable).
+    pub fn new(
+        environment: AbdmEnvironment,
+        base_url_override: Option<&str>,
+    ) -> Result<Self, AbdmError> {
+        let http = reqwest::Client::builder().timeout(HTTP_TIMEOUT).build()?;
+        let (abha_base_url, session_url) = match base_url_override.map(str::trim) {
+            Some(base) if !base.is_empty() => {
+                let base = base.trim().trim_end_matches('/').to_owned();
+                (base.clone(), format!("{base}/sessions"))
+            }
+            _ => (
+                environment.abha_base_url().to_owned(),
+                environment.session_url().to_owned(),
+            ),
+        };
+        Ok(Self {
+            http,
+            environment,
+            abha_base_url,
+            session_url,
+        })
     }
 
     pub fn readiness(&self) -> AbhaIntegrationReadiness {
         AbhaIntegrationReadiness {
-            environment: self.config.environment.clone(),
-            abha_base_url: self.config.abha_base_url.clone(),
-            session_url: self.config.session_url.clone(),
-            public_certificate_path: ABDM_PROFILE_PUBLIC_CERTIFICATE_PATH.to_owned(),
-            login_request_otp_path: ABDM_PROFILE_LOGIN_REQUEST_OTP_PATH.to_owned(),
-            login_verify_path: ABDM_PROFILE_LOGIN_VERIFY_PATH.to_owned(),
+            environment: self.environment,
+            abha_base_url: self.abha_base_url.clone(),
+            session_url: self.session_url.clone(),
         }
     }
 
+    /// # Errors
+    /// [`AbdmError`] when ABDM is unreachable or refuses the credentials.
     pub async fn create_session(
         &self,
         request: &SessionTokenRequest,
     ) -> Result<SessionTokenResponse, AbdmError> {
-        let request_builder = self.http.post(&self.config.session_url).json(request);
-        send_json(request_builder).await
+        let builder = self
+            .http
+            .post(&self.session_url)
+            .header("REQUEST-ID", Uuid::new_v4().to_string())
+            .header("TIMESTAMP", timestamp(Utc::now()))
+            .header("X-CM-ID", self.environment.cm_id())
+            .json(request);
+        send_json(builder).await
     }
 
+    /// # Errors
+    /// [`AbdmError`] as for every call.
     pub async fn public_certificate(
         &self,
-        context: &AbdmRequestContext,
+        session_token: &str,
     ) -> Result<PublicCertificateResponse, AbdmError> {
-        let request_builder = Self::with_context(
-            self.http
-                .get(self.endpoint(ABDM_PROFILE_PUBLIC_CERTIFICATE_PATH)),
-            context,
-        );
-        send_json(request_builder).await
+        send_json(self.get(ABDM_PROFILE_PUBLIC_CERTIFICATE_PATH, session_token, None)).await
     }
 
+    /// # Errors
+    /// [`AbdmError`] as for every call.
     pub async fn request_login_otp(
         &self,
-        context: &AbdmRequestContext,
+        session_token: &str,
         request: &RequestOtpRequest,
     ) -> Result<RequestOtpResponse, AbdmError> {
-        let request_builder = Self::with_context(
-            self.http
-                .post(self.endpoint(ABDM_PROFILE_LOGIN_REQUEST_OTP_PATH)),
-            context,
-        )
-        .json(request);
-        send_json(request_builder).await
+        let builder = self.post(ABDM_PROFILE_LOGIN_REQUEST_OTP_PATH, session_token, None);
+        send_json(builder.json(request)).await
     }
 
+    /// # Errors
+    /// [`AbdmError`] as for every call; a wrong or expired OTP is a `Status`.
     pub async fn verify_login_otp(
         &self,
-        context: &AbdmRequestContext,
+        session_token: &str,
         request: &VerifyOtpRequest,
     ) -> Result<VerifyOtpResponse, AbdmError> {
-        let request_builder = Self::with_context(
-            self.http
-                .post(self.endpoint(ABDM_PROFILE_LOGIN_VERIFY_PATH)),
-            context,
-        )
-        .json(request);
-        send_json(request_builder).await
+        let builder = self.post(ABDM_PROFILE_LOGIN_VERIFY_PATH, session_token, None);
+        send_json(builder.json(request)).await
     }
 
-    fn endpoint(&self, path: &str) -> String {
-        let base_url = self.config.abha_base_url.trim_end_matches('/');
-        let path = path.trim_start_matches('/');
-        format!("{base_url}/{path}")
+    /// After a mobile login, pick the account to continue with (SOP §6.3 step 3).
+    ///
+    /// # Errors
+    /// [`AbdmError`] as for every call.
+    pub async fn verify_user(
+        &self,
+        session_token: &str,
+        t_token: &str,
+        request: &VerifyUserRequest,
+    ) -> Result<VerifyUserResponse, AbdmError> {
+        let builder = self.post(
+            ABDM_PROFILE_LOGIN_VERIFY_USER_PATH,
+            session_token,
+            Some(UserToken::T(t_token)),
+        );
+        send_json(builder.json(request)).await
     }
 
-    fn with_context(
-        request_builder: reqwest::RequestBuilder,
-        context: &AbdmRequestContext,
+    /// The person's ABHA profile (SOP §8).
+    ///
+    /// # Errors
+    /// [`AbdmError`] as for every call.
+    pub async fn profile(
+        &self,
+        session_token: &str,
+        x_token: &str,
+    ) -> Result<AbhaProfile, AbdmError> {
+        let builder = self.get(
+            ABDM_PROFILE_ACCOUNT_PATH,
+            session_token,
+            Some(UserToken::X(x_token)),
+        );
+        send_json(builder).await
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("{}/{}", self.abha_base_url, path.trim_start_matches('/'))
+    }
+
+    pub(crate) fn get(
+        &self,
+        path: &str,
+        session: &str,
+        user: Option<UserToken<'_>>,
     ) -> reqwest::RequestBuilder {
-        request_builder
-            .bearer_auth(&context.access_token)
-            .header("REQUEST-ID", context.request_id.to_string())
-            .header("TIMESTAMP", context.timestamp.to_rfc3339())
+        with_headers(self.http.get(self.url(path)), session, user)
+    }
+
+    pub(crate) fn post(
+        &self,
+        path: &str,
+        session: &str,
+        user: Option<UserToken<'_>>,
+    ) -> reqwest::RequestBuilder {
+        with_headers(self.http.post(self.url(path)), session, user)
     }
 }
 
-async fn send_json<T>(request_builder: reqwest::RequestBuilder) -> Result<T, AbdmError>
+/// ISO 8601 with milliseconds, as the SOP's `TIMESTAMP` header asks.
+fn timestamp(at: DateTime<Utc>) -> String {
+    at.to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+fn with_headers(
+    builder: reqwest::RequestBuilder,
+    session: &str,
+    user: Option<UserToken<'_>>,
+) -> reqwest::RequestBuilder {
+    let builder = builder
+        .bearer_auth(session)
+        .header("REQUEST-ID", Uuid::new_v4().to_string())
+        .header("TIMESTAMP", timestamp(Utc::now()));
+    match user {
+        Some(UserToken::X(token)) => builder.header("X-token", format!("Bearer {token}")),
+        Some(UserToken::T(token)) => builder.header("T-token", format!("Bearer {token}")),
+        None => builder,
+    }
+}
+
+pub(crate) async fn send_json<T>(builder: reqwest::RequestBuilder) -> Result<T, AbdmError>
 where
     T: for<'de> Deserialize<'de>,
 {
-    let response = request_builder.send().await?;
+    let response = builder.send().await?;
     let status = response.status();
     if !status.is_success() {
-        let body = response.text().await?;
-        return Err(AbdmError::Status { status, body });
+        let body = response.text().await.unwrap_or_default();
+        return Err(AbdmError::Status {
+            status,
+            message: abdm_message(&body),
+        });
     }
-    let value = response.json::<T>().await?;
-    Ok(value)
+    Ok(response.json::<T>().await?)
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionTokenRequest {
-    pub client_id: String,
-    pub client_secret: String,
+/// ABDM's human message out of an error body, never the raw body: it can echo
+/// back what was sent.
+pub(crate) fn abdm_message(body: &str) -> String {
+    let parsed: Option<serde_json::Value> = serde_json::from_str(body).ok();
+    let pick = |v: &serde_json::Value| {
+        ["message", "errorMessage", "error"]
+            .iter()
+            .find_map(|k| match &v[*k] {
+                serde_json::Value::String(s) => Some(s.clone()),
+                serde_json::Value::Object(o) => o
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned),
+                _ => None,
+            })
+    };
+    parsed
+        .as_ref()
+        .and_then(pick)
+        .unwrap_or_else(|| "ABDM could not complete the request".to_owned())
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionTokenResponse {
-    pub access_token: String,
-    pub expires_in: u64,
-    pub refresh_token: String,
-    pub refresh_expires_in: u64,
-    pub token_type: String,
-}
+#[cfg(test)]
+mod tests {
+    use super::{AbhaProfile, VerifyOtpResponse, abdm_message, timestamp};
+    use chrono::{TimeZone, Utc};
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PublicCertificateResponse {
-    pub public_key: String,
-    pub encryption_algorithm: Option<String>,
-    pub kid: Option<String>,
-}
+    #[test]
+    fn the_timestamp_header_carries_milliseconds_in_utc() {
+        let at = Utc
+            .with_ymd_and_hms(2026, 10, 19, 5, 6, 7)
+            .single()
+            .unwrap_or_default();
+        assert_eq!(timestamp(at), "2026-10-19T05:06:07.000Z");
+    }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum LoginHint {
-    AbhaNumber,
-    AbhaAddress,
-    Mobile,
-}
+    /// An ABHA-number login answers with no `accounts` at all; that must
+    /// parse, not fail the whole verification.
+    #[test]
+    fn a_verify_response_without_accounts_parses() -> Result<(), serde_json::Error> {
+        let parsed: VerifyOtpResponse = serde_json::from_str(
+            r#"{"txnId":"t","authResult":"success","message":"OTP verified successfully","token":"x"}"#,
+        )?;
+        assert!(parsed.accounts.is_empty());
+        assert_eq!(parsed.token.as_deref(), Some("x"));
+        Ok(())
+    }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OtpSystem {
-    Aadhaar,
-    Abdm,
-}
+    #[test]
+    fn the_sop_profile_shape_parses() -> Result<(), serde_json::Error> {
+        let parsed: AbhaProfile = serde_json::from_str(
+            r#"{"ABHANumber":"91-4173-3253-1234","preferredAbhaAddress":"gk@sbx","firstName":"Gaurav",
+                "dayOfBirth":"9","monthOfBirth":"10","yearOfBirth":"1991","gender":"M",
+                "mobile":"******7930","kycVerified":true,"pincode":"821307","stateName":"BIHAR"}"#,
+        )?;
+        assert_eq!(parsed.abha_number.as_deref(), Some("91-4173-3253-1234"));
+        assert_eq!(parsed.kyc_verified, Some(true));
+        Ok(())
+    }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AuthMethod {
-    Otp,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RequestOtpRequest {
-    pub scope: Vec<String>,
-    pub login_hint: LoginHint,
-    pub login_id: String,
-    pub otp_system: OtpSystem,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RequestOtpResponse {
-    pub txn_id: String,
-    pub message: Option<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifyOtpRequest {
-    pub scope: Vec<String>,
-    pub auth_data: VerifyOtpAuthData,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifyOtpAuthData {
-    pub auth_methods: Vec<AuthMethod>,
-    pub otp: VerifyOtpPayload,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifyOtpPayload {
-    pub txn_id: String,
-    pub otp_value: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifyOtpResponse {
-    pub txn_id: String,
-    pub auth_result: Option<String>,
-    pub message: Option<String>,
-    pub token: Option<AuthToken>,
-    pub accounts: Vec<AbhaAccountSummary>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuthToken {
-    pub token: String,
-    pub expires_in: u64,
-    pub refresh_token: Option<String>,
-    pub refresh_expires_in: Option<u64>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProfileTokenResponse {
-    pub token: String,
-    pub expires_in: u64,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AbhaAccountSummary {
-    #[serde(rename = "ABHANumber")]
-    pub abha_number: Option<String>,
-    #[serde(rename = "preferredAbhaAddress")]
-    pub preferred_abha_address: Option<String>,
-    pub name: Option<String>,
-    pub status: Option<String>,
-    #[serde(rename = "profilePhoto")]
-    pub profile_photo: Option<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AbhaProfile {
-    #[serde(rename = "ABHANumber")]
-    pub abha_number: Option<String>,
-    #[serde(rename = "preferredAbhaAddress")]
-    pub preferred_abha_address: Option<String>,
-    pub mobile: Option<String>,
-    #[serde(rename = "firstName")]
-    pub first_name: Option<String>,
-    #[serde(rename = "middleName")]
-    pub middle_name: Option<String>,
-    #[serde(rename = "lastName")]
-    pub last_name: Option<String>,
-    pub name: Option<String>,
-    #[serde(rename = "yearOfBirth")]
-    pub year_of_birth: Option<String>,
-    #[serde(rename = "dayOfBirth")]
-    pub day_of_birth: Option<String>,
-    #[serde(rename = "monthOfBirth")]
-    pub month_of_birth: Option<String>,
-    pub gender: Option<String>,
-    pub email: Option<String>,
-    #[serde(rename = "profilePhoto")]
-    pub profile_photo: Option<String>,
+    /// Staff see ABDM's reason, never the raw body.
+    #[test]
+    fn an_abdm_error_body_becomes_its_message() {
+        assert_eq!(abdm_message(r#"{"message":"Invalid OTP"}"#), "Invalid OTP");
+        assert_eq!(
+            abdm_message(r#"{"error":{"message":"Txn expired"}}"#),
+            "Txn expired"
+        );
+        assert_eq!(
+            abdm_message("<html>"),
+            "ABDM could not complete the request"
+        );
+    }
 }

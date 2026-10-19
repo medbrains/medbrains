@@ -1227,6 +1227,14 @@ export interface InsuranceClaim {
   nhcx_recipient_code: string | null;
   nhcx_response_payload: unknown | null;
   nhcx_response_at: string | null;
+  nhcx_workflow_id: string | null;
+  /** `queued` → `sent` | `send_failed`, then the payer's `x-hcx-status`. */
+  nhcx_status: string | null;
+  /** Why the gateway refused the message, when it did. */
+  nhcx_disposition: string | null;
+  /** The payer's FHIR outcome: `complete`, `partial`, `error` or `queued`. */
+  nhcx_outcome: string | null;
+  nhcx_submitted_at: string | null;
   admission_id: string | null;
   insurance_id: string | null;
   claim_amount: string | null;

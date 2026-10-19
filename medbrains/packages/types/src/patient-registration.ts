@@ -583,6 +583,8 @@ export interface CreatePatientRequest {
   campaign_id?: string;
   abha_number?: string;
   abha_address?: string;
+  /** The desk's "Verify ABHA" record; with it the ABHA is saved as verified. */
+  abha_verification_id?: string;
   aadhaar_number?: string;
   referred_by_name?: string;
   referred_by_phone?: string;

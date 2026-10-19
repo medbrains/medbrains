@@ -15,6 +15,7 @@ import type {
 } from "./onboarding-store";
 
 export * from "./abdm-integration";
+export * from "./abdm-registry";
 export type {
   AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
@@ -168,6 +169,8 @@ export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./message-simulator";
 export * from "./mrd";
+export * from "./notes";
+export * from "./nhcx";
 export * from "./nurse-calls";
 export * from "./onboarding-masters";
 export * from "./onboarding-store";

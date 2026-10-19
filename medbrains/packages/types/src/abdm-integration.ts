@@ -13,9 +13,6 @@ export interface AbhaIntegrationReadiness {
   environment: AbdmEnvironment;
   abha_base_url: string;
   session_url: string;
-  public_certificate_path: string;
-  login_request_otp_path: string;
-  login_verify_path: string;
 }
 
 export interface AbhaStatusResponse {
@@ -25,99 +22,102 @@ export interface AbhaStatusResponse {
   readiness: AbhaIntegrationReadiness;
 }
 
-export interface AbhaProviderResponse<TResponse> {
+/** Settings → ABDM. The client secret is never returned. */
+export interface AbdmSettingsView {
   environment: AbdmEnvironment;
-  request_id: string;
-  response: TResponse;
+  client_id: string | null;
+  has_secret: boolean;
+  /** "settings" when saved here, "env" when the server holds the keys, "none". */
+  source: "settings" | "env" | "none";
 }
 
-export interface AbhaSessionTokenRequest {
-  clientId: string;
-  clientSecret: string;
+export interface SaveAbdmSettings {
+  environment: AbdmEnvironment;
+  client_id: string;
+  /** Blank keeps the saved secret. */
+  client_secret?: string;
 }
 
-export interface AbhaSessionTokenResponse {
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string;
-  refreshExpiresIn: number;
-  tokenType: string;
+export interface AbdmConnectionTest {
+  ok: boolean;
+  message: string;
 }
 
-export interface AbhaSessionRequest {
-  environment?: AbdmEnvironment;
-  credentials?: AbhaSessionTokenRequest;
+/** How the desk finds the person's ABHA. */
+export type AbhaVerifyMethod = "abha_number" | "mobile";
+/** Where ABDM sends the OTP for an ABHA-number lookup. */
+export type AbhaOtpVia = "aadhaar" | "abdm";
+
+export interface StartAbhaVerification {
+  method: AbhaVerifyMethod;
+  value: string;
+  otp_via?: AbhaOtpVia;
 }
 
-export interface AbhaAuthenticatedRequest<TRequest> {
-  environment?: AbdmEnvironment;
-  access_token: string;
-  request: TRequest;
+export interface AbhaAccountChoice {
+  abha_number: string;
+  abha_address: string | null;
+  name: string | null;
+  gender: string | null;
+  year_of_birth: string | null;
 }
 
-export interface AbhaPublicCertificateRequest {
-  environment?: AbdmEnvironment;
-  access_token: string;
+/** What ABDM holds for the person, in our patient shape. */
+export interface AbhaVerifiedProfile {
+  abha_number: string;
+  abha_address: string | null;
+  full_name: string | null;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  /** YYYY-MM-DD when ABDM has the whole date. */
+  date_of_birth: string | null;
+  year_of_birth: string | null;
+  gender: "male" | "female" | "other" | null;
+  mobile_masked: string | null;
+  email: string | null;
+  address: string | null;
+  pincode: string | null;
+  state: string | null;
+  district: string | null;
+  kyc_verified: boolean;
+  /** Base64 JPEG, shown to confirm the person; never stored. */
+  photo?: string;
 }
 
-export interface AbhaPublicCertificateResponse {
-  publicKey: string;
-  encryptionAlgorithm?: string;
-  kid?: string;
+export interface AbhaLinkedPatient {
+  patient_id: string;
+  uhid: string;
+  name: string;
 }
 
-export type AbhaLoginHint = "abha-number" | "abha-address" | "mobile";
-export type AbhaOtpSystem = "aadhaar" | "abdm";
-export type AbhaAuthMethod = "otp";
-
-export interface AbhaRequestOtpRequest {
-  scope: string[];
-  loginHint: AbhaLoginHint;
-  loginId: string;
-  otpSystem: AbhaOtpSystem;
+export interface StartAbhaEnrolment {
+  /** Sent once, encrypted to ABDM on the server; never stored. */
+  aadhaar: string;
+  /** The patient agreed to create an ABHA with their Aadhaar. */
+  consent: boolean;
 }
 
-export interface AbhaRequestOtpResponse {
-  txnId: string;
-  message?: string;
+export interface AbhaVerificationStep {
+  id: string;
+  stage: "otp_sent" | "mobile_otp_sent" | "choose_account" | "choose_address" | "verified";
+  /** ABDM's note, e.g. which masked mobile the OTP went to. */
+  message: string | null;
+  resend_after_seconds: number | null;
+  accounts: AbhaAccountChoice[];
+  profile: AbhaVerifiedProfile | null;
+  /** Another patient here already carries this ABHA. */
+  already_linked: AbhaLinkedPatient | null;
+  /** ABHA addresses ABDM suggests, when creating an ABHA. */
+  suggestions: string[];
 }
 
-export interface AbhaVerifyOtpPayload {
-  txnId: string;
-  otpValue: string;
-}
+/** Demographics staff may take from ABHA onto an existing patient. */
+export type AbhaField = "name" | "date_of_birth" | "gender";
 
-export interface AbhaVerifyOtpAuthData {
-  authMethods: AbhaAuthMethod[];
-  otp: AbhaVerifyOtpPayload;
-}
-
-export interface AbhaVerifyOtpRequest {
-  scope: string[];
-  authData: AbhaVerifyOtpAuthData;
-}
-
-export interface AbhaAuthToken {
-  token: string;
-  expiresIn: number;
-  refreshToken?: string;
-  refreshExpiresIn?: number;
-}
-
-export interface AbhaAccountSummary {
-  ABHANumber?: string;
-  preferredAbhaAddress?: string;
-  name?: string;
-  status?: string;
-  profilePhoto?: string;
-}
-
-export interface AbhaVerifyOtpResponse {
-  txnId: string;
-  authResult?: string;
-  message?: string;
-  token?: AbhaAuthToken;
-  accounts: AbhaAccountSummary[];
+export interface LinkAbhaToPatient {
+  patient_id: string;
+  apply: AbhaField[];
 }
 
 // AEBAS / BAS

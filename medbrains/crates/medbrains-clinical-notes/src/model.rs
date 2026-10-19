@@ -59,6 +59,8 @@ pub struct Note {
     pub author_name: String,
     pub author_role: String,
     pub author_registration: Option<String>,
+    /// The author's HPR ID (ABDM), when they have a doctor profile carrying one.
+    pub author_hpr_id: Option<String>,
     pub department_name: Option<String>,
     pub status: String,
     pub service_at: DateTime<Utc>,

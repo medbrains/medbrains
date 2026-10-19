@@ -181,6 +181,11 @@ const SETTINGS_NAV_META: Record<
     description: "FHIR, ABDM, DICOM, ICD, SNOMED, LOINC readiness",
     kind: "support",
   },
+  nhcx: {
+    group: "Interoperability",
+    description: "NHCX claims exchange: participant code, gateway keys, certificates",
+    kind: "configuration",
+  },
   "device-integrations": {
     group: "Interoperability",
     description: "PACS, lab analyzer, biometric, and print agents",

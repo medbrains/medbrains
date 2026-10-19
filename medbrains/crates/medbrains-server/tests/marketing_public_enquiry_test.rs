@@ -260,3 +260,50 @@ async fn a_bot_that_fills_the_hidden_field_is_thanked_and_ignored() {
     .expect("count contacts");
     assert_eq!(written, 0, "and nothing may reach the marketing tables");
 }
+
+/// The settings switch is what opens and closes the public form: off, the
+/// website's enquiry gets the same 404 as an unknown hospital; on, it lands.
+#[tokio::test]
+async fn the_settings_switch_opens_and_closes_the_form() {
+    let _serial = FORM_SETTING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let app = common::spawn_app().await;
+    let (_, code) = tenant_code(&app.db).await;
+    let csrf = app.login_admin().await;
+
+    for on in [false, true, false] {
+        let saved = app
+            .client
+            .put(app.url("/api/marketing/web-form"))
+            .header("x-csrf-token", &csrf)
+            .json(&serde_json::json!({ "enabled": on }))
+            .send()
+            .await
+            .expect("put web-form");
+        assert!(saved.status().is_success(), "switch refused: {:?}", saved.status());
+
+        let read: serde_json::Value = app
+            .client
+            .get(app.url("/api/marketing/web-form"))
+            .send()
+            .await
+            .expect("get web-form")
+            .json()
+            .await
+            .expect("json");
+        assert_eq!(read["enabled"], on, "the screen must show what was saved");
+
+        let phone = format!("9{}", &Uuid::new_v4().as_u128().to_string()[..9]);
+        let status = app
+            .client
+            .post(app.url("/api/public/marketing/enquiry"))
+            .json(&enquiry(&code, &phone))
+            .send()
+            .await
+            .expect("post enquiry")
+            .status()
+            .as_u16();
+        assert_eq!(status, if on { 200 } else { 404 }, "form switched {on}");
+    }
+}

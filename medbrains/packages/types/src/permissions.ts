@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1068 permissions, one per constant in the Rust source. */
+/** 1075 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -25,6 +25,19 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "View Dashboard",
     description: "Access the main dashboard",
     module: "dashboard",
+  },
+  // notes
+  {
+    code: "notes.use",
+    label: "Keep notes and share them",
+    description: "Write your own notes and share them to department boards or with colleagues.",
+    module: "notes",
+  },
+  {
+    code: "notes.moderate",
+    label: "Take notes off a department board",
+    description: "Remove a note from the board of a department you belong to, whoever wrote it.",
+    module: "notes",
   },
   // automation
   {
@@ -4603,6 +4616,24 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "View insurance verification and PA dashboard",
     module: "insurance",
   },
+  {
+    code: "insurance.nhcx.submit",
+    label: "Send claims to NHCX",
+    description: "Submit a claim or pre-authorisation, or check coverage eligibility, with a payer through NHCX.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.view",
+    label: "See NHCX exchanges",
+    description: "What was sent to NHCX for a claim, whether this hospital is set up for NHCX, and every response the payers sent back.",
+    module: "insurance",
+  },
+  {
+    code: "insurance.nhcx.configure",
+    label: "Set up the NHCX connection",
+    description: "The NHCX participant code, gateway keys and certificates, and whether the hospital talks to the sandbox or production.",
+    module: "insurance",
+  },
   // regulatory
   {
     code: "regulatory.dashboard.view",
@@ -6469,6 +6500,12 @@ export const PERMISSIONS: PermissionDef[] = [
   },
   // abdm
   {
+    code: "abdm.settings.manage",
+    label: "Set up the ABDM connection",
+    description: "Enter the ABDM client ID and secret and switch between sandbox and production.",
+    module: "abdm",
+  },
+  {
     code: "abdm.relay.pull",
     label: "Pull and acknowledge ABDM gateway callbacks",
     description: "For the hospital's on-premises server, which collects the ABDM gateway's callbacks for its own facility and marks each one received. Callbacks carry patient health data, so only this hospital's own, never another's.",
@@ -6498,6 +6535,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
     module: "abdm",
   },
+  {
+    code: "abdm.hpr.manage",
+    label: "Record and verify doctors' HPR IDs",
+    description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
+    module: "abdm",
+  },
 ];
 
 /**
@@ -6518,10 +6561,18 @@ export const P = {
     },
     HFR_REGISTER: "abdm.hfr.register",
     HFR_VIEW: "abdm.hfr.view",
+    HPR: {
+      MANAGE: "abdm.hpr.manage",
+    },
+    HPR_MANAGE: "abdm.hpr.manage",
     RELAY: {
       PULL: "abdm.relay.pull",
     },
     RELAY_PULL: "abdm.relay.pull",
+    SETTINGS: {
+      MANAGE: "abdm.settings.manage",
+    },
+    SETTINGS_MANAGE: "abdm.settings.manage",
   },
   ADMIN: {
     ACCESS_REQUESTS: {
@@ -7903,6 +7954,14 @@ export const P = {
       VIEW: "insurance.dashboard.view",
     },
     DASHBOARD_VIEW: "insurance.dashboard.view",
+    NHCX: {
+      CONFIGURE: "insurance.nhcx.configure",
+      SUBMIT: "insurance.nhcx.submit",
+      VIEW: "insurance.nhcx.view",
+    },
+    NHCX_CONFIGURE: "insurance.nhcx.configure",
+    NHCX_SUBMIT: "insurance.nhcx.submit",
+    NHCX_VIEW: "insurance.nhcx.view",
     PRIOR_AUTH: {
       CREATE: "insurance.prior_auth.create",
       LIST: "insurance.prior_auth.list",
@@ -8341,6 +8400,10 @@ export const P = {
       MANAGE: "mrd.storage.manage",
     },
     STORAGE_MANAGE: "mrd.storage.manage",
+  },
+  NOTES: {
+    MODERATE: "notes.moderate",
+    USE: "notes.use",
   },
   NURSE: {
     CODE_BLUE: {
@@ -9850,6 +9913,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
+      P.NOTES.USE,
       P.NURSE.CODE_BLUE.RESPOND,
       P.OPD.CERTIFICATES.CREATE,
       P.OPD.CERTIFICATES.LIST,
@@ -10123,6 +10187,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.NURSE.CODE_BLUE.RECORD,
       P.NURSE.CODE_BLUE.RESPOND,
       P.NURSE.CODE_BLUE.VIEW,
@@ -10290,6 +10355,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.NOTES.USE,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,
       P.OPD.APPOINTMENT.LIST,
@@ -10350,6 +10416,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENTS.CREATE,
       P.PATIENTS.FIND,
       P.PATIENTS.VIEW,
@@ -10374,6 +10441,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENTS.VIEW,
       P.PHARMACY.ANALYTICS.VIEW,
       P.PHARMACY.BILLS.PRINT,
@@ -10501,6 +10569,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.SUBMIT,
+      P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
@@ -10520,6 +10590,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
       P.PATIENT_PACKAGES.REFUND,
       P.PATIENT_PACKAGES.SUBSCRIBE,
       P.PATIENT_PACKAGES.VIEW,
@@ -10548,6 +10619,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.NOTES.USE,
     ],
   },
   facilities_manager: {
@@ -10656,6 +10728,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.QUIZZES.ATTEMPT,
       P.LMS.QUIZZES.CREATE,
       P.LMS.QUIZZES.LIST,
+      P.NOTES.USE,
       P.REGULATORY.CALENDAR.MANAGE,
       P.REGULATORY.CHECKLISTS.CREATE,
       P.REGULATORY.CHECKLISTS.LIST,
@@ -10693,6 +10766,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.PRINT,
       P.EMERGENCY.MLC_POLICE_INTIMATIONS.REPRINT,
       P.EMERGENCY.VISITS.LIST,
+      P.INSURANCE.NHCX.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
       P.LAB.ORDERS.LIST,
@@ -10708,6 +10782,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.CASE_SHEETS.VIEW,
       P.MRD.DEATHS.LIST,
       P.MRD.RECORDS.LIST,
+      P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
@@ -10747,6 +10822,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
       P.MARKETING.OUTREACH.APPROVE,
+      P.NOTES.USE,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -10786,6 +10862,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OCC_HEALTH.DRUG_SCREENS.LIST,
       P.OCC_HEALTH.DRUG_SCREENS.MANAGE,
       P.OCC_HEALTH.INJURIES.CREATE,
@@ -10803,6 +10880,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.UR.COMMUNICATIONS.CREATE,
       P.UR.COMMUNICATIONS.LIST,
       P.UR.CONVERSIONS.CREATE,
@@ -10825,6 +10903,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CASE_MGMT.REFERRALS.LIST,
       P.CASE_MGMT.REFERRALS.MANAGE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   scheduling_admin: {
@@ -10832,6 +10911,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OPD.SCHEDULE.LIST,
       P.OPD.SCHEDULE.MANAGE,
       P.SCHEDULING.ANALYTICS.VIEW,
@@ -10868,6 +10948,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MRD.RECORDS.MANAGE,
       P.MRD.RECORDS.VIEW_ALL,
       P.MRD.STORAGE.MANAGE,
+      P.NOTES.USE,
       P.OPD.QUEUE.LIST,
       P.OPD.QUEUE.VIEW,
       P.PATIENTS.LIST,
@@ -10884,6 +10965,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DIET.KITCHEN.MANAGE,
       P.DIET.ORDERS.CREATE,
       P.DIET.ORDERS.LIST,
+      P.NOTES.USE,
     ],
   },
   dietitian: {
@@ -10904,6 +10986,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DIET.ORDERS.LIST,
       P.DIET.TEMPLATES.LIST,
       P.DIET.TEMPLATES.MANAGE,
+      P.NOTES.USE,
     ],
   },
   security_guard: {
@@ -10915,6 +10998,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.PASSES.VERIFY,
       P.FRONT_OFFICE.VISITOR_LOGS.RECORD,
       P.FRONT_OFFICE.VISITORS.LIST,
+      P.NOTES.USE,
       P.SECURITY.ACCESS.LIST,
       P.SECURITY.ACCESS.MANAGE,
       P.SECURITY.CCTV.LIST,
@@ -10963,6 +11047,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DEVICES.VIEW,
       P.FACILITIES.WORK_ORDERS.LIST,
       P.FACILITIES.WORK_ORDERS.PERFORM,
+      P.NOTES.USE,
     ],
   },
   ambulance_driver: {
@@ -10980,6 +11065,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.AMBULANCE.TRIPS.LIST,
       P.AMBULANCE.TRIPS.UPDATE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   radiology_tech: {
@@ -10987,6 +11073,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PATIENTS.FIND,
       P.RADIOLOGY.EXAMS.MANAGE,
       P.RADIOLOGY.MODALITIES.MANAGE,
@@ -11014,6 +11101,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CSSD.STERILIZATION.LIST,
       P.CSSD.STERILIZATION.RECALL,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   blood_bank_tech: {
@@ -11033,6 +11121,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BLOOD_BANK.TTI.RECORD,
       P.BLOOD_BANK.TTI.VIEW,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
     ],
   },
   marketing_executive: {
@@ -11051,6 +11140,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.OUTREACH.SEND,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.REPORTS_VIEW,
+      P.NOTES.USE,
     ],
   },
   front_office_staff: {
@@ -11098,6 +11188,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.SUPPRESSION_MANAGE,
+      P.NOTES.USE,
       P.OPD.VISIT.TRANSFER,
       P.PATIENTS.ACQUISITION.UPDATE,
       P.PATIENTS.PRIVACY_REQUESTS.CREATE,
@@ -11123,6 +11214,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INFECTION_CONTROL.STEWARDSHIP.LIST,
       P.INFECTION_CONTROL.SURVEILLANCE.CREATE,
       P.INFECTION_CONTROL.SURVEILLANCE.LIST,
+      P.NOTES.USE,
     ],
   },
   procurement_officer: {
@@ -11130,6 +11222,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
       P.PROCUREMENT.PAYMENTS.LIST,
@@ -11164,6 +11257,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INDENT.VIEW,
       P.INVENTORY.DISPOSE,
       P.INVENTORY.VIEW,
+      P.NOTES.USE,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
       P.PROCUREMENT.PO_LIST,
@@ -11179,6 +11273,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   hr_officer: {
     label: "HR Officer",
     permissions: [
+      P.ABDM.HPR.MANAGE,
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.HR.ATTENDANCE.LIST,
@@ -11196,6 +11291,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.HR.PAYROLL.RUNS.LIST,
       P.HR.PAYROLL.STRUCTURES.LIST,
       P.HR.PAYROLL.STRUCTURES.MANAGE,
+      P.NOTES.USE,
     ],
   },
   camp_coordinator: {
@@ -11223,6 +11319,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CAMP.SCREENINGS.MANAGE,
       P.CAMP.UPDATE,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PATIENTS.CREATE,
       P.PHARMACY.CATALOG.LOOKUP,
       P.TERMINOLOGY.SEARCH,
@@ -11236,12 +11333,15 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
       P.INSURANCE.DASHBOARD.VIEW,
+      P.INSURANCE.NHCX.SUBMIT,
+      P.INSURANCE.NHCX.VIEW,
       P.INSURANCE.PRIOR_AUTH.CREATE,
       P.INSURANCE.PRIOR_AUTH.LIST,
       P.INSURANCE.PRIOR_AUTH.SUBMIT,
       P.INSURANCE.PRIOR_AUTH.UPDATE,
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
+      P.NOTES.USE,
     ],
   },
   display_device: {
@@ -11255,6 +11355,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.OT.ANESTHESIA.CREATE,
       P.OT.ANESTHESIA.LIST,
       P.OT.BOOKINGS.CREATE,
@@ -11280,6 +11381,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
+      P.NOTES.USE,
       P.PHARMACY.DELIVERIES.COMPLETE,
       P.PHARMACY.DELIVERIES.VIEW,
     ],
