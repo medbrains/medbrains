@@ -692,7 +692,7 @@ pub async fn list_asset_categories(
 
     let rows = sqlx::query_as::<_, AssetCategory>(
         "SELECT * FROM asset_categories \
-         WHERE tenant_id IS NULL OR tenant_id = $1 \
+         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL \
          ORDER BY sort_order, asset_domain, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -810,7 +810,7 @@ pub async fn list_store_categories(
 
     let rows = sqlx::query_as::<_, StoreCategory>(
         "SELECT * FROM store_categories \
-         WHERE tenant_id IS NULL OR tenant_id = $1 \
+         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL \
          ORDER BY sort_order, store_domain, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -933,7 +933,7 @@ pub async fn upsert_asset_classification(
          VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'routine'), \
                  COALESCE($8, 'asset_tagged'), COALESCE($9, false), \
                  COALESCE($10, ARRAY[]::text[]), $11, $12) \
-         ON CONFLICT (tenant_id, source_type, source_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, source_type, source_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            asset_category_id = EXCLUDED.asset_category_id, \
            store_category_id = EXCLUDED.store_category_id, \
            asset_domain = EXCLUDED.asset_domain, \
@@ -979,12 +979,14 @@ pub async fn list_camp_asset_candidates(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query_scalar::<_, Uuid>("SELECT id FROM camps WHERE tenant_id = $1 AND id = $2")
-        .bind(claims.tenant_id)
-        .bind(camp_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM camps WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(camp_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let mut rows = sqlx::query_as::<_, UnifiedAsset>(UNIFIED_ASSETS_SQL)
         .bind(params.source_type)
@@ -1036,7 +1038,7 @@ pub async fn list_camp_asset_reservations(
 
     let rows = sqlx::query_as::<_, CampAssetReservation>(
         "SELECT * FROM camp_asset_reservations \
-         WHERE tenant_id = $1 AND camp_id = $2 \
+         WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)

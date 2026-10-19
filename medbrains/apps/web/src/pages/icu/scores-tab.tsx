@@ -44,6 +44,23 @@ const scoreTypeLabels: Record<IcuScoreType, string> = {
   snappe: "SNAPPE",
   rass: "RASS",
   cam_icu: "CAM-ICU",
+  aldrete: "Aldrete (recovery)",
+  cha2ds2_vasc: "CHA₂DS₂-VASc",
+  child_pugh: "Child-Pugh",
+  ciwa_ar: "CIWA-Ar",
+  cpot: "CPOT (pain)",
+  curb65: "CURB-65",
+  glasgow_blatchford: "Glasgow-Blatchford",
+  has_bled: "HAS-BLED",
+  hypoglycaemia: "Hypoglycaemia",
+  meld: "MELD",
+  meows: "MEOWS",
+  must_nutrition: "MUST (nutrition)",
+  news2: "NEWS2",
+  pews: "PEWS",
+  qsofa: "qSOFA",
+  wells_dvt: "Wells (DVT)",
+  wells_pe: "Wells (PE)",
 };
 
 function MortalityComparison({ scores }: { scores: IcuScore[] }) {

@@ -45,6 +45,8 @@ use uuid::Uuid;
 
 use medbrains_outbox::queue::{OutboxRow, queue_in_tx};
 
+use super::notice_pipelines as notices;
+
 /// One pipeline. The event it answers, what it does, and the code that does
 /// it — in a single place.
 ///
@@ -142,6 +144,36 @@ pub const PIPELINES: &[Pipeline] = &[
         description: "Quarantine sibling components + raise incident + alert blood bank",
         run: |p, t, v| Box::pin(on_transfusion_reaction(p, t, v)),
     },
+    Pipeline {
+        event: ClinicalEventName::LabResultVerified,
+        description: "Tell the patient their lab report is ready, on the channels report delivery allows",
+        run: |p, t, v| Box::pin(notices::on_lab_result_verified(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::RadiologyReportVerified,
+        description: "Tell the patient their imaging report is ready, on the channels report delivery allows",
+        run: |p, t, v| Box::pin(notices::on_radiology_report_verified(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::BillingClaimApproved,
+        description: "SMS the patient when the insurer approves their claim",
+        run: |p, t, v| Box::pin(notices::on_billing_claim_approved(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::OpdPrescriptionExpiring,
+        description: "SMS the patient three days before a prescription with refills left expires",
+        run: |p, t, v| Box::pin(notices::on_opd_prescription_expiring(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::PharmacyStockLow,
+        description: "Email the pharmacists when a drug falls to its reorder level",
+        run: |p, t, v| Box::pin(notices::on_pharmacy_stock_low(p, t, v)),
+    },
+    Pipeline {
+        event: ClinicalEventName::QualityIncidentReported,
+        description: "Email quality and administration about a major or sentinel incident",
+        run: |p, t, v| Box::pin(notices::on_quality_incident_reported(p, t, v)),
+    },
 ];
 
 /// Event/description pairs for the Integration Hub, derived from the registry
@@ -198,6 +230,10 @@ pub async fn dispatch_default_pipelines(
     event_type: &str,
     payload: &Value,
 ) {
+    // Partners hear about the event whatever the hospital does with its own
+    // pipelines; their subscription is the switch for that.
+    super::webhook_fanout::fan_out(pool, tenant_id, event_type, payload, domain_payload(payload)).await;
+
     if is_disabled(pool, tenant_id, event_type).await {
         tracing::debug!(
             tenant_id = %tenant_id,
@@ -277,7 +313,11 @@ async fn on_ipd_discharge_initiated(
     // that may fail is a bed the board can disagree with.
 
     // a) Queue an SMS/WhatsApp discharge-summary link to the patient.
-    if let Some(p) = patient_id {
+    let phone = match patient_id {
+        Some(p) => patient_phone(&mut tx, tenant_id, p).await?,
+        None => None,
+    };
+    if let (Some(p), Some(to)) = (patient_id, phone) {
         let _ = enqueue(
             &mut tx,
             tenant_id,
@@ -285,6 +325,7 @@ async fn on_ipd_discharge_initiated(
             Some(p),
             "whatsapp.discharge_summary",
             json!({
+                "to": to,
                 "patient_id": p,
                 "admission_id": admission_id,
                 "template_name": "discharge_summary",
@@ -500,6 +541,11 @@ async fn on_billing_invoice_finalized(
     if total <= rust_decimal::Decimal::ZERO {
         return Ok(()); // Nothing to pay → no link.
     }
+    // The WhatsApp handler refuses a row with no `to`; this one shipped
+    // without it, so every payment link dead-lettered.
+    let Some(to) = patient_phone(&mut tx, tenant_id, patient_id).await? else {
+        return Ok(());
+    };
 
     let _ = enqueue(
         &mut tx,
@@ -508,11 +554,13 @@ async fn on_billing_invoice_finalized(
         Some(inv),
         "whatsapp.payment_link",
         json!({
+            "to": to,
             "invoice_id": inv,
             "patient_id": patient_id,
             "amount": total.to_string(),
             "template_name": "payment_link",
             "language": "en",
+            "sms_fallback_body": format!("Your bill of Rs {total} is ready. Pay at the billing desk or in the patient portal."),
         }),
         Some(format!("paylink:{inv}")),
     )
@@ -661,7 +709,7 @@ async fn on_opd_encounter_created(
 /// through; a bare ten-digit number is an Indian mobile.
 // ponytail: India dialling code assumed for bare numbers; per-tenant
 // country when a second country onboards.
-fn e164(raw: &str) -> Option<String> {
+pub fn e164(raw: &str) -> Option<String> {
     let digits: String = raw.chars().filter(char::is_ascii_digit).collect();
     if raw.trim_start().starts_with('+') {
         return (10..=15)
@@ -673,7 +721,22 @@ fn e164(raw: &str) -> Option<String> {
 
 // ── helpers ────────────────────────────────────────────────────────
 
-fn uuid_from_payload(payload: &Value, key: &str) -> Option<Uuid> {
+/// The patient's phone in E.164, or `None` when there is nothing dialable.
+async fn patient_phone(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<Option<String>, sqlx::Error> {
+    let phone: Option<Option<String>> =
+        sqlx::query_scalar("SELECT phone FROM patients WHERE id = $1 AND tenant_id = $2")
+            .bind(patient_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+    Ok(phone.flatten().as_deref().and_then(e164))
+}
+
+pub(super) fn uuid_from_payload(payload: &Value, key: &str) -> Option<Uuid> {
     uuid_from_value(payload.get(key))
 }
 
@@ -1135,7 +1198,7 @@ async fn on_emergency_code_blue_completed(
     Ok(())
 }
 
-async fn enqueue(
+pub(super) async fn enqueue(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
     aggregate_type: &'static str,

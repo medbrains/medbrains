@@ -986,6 +986,23 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
       "--mb-signature-spectrum": "var(--mb-gradient-signal)",
       "--mb-signature-spectrum-soft": "var(--mb-gradient-mist)",
+      // The brand stage: the sign-in page's deep navy with blue and green
+      // light, the same as www.medbrains.in. Fixed in both colour schemes; text
+      // on it is white or white at 80% (both pass WCAG AA on the navy).
+      "--mb-stage-bg":
+        "radial-gradient(900px 600px at 15% 0%, rgb(15 98 254 / 38%), transparent 65%), " +
+        "radial-gradient(700px 500px at 0% 100%, rgb(66 190 101 / 22%), transparent 65%), " +
+        "linear-gradient(160deg, #0a1630 0%, #0f1f42 100%)",
+      "--mb-stage-text": "#ffffff",
+      "--mb-stage-text-muted": "rgb(255 255 255 / 80%)",
+      "--mb-stage-line": "rgb(255 255 255 / 14%)",
+      "--mb-stage-surface": "rgb(255 255 255 / 6%)",
+      "--mb-stage-accent": "#42be65",
+      "--mb-stage-sky": "#78a9ff",
+      // A card standing on the stage in the dark scheme: one step up the navy.
+      "--mb-stage-card": "#0f1f42",
+      "--mb-stage-shadow": "0 1px 2px rgb(0 0 0 / 20%), 0 24px 64px rgb(0 0 0 / 40%)",
+      "--mb-font-display": "'Archivo Variable', 'Archivo', system-ui, sans-serif",
 
       // ── Motion (mode-agnostic) ───────────────────────────────
       "--mb-duration-instant": duration.instant,

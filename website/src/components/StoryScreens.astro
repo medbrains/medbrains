@@ -1,0 +1,146 @@
+---
+// The seven screens the story steps through, in JOURNEY order. Drawn, not
+// screenshots: sharp at any size, and every name and number is made up.
+---
+
+<div class="screen" data-i="0">
+  <p class="h">Register a patient <span class="chip ok">No duplicate found</span></p>
+  <div class="form">
+    <label>Full name<span>Ananya Rao</span></label>
+    <label>Age · Sex<span>46 · Female</span></label>
+    <label>Phone<span>98450 •• •••</span></label>
+    <label>ABHA<span>91-4417-•••• <em class="chip ok">Linked</em></span></label>
+    <label class="wide">Came through campaign<span>Heart camp — HEART24</span></label>
+  </div>
+  <div class="uhid"><small>UHID issued</small><b>MB-2026-004821</b></div>
+</div>
+
+<div class="screen dark" data-i="1">
+  <p class="tvh">Cardiology · Now serving</p>
+  <p class="tvt">A-021</p>
+  <p class="tvr">Please go to Room 3</p>
+  <div class="tvq">
+    <span><b>P-004</b>Priority</span><span><b>A-022</b>Waiting</span><span><b>A-023</b>Waiting</span><span><b>A-024</b>Vitals</span>
+  </div>
+</div>
+
+<div class="screen" data-i="2">
+  <p class="h">Case sheet · Ananya Rao, 46 F</p>
+  <div class="vit"><span>BP <b>132/84</b></span><span>Pulse <b>78</b></span><span>SpO₂ <b>98%</b></span><span>Temp <b>98.4°F</b></span></div>
+  <p class="l">Diagnosis</p>
+  <p class="line"><code>BA00</code>Essential hypertension</p>
+  <p class="l">Orders</p>
+  <p class="line">Lipid profile · Serum potassium · ECG</p>
+  <p class="l">Prescription</p>
+  <p class="line">Telmisartan 40 mg · 1-0-0 · 30 days <span class="chip info">Refill ×2</span></p>
+  <div class="cta">Sign &amp; send →</div>
+</div>
+
+<div class="screen" data-i="3">
+  <p class="h">Lab worklist</p>
+  <div class="row"><b>Ananya Rao</b><span>Serum potassium</span><span class="chip bad">6.2 mmol/L · Critical</span></div>
+  <div class="row"><b>Ananya Rao</b><span>Lipid profile</span><span class="chip ok">Released</span></div>
+  <div class="row"><b>Vikram Shah</b><span>CBC</span><span class="chip wait">Results pending</span></div>
+  <div class="row"><b>Meera Iyer</b><span>HbA1c</span><span class="chip info">In analyser</span></div>
+  <p class="note">Doctor alerted to the critical value · 10:42</p>
+</div>
+
+<div class="screen" data-i="4">
+  <p class="h">Pharmacy · Home delivery</p>
+  <div class="row"><b>Telmisartan 40 mg</b><span>×30 · Batch TL2291 · Exp 08/27</span><span class="chip sch">Sch H</span></div>
+  <div class="row"><b>Atorvastatin 10 mg</b><span>×30 · Batch AT0915 · Exp 03/27</span><span class="chip sch">Sch H</span></div>
+  <div class="deliver">
+    <div><small>Out for delivery</small><b>Runner: Arjun</b><span>Prepaid · hand over against the patient's code</span></div>
+    <span class="code">• • • • • •</span>
+  </div>
+</div>
+
+<div class="screen" data-i="5">
+  <p class="h">Invoice INV-26-10482 <span class="chip ok">Paid · UPI</span></p>
+  <div class="row"><span>Consultation — Cardiology</span><b>₹600</b></div>
+  <div class="row"><span>Lipid profile, Serum potassium</span><b>₹950</b></div>
+  <div class="row"><span>Pharmacy (HSN 3004)</span><b>₹367</b></div>
+  <div class="row"><span>GST 12% on medicines (CGST 6% + SGST 6%)</span><b>₹44</b></div>
+  <div class="row total"><span>Total</span><b>₹1,961</b></div>
+</div>
+
+<div class="screen" data-i="6">
+  <p class="h">Ward B · Beds <span class="chip info">Bed 12 assigned</span></p>
+  <div class="beds">
+    {Array.from({ length: 24 }, (_, i) => (
+      <span class={i === 11 ? "bed new" : [2, 5, 9, 14, 17, 20].includes(i) ? "bed free" : "bed"}>{i + 1}</span>
+    ))}
+  </div>
+  <p class="note">18 occupied · 5 free · discharge summary ready for bed 7</p>
+</div>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .screen {
+    position: absolute; inset: 0; padding: 26px 28px; background: #fff; color: var(--ink); font-size: .9rem;
+    opacity: 0; transform: translateY(28px) scale(.98); transition: opacity .5s ease, transform .6s cubic-bezier(.2, .7, .2, 1);
+  }
+  /* The step the reader has scrolled to is the one on screen. */
+  :global([data-active="0"]) .screen[data-i="0"],
+  :global([data-active="1"]) .screen[data-i="1"],
+  :global([data-active="2"]) .screen[data-i="2"],
+  :global([data-active="3"]) .screen[data-i="3"],
+  :global([data-active="4"]) .screen[data-i="4"],
+  :global([data-active="5"]) .screen[data-i="5"],
+  :global([data-active="6"]) .screen[data-i="6"]
+  { opacity: 1; transform: none; }
+  :global(.still) .screen[data-i="0"] { opacity: 1; transform: none; }
+  .screen.dark { background: #050912; color: #fff; display: grid; align-content: center; justify-items: center; text-align: center; }
+  .h { margin: 0 0 18px; font: 800 1.15rem var(--display); letter-spacing: -.02em; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .chip { font: 600 .68rem var(--mono); padding: 4px 10px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+  .ok { background: #defbe6; color: #0e6027; }
+  .info { background: var(--blue-tint); color: var(--blue-deep); }
+  .bad { background: #ffd7d9; color: #a2191f; }
+  .wait { background: #eef1f6; color: var(--muted); }
+  .sch { background: #fff1c7; color: #8a5a00; }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form label { display: grid; gap: 4px; font: 600 .66rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .form label span { font: 500 .95rem var(--sans); letter-spacing: 0; text-transform: none; color: var(--ink); border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 12px; display: flex; gap: 8px; align-items: center; }
+  .form .wide { grid-column: 1 / -1; }
+  .form .wide span { border-color: var(--blue); background: var(--blue-tint); }
+  .uhid { margin-top: 18px; display: flex; justify-content: space-between; align-items: center; background: var(--ink); color: #fff; border-radius: 10px; padding: 12px 16px; }
+  .uhid small { font: 600 .66rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--pulse); }
+  .uhid b { font: 600 1rem var(--mono); }
+  .tvh { margin: 0; font: 600 .8rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--pulse); }
+  .tvt { margin: 6px 0 0; font: 900 clamp(4rem, 9vw, 7rem) var(--display); letter-spacing: -.03em; line-height: 1; }
+  .tvr { margin: 8px 0 28px; color: var(--night-text); font-size: 1.1rem; }
+  .tvq { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .tvq span { display: grid; gap: 2px; padding: 10px 16px; border: 1px solid var(--night-line); border-radius: 10px; font-size: .7rem; color: var(--night-text); }
+  .tvq b { font: 700 1.05rem var(--mono); color: #fff; }
+  .vit { display: flex; gap: 8px; flex-wrap: wrap; }
+  .vit span { background: var(--paper-2); border-radius: 8px; padding: 6px 10px; color: var(--muted); }
+  .vit b { color: var(--ink); }
+  .l { margin: 14px 0 4px; font: 600 .66rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .line { margin: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .line code { font: 600 .74rem var(--mono); background: var(--ink); color: #fff; padding: 3px 7px; border-radius: 4px; }
+  .cta { margin-top: 18px; background: var(--blue); color: #fff; border-radius: 10px; padding: 11px; text-align: center; font-weight: 600; }
+  .row { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid #eef1f6; }
+  .row span { color: var(--muted); }
+  [data-i="5"] .row { grid-template-columns: 1fr auto; }
+  .row.total { border-top: 2px solid var(--ink); font-size: 1.05rem; }
+  .row.total span { color: var(--ink); font-weight: 700; }
+  .note { margin: 14px 0 0; font: 500 .74rem var(--mono); color: var(--muted); }
+  .deliver { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--paper-2); border-radius: 12px; padding: 14px 16px; }
+  .deliver div { display: grid; gap: 2px; }
+  .deliver small { font: 600 .66rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: #198038; }
+  .deliver span { color: var(--muted); font-size: .8rem; }
+  .code { font: 700 1.2rem var(--mono); letter-spacing: .2em; color: var(--blue) !important; }
+  .beds { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .bed { aspect-ratio: 1.3; border-radius: 8px; display: grid; place-items: center; font: 600 .78rem var(--mono); background: #e8edf5; color: var(--muted); }
+  .bed.free { background: #defbe6; color: #0e6027; }
+  .bed.new { background: var(--blue); color: #fff; box-shadow: 0 0 0 4px var(--blue-tint); }
+  @include below(sm) {
+    .screen { padding: 18px; font-size: .8rem; }
+    .form { grid-template-columns: 1fr; }
+    .row { grid-template-columns: 1fr auto; }
+    .row > span:nth-child(2) { display: none; }
+    [data-i="5"] .row > span:nth-child(1) { display: block; }
+    .beds { grid-template-columns: repeat(6, 1fr); }
+  }
+</style>

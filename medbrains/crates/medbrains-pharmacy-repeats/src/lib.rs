@@ -1,17 +1,25 @@
-//! Pharmacy refill / repeat dispensing — patient comes back for the
-//! same Rx without doctor re-issue, within `repeats_allowed` count and
-//! `repeat_interval_days` cadence.
+//! Refills: a patient comes back for the same prescription without a new
+//! visit, within the refills, interval and validity the doctor wrote.
 //!
-//! Per RFCs/sprints/SPRINT-pharmacy-improvements.md item #4.
+//! A refill is issued as a new entry in the pharmacy's prescription queue for
+//! the same prescription. From there it is reviewed, billed and dispensed like
+//! any prescription — the same stock, safety and billing path, with its own
+//! order and its own bill.
 
-use axum::routing::{get};
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
+use medbrains_core::rx_refills::RefillState;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+use sqlx::{Postgres, Transaction};
+
+pub mod requests;
 use uuid::Uuid;
 
 use medbrains_server_core::{
@@ -24,10 +32,11 @@ pub struct RepeatRow {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub prescription_id: Uuid,
-    pub pharmacy_order_id: Uuid,
+    pub pharmacy_order_id: Option<Uuid>,
+    pub rx_queue_id: Option<Uuid>,
     pub repeat_index: i32,
     pub dispensed_at: DateTime<Utc>,
-    pub dispensed_by: Uuid,
+    pub dispensed_by: Option<Uuid>,
     pub notes: Option<String>,
 }
 
@@ -37,9 +46,62 @@ pub struct RepeatEligibility {
     pub repeats_allowed: i32,
     pub repeats_used: i32,
     pub remaining: i32,
+    pub repeat_interval_days: Option<i32>,
+    pub valid_until: Option<NaiveDate>,
     pub last_dispense_at: Option<DateTime<Utc>>,
     pub next_eligible_at: Option<DateTime<Utc>>,
     pub is_eligible_now: bool,
+    /// Why a refill can't be issued now, in words for the counter.
+    pub reason: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct RxTerms {
+    repeats_allowed: i32,
+    repeats_used: i32,
+    repeat_interval_days: Option<i32>,
+    valid_until: Option<NaiveDate>,
+    created_at: DateTime<Utc>,
+}
+
+/// The prescription's refill state, locked when `lock` — issuing a refill
+/// must not race another counter issuing the same one.
+pub async fn refill_state(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    prescription_id: Uuid,
+    lock: bool,
+) -> Result<(RefillState, Option<DateTime<Utc>>), AppError> {
+    let sql = if lock {
+        "SELECT repeats_allowed, repeats_used, repeat_interval_days, valid_until, created_at \
+         FROM prescriptions WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE"
+    } else {
+        "SELECT repeats_allowed, repeats_used, repeat_interval_days, valid_until, created_at \
+         FROM prescriptions WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"
+    };
+    let rx = sqlx::query_as::<_, RxTerms>(sql)
+        .bind(prescription_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let last: Option<DateTime<Utc>> = sqlx::query_scalar(
+        "SELECT MAX(dispensed_at) FROM pharmacy_repeats \
+         WHERE tenant_id = $1 AND prescription_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(prescription_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let state = RefillState {
+        refills: rx.repeats_allowed,
+        used: rx.repeats_used,
+        interval_days: rx.repeat_interval_days,
+        valid_until: rx.valid_until,
+        issued_at: rx.created_at,
+        last_refill_at: last,
+    };
+    Ok((state, last))
 }
 
 pub async fn check_eligibility(
@@ -51,57 +113,36 @@ pub async fn check_eligibility(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rx: (i32, i32, Option<i32>) = sqlx::query_as(
-        "SELECT repeats_allowed, repeats_used, repeat_interval_days \
-         FROM prescriptions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(prescription_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let (allowed, used, interval) = rx;
-
-    let last: Option<(DateTime<Utc>,)> = sqlx::query_as(
-        "SELECT MAX(dispensed_at) FROM pharmacy_repeats \
-         WHERE tenant_id = $1 AND prescription_id = $2",
-    )
-    .bind(claims.tenant_id)
-    .bind(prescription_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
+    let (refill, last) = refill_state(&mut tx, claims.tenant_id, prescription_id, false).await?;
+    let waiting = !awaiting_supply(&mut tx, claims.tenant_id, &[prescription_id])
+        .await?
+        .is_empty();
     tx.commit().await?;
 
-    let last_at = last.map(|t| t.0);
-    let remaining = (allowed - used).max(0);
-
-    let next_eligible_at = match (last_at, interval) {
-        (Some(last), Some(days)) => Some(last + chrono::Duration::days(i64::from(days))),
-        _ => None,
-    };
-
-    let is_eligible_now =
-        remaining > 0 && next_eligible_at.map(|t| t <= Utc::now()).unwrap_or(true);
-
+    let reason = refill
+        .refusal(Utc::now())
+        .or_else(|| waiting.then(|| AWAITING_SUPPLY.to_owned()));
     Ok(Json(RepeatEligibility {
         prescription_id,
-        repeats_allowed: allowed,
-        repeats_used: used,
-        remaining,
-        last_dispense_at: last_at,
-        next_eligible_at,
-        is_eligible_now,
+        repeats_allowed: refill.refills,
+        repeats_used: refill.used,
+        remaining: refill.remaining(),
+        repeat_interval_days: refill.interval_days,
+        valid_until: refill.valid_until,
+        last_dispense_at: last,
+        next_eligible_at: refill.next_eligible_at(),
+        is_eligible_now: reason.is_none(),
+        reason,
     }))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DispenseRepeatRequest {
-    pub pharmacy_order_id: Uuid,
     pub notes: Option<String>,
 }
 
+/// `POST /api/pharmacy/prescriptions/{id}/repeats` — issue the next refill
+/// into the pharmacy's prescription queue.
 pub async fn dispense_repeat(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -115,77 +156,117 @@ pub async fn dispense_repeat(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Lock + read Rx
-    let rx: (i32, i32, Option<i32>) = sqlx::query_as(
-        "SELECT repeats_allowed, repeats_used, repeat_interval_days \
-         FROM prescriptions WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-    )
-    .bind(prescription_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let (allowed, used, interval) = rx;
-
-    if used >= allowed {
-        return Err(AppError::BadRequest(format!(
-            "all {allowed} repeats already used"
-        )));
+    let (refill, _) = refill_state(&mut tx, claims.tenant_id, prescription_id, true).await?;
+    if let Some(reason) = refill.refusal(Utc::now()) {
+        return Err(AppError::Conflict(reason));
     }
-
-    // Check interval since last dispense
-    if let Some(days) = interval {
-        let last: Option<(DateTime<Utc>,)> = sqlx::query_as(
-            "SELECT MAX(dispensed_at) FROM pharmacy_repeats \
-             WHERE tenant_id = $1 AND prescription_id = $2",
-        )
-        .bind(claims.tenant_id)
-        .bind(prescription_id)
-        .fetch_optional(&mut *tx)
-        .await?;
-
-        if let Some((last_at,)) = last {
-            let next_eligible = last_at + chrono::Duration::days(i64::from(days));
-            if next_eligible > Utc::now() {
-                return Err(AppError::BadRequest(format!(
-                    "next repeat eligible at {next_eligible}"
-                )));
-            }
-        }
-    }
-
-    let new_index = used + 1;
-
-    // Insert repeat row
-    let row = sqlx::query_as::<_, RepeatRow>(
-        "INSERT INTO pharmacy_repeats \
-         (tenant_id, prescription_id, pharmacy_order_id, repeat_index, dispensed_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
-         RETURNING *",
+    let row = issue_refill(
+        &mut tx,
+        claims.tenant_id,
+        prescription_id,
+        refill.used + 1,
+        Some(claims.sub),
+        body.notes.as_deref(),
     )
-    .bind(claims.tenant_id)
-    .bind(prescription_id)
-    .bind(body.pharmacy_order_id)
-    .bind(new_index)
-    .bind(claims.sub)
-    .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Bump repeats_used on prescription
-    sqlx::query(
-        "UPDATE prescriptions SET repeats_used = $3 \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(prescription_id)
-    .bind(claims.tenant_id)
-    .bind(new_index)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Prescriptions whose last supply hasn't reached the patient: still waiting
+/// in the queue or being dispensed. A refill on top would be a second supply
+/// of the same medicine.
+pub async fn awaiting_supply(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    prescription_ids: &[Uuid],
+) -> Result<HashSet<Uuid>, AppError> {
+    // An approved entry stays "dispensing" for good; whether its supply went
+    // out is its order's stage.
+    let rows: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT DISTINCT q.prescription_id FROM pharmacy_prescriptions q \
+           LEFT JOIN pharmacy_orders o ON o.id = q.pharmacy_order_id AND o.tenant_id = q.tenant_id \
+          WHERE q.tenant_id = $1 AND q.prescription_id = ANY($2) AND q.deleted_at IS NULL \
+            AND (q.status IN ('pending_review', 'on_hold', 'approved') \
+                 OR (q.status = 'dispensing' AND (o.id IS NULL OR o.status::text NOT IN \
+                     ('dispensed', 'partially_dispensed', 'collected', 'released', \
+                      'cancelled', 'returned'))))",
+    )
+    .bind(tenant_id)
+    .bind(prescription_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// What the counter and the patient are told while the last supply waits.
+pub const AWAITING_SUPPLY: &str = "The last supply hasn't been dispensed yet";
+
+/// Issue refill `index` into the pharmacy's queue.
+///
+/// Recorded in the ledger against `actor` (none when a patient's request went
+/// straight through). The caller has checked the refill is due, under a lock;
+/// this refuses it while the last supply still waits.
+pub async fn issue_refill(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    prescription_id: Uuid,
+    index: i32,
+    actor: Option<Uuid>,
+    notes: Option<&str>,
+) -> Result<RepeatRow, AppError> {
+    if !awaiting_supply(tx, tenant_id, &[prescription_id])
+        .await?
+        .is_empty()
+    {
+        return Err(AppError::Conflict(AWAITING_SUPPLY.to_owned()));
+    }
+    // The refill joins the queue as the prescription did, for the same
+    // patient, visit and prescriber.
+    let rx_queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO pharmacy_prescriptions \
+           (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, \
+            status, priority, store_location_id, repeat_index) \
+         SELECT tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, \
+                'pending_review', 'normal', store_location_id, $3 \
+           FROM pharmacy_prescriptions \
+          WHERE tenant_id = $1 AND prescription_id = $2 AND repeat_index IS NULL \
+            AND deleted_at IS NULL \
+          ORDER BY created_at LIMIT 1 \
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(prescription_id)
+    .bind(index)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::Conflict("This prescription never reached the pharmacy".to_owned()))?;
+
+    let row = sqlx::query_as::<_, RepeatRow>(
+        "INSERT INTO pharmacy_repeats \
+         (tenant_id, prescription_id, rx_queue_id, repeat_index, dispensed_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6) \
+         RETURNING id, tenant_id, prescription_id, pharmacy_order_id, rx_queue_id, \
+                   repeat_index, dispensed_at, dispensed_by, notes",
+    )
+    .bind(tenant_id)
+    .bind(prescription_id)
+    .bind(rx_queue_id)
+    .bind(index)
+    .bind(actor)
+    .bind(notes)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    sqlx::query("UPDATE prescriptions SET repeats_used = $3 WHERE id = $1 AND tenant_id = $2")
+        .bind(prescription_id)
+        .bind(tenant_id)
+        .bind(index)
+        .execute(&mut **tx)
+        .await?;
+
+    Ok(row)
 }
 
 pub async fn list_repeats_for_rx(
@@ -199,9 +280,11 @@ pub async fn list_repeats_for_rx(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, RepeatRow>(
-        "SELECT * FROM pharmacy_repeats \
-         WHERE tenant_id = $1 AND prescription_id = $2 \
-         ORDER BY dispensed_at LIMIT 5000",
+        "SELECT id, tenant_id, prescription_id, pharmacy_order_id, rx_queue_id, repeat_index, \
+                dispensed_at, dispensed_by, notes \
+           FROM pharmacy_repeats \
+         WHERE tenant_id = $1 AND prescription_id = $2 AND deleted_at IS NULL \
+         ORDER BY dispensed_at LIMIT 50",
     )
     .bind(claims.tenant_id)
     .bind(prescription_id)
@@ -212,7 +295,7 @@ pub async fn list_repeats_for_rx(
     Ok(Json(rows))
 }
 
-/// pharmacy_repeats routes.
+/// Refill routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
@@ -221,7 +304,10 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/pharmacy/prescriptions/{prescription_id}/repeats",
-            get(list_repeats_for_rx)
-                .post(dispense_repeat),
+            get(list_repeats_for_rx).post(dispense_repeat),
+        )
+        .route(
+            "/api/doctors/me/refill-requests/{id}/decide",
+            axum::routing::post(requests::decide),
         )
 }

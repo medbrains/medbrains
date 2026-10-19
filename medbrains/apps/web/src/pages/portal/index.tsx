@@ -22,12 +22,15 @@ import { useParams } from "react-router";
 import { Alert, Button } from "@/components/ui";
 import { portalService } from "@/services/portal.service";
 import { PortalHome } from "./PortalHome";
+import { PortalPrivacy } from "./portal-privacy";
+import { PortalRefills } from "./portal-refills";
 import {
   clearPortalSession,
   readPortalSession,
   type StoredPortalSession,
   storePortalSession,
 } from "./portal-session";
+import { PortalTeleconsults } from "./portal-tele";
 import { PortalAppointments, PortalBills, PortalPrescriptions, PortalReports } from "./views";
 
 /** Digits in the code the server mints. */
@@ -64,19 +67,29 @@ export function PatientPortalPage() {
           <Tabs.Tab value="prescriptions">Medicines</Tabs.Tab>
           <Tabs.Tab value="bills">Bills</Tabs.Tab>
           <Tabs.Tab value="visits">Visits</Tabs.Tab>
+          <Tabs.Tab value="privacy">Privacy</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="reports" pt="md">
           <PortalReports token={session.token} />
         </Tabs.Panel>
         <Tabs.Panel value="prescriptions" pt="md">
-          <PortalPrescriptions token={session.token} />
+          <Stack gap="lg">
+            <PortalRefills token={session.token} />
+            <PortalPrescriptions token={session.token} />
+          </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="bills" pt="md">
           <PortalBills token={session.token} />
         </Tabs.Panel>
         <Tabs.Panel value="visits" pt="md">
-          <PortalAppointments token={session.token} />
+          <Stack gap="lg">
+            <PortalTeleconsults token={session.token} />
+            <PortalAppointments token={session.token} />
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="privacy" pt="md">
+          <PortalPrivacy token={session.token} />
         </Tabs.Panel>
       </Tabs>
 

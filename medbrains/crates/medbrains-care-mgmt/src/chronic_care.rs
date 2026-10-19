@@ -585,7 +585,8 @@ pub async fn list_enrollments(
          JOIN patients p ON p.id = ce.patient_id \
          JOIN chronic_programs cp ON cp.id = ce.program_id \
          LEFT JOIN users u ON u.id = ce.primary_doctor_id \
-         WHERE ($1::text IS NULL OR cp.program_type::text = $1) \
+         WHERE ce.deleted_at IS NULL \
+           AND ($1::text IS NULL OR cp.program_type::text = $1) \
          AND ($2::text IS NULL OR ce.status::text = $2) \
          AND ($3::uuid IS NULL OR ce.primary_doctor_id = $3) \
          AND ($4::text IS NULL OR (p.first_name || ' ' || p.last_name) ILIKE '%' || $4 || '%' OR p.uhid ILIKE '%' || $4 || '%') \
@@ -1047,7 +1048,7 @@ pub async fn list_adherence(
          ar.drug_name, u.full_name AS recorded_by_name, ar.notes, ar.created_at \
          FROM adherence_records ar \
          JOIN users u ON u.id = ar.recorded_by \
-         WHERE ar.enrollment_id = $1 \
+         WHERE ar.enrollment_id = $1 AND ar.deleted_at IS NULL \
          AND ($2::text IS NULL OR ar.event_type::text = $2) \
          AND ($3::date IS NULL OR ar.event_date >= $3) \
          AND ($4::date IS NULL OR ar.event_date <= $4) \
@@ -1209,7 +1210,7 @@ pub async fn list_outcome_targets(
     let rows = sqlx::query_as::<_, OutcomeTargetRow>(
         "SELECT id, parameter_name, loinc_code, target_value, unit, comparison, \
          effective_from, notes, enrollment_id \
-         FROM patient_outcome_targets WHERE patient_id = $1 \
+         FROM patient_outcome_targets WHERE patient_id = $1 AND deleted_at IS NULL \
          ORDER BY parameter_name LIMIT 5000",
     )
     .bind(patient_id)
@@ -1455,7 +1456,7 @@ pub async fn list_interaction_alerts(
         "SELECT id, drug_a_name, drug_b_name, severity, description, management, \
          status, acknowledged_by, acknowledged_at, override_reason, detected_at \
          FROM polypharmacy_interaction_alerts \
-         WHERE patient_id = $1 \
+         WHERE patient_id = $1 AND deleted_at IS NULL \
          ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, detected_at DESC \
          LIMIT 100",
     )
@@ -1531,8 +1532,9 @@ pub async fn check_polypharmacy(
 
             let interaction = sqlx::query_as::<_, InteractionRow>(
                 "SELECT id, severity, description, management FROM drug_interactions \
-                 WHERE (drug_a_name ILIKE $1 AND drug_b_name ILIKE $2) \
-                 OR (drug_a_name ILIKE $2 AND drug_b_name ILIKE $1) \
+                 WHERE deleted_at IS NULL \
+                 AND ((drug_a_name ILIKE $1 AND drug_b_name ILIKE $2) \
+                 OR (drug_a_name ILIKE $2 AND drug_b_name ILIKE $1)) \
                  LIMIT 1",
             )
             .bind(&drug_a.drug_name)

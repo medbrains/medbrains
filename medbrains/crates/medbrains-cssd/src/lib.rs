@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod release;
+
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -12,7 +14,7 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -116,7 +118,6 @@ pub struct RecordIndicatorRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateIssuanceRequest {
     pub load_item_id: Option<Uuid>,
-    pub set_id: Option<Uuid>,
     pub issued_to_department: String,
     pub issued_to_patient_id: Option<Uuid>,
     pub notes: Option<String>,
@@ -157,7 +158,7 @@ pub async fn list_instruments(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdInstrument>(
-        "SELECT * FROM cssd_instruments ORDER BY name LIMIT 5000",
+        "SELECT * FROM cssd_instruments WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -247,7 +248,7 @@ pub async fn list_sets(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdInstrumentSet>(
-        "SELECT * FROM cssd_instrument_sets ORDER BY set_name LIMIT 5000",
+        "SELECT * FROM cssd_instrument_sets WHERE deleted_at IS NULL ORDER BY set_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -332,7 +333,7 @@ pub async fn list_sterilizers(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdSterilizer>(
-        "SELECT * FROM cssd_sterilizers ORDER BY name LIMIT 5000",
+        "SELECT * FROM cssd_sterilizers WHERE deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -423,7 +424,7 @@ pub async fn list_loads(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdSterilizationLoad>(
-        "SELECT * FROM cssd_sterilization_loads ORDER BY created_at DESC LIMIT 200",
+        "SELECT * FROM cssd_sterilization_loads WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -529,29 +530,19 @@ pub async fn update_load_status(
 /// a cycle fails its biological indicator, the question is which trays were in
 /// it and therefore which patients they reached, and until now the system
 /// could not answer it from any surface at all.
+///
+/// Each pack carries `block_reason` — why it may not be issued — so the
+/// screen shows the same verdict the issue handler enforces.
 pub async fn list_load_items(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(load_id): Path<Uuid>,
-) -> Result<Json<Vec<CssdLoadItem>>, AppError> {
+) -> Result<Json<Vec<release::CssdPack>>, AppError> {
     require_permission(&claims, permissions::cssd::sterilization::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, CssdLoadItem>(
-        "SELECT li.id, li.tenant_id, li.load_id, li.set_id, li.instrument_id, \
-                li.quantity, li.pack_expiry_date \
-         FROM cssd_load_items li \
-         WHERE li.load_id = $1 AND li.tenant_id = $2 \
-         ORDER BY li.pack_expiry_date NULLS LAST, li.id \
-         LIMIT 2000",
-    )
-    .bind(load_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
+    let rows = release::list_packs(&mut tx, claims.tenant_id, load_id).await?;
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -563,13 +554,30 @@ pub async fn add_load_item(
     Json(body): Json<AddLoadItemRequest>,
 ) -> Result<Json<CssdLoadItem>, AppError> {
     require_permission(&claims, permissions::cssd::sterilization::CREATE)?;
+    // Every sterile pack is labelled with its expiry; without one the issue
+    // check cannot tell a fresh pack from one wrapped last year.
+    let expiry = body
+        .pack_expiry_date
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "Enter the pack expiry date (YYYY-MM-DD) printed on the sterile pack label."
+                    .to_owned(),
+            )
+        })?;
+    if expiry < chrono::Utc::now().date_naive() {
+        return Err(AppError::BadRequest(
+            "The pack expiry date is in the past. Check the label.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CssdLoadItem>(
         "INSERT INTO cssd_load_items (tenant_id, load_id, set_id, instrument_id, quantity, pack_expiry_date)
-         VALUES ($1, $2, $3, $4, COALESCE($5, 1), $6::date)
+         VALUES ($1, $2, $3, $4, COALESCE($5, 1), $6)
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -577,7 +585,7 @@ pub async fn add_load_item(
     .bind(body.set_id)
     .bind(body.instrument_id)
     .bind(body.quantity)
-    .bind(&body.pack_expiry_date)
+    .bind(expiry)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -600,7 +608,7 @@ pub async fn list_indicators(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdIndicatorResult>(
-        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(load_id)
     .fetch_all(&mut *tx)
@@ -655,7 +663,7 @@ pub async fn list_issuances(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdIssuance>(
-        "SELECT * FROM cssd_issuances ORDER BY issued_at DESC LIMIT 200",
+        "SELECT * FROM cssd_issuances WHERE deleted_at IS NULL ORDER BY issued_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -670,18 +678,35 @@ pub async fn create_issuance(
     Json(body): Json<CreateIssuanceRequest>,
 ) -> Result<Json<CssdIssuance>, AppError> {
     require_permission(&claims, permissions::cssd::issuance::CREATE)?;
+    // A pack issued without its load can be neither checked nor recalled.
+    let load_item_id = body.load_item_id.ok_or_else(|| {
+        AppError::BadRequest(
+            "Choose the pack being issued (its load and set). A pack issued without its load \
+             cannot be checked for sterility or recalled."
+                .to_owned(),
+        )
+    })?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Expired, failed-indicator, unreleased and recalled packs never leave CSSD.
+    // The refusal is audited and committed before it is returned.
+    if let Some(reason) =
+        release::pack_block_reason(&mut tx, claims.tenant_id, load_item_id).await?
+    {
+        release::audit_blocked_issue(&mut tx, &claims, load_item_id, &reason).await?;
+        tx.commit().await?;
+        return Err(AppError::Conflict(reason));
+    }
+
     let row = sqlx::query_as::<_, CssdIssuance>(
         "INSERT INTO cssd_issuances (tenant_id, load_item_id, set_id, issued_to_department, issued_to_patient_id, issued_by, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         VALUES ($1, $2, (SELECT set_id FROM cssd_load_items WHERE id = $2), $3, $4, $5, $6)
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(body.load_item_id)
-    .bind(body.set_id)
+    .bind(load_item_id)
     .bind(&body.issued_to_department)
     .bind(body.issued_to_patient_id)
     .bind(claims.sub)
@@ -691,9 +716,13 @@ pub async fn create_issuance(
 
     // Auto-bill CSSD issuance if issued to a patient
     if let Some(patient_id) = row.issued_to_patient_id {
-        if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "cssd")
-            .await
-            .unwrap_or(false)
+        if medbrains_server_services::billing::is_auto_billing_enabled(
+            &mut tx,
+            &claims.tenant_id,
+            "cssd",
+        )
+        .await
+        .unwrap_or(false)
         {
             let _ = medbrains_server_services::billing::create_service_charge(
                 &mut tx,
@@ -748,21 +777,29 @@ pub async fn recall_issuance(
     Path(id): Path<Uuid>,
     Json(body): Json<RecallIssuanceRequest>,
 ) -> Result<Json<CssdIssuance>, AppError> {
-    require_permission(&claims, permissions::cssd::issuance::CREATE)?;
+    require_permission(&claims, permissions::cssd::sterilization::RECALL)?;
+    let reason = body.recall_reason.trim();
+    if reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "Give the reason for recalling this pack.".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CssdIssuance>(
-        "UPDATE cssd_issuances SET is_recalled = TRUE, recall_reason = $2
-         WHERE id = $1
+        "UPDATE cssd_issuances SET is_recalled = TRUE, recall_reason = $3 \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          RETURNING *",
     )
     .bind(id)
-    .bind(&body.recall_reason)
+    .bind(claims.tenant_id)
+    .bind(reason)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    release::audit_issuance_recall(&mut tx, &claims, id, reason).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -783,7 +820,7 @@ pub async fn list_maintenance_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdMaintenanceLog>(
-        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 ORDER BY performed_at DESC LIMIT 5000",
+        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 AND deleted_at IS NULL ORDER BY performed_at DESC LIMIT 5000",
     )
     .bind(sterilizer_id)
     .fetch_all(&mut *tx)
@@ -842,38 +879,20 @@ pub fn router() -> axum::Router<AppState> {
             "/api/cssd/instruments",
             get(list_instruments).post(create_instrument),
         )
-        .route(
-            "/api/cssd/instruments/{id}",
-            put(update_instrument),
-        )
-        .route(
-            "/api/cssd/sets",
-            get(list_sets).post(create_set),
-        )
-        .route(
-            "/api/cssd/sets/{set_id}/items",
-            get(get_set_items),
-        )
+        .route("/api/cssd/instruments/{id}", put(update_instrument))
+        .route("/api/cssd/sets", get(list_sets).post(create_set))
+        .route("/api/cssd/sets/{set_id}/items", get(get_set_items))
         .route(
             "/api/cssd/sterilizers",
             get(list_sterilizers).post(create_sterilizer),
         )
-        .route(
-            "/api/cssd/sterilizers/{id}",
-            put(update_sterilizer),
-        )
+        .route("/api/cssd/sterilizers/{id}", put(update_sterilizer))
         .route(
             "/api/cssd/sterilizers/{id}/maintenance",
             get(list_maintenance_logs).post(create_maintenance_log),
         )
-        .route(
-            "/api/cssd/loads",
-            get(list_loads).post(create_load),
-        )
-        .route(
-            "/api/cssd/loads/{id}/status",
-            put(update_load_status),
-        )
+        .route("/api/cssd/loads", get(list_loads).post(create_load))
+        .route("/api/cssd/loads/{id}/status", put(update_load_status))
         .route(
             "/api/cssd/loads/{id}/items",
             get(list_load_items).post(add_load_item),
@@ -883,15 +902,14 @@ pub fn router() -> axum::Router<AppState> {
             get(list_indicators).post(record_indicator),
         )
         .route(
+            "/api/cssd/loads/{id}/issuances",
+            get(release::list_load_issuances),
+        )
+        .route("/api/cssd/loads/{id}/recall", post(release::recall_load))
+        .route(
             "/api/cssd/issuances",
             get(list_issuances).post(create_issuance),
         )
-        .route(
-            "/api/cssd/issuances/{id}/return",
-            put(return_issuance),
-        )
-        .route(
-            "/api/cssd/issuances/{id}/recall",
-            put(recall_issuance),
-        )
+        .route("/api/cssd/issuances/{id}/return", put(return_issuance))
+        .route("/api/cssd/issuances/{id}/recall", put(recall_issuance))
 }

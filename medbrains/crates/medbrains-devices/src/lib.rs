@@ -14,6 +14,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
+pub mod analyzer_orders;
 mod hl7_flag;
 use hl7_flag::map_hl7_flag;
 
@@ -493,7 +494,7 @@ pub async fn list_device_messages(
         "SELECT id, tenant_id, device_instance_id, direction, protocol, \
          parsed_payload, mapped_data, processing_status, target_module, \
          target_entity_id, error_message, retry_count, processing_duration_ms, created_at \
-         FROM device_messages WHERE device_instance_id = $1 \
+         FROM device_messages WHERE device_instance_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR processing_status::text = $2) \
          ORDER BY created_at DESC LIMIT $3 OFFSET $4",
     )
@@ -521,7 +522,7 @@ pub async fn list_config_history(
     let rows = sqlx::query_as::<_, DeviceConfigHistoryRow>(
         "SELECT id, device_instance_id, change_type, previous_config, new_config, \
          changed_fields, changed_by, change_reason, ai_confidence, created_at \
-         FROM device_config_history WHERE device_instance_id = $1 \
+         FROM device_config_history WHERE device_instance_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 100",
     )
     .bind(device_id)
@@ -777,9 +778,11 @@ pub async fn ingest_device_data(
     // authenticated user could push readings for a device in another tenant.
     require_permission(&claims, permissions::devices::INGEST)?;
 
-    let dq = format!("{INSTANCE_SELECT} WHERE id = $1");
+    // A key or session from one hospital must not push readings into another's device.
+    let dq = format!("{INSTANCE_SELECT} WHERE id = $1 AND tenant_id = $2");
     let device = sqlx::query_as::<_, DeviceInstanceRow>(&dq)
         .bind(body.device_instance_id)
+        .bind(claims.tenant_id)
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -810,6 +813,22 @@ pub async fn ingest_device_data(
         .bind(body.device_instance_id)
         .execute(&mut *tx)
         .await?;
+
+    // An analyser past its calibration (or out of service) must not report
+    // patient results. The message is kept, marked rejected, for the lab to
+    // rerun the samples once biomedical engineering recalibrates it.
+    if module == "lab" {
+        if let Some(reason) = instrument_lock_reason(&mut tx, body.device_instance_id).await? {
+            refuse_locked_instrument(&mut tx, (device.tenant_id, claims.sub), msg_id, &reason)
+                .await?;
+            tx.commit().await?;
+            return Err(AppError::Conflict(format!(
+                "Results refused: {} is locked — {reason}. Recalibrate it and rerun \
+                 the samples; the message is kept for review.",
+                device.name
+            )));
+        }
+    }
 
     // ── Route data based on module ──
     let mut routed_entity_id: Option<Uuid> = None;
@@ -847,6 +866,62 @@ pub async fn ingest_device_data(
         "module": module,
         "routed_entity_id": routed_entity_id,
     })))
+}
+
+/// Why the BME equipment behind this device must not produce results, or
+/// `None` (also when the device is not linked to BME equipment). Uses the one
+/// definition of a calibration lock, `bme_calibration_lock_reason` (1066).
+async fn instrument_lock_reason(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    device_instance_id: Uuid,
+) -> Result<Option<String>, AppError> {
+    let reason = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT COALESCE( \
+             (SELECT bme_calibration_lock_reason(c) FROM bme_calibrations c \
+               WHERE c.equipment_id = d.bme_equipment_id AND c.deleted_at IS NULL \
+                 AND bme_calibration_lock_reason(c) IS NOT NULL \
+               ORDER BY c.next_due_date NULLS LAST LIMIT 1), \
+             (SELECT 'equipment is ' || replace(e.status::text, '_', ' ') \
+                FROM bme_equipment e \
+               WHERE e.id = d.bme_equipment_id AND e.status <> 'active')) \
+           FROM device_instances d WHERE d.id = $1",
+    )
+    .bind(device_instance_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(reason.flatten())
+}
+
+async fn refuse_locked_instrument(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    (tenant_id, actor): (Uuid, Uuid),
+    msg_id: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE device_messages SET processing_status = 'rejected'::device_message_status, \
+         error_message = $2 WHERE id = $1",
+    )
+    .bind(msg_id)
+    .bind(format!("instrument locked: {reason}"))
+    .execute(&mut **tx)
+    .await?;
+    let values = serde_json::json!({ "reason": reason });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id,
+            user_id: Some(actor),
+            action: "lab.results_refused_instrument_locked",
+            entity_type: "device_messages",
+            entity_id: Some(msg_id),
+            old_values: None,
+            new_values: Some(&values),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 /// Route lab device data: extract OBX results, match to `lab_order` by sample barcode, create `lab_results`.
@@ -1037,6 +1112,14 @@ pub fn router() -> axum::Router<AppState> {
             put(update_routing_rule).delete(delete_routing_rule),
         )
         .route("/api/devices/agents", get(list_bridge_agents))
+        .route(
+            "/api/devices/instances/{id}/analyzer-orders",
+            get(analyzer_orders::list_analyzer_orders),
+        )
+        .route(
+            "/api/devices/instances/{id}/analyzer-orders/sent",
+            post(analyzer_orders::record_analyzer_orders_sent),
+        )
         .route("/api/device-ingest/{module}", post(ingest_device_data))
 }
 

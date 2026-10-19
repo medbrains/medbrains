@@ -7,7 +7,7 @@ import {
   IconUserCheck,
   IconUserQuestion,
 } from "@tabler/icons-react";
-import { usePatientName } from "@/hooks/usePatientName";
+import { type PatientNameInfo, usePatientName } from "@/hooks/usePatientName";
 import { PermissionedFieldValue, useProtectedFieldValue } from "./PermissionedFieldValue";
 import styles from "./patient-name-cell.module.scss";
 
@@ -19,6 +19,11 @@ interface PatientNameCellProps {
   size?: "xs" | "sm" | "md";
   /** Show a compact gender identity indicator next to the patient name. */
   showGender?: boolean;
+  /**
+   * The identity, when the list already carries it: no per-row fetch, and
+   * no dependence on access to the full patient record.
+   */
+  identity?: PatientNameInfo;
 }
 
 const genderLabels: Record<Gender, string> = {
@@ -111,8 +116,12 @@ export function PatientNameCell({
   showUhid = true,
   size = "sm",
   showGender = true,
+  identity,
 }: PatientNameCellProps) {
-  const { data, isLoading, isError } = usePatientName(patientId);
+  const fetched = usePatientName(identity ? null : patientId);
+  const data = identity ?? fetched.data;
+  const isLoading = !identity && fetched.isLoading;
+  const isError = !identity && fetched.isError;
 
   if (!patientId) {
     return (

@@ -38,13 +38,17 @@ import { Brand } from "@/components/Brand";
 import { BuildVersion } from "@/components/BuildVersion";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
+import { HelpButton } from "@/components/HelpButton";
 import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
 import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
 import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { NotesButton } from "@/components/notes/NotesButton";
+import { PageQueryErrorBanner } from "@/components/PageQueryErrorBanner";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
+import { TestCasesPanel } from "@/components/qa/TestCasesPanel";
 import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
@@ -329,6 +333,9 @@ export function AppLayout() {
     </Tooltip>
   );
 
+  // Which parent entries (Administration → Admin) the user has opened.
+  const [openParents, setOpenParents] = useState<Record<string, boolean>>({});
+
   // ── Render expanded nav item (with optional children) ──
   const renderExpandedItem = (item: ResolvedNavItem) => {
     if (item.children) {
@@ -338,10 +345,15 @@ export function AppLayout() {
       return (
         <div key={item.path}>
           <NavLink
+            // A real button, so the keyboard and screen readers can open it.
+            component="button"
+            type="button"
             label={item.label}
             leftSection={<span className={classes.navIcon}>{item.icon}</span>}
             active={isAdminActive}
-            defaultOpened={isAdminActive}
+            opened={openParents[item.path] ?? isAdminActive}
+            onChange={(opened) => setOpenParents((all) => ({ ...all, [item.path]: opened }))}
+            aria-expanded={openParents[item.path] ?? isAdminActive}
             className={isAdminActive ? classes.expandedItemActive : classes.expandedItem}
             aria-current={isAdminActive ? "page" : undefined}
             onFocus={() => handleNavigationIntent(item.path)}
@@ -477,16 +489,23 @@ export function AppLayout() {
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" miw={0} style={{ flex: "1 1 auto" }}>
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
-            <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
+            <Group
+              gap={8}
+              wrap="nowrap"
+              miw={0}
+              className={classes.logoArea}
+              onClick={() => navigate("/dashboard")}
+            >
               <Brand surface="header" />
             </Group>
           </Group>
 
-          <Group gap="sm" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" miw={0}>
             <HeaderWidgets />
-            <Box visibleFrom="lg" style={{ height: "100%" }}>
+            {/* The ticker gives way first when the bar is tight. */}
+            <Box visibleFrom="xl" miw={0} style={{ height: "100%", flex: "0 1 260px" }}>
               <NewsMarquee />
             </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
@@ -514,6 +533,10 @@ export function AppLayout() {
             >
               <AnimatedIcon icon={Search} size={18} motion="float" />
             </ActionIcon>
+
+            <HelpButton />
+
+            <NotesButton />
 
             <NotificationCenter />
 
@@ -545,7 +568,7 @@ export function AppLayout() {
 
             <Menu shadow="lg" width={180} position="bottom-end">
               <Menu.Target>
-                <Group gap={8} style={{ cursor: "pointer" }}>
+                <Group gap={8} wrap="nowrap" style={{ cursor: "pointer" }}>
                   <Avatar
                     color="primary"
                     radius="lg"
@@ -554,11 +577,17 @@ export function AppLayout() {
                   >
                     {userInitial}
                   </Avatar>
-                  <Box visibleFrom="sm" style={{ lineHeight: 1.2 }}>
-                    <Text size="xs" fw={600} c="var(--mb-text-primary)">
+                  <Box visibleFrom="lg" maw={160} style={{ lineHeight: 1.2 }}>
+                    <Text size="xs" fw={600} c="var(--mb-text-primary)" truncate="end">
                       {user?.full_name}
                     </Text>
-                    <Text size="xs" c="var(--mb-text-muted)" fw={400} tt="capitalize">
+                    <Text
+                      size="xs"
+                      c="var(--mb-text-muted)"
+                      fw={400}
+                      tt="capitalize"
+                      truncate="end"
+                    >
                       {user?.role?.replace(/_/g, " ")}
                     </Text>
                   </Box>
@@ -665,6 +694,7 @@ export function AppLayout() {
           A prop, because Mantine's own shell padding outranks a class. */}
       <AppShell.Main pb="calc(var(--mantine-spacing-xl) * 4)">
         <VerifyEmailBanner />
+        <PageQueryErrorBanner />
         {breadcrumbItems.length > 0 && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb
@@ -692,6 +722,7 @@ export function AppLayout() {
       <LiveActivityIsland />
       <EmergencyCodeActivity />
       <StepUpGate />
+      <TestCasesPanel />
     </AppShell>
   );
 }

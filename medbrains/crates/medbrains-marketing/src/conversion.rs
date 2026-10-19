@@ -324,6 +324,32 @@ pub async fn convert_contact(
         .await?;
     }
 
+    // The enquiry's campaign is where this patient came from — unless the
+    // desk already recorded one, which is the earlier, first-hand answer.
+    let campaign: Option<Uuid> = sqlx::query_scalar(
+        "SELECT campaign_id FROM mkt_contacts c \
+          WHERE c.id = $1 AND c.tenant_id = $2 AND NOT EXISTS ( \
+            SELECT 1 FROM patient_acquisition pa \
+             WHERE pa.patient_id = $3 AND pa.deleted_at IS NULL AND pa.campaign_id IS NOT NULL)",
+    )
+    .bind(contact_id)
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+    if campaign.is_some() {
+        medbrains_patients::acquisition::record(
+            &mut tx,
+            claims.tenant_id,
+            patient_id,
+            campaign,
+            medbrains_patients::acquisition::CapturedVia::Enquiry,
+            Some(claims.sub),
+        )
+        .await?;
+    }
+
     // Close any callback still owed. Ringing somebody to ask whether they
     // would like to register, after they have registered, is the specific
     // embarrassment this line prevents.

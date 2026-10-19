@@ -97,3 +97,7 @@
     box-shadow: 0 0 0 4px var(--mantine-color-red-2);
   }
 }
+
+.bpCard {
+  grid-column: span 2;
+}

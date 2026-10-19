@@ -7,6 +7,9 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
+import { ExchangeRatesSection } from "./exchange-rates-section";
+import { NonPayablesCard } from "./NonPayablesCard";
+import { RevisitWindowCard } from "./RevisitWindowCard";
 
 const AUTO_BILLING_KEYS = [
   {
@@ -37,6 +40,15 @@ const AUTO_BILLING_KEYS = [
 ] as const;
 
 export function BillingSettingsTab() {
+  return (
+    <Stack gap="xl">
+      <BillingTenantSettings />
+      <ExchangeRatesSection />
+    </Stack>
+  );
+}
+
+function BillingTenantSettings() {
   const queryClient = useQueryClient();
   // This tab had no gate of its own and rides in on the billing page's
   // invoice-list permission, while both its calls are tenant settings. A
@@ -54,12 +66,19 @@ export function BillingSettingsTab() {
   });
 
   const settingsMap = new Map(settings.map((s: TenantSettingsRow) => [s.key, s.value]));
+  // The UPI ID lives with payments: the counter's QR reads it too.
+  const { data: paymentSettings = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ["tenant-settings", "payments"],
+    queryFn: () => billingService.getTenantSettings("payments"),
+    enabled: canRead,
+  });
+  const upiVpa = paymentSettings.find((s: TenantSettingsRow) => s.key === "upi_vpa")?.value;
 
   const updateMutation = useMutation({
     mutationFn: (data: { category: string; key: string; value: unknown }) =>
       billingService.updateTenantSetting(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "billing"] });
+    onSuccess: (_, data) => {
+      void queryClient.invalidateQueries({ queryKey: ["tenant-settings", data.category] });
     },
     onError: () => {
       toast.error("Failed to update setting", { title: "Error" });
@@ -94,7 +113,7 @@ export function BillingSettingsTab() {
     );
   }
 
-  if (isLoading) return <Text c="dimmed">Loading settings...</Text>;
+  if (isLoading || paymentsLoading) return <Text c="dimmed">Loading settings...</Text>;
 
   return (
     <Stack>
@@ -134,6 +153,45 @@ export function BillingSettingsTab() {
       </Group>
 
       <Text fw={600} mt="lg">
+        Bill details
+      </Text>
+      <Text size="sm" c="dimmed">
+        Printed on every bill. The drug licence numbers appear on pharmacy bills; the UPI ID puts a
+        scan-to-pay QR for the balance on the bill and at the payment counter.
+      </Text>
+      <TextInput
+        label="Address on bills"
+        placeholder="e.g. 1 Hospital Road, Karaikudi 630001"
+        defaultValue={getStrVal("bill_address")}
+        disabled={!canManage}
+        onBlur={(e) => updateStr("bill_address", e.currentTarget.value.trim())}
+      />
+      <Group grow>
+        <TextInput
+          label="Drug licence numbers"
+          description="Form 20 / Form 21, as on the licence"
+          placeholder="e.g. TN-20B-1234 / TN-21B-1235"
+          defaultValue={getStrVal("drug_licence")}
+          disabled={!canManage}
+          onBlur={(e) => updateStr("drug_licence", e.currentTarget.value.trim())}
+        />
+        <TextInput
+          label="UPI ID"
+          description="Payments to this ID go to the hospital's account"
+          placeholder="e.g. hospital@okaxis"
+          defaultValue={typeof upiVpa === "string" ? upiVpa : ""}
+          disabled={!canManage}
+          onBlur={(e) =>
+            updateMutation.mutate({
+              category: "payments",
+              key: "upi_vpa",
+              value: e.currentTarget.value.trim(),
+            })
+          }
+        />
+      </Group>
+
+      <Text fw={600} mt="lg">
         Advance Settings
       </Text>
       <Switch
@@ -142,6 +200,31 @@ export function BillingSettingsTab() {
         checked={isEnabled("auto_adjust_advance")}
         onChange={() => toggle("auto_adjust_advance")}
         disabled={!canManage || updateMutation.isPending}
+      />
+
+      <RevisitWindowCard
+        value={settingsMap.get("opd_revisit")}
+        canManage={canManage}
+        saving={updateMutation.isPending}
+        onSave={(policy) =>
+          updateMutation.mutate({ category: "billing", key: "opd_revisit", value: policy })
+        }
+      />
+
+      <NonPayablesCard
+        canManage={canManage}
+        saving={updateMutation.isPending}
+        onSave={(rules) =>
+          updateMutation.mutate(
+            { category: "billing", key: "non_payables", value: rules },
+            {
+              onSuccess: () => {
+                void queryClient.invalidateQueries({ queryKey: ["non-payables"] });
+                toast.success("Non-payables list saved", { title: "Billing" });
+              },
+            },
+          )
+        }
       />
 
       <Text fw={600} mt="lg">

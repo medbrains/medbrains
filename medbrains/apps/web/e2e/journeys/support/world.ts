@@ -25,10 +25,27 @@ export interface Hospital {
   as: (role: string) => Promise<Page>;
   /** An administrator's page (the setup project's session). */
   asAdmin: () => Promise<Page>;
+  /** A page signed in to nothing: a patient or a member of the public. */
+  asPublic: () => Promise<Page>;
+  /** A new staff member in this role, logged in in their own browser. */
+  newStaff: (
+    role: string,
+    fullName: string,
+    /** Per-user grants on top of the role, set before they first sign in. */
+    extraPermissions?: string[],
+  ) => Promise<{ id: string; page: Page; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
   /** The doctor this run logs in as, by the name the desk picks them by. */
   doctor: () => Promise<{ id: string; fullName: string }>;
+  /**
+   * Another doctor, in this department, logged in in their own browser —
+   * with `fieldAccess` restrictions, when the test is about them.
+   */
+  colleague: (
+    department: Department,
+    fieldAccess?: Record<string, "view" | "mask" | "hidden">,
+  ) => Promise<{ id: string; fullName: string; page: Page }>;
 }
 
 const unique = () => crypto.randomUUID().slice(0, 8).toUpperCase();
@@ -65,6 +82,30 @@ export const test = base.extend<{ hospital: Hospital }>({
         pages.push(page);
         return page;
       },
+      asPublic: async () => {
+        const page = await openPage(browser);
+        pages.push(page);
+        return page;
+      },
+      newStaff: async (role, fullName, extraPermissions) => {
+        const suffix = unique().toLowerCase();
+        // Usernames are at most 30 characters; long role codes are cut.
+        const username = `${role.slice(0, 20)}_${suffix}`;
+        const password = `Staff-${suffix}-Pass1!`;
+        const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
+          username,
+          email: `${username}@e2e.medbrains.localhost`,
+          password,
+          full_name: fullName,
+          role,
+          ...(extraPermissions ? { access_matrix: { extra: extraPermissions, denied: [] } } : {}),
+        });
+        const page = await openPage(browser);
+        await loginAsRole(page, username, password);
+        pages.push(page);
+        // The password, for screens that ask the user to confirm it's them.
+        return { id: user.id, page, password };
+      },
       asAdmin: async () => {
         const page = await openPage(browser, "e2e/.auth/user.json");
         pages.push(page);
@@ -80,6 +121,31 @@ export const test = base.extend<{ hospital: Hospital }>({
         const me = doctors.find((d) => d.id === identity.id);
         if (!me) throw new Error("the E2E doctor is not in the consultant list");
         return { id: me.id, fullName: me.full_name };
+      },
+      colleague: async (department, fieldAccess) => {
+        const suffix = unique().toLowerCase();
+        const username = `colleague_${suffix}`;
+        const password = `Colleague-${suffix}-Pass1!`;
+        const person = freshPerson();
+        const fullName = `${person.firstName} ${person.lastName}`;
+        const user = await api<{ id: string }>(admin, "POST", "/api/setup/users", {
+          username,
+          email: `${username}@e2e.medbrains.localhost`,
+          password,
+          full_name: fullName,
+          role: "doctor",
+          department_ids: [department.id],
+          specialization: department.name,
+          medical_registration_number: `E2E-COL-${suffix}`,
+          qualification: "MD",
+          ...(fieldAccess && {
+            access_matrix: { extra: [], denied: [], field_access: fieldAccess },
+          }),
+        });
+        const page = await openPage(browser);
+        await loginAsRole(page, username, password);
+        pages.push(page);
+        return { id: user.id, fullName, page };
       },
       setting: async (category, key, value) => {
         const rows = await api<Array<{ key: string; value: unknown }>>(

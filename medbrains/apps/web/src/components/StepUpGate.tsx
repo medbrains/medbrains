@@ -1,4 +1,4 @@
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, getDefaultZIndex, Stack, Text } from "@mantine/core";
 import { api, setStepUpHandler } from "@medbrains/api";
 import { useRef, useState } from "react";
 import { useEffectOnce } from "react-use";
@@ -47,7 +47,14 @@ export function StepUpGate() {
   };
 
   return (
-    <Modal opened={open} onClose={() => finish(false)} title="Confirm it's you">
+    <Modal
+      opened={open}
+      onClose={() => finish(false)}
+      title="Confirm it's you"
+      // It interrupts whatever asked for it, often from inside another dialog,
+      // so it always sits on top.
+      zIndex={getDefaultZIndex("max")}
+    >
       <Stack gap="sm">
         <Text size="sm">This is a sensitive action — re-enter your password to continue.</Text>
         <Input

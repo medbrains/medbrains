@@ -17,6 +17,7 @@ import {
   reportStatusLabel,
 } from "./report-helpers";
 import type { ReportDefinition, ReportLoadingState, ReportRuntimeData } from "./types";
+import { useReportOnDashboard } from "./useReportOnDashboard";
 
 export function ReportTile({
   report,
@@ -36,6 +37,8 @@ export function ReportTile({
   const canView = usePermissionStore((state) =>
     report.permissions.some((permission) => state.hasPermission(permission)),
   );
+  // Before any early return: a hook runs on every render, in the same order.
+  const dashboard = useReportOnDashboard(report.id);
   const readiness = READINESS_META[report.readiness];
   const priority = PRIORITY_META[report.priority];
 
@@ -78,19 +81,40 @@ export function ReportTile({
     );
   }
 
+  const option = report.dataEndpoint
+    ? optionForReport(report, runtimeData, reportData?.rows)
+    : null;
   return (
     <ReportChart
       title={report.title}
       description={report.purpose}
       permission={report.permissions[0] ?? P.ANALYTICS.VIEW}
-      option={optionForReport(report, runtimeData)}
+      option={option}
+      emptyMessage={emptyMessageFor(report, reportData)}
       status={`${reportStatusLabel(report)}${
         reportData ? ` · ${reportData.summary.row_count} rows` : ""
       }`}
       isLoading={loadingForReport(report, loadingState) || isReportLoading}
-      disabledActions={report.dataEndpoint === null}
+      disabledActions={option === null}
       sourceHref={undefined}
       onViewDetails={() => onDetails(report)}
+      dashboard={option && dashboard.canPlace ? dashboard : undefined}
+      rows={(reportData?.rows ?? []) as Record<string, unknown>[]}
+      link={`/reports?q=${encodeURIComponent(report.title)}`}
     />
   );
+}
+
+/** Why a report shows no chart — never a sample in its place. */
+function emptyMessageFor(
+  report: ReportDefinition,
+  reportData: ReportDataResponse<unknown> | undefined,
+): string {
+  if (!report.dataEndpoint) {
+    return "This report is not connected to data yet, so it has no chart. Its readiness above says what it needs.";
+  }
+  if (reportData && reportData.rows.length === 0) return "No data in the last 30 days.";
+  if (reportData)
+    return "This report's data has no figures to chart; open the details for the rows.";
+  return "No data to show.";
 }

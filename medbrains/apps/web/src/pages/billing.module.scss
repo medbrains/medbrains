@@ -24,7 +24,7 @@
 .workspaceMain :global(#billing-items),
 .workspaceMain :global(#billing-payments),
 .workspaceMain :global(#billing-discounts),
-.workspaceMain :global(#billing-copay) {
+.workspaceMain :global(#billing-payer-split) {
   scroll-margin-top: calc(var(--app-shell-header-height, 72px) + 164px);
 }
 

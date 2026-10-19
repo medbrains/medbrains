@@ -9,6 +9,8 @@ medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-security = { path = "../medbrains-security" }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 axum = { workspace = true }
 serde = { workspace = true }

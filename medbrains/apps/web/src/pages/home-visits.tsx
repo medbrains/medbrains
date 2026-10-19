@@ -1,17 +1,20 @@
 import { Group, Modal, NumberInput, Select, Stack, TextInput } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
+import { isBloodPressureValid, parseBloodPressureText, toReading } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { HomeVisit } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconRoute } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "@/components";
+import { useSearchParams } from "react-router";
+import { BloodPressureInput, type BloodPressureValue, DataTable, PageHeader } from "@/components";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Drawer, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { homeHealthService } from "@/services/homeHealth.service";
 
@@ -93,7 +96,12 @@ function ScheduleVisitModal({
 function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => void }) {
   const qc = useQueryClient();
   const v = (visit.vitals ?? {}) as Record<string, unknown>;
-  const [bp, setBp] = useState(v.bp ? String(v.bp) : "");
+  // Readings from before BP was two numbers carry it as "bp": "120/80".
+  const [bp, setBp] = useState<BloodPressureValue>(() =>
+    typeof v.systolic_bp === "number"
+      ? { systolic: v.systolic_bp, diastolic: toReading(v.diastolic_bp) }
+      : parseBloodPressureText(v.bp),
+  );
   const [pulse, setPulse] = useState(v.pulse ? String(v.pulse) : "");
   const [spo2, setSpo2] = useState(v.spo2 ? String(v.spo2) : "");
   const [temp, setTemp] = useState(v.temp ? String(v.temp) : "");
@@ -104,7 +112,8 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
     mutationFn: () =>
       homeHealthService.documentHomeVisit(visit.id, {
         vitals: {
-          ...(bp && { bp }),
+          ...(bp.systolic !== undefined && { systolic_bp: bp.systolic }),
+          ...(bp.diastolic !== undefined && { diastolic_bp: bp.diastolic }),
           ...(pulse && { pulse }),
           ...(spo2 && { spo2 }),
           ...(temp && { temp }),
@@ -123,13 +132,8 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
   return (
     <Modal opened onClose={onClose} title="Document visit" size="lg">
       <Stack gap="sm">
+        <BloodPressureInput value={bp} onChange={setBp} />
         <Group grow>
-          <TextInput
-            label="BP"
-            value={bp}
-            onChange={(e) => setBp(e.currentTarget.value)}
-            placeholder="120/80"
-          />
           <TextInput
             label="Pulse"
             value={pulse}
@@ -151,7 +155,11 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
           onChange={(e) => setPhoto(e.currentTarget.value)}
           placeholder="Uploaded image reference"
         />
-        <Button onClick={() => save.mutate()} loading={save.isPending}>
+        <Button
+          onClick={() => save.mutate()}
+          loading={save.isPending}
+          disabled={!isBloodPressureValid(bp.systolic, bp.diastolic)}
+        >
           Save documentation
         </Button>
       </Stack>
@@ -160,12 +168,19 @@ function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => vo
 }
 
 export function HomeVisitsPage() {
-  useRequirePermission(P.IPD.MAR_LIST);
-  const canManage = useHasPermission(P.IPD.MAR_CREATE);
+  useRequirePermission(P.HOME_HEALTH.LIST);
+  const canManage = useHasPermission(P.HOME_HEALTH.MANAGE);
   const qc = useQueryClient();
   const [date, setDate] = useState<string | null>(today());
   const [modalOpen, modal] = useDisclosure(false);
   const [docVisit, setDocVisit] = useState<HomeVisit | null>(null);
+  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
+  // The open case sheet lives in the URL, so the unsigned-notes worklist
+  // can link straight to it.
+  const [params, setParams] = useSearchParams();
+  const caseSheet = params.get("case_sheet");
+  const openCaseSheet = (encounterId: string | null) =>
+    setParams(encounterId ? { case_sheet: encounterId } : {}, { replace: true });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["home-visits", date],
@@ -219,8 +234,21 @@ export function HomeVisitsPage() {
       key: "actions",
       label: "",
       render: (r) => {
-        if (!canManage) return null;
         const actions = [];
+        if (canViewNotes && r.encounter_id) {
+          const encounterId = r.encounter_id;
+          actions.push(
+            <Button
+              key="case-sheet"
+              size="xs"
+              tone="tertiary"
+              onClick={() => openCaseSheet(encounterId)}
+            >
+              Case sheet
+            </Button>,
+          );
+        }
+        if (!canManage) return actions.length > 0 ? <Group gap="xs">{actions}</Group> : null;
         if (r.status === "scheduled") actions.push(act(r.id, "en_route", "En route", "primary"));
         if (r.status === "scheduled" || r.status === "en_route") {
           actions.push(act(r.id, "completed", "Complete", "primary"));
@@ -271,6 +299,14 @@ export function HomeVisitsPage() {
       />
       {date && <ScheduleVisitModal date={date} opened={modalOpen} onClose={modal.close} />}
       {docVisit && <DocumentModal visit={docVisit} onClose={() => setDocVisit(null)} />}
+      <Drawer
+        opened={caseSheet !== null}
+        onClose={() => openCaseSheet(null)}
+        title="Home visit case sheet"
+        size="xl"
+      >
+        {caseSheet && <CaseSheet encounterId={caseSheet} />}
+      </Drawer>
     </Stack>
   );
 }

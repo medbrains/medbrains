@@ -7,7 +7,7 @@
 // help nursing locate the patient quickly. Critical / MLC / allergy
 // indicators surface as inline glyphs the moment the band is read.
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Badge, Button, Group, Modal, Stack, Textarea } from "@mantine/core";
+import { Alert, Badge, Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IpdWristbandReprintFormInput } from "@medbrains/schemas";
@@ -17,8 +17,12 @@ import { P, type WristbandPrintData } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Image } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { PRINT_COPY_ROUTES, printCopyRouteLabel } from "@/utils/printCopies";
+
+/** An SVG string as an image source: drawn without injecting markup. */
+const svgDataUri = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
 interface WristbandPrintModalProps {
   admissionId: string;
@@ -143,12 +147,33 @@ export function WristbandPrintModal({
                 fontFamily: "monospace",
               }}
             >
-              <div className="name" style={{ fontSize: "10pt", fontWeight: 700 }}>
-                {printData.patient_name}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1mm" }}>
+                <div>
+                  <div className="name" style={{ fontSize: "10pt", fontWeight: 700 }}>
+                    {printData.patient_name}
+                  </div>
+                  <div className="uhid" style={{ fontSize: "9pt", letterSpacing: "0.5mm" }}>
+                    {printData.uhid}
+                  </div>
+                  {printData.admission_number && (
+                    <Text span fz="7pt">
+                      {printData.admission_number}
+                    </Text>
+                  )}
+                </div>
+                {/* The UHID as a QR: phones and 2D scanners read it at the bedside. */}
+                <Image
+                  src={svgDataUri(printData.qr_svg)}
+                  alt={`QR code for UHID ${printData.uhid}`}
+                  style={{ width: "13mm", height: "13mm", flexShrink: 0 }}
+                />
               </div>
-              <div className="uhid" style={{ fontSize: "9pt", letterSpacing: "0.5mm" }}>
-                {printData.uhid}
-              </div>
+              {/* The UHID as a Code 128 barcode: what the medication check scans. */}
+              <Image
+                src={svgDataUri(printData.barcode_svg)}
+                alt={`Barcode for UHID ${printData.uhid}`}
+                style={{ width: "40mm", height: "5mm" }}
+              />
               <div className="row" style={{ fontSize: "7pt" }}>
                 DOB {printData.date_of_birth ?? "—"} · {printData.gender} · BG{" "}
                 {printData.blood_group ?? "—"}

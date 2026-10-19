@@ -2,6 +2,7 @@ import {
   IconAlertTriangle,
   IconApps,
   IconBed,
+  IconBinaryTree,
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
@@ -13,12 +14,15 @@ import {
   IconHeartRateMonitor,
   IconMapPin,
   IconMedicalCross,
+  IconNotebook,
   IconPalette,
   IconPill,
   IconPlug,
   IconPrinter,
+  IconQrcode,
   IconRuler2,
   IconSettings,
+  IconShare,
   IconShieldCheck,
   IconShieldLock,
   IconSitemap,
@@ -27,12 +31,16 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { AbdmScanShareSettings } from "@/pages/admin/settings/AbdmScanShareSettings";
+import { AbdmSettings } from "@/pages/admin/settings/AbdmSettings";
+import { AbdmSharingSettings } from "@/pages/admin/settings/AbdmSharingSettings";
 import { AccessMatrixSettings } from "@/pages/admin/settings/AccessMatrixSettings";
 import { BedTypesSettings } from "@/pages/admin/settings/BedTypesSettings";
 import { BillingTaxSettings } from "@/pages/admin/settings/BillingTaxSettings";
 import { BrandingSettings } from "@/pages/admin/settings/BrandingSettings";
 import { ClinicalConfigSettings } from "@/pages/admin/settings/ClinicalConfigSettings";
 import { ClinicalMastersSettings } from "@/pages/admin/settings/ClinicalMastersSettings";
+import { ClinicalNotesSettings } from "@/pages/admin/settings/ClinicalNotesSettings";
 import { ClinicalProtocolsSettings } from "@/pages/admin/settings/ClinicalProtocolsSettings";
 import { ComplianceSettingsTab } from "@/pages/admin/settings/ComplianceSettings";
 import { ConsultationTemplatesSettings } from "@/pages/admin/settings/ConsultationTemplatesSettings";
@@ -46,6 +54,7 @@ import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
+import { NhcxSettings } from "@/pages/admin/settings/NhcxSettings";
 import { OAuthIntegrationsSettings } from "@/pages/admin/settings/OAuthIntegrationsSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
@@ -54,9 +63,11 @@ import { PaymentTerminalsSettings } from "@/pages/admin/settings/PaymentTerminal
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "@/pages/admin/settings/ServicesSettings";
+import { SnomedSettings } from "@/pages/admin/settings/SnomedSettings";
 import { StandardsSettings } from "@/pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "@/pages/admin/settings/SystemHealthSettings";
 import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
+import { UhiSettings } from "@/pages/admin/settings/UhiSettings";
 import { UnitsLocaleSettings } from "@/pages/admin/settings/UnitsLocaleSettings";
 
 export interface SettingsTabConfig {
@@ -232,6 +243,41 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: BillingTaxSettings,
   },
   {
+    value: "abdm",
+    i18nKey: "settings.abdm",
+    icon: "IconPlug",
+    requiredPermission: "abdm.settings.manage",
+    component: AbdmSettings,
+  },
+  {
+    value: "abdm-sharing",
+    i18nKey: "settings.abdmSharing",
+    icon: "IconShare",
+    requiredPermission: "abdm.records.view",
+    component: AbdmSharingSettings,
+  },
+  {
+    value: "uhi",
+    i18nKey: "settings.uhi",
+    icon: "IconWorld",
+    requiredPermission: "uhi.configure",
+    component: UhiSettings,
+  },
+  {
+    value: "abdm-scan-share",
+    i18nKey: "settings.abdmScanShare",
+    icon: "IconQrcode",
+    requiredPermission: "abdm.scanshare.manage",
+    component: AbdmScanShareSettings,
+  },
+  {
+    value: "nhcx",
+    i18nKey: "settings.nhcx",
+    icon: "IconShieldCheck",
+    requiredPermission: "insurance.nhcx.configure",
+    component: NhcxSettings,
+  },
+  {
     value: "payment-terminals",
     i18nKey: "settings.paymentTerminals",
     icon: "IconCreditCard",
@@ -272,6 +318,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconTableOptions",
     requiredPermission: "admin.settings.general.manage",
     component: StandardsSettings,
+  },
+  {
+    value: "snomed",
+    i18nKey: "settings.snomed",
+    icon: "IconBinaryTree",
+    requiredPermission: "terminology.snomed.manage",
+    component: SnomedSettings,
   },
   {
     value: "print-templates",
@@ -323,6 +376,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: ClinicalConfigSettings,
   },
   {
+    value: "clinical-notes",
+    i18nKey: "settings.clinicalNotes",
+    icon: "IconNotebook",
+    requiredPermission: "admin.settings.general.manage",
+    component: ClinicalNotesSettings,
+  },
+  {
     value: "system-health",
     i18nKey: "settings.systemHealth",
     icon: "IconHeartRateMonitor",
@@ -339,6 +399,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconBinaryTree,
   IconClockCog,
   IconSettings,
   IconWorld,
@@ -357,10 +418,13 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconPalette,
   IconPlug,
   IconPrinter,
+  IconQrcode,
+  IconShare,
   IconShieldCheck,
   IconShieldLock,
   IconPill,
   IconAlertTriangle,
+  IconNotebook,
   IconStethoscope,
   IconChartBar,
   IconHeartRateMonitor,

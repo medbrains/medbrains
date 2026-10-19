@@ -1,0 +1,219 @@
+//! What a final claim (`Claim.use = claim`) carries beyond a
+//! pre-authorisation: the final bill line by line, the bill's split between
+//! payer and patient, the payer's authorisation number for the stay, and the
+//! proof that the stay's discharge summary is finalised (its PDF goes with
+//! the claim — `nhcx_claim_documents`).
+
+use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
+use serde_json::{Value, json};
+use sqlx::FromRow;
+use uuid::Uuid;
+
+use medbrains_server_core::error::AppError;
+
+use crate::nhcx_bundle::ItemLine;
+use crate::nhcx_common::Tx;
+
+/// A live bill line: reversed lines and their reversals cancel out.
+#[derive(Debug, FromRow)]
+struct BillLine {
+    code: String,
+    description: String,
+    quantity: i32,
+    unit_price: Decimal,
+    total_price: Decimal,
+}
+
+/// The bill's money, as the payer's adjudicator reads it.
+#[derive(Debug, FromRow)]
+struct BillMoney {
+    total_amount: Decimal,
+    discount_amount: Decimal,
+    claim_amount: Option<Decimal>,
+}
+
+/// What the final claim adds to the bundle.
+pub(crate) struct FinalClaim {
+    pub(crate) items: Vec<ItemLine>,
+    pub(crate) total: Decimal,
+    pub(crate) notes: Vec<String>,
+    /// When the stay's discharge summary was finalised; `None` for a claim
+    /// with no stay.
+    pub(crate) summary_final_at: Option<DateTime<Utc>>,
+    pub(crate) pre_auth_ref: Option<String>,
+}
+
+impl FinalClaim {
+    /// The lines as sent, for reading the payer's adjudication back by
+    /// sequence.
+    pub(crate) fn sent_items(&self) -> Value {
+        Value::Array(
+            self.items
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    json!({ "sequence": i + 1, "code": l.code, "description": l.description,
+                            "quantity": l.quantity, "net": l.net })
+                })
+                .collect(),
+        )
+    }
+}
+
+/// The claim the final bundle is built for.
+pub(crate) struct ClaimRef {
+    pub(crate) id: Uuid,
+    pub(crate) invoice_id: Uuid,
+    pub(crate) admission_id: Option<Uuid>,
+    pub(crate) pre_auth_ref: Option<String>,
+}
+
+/// Assemble the final claim from the bill.
+///
+/// # Errors
+/// 400 when the bill has no lines, or the stay's discharge summary is not
+/// finalised — a final claim without it is only queried back.
+pub(crate) async fn load(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    claim: &ClaimRef,
+) -> Result<FinalClaim, AppError> {
+    let lines = sqlx::query_as::<_, BillLine>(
+        "SELECT COALESCE(NULLIF(ii.service_code, ''), ii.charge_code) AS code, ii.description, \
+                ii.quantity, ii.unit_price, ii.total_price \
+           FROM invoice_items ii \
+          WHERE ii.invoice_id = $1 AND ii.tenant_id = $2 AND ii.deleted_at IS NULL \
+            AND NOT ii.is_reversal \
+            AND NOT EXISTS (SELECT 1 FROM invoice_items r \
+                             WHERE r.reversal_of_id = ii.id AND r.deleted_at IS NULL) \
+          ORDER BY ii.created_at LIMIT 500",
+    )
+    .bind(claim.invoice_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    if lines.is_empty() {
+        return Err(AppError::BadRequest(
+            "the bill has no lines to claim — finalise the bill first".into(),
+        ));
+    }
+    let money = sqlx::query_as::<_, BillMoney>(
+        "SELECT i.total_amount, i.discount_amount, c.claim_amount \
+           FROM invoices i JOIN insurance_claims c ON c.invoice_id = i.id AND c.tenant_id = i.tenant_id \
+          WHERE c.id = $1 AND c.tenant_id = $2",
+    )
+    .bind(claim.id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let total = money.claim_amount.unwrap_or(money.total_amount);
+    let summary_final_at = summary_finalised_at(tx, tenant_id, claim.admission_id).await?;
+    let pre_auth_ref = match claim.pre_auth_ref.clone() {
+        Some(r) => Some(r),
+        None => preauth_number(tx, tenant_id, claim).await?,
+    };
+    let items = lines
+        .into_iter()
+        .map(|l| ItemLine {
+            code: Some(l.code),
+            description: l.description,
+            quantity: Some(l.quantity),
+            unit_price: Some(l.unit_price),
+            net: Some(l.total_price),
+        })
+        .collect();
+    Ok(FinalClaim {
+        items,
+        total,
+        notes: vec![bill_note(&money, total)],
+        summary_final_at,
+        pre_auth_ref,
+    })
+}
+
+/// The bill's split in words — the Claim resource has no field for the
+/// patient's share or a bill-level discount.
+fn bill_note(money: &BillMoney, claimed: Decimal) -> String {
+    let patient = (money.total_amount - claimed).max(Decimal::ZERO);
+    format!(
+        "Bill total INR {}; discount INR {}; patient's share INR {} \
+         (co-pay, deductible and non-payable items); claimed from the payer INR {}.",
+        money.total_amount.round_dp(2),
+        money.discount_amount.round_dp(2),
+        patient.round_dp(2),
+        claimed.round_dp(2),
+    )
+}
+
+/// When the stay's discharge summary was finalised — the structured summary,
+/// or the legacy text on the admission. An OPD claim has no stay.
+///
+/// # Errors
+/// 400 when the stay has no finalised summary.
+pub(crate) async fn summary_finalised_at(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    admission_id: Option<Uuid>,
+) -> Result<Option<DateTime<Utc>>, AppError> {
+    let Some(admission_id) = admission_id else {
+        return Ok(None);
+    };
+    let at: Option<Option<DateTime<Utc>>> = sqlx::query_scalar(
+        "SELECT CASE WHEN s.status = 'finalized' THEN COALESCE(s.finalized_at, s.updated_at) \
+                     WHEN NULLIF(btrim(a.discharge_summary), '') IS NOT NULL THEN a.updated_at END \
+           FROM admissions a \
+           LEFT JOIN ipd_discharge_summaries s ON s.admission_id = a.id \
+                AND s.tenant_id = a.tenant_id AND s.deleted_at IS NULL \
+          WHERE a.id = $1 AND a.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    at.flatten().map(Some).ok_or_else(|| {
+        AppError::BadRequest("finalise the discharge summary before sending the final claim".into())
+    })
+}
+
+/// The payer's authorisation number from a pre-authorisation approved for
+/// this claim, its bill or its stay.
+async fn preauth_number(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    claim: &ClaimRef,
+) -> Result<Option<String>, AppError> {
+    Ok(sqlx::query_scalar(
+        "SELECT pa.auth_number FROM prior_auth_requests pa \
+          WHERE pa.tenant_id = $1 AND pa.deleted_at IS NULL AND pa.auth_number IS NOT NULL \
+            AND pa.status IN ('approved', 'partially_approved') \
+            AND (pa.insurance_claim_id = $2 OR pa.invoice_id = $3 \
+                 OR pa.encounter_id = (SELECT encounter_id FROM admissions \
+                                        WHERE id = $4 AND tenant_id = $1)) \
+          ORDER BY pa.responded_at DESC NULLS LAST LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(claim.id)
+    .bind(claim.invoice_id)
+    .bind(claim.admission_id)
+    .fetch_optional(&mut **tx)
+    .await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_bill_note_names_the_patients_share_as_the_unclaimed_rest() {
+        let money = BillMoney {
+            total_amount: Decimal::new(100_000, 0),
+            discount_amount: Decimal::new(2_000, 0),
+            claim_amount: Some(Decimal::new(85_000, 0)),
+        };
+        let note = bill_note(&money, Decimal::new(85_000, 0));
+        assert!(note.contains("patient's share INR 15000"), "{note}");
+        assert!(note.contains("discount INR 2000"), "{note}");
+        assert!(note.contains("claimed from the payer INR 85000"), "{note}");
+    }
+}

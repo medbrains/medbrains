@@ -1,0 +1,10 @@
+// Layout only — colour comes from the theme tokens on the components.
+.screen {
+  min-height: 60vh;
+  padding: var(--mantine-spacing-xl) var(--mantine-spacing-md);
+}
+
+.body {
+  width: 100%;
+  max-width: 560px;
+}

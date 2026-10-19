@@ -2,14 +2,13 @@
 //!
 //! Phase 5: Employee ID, Duty Roster, Leave, Attendance, Training, Credentials, Visitor Register.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use chrono::Datelike;
 use chrono::Utc;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -39,7 +38,9 @@ pub async fn get_employee_id_card_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct EmployeeRow {
@@ -75,11 +76,12 @@ pub async fn get_employee_id_card_print_data(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut conn, &claims.tenant_id).await?;
 
     let now = Utc::now();
-    let valid_from = now.format("%d-%m-%Y").to_string();
+    let valid_from = now.with_timezone(&tz).format("%d-%m-%Y").to_string();
     let valid_until = (now + chrono::Duration::days(365))
+        .with_timezone(&tz)
         .format("%d-%m-%Y")
         .to_string();
 
@@ -133,7 +135,9 @@ pub async fn get_duty_roster_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     let dept_name = sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
         .bind(department_id)
@@ -141,7 +145,7 @@ pub async fn get_duty_roster_print_data(
         .await?
         .unwrap_or_else(|| "Department".to_string());
 
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut conn, &claims.tenant_id).await?;
 
     // Parse period (format: YYYY-MM)
     let parts: Vec<&str> = period.split('-').collect();
@@ -276,7 +280,10 @@ pub async fn get_duty_roster_print_data(
         department: dept_name,
         period_start,
         period_end,
-        generated_date: Utc::now().format("%d-%m-%Y %H:%M").to_string(),
+        generated_date: Utc::now()
+            .with_timezone(&tz)
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
         generated_by: "System".to_string(),
         shifts,
         roster_entries,
@@ -287,6 +294,8 @@ pub async fn get_duty_roster_print_data(
 // ── Leave Application ─────────────────────────────────────────────────────────
 
 /// GET /print-data/leave-application/{leave_id}
+///
+/// A `leave_requests` row — what the HR leave screen lists and creates.
 pub async fn get_leave_application_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -294,90 +303,86 @@ pub async fn get_leave_application_print_data(
 ) -> Result<Json<LeaveApplicationPrintData>, AppError> {
     require_permission(&claims, permissions::hr::leave::LIST)?;
 
-    // A tenant-scoped connection rather than the bare pool: every table below
-    // is row-level secured, and a pool query carries no tenant, so under
-    // enforcement this prints an empty form. A blank statutory register is
-    // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct LeaveRow {
-        application_number: Option<String>,
-        application_date: Option<chrono::DateTime<Utc>>,
+        application_date: String,
         employee_name: String,
         employee_code: String,
         department_name: Option<String>,
         designation: Option<String>,
         leave_type: String,
-        leave_from: chrono::NaiveDate,
-        leave_to: chrono::NaiveDate,
+        leave_from: String,
+        leave_to: String,
+        total_days: f64,
         reason: Option<String>,
         status: String,
-        approved_by_name: Option<String>,
-        approved_at: Option<chrono::DateTime<Utc>>,
+        approver_name: Option<String>,
+        approval_date: Option<String>,
         remarks: Option<String>,
     }
 
+    // The final word is the admin's when there is one, else the HOD's.
     let leave = sqlx::query_as::<_, LeaveRow>(
-        r"
-        SELECT
-            la.application_number,
-            la.created_at as application_date,
-            u.full_name as employee_name,
-            u.employee_code,
-            d.name as department_name,
-            des.name as designation,
-            lt.name as leave_type,
-            la.leave_from,
-            la.leave_to,
-            la.reason,
-            la.status,
-            approver.full_name as approved_by_name,
-            la.approved_at,
-            la.remarks
-        FROM leave_applications la
-        JOIN users u ON la.user_id = u.id
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN designations des ON u.designation_id = des.id
-        JOIN leave_types lt ON la.leave_type_id = lt.id
-        LEFT JOIN users approver ON la.approved_by = approver.id
-        WHERE la.id = $1
-        ",
+        "SELECT \
+           to_char(lr.created_at, 'DD-MM-YYYY') AS application_date, \
+           concat_ws(' ', e.first_name, e.last_name) AS employee_name, \
+           e.employee_code, \
+           d.name AS department_name, \
+           des.name AS designation, \
+           lr.leave_type::text AS leave_type, \
+           to_char(lr.start_date, 'DD-MM-YYYY') AS leave_from, \
+           to_char(lr.end_date, 'DD-MM-YYYY') AS leave_to, \
+           lr.days::float8 AS total_days, \
+           lr.reason, \
+           lr.status::text AS status, \
+           COALESCE(adm.full_name, hod.full_name) AS approver_name, \
+           to_char(COALESCE(lr.admin_action_at, lr.hod_action_at), 'DD-MM-YYYY') \
+             AS approval_date, \
+           COALESCE(lr.admin_remarks, lr.hod_remarks) AS remarks \
+         FROM leave_requests lr \
+         JOIN employees e ON e.id = lr.employee_id \
+         LEFT JOIN departments d ON d.id = e.department_id \
+         LEFT JOIN designations des ON des.id = e.designation_id \
+         LEFT JOIN users hod ON hod.id = lr.hod_id \
+         LEFT JOIN users adm ON adm.id = lr.admin_id \
+         WHERE lr.id = $1 AND lr.tenant_id = $2 AND lr.deleted_at IS NULL",
     )
     .bind(leave_id)
-    .fetch_optional(&mut *conn)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let total_days = (leave.leave_to - leave.leave_from).num_days() as i32 + 1;
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
 
     Ok(Json(LeaveApplicationPrintData {
-        application_number: leave
-            .application_number
-            .unwrap_or_else(|| format!("LA-{leave_id}")),
-        application_date: leave
-            .application_date
-            .map(|d| d.format("%d-%m-%Y").to_string())
-            .unwrap_or_default(),
+        // ponytail: leave requests carry no application number; the record id is
+        // the only reference that exists
+        application_number: leave_id.to_string(),
+        application_date: leave.application_date,
         employee_name: leave.employee_name,
         employee_id: leave.employee_code,
-        department: leave
-            .department_name
-            .unwrap_or_else(|| "General".to_string()),
-        designation: leave.designation.unwrap_or_else(|| "Staff".to_string()),
+        department: leave.department_name,
+        designation: leave.designation,
         leave_type: leave.leave_type,
-        leave_from: leave.leave_from.format("%d-%m-%Y").to_string(),
-        leave_to: leave.leave_to.format("%d-%m-%Y").to_string(),
-        total_days,
+        leave_from: leave.leave_from,
+        leave_to: leave.leave_to,
+        total_days: leave.total_days,
         reason: leave.reason.unwrap_or_default(),
-        leave_balance_before: 20,
-        leave_balance_after: 20 - total_days,
+        // Not recorded against the request: `leave_balances` holds today's
+        // balance, not the balance on the day this was applied for.
+        leave_balance_before: None,
+        leave_balance_after: None,
         relieving_officer: None,
         contact_during_leave: None,
-        approver_name: leave.approved_by_name,
+        approver_name: leave.approver_name,
         approval_status: leave.status,
-        approval_date: leave.approved_at.map(|d| d.format("%d-%m-%Y").to_string()),
+        approval_date: leave.approval_date,
         remarks: leave.remarks,
         hospital_name: hospital.name,
     }))
@@ -407,7 +412,9 @@ pub async fn get_staff_attendance_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     let dept_name = sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
         .bind(department_id)
@@ -415,7 +422,7 @@ pub async fn get_staff_attendance_print_data(
         .await?
         .unwrap_or_else(|| "Department".to_string());
 
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut conn, &claims.tenant_id).await?;
 
     // Get staff in department
     #[derive(sqlx::FromRow)]
@@ -520,10 +527,10 @@ pub async fn get_staff_attendance_print_data(
                         status: status.to_string(),
                         in_time: mark
                             .and_then(|m| m.check_in)
-                            .map(|t| t.format("%H:%M").to_string()),
+                            .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
                         out_time: mark
                             .and_then(|m| m.check_out)
-                            .map(|t| t.format("%H:%M").to_string()),
+                            .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
                     }
                 })
                 .collect();
@@ -562,7 +569,10 @@ pub async fn get_staff_attendance_print_data(
             .unwrap_or("Unknown")
             .to_string(),
         year,
-        generated_date: Utc::now().format("%d-%m-%Y %H:%M").to_string(),
+        generated_date: Utc::now()
+            .with_timezone(&tz)
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
         attendance_records,
         summary: AttendanceSummary {
             total_staff,
@@ -577,6 +587,9 @@ pub async fn get_staff_attendance_print_data(
 // ── Training Certificate ──────────────────────────────────────────────────────
 
 /// GET /print-data/training-certificate/{training_id}
+///
+/// A `training_records` row — what the HR training screen lists and creates.
+/// Only a completed training earns a certificate.
 pub async fn get_training_certificate_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -584,113 +597,86 @@ pub async fn get_training_certificate_print_data(
 ) -> Result<Json<TrainingCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::hr::training::LIST)?;
 
-    // A tenant-scoped connection rather than the bare pool: every table below
-    // is row-level secured, and a pool query carries no tenant, so under
-    // enforcement this prints an empty form. A blank statutory register is
-    // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct TrainingRow {
-        certificate_number: Option<String>,
-        training_date: chrono::NaiveDate,
+        certificate_no: Option<String>,
+        certificate_date: String,
+        status: String,
+        training_date: String,
         employee_name: String,
         employee_code: String,
         designation: Option<String>,
         department_name: Option<String>,
         training_title: String,
-        training_type: Option<String>,
         duration_hours: Option<f64>,
         trainer_name: Option<String>,
-        trainer_org: Option<String>,
         score: Option<f64>,
-        issued_by: Option<String>,
+        valid_until: Option<String>,
     }
 
     let training = sqlx::query_as::<_, TrainingRow>(
-        r"
-        SELECT
-            ta.certificate_number,
-            t.training_date,
-            u.full_name as employee_name,
-            u.employee_code,
-            des.name as designation,
-            d.name as department_name,
-            t.title as training_title,
-            t.training_type,
-            t.duration_hours,
-            t.trainer_name,
-            t.trainer_organization as trainer_org,
-            ta.score,
-            issuer.full_name as issued_by
-        FROM training_attendance ta
-        JOIN trainings t ON ta.training_id = t.id
-        JOIN users u ON ta.user_id = u.id
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN designations des ON u.designation_id = des.id
-        LEFT JOIN users issuer ON ta.issued_by = issuer.id
-        WHERE ta.id = $1
-        ",
+        "SELECT \
+           tr.certificate_no, \
+           to_char(now(), 'DD-MM-YYYY') AS certificate_date, \
+           tr.status::text AS status, \
+           to_char(tr.training_date, 'DD-MM-YYYY') AS training_date, \
+           concat_ws(' ', e.first_name, e.last_name) AS employee_name, \
+           e.employee_code, \
+           des.name AS designation, \
+           d.name AS department_name, \
+           tp.name AS training_title, \
+           tp.duration_hours::float8 AS duration_hours, \
+           tr.trainer_name, \
+           tr.score::float8 AS score, \
+           to_char(tr.expiry_date, 'DD-MM-YYYY') AS valid_until \
+         FROM training_records tr \
+         JOIN training_programs tp ON tp.id = tr.program_id \
+         JOIN employees e ON e.id = tr.employee_id \
+         LEFT JOIN departments d ON d.id = e.department_id \
+         LEFT JOIN designations des ON des.id = e.designation_id \
+         WHERE tr.id = $1 AND tr.tenant_id = $2 AND tr.deleted_at IS NULL",
     )
     .bind(training_id)
-    .fetch_optional(&mut *conn)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let hospital = get_hospital_info(&state.db).await?;
+    if training.status != "completed" {
+        return Err(AppError::Conflict(format!(
+            "a certificate is issued for a completed training; this one is {}",
+            training.status
+        )));
+    }
 
-    let duration = training
-        .duration_hours
-        .map_or_else(|| "1 day".to_string(), |h| format!("{h} hours"));
+    let hospital = get_hospital_info(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
 
-    let grade = training.score.map(|s| {
-        if s >= 90.0 {
-            "A+"
-        } else if s >= 80.0 {
-            "A"
-        } else if s >= 70.0 {
-            "B"
-        } else if s >= 60.0 {
-            "C"
-        } else {
-            "D"
-        }
-        .to_string()
-    });
-
+    // Only what the record holds: no grade scale, topic list, issuing officer
+    // or verification link is configured anywhere, so none is printed.
     Ok(Json(TrainingCertificatePrintData {
-        certificate_number: training
-            .certificate_number
-            .unwrap_or_else(|| format!("TC-{training_id}")),
-        certificate_date: Utc::now().format("%d-%m-%Y").to_string(),
+        certificate_number: training.certificate_no,
+        certificate_date: training.certificate_date,
         employee_name: training.employee_name,
         employee_id: training.employee_code,
-        designation: training.designation.unwrap_or_else(|| "Staff".to_string()),
-        department: training
-            .department_name
-            .unwrap_or_else(|| "General".to_string()),
+        designation: training.designation,
+        department: training.department_name,
         training_title: training.training_title,
-        training_type: training
-            .training_type
-            .unwrap_or_else(|| "Internal".to_string()),
-        training_date: training.training_date.format("%d-%m-%Y").to_string(),
-        training_duration: duration,
+        training_type: None,
+        training_date: training.training_date,
+        training_duration: training.duration_hours.map(|h| format!("{h} hours")),
         trainer_name: training.trainer_name,
-        trainer_organization: training.trainer_org,
-        topics_covered: vec![
-            "Key Concepts".to_string(),
-            "Practical Application".to_string(),
-            "Best Practices".to_string(),
-        ],
+        trainer_organization: None,
+        topics_covered: Vec::new(),
         score: training.score,
-        grade,
-        certificate_valid_until: None,
-        issued_by: training
-            .issued_by
-            .unwrap_or_else(|| "HR Department".to_string()),
-        qr_verification_url: Some(format!(
-            "https://hospital.com/verify/training/{training_id}"
-        )),
+        grade: None,
+        certificate_valid_until: training.valid_until,
+        issued_by: None,
+        qr_verification_url: None,
         hospital_name: hospital.name,
         hospital_logo_url: hospital.logo_url,
     }))
@@ -713,7 +699,9 @@ pub async fn get_staff_credentials_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct EmployeeRow {
@@ -723,17 +711,19 @@ pub async fn get_staff_credentials_print_data(
         department_name: Option<String>,
     }
 
+    // `employee_id` is `employees.id` — the record `employee_credentials`
+    // hangs off (written by the HR credentials screen).
     let emp = sqlx::query_as::<_, EmployeeRow>(
         r"
         SELECT
-            u.employee_code,
-            u.full_name,
-            des.name as designation,
-            d.name as department_name
-        FROM users u
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN designations des ON u.designation_id = des.id
-        WHERE u.id = $1
+            e.employee_code,
+            (e.first_name || COALESCE(' ' || e.last_name, '')) AS full_name,
+            des.name AS designation,
+            d.name AS department_name
+        FROM employees e
+        LEFT JOIN departments d ON d.id = e.department_id
+        LEFT JOIN designations des ON des.id = e.designation_id
+        WHERE e.id = $1 AND e.deleted_at IS NULL
         ",
     )
     .bind(employee_id)
@@ -744,7 +734,6 @@ pub async fn get_staff_credentials_print_data(
     #[derive(sqlx::FromRow)]
     struct CredentialRow {
         credential_type: String,
-        credential_name: String,
         issuing_authority: String,
         credential_number: String,
         issue_date: Option<chrono::NaiveDate>,
@@ -753,20 +742,27 @@ pub async fn get_staff_credentials_print_data(
         document_attached: bool,
     }
 
+    // "Verified" only when somebody recorded verifying it and the credential
+    // is still active and in date; otherwise the lifecycle status prints.
     let creds = sqlx::query_as::<_, CredentialRow>(
         r"
         SELECT
-            credential_type,
-            credential_name,
-            issuing_authority,
-            credential_number,
-            issue_date,
-            expiry_date,
-            verification_status,
-            document_attached
-        FROM staff_credentials
-        WHERE user_id = $1
-        ORDER BY credential_type, credential_name
+            c.credential_type::text AS credential_type,
+            c.issuing_body AS issuing_authority,
+            COALESCE(c.credential_number, c.registration_no) AS credential_number,
+            c.issued_date AS issue_date,
+            c.expiry_date,
+            CASE
+                WHEN c.status <> 'active' THEN c.status::text
+                WHEN c.expiry_date < current_date THEN 'expired'
+                WHEN c.verified_at IS NOT NULL THEN 'Verified'
+                ELSE 'Pending'
+            END AS verification_status,
+            (c.document_url IS NOT NULL) AS document_attached
+        FROM employee_credentials c
+        WHERE c.employee_id = $1 AND c.deleted_at IS NULL
+        ORDER BY c.credential_type, c.expiry_date
+        LIMIT 500
         ",
     )
     .bind(employee_id)
@@ -787,7 +783,8 @@ pub async fn get_staff_credentials_print_data(
             .into_iter()
             .map(|c| CredentialDetail {
                 credential_type: c.credential_type,
-                credential_name: c.credential_name,
+                // ponytail: credential_name not recorded anywhere yet
+                credential_name: None,
                 issuing_authority: c.issuing_authority,
                 credential_number: c.credential_number,
                 issue_date: c.issue_date.map(|d| d.format("%d-%m-%Y").to_string()),
@@ -806,15 +803,16 @@ pub async fn get_staff_credentials_print_data(
         && credentials
             .iter()
             .all(|c| c.verification_status == "Verified");
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut conn, &claims.tenant_id).await?;
 
     Ok(Json(StaffCredentialFormPrintData {
-        verification_number: format!("CV-{}", Utc::now().format("%Y%m%d%H%M")),
-        verification_date: Utc::now().format("%d-%m-%Y").to_string(),
+        verification_number: format!("CV-{}", Utc::now().with_timezone(&tz).format("%Y%m%d%H%M")),
+        verification_date: Utc::now().with_timezone(&tz).format("%d-%m-%Y").to_string(),
         employee_name: emp.full_name,
         employee_id: emp.employee_code,
-        designation: emp.designation.unwrap_or_else(|| "Staff".to_string()),
-        department: emp.department_name.unwrap_or_else(|| "General".to_string()),
+        // Blank when the employee record has none — not "Staff"/"General".
+        designation: emp.designation.unwrap_or_default(),
+        department: emp.department_name.unwrap_or_default(),
         credentials,
         verification_status: if !has_credentials {
             "No credentials on file"
@@ -848,10 +846,13 @@ pub async fn get_visitor_register_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
+    // A malformed date is refused rather than silently printing today's register.
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .unwrap_or_else(|_| Utc::now().date_naive());
+        .map_err(|_| AppError::BadRequest("date must be YYYY-MM-DD".to_string()))?;
 
     #[derive(sqlx::FromRow)]
     struct VisitorRow {
@@ -861,37 +862,40 @@ pub async fn get_visitor_register_print_data(
         id_type: Option<String>,
         id_number: Option<String>,
         purpose: String,
-        visiting_department: Option<String>,
-        visiting_person: Option<String>,
         patient_name: Option<String>,
         patient_uhid: Option<String>,
+        ward: Option<String>,
         in_time: chrono::DateTime<Utc>,
         out_time: Option<chrono::DateTime<Utc>>,
         badge_number: Option<String>,
     }
 
+    // One line per gate check-in (`visitor_logs`) on the day, with the pass and
+    // the registration it was issued against.
     let visitors = sqlx::query_as::<_, VisitorRow>(
         r"
         SELECT
-            ROW_NUMBER() OVER (ORDER BY in_time) as serial_no,
-            visitor_name,
-            visitor_phone,
-            id_type,
-            id_number,
-            purpose,
-            d.name as visiting_department,
-            u.full_name as visiting_person,
-            (p.first_name || ' ' || p.last_name) as patient_name,
-            p.uhid as patient_uhid,
-            v.in_time,
-            v.out_time,
-            v.badge_number
-        FROM visitor_register v
-        LEFT JOIN departments d ON v.department_id = d.id
-        LEFT JOIN users u ON v.visiting_user_id = u.id
-        LEFT JOIN patients p ON v.patient_id = p.id
-        WHERE DATE(v.in_time) = $1
-        ORDER BY v.in_time
+            ROW_NUMBER() OVER (ORDER BY l.check_in_at) AS serial_no,
+            r.visitor_name,
+            r.phone AS visitor_phone,
+            r.id_type,
+            r.id_number,
+            COALESCE(r.purpose, '') AS purpose,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
+            p.uhid AS patient_uhid,
+            w.name AS ward,
+            l.check_in_at AS in_time,
+            COALESCE(l.check_out_at, l.checked_out_at) AS out_time,
+            vp.pass_number AS badge_number
+        FROM visitor_logs l
+        JOIN visitor_passes vp ON vp.id = l.pass_id AND vp.deleted_at IS NULL
+        JOIN visitor_registrations r ON r.id = vp.registration_id AND r.deleted_at IS NULL
+        LEFT JOIN patients p ON p.id = r.patient_id AND p.deleted_at IS NULL
+        LEFT JOIN locations w ON w.id = r.ward_id AND w.deleted_at IS NULL
+        WHERE l.check_in_at >= $1::date AND l.check_in_at < $1::date + 1
+          AND l.deleted_at IS NULL
+        ORDER BY l.check_in_at
+        LIMIT 5000
         ",
     )
     .bind(register_date)
@@ -915,23 +919,30 @@ pub async fn get_visitor_register_print_data(
                 visitor_id_type: v.id_type,
                 visitor_id_number: v.id_number,
                 purpose: v.purpose,
-                visiting_department: v.visiting_department,
-                visiting_person: v.visiting_person,
+                // ponytail: visiting department/person not recorded anywhere
+                // yet — a registration names only a ward, printed as `ward`.
+                visiting_department: None,
+                visiting_person: None,
+                ward: v.ward,
                 patient_name: v.patient_name,
                 patient_uhid: v.patient_uhid,
-                in_time: v.in_time.format("%H:%M").to_string(),
-                out_time: v.out_time.map(|t| t.format("%H:%M").to_string()),
+                in_time: v.in_time.with_timezone(&tz).format("%H:%M").to_string(),
+                out_time: v
+                    .out_time
+                    .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
                 badge_number: v.badge_number,
             })
             .collect()
     };
 
     let total = entries.len() as i32;
-    let hospital = get_hospital_info(&state.db).await?;
+    let hospital = get_hospital_info(&mut conn, &claims.tenant_id).await?;
 
     Ok(Json(VisitorRegisterPrintData {
         register_date: register_date.format("%d-%m-%Y").to_string(),
-        location: "Main Security Desk".to_string(),
+        // ponytail: register location not recorded anywhere yet (gate is per
+        // check-in, not per register).
+        location: None,
         entries,
         total_visitors: total,
         hospital_name: hospital.name,
@@ -945,27 +956,19 @@ struct HospitalInfo {
     logo_url: Option<String>,
 }
 
-async fn get_hospital_info(pool: &PgPool) -> Result<HospitalInfo, AppError> {
-    #[derive(sqlx::FromRow)]
-    struct TenantRow {
-        name: String,
-        logo_url: Option<String>,
-    }
-
-    let tenant = sqlx::query_as::<_, TenantRow>(
-        "SELECT name, logo_url FROM tenants WHERE is_active = true LIMIT 1",
+async fn get_hospital_info(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: &Uuid,
+) -> Result<HospitalInfo, AppError> {
+    // The caller's own hospital — this once read whichever active tenant came
+    // first, which put another hospital's name on the form.
+    let (name, logo_url) = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT name, logo_url FROM tenants WHERE id = $1",
     )
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or(TenantRow {
-        name: "Hospital".to_string(),
-        logo_url: None,
-    });
-
-    Ok(HospitalInfo {
-        name: tenant.name,
-        logo_url: tenant.logo_url,
-    })
+    .bind(tenant_id)
+    .fetch_one(conn)
+    .await?;
+    Ok(HospitalInfo { name, logo_url })
 }
 
 const fn days_in_month(year: i32, month: u32) -> u32 {

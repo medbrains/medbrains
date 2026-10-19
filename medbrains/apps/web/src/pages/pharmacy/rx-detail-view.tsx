@@ -19,6 +19,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal, PrescriptionViews } from "@/components";
+import { isRxExpired, RxTermsLine } from "@/components/Pharmacy/RxTermsLine";
+import { SafetyFindingsPanel, useSafetyGate } from "@/components/Pharmacy/SafetyFindingsPanel";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { usePatientName } from "@/hooks/usePatientName";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
@@ -60,6 +62,11 @@ export function RxDetailView({
   const rxDetail = data as PharmacyRxDetailResponse | undefined;
   const rxPatientId = rxDetail?.prescription.patient_id;
   const { data: patientName } = usePatientName(canViewPatientRecord ? rxPatientId : undefined);
+  const safety = useSafetyGate(rxDetail?.safety?.findings, {
+    loading: isLoading,
+    failed: Boolean(error),
+    reason: "",
+  });
 
   if (isLoading) return <Loader />;
   if (error)
@@ -70,7 +77,8 @@ export function RxDetailView({
     );
   if (!rxDetail) return <Text c="dimmed">{t("rxQueue.noPrescriptionData")}</Text>;
 
-  const { prescription, items: rxItems, allergies } = rxDetail;
+  const { prescription, items: rxItems, allergies, terms } = rxDetail;
+  const expired = isRxExpired(terms);
   const pricedRxItems = applyRxReviewItems(rxItems, reviewItems);
   const allergyNames = (allergies as { allergen_name: string }[]).map((a) => a.allergen_name);
   const patientId = prescription.patient_id;
@@ -90,6 +98,10 @@ export function RxDetailView({
         read_back_confirmed: false,
         countersign_due_at: null,
         is_signed: false,
+        repeats_allowed: terms?.repeats_allowed ?? 0,
+        repeat_interval_days: terms?.repeat_interval_days ?? null,
+        repeats_used: terms?.repeats_used ?? 0,
+        valid_until: terms?.valid_until ?? null,
         created_at: prescription.received_at,
         updated_at: prescription.received_at,
       },
@@ -116,6 +128,7 @@ export function RxDetailView({
   return (
     <Stack>
       <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
+      <RxTermsLine terms={terms} repeatIndex={prescription.repeat_index} />
       {/* Allergy alert */}
       {allergyNames.length > 0 && (
         <Alert
@@ -132,6 +145,8 @@ export function RxDetailView({
           </Group>
         </Alert>
       )}
+
+      <SafetyFindingsPanel state={safety} />
 
       <RxBillingEstimate
         items={pricedRxItems}
@@ -155,6 +170,7 @@ export function RxDetailView({
                 size="xs"
                 tone="primary"
                 leftSection={<IconCheck size={14} />}
+                disabled={expired}
                 onClick={() => onReview("approved")}
               >
                 {t("rxQueue.actions.approveAndCreateBilling")}

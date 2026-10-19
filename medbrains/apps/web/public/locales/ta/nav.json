@@ -30,6 +30,7 @@
   "pharmacyFinance": "மருந்தக நிதி",
   "pharmacyFulfilment": "நிறைவேற்ற வரிசை",
   "pharmacyDispatch": "பெறும் இடம்",
+  "pharmacyDeliveries": "வீட்டு விநியோகம்",
   "radiology": "கதிரியக்கவியல்",
   "bloodBank": "இரத்த வங்கி",
   "billing": "கட்டணம்",
@@ -58,6 +59,9 @@
   "formBuilder": "படிவ உருவாக்கி",
   "dashboardBuilder": "டாஷ்போர்டு உருவாக்கி",
   "integrationHub": "உள்ளமைந்த பைப்லைன்கள்",
+  "formTemplates": "படிவங்கள்",
+  "apiKeys": "API விசைகள்",
+  "webhooks": "வெப்ஹூக்குகள்",
   "screenBuilder": "திரை உருவாக்கி",
   "doctorSchedules": "மருத்துவர் அட்டவணைகள்",
   "administration": "நிர்வாகம்",
@@ -110,5 +114,6 @@
   "nabhIndicators": "NABH குறிகாட்டிகள்",
   "pairedDevices": "இணைக்கப்பட்ட சாதனங்கள்",
   "materials": "பொருள் மேலாண்மை",
-  "approvals": "ஒப்புதல்கள்"
+  "approvals": "ஒப்புதல்கள்",
+  "onboardingWorkbook": "தொடக்க அமைப்புப் பணிப்புத்தகம்"
 }

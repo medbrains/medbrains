@@ -35,6 +35,9 @@ use crate::{
 ///      to dedupe with the trigger-side emission.
 ///   3. After the handler returns, if status is 2xx, spawn a task to
 ///      insert an `audit_log` row via `AuditLogger::log_http`.
+///   4. A 403 is audited on every route and method, read or write: a refused
+///      request is what probing looks like, and NABH IMS / DPDP Rule 6 want
+///      the attempt on record, not only the successes.
 pub async fn audit_layer(
     State(state): State<AppState>,
     mut request: Request,
@@ -56,9 +59,7 @@ pub async fn audit_layer(
     let is_phi_list =
         method == Method::GET && !is_detail_read && path_is_phi_list(request.uri().path());
 
-    if !is_state_change && !is_detail_read && !is_phi_list {
-        return next.run(request).await;
-    }
+    let audit_success = is_state_change || is_detail_read || is_phi_list;
 
     let correlation_id = Uuid::new_v4();
     request
@@ -79,9 +80,10 @@ pub async fn audit_layer(
     let response = next.run(request).await;
     let status = response.status();
 
-    // Only audit successful state changes. 4xx/5xx are noise; auth
-    // emits its own entries for failed-login etc.
-    if !status.is_success() {
+    // Successes on audited routes, and refusals anywhere. Other 4xx/5xx are
+    // noise; auth writes its own entries for failed logins.
+    let denied = status == axum::http::StatusCode::FORBIDDEN;
+    if !denied && !(audit_success && status.is_success()) {
         return response;
     }
 
@@ -92,9 +94,19 @@ pub async fn audit_layer(
 
     let entry = HttpAuditEntry {
         tenant_id: claims.tenant_id,
-        user_id: Some(claims.sub),
+        user_id: if response
+            .extensions()
+            .get::<ActorWithheld>()
+            .is_some_and(|w| w.0)
+        {
+            None
+        } else {
+            Some(claims.sub)
+        },
         correlation_id,
-        action: if is_phi_list {
+        action: if denied {
+            "denied".to_owned()
+        } else if is_phi_list {
             "list".to_owned()
         } else {
             derive_action(&method_str, &path)
@@ -190,6 +202,12 @@ fn segment_is_uuid(segment: &str) -> bool {
 #[derive(Debug, Clone, Copy)]
 pub struct CorrelationId(pub Uuid);
 
+/// Set on a response (`(Extension(ActorWithheld(true)), Json(..))`) when the
+/// person who made the request must not be recorded — an anonymous incident
+/// report. The audit row is still written, without a `user_id`.
+#[derive(Debug, Clone, Copy)]
+pub struct ActorWithheld(pub bool);
+
 /// Derive a coarse action verb from method + path.
 /// Examples:
 ///   POST   /api/patients      → "create_patients"
@@ -255,16 +273,24 @@ mod tests {
     #[test]
     fn a_record_is_a_record_wherever_the_id_sits_in_the_path() {
         assert!(path_is_detail_route(&format!("/api/patients/{UUID}")));
-        assert!(path_is_detail_route(&format!("/api/patients/{UUID}/documents")));
-        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
-        assert!(path_is_detail_route(&format!("/api/ipd/admissions/{UUID}/progress-notes")));
+        assert!(path_is_detail_route(&format!(
+            "/api/patients/{UUID}/documents"
+        )));
+        assert!(path_is_detail_route(&format!(
+            "/api/fhir/Patient/{UUID}/$everything"
+        )));
+        assert!(path_is_detail_route(&format!(
+            "/api/ipd/admissions/{UUID}/progress-notes"
+        )));
     }
 
     /// A FHIR Bundle of a patient's whole record is the most complete export
     /// the API offers. It escaped because its final segment is `$everything`.
     #[test]
     fn the_whole_record_export_is_audited() {
-        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
+        assert!(path_is_detail_route(&format!(
+            "/api/fhir/Patient/{UUID}/$everything"
+        )));
     }
 
     /// Collection routes carry no id and are covered by the prefix list
@@ -280,10 +306,14 @@ mod tests {
     /// every slug-shaped path starts writing audit rows.
     #[test]
     fn only_real_uuid_shapes_count() {
-        assert!(!path_is_detail_route("/api/reports/a-very-long-slug-that-is-not-a-uuid"));
+        assert!(!path_is_detail_route(
+            "/api/reports/a-very-long-slug-that-is-not-a-uuid"
+        ));
         assert!(!path_is_detail_route("/api/patients/summary"));
         // right length, dashes in the wrong places
-        assert!(!path_is_detail_route("/api/x/3f2a1b4c5d6e-7f80-9a1b-2c3d4e5f60712"));
+        assert!(!path_is_detail_route(
+            "/api/x/3f2a1b4c5d6e-7f80-9a1b-2c3d4e5f60712"
+        ));
     }
 
     /// The access-control registers: reading them is itself privileged.

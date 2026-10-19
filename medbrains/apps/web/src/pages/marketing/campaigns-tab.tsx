@@ -27,6 +27,7 @@ const EMPTY: MarketingCampaignFormInput = {
   ended_on: "",
   target_areas: [],
   medium: "",
+  code: "",
 };
 
 const optionalText = (value: string): string | undefined => {
@@ -81,6 +82,7 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
         // these off would clear the localities a campaign was already aimed at.
         target_areas: values.target_areas,
         medium: optionalText(values.medium),
+        code: optionalText(values.code),
       };
       return editing
         ? marketingService.updateCampaign(editing.id, body)
@@ -98,7 +100,8 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
     queryKey: ["marketing", "areas"],
     queryFn: () => marketingService.listAreas(),
   });
-  const areaNames = areas.map((a) => a.name);
+  // Two areas can share a name; a picker option must not repeat.
+  const areaNames = [...new Set(areas.map((a) => a.name))];
 
   const openEdit = (row: MarketingCampaign) => {
     setEditing(row);
@@ -113,6 +116,7 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
       ended_on: row.ended_on ?? "",
       target_areas: row.target_areas ?? [],
       medium: row.medium ?? "",
+      code: row.code ?? "",
     });
     drawer.open();
   };
@@ -249,6 +253,12 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
             description="How the enquiry describes where it came from — matched against contacts."
             error={errors.source?.message}
             {...register("source")}
+          />
+          <TextInput
+            label="Campaign code"
+            description="Printed on the ad or put in links as ?c=CODE. Patients who arrive with it are counted for this campaign."
+            error={errors.code?.message}
+            {...register("code")}
           />
           <TextInput
             label="External reference"

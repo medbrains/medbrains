@@ -238,7 +238,7 @@ pub async fn list_requisitions(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     #[allow(clippy::items_after_statements)]
@@ -1193,11 +1193,11 @@ pub async fn list_stock_movements(
         match (&params.catalog_item_id, &params.movement_type) {
             (Some(_), Some(_)) => (
                 "SELECT COUNT(*) FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND catalog_item_id = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND catalog_item_id = $2 \
                  AND movement_type = $3"
                     .to_owned(),
                 "SELECT * FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND catalog_item_id = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND catalog_item_id = $2 \
                  AND movement_type = $3 \
                  ORDER BY created_at DESC LIMIT $4 OFFSET $5"
                     .to_owned(),
@@ -1206,10 +1206,10 @@ pub async fn list_stock_movements(
             ),
             (Some(_), None) => (
                 "SELECT COUNT(*) FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND catalog_item_id = $2"
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND catalog_item_id = $2"
                     .to_owned(),
                 "SELECT * FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND catalog_item_id = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND catalog_item_id = $2 \
                  ORDER BY created_at DESC LIMIT $3 OFFSET $4"
                     .to_owned(),
                 true,
@@ -1217,10 +1217,10 @@ pub async fn list_stock_movements(
             ),
             (None, Some(_)) => (
                 "SELECT COUNT(*) FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND movement_type = $2"
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND movement_type = $2"
                     .to_owned(),
                 "SELECT * FROM store_stock_movements \
-                 WHERE tenant_id = $1 AND movement_type = $2 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND movement_type = $2 \
                  ORDER BY created_at DESC LIMIT $3 OFFSET $4"
                     .to_owned(),
                 false,
@@ -1228,10 +1228,10 @@ pub async fn list_stock_movements(
             ),
             (None, None) => (
                 "SELECT COUNT(*) FROM store_stock_movements \
-                 WHERE tenant_id = $1"
+                 WHERE tenant_id = $1 AND deleted_at IS NULL"
                     .to_owned(),
                 "SELECT * FROM store_stock_movements \
-                 WHERE tenant_id = $1 \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL \
                  ORDER BY created_at DESC LIMIT $2 OFFSET $3"
                     .to_owned(),
                 false,
@@ -1999,7 +1999,7 @@ pub async fn list_patient_consumables(
     let rows = if let Some(encounter_id) = params.encounter_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND encounter_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(encounter_id)
@@ -2008,7 +2008,7 @@ pub async fn list_patient_consumables(
     } else if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(patient_id)
@@ -2017,7 +2017,7 @@ pub async fn list_patient_consumables(
     } else if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 AND department_id = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(dept_id)
@@ -2026,7 +2026,7 @@ pub async fn list_patient_consumables(
     } else {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200",
+             WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -2167,7 +2167,7 @@ pub async fn list_consignment_stock(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let batches = sqlx::query_as::<_, medbrains_core::procurement::BatchStock>(
-        "SELECT * FROM batch_stock WHERE tenant_id = $1 AND is_consignment = true AND quantity > 0 \
+        "SELECT * FROM batch_stock WHERE tenant_id = $1 AND deleted_at IS NULL AND is_consignment = true AND quantity > 0 \
          ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2318,8 +2318,11 @@ pub async fn list_implant_registry(
 
     let rows = if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, ImplantRegistryEntry>(
-            "SELECT * FROM implant_registry WHERE tenant_id = $1 AND patient_id = $2 \
-             ORDER BY implant_date DESC LIMIT 5000",
+            "SELECT ir.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM implant_registry ir \
+             LEFT JOIN store_catalog sc ON sc.id = ir.catalog_item_id \
+             WHERE ir.tenant_id = $1 AND ir.deleted_at IS NULL AND ir.patient_id = $2 \
+             ORDER BY ir.implant_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(patient_id)
@@ -2327,8 +2330,11 @@ pub async fn list_implant_registry(
         .await?
     } else {
         sqlx::query_as::<_, ImplantRegistryEntry>(
-            "SELECT * FROM implant_registry WHERE tenant_id = $1 \
-             ORDER BY implant_date DESC LIMIT 200",
+            "SELECT ir.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM implant_registry ir \
+             LEFT JOIN store_catalog sc ON sc.id = ir.catalog_item_id \
+             WHERE ir.tenant_id = $1 AND ir.deleted_at IS NULL \
+             ORDER BY ir.implant_date DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -2480,9 +2486,11 @@ pub async fn list_condemnations(
 
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, EquipmentCondemnation>(
-            "SELECT * FROM equipment_condemnations \
-             WHERE tenant_id = $1 AND status = $2::condemnation_status \
-             ORDER BY created_at DESC LIMIT 5000",
+            "SELECT ec.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM equipment_condemnations ec \
+             LEFT JOIN store_catalog sc ON sc.id = ec.catalog_item_id \
+             WHERE ec.tenant_id = $1 AND ec.deleted_at IS NULL AND ec.status = $2::condemnation_status \
+             ORDER BY ec.created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -2490,8 +2498,11 @@ pub async fn list_condemnations(
         .await?
     } else {
         sqlx::query_as::<_, EquipmentCondemnation>(
-            "SELECT * FROM equipment_condemnations WHERE tenant_id = $1 \
-             ORDER BY created_at DESC LIMIT 5000",
+            "SELECT ec.*, sc.name AS catalog_item_name, sc.code AS catalog_item_code \
+             FROM equipment_condemnations ec \
+             LEFT JOIN store_catalog sc ON sc.id = ec.catalog_item_id \
+             WHERE ec.tenant_id = $1 AND ec.deleted_at IS NULL \
+             ORDER BY ec.created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -2722,7 +2733,7 @@ pub async fn list_reorder_alerts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let alerts = sqlx::query_as::<_, ReorderAlert>(
-        "SELECT * FROM reorder_alerts WHERE tenant_id = $1 ORDER BY is_acknowledged, created_at DESC LIMIT 5000",
+        "SELECT * FROM reorder_alerts WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY is_acknowledged, created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

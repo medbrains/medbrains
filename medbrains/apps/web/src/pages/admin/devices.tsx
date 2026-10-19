@@ -33,6 +33,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService } from "@/services/adminDevices.service";
+import { DeviceMessagesDrawer } from "./DeviceMessagesDrawer";
 
 // Types inlined until @medbrains/types rebuild propagates
 interface DeviceAdapterCatalog {
@@ -231,6 +232,8 @@ export function DevicesPage() {
 // ── Device List Tab ────────────────────────────────────────────
 
 function DeviceListTab() {
+  const canViewMessages = useHasPermission(P.DEVICES.MESSAGES_VIEW);
+  const [messagesOf, setMessagesOf] = useState<DeviceInstance | null>(null);
   const { data: devices, isLoading } = useQuery({
     queryKey: ["devices", "instances"],
     queryFn: () => adminDevicesService.listDeviceInstances(),
@@ -266,6 +269,7 @@ function DeviceListTab() {
             <Table.Th>Status</Table.Th>
             <Table.Th>Messages (24h)</Table.Th>
             <Table.Th>AI Confidence</Table.Th>
+            {canViewMessages && <Table.Th>Traffic</Table.Th>}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -323,10 +327,23 @@ function DeviceListTab() {
                   </Text>
                 )}
               </Table.Td>
+              {canViewMessages && (
+                <Table.Td>
+                  <Button
+                    tone="secondary"
+                    size="xs"
+                    aria-label={`Messages for ${d.name}`}
+                    onClick={() => setMessagesOf(d)}
+                  >
+                    Messages
+                  </Button>
+                </Table.Td>
+              )}
             </Table.Tr>
           ))}
         </Table.Tbody>
       </Table>
+      <DeviceMessagesDrawer device={messagesOf} onClose={() => setMessagesOf(null)} />
     </Card>
   );
 }

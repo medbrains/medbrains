@@ -317,7 +317,7 @@ test.describe("Actor-perspective user journeys", () => {
     });
 
     await createIpdProgressNote(doctorCtx, admissionId, {
-      dayOffset: 0,
+      dayOffset: -2,
       subjective: "Admission day review after OPD referral",
       plan: "Begin observation, MAR, I/O and fall-prevention bundle",
     });
@@ -342,7 +342,7 @@ test.describe("Actor-perspective user journeys", () => {
     await acknowledgeIpdHandover(nurseCtx, admissionId, day0Handover.id);
 
     await createIpdProgressNote(doctorCtx, admissionId, {
-      dayOffset: 1,
+      dayOffset: -1,
       subjective: "Day 1 review: symptoms controlled",
       plan: "Continue oral medication and discharge-readiness checks",
     });
@@ -373,7 +373,7 @@ test.describe("Actor-perspective user journeys", () => {
     });
 
     await createIpdProgressNote(doctorCtx, admissionId, {
-      dayOffset: 2,
+      dayOffset: 0,
       subjective: "Day 2 review: fit for discharge planning",
       assessment: "Discharge-ready after billing and medication reconciliation",
       plan: "Close billing summary and provide follow-up instructions",
@@ -384,9 +384,10 @@ test.describe("Actor-perspective user journeys", () => {
       "GET",
       `/api/ipd/admissions/${admissionId}/progress-notes`,
     );
+    // A round is written up for the day it was done, never ahead of it.
     const noteDates = [...new Set(notes.map((note) => note.note_date))];
     expect(noteDates).toEqual(
-      expect.arrayContaining([dateDaysFromNow(0), dateDaysFromNow(1), dateDaysFromNow(2)]),
+      expect.arrayContaining([dateDaysFromNow(-2), dateDaysFromNow(-1), dateDaysFromNow(0)]),
     );
 
     const handovers = await api<

@@ -63,7 +63,7 @@ const VALID_STATUSES: &[&str] = &[
 ];
 
 /// Per-tenant video room base (self-hosted Jitsi etc.), else the public default.
-async fn resolve_video_base(
+pub async fn resolve_video_base(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<String, AppError> {
@@ -174,8 +174,59 @@ pub async fn create_tele_consultation(
         .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
     }
 
+    // The consultation is a booked visit: its record exists from the booking,
+    // like an OPD appointment's, so the doctor can read the patient's history
+    // before the call and write on the visit during it.
+    let consult = match consult.encounter_id {
+        Some(_) => consult,
+        None => open_visit(&mut tx, claims.tenant_id, &consult).await?,
+    };
     tx.commit().await?;
+    grant_consult_care(&state, &claims, &consult).await?;
     Ok(Json(consult))
+}
+
+/// The booking clerk owns the visit they created; the consulting doctor is
+/// its attending — without this the doctor could not see their own call.
+async fn grant_consult_care(
+    state: &AppState,
+    claims: &Claims,
+    consult: &TeleConsultation,
+) -> Result<(), AppError> {
+    let Some(encounter_id) = consult.encounter_id else {
+        return Ok(());
+    };
+    medbrains_authz_gate::grant_encounter_owner(state, claims, encounter_id).await?;
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "encounter",
+            encounter_id,
+            medbrains_authz::Relation::AttendingPhysician,
+            medbrains_authz::Subject::User(consult.doctor_id),
+            None,
+            Some("teleconsult_attending".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("teleconsult attending grant failed: {e}")))?;
+    // And on the patient, as an OPD visit does: the doctor reads the history
+    // and finds the call in their list before it starts.
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "patient",
+            consult.patient_id,
+            medbrains_authz::Relation::AttendingPhysician,
+            medbrains_authz::Subject::User(consult.doctor_id),
+            None,
+            Some("teleconsult_attending".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("teleconsult patient grant failed: {e}")))?;
+    Ok(())
 }
 
 /// GET /api/telemedicine/consultations
@@ -269,13 +320,7 @@ pub async fn get_join_info(
         "Patient".to_owned()
     };
 
-    // Externally-created meetings (Meet/Zoom/Teams) carry their own link;
-    // Jitsi derives it from the tenant's video base + room id.
-    let join_url = consult
-        .meeting_url
-        .clone()
-        .filter(|u| !u.is_empty())
-        .unwrap_or_else(|| format!("{}/{}", base.trim_end_matches('/'), consult.room_id));
+    let join_url = join_url(&base, consult.meeting_url.as_deref(), &consult.room_id);
 
     Ok(Json(TeleJoinInfo {
         consultation_id: consult.id,
@@ -284,6 +329,86 @@ pub async fn get_join_info(
         display_name,
         status: consult.status,
     }))
+}
+
+/// Externally-created meetings (Meet/Zoom/Teams) carry their own link;
+/// Jitsi derives it from the tenant's video base + room id.
+#[must_use]
+pub fn join_url(base: &str, meeting_url: Option<&str>, room_id: &str) -> String {
+    meeting_url
+        .filter(|u| !u.is_empty())
+        .map_or_else(
+            || format!("{}/{room_id}", base.trim_end_matches('/')),
+            ToOwned::to_owned,
+        )
+}
+
+/// The visit a consultation is held on, opened at booking: notes, orders and
+/// the prescription are written on it during the call, and it is marked a
+/// teleconsultation.
+async fn open_visit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    consult: &TeleConsultation,
+) -> Result<TeleConsultation, AppError> {
+    let enc_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO encounters (tenant_id, patient_id, encounter_type, visit_type, doctor_id, notes) \
+         VALUES ($1, $2, 'opd'::encounter_type, 'teleconsultation', $3, 'Telemedicine consultation') \
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(consult.patient_id)
+    .bind(consult.doctor_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(sqlx::query_as::<_, TeleConsultation>(
+        "UPDATE tele_consultations SET encounter_id = $2, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $3 RETURNING *",
+    )
+    .bind(consult.id)
+    .bind(enc_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?)
+}
+
+/// Bill the doctor's consultation fee to the visit, once per consultation.
+/// A doctor with no fee set bills nothing — a free consult is a real case.
+async fn bill_consultation(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    consult: &TeleConsultation,
+) -> Result<(), AppError> {
+    let doctor: Option<(String, Option<rust_decimal::Decimal>)> = sqlx::query_as(
+        "SELECT full_name, consultation_fee FROM users WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(consult.doctor_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((name, Some(fee))) = doctor else {
+        return Ok(());
+    };
+    if fee <= rust_decimal::Decimal::ZERO {
+        return Ok(());
+    }
+    medbrains_server_services::billing::auto_charge(
+        tx,
+        &tenant_id,
+        medbrains_server_services::billing::AutoChargeInput {
+            patient_id: consult.patient_id,
+            encounter_id: consult.encounter_id,
+            charge_code: "TELECONSULT".to_owned(),
+            source: "opd".to_owned(),
+            source_id: consult.id,
+            quantity: 1,
+            description_override: Some(format!("Teleconsultation — Dr {name}")),
+            unit_price_override: Some(fee),
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+    Ok(())
 }
 
 /// PUT /api/telemedicine/consultations/{id}/status — advance the session.
@@ -339,26 +464,31 @@ pub async fn update_tele_status(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // #2949: on completion, auto-create the EMR visit record if the consult isn't already linked.
-    if consult.status == "completed" && consult.encounter_id.is_none() {
-        let enc_id: Uuid = sqlx::query_scalar(
-            "INSERT INTO encounters (tenant_id, patient_id, encounter_type, doctor_id, notes) \
-             VALUES ($1, $2, 'opd'::encounter_type, $3, 'Telemedicine consultation') RETURNING id",
+    // Consultations booked before visits opened at booking have none yet.
+    let opens_visit = matches!(consult.status.as_str(), "in_progress" | "completed");
+    if opens_visit && consult.encounter_id.is_none() {
+        consult = open_visit(&mut tx, claims.tenant_id, &consult).await?;
+    }
+    // The visit closes with the call: completed, or cancelled when the call
+    // never happened.
+    let visit_status = match consult.status.as_str() {
+        "completed" => Some("completed"),
+        "cancelled" | "no_show" => Some("cancelled"),
+        _ => None,
+    };
+    if let (Some(visit_status), Some(encounter_id)) = (visit_status, consult.encounter_id) {
+        sqlx::query(
+            "UPDATE encounters SET status = $1::encounter_status, updated_at = now() \
+             WHERE id = $2 AND tenant_id = $3",
         )
+        .bind(visit_status)
+        .bind(encounter_id)
         .bind(claims.tenant_id)
-        .bind(consult.patient_id)
-        .bind(consult.doctor_id)
-        .fetch_one(&mut *tx)
+        .execute(&mut *tx)
         .await?;
-        consult = sqlx::query_as::<_, TeleConsultation>(
-            "UPDATE tele_consultations SET encounter_id = $2, updated_at = now() \
-             WHERE id = $1 AND tenant_id = $3 RETURNING *",
-        )
-        .bind(consult.id)
-        .bind(enc_id)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    }
+    if consult.status == "completed" {
+        bill_consultation(&mut tx, claims.tenant_id, &consult).await?;
     }
 
     tx.commit().await?;
@@ -717,7 +847,7 @@ pub async fn update_tele_config(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ($1, 'telemedicine', 'video_base', $2) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, \
                  updated_at = now()",
         )
         .bind(claims.tenant_id)
@@ -729,7 +859,7 @@ pub async fn update_tele_config(
         sqlx::query(
             "INSERT INTO tenant_settings (tenant_id, category, key, value) \
              VALUES ($1, 'telemedicine', 'default_provider', $2) \
-             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, \
                  updated_at = now()",
         )
         .bind(claims.tenant_id)
@@ -789,8 +919,8 @@ fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::V
     if has("suicidal_ideation") {
         flag("self_harm_risk", "suicidal ideation reported");
     }
-    if num("systolic").is_some_and(|v| v > 180.0) {
-        flag("hypertensive_urgency", "systolic BP > 180 mmHg");
+    if num("systolic").is_some_and(|v| v > 180.0) || num("diastolic").is_some_and(|v| v > 120.0) {
+        flag("hypertensive_urgency", "BP > 180/120 mmHg");
     }
 
     // Acuity: any red flag → emergent, except hypertensive urgency in isolation → urgent.
@@ -964,6 +1094,14 @@ mod triage_tests {
     fn hypertensive_urgency_alone_is_urgent() {
         let o = run_triage(&syms(&["headache"]), Some(4), &serde_json::json!({ "systolic": 190 }));
         assert_eq!(o.acuity, "urgent");
+    }
+
+    #[test]
+    fn diastolic_alone_flags_hypertensive_urgency() {
+        let v = serde_json::json!({ "systolic": 170, "diastolic": 125 });
+        let o = run_triage(&syms(&["headache"]), Some(4), &v);
+        assert_eq!(o.acuity, "urgent");
+        assert!(o.red_flags.contains(&"hypertensive_urgency".to_owned()));
     }
 
     #[test]

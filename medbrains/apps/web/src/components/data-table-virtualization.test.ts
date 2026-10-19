@@ -1,7 +1,10 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { resolveDataTableVirtualWindow } from "./data-table-virtualization";
+import {
+  resolveDataTableVirtualWindow,
+  resolveMeasuredRowHeight,
+} from "./data-table-virtualization";
 
 const rows = Array.from({ length: 120 }, (_, index) => `row-${index + 1}`);
 
@@ -93,5 +96,30 @@ describe("resolveDataTableVirtualWindow", () => {
     expect(window.rows).toEqual(rows.slice(0, 12));
     expect(window.renderedCount).toBe(12);
     expect(window.totalHeight).toBe(120 * 50);
+  });
+});
+
+describe("resolveMeasuredRowHeight", () => {
+  // The quality incident rows wrap to 83px against a 40px estimate. Windowed on
+  // 40px, scrolling incident 20 into view scrolled it out of the window.
+  it("widens to the rows actually on screen when they wrap", () => {
+    expect(resolveMeasuredRowHeight(40, [83, 83, 83])).toBe(83);
+    const window = resolveDataTableVirtualWindow({
+      data: rows,
+      enabled: true,
+      overscan: 2,
+      rowHeight: resolveMeasuredRowHeight(40, [83, 83, 83]),
+      scrollTop: 20 * 83,
+      viewportHeight: 440,
+    });
+    expect(window.rows).toContain("row-21");
+  });
+
+  it("never shrinks, so measuring a different window cannot oscillate", () => {
+    expect(resolveMeasuredRowHeight(83, [40, 40])).toBe(83);
+  });
+
+  it("ignores rows not laid out yet", () => {
+    expect(resolveMeasuredRowHeight(40, [0, 0])).toBe(40);
   });
 });

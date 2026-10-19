@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { refineBloodPressure } from "@medbrains/schemas";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type { TransfusionObservation } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { BloodPressureField } from "@/components";
 import {
   Alert,
   Badge,
@@ -32,16 +34,18 @@ const PHASE_LABEL: Record<string, string> = {
   completion: "Completion",
 };
 
-const observationSchema = z.object({
-  phase: z.enum(["baseline", "fifteen_min", "periodic", "completion"]),
-  temperature_c: z.number().min(30).max(45).optional(),
-  pulse: z.number().int().min(0).max(300).optional(),
-  systolic_bp: z.number().int().min(0).max(300).optional(),
-  diastolic_bp: z.number().int().min(0).max(200).optional(),
-  respiratory_rate: z.number().int().min(0).max(80).optional(),
-  adverse_signs: z.boolean(),
-  notes: z.string().optional(),
-});
+const observationSchema = z
+  .object({
+    phase: z.enum(["baseline", "fifteen_min", "periodic", "completion"]),
+    temperature_c: z.number().min(30).max(45).optional(),
+    pulse: z.number().int().min(0).max(300).optional(),
+    systolic_bp: z.number().optional(),
+    diastolic_bp: z.number().optional(),
+    respiratory_rate: z.number().int().min(0).max(80).optional(),
+    adverse_signs: z.boolean(),
+    notes: z.string().optional(),
+  })
+  .superRefine(refineBloodPressure("systolic_bp", "diastolic_bp"));
 type ObservationForm = z.infer<typeof observationSchema>;
 
 function vitalsSummary(o: TransfusionObservation): string {
@@ -65,12 +69,24 @@ interface Props {
 export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
   // Transfusion observations are the vital-sign trace taken DURING a transfusion.
   // An empty trace reads as "nobody monitored this patient".
-  const canListTransfusions = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
+  // Same either-side codes the server takes: the bank's, or the bedside nurse's.
+  const canListTransfusions = useHasAnyPermission([
+    P.NURSE.TRANSFUSION_VIEW,
+    P.BLOOD_BANK.TRANSFUSION_LIST,
+  ]);
+  const canRecord = useHasAnyPermission([
+    P.NURSE.TRANSFUSION_ADMINISTER,
+    P.BLOOD_BANK.TRANSFUSION_CREATE,
+  ]);
 
   const qc = useQueryClient();
   const opened = transfusionId !== null;
 
-  const { data: observations, isLoading } = useQuery({
+  const {
+    data: observations,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["blood-bank", "transfusion-observations", transfusionId],
     queryFn: () => bloodBankService.listTransfusionObservations(transfusionId ?? ""),
     enabled: opened && canListTransfusions,
@@ -131,7 +147,12 @@ export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
             Observations
           </Text>
           {isLoading && <Text size="sm">Loading…</Text>}
-          {!isLoading && (observations?.length ?? 0) === 0 && (
+          {isError && (
+            <Alert tone="danger" title="Observations could not be loaded">
+              This is a fault, not an unmonitored transfusion.
+            </Alert>
+          )}
+          {!isLoading && !isError && (observations?.length ?? 0) === 0 && (
             <Text size="sm" c="dimmed">
               No observations recorded yet.
             </Text>
@@ -160,124 +181,106 @@ export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
           ))}
         </Stack>
 
-        <Divider />
+        {canRecord && <Divider />}
 
-        <Stack component="form" gap="sm" onSubmit={handleSubmit((v) => recordMut.mutate(v))}>
-          <Text fw={600} size="sm">
-            Record observation
-          </Text>
-          <Controller
-            name="phase"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="Phase"
-                required
-                data={PHASE_OPTIONS}
-                value={field.value}
-                onChange={(v) => field.onChange(v ?? "periodic")}
-                error={errors.phase?.message}
+        {canRecord && (
+          <Stack component="form" gap="sm" onSubmit={handleSubmit((v) => recordMut.mutate(v))}>
+            <Text fw={600} size="sm">
+              Record observation
+            </Text>
+            <Controller
+              name="phase"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  label="Phase"
+                  required
+                  data={PHASE_OPTIONS}
+                  value={field.value}
+                  onChange={(v) => field.onChange(v ?? "periodic")}
+                  error={errors.phase?.message}
+                />
+              )}
+            />
+            <Group grow>
+              <Controller
+                name="temperature_c"
+                control={control}
+                render={({ field }) => (
+                  <NumberField
+                    label="Temp (°C)"
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                    min={30}
+                    max={45}
+                    step={0.1}
+                    decimalScale={1}
+                    error={errors.temperature_c?.message}
+                  />
+                )}
               />
-            )}
-          />
-          <Group grow>
-            <Controller
-              name="temperature_c"
-              control={control}
-              render={({ field }) => (
-                <NumberField
-                  label="Temp (°C)"
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                  min={30}
-                  max={45}
-                  step={0.1}
-                  decimalScale={1}
-                  error={errors.temperature_c?.message}
-                />
-              )}
-            />
-            <Controller
-              name="pulse"
-              control={control}
-              render={({ field }) => (
-                <NumberField
-                  label="Pulse"
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                  min={0}
-                  max={300}
-                />
-              )}
-            />
-          </Group>
-          <Group grow>
-            <Controller
-              name="systolic_bp"
-              control={control}
-              render={({ field }) => (
-                <NumberField
-                  label="Systolic BP"
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                  min={0}
-                  max={300}
-                />
-              )}
-            />
-            <Controller
-              name="diastolic_bp"
-              control={control}
-              render={({ field }) => (
-                <NumberField
-                  label="Diastolic BP"
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                  min={0}
-                  max={200}
-                />
-              )}
-            />
-            <Controller
-              name="respiratory_rate"
-              control={control}
-              render={({ field }) => (
-                <NumberField
-                  label="Resp rate"
-                  value={field.value ?? ""}
-                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
-                  min={0}
-                  max={80}
-                />
-              )}
-            />
-          </Group>
-          <Controller
-            name="adverse_signs"
-            control={control}
-            render={({ field }) => (
-              <Switch
-                label="Adverse signs (rigors, urticaria, dyspnoea, loin/back pain)"
-                checked={field.value}
-                onChange={(e) => field.onChange(e.currentTarget.checked)}
+              <Controller
+                name="pulse"
+                control={control}
+                render={({ field }) => (
+                  <NumberField
+                    label="Pulse"
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                    min={0}
+                    max={300}
+                  />
+                )}
               />
-            )}
-          />
-          <Controller
-            name="notes"
-            control={control}
-            render={({ field }) => (
-              <TextArea
-                label="Notes"
-                value={field.value ?? ""}
-                onChange={(e) => field.onChange(e.currentTarget.value)}
+            </Group>
+            <BloodPressureField
+              control={control}
+              systolicName="systolic_bp"
+              diastolicName="diastolic_bp"
+              emptyValue={undefined}
+            />
+            <Group grow>
+              <Controller
+                name="respiratory_rate"
+                control={control}
+                render={({ field }) => (
+                  <NumberField
+                    label="Resp rate"
+                    value={field.value ?? ""}
+                    onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                    min={0}
+                    max={80}
+                  />
+                )}
               />
-            )}
-          />
-          <Button type="submit" tone="primary" loading={recordMut.isPending} w="fit-content">
-            Record observation
-          </Button>
-        </Stack>
+            </Group>
+            <Controller
+              name="adverse_signs"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  label="Adverse signs (rigors, urticaria, dyspnoea, loin/back pain)"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
+            />
+            <Controller
+              name="notes"
+              control={control}
+              render={({ field }) => (
+                <TextArea
+                  label="Notes"
+                  value={field.value ?? ""}
+                  onChange={(e) => field.onChange(e.currentTarget.value)}
+                />
+              )}
+            />
+            <Button type="submit" tone="primary" loading={recordMut.isPending} w="fit-content">
+              Record observation
+            </Button>
+          </Stack>
+        )}
       </Stack>
     </Drawer>
   );

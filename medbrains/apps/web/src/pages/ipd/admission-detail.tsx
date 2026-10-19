@@ -32,11 +32,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { DocumentActions, OperationalSignal, useClinicalEmit } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { DamaModal } from "@/components/Ipd/DamaModal";
 import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizard";
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "@/components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "@/components/Ipd/WristbandPrintModal";
+import { BedsideTransfusionsPanel } from "@/components/Nurse/BedsideTransfusionsPanel";
 import { InfusionsPanel } from "@/components/Nurse/InfusionsPanel";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
@@ -82,6 +84,7 @@ import {
   workspaceReadinessBlockedReason,
 } from "./action-rail";
 import { AdmissionPrescriptionsTab } from "./admission-prescriptions";
+import { AdmissionRiskBadges } from "./admission-risk-badges";
 import { AssessmentsTab } from "./assessments";
 import { AttendersTab } from "./attenders";
 import { BedTransferModal } from "./bed-transfer-modal";
@@ -105,7 +108,6 @@ import { NursingTab } from "./nursing";
 import { OverviewTab } from "./overview";
 import { PatientScoresPanel } from "./patient-scores";
 import { PrintAdmissionButton } from "./print-admission-button";
-import { ProgressNotesTab } from "./progress-notes";
 import { TransferTab } from "./transfer";
 import { TransferLogTab } from "./transfer-log";
 
@@ -366,7 +368,15 @@ export function AdmissionDetail({
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={4}>
               <Group gap="xs">
-                <Text fw={700}>{t("admissionContext.shortId", { id: adm.id.slice(0, 8) })}</Text>
+                <Text fw={700}>
+                  {adm.admission_number
+                    ? t("admissionContext.ipNumber", { number: adm.admission_number })
+                    : t("admissionContext.shortId", { id: adm.id.slice(0, 8) })}
+                </Text>
+                <AdmissionRiskBadges
+                  isFallRisk={adm.is_fall_risk}
+                  isPressureInjuryRisk={adm.is_pressure_injury_risk}
+                />
                 {adm.is_critical && (
                   <OperationalSignal label={t("critical")} shape="diamond" size="xs" tone="risk" />
                 )}
@@ -598,7 +608,9 @@ export function AdmissionDetail({
               <OverviewTab admissionId={admissionId} tasks={detail.tasks} />
             </Tabs.Panel>
             <Tabs.Panel value="notes" pt="md">
-              <ProgressNotesTab admissionId={admissionId} />
+              {/* The admission's notes are its case sheet: every clinician's
+                  dated, signed entries (RFC-MODULE-clinical-notes, phase 2a). */}
+              <CaseSheet encounterId={adm.encounter_id} />
             </Tabs.Panel>
             <Tabs.Panel value="assessments" pt="md">
               <AssessmentsTab admissionId={admissionId} />
@@ -620,6 +632,9 @@ export function AdmissionDetail({
             </Tabs.Panel>
             <Tabs.Panel value="infusions" pt="md">
               <InfusionsPanel admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="transfusions" pt="md">
+              <BedsideTransfusionsPanel admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="nursing" pt="md">
               <NursingTab admissionId={admissionId} />
@@ -661,7 +676,7 @@ export function AdmissionDetail({
               <BillingTab admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="insurance-pa" pt="md">
-              <InsurancePaTab admissionId={admissionId} />
+              <InsurancePaTab admissionId={admissionId} patientId={adm.patient_id} />
             </Tabs.Panel>
             <Tabs.Panel value="mlc-tab" pt="md">
               <MlcTab admissionId={admissionId} canCreate={canCreate} />
@@ -878,8 +893,16 @@ export function AdmissionDetail({
                     onClick={openWristband}
                   />
                   <Group gap="xs">
-                    <DocumentActions templateCode="patient_wristband" sourceId={admissionId} />
-                    <DocumentActions templateCode="discharge_summary" sourceId={admissionId} />
+                    <DocumentActions
+                      templateCode="patient_wristband"
+                      sourceId={admissionId}
+                      label="Wristband"
+                    />
+                    <DocumentActions
+                      templateCode="discharge_summary"
+                      sourceId={admissionId}
+                      label="Discharge summary"
+                    />
                   </Group>
                   <ActionRailActionButton
                     action={referOutAction}

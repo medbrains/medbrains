@@ -135,7 +135,7 @@ pub async fn list_psych_patients(
 
     let rows = sqlx::query_as::<_, PsychPatient>(
         "SELECT * FROM psych_patients \
-         WHERE ($1::text IS NULL OR admission_category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR admission_category::text = $1) \
          AND ($2::bool IS NULL OR substance_abuse_flag = $2) \
          ORDER BY created_at DESC LIMIT 200",
     )
@@ -313,7 +313,7 @@ pub async fn list_assessments(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychAssessment>(
-        "SELECT * FROM psych_assessments WHERE psych_patient_id = $1 \
+        "SELECT * FROM psych_assessments WHERE psych_patient_id = $1 AND deleted_at IS NULL \
          ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
@@ -402,7 +402,7 @@ pub async fn list_ect_sessions(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychEctRegister>(
-        "SELECT * FROM psych_ect_register WHERE psych_patient_id = $1 \
+        "SELECT * FROM psych_ect_register WHERE psych_patient_id = $1 AND deleted_at IS NULL \
          ORDER BY session_number LIMIT 5000",
     )
     .bind(psych_patient_id)
@@ -514,7 +514,7 @@ pub async fn list_restraints(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychSeclusionRestraint>(
-        "SELECT * FROM psych_seclusion_restraint WHERE psych_patient_id = $1 \
+        "SELECT * FROM psych_seclusion_restraint WHERE psych_patient_id = $1 AND deleted_at IS NULL \
          ORDER BY start_time DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
@@ -663,7 +663,7 @@ pub async fn list_mhrb_notifications(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychMhrbNotification>(
-        "SELECT * FROM psych_mhrb_notifications WHERE psych_patient_id = $1 \
+        "SELECT * FROM psych_mhrb_notifications WHERE psych_patient_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
@@ -787,7 +787,7 @@ pub async fn list_counseling_sessions(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychCounselingSession>(
-        "SELECT * FROM psych_counseling_sessions WHERE psych_patient_id = $1 \
+        "SELECT * FROM psych_counseling_sessions WHERE psych_patient_id = $1 AND deleted_at IS NULL \
          ORDER BY session_date DESC LIMIT 5000",
     )
     .bind(psych_patient_id)

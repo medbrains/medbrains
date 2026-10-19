@@ -126,9 +126,9 @@ export interface PcpndtForm {
   form_number: string;
   patient_id: string;
   referral_doctor_id?: string;
-  performing_doctor_id: string;
+  performing_doctor_id: string | null;
   procedure_type: string;
-  indication: string;
+  indication: string | null;
   gestational_age_weeks?: number;
   lmp_date?: string;
   declaration_text?: string;
@@ -142,6 +142,27 @@ export interface PcpndtForm {
   created_by: string;
   created_at: string;
   updated_at: string;
+  /** The scan this form belongs to, when it was opened from an order. */
+  radiology_order_id: string | null;
+  living_sons: number | null;
+  living_daughters: number | null;
+  self_referred: boolean;
+  result_summary: string | null;
+  /** Her declaration that she does not want to know the sex of the fetus. */
+  woman_declared_at: string | null;
+  /** The doctor's declaration that the sex was neither detected nor disclosed. */
+  doctor_declared_at: string | null;
+}
+
+export interface CompletePcpndtFormRequest {
+  indication: string;
+  performing_doctor_id: string;
+  living_sons?: number;
+  living_daughters?: number;
+  self_referred: boolean;
+  result_summary?: string;
+  woman_declares: boolean;
+  doctor_declares: boolean;
 }
 
 export interface ComplianceCalendarEvent {
@@ -185,7 +206,8 @@ export interface AccreditationScore {
 }
 
 export interface DepartmentComplianceScore {
-  department_id: string;
+  /** Null for checklists that cover the whole hospital. */
+  department_id: string | null;
   department_name: string;
   avg_score: number;
   checklist_count: number;
@@ -211,13 +233,22 @@ export interface CreateChecklistRequest {
   assessment_period_end: string;
   next_review_date?: string;
   notes?: string;
+  /** An earlier checklist whose criteria are assessed again, from scratch. */
+  copy_criteria_from?: string;
 }
 
 export interface UpdateChecklistRequest {
   overall_status?: ComplianceChecklistStatus;
-  compliance_score?: number;
   next_review_date?: string;
   notes?: string;
+}
+
+export interface UpdateChecklistItemRequest {
+  status?: ComplianceChecklistStatus;
+  evidence_summary?: string;
+  gap_description?: string;
+  corrective_action?: string;
+  target_date?: string;
 }
 
 export interface ChecklistItemInput {

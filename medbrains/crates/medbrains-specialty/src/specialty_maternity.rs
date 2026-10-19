@@ -57,6 +57,8 @@ pub struct CreateAncVisitRequest {
     pub hemoglobin: Option<f64>,
     pub urine_protein: Option<String>,
     pub urine_sugar: Option<String>,
+    /// `none` / `pedal` / `generalised`.
+    pub oedema: Option<String>,
     pub pcpndt_form_f_filed: Option<bool>,
     pub pcpndt_form_f_number: Option<String>,
     pub ultrasound_done: Option<bool>,
@@ -141,15 +143,19 @@ pub async fn list_registrations(
         &claims,
         permissions::specialty::maternity::registrations::LIST,
     )?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, MaternityRegistration>(
         "SELECT * FROM maternity_registrations \
-         WHERE ($1::text IS NULL OR risk_category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR risk_category::text = $1) \
          AND ($2::bool IS NULL OR is_high_risk = $2) \
          AND ($3::text IS NULL OR status = $3) \
          ORDER BY created_at DESC LIMIT 200",
@@ -182,8 +188,12 @@ pub async fn get_registration(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -212,8 +222,12 @@ pub async fn create_registration(
     // sent — weaker than a route-derived check, but it stops a registration
     // being opened against a patient outside the caller's reach.
     medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -259,14 +273,26 @@ pub async fn list_anc_visits(
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<AncVisit>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::LIST)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, AncVisit>(
-        "SELECT * FROM anc_visits WHERE registration_id = $1 ORDER BY visit_number LIMIT 5000",
+        "SELECT * FROM anc_visits WHERE registration_id = $1 AND deleted_at IS NULL \
+         ORDER BY visit_number LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)
@@ -283,8 +309,20 @@ pub async fn create_anc_visit(
     Json(body): Json<CreateAncVisitRequest>,
 ) -> Result<Json<AncVisit>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::CREATE)?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
+    // Charting on a mother is the same decision as opening her registration.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -295,10 +333,10 @@ pub async fn create_anc_visit(
           weight_kg, bp_systolic, bp_diastolic, fundal_height_cm, \
           fetal_heart_rate, hemoglobin, urine_protein, urine_sugar, \
           pcpndt_form_f_filed, pcpndt_form_f_number, ultrasound_done, \
-          examined_by, next_visit_date, notes) \
+          examined_by, next_visit_date, notes, oedema) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, \
                  COALESCE($13, false), $14, COALESCE($15, false), \
-                 $16, $17::date, $18) \
+                 $16, $17::date, $18, $19) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -319,6 +357,7 @@ pub async fn create_anc_visit(
     .bind(claims.sub)
     .bind(&body.next_visit_date)
     .bind(&body.notes)
+    .bind(&body.oedema)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -344,14 +383,18 @@ pub async fn list_labor_records(
         registration_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, LaborRecord>(
-        "SELECT * FROM labor_records WHERE registration_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM labor_records WHERE registration_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)
@@ -379,8 +422,12 @@ pub async fn create_labor_record(
         registration_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -424,8 +471,12 @@ pub async fn update_labor_record(
         id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -487,14 +538,18 @@ pub async fn list_newborns(
         labor_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, NewbornRecord>(
-        "SELECT * FROM newborn_records WHERE labor_id = $1 ORDER BY birth_date LIMIT 5000",
+        "SELECT * FROM newborn_records WHERE labor_id = $1 AND deleted_at IS NULL ORDER BY birth_date LIMIT 5000",
     )
     .bind(labor_id)
     .fetch_all(&mut *tx)
@@ -528,8 +583,12 @@ pub async fn create_newborn(
         labor_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -589,7 +648,10 @@ pub async fn create_newborn(
     let anti_d_required = mother_rh.as_deref().is_some_and(is_rh_negative);
 
     tx.commit().await?;
-    Ok(Json(CreateNewbornResponse { newborn: row, anti_d_required }))
+    Ok(Json(CreateNewbornResponse {
+        newborn: row,
+        anti_d_required,
+    }))
 }
 
 #[derive(Debug, Serialize)]
@@ -636,42 +698,62 @@ pub async fn verify_newborn_identity(
         newborn_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let (mother_id, id_band_number): (Option<Uuid>, Option<String>) = sqlx::query_as(
-        "SELECT mother_id, id_band_number FROM newborn_records WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(newborn_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let (baby_id, mother_id, id_band_number): (Option<Uuid>, Option<Uuid>, Option<String>) =
+        sqlx::query_as(
+            // `baby_id` is a TEXT column (a patient id when the baby has been
+            // registered, otherwise whatever was typed); decoding it as a uuid
+            // failed every check, so cast only a well-formed one.
+            "SELECT CASE WHEN baby_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+                         THEN baby_id::uuid END, \
+                    mother_id, id_band_number FROM newborn_records \
+              WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(newborn_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
-    let mother_uhid: Option<String> = if let Some(mid) = mother_id {
-        sqlx::query_scalar("SELECT uhid FROM patients WHERE id = $1 AND tenant_id = $2")
-            .bind(mid)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-    } else {
-        None
+    // The same check the security handover screen runs: a mismatch is
+    // refused (409), raised on the baby's infant tag and audited.
+    let infant = medbrains_security::code_pink::Infant {
+        record: ("newborn_records", newborn_id),
+        patient_id: baby_id,
+        mother_id,
+        band_on_record: id_band_number.as_deref(),
     };
+    let scan = medbrains_security::code_pink::BandScan {
+        mother_band: body.scanned_mother_uhid.trim(),
+        infant_band: body
+            .scanned_band
+            .as_deref()
+            .map(str::trim)
+            .filter(|b| !b.is_empty()),
+        purpose: Some("newborn_identity"),
+    };
+    let checked =
+        medbrains_security::code_pink::check_mother_baby_band(&mut tx, &claims, &infant, &scan)
+            .await?;
     tx.commit().await?;
+    checked?;
 
-    let scanned = body.scanned_mother_uhid.trim();
-    let mother_match = mother_uhid.as_deref().is_some_and(|u| u.eq_ignore_ascii_case(scanned));
-    let band_match = body
-        .scanned_band
-        .as_deref()
-        .map(|b| id_band_number.as_deref().is_some_and(|x| x.eq_ignore_ascii_case(b.trim())));
-    // Verified only when the mother matches and, if a band was scanned, the band matches too.
-    let verified = mother_match && band_match != Some(false);
-
-    Ok(Json(VerifyNewbornIdentityResult { mother_match, band_match, mother_uhid, verified }))
+    let band_match = scan.infant_band.map(|_| true);
+    Ok(Json(VerifyNewbornIdentityResult {
+        mother_match: true,
+        band_match,
+        mother_uhid: Some(body.scanned_mother_uhid.trim().to_owned()),
+        verified: true,
+    }))
 }
 
 // ── Postnatal Records ────────────────────────────────────
@@ -689,14 +771,18 @@ pub async fn list_postnatal(
         registration_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, PostnatalRecord>(
-        "SELECT * FROM postnatal_records WHERE registration_id = $1 \
+        "SELECT * FROM postnatal_records WHERE registration_id = $1 AND deleted_at IS NULL \
          ORDER BY day_postpartum LIMIT 5000",
     )
     .bind(registration_id)
@@ -713,7 +799,10 @@ pub async fn create_postnatal(
     Path(registration_id): Path<Uuid>,
     Json(body): Json<CreatePostnatalRequest>,
 ) -> Result<Json<PostnatalRecord>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::postnatal::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::specialty::maternity::postnatal::CREATE,
+    )?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -721,8 +810,12 @@ pub async fn create_postnatal(
         registration_id,
     )
     .await?;
-    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
-        .await?;
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "maternity",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;

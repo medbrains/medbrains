@@ -2,13 +2,14 @@ export type { AnimatedIconMotion } from "./AnimatedIcon";
 export { AnimatedIcon } from "./AnimatedIcon";
 export { BedSelect } from "./BedSelect";
 export {
+  BloodPressureField,
+  BloodPressureInput,
+  type BloodPressureValue,
   DiagnosisPanel,
   PhysicalExamPanel,
   PrescriptionPrint,
   PrescriptionViews,
-  PrescriptionWriter,
   ReviewOfSystems,
-  SOAPNotes,
   StructuredHistory,
   VisitSummaryPrint,
   VitalsRecorder,

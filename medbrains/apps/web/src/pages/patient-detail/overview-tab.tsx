@@ -1,16 +1,21 @@
 // PATIENT OverviewTab — split from patient-detail.tsx (pure move).
 
 import { Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { useFieldAccess } from "@medbrains/stores";
-import type { Patient, PatientAllergy } from "@medbrains/types";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import { P, type Patient, type PatientAllergy } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ContactConsentCard } from "@/components/Patient/ContactConsentCard";
+import { DpdpConsentCard } from "@/components/Patient/DpdpConsentCard";
+import { PatientAcquisitionCard } from "@/components/Patient/PatientAcquisitionCard";
+import { PrivacyRequestsCard } from "@/components/Patient/PrivacyRequestsCard";
 import { Badge } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { age, formatDate, InfoRow } from "./shared";
 
 export function OverviewTab({ patient }: { patient: Patient }) {
+  // Reads gate the query, not just the card: without the permission it never fetches.
+  const canSeePrivacyRequests = useHasPermission(P.PATIENTS.PRIVACY_REQUESTS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const middleNameAccess = useFieldAccess("patients.middle_name");
@@ -69,6 +74,9 @@ export function OverviewTab({ patient }: { patient: Patient }) {
         </Card>
 
         <ContactConsentCard patient={patient} />
+        <DpdpConsentCard patient={patient} />
+        {canSeePrivacyRequests && <PrivacyRequestsCard patient={patient} />}
+        <PatientAcquisitionCard patient={patient} />
 
         <Card withBorder>
           <Title order={5} mb="sm">

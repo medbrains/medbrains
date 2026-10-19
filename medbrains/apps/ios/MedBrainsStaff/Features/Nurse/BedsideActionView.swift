@@ -16,6 +16,7 @@ struct BedsideActionView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var error: String?
+    @State private var showBpErrors = false
     @FocusState private var focus: String?
 
     private var spec: (title: String, badge: String, tone: CarbonTone) {
@@ -45,7 +46,7 @@ struct BedsideActionView: View {
                     case .vitals:
                         field("Temperature", "temperature", .decimalPad)
                         field("Pulse", "pulse", .numberPad)
-                        HStack(spacing: 8) { field("Systolic BP", "systolic_bp", .numberPad); field("Diastolic BP", "diastolic_bp", .numberPad) }
+                        BloodPressureFields(systolic: binding("systolic_bp"), diastolic: binding("diastolic_bp"), showErrors: showBpErrors)
                         HStack(spacing: 8) { field("SpO2", "spo2", .numberPad); field("Respiratory rate", "respiratory_rate", .numberPad) }
                         field("Notes", "notes", .default)
                     case .io:
@@ -81,9 +82,13 @@ struct BedsideActionView: View {
         .accessibilityIdentifier("screen-bedside-\(mode.rawValue)")
     }
 
+    private func binding(_ key: String) -> Binding<String> {
+        Binding(get: { form[key] ?? "" }, set: { form[key] = $0 })
+    }
+
     private func field(_ label: String, _ key: String, _ keyboard: UIKeyboardType, placeholder: String = "") -> some View {
         CarbonField(label, isFocused: focus == key) {
-            TextField(placeholder.isEmpty ? label : placeholder, text: Binding(get: { form[key] ?? "" }, set: { form[key] = $0 }))
+            TextField(placeholder.isEmpty ? label : placeholder, text: binding(key))
                 .keyboardType(keyboard)
                 .focused($focus, equals: key)
         }
@@ -116,7 +121,14 @@ struct BedsideActionView: View {
             case .vitals:
                 let temp = text("temperature")
                 if let temp, Double(temp) == nil { throw FormError("Temperature must be a number") }
-                let p = CreateVitalsPayload(encounterId: admission.encounterId, temperature: temp, pulse: try int("pulse", "Pulse", 0...300), systolicBp: try int("systolic_bp", "Systolic BP", 0...300), diastolicBp: try int("diastolic_bp", "Diastolic BP", 0...200), respiratoryRate: try int("respiratory_rate", "Respiratory rate", 0...80), spo2: try int("spo2", "SpO2", 0...100), notes: text("notes"))
+                let bp: BloodPressure.Reading
+                switch BloodPressure.reading(systolic: form["systolic_bp"] ?? "", diastolic: form["diastolic_bp"] ?? "") {
+                case .success(let reading): bp = reading
+                case .failure(let failure):
+                    showBpErrors = true
+                    throw FormError(failure.message)
+                }
+                let p = CreateVitalsPayload(encounterId: admission.encounterId, temperature: temp, pulse: try int("pulse", "Pulse", 0...300), systolicBp: bp.systolic, diastolicBp: bp.diastolic, respiratoryRate: try int("respiratory_rate", "Respiratory rate", 0...80), spo2: try int("spo2", "SpO2", 0...100), notes: text("notes"))
                 if temp == nil, p.pulse == nil, p.systolicBp == nil, p.diastolicBp == nil, p.respiratoryRate == nil, p.spo2 == nil {
                     throw FormError("Enter at least one vital reading")
                 }

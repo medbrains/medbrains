@@ -1,6 +1,11 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod abha_link;
+pub mod acquisition;
+mod identifier_key;
 pub mod contact_consent;
+pub mod dpdp_consent;
+pub mod privacy_requests;
 mod registration_rules;
 
 use std::collections::HashMap;
@@ -375,10 +380,15 @@ pub struct CreatePatientRequest {
     pub registration_type: Option<RegistrationType>,
     pub registration_source: Option<RegistrationSource>,
     pub financial_class: Option<FinancialClass>,
+    /// The campaign the patient came through, picked at the desk.
+    pub campaign_id: Option<Uuid>,
 
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
     pub abha_address: Option<String>,
+    /// The desk's "Verify ABHA" record. With it the link is saved as verified;
+    /// without it a typed ABHA number stays unverified.
+    pub abha_verification_id: Option<Uuid>,
     pub aadhaar_number: Option<String>,
     pub referred_by_name: Option<String>,
     pub referred_by_phone: Option<String>,
@@ -412,6 +422,9 @@ pub struct CreatePatientRequest {
     // ── How the patient agreed to be contacted ──
     #[serde(default)]
     pub contact: contact_consent::ContactPreferences,
+
+    // ── The DPDP notice, and what the patient agreed to ──
+    pub privacy: Option<dpdp_consent::DpdpConsentInput>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -957,13 +970,14 @@ async fn persist_registration_identifiers(
     abha_number: Option<&str>,
     abha_address: Option<&str>,
     aadhaar_digits: Option<&str>,
+    aadhaar_fingerprint: Option<&str>,
 ) -> Result<(), AppError> {
     if let Some(number) = abha_number {
         sqlx::query(
             "INSERT INTO patient_abha_links \
              (tenant_id, patient_id, abha_number, abha_address, kyc_verified, status) \
              VALUES ($1, $2, $3, $4, false, 'linked') \
-             ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+             ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                 abha_number = EXCLUDED.abha_number, \
                 abha_address = EXCLUDED.abha_address, \
                 updated_at = now()",
@@ -1002,9 +1016,8 @@ async fn persist_registration_identifiers(
         .await?;
     }
 
-    if let Some(digits) = aadhaar_digits {
+    if let (Some(digits), Some(hash)) = (aadhaar_digits, aadhaar_fingerprint) {
         let masked = masked_aadhaar(digits);
-        let hash = sha256_hex(&format!("{tenant_id}:aadhaar:{digits}"));
         sqlx::query(
             "INSERT INTO patient_identifiers \
              (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, is_verified, is_primary) \
@@ -1085,7 +1098,8 @@ pub async fn list_patients(
         .await?;
 
     // Build dynamic WHERE conditions
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    // A deleted patient is gone from search and lists; the record stays for audit.
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     // Inject the visible-id filter as a UUID array if not bypass.
@@ -1255,6 +1269,7 @@ pub async fn list_patients(
              FROM invoices \
              WHERE tenant_id = $1 \
                AND patient_id = ANY($2::uuid[]) \
+               AND deleted_at IS NULL \
                AND status::text NOT IN ('cancelled', 'void', 'refunded') \
              GROUP BY patient_id",
         )
@@ -1401,12 +1416,24 @@ pub async fn create_patient(
     let mut errors = ValidationErrors::new();
     registration_rules::check(&body_json, &mut errors);
     body.contact.validate(has_text(&body.email))?;
+    if let Some(privacy) = &body.privacy {
+        privacy.validate()?;
+    }
     // Shapes were checked above; these only normalise for storage.
     let aadhaar_digits = body
         .aadhaar_number
         .as_deref()
         .and_then(normalize_aadhaar_number);
     let abha_number = body.abha_number.as_deref().and_then(normalize_abha_number);
+    let aadhaar_fingerprint = match aadhaar_digits.as_deref() {
+        Some(digits) => Some(identifier_key::keyed_fingerprint(
+            &identifier_key::identifier_key(&state).await,
+            claims.tenant_id,
+            "aadhaar",
+            digits,
+        )),
+        None => None,
+    };
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -1524,12 +1551,33 @@ pub async fn create_patient(
         abha_number.as_deref(),
         body.abha_address.as_deref(),
         aadhaar_digits.as_deref(),
+        aadhaar_fingerprint.as_deref(),
     )
     .await?;
+    if let Some(verification_id) = body.abha_verification_id {
+        abha_link::link_verified_abha(
+            &mut tx,
+            abha_link::AbhaLinkRequest {
+                tenant_id: claims.tenant_id,
+                user_id: claims.sub,
+                patient_id: patient.id,
+                verification_id,
+                expected_abha: abha_number.as_deref(),
+                apply: &[],
+            },
+        )
+        .await?;
+    }
     contact_consent::record_at_registration(
         &mut tx,
         (claims.tenant_id, patient.id, claims.sub),
         &body.contact,
+    )
+    .await?;
+    dpdp_consent::record_at_registration(
+        &mut tx,
+        (claims.tenant_id, patient.id, claims.sub),
+        body.privacy.as_ref(),
     )
     .await?;
 
@@ -1547,6 +1595,18 @@ pub async fn create_patient(
     )
     .with_patient(patient.id);
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
+    if body.campaign_id.is_some() {
+        acquisition::record(
+            &mut tx,
+            claims.tenant_id,
+            patient.id,
+            body.campaign_id,
+            acquisition::CapturedVia::Registration,
+            Some(claims.sub),
+        )
+        .await?;
+    }
 
     // Auto-issue a registration token (skipped if the module is disabled).
     let patient_label = format!("{} {}", patient.first_name, patient.last_name);
@@ -3380,37 +3440,48 @@ pub async fn find_patients(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    // One query, bounded: exact identifiers score highest, then a prefix of
-    // either, then trigram on the name. No second round trip to rank.
-    let like = format!("%{q}%");
-    let rows = sqlx::query_as_unchecked!(
-        MatchResult,
-        "SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
+    // One query, bounded. Exact UHID / phone first, then a name that starts
+    // with the term, then any word of the name that does ("ravi" finds
+    // "Mr.K Ravindran"), then UHID / phone fragments, then a fuzzy name for
+    // typos. The match predicates are the trigram-indexed ones (migration
+    // 1070); the regexp only ranks rows already matched. Similarity alone on
+    // the full name missed partial names: "ravi" scores 0.17 against
+    // "Ravichandran.S Patient", under the old 0.3 floor.
+    let rows = sqlx::query_as::<_, MatchResult>(
+        "WITH p AS ( \
+           SELECT $2::text AS q, \
+                  replace(replace(replace(lower($2), '\\', '\\\\'), '%', '\\%'), '_', '\\_') AS e \
+         ) \
+         SELECT id, uhid, first_name, last_name, date_of_birth, phone, gender, \
          ( \
-           CASE WHEN upper(uhid) = upper($2) THEN 1.0 \
-                WHEN phone = $2 THEN 0.95 \
-                WHEN uhid ILIKE $3 THEN 0.80 \
-                WHEN phone LIKE $3 THEN 0.75 \
-                ELSE COALESCE(similarity(first_name || ' ' || last_name, $2), 0) \
+           CASE WHEN upper(uhid) = upper(p.q) THEN 1.0 \
+                WHEN phone = p.q THEN 0.95 \
+                WHEN lower(first_name || ' ' || last_name) LIKE p.e || '%' THEN 0.9 \
+                WHEN ' ' || regexp_replace(lower(first_name || ' ' || last_name), '[^a-z0-9]+', ' ', 'g') \
+                     LIKE '% ' || p.e || '%' THEN 0.85 \
+                WHEN uhid ILIKE '%' || p.e || '%' THEN 0.80 \
+                WHEN phone LIKE '%' || p.e || '%' THEN 0.75 \
+                ELSE COALESCE(word_similarity(p.q, first_name || ' ' || last_name), 0) * 0.7 \
            END \
          )::float8 AS score \
-         FROM patients \
+         FROM patients, p \
          WHERE tenant_id = $1 \
            AND is_merged = false \
            AND is_active = true \
+           AND deleted_at IS NULL \
            AND ( \
-             upper(uhid) = upper($2) \
-             OR phone = $2 \
-             OR uhid ILIKE $3 \
-             OR phone LIKE $3 \
-             OR similarity(first_name || ' ' || last_name, $2) > 0.3 \
+             upper(uhid) = upper(p.q) \
+             OR phone = p.q \
+             OR uhid ILIKE '%' || p.e || '%' \
+             OR phone LIKE '%' || p.e || '%' \
+             OR (first_name || ' ' || last_name) ILIKE '%' || p.e || '%' \
+             OR p.q <% (first_name || ' ' || last_name) \
            ) \
          ORDER BY score DESC, last_name, first_name \
          LIMIT 20",
-        claims.tenant_id,
-        q,
-        &like,
     )
+    .bind(claims.tenant_id)
+    .bind(q)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -3629,15 +3700,15 @@ pub async fn list_patient_visits(
             u.full_name AS doctor_name,
             d.name AS department_name,
             c.chief_complaint,
-            (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id) AS diagnosis_count,
-            (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id) AS prescription_count,
-            (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id) AS lab_order_count,
+            (SELECT COUNT(*) FROM diagnoses dg WHERE dg.encounter_id = e.id AND dg.deleted_at IS NULL) AS diagnosis_count,
+            (SELECT COUNT(*) FROM prescriptions p WHERE p.encounter_id = e.id AND p.deleted_at IS NULL) AS prescription_count,
+            (SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.deleted_at IS NULL) AS lab_order_count,
             e.created_at
          FROM encounters e
          LEFT JOIN users u ON u.id = e.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
-         LEFT JOIN consultations c ON c.encounter_id = e.id
-         WHERE e.patient_id = $1
+         LEFT JOIN consultations c ON c.encounter_id = e.id AND c.deleted_at IS NULL
+         WHERE e.patient_id = $1 AND e.deleted_at IS NULL
          ORDER BY e.encounter_date DESC, e.created_at DESC",
         patient_id,
     )
@@ -3694,7 +3765,7 @@ pub async fn list_patient_consultations(
          JOIN encounters e ON e.id = c.encounter_id AND e.tenant_id = c.tenant_id
          LEFT JOIN users u ON u.id = c.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
-         WHERE e.patient_id = $1 AND c.tenant_id = $2
+         WHERE e.patient_id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL AND e.deleted_at IS NULL
          ORDER BY e.encounter_date DESC, c.updated_at DESC LIMIT 5000",
     )
     .bind(patient_id)
@@ -3773,7 +3844,7 @@ pub async fn list_patient_lab_orders(
             lo.status,
             lo.priority::text AS priority,
             u.full_name AS ordered_by_name,
-            (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id) AS result_count,
+            (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id AND lr.deleted_at IS NULL) AS result_count,
             lo.collected_at,
             lo.verified_at,
             COALESCE(lo.expected_tat_minutes, (tc.tat_hours * 60)::int)
@@ -3785,7 +3856,7 @@ pub async fn list_patient_lab_orders(
          FROM lab_orders lo
          LEFT JOIN lab_test_catalog tc ON tc.id = lo.test_id
          LEFT JOIN users u ON u.id = lo.ordered_by
-         WHERE lo.patient_id = $1
+         WHERE lo.patient_id = $1 AND lo.deleted_at IS NULL
          ORDER BY lo.created_at DESC",
         patient_id,
     )
@@ -3897,7 +3968,7 @@ pub async fn list_patient_appointments(
          FROM appointments a
          LEFT JOIN users u ON u.id = a.doctor_id
          LEFT JOIN departments d ON d.id = a.department_id
-         WHERE a.patient_id = $1
+         WHERE a.patient_id = $1 AND a.deleted_at IS NULL
          ORDER BY a.appointment_date DESC, a.slot_start DESC",
         patient_id,
     )
@@ -4077,6 +4148,7 @@ pub async fn list_merge_history(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // allow-soft-deleted: merge history is the audit record of identity merges; it must stay complete.
     let rows = sqlx::query_as!(
         PatientMergeHistory,
         "SELECT * FROM patient_merge_history
@@ -5000,6 +5072,10 @@ pub async fn get_clinical_timeline(
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
+            "/api/patients/{id}/acquisition",
+            get(acquisition::get_acquisition).put(acquisition::correct_acquisition),
+        )
+        .route(
             "/api/patients",
             get(list_patients).post(create_patient),
         )
@@ -5017,6 +5093,23 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/patients/{id}/contact-consents",
             get(contact_consent::get_contact_consents).put(contact_consent::set_contact_consent),
+        )
+        .route(
+            "/api/patients/{id}/dpdp-consent",
+            get(dpdp_consent::get_dpdp_consent).put(dpdp_consent::set_dpdp_consent),
+        )
+        .route(
+            "/api/patients/{id}/data-summary",
+            get(privacy_requests::patient_data_summary),
+        )
+        .route(
+            "/api/privacy-requests",
+            get(privacy_requests::list_privacy_requests)
+                .post(privacy_requests::create_privacy_request),
+        )
+        .route(
+            "/api/privacy-requests/{id}/decide",
+            put(privacy_requests::decide_privacy_request),
         )
         .route(
             "/api/patients/{id}/clinical-timeline",

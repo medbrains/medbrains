@@ -10,6 +10,8 @@ export const hrService = {
   endShift: (...args: Parameters<typeof api.endShift>) => api.endShift(...args),
   acknowledgeFatigue: (...args: Parameters<typeof api.acknowledgeFatigue>) =>
     api.acknowledgeFatigue(...args),
+  importAebasPeriodSummary: (...args: Parameters<typeof api.importAebasPeriodSummary>) =>
+    api.importAebasPeriodSummary(...args),
   listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
   getEmployee: (...args: Parameters<typeof api.getEmployee>) => api.getEmployee(...args),
   createEmployee: (...args: Parameters<typeof api.createEmployee>) => api.createEmployee(...args),
@@ -29,6 +31,8 @@ export const hrService = {
     api.listCredentials(...args),
   createCredential: (...args: Parameters<typeof api.createCredential>) =>
     api.createCredential(...args),
+  updateCredential: (...args: Parameters<typeof api.updateCredential>) =>
+    api.updateCredential(...args),
   listLeaveBalances: (...args: Parameters<typeof api.listLeaveBalances>) =>
     api.listLeaveBalances(...args),
   listAttendance: (...args: Parameters<typeof api.listAttendance>) => api.listAttendance(...args),
@@ -40,6 +44,12 @@ export const hrService = {
     api.createLeaveRequest(...args),
   leaveAction: (...args: Parameters<typeof api.leaveAction>) => api.leaveAction(...args),
   cancelLeave: (...args: Parameters<typeof api.cancelLeave>) => api.cancelLeave(...args),
+  getMyProfile: () => api.getMyProfile(),
+  listMyLeaveRequests: () => api.listMyLeaveRequests(),
+  createMyLeaveRequest: (...args: Parameters<typeof api.createMyLeaveRequest>) =>
+    api.createMyLeaveRequest(...args),
+  listMyLeaveBalances: () => api.listMyLeaveBalances(),
+  listMyTeamLeaves: () => api.listMyTeamLeaves(),
   listShifts: (...args: Parameters<typeof api.listShifts>) => api.listShifts(...args),
   createShift: (...args: Parameters<typeof api.createShift>) => api.createShift(...args),
   listRosters: (...args: Parameters<typeof api.listRosters>) => api.listRosters(...args),
@@ -51,6 +61,8 @@ export const hrService = {
     api.listTrainingPrograms(...args),
   createTrainingProgram: (...args: Parameters<typeof api.createTrainingProgram>) =>
     api.createTrainingProgram(...args),
+  listTrainingRecords: (...args: Parameters<typeof api.listTrainingRecords>) =>
+    api.listTrainingRecords(...args),
   createTrainingRecord: (...args: Parameters<typeof api.createTrainingRecord>) =>
     api.createTrainingRecord(...args),
   trainingCompliance: (...args: Parameters<typeof api.trainingCompliance>) =>

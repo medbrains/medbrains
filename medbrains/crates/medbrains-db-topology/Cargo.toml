@@ -8,7 +8,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-async-trait = "0.1"
+async-trait = "0.1.92"
 moka = { version = "0.12", features = ["future"] }
 serde = { workspace = true }
 sqlx = { workspace = true }

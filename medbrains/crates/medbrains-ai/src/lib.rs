@@ -666,6 +666,8 @@ struct CallApiArgs {
 struct CallApiTool {
     state: AppState,
     claims: Claims,
+    /// The model is outside the hospital: hand it records without identities.
+    scrub: bool,
 }
 
 impl CallApiTool {
@@ -735,6 +737,7 @@ impl rig::tool::Tool for CallApiTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         Ok(match self.get(&args.path).await {
+            Ok(text) if self.scrub => medbrains_core::ai_egress::scrub(&text),
             Ok(text) => text,
             Err(e) => format!("Error calling {}: {e}", args.path),
         })
@@ -931,11 +934,15 @@ async fn open_turn(
     .await?;
     tx.commit().await?;
 
+    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
     let history = history_rows
         .into_iter()
-        .map(|r| match r.role.as_str() {
-            "assistant" => rig::completion::Message::assistant(r.content),
-            _ => rig::completion::Message::user(r.content),
+        .map(|r| {
+            let content = if egress { medbrains_core::ai_egress::scrub(&r.content) } else { r.content };
+            match r.role.as_str() {
+                "assistant" => rig::completion::Message::assistant(content),
+                _ => rig::completion::Message::user(content),
+            }
         })
         .collect();
 
@@ -1007,6 +1014,17 @@ pub async fn chat(
     let tenant_id = claims.tenant_id;
 
     let preamble = build_preamble(req.context.as_ref(), &kb_hits);
+    // What leaves for an outside model carries no one's identity; the
+    // conversation kept here stays as the clinician wrote it.
+    let egress = medbrains_core::ai_egress::leaves_the_hospital(&cfg.provider);
+    let (preamble, message) = if egress {
+        (
+            medbrains_core::ai_egress::scrub(&preamble),
+            medbrains_core::ai_egress::scrub(&message),
+        )
+    } else {
+        (preamble, message)
+    };
 
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
@@ -1036,6 +1054,7 @@ pub async fn chat(
                 .tool(CallApiTool {
                     state: state.clone(),
                     claims: claims.clone(),
+                    scrub: egress,
                 })
                 .tool(RequestPatientTool)
                 .tool(ListApisTool)
@@ -1076,6 +1095,7 @@ pub async fn chat(
                 .tool(CallApiTool {
                     state: state.clone(),
                     claims: claims.clone(),
+                    scrub: egress,
                 })
                 .tool(RequestPatientTool)
                 .tool(ListApisTool)
@@ -1122,6 +1142,7 @@ pub async fn chat(
                 .tool(CallApiTool {
                     state: state.clone(),
                     claims: claims.clone(),
+                    scrub: egress,
                 })
                 .tool(RequestPatientTool)
                 .tool(ListApisTool)

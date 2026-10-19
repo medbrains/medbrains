@@ -6,6 +6,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod consult_pricing;
+pub mod last_visit;
+pub mod referral_lifecycle;
+pub mod rx_policy;
+pub mod rx_terms;
 pub mod transfer;
 
 use axum::{
@@ -30,12 +35,14 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put,delete};
+use axum::routing::{delete, get, post, put};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::middleware::field_access;
-use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 
 const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -221,6 +228,11 @@ pub struct QueueEntry {
     pub appointment_slot_start: Option<NaiveTime>,
     pub appointment_slot_end: Option<NaiveTime>,
     pub appointment_reason: Option<String>,
+    /// `primary`, `cross_consult` (a colleague's opinion) or `returned`.
+    pub kind: String,
+    /// For a referral row: who asked, and why.
+    pub referral_from_doctor: Option<String>,
+    pub referral_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -234,71 +246,6 @@ pub struct CreateVitalRequest {
     pub weight_kg: Option<Decimal>,
     pub height_cm: Option<Decimal>,
     pub notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateConsultationRequest {
-    pub chief_complaint: Option<String>,
-    pub history: Option<String>,
-    pub examination: Option<String>,
-    pub plan: Option<String>,
-    pub notes: Option<String>,
-    pub hpi: Option<String>,
-    pub past_medical_history: Option<serde_json::Value>,
-    pub past_surgical_history: Option<serde_json::Value>,
-    pub family_history: Option<serde_json::Value>,
-    pub social_history: Option<serde_json::Value>,
-    pub review_of_systems: Option<serde_json::Value>,
-    pub physical_examination: Option<serde_json::Value>,
-    pub general_appearance: Option<String>,
-    /// Inline lab orders attached to this consultation. Each row is
-    /// inserted in the same transaction so a partial failure rolls
-    /// back the consultation as well. Saves the doctor a hop to the
-    /// Lab module.
-    #[serde(default)]
-    pub lab_orders: Vec<InlineLabOrder>,
-    /// Same as `lab_orders`, for radiology.
-    #[serde(default)]
-    pub radiology_orders: Vec<InlineRadiologyOrder>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InlineLabOrder {
-    pub test_id: Uuid,
-    #[serde(default)]
-    pub priority: Option<String>,
-    #[serde(default)]
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InlineRadiologyOrder {
-    pub modality_id: Uuid,
-    #[serde(default)]
-    pub body_part: Option<String>,
-    #[serde(default)]
-    pub clinical_indication: Option<String>,
-    #[serde(default)]
-    pub priority: Option<String>,
-    #[serde(default)]
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateConsultationRequest {
-    pub chief_complaint: Option<String>,
-    pub history: Option<String>,
-    pub examination: Option<String>,
-    pub plan: Option<String>,
-    pub notes: Option<String>,
-    pub hpi: Option<String>,
-    pub past_medical_history: Option<serde_json::Value>,
-    pub past_surgical_history: Option<serde_json::Value>,
-    pub family_history: Option<serde_json::Value>,
-    pub social_history: Option<serde_json::Value>,
-    pub review_of_systems: Option<serde_json::Value>,
-    pub physical_examination: Option<serde_json::Value>,
-    pub general_appearance: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -368,12 +315,29 @@ pub struct CreatePrescriptionRequest {
     /// has expired (`doctor_profiles.registration_valid_until` in the past). Required
     /// (non-blank) in that case; logged. Without it the prescription is blocked.
     pub credential_override_reason: Option<String>,
+    /// Refills the doctor authorises without a new visit (0-12). Never on a
+    /// Schedule X, H1 or NDPS line.
+    pub repeats_allowed: Option<i32>,
+    /// Days between refills; required with refills.
+    pub repeat_interval_days: Option<i32>,
+    /// Last day the prescription may be dispensed or refilled against.
+    pub valid_until: Option<NaiveDate>,
+    /// Clinical indication for an AWaRe Reserve antibiotic. Required when a
+    /// Reserve line has no live stewardship request; raises one (pending).
+    pub stewardship_indication: Option<String>,
+    /// Prescriber's reason for a non-formulary medicine. Required when a line
+    /// is non-formulary; filed to audit.
+    pub non_formulary_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct UpdatePrescriptionRequest {
     pub notes: Option<String>,
     pub items: Vec<PrescriptionItemInput>,
+    /// As on create: the indication for a Reserve antibiotic without a request.
+    pub stewardship_indication: Option<String>,
+    /// As on create: the reason for a non-formulary medicine.
+    pub non_formulary_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -465,78 +429,6 @@ pub(crate) async fn assign_department_doctor(
     Ok(doctor_id)
 }
 
-// ══════════════════════════════════════════════════════════
-//  MRD register-lock (opt-in, tenant-global)
-// ══════════════════════════════════════════════════════════
-
-const MRD_LOCK_MSG: &str = "Register the OPD visit before opening the medical record";
-
-/// True when this tenant requires an OPD registration before medical records may be opened.
-pub(crate) async fn mrd_lock_enabled(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<bool, AppError> {
-    let value = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'mrd' AND key = 'require_opd_registration'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    Ok(value.and_then(|v| v.as_bool()).unwrap_or(false))
-}
-
-/// When the lock is on, require the encounter to carry an OPD registration (a queue token).
-pub(crate) async fn assert_encounter_registered(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    encounter_id: Uuid,
-) -> Result<(), AppError> {
-    if !mrd_lock_enabled(tx, tenant_id).await? {
-        return Ok(());
-    }
-    let registered = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM opd_queues WHERE tenant_id = $1 AND encounter_id = $2)",
-    )
-    .bind(tenant_id)
-    .bind(encounter_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    if registered {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
-    }
-}
-
-/// When the lock is on, require the patient to have an open OPD encounter / a registration today.
-pub async fn assert_patient_opd_registered(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    patient_id: Uuid,
-) -> Result<(), AppError> {
-    if !mrd_lock_enabled(tx, tenant_id).await? {
-        return Ok(());
-    }
-    let registered = sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS (SELECT 1 FROM encounters \
-            WHERE tenant_id = $1 AND patient_id = $2 \
-              AND encounter_type = 'opd' AND status = 'open') \
-         OR EXISTS (SELECT 1 FROM opd_queues q \
-            JOIN encounters e ON e.id = q.encounter_id \
-            WHERE q.tenant_id = $1 AND q.queue_date = CURRENT_DATE AND e.patient_id = $2)",
-    )
-    .bind(tenant_id)
-    .bind(patient_id)
-    .fetch_one(&mut **tx)
-    .await?;
-    if registered {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
-    }
-}
-
 /// Whether the tenant requires OPD registration before medical records may be opened.
 #[derive(Debug, serde::Serialize)]
 pub struct OpdRegistrationPolicy {
@@ -551,7 +443,8 @@ pub async fn get_registration_policy(
     require_permission(&claims, permissions::opd::queue::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let require_opd_registration = mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
+    let require_opd_registration =
+        medbrains_server_services::mrd_lock::mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(OpdRegistrationPolicy {
         require_opd_registration,
@@ -576,7 +469,7 @@ pub async fn update_registration_policy(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'mrd', 'require_opd_registration', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value, updated_at = now()",
     )
     .bind(claims.tenant_id)
     .bind(serde_json::Value::Bool(body.require_opd_registration))
@@ -633,6 +526,7 @@ pub async fn list_encounters(
     let mut conditions = vec![
         "tenant_id = $1".to_owned(),
         "encounter_type = 'opd'".to_owned(),
+        "deleted_at IS NULL".to_owned(),
     ];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
@@ -823,7 +717,9 @@ pub async fn create_encounter(
         ));
     }
 
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
 
     #[derive(sqlx::FromRow)]
     struct AppointmentLink {
@@ -978,8 +874,8 @@ pub async fn create_encounter(
         attributes["camp_name"] = serde_json::json!(camp.name);
     }
 
-    let is_dummy =
-        body.is_dummy.unwrap_or(false) && medbrains_server_core::middleware::authorization::is_bypass_role(&claims);
+    let is_dummy = body.is_dummy.unwrap_or(false)
+        && medbrains_server_core::middleware::authorization::is_bypass_role(&claims);
 
     // A whitespace-only complaint is no complaint — store NULL so the doctor's
     // screen shows "not recorded" rather than an empty line that looks answered.
@@ -1217,7 +1113,15 @@ pub async fn get_encounter(
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
         medbrains_server_core::middleware::authorization::collapse(
             medbrains_server_core::middleware::authorization::outcome_of(
-                state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", id,).await,
+                state
+                    .authz
+                    .check(
+                        &authz_ctx,
+                        medbrains_authz::Relation::Viewer,
+                        "encounter",
+                        id,
+                    )
+                    .await,
                 "encounter",
             ),
         )?;
@@ -1251,10 +1155,7 @@ pub async fn update_encounter(
 
     // The route names an encounter; holding the module permission is not the
     // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(
-        &state, &claims, id,
-    )
-    .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1297,11 +1198,12 @@ pub async fn list_queue(
     // five also hold patients.view. Correct code, inert control — see
     // list_verbal_orders in this file for the same test coming out the other
     // way, where quality_officer holds the code and not patients.view.
-    let can_view_patient_identity = medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|permission| permission == permissions::patients::VIEW);
+    let can_view_patient_identity =
+        medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
+            || claims
+                .permissions
+                .iter()
+                .any(|permission| permission == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1314,6 +1216,9 @@ pub async fn list_queue(
     let mut conditions = vec![
         "q.tenant_id = $1".to_owned(),
         "q.queue_date = $2".to_owned(),
+        // A deleted visit leaves the waiting room.
+        "q.deleted_at IS NULL".to_owned(),
+        "e.deleted_at IS NULL".to_owned(),
     ];
     let mut bind_idx: usize = 4;
 
@@ -1420,16 +1325,23 @@ pub async fn list_queue(
                 a.appointment_date, \
                 a.slot_start AS appointment_slot_start, \
                 a.slot_end AS appointment_slot_end, \
-                a.reason AS appointment_reason \
+                a.reason AS appointment_reason, \
+                q.kind, \
+                rfu.full_name AS referral_from_doctor, \
+                rf.reason AS referral_reason \
          FROM opd_queues q \
          JOIN encounters e ON e.id = q.encounter_id \
          JOIN patients p ON p.id = e.patient_id \
          LEFT JOIN appointments a ON a.tenant_id = q.tenant_id AND a.encounter_id = e.id \
+         LEFT JOIN referrals rf ON rf.id = q.referral_id \
+         LEFT JOIN users rfu ON rfu.id = rf.from_doctor_id \
          LEFT JOIN LATERAL ( \
              SELECT t.number, t.counter_label, t.scope_label, t.priority \
                FROM tokens t \
               WHERE t.tenant_id = q.tenant_id AND t.module = 'opd' \
-                AND t.entity_type = 'encounter' AND t.entity_id = q.encounter_id \
+                AND ((q.kind = 'primary' AND t.entity_type = 'encounter' \
+                      AND t.entity_id = q.encounter_id) \
+                  OR (t.entity_type = 'opd_queue' AND t.entity_id = q.id)) \
                 AND t.token_date = q.queue_date \
               ORDER BY t.created_at LIMIT 1 \
          ) tok ON TRUE \
@@ -1481,24 +1393,96 @@ const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
 /// In the caller's transaction so the two cannot part company. `None` back
 /// is normal and must not fail the queue action: tokens are per-day, and
 /// entries seeded or created before this module issued them have none.
-async fn advance_encounter_token(
+async fn advance_queue_token(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
-    encounter_id: Uuid,
+    queue: &OpdQueue,
     status: &str,
 ) -> Result<Option<medbrains_tokens::Token>, AppError> {
+    // The visit's own row moves the token issued for the encounter; a
+    // colleague's row moves only the token issued for that row, so one
+    // doctor calling the patient does not call them for the other.
+    let (entity_type, entity_id) = if queue.is_primary() {
+        ("encounter", queue.encounter_id)
+    } else {
+        ("opd_queue", queue.id)
+    };
     medbrains_tokens::advance_entity_token_in_tx(
         tx,
         claims.tenant_id,
         medbrains_tokens::AdvanceEntityToken {
             module: "opd",
-            entity_type: "encounter",
-            entity_id: encounter_id,
+            entity_type,
+            entity_id,
             status,
             called_by: Some(claims.sub),
         },
     )
     .await
+}
+
+/// Charge the consultation a queue row stands for, when OPD auto-billing is on.
+///
+/// Each doctor who sees the patient is a consultation; coming back with a
+/// colleague's opinion is not.
+async fn charge_consultation(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    q: &OpdQueue,
+) -> Result<(), AppError> {
+    if q.kind != "returned"
+        && medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "opd")
+            .await?
+    {
+        let enc_patient = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(q.encounter_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(patient_id) = enc_patient {
+            let dept_code = sqlx::query_scalar::<_, String>(
+                "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(q.department_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
+
+            let charge_code =
+                dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
+            // Free inside the revisit window; else the doctor's own fee; else
+            // the charge master's department rate (#296).
+            let priced = consult_pricing::consult_price(
+                tx,
+                claims.tenant_id,
+                patient_id,
+                q.doctor_id,
+                q.department_id,
+            )
+            .await?;
+
+            let _ = medbrains_server_services::billing::auto_charge(
+                tx,
+                &claims.tenant_id,
+                medbrains_server_services::billing::AutoChargeInput {
+                    patient_id,
+                    encounter_id: Some(q.encounter_id),
+                    charge_code,
+                    source: "opd".to_owned(),
+                    source_id: q.id,
+                    quantity: 1,
+                    description_override: Some(priced.description),
+                    unit_price_override: priced.price,
+                    tax_percent_override: None,
+                },
+            )
+            .await;
+        }
+    }
+    Ok(())
 }
 
 fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
@@ -1534,7 +1518,7 @@ pub async fn call_queue_entry(
     .await?;
 
     let token = match q {
-        Some(ref entry) => advance_encounter_token(&mut tx, &claims, entry.encounter_id, "called").await?,
+        Some(ref entry) => advance_queue_token(&mut tx, &claims, entry, "called").await?,
         None => None,
     };
 
@@ -1574,8 +1558,7 @@ pub async fn start_consultation(
     // Guarded after the row is fetched: the route carries a queue id, and the
     // encounter it belongs to is only known once that row is read. `q` here is
     // the fetched row, not a query extractor.
-    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
-        .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id).await?;
 
     // Update encounter status to in_progress
     sqlx::query(
@@ -1587,22 +1570,24 @@ pub async fn start_consultation(
     .execute(&mut *tx)
     .await?;
 
-    sqlx::query(
-        "UPDATE appointments \
-         SET status = 'in_consultation'::appointment_status, updated_at = now() \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
-           AND status IN ( \
-             'scheduled'::appointment_status, \
-             'confirmed'::appointment_status, \
-             'checked_in'::appointment_status \
-           )",
-    )
-    .bind(claims.tenant_id)
-    .bind(q.encounter_id)
-    .execute(&mut *tx)
-    .await?;
+    if q.is_primary() {
+        sqlx::query(
+            "UPDATE appointments \
+             SET status = 'in_consultation'::appointment_status, updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+               AND status IN ( \
+                 'scheduled'::appointment_status, \
+                 'confirmed'::appointment_status, \
+                 'checked_in'::appointment_status \
+               )",
+        )
+        .bind(claims.tenant_id)
+        .bind(q.encounter_id)
+        .execute(&mut *tx)
+        .await?;
+    }
 
-    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "serving").await?;
+    let token = advance_queue_token(&mut tx, &claims, &q, "serving").await?;
 
     tx.commit().await?;
     if let Some(ref token) = token {
@@ -1639,80 +1624,49 @@ pub async fn complete_queue_entry(
     // Guarded after the row is fetched: the route carries a queue id, and the
     // encounter it belongs to is only known once that row is read. `q` here is
     // the fetched row, not a query extractor.
-    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
-        .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id).await?;
 
-    sqlx::query(
-        "UPDATE encounters SET status = 'completed'::encounter_status, updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(q.encounter_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        "UPDATE appointments \
-         SET status = 'completed'::appointment_status, \
-             completed_at = COALESCE(completed_at, now()), updated_at = now() \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
-           AND status NOT IN ( \
-             'completed'::appointment_status, \
-             'cancelled'::appointment_status, \
-             'no_show'::appointment_status \
-           )",
-    )
-    .bind(claims.tenant_id)
-    .bind(q.encounter_id)
-    .execute(&mut *tx)
-    .await?;
-
-    // Auto-billing: charge for OPD consultation
-    if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "opd").await? {
-        let enc_patient = sqlx::query_scalar::<_, Uuid>(
-            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    // Only the visit's own row closes the visit; a colleague finishing their
+    // opinion leaves it open for the doctor it belongs to.
+    if q.is_primary() {
+        sqlx::query(
+            "UPDATE encounters SET status = 'completed'::encounter_status, updated_at = now() \
+             WHERE id = $1 AND tenant_id = $2",
         )
         .bind(q.encounter_id)
         .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
+        .execute(&mut *tx)
         .await?;
 
-        if let Some(patient_id) = enc_patient {
-            let dept_code = sqlx::query_scalar::<_, String>(
-                "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(q.department_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            let charge_code =
-                dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
-
-            let _ = medbrains_server_services::billing::auto_charge(
-                &mut tx,
-                &claims.tenant_id,
-                medbrains_server_services::billing::AutoChargeInput {
-                    patient_id,
-                    encounter_id: Some(q.encounter_id),
-                    charge_code,
-                    source: "opd".to_owned(),
-                    source_id: q.id,
-                    quantity: 1,
-                    description_override: Some("OPD Consultation".to_owned()),
-                    unit_price_override: None,
-                    tax_percent_override: None,
-                },
-            )
-            .await;
-        }
+        sqlx::query(
+            "UPDATE appointments \
+             SET status = 'completed'::appointment_status, \
+                 completed_at = COALESCE(completed_at, now()), updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+               AND status NOT IN ( \
+                 'completed'::appointment_status, \
+                 'cancelled'::appointment_status, \
+                 'no_show'::appointment_status \
+               )",
+        )
+        .bind(claims.tenant_id)
+        .bind(q.encounter_id)
+        .execute(&mut *tx)
+        .await?;
     }
+
+    charge_consultation(&mut tx, &claims, &q).await?;
 
     // Finalize billing: turn this visit's draft invoice(s) into 'issued' (or 'paid'
     // when zero-amount — free/scheme patients) so the OPD visit ends with a collectable
     // bill the cashier sees, not a draft nobody revisits (the OPD revenue leak).
     // Parity with IPD discharge. Opt-out: billing.auto_charge_opd_close_finalize = false.
-    if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "opd_close_finalize")
+    if q.is_primary()
+        && medbrains_server_services::billing::is_auto_billing_enabled(
+            &mut tx,
+            &claims.tenant_id,
+            "opd_close_finalize",
+        )
         .await?
     {
         sqlx::query(
@@ -1728,7 +1682,7 @@ pub async fn complete_queue_entry(
         .await?;
     }
 
-    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "completed").await?;
+    let token = advance_queue_token(&mut tx, &claims, &q, "completed").await?;
 
     tx.commit().await?;
     if let Some(ref token) = token {
@@ -1804,34 +1758,36 @@ pub async fn mark_no_show(
     // Guarded after the row is fetched: the route carries a queue id, and the
     // encounter it belongs to is only known once that row is read. `q` here is
     // the fetched row, not a query extractor.
-    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id).await?;
+
+    // A patient who missed a colleague's opinion has not abandoned the visit.
+    if q.is_primary() {
+        sqlx::query(
+            "UPDATE encounters SET status = 'cancelled'::encounter_status, updated_at = now() \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(q.encounter_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
         .await?;
 
-    sqlx::query(
-        "UPDATE encounters SET status = 'cancelled'::encounter_status, updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(q.encounter_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+        sqlx::query(
+            "UPDATE appointments \
+             SET status = 'no_show'::appointment_status, updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+               AND status NOT IN ( \
+                 'completed'::appointment_status, \
+                 'cancelled'::appointment_status, \
+                 'no_show'::appointment_status \
+               )",
+        )
+        .bind(claims.tenant_id)
+        .bind(q.encounter_id)
+        .execute(&mut *tx)
+        .await?;
+    }
 
-    sqlx::query(
-        "UPDATE appointments \
-         SET status = 'no_show'::appointment_status, updated_at = now() \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
-           AND status NOT IN ( \
-             'completed'::appointment_status, \
-             'cancelled'::appointment_status, \
-             'no_show'::appointment_status \
-           )",
-    )
-    .bind(claims.tenant_id)
-    .bind(q.encounter_id)
-    .execute(&mut *tx)
-    .await?;
-
-    let token = advance_encounter_token(&mut tx, &claims, q.encounter_id, "no_show").await?;
+    let token = advance_queue_token(&mut tx, &claims, &q, "no_show").await?;
 
     tx.commit().await?;
     if let Some(ref token) = token {
@@ -1857,7 +1813,7 @@ pub async fn list_vitals(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vital>(
-        "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -1918,14 +1874,13 @@ pub async fn create_vital(
     // the NABH indicator reports — since the event enum was written, but no code
     // ever emitted it. Queue it in this transaction so the event cannot exist
     // without the vitals row, nor the row without the event.
-    let (patient_id, department_id) =
-        sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
-            "SELECT patient_id, department_id FROM encounters WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(encounter_id)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let (patient_id, department_id) = sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
+        "SELECT patient_id, department_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -1977,27 +1932,12 @@ fn opd_soap_note_access(restricted: &HashMap<String, FieldAccessLevel>) -> Field
         .unwrap_or(FieldAccessLevel::Edit)
 }
 
-fn can_write_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
-    opd_soap_note_access(restricted) == FieldAccessLevel::Edit
-}
-
 fn should_hide_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
     opd_soap_note_access(restricted) == FieldAccessLevel::Hidden
 }
 
 fn should_mask_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
     opd_soap_note_access(restricted) == FieldAccessLevel::Mask
-}
-
-fn validate_opd_soap_note_write_access(
-    restricted: &HashMap<String, FieldAccessLevel>,
-) -> Result<(), AppError> {
-    if can_write_opd_soap_note(restricted) {
-        return Ok(());
-    }
-    Err(AppError::BadRequest(
-        "Cannot write restricted OPD SOAP note fields".to_owned(),
-    ))
 }
 
 fn filter_consultation_response(
@@ -2069,210 +2009,6 @@ pub async fn get_consultation(
     Ok(Json(row.map(|consultation| {
         filter_consultation_response(consultation, &restricted_fields)
     })))
-}
-
-/// `physical_examination.findings`, if present, must be well-formed site
-/// findings — a malformed entry or an unknown side is refused, not stored.
-fn check_exam_findings(exam: Option<&serde_json::Value>) -> Result<(), AppError> {
-    let Some(findings) = exam.and_then(|e| e.get("findings")) else {
-        return Ok(());
-    };
-    let parsed: Result<Vec<medbrains_core::consultation::ExamFinding>, _> =
-        serde_json::from_value(findings.clone());
-    let well_formed = parsed.is_ok_and(|list| {
-        list.iter()
-            .all(|f| !f.site.trim().is_empty() && !f.finding.trim().is_empty())
-    });
-    if well_formed {
-        return Ok(());
-    }
-    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
-    errors.add(
-        "physical_examination.findings",
-        "Each finding needs a site, a side of left/right/bilateral/midline or none, and what was found",
-    );
-    Err(AppError::ValidationFailed(errors))
-}
-
-pub async fn create_consultation(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(encounter_id): Path<Uuid>,
-    Json(body): Json<CreateConsultationRequest>,
-) -> Result<Json<Consultation>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    check_exam_findings(body.physical_examination.as_ref())?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
-    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
-    validate_opd_soap_note_write_access(&restricted_fields)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Register-first lock (opt-in): no case sheet until the OPD visit is registered.
-    assert_encounter_registered(&mut tx, &claims.tenant_id, encounter_id).await?;
-
-    // Resolve patient_id from the encounter so inline lab/radiology
-    // orders carry the right FK without a second client round-trip.
-    let patient_id: Uuid =
-        sqlx::query_scalar("SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2")
-            .bind(encounter_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::NotFound)?;
-
-    let row = sqlx::query_as::<_, Consultation>(
-        "INSERT INTO consultations \
-         (tenant_id, encounter_id, doctor_id, chief_complaint, history, \
-          examination, plan, notes, hpi, past_medical_history, past_surgical_history, \
-          family_history, social_history, review_of_systems, physical_examination, \
-          general_appearance) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(encounter_id)
-    .bind(claims.sub)
-    .bind(&body.chief_complaint)
-    .bind(&body.history)
-    .bind(&body.examination)
-    .bind(&body.plan)
-    .bind(&body.notes)
-    .bind(&body.hpi)
-    .bind(&body.past_medical_history)
-    .bind(&body.past_surgical_history)
-    .bind(&body.family_history)
-    .bind(&body.social_history)
-    .bind(&body.review_of_systems)
-    .bind(&body.physical_examination)
-    .bind(&body.general_appearance)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let mut created_lab_order_ids = Vec::with_capacity(body.lab_orders.len());
-    for lab in &body.lab_orders {
-        let req = medbrains_lab::CreateOrderRequest {
-            encounter_id,
-            patient_id,
-            test_id: lab.test_id,
-            priority: lab.priority.clone(),
-            notes: lab.notes.clone(),
-            is_dummy: None,
-        };
-        let lab_order = medbrains_lab::create_order_in_tx(&mut tx, &claims, &req).await?;
-        created_lab_order_ids.push(lab_order.id);
-    }
-
-    for rad in &body.radiology_orders {
-        let req = medbrains_radiology::CreateOrderRequest {
-            patient_id,
-            encounter_id: Some(encounter_id),
-            modality_id: rad.modality_id,
-            body_part: rad.body_part.clone(),
-            body_part_code: None,
-            body_part_laterality: None,
-            clinical_indication: rad.clinical_indication.clone(),
-            priority: rad.priority.clone(),
-            scheduled_at: None,
-            notes: rad.notes.clone(),
-            contrast_required: Some(false),
-            pregnancy_checked: Some(false),
-            allergy_flagged: Some(false),
-            is_dummy: None,
-        };
-        medbrains_radiology::create_order_in_tx(&mut tx, &claims, &req).await?;
-    }
-
-    tx.commit().await?;
-
-    for lab_order_id in created_lab_order_ids {
-        medbrains_lab::grant_lab_order_access(
-            &state,
-            &claims,
-            lab_order_id,
-            "opd_consultation_lab_order_created",
-        )
-        .await?;
-    }
-
-    tracing::info!(
-        encounter_id = %encounter_id,
-        consultation_id = %row.id,
-        labs = body.lab_orders.len(),
-        radiology = body.radiology_orders.len(),
-        "consultation: created with inline orders"
-    );
-
-    Ok(Json(filter_consultation_response(row, &restricted_fields)))
-}
-
-/// `physical_examination` merges by top-level key: a phone that sends only
-/// `findings` leaves the web's system notes as they were.
-pub async fn update_consultation(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((encounter_id, id)): Path<(Uuid, Uuid)>,
-    Json(body): Json<UpdateConsultationRequest>,
-) -> Result<Json<Consultation>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    check_exam_findings(body.physical_examination.as_ref())?;
-
-    // The route names an encounter; holding the module permission is not the
-    // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(
-        &state, &claims, encounter_id,
-    )
-    .await?;
-    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
-    validate_opd_soap_note_write_access(&restricted_fields)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, Consultation>(
-        "UPDATE consultations SET \
-         chief_complaint = COALESCE($1, chief_complaint), \
-         history = COALESCE($2, history), \
-         examination = COALESCE($3, examination), \
-         plan = COALESCE($4, plan), \
-         notes = COALESCE($5, notes), \
-         hpi = COALESCE($8, hpi), \
-         past_medical_history = COALESCE($9, past_medical_history), \
-         past_surgical_history = COALESCE($10, past_surgical_history), \
-         family_history = COALESCE($11, family_history), \
-         social_history = COALESCE($12, social_history), \
-         review_of_systems = COALESCE($13, review_of_systems), \
-         physical_examination = COALESCE(physical_examination || $14, $14, physical_examination), \
-         general_appearance = COALESCE($15, general_appearance), \
-         updated_at = now() \
-         WHERE id = $6 AND tenant_id = $7 AND encounter_id = $16 \
-         RETURNING *",
-    )
-    .bind(&body.chief_complaint)
-    .bind(&body.history)
-    .bind(&body.examination)
-    .bind(&body.plan)
-    .bind(&body.notes)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.hpi)
-    .bind(&body.past_medical_history)
-    .bind(&body.past_surgical_history)
-    .bind(&body.family_history)
-    .bind(&body.social_history)
-    .bind(&body.review_of_systems)
-    .bind(&body.physical_examination)
-    .bind(&body.general_appearance)
-    .bind(encounter_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    row.map_or_else(
-        || Err(AppError::NotFound),
-        |r| Ok(Json(filter_consultation_response(r, &restricted_fields))),
-    )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2411,8 +2147,12 @@ pub async fn list_diagnoses(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Diagnosis>(
-        "SELECT * FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
-         ORDER BY is_primary DESC, created_at LIMIT 5000",
+        "SELECT d.*, ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name \
+           FROM diagnoses d \
+           LEFT JOIN users ru ON ru.id = d.recorded_by \
+           LEFT JOIN users uu ON uu.id = d.updated_by \
+          WHERE d.encounter_id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL \
+          ORDER BY d.is_primary DESC, d.created_at LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -2455,8 +2195,9 @@ pub async fn create_diagnosis(
         "INSERT INTO diagnoses \
          (tenant_id, encounter_id, icd_code, icd_system, icd_display, icd_source_url, \
           icd_source_version, icd_provider_mode, description, is_primary, notes, \
-          severity, certainty, onset_date, resolved_date, snomed_code, snomed_display) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
+          severity, certainty, onset_date, resolved_date, snomed_code, snomed_display, \
+          recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2476,6 +2217,7 @@ pub async fn create_diagnosis(
     .bind(body.resolved_date)
     .bind(&body.snomed_code)
     .bind(&body.snomed_display)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2491,15 +2233,16 @@ pub async fn create_diagnosis(
     .await?
     .flatten();
     let icd_code = body.icd_code.as_deref().unwrap_or_default();
-    if let Some((disease_name, reporting_body)) = medbrains_platform::ckb::flag_notifiable_diagnosis(
-        &mut tx,
-        claims.tenant_id,
-        patient_id,
-        Some(encounter_id),
-        Some(claims.sub),
-        icd_code,
-    )
-    .await?
+    if let Some((disease_name, reporting_body)) =
+        medbrains_platform::ckb::flag_notifiable_diagnosis(
+            &mut tx,
+            claims.tenant_id,
+            patient_id,
+            Some(encounter_id),
+            Some(claims.sub),
+            icd_code,
+        )
+        .await?
     {
         let body_text = format!(
             "{disease_name} ({icd_code}) requires {} reporting.",
@@ -2536,10 +2279,7 @@ pub async fn update_diagnosis(
 
     // The route names an encounter; holding the module permission is not the
     // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(
-        &state, &claims, encounter_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
@@ -2583,7 +2323,8 @@ pub async fn update_diagnosis(
             onset_date = CASE WHEN $12 THEN $13 ELSE onset_date END, \
             resolved_date = CASE WHEN $14 THEN $15 ELSE resolved_date END, \
             snomed_code = COALESCE($16, snomed_code), \
-            snomed_display = COALESCE($17, snomed_display) \
+            snomed_display = COALESCE($17, snomed_display), \
+            updated_by = $21, updated_at = now() \
          WHERE id = $18 AND tenant_id = $19 AND encounter_id = $20 \
          RETURNING *",
     )
@@ -2607,6 +2348,7 @@ pub async fn update_diagnosis(
     .bind(did)
     .bind(claims.tenant_id)
     .bind(encounter_id)
+    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -2624,10 +2366,7 @@ pub async fn delete_diagnosis(
 
     // The route names an encounter; holding the module permission is not the
     // same as being on this patient's care team.
-    medbrains_authz_gate::require_encounter_access(
-        &state, &claims, encounter_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2697,7 +2436,7 @@ pub async fn list_prescriptions(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let prescriptions = sqlx::query_as::<_, Prescription>(
-        "SELECT * FROM prescriptions WHERE encounter_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM prescriptions WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -2714,7 +2453,7 @@ pub async fn list_prescriptions(
         sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
              WHERE prescription_id = ANY($1) AND tenant_id = $2 \
-               AND item_status = 'active' \
+               AND item_status = 'active' AND deleted_at IS NULL \
              ORDER BY prescription_id, created_at LIMIT 5000",
         )
         .bind(&prescription_ids)
@@ -2896,8 +2635,12 @@ pub async fn create_prescription(
             catalog_item_id: i.catalog_item_id,
         })
         .collect();
-    let dose_alerts =
-        medbrains_telehealth::cds::dose_alerts_for_items(&mut tx, claims.tenant_id, &dose_check_items).await?;
+    let dose_alerts = medbrains_telehealth::cds::dose_alerts_for_items(
+        &mut tx,
+        claims.tenant_id,
+        &dose_check_items,
+    )
+    .await?;
     let override_reason = body
         .dose_override_reason
         .as_deref()
@@ -2968,12 +2711,17 @@ pub async fn create_prescription(
     // acknowledged reason (logged) — minor/moderate pairs stay advisory and the
     // pharmacist re-checks at review.
     let rx_drug_names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
-    let interaction_alerts =
-        medbrains_telehealth::cds::interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &rx_drug_names).await?;
-    let serious_interactions: Vec<&medbrains_telehealth::cds::DrugInteractionAlert> = interaction_alerts
-        .iter()
-        .filter(|i| matches!(i.severity.as_str(), "major" | "contraindicated"))
-        .collect();
+    let interaction_alerts = medbrains_telehealth::cds::interaction_alerts_for_drugs(
+        &mut tx,
+        claims.tenant_id,
+        &rx_drug_names,
+    )
+    .await?;
+    let serious_interactions: Vec<&medbrains_telehealth::cds::DrugInteractionAlert> =
+        interaction_alerts
+            .iter()
+            .filter(|i| matches!(i.severity.as_str(), "major" | "contraindicated"))
+            .collect();
     let interaction_reason = body
         .interaction_override_reason
         .as_deref()
@@ -3040,11 +2788,24 @@ pub async fn create_prescription(
         )));
     }
 
+    let terms = medbrains_core::rx_refills::RefillTerms {
+        refills: body.repeats_allowed.unwrap_or(0),
+        interval_days: body.repeat_interval_days,
+        valid_until: body.valid_until,
+    };
+    let catalog_ids: Vec<Uuid> = body
+        .items
+        .iter()
+        .filter_map(|i| i.catalog_item_id)
+        .collect();
+    rx_terms::check_refill_terms(&mut tx, &claims, terms, &catalog_ids, is_verbal).await?;
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
-            read_back_confirmed, countersign_due_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+            read_back_confirmed, countersign_due_at, repeats_allowed, repeat_interval_days, \
+            valid_until) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(encounter_id)
@@ -3054,6 +2815,9 @@ pub async fn create_prescription(
     .bind(transcribed_by)
     .bind(is_verbal)
     .bind(countersign_due)
+    .bind(terms.refills)
+    .bind(terms.interval_days.filter(|_| terms.refills > 0))
+    .bind(terms.valid_until)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3192,6 +2956,25 @@ pub async fn create_prescription(
         .fetch_one(&mut *tx)
         .await?;
         items.push(pi);
+    }
+
+    // Antimicrobial stewardship + formulary (NABH AMS / DTC): a Reserve
+    // antibiotic raises a stewardship request, a non-formulary medicine is
+    // justified — or the prescription is not saved.
+    if let Some(pid) = rx_patient_id {
+        rx_policy::enforce_rx_policy(
+            &mut tx,
+            &claims,
+            &rx_policy::RxPolicy {
+                patient_id: pid,
+                doctor_id,
+                prescription_id: rx.id,
+                items: &body.items,
+                stewardship_indication: body.stewardship_indication.as_deref(),
+                non_formulary_reason: body.non_formulary_reason.as_deref(),
+            },
+        )
+        .await?;
     }
 
     // Auto-forward to pharmacy Rx queue
@@ -3434,6 +3217,31 @@ pub async fn update_prescription(
         items.push(pi);
     }
 
+    // An edit is held to the same stewardship and formulary rules as a new
+    // prescription — otherwise editing would be the way round them.
+    let patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(rx.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(patient_id) = patient_id {
+        rx_policy::enforce_rx_policy(
+            &mut tx,
+            &claims,
+            &rx_policy::RxPolicy {
+                patient_id,
+                doctor_id: rx.doctor_id,
+                prescription_id: id,
+                items: &body.items,
+                stewardship_indication: body.stewardship_indication.as_deref(),
+                non_formulary_reason: body.non_formulary_reason.as_deref(),
+            },
+        )
+        .await?;
+    }
+
     let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) =
         if let Some((queue_id, _, _)) = pharmacy_state {
             sqlx::query(
@@ -3607,10 +3415,7 @@ pub async fn list_patient_prescriptions(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_any_permission(
         &claims,
         &[
@@ -3627,7 +3432,7 @@ pub async fn list_patient_prescriptions(
     let prescriptions = sqlx::query_as::<_, Prescription>(
         "SELECT p.* FROM prescriptions p \
          JOIN encounters e ON p.encounter_id = e.id \
-         WHERE e.patient_id = $1 AND p.tenant_id = $2 \
+         WHERE e.patient_id = $1 AND p.tenant_id = $2 AND p.deleted_at IS NULL \
          ORDER BY p.created_at DESC \
          LIMIT 50",
     )
@@ -3657,7 +3462,10 @@ pub async fn list_patient_prescriptions(
         .fetch_all(&mut *tx)
         .await?;
         for item in all_items {
-            items_by_rx.entry(item.prescription_id).or_default().push(item);
+            items_by_rx
+                .entry(item.prescription_id)
+                .or_default()
+                .push(item);
         }
     }
 
@@ -3735,6 +3543,10 @@ pub struct PatientDiagnosisRow {
     pub encounter_date: NaiveDate,
     pub doctor_name: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Who made the diagnosis — not the visit's doctor, who may not have.
+    pub recorded_by_name: Option<String>,
+    pub updated_by_name: Option<String>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 pub async fn list_patient_diagnoses(
@@ -3746,10 +3558,7 @@ pub async fn list_patient_diagnoses(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3762,10 +3571,13 @@ pub async fn list_patient_diagnoses(
          d.onset_date, d.resolved_date, d.snomed_code, d.snomed_display, \
          e.encounter_date, \
          u.full_name AS doctor_name, \
-         d.created_at \
+         d.created_at, \
+         ru.full_name AS recorded_by_name, uu.full_name AS updated_by_name, d.updated_at \
          FROM diagnoses d \
          JOIN encounters e ON d.encounter_id = e.id \
          LEFT JOIN users u ON e.doctor_id = u.id \
+         LEFT JOIN users ru ON ru.id = d.recorded_by \
+         LEFT JOIN users uu ON uu.id = d.updated_by \
          WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL \
          ORDER BY d.created_at DESC \
          LIMIT 100",
@@ -3855,10 +3667,7 @@ pub async fn list_certificates(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3866,7 +3675,7 @@ pub async fn list_certificates(
 
     let rows = sqlx::query_as::<_, MedicalCertificate>(
         "SELECT * FROM medical_certificates \
-         WHERE patient_id = $1 AND tenant_id = $2 AND is_void = false \
+         WHERE patient_id = $1 AND tenant_id = $2 AND is_void = false AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
@@ -3886,8 +3695,7 @@ pub async fn create_certificate(
     require_permission(&claims, permissions::opd::certificates::CREATE)?;
     // A medical certificate is issued IN a patient's name and they are named in
     // the body. `opd.certificates.create` says the caller may issue one.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4068,10 +3876,7 @@ pub async fn list_patient_vitals_history(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -4084,7 +3889,7 @@ pub async fn list_patient_vitals_history(
          v.recorded_at \
          FROM vitals v \
          JOIN encounters e ON e.id = v.encounter_id \
-         WHERE e.patient_id = $1 \
+         WHERE e.patient_id = $1 AND v.deleted_at IS NULL AND e.deleted_at IS NULL \
          ORDER BY v.recorded_at ASC \
          LIMIT 200",
     )
@@ -4131,6 +3936,23 @@ pub struct ReferralWithNames {
     pub response_notes: Option<String>,
     pub responded_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// The caller may accept, decline or answer it.
+    pub addressed_to_me: bool,
+    /// The caller sent it, and may withdraw it while pending.
+    pub sent_by_me: bool,
+}
+
+/// Who the caller is to a referral, as SQL over `$me` (user), `$depts`
+/// (their departments) and `$bypass` — the columns `addressed_to_me` and
+/// `sent_by_me`, decided here so the screen offers only what the server
+/// will accept.
+fn referral_caller_columns(me: usize, depts: usize, bypass: usize) -> String {
+    format!(
+        "COALESCE(${bypass}::bool OR r.to_doctor_id = ${me} \
+            OR (r.to_doctor_id IS NULL AND r.to_department_id = ANY(${depts})), false) \
+            AS addressed_to_me, \
+         COALESCE(${bypass}::bool OR r.from_doctor_id = ${me}, false) AS sent_by_me"
+    )
 }
 
 /// GET /api/opd/patients/{id}/referrals
@@ -4143,33 +3965,34 @@ pub async fn list_patient_referrals(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, ReferralWithNames>(
+    let rows = sqlx::query_as::<_, ReferralWithNames>(&format!(
         "SELECT r.id, r.patient_id, r.encounter_id, \
          r.from_department_id, fd.name AS from_department_name, \
          r.to_department_id, td.name AS to_department_name, \
          r.from_doctor_id, fu.full_name AS from_doctor_name, \
          r.to_doctor_id, tu.full_name AS to_doctor_name, \
          r.urgency, r.status, r.reason, r.clinical_notes, \
-         r.response_notes, r.responded_at, r.created_at \
+         r.response_notes, r.responded_at, r.created_at, {caller} \
          FROM referrals r \
          LEFT JOIN departments fd ON fd.id = r.from_department_id \
          LEFT JOIN departments td ON td.id = r.to_department_id \
          LEFT JOIN users fu ON fu.id = r.from_doctor_id \
          LEFT JOIN users tu ON tu.id = r.to_doctor_id \
-         WHERE r.patient_id = $1 AND r.tenant_id = $2 \
+         WHERE r.patient_id = $1 AND r.tenant_id = $2 AND r.deleted_at IS NULL \
          ORDER BY r.created_at DESC LIMIT 5000",
-    )
+        caller = referral_caller_columns(3, 4, 5),
+    ))
     .bind(patient_id)
     .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(&claims.department_ids)
+    .bind(medbrains_server_core::middleware::authorization::is_bypass_role(&claims))
     .fetch_all(&mut *tx)
     .await?;
 
@@ -4231,14 +4054,28 @@ pub async fn create_referral(
         ));
     }
 
-    // Get current user's department (fallback to to_department if not assigned)
-    let from_dept: (Uuid,) = sqlx::query_as(
-        "SELECT department_id FROM users WHERE id = $1 AND department_id IS NOT NULL",
-    )
-    .bind(claims.sub)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or((body.to_department_id,));
+    // The referral comes from the visit's department, or the referring
+    // doctor's own. Never the target's: a referral "from Cardiology to
+    // Cardiology" read as if Cardiology had asked itself.
+    let visit_department: Option<Uuid> = match body.encounter_id {
+        Some(encounter_id) => {
+            sqlx::query_scalar(
+                "SELECT department_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(encounter_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?
+        }
+        None => None,
+    };
+    let from_dept = (visit_department
+        .or_else(|| claims.department_ids.first().copied())
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "Refer from a visit, or ask an administrator to add you to a department".to_owned(),
+            )
+        })?,);
 
     let row = sqlx::query_as::<_, Referral>(
         "INSERT INTO referrals \
@@ -4382,7 +4219,7 @@ pub async fn list_procedure_orders(
          po.notes, po.findings, po.created_at \
          FROM procedure_orders po \
          JOIN procedure_catalog pc ON pc.id = po.procedure_id \
-         WHERE po.encounter_id = $1 AND po.tenant_id = $2 \
+         WHERE po.encounter_id = $1 AND po.tenant_id = $2 AND po.deleted_at IS NULL \
          ORDER BY po.created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
@@ -4402,8 +4239,7 @@ pub async fn create_procedure_order(
 ) -> Result<Json<ProcedureOrder>, AppError> {
     require_permission(&claims, permissions::opd::procedures::CREATE)?;
     // The order is placed on the patient the body names.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let priority = body.priority.as_deref().unwrap_or("routine");
 
@@ -4552,8 +4388,7 @@ pub async fn check_duplicate_orders(
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
-    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id).await?;
 
     let hours = q.hours.unwrap_or(24);
 
@@ -5174,7 +5009,7 @@ pub async fn generate_doctor_docket(
             AND (timezone(COALESCE((SELECT timezone FROM tenants WHERE id = $1), 'UTC'), po.created_at))::date = $3 AND po.status = 'completed') \
          FROM encounters e \
          WHERE e.tenant_id = $1 AND e.doctor_id = $2 AND e.encounter_date = $3 \
-         ON CONFLICT (tenant_id, doctor_id, docket_date) DO UPDATE SET \
+         ON CONFLICT (tenant_id, doctor_id, docket_date) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            total_patients = EXCLUDED.total_patients, \
            new_patients = EXCLUDED.new_patients, \
            follow_ups = EXCLUDED.follow_ups, \
@@ -5239,8 +5074,8 @@ pub async fn list_reminders(
 
     let rows = sqlx::query_as::<_, PatientReminder>(
         "SELECT * FROM patient_reminders \
-         WHERE tenant_id = $1 AND doctor_id = $2 \
-           AND ($3::uuid IS NULL OR patient_id = $3) \
+         WHERE tenant_id = $1 AND doctor_id = $2 AND deleted_at IS NULL \
+           AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
            AND ($4::text IS NULL OR status = $4) \
            AND ($5::date IS NULL OR reminder_date >= $5) \
            AND ($6::date IS NULL OR reminder_date <= $6) \
@@ -5266,8 +5101,7 @@ pub async fn create_reminder(
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::CREATE)?;
     // A reminder is scheduled against a named patient and reaches them.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let priority = body.priority.as_deref().unwrap_or("normal");
 
@@ -5401,17 +5235,14 @@ pub async fn list_feedback(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PatientFeedback>(
-        "SELECT * FROM patient_feedback WHERE tenant_id = $1 AND patient_id = $2 \
+        "SELECT * FROM patient_feedback WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
          ORDER BY submitted_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5430,8 +5261,7 @@ pub async fn create_feedback(
 ) -> Result<Json<PatientFeedback>, AppError> {
     require_permission(&claims, permissions::opd::feedback::CREATE)?;
     // Feedback is recorded against a named patient's visit.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5490,6 +5320,35 @@ pub struct CreateConsentRequest {
     pub consented_by_relation: Option<String>,
     pub witness_name: Option<String>,
     pub witness_designation: Option<String>,
+    /// The OT booking this surgical/anaesthesia consent is taken for. It then
+    /// covers that operation without a separate link step on the OT screen.
+    pub ot_booking_id: Option<Uuid>,
+    /// Answers to the hospital's consent form, checked against
+    /// `form_version_id` (none = the built-in form). Answers whose keys are
+    /// the record's own columns fill those columns; the rest stay in `body`.
+    pub answers: Option<serde_json::Map<String, serde_json::Value>>,
+    pub form_version_id: Option<Uuid>,
+}
+
+/// Fill the consent's own columns from the form's answers to them.
+fn apply_consent_answers(
+    body: &mut CreateConsentRequest,
+    answers: &serde_json::Map<String, serde_json::Value>,
+) {
+    let take = |key: &str| {
+        answers
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+    body.risks_explained = take("risks_explained");
+    body.alternatives_explained = take("alternatives_explained");
+    body.benefits_explained = take("benefits_explained");
+    body.patient_questions = take("patient_questions");
+    body.consented_by_name = take("consented_by_name");
+    body.consented_by_relation = take("consented_by_relation");
+    body.witness_name = take("witness_name");
+    body.witness_designation = take("witness_designation");
 }
 
 #[derive(Debug, Deserialize)]
@@ -5506,17 +5365,14 @@ pub async fn list_consents(
 
     // The route names a patient; the module permission says what this role may
     // do, not which patients they may do it to.
-    medbrains_authz_gate::require_patient_access(
-        &state, &claims, patient_id,
-    )
-    .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ProcedureConsent>(
-        "SELECT * FROM procedure_consents WHERE tenant_id = $1 AND patient_id = $2 \
+        "SELECT * FROM procedure_consents WHERE tenant_id = $1 AND patient_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5531,17 +5387,20 @@ pub async fn list_consents(
 pub async fn create_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateConsentRequest>,
+    Json(mut body): Json<CreateConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::CREATE)?;
     // `ensure_opd_patient_context_in_tx` below proves the patient EXISTS in this
     // tenant and that the encounter belongs to them. That is referential
     // integrity, not authorization — it never asks whether this caller may act
     // on that patient, and a consent is their decision recorded.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
-    let consent_type = body.consent_type.as_deref().unwrap_or("procedure");
+    let consent_type = body
+        .consent_type
+        .clone()
+        .unwrap_or_else(|| "procedure".to_owned());
+    let consent_type = consent_type.as_str();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5552,14 +5411,51 @@ pub async fn create_consent(
         body.encounter_id,
     )
     .await?;
+    if let Some(booking_id) = body.ot_booking_id {
+        ensure_open_ot_booking_for(
+            &mut tx,
+            &claims.tenant_id,
+            booking_id,
+            body.patient_id,
+            consent_type,
+        )
+        .await?;
+    }
+
+    // A version id counts only once its answers have been checked against it.
+    let (form_body, form_version) = match body.answers.take() {
+        Some(answers) => {
+            let code = medbrains_core::form_template::PROCEDURE_CONSENT;
+            let (clean, version, definition) = medbrains_forms::check_submission(
+                &mut tx,
+                claims.tenant_id,
+                code,
+                body.form_version_id,
+                &answers,
+            )
+            .await?;
+            apply_consent_answers(&mut body, &clean);
+            // A built-in form lives in code and may change; the record keeps
+            // the questions it was answered on. A published version is
+            // immutable, so its id is enough.
+            let mut record =
+                serde_json::json!({ "form": code, "version": version, "answers": clean });
+            if version.is_none() {
+                record["definition"] = serde_json::to_value(&definition)
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+            (record, body.form_version_id)
+        }
+        None => (serde_json::json!({}), None),
+    };
 
     let row = sqlx::query_as::<_, ProcedureConsent>(
         "INSERT INTO procedure_consents \
          (tenant_id, patient_id, encounter_id, procedure_order_id, procedure_name, \
           consent_type, risks_explained, alternatives_explained, benefits_explained, \
           patient_questions, consented_by_name, consented_by_relation, \
-          witness_name, witness_designation, doctor_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
+          witness_name, witness_designation, doctor_id, ot_booking_id, body, form_version_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -5577,11 +5473,50 @@ pub async fn create_consent(
     .bind(&body.witness_name)
     .bind(&body.witness_designation)
     .bind(claims.sub)
+    .bind(body.ot_booking_id)
+    .bind(form_body)
+    .bind(form_version)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// A consent may be taken for an OT booking only when it is a surgical,
+/// procedure or anaesthesia consent, for that booking's patient, and the
+/// booking has not started or closed.
+async fn ensure_open_ot_booking_for(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    booking_id: Uuid,
+    patient_id: Uuid,
+    consent_type: &str,
+) -> Result<(), AppError> {
+    if !matches!(consent_type, "surgery" | "procedure" | "anesthesia") {
+        return Err(AppError::BadRequest(
+            "Only a surgical, procedure or anaesthesia consent can be taken for an operation."
+                .to_owned(),
+        ));
+    }
+    let status: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT patient_id, status::text FROM ot_bookings \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(booking_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    match status {
+        Some((pid, _)) if pid != patient_id => Err(AppError::BadRequest(
+            "That operation is booked for a different patient.".to_owned(),
+        )),
+        Some((_, st)) if matches!(st.as_str(), "in_progress" | "completed" | "cancelled") => Err(
+            AppError::Conflict("That operation has already started or is closed.".to_owned()),
+        ),
+        Some(_) => Ok(()),
+        None => Err(AppError::NotFound),
+    }
 }
 
 pub async fn sign_consent(
@@ -5907,8 +5842,7 @@ pub async fn book_appointment_group(
 ) -> Result<Json<Vec<Appointment>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
     // A recurring appointment series booked for the patient the body names.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     if body.slot_requests.is_empty() {
         return Err(AppError::BadRequest(
@@ -5987,7 +5921,7 @@ pub async fn list_appointment_group(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM appointments \
-         WHERE tenant_id = $1 AND appointment_group_id = $2 LIMIT 1",
+         WHERE tenant_id = $1 AND appointment_group_id = $2 AND deleted_at IS NULL LIMIT 1",
     )
     .bind(claims.tenant_id)
     .bind(group_id)
@@ -6006,7 +5940,7 @@ pub async fn list_appointment_group(
 
     let rows = sqlx::query_as::<_, Appointment>(
         "SELECT * FROM appointments \
-         WHERE tenant_id = $1 AND appointment_group_id = $2 \
+         WHERE tenant_id = $1 AND appointment_group_id = $2 AND deleted_at IS NULL \
          ORDER BY slot_start LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -6065,7 +5999,9 @@ pub async fn get_wait_estimate(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
 
     // Count waiting patients in queue
     let waiting: (i64,) = sqlx::query_as(
@@ -6120,13 +6056,13 @@ pub async fn get_wait_estimate(
     // told "50 minutes" by arithmetic on a constant plans around a figure the
     // hospital never measured, and a patient sent away on it does not come
     // back at the right time.
-    let estimated_minutes = median_consultation_minutes.filter(|_| {
-        sample_count >= WAIT_ESTIMATE_MIN_SAMPLES
-    }).map(|median| {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-        let minutes = (queue_position as f64 * median) as i64;
-        minutes
-    });
+    let estimated_minutes = median_consultation_minutes
+        .filter(|_| sample_count >= WAIT_ESTIMATE_MIN_SAMPLES)
+        .map(|median| {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+            let minutes = (queue_position as f64 * median) as i64;
+            minutes
+        });
 
     Ok(Json(WaitEstimate {
         estimated_minutes,
@@ -6228,7 +6164,9 @@ pub async fn admit_from_opd(
     }
 
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
     let ipd_attributes = serde_json::json!({
         "source": "opd",
         "opd_encounter_id": encounter_id,
@@ -6499,6 +6437,11 @@ pub struct ReferralTrackingQuery {
     pub status: Option<String>,
     pub from_department_id: Option<Uuid>,
     pub to_department_id: Option<Uuid>,
+    /// Only referrals the caller may answer: named to them, or to their
+    /// department with no doctor named.
+    pub addressed_to_me: Option<bool>,
+    /// Only referrals the caller sent.
+    pub sent_by_me: Option<bool>,
 }
 
 pub async fn referral_tracking(
@@ -6519,14 +6462,14 @@ pub async fn referral_tracking(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, ReferralWithNames>(
+    let rows = sqlx::query_as::<_, ReferralWithNames>(&format!(
         "SELECT r.id, r.patient_id, r.encounter_id, \
          r.from_department_id, fd.name AS from_department_name, \
          r.to_department_id, td.name AS to_department_name, \
          r.from_doctor_id, fu.full_name AS from_doctor_name, \
          r.to_doctor_id, tu.full_name AS to_doctor_name, \
          r.urgency, r.status, r.reason, r.clinical_notes, \
-         r.response_notes, r.responded_at, r.created_at \
+         r.response_notes, r.responded_at, r.created_at, {caller} \
          FROM referrals r \
          LEFT JOIN departments fd ON fd.id = r.from_department_id \
          LEFT JOIN departments td ON td.id = r.to_department_id \
@@ -6536,13 +6479,22 @@ pub async fn referral_tracking(
            AND ($2::text IS NULL OR r.status::text = $2) \
            AND ($3::uuid IS NULL OR r.from_department_id = $3) \
            AND ($4::uuid IS NULL OR r.to_department_id = $4) \
+           AND ($5::bool IS NOT TRUE OR r.to_doctor_id = $7 \
+                OR (r.to_doctor_id IS NULL AND r.to_department_id = ANY($8))) \
+           AND ($6::bool IS NOT TRUE OR r.from_doctor_id = $7) \
          ORDER BY r.created_at DESC \
          LIMIT 500",
-    )
+        caller = referral_caller_columns(7, 8, 9),
+    ))
     .bind(claims.tenant_id)
     .bind(&params.status)
     .bind(params.from_department_id)
     .bind(params.to_department_id)
+    .bind(params.addressed_to_me)
+    .bind(params.sent_by_me)
+    .bind(claims.sub)
+    .bind(&claims.department_ids)
+    .bind(medbrains_server_core::middleware::authorization::is_bypass_role(&claims))
     .fetch_all(&mut *tx)
     .await?;
 
@@ -6578,15 +6530,18 @@ pub async fn followup_compliance(
     // five also hold patients.view. Correct code, inert control — see
     // list_verbal_orders in this file for the same test coming out the other
     // way, where quality_officer holds the code and not patients.view.
-    let can_view_patient_identity = medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|permission| permission == permissions::patients::VIEW);
+    let can_view_patient_identity =
+        medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
+            || claims
+                .permissions
+                .iter()
+                .any(|permission| permission == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let today =
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id)
+            .await?;
 
     let rows = sqlx::query_as::<_, FollowupComplianceRow>(
         "SELECT e.patient_id, \
@@ -6688,7 +6643,7 @@ pub async fn list_verbal_orders(
                 tn.full_name AS transcribed_by_name, \
                 COALESCE(NULLIF(p.notes, ''), CONCAT(( \
                     SELECT COUNT(*) FROM prescription_items pi \
-                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
+                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id AND pi.deleted_at IS NULL \
                 ), ' medication(s)')) AS summary, \
                 sr.signed_at AS countersigned_at, \
                 sr.signer_user_id AS countersigned_by, \
@@ -6706,7 +6661,7 @@ pub async fn list_verbal_orders(
          LEFT JOIN users tn ON tn.id = p.transcribed_by \
          LEFT JOIN signed_records sr ON sr.id = p.signed_record_id \
          LEFT JOIN users cs ON cs.id = sr.signer_user_id \
-         WHERE p.tenant_id = $1 AND p.order_mode <> 'written' \
+         WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND p.order_mode <> 'written' \
          ORDER BY p.is_signed ASC, p.countersign_due_at ASC NULLS LAST \
          LIMIT 500",
     )
@@ -6737,6 +6692,10 @@ pub fn router() -> axum::Router<AppState> {
             get(get_encounter).put(update_encounter),
         )
         .route(
+            "/api/opd/patients/{id}/last-visit",
+            get(last_visit::get_last_visit),
+        )
+        .route(
             "/api/opd/encounters/{id}/transfer",
             post(transfer::transfer_encounter),
         )
@@ -6745,33 +6704,17 @@ pub fn router() -> axum::Router<AppState> {
             get(get_registration_policy).put(update_registration_policy),
         )
         .route("/api/opd/queue", get(list_queue))
-        .route(
-            "/api/opd/queue/{id}/call",
-            put(call_queue_entry),
-        )
-        .route(
-            "/api/opd/queue/{id}/start",
-            put(start_consultation),
-        )
-        .route(
-            "/api/opd/queue/{id}/complete",
-            put(complete_queue_entry),
-        )
-        .route(
-            "/api/opd/queue/{id}/no-show",
-            put(mark_no_show),
-        )
+        .route("/api/opd/queue/{id}/call", put(call_queue_entry))
+        .route("/api/opd/queue/{id}/start", put(start_consultation))
+        .route("/api/opd/queue/{id}/complete", put(complete_queue_entry))
+        .route("/api/opd/queue/{id}/no-show", put(mark_no_show))
         .route(
             "/api/opd/encounters/{id}/vitals",
             get(list_vitals).post(create_vital),
         )
         .route(
             "/api/opd/encounters/{id}/consultation",
-            get(get_consultation).post(create_consultation),
-        )
-        .route(
-            "/api/opd/encounters/{eid}/consultation/{id}",
-            put(update_consultation),
+            get(get_consultation),
         )
         .route(
             "/api/opd/encounters/{id}/diagnoses",
@@ -6802,6 +6745,10 @@ pub fn router() -> axum::Router<AppState> {
             get(list_patient_prescriptions),
         )
         .route(
+            "/api/opd/patients/{id}/stewardship-requests",
+            get(rx_policy::list_live_stewardship_requests),
+        )
+        .route(
             "/api/opd/patients/{id}/diagnoses",
             get(list_patient_diagnoses),
         )
@@ -6809,14 +6756,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/opd/patients/{id}/certificates",
             get(list_certificates),
         )
-        .route(
-            "/api/opd/certificates",
-            post(create_certificate),
-        )
-        .route(
-            "/api/opd/certificates/{id}/void",
-            put(void_certificate),
-        )
+        .route("/api/opd/certificates", post(create_certificate))
+        .route("/api/opd/certificates/{id}/void", put(void_certificate))
         .route(
             "/api/opd/patients/{id}/vitals-history",
             get(list_patient_vitals_history),
@@ -6825,38 +6766,20 @@ pub fn router() -> axum::Router<AppState> {
             "/api/opd/patients/{id}/referrals",
             get(list_patient_referrals),
         )
-        .route(
-            "/api/opd/referrals",
-            post(create_referral),
-        )
-        .route(
-            "/api/opd/procedure-catalog",
-            get(list_procedure_catalog),
-        )
+        .route("/api/opd/referrals", post(create_referral))
+        .route("/api/opd/procedure-catalog", get(list_procedure_catalog))
         .route(
             "/api/opd/encounters/{id}/procedure-orders",
             get(list_procedure_orders),
         )
-        .route(
-            "/api/opd/procedure-orders",
-            post(create_procedure_order),
-        )
+        .route("/api/opd/procedure-orders", post(create_procedure_order))
         .route(
             "/api/opd/procedure-orders/{id}",
             delete(cancel_procedure_order),
         )
-        .route(
-            "/api/opd/duplicate-check",
-            get(check_duplicate_orders),
-        )
-        .route(
-            "/api/opd/icd10/search",
-            get(search_icd10),
-        )
-        .route(
-            "/api/opd/icd11/search",
-            get(search_icd11),
-        )
+        .route("/api/opd/duplicate-check", get(check_duplicate_orders))
+        .route("/api/opd/icd10/search", get(search_icd10))
+        .route("/api/opd/icd11/search", get(search_icd11))
         .route(
             "/api/opd/clinical-corpus",
             get(search_clinical_corpus).post(create_clinical_corpus_entry),
@@ -6865,54 +6788,21 @@ pub fn router() -> axum::Router<AppState> {
             "/api/opd/clinical-corpus/{id}",
             put(update_clinical_corpus_entry),
         )
-        .route(
-            "/api/opd/chief-complaints",
-            get(list_chief_complaints),
-        )
-        .route(
-            "/api/opd/docket",
-            get(get_doctor_docket),
-        )
-        .route(
-            "/api/opd/docket/generate",
-            post(generate_doctor_docket),
-        )
+        .route("/api/opd/chief-complaints", get(list_chief_complaints))
+        .route("/api/opd/docket", get(get_doctor_docket))
+        .route("/api/opd/docket/generate", post(generate_doctor_docket))
         .route(
             "/api/opd/reminders",
             get(list_reminders).post(create_reminder),
         )
-        .route(
-            "/api/opd/reminders/{id}/complete",
-            put(complete_reminder),
-        )
-        .route(
-            "/api/opd/reminders/{id}/cancel",
-            put(cancel_reminder),
-        )
-        .route(
-            "/api/opd/patients/{id}/feedback",
-            get(list_feedback),
-        )
-        .route(
-            "/api/opd/feedback",
-            post(create_feedback),
-        )
-        .route(
-            "/api/opd/patients/{id}/consents",
-            get(list_consents),
-        )
-        .route(
-            "/api/opd/consents",
-            post(create_consent),
-        )
-        .route(
-            "/api/opd/consents/{id}/sign",
-            put(sign_consent),
-        )
-        .route(
-            "/api/opd/consents/{id}/revoke",
-            put(revoke_consent),
-        )
+        .route("/api/opd/reminders/{id}/complete", put(complete_reminder))
+        .route("/api/opd/reminders/{id}/cancel", put(cancel_reminder))
+        .route("/api/opd/patients/{id}/feedback", get(list_feedback))
+        .route("/api/opd/feedback", post(create_feedback))
+        .route("/api/opd/patients/{id}/consents", get(list_consents))
+        .route("/api/opd/consents", post(create_consent))
+        .route("/api/opd/consents/{id}/sign", put(sign_consent))
+        .route("/api/opd/consents/{id}/revoke", put(revoke_consent))
         .route(
             "/api/opd/consultation-templates",
             get(list_consultation_templates).post(create_consultation_template),
@@ -6921,22 +6811,13 @@ pub fn router() -> axum::Router<AppState> {
             "/api/opd/consultation-templates/{id}",
             delete(delete_consultation_template),
         )
-        .route(
-            "/api/opd/snomed/search",
-            get(search_snomed),
-        )
-        .route(
-            "/api/opd/appointment-groups",
-            post(book_appointment_group),
-        )
+        .route("/api/opd/snomed/search", get(search_snomed))
+        .route("/api/opd/appointment-groups", post(book_appointment_group))
         .route(
             "/api/opd/appointment-groups/{group_id}",
             get(list_appointment_group),
         )
-        .route(
-            "/api/opd/queue/wait-estimate",
-            get(get_wait_estimate),
-        )
+        .route("/api/opd/queue/wait-estimate", get(get_wait_estimate))
         .route(
             "/api/opd/encounters/{id}/admit-to-ipd",
             post(admit_from_opd),
@@ -6945,12 +6826,22 @@ pub fn router() -> axum::Router<AppState> {
             "/api/opd/visits/{id}/pharmacy-status",
             get(pharmacy_dispatch_status),
         )
+        .route("/api/opd/referrals/tracking", get(referral_tracking))
         .route(
-            "/api/opd/referrals/tracking",
-            get(referral_tracking),
+            "/api/opd/referrals/{id}/accept",
+            put(referral_lifecycle::accept_referral),
         )
         .route(
-            "/api/opd/analytics/followup",
-            get(followup_compliance),
+            "/api/opd/referrals/{id}/decline",
+            put(referral_lifecycle::decline_referral),
         )
+        .route(
+            "/api/opd/referrals/{id}/complete",
+            put(referral_lifecycle::complete_referral),
+        )
+        .route(
+            "/api/opd/referrals/{id}/cancel",
+            put(referral_lifecycle::cancel_referral),
+        )
+        .route("/api/opd/analytics/followup", get(followup_compliance))
 }

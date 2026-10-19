@@ -14,7 +14,14 @@ import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { ApiKeySummary, ApiKeyUsageRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconBan, IconDots, IconHistory, IconKey, IconPlus } from "@tabler/icons-react";
+import {
+  IconBan,
+  IconDots,
+  IconFileDownload,
+  IconHistory,
+  IconKey,
+  IconPlus,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
@@ -51,6 +58,26 @@ export function ApiKeysPage() {
   const canCreate = useHasPermission(P.ADMIN.API_KEYS.CREATE);
   const canRevoke = useHasPermission(P.ADMIN.API_KEYS.REVOKE);
   const canViewUsage = useHasPermission(P.ADMIN.API_KEYS.VIEW_USAGE);
+  const canReadDocs = useHasPermission(P.ADMIN.API_KEYS.DOCS);
+  const downloadDocs = useMutation({
+    mutationFn: () => api.getOpenApiSpec(),
+    onSuccess: (spec) => {
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(spec, null, 2)], { type: "application/json" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "medbrains-openapi.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (error: Error) =>
+      notifications.show({
+        color: "red",
+        title: "Could not download the API description",
+        message: error.message,
+      }),
+  });
 
   const queryClient = useQueryClient();
   const [issueOpened, issueHandlers] = useDisclosure(false);
@@ -93,11 +120,27 @@ export function ApiKeysPage() {
         subtitle="Machine credentials. Each carries an explicit permission list, never a role."
       />
 
-      {canCreate && (
+      {(canCreate || canReadDocs) && (
         <Group justify="flex-end" mb="md">
-          <Button tone="primary" leftSection={<IconPlus size={14} />} onClick={issueHandlers.open}>
-            Issue key
-          </Button>
+          {canReadDocs && (
+            <Button
+              tone="secondary"
+              leftSection={<IconFileDownload size={14} />}
+              loading={downloadDocs.isPending}
+              onClick={() => downloadDocs.mutate()}
+            >
+              API description (OpenAPI)
+            </Button>
+          )}
+          {canCreate && (
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={14} />}
+              onClick={issueHandlers.open}
+            >
+              Issue key
+            </Button>
+          )}
         </Group>
       )}
 
@@ -108,6 +151,7 @@ export function ApiKeysPage() {
             <Table.Th>Prefix</Table.Th>
             <Table.Th>Permissions</Table.Th>
             <Table.Th>Issued by</Table.Th>
+            <Table.Th>Limit</Table.Th>
             <Table.Th>Last used</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th w={80}>Actions</Table.Th>
@@ -116,7 +160,7 @@ export function ApiKeysPage() {
         <Table.Tbody>
           {isLoading && (
             <Table.Tr>
-              <Table.Td colSpan={7}>
+              <Table.Td colSpan={8}>
                 <Text c="dimmed" size="sm" ta="center">
                   Loading…
                 </Text>
@@ -125,7 +169,7 @@ export function ApiKeysPage() {
           )}
           {!isLoading && (keys ?? []).length === 0 && (
             <Table.Tr>
-              <Table.Td colSpan={7}>
+              <Table.Td colSpan={8}>
                 <Stack align="center" gap="xs" py="lg">
                   <IconKey size={20} />
                   <Text c="dimmed" size="sm">
@@ -160,6 +204,9 @@ export function ApiKeysPage() {
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{key.created_by_name ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{key.rate_limit_per_minute}/min</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{relative(key.last_used_at)}</Text>

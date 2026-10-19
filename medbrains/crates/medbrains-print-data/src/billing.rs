@@ -4,11 +4,11 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -16,12 +16,10 @@ use uuid::Uuid;
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AdvanceReceiptPrintData, BillCategoryTotal, BillLineItem, CashlessClaimPrintData,
-    CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData, GstInvoiceItemLine,
-    GstInvoicePrintData, InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
-    IpdInterimBillPrintData, NoDuesCertificatePrintData, OpdBillPrintData, PackageAdditionalCharge,
-    PackageBillPrintData, PackageEstimatePrintData, PackageExclusion, ReceiptPrintData,
-    RefundReceiptPrintData,
-    TdsCertificatePrintData, TdsEntry,
+    CreditNotePrintData, EstimateItemLine, EstimatePrintData, InsuranceClaimPrintData,
+    InsurancePreauthPrintData, IpdFinalBillPrintData, IpdInterimBillPrintData,
+    NoDuesCertificatePrintData, OpdBillPrintData, PackageBillPrintData, PackageEstimatePrintData,
+    ReceiptPrintData, RefundReceiptPrintData,
 };
 
 use medbrains_server_core::error::AppError;
@@ -31,7 +29,7 @@ use medbrains_server_core::state::AppState;
 
 // ── Helper: fetch hospital name from tenants table ───────
 
-async fn hospital_name(
+pub(crate) async fn hospital_name(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
 ) -> Result<Option<String>, AppError> {
@@ -76,10 +74,18 @@ pub async fn get_receipt_print_data(
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::billing::receipts::PRINT)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PAYMENT,
+        payment_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -104,13 +110,6 @@ pub async fn get_receipt_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::billing::receipts::REPRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PAYMENT,
-        payment_id,
-    )
-    .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first receipt print".to_owned(),
@@ -160,7 +159,10 @@ pub async fn get_receipt_print_data(
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
-    let today = chrono::Utc::now().format("%Y%m%d").to_string();
+    let today = chrono::Utc::now()
+        .with_timezone(&tz)
+        .format("%Y%m%d")
+        .to_string();
     let document_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::bigint \
          FROM document_outputs \
@@ -262,7 +264,11 @@ pub async fn get_receipt_print_data(
         payment_mode: row.payment_mode,
         reference_number: row.reference_number,
         received_by: row.received_by,
-        paid_at: row.paid_at.format("%d-%b-%Y %H:%M").to_string(),
+        paid_at: row
+            .paid_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         hospital_name: h_name,
     }))
 }
@@ -300,6 +306,7 @@ pub async fn get_estimate_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, EstimateHeaderRow>(
         "SELECT \
@@ -315,7 +322,7 @@ pub async fn get_estimate_print_data(
          FROM invoices inv \
          JOIN patients p ON p.id = inv.patient_id \
                          AND p.tenant_id = inv.tenant_id \
-         WHERE inv.id = $1 AND inv.tenant_id = $2",
+         WHERE inv.id = $1 AND inv.tenant_id = $2 AND inv.deleted_at IS NULL",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -327,7 +334,7 @@ pub async fn get_estimate_print_data(
                 unit_price::text AS unit_price, \
                 total_price::text AS total_price \
          FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
@@ -342,6 +349,7 @@ pub async fn get_estimate_print_data(
     let date = header
         .issued_at
         .unwrap_or(header.created_at)
+        .with_timezone(&tz)
         .format("%d-%b-%Y")
         .to_string();
 
@@ -360,108 +368,6 @@ pub async fn get_estimate_print_data(
 }
 
 // ── GST Invoice ──────────────────────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct GstInvoiceHeaderRow {
-    invoice_number: String,
-    patient_name: String,
-    uhid: String,
-    subtotal: String,
-    tax_amount: String,
-    total_amount: String,
-    hospital_gstin: Option<String>,
-    hospital_address: Option<String>,
-    issued_at: Option<chrono::DateTime<chrono::Utc>>,
-    created_at: chrono::DateTime<chrono::Utc>,
-}
-
-pub async fn get_gst_invoice_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(invoice_id): Path<Uuid>,
-) -> Result<Json<GstInvoicePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        invoice_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let header = sqlx::query_as::<_, GstInvoiceHeaderRow>(
-        "SELECT \
-           inv.invoice_number, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           inv.subtotal::text AS subtotal, \
-           inv.tax_amount::text AS tax_amount, \
-           inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
-            WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
-            LIMIT 1) AS hospital_gstin, \
-           (SELECT ts.value->>'address' FROM tenant_settings ts \
-            WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
-            LIMIT 1) AS hospital_address, \
-           inv.issued_at, \
-           inv.created_at \
-         FROM invoices inv \
-         JOIN patients p ON p.id = inv.patient_id \
-                         AND p.tenant_id = inv.tenant_id \
-         WHERE inv.id = $1 AND inv.tenant_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let items = sqlx::query_as::<_, GstInvoiceItemLine>(
-        "SELECT description, \
-                hsn_sac_code AS hsn_code, \
-                quantity, \
-                unit_price::text AS unit_price, \
-                tax_percent::text AS tax_percent, \
-                total_price::text AS total_price \
-         FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
-
-    tx.commit().await?;
-
-    let date = header
-        .issued_at
-        .unwrap_or(header.created_at)
-        .format("%d-%b-%Y")
-        .to_string();
-
-    Ok(Json(GstInvoicePrintData {
-        invoice_number: header.invoice_number,
-        patient_name: header.patient_name,
-        uhid: header.uhid,
-        subtotal: header.subtotal,
-        tax_amount: header.tax_amount,
-        total_amount: header.total_amount,
-        hospital_gstin: header.hospital_gstin,
-        hospital_name: h_name,
-        hospital_address: header.hospital_address,
-        items,
-        date,
-    }))
-}
 
 // ── OPD Bill ─────────────────────────────────────────────
 
@@ -502,6 +408,7 @@ pub async fn get_opd_bill_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, OpdBillHeaderRow>(
         "SELECT \
@@ -519,15 +426,15 @@ pub async fn get_opd_bill_print_data(
            inv.discount_amount::text AS discount_amount, \
            inv.tax_amount::text AS tax_amount, \
            inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM invoices inv \
          JOIN patients p ON p.id = inv.patient_id AND p.tenant_id = inv.tenant_id \
          LEFT JOIN users u ON u.id = inv.doctor_id \
          LEFT JOIN departments d ON d.id = inv.department_id AND d.tenant_id = inv.tenant_id \
-         WHERE inv.id = $1 AND inv.tenant_id = $2",
+         WHERE inv.id = $1 AND inv.tenant_id = $2 AND inv.deleted_at IS NULL",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -545,7 +452,7 @@ pub async fn get_opd_bill_print_data(
            COALESCE(tax_percent, 0)::text AS tax_percent, \
            total_price::text AS total \
          FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
@@ -553,13 +460,17 @@ pub async fn get_opd_bill_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get payments summary
-    let payments: (String, String) = sqlx::query_as(
+    // Paid = the invoice's own running total (payments + advance adjustments);
+    // mode = every mode actually used, none when nothing has been paid.
+    let payments: (String, String, Option<String>) = sqlx::query_as(
         "SELECT \
-           COALESCE(SUM(amount), 0)::text, \
-           COALESCE(MAX(mode::text), 'cash') \
-         FROM payments \
-         WHERE invoice_id = $1 AND tenant_id = $2 AND status = 'completed'",
+           inv.paid_amount::text, \
+           (inv.total_amount - inv.paid_amount - inv.written_off_amount)::text, \
+           (SELECT string_agg(DISTINCT pay.mode::text, ', ') FROM payments pay \
+            WHERE pay.invoice_id = inv.id AND pay.tenant_id = inv.tenant_id \
+              AND pay.status = 'completed' AND pay.deleted_at IS NULL) \
+         FROM invoices inv \
+         WHERE inv.id = $1 AND inv.tenant_id = $2",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -573,15 +484,11 @@ pub async fn get_opd_bill_print_data(
     let date = header
         .issued_at
         .unwrap_or(header.created_at)
+        .with_timezone(&tz)
         .format("%d-%b-%Y")
         .to_string();
 
     let age_str = header.age.map(|a| format!("{} Y", a as i32));
-
-    // Calculate balance
-    let total: f64 = header.total_amount.parse().unwrap_or(0.0);
-    let paid: f64 = payments.0.parse().unwrap_or(0.0);
-    let balance = total - paid;
 
     Ok(Json(OpdBillPrintData {
         invoice_number: header.invoice_number,
@@ -599,14 +506,35 @@ pub async fn get_opd_bill_print_data(
         tax_amount: header.tax_amount,
         total_amount: header.total_amount,
         amount_paid: payments.0,
-        balance_due: format!("{balance:.2}"),
-        payment_mode: Some(payments.1),
+        balance_due: payments.1,
+        payment_mode: payments.2,
         hospital_name: h_name,
         hospital_gstin: header.hospital_gstin,
     }))
 }
 
 // ── IPD Interim Bill ────────────────────────────────────
+
+/// Sorts an invoice line into a printed charge head from what the row records:
+/// its own `category`, else the charge master's category for its code, else
+/// the module that raised it. Expects `it` = `invoice_items`, `hc.category`.
+/// Constant, never caller input — safe to interpolate.
+const CHARGE_HEAD_SQL: &str = "CASE \
+   WHEN it.charge_code = 'ROOM_RENT' OR hc.category = 'Room Charges' THEN 'room' \
+   WHEN hc.category = 'Nursing' THEN 'nursing' \
+   WHEN it.source IN ('lab'::charge_source, 'radiology'::charge_source) THEN 'investigation' \
+   WHEN it.source = 'pharmacy'::charge_source THEN 'medicine' \
+   WHEN hc.category = 'Consultation' OR it.source = 'opd'::charge_source THEN 'consultation' \
+   WHEN hc.category IN ('Procedures', 'OT Charges') \
+     OR it.source IN ('procedure'::charge_source, 'ot'::charge_source) THEN 'procedure' \
+   WHEN it.source = 'consumable'::charge_source THEN 'consumable' \
+   ELSE 'other' END";
+
+/// Joins `hc.category` for `CHARGE_HEAD_SQL`.
+const CHARGE_CATEGORY_JOIN: &str = "LEFT JOIN LATERAL (SELECT COALESCE(it.category, \
+     (SELECT cm.category FROM charge_master cm \
+      WHERE cm.tenant_id = it.tenant_id AND cm.code = it.charge_code \
+        AND cm.deleted_at IS NULL LIMIT 1)) AS category) hc ON true";
 
 #[derive(Debug, sqlx::FromRow)]
 struct IpdInterimBillRow {
@@ -622,6 +550,16 @@ struct IpdInterimBillRow {
     diagnosis: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct IpdInterimTotalsRow {
+    subtotal: String,
+    discount: String,
+    tax: String,
+    total: String,
+    advance_paid: String,
+    balance_due: String,
+}
+
 pub async fn get_ipd_interim_bill_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -629,12 +567,12 @@ pub async fn get_ipd_interim_bill_print_data(
 ) -> Result<Json<IpdInterimBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_billing_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, IpdInterimBillRow>(
         "SELECT \
@@ -643,31 +581,38 @@ pub async fn get_ipd_interim_bill_print_data(
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
-           b.bed_number, \
+           bl.name AS bed_number, \
            w.name AS ward_name, \
            u.full_name AS doctor_name, \
            d.name AS department, \
-           adm.primary_diagnosis AS diagnosis \
+           COALESCE(adm.primary_diagnosis, adm.provisional_diagnosis) AS diagnosis \
          FROM admissions adm \
          JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
-         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
-         LEFT JOIN users u ON u.id = adm.attending_doctor_id \
+         LEFT JOIN locations bl ON bl.id = adm.bed_id AND bl.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = adm.ward_id AND w.tenant_id = adm.tenant_id \
+         LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, adm.admitting_doctor) \
          LEFT JOIN departments d ON d.id = adm.department_id AND d.tenant_id = adm.tenant_id \
-         WHERE adm.id = $1 AND adm.tenant_id = $2",
+         WHERE adm.id = $1 AND adm.tenant_id = $2 AND adm.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Get charge breakups by category
-    let charges: Vec<(String, String)> = sqlx::query_as(
-        "SELECT category, SUM(amount)::text AS amount \
-         FROM ipd_charges \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         GROUP BY category",
-    )
+    // Charge heads: every live line on every live invoice raised for the stay.
+    // This bill has no nursing head, so nursing folds into "other".
+    let charges: Vec<(String, String)> = sqlx::query_as(&format!(
+        "SELECT CASE WHEN ({CHARGE_HEAD_SQL}) = 'nursing' THEN 'other' \
+                ELSE ({CHARGE_HEAD_SQL}) END AS head, \
+                SUM(it.total_price)::text AS amount \
+         FROM invoice_items it \
+         JOIN invoices inv ON inv.id = it.invoice_id AND inv.tenant_id = it.tenant_id \
+         {CHARGE_CATEGORY_JOIN} \
+         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.deleted_at IS NULL AND it.deleted_at IS NULL \
+           AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
+         GROUP BY 1 LIMIT 20"
+    ))
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -681,66 +626,70 @@ pub async fn get_ipd_interim_bill_print_data(
     let mut professional_fees = "0.00".to_string();
     let mut other_charges = "0.00".to_string();
 
-    for (cat, amt) in &charges {
-        match cat.as_str() {
-            "room" | "bed" => room_charges = amt.clone(),
-            "investigation" | "lab" | "radiology" => investigation_charges = amt.clone(),
-            "procedure" | "surgery" => procedure_charges = amt.clone(),
-            "pharmacy" | "medicine" => pharmacy_charges = amt.clone(),
-            "consumable" | "supplies" => consumable_charges = amt.clone(),
-            "professional" | "doctor_fee" => professional_fees = amt.clone(),
-            _ => other_charges = amt.clone(),
+    for (head, amt) in charges {
+        match head.as_str() {
+            "room" => room_charges = amt,
+            "investigation" => investigation_charges = amt,
+            "procedure" => procedure_charges = amt,
+            "medicine" => pharmacy_charges = amt,
+            "consumable" => consumable_charges = amt,
+            "consultation" => professional_fees = amt,
+            _ => other_charges = amt,
         }
     }
 
-    // Get line items
     let items = sqlx::query_as::<_, BillLineItem>(
         "SELECT \
-           description, \
-           service_code, \
-           hsn_sac_code AS hsn_sac, \
-           quantity, \
-           rate::text AS unit_price, \
-           COALESCE(discount, 0)::text AS discount, \
-           COALESCE(tax_percent, 0)::text AS tax_percent, \
-           amount::text AS total \
-         FROM ipd_charges \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
+           it.description, \
+           it.service_code, \
+           it.hsn_sac_code AS hsn_sac, \
+           it.quantity, \
+           it.unit_price::text AS unit_price, \
+           it.discount_amount::text AS discount, \
+           it.tax_percent::text AS tax_percent, \
+           it.total_price::text AS total \
+         FROM invoice_items it \
+         JOIN invoices inv ON inv.id = it.invoice_id AND inv.tenant_id = it.tenant_id \
+         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.deleted_at IS NULL AND it.deleted_at IS NULL \
+           AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
+         ORDER BY it.created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Calculate totals
-    let totals: (String, String, String, String) = sqlx::query_as(
-        "SELECT \
-           SUM(amount)::text AS subtotal, \
-           COALESCE(SUM(discount), 0)::text AS discount, \
-           COALESCE(SUM(tax_amount), 0)::text AS tax, \
-           SUM(amount + COALESCE(tax_amount, 0) - COALESCE(discount, 0))::text AS total \
-         FROM ipd_charges \
-         WHERE admission_id = $1 AND tenant_id = $2",
+    // Balance = billed − paid on the invoices (which already includes advances
+    // adjusted against them) − written off − advance money not yet adjusted.
+    let totals = sqlx::query_as::<_, IpdInterimTotalsRow>(
+        "WITH inv AS ( \
+           SELECT COALESCE(SUM(subtotal), 0) AS subtotal, \
+                  COALESCE(SUM(discount_amount), 0) AS discount, \
+                  COALESCE(SUM(tax_amount), 0) AS tax, \
+                  COALESCE(SUM(total_amount), 0) AS total, \
+                  COALESCE(SUM(paid_amount + written_off_amount), 0) AS settled \
+           FROM invoices \
+           WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+             AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)), \
+         adv AS ( \
+           SELECT COALESCE(SUM(pa.amount), 0) AS received, \
+                  COALESCE(SUM(pa.balance), 0) AS unadjusted \
+           FROM patient_advances pa \
+           JOIN admissions a ON a.encounter_id = pa.encounter_id AND a.tenant_id = pa.tenant_id \
+           WHERE a.id = $1 AND pa.tenant_id = $2 AND pa.deleted_at IS NULL \
+             AND pa.status <> 'refunded'::advance_status) \
+         SELECT inv.subtotal::text AS subtotal, inv.discount::text AS discount, \
+                inv.tax::text AS tax, inv.total::text AS total, \
+                adv.received::text AS advance_paid, \
+                (inv.total - inv.settled - adv.unadjusted)::text AS balance_due \
+         FROM inv, adv",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Get advance payments
-    let advance: String = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(amount), 0)::text \
-         FROM payments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-           AND payment_type = 'advance' AND status = 'completed'",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Calculate LOS
     let los_days: i32 = sqlx::query_scalar(
         "SELECT GREATEST(1, EXTRACT(DAY FROM (COALESCE(discharged_at, NOW()) - admitted_at)))::int \
          FROM admissions WHERE id = $1 AND tenant_id = $2",
@@ -755,21 +704,25 @@ pub async fn get_ipd_interim_bill_print_data(
     tx.commit().await?;
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
-    let total: f64 = totals.3.parse().unwrap_or(0.0);
-    let adv: f64 = advance.parse().unwrap_or(0.0);
-    let balance = total - adv;
 
     Ok(Json(IpdInterimBillPrintData {
         bill_number: format!(
             "INT-{}",
             admission_id.to_string().split('-').next().unwrap_or("")
         ),
-        bill_date: chrono::Utc::now().format("%d-%b-%Y").to_string(),
+        bill_date: chrono::Utc::now()
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         age: age_str,
         gender: row.gender,
-        admission_date: row.admission_date.format("%d-%b-%Y").to_string(),
+        admission_date: row
+            .admission_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         doctor_name: row.doctor_name,
@@ -783,12 +736,12 @@ pub async fn get_ipd_interim_bill_print_data(
         professional_fees,
         other_charges,
         items,
-        subtotal: totals.0,
-        discount_amount: totals.1,
-        tax_amount: totals.2,
-        total_amount: totals.3,
-        advance_paid: advance,
-        balance_due: format!("{balance:.2}"),
+        subtotal: totals.subtotal,
+        discount_amount: totals.discount,
+        tax_amount: totals.tax,
+        total_amount: totals.total,
+        advance_paid: totals.advance_paid,
+        balance_due: totals.balance_due,
         los_days,
         hospital_name: h_name,
     }))
@@ -805,6 +758,7 @@ struct IpdFinalBillRow {
     uhid: String,
     age: Option<f64>,
     gender: String,
+    admission_number: Option<String>,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
     discharge_date: Option<chrono::DateTime<chrono::Utc>>,
     bed_number: Option<String>,
@@ -838,6 +792,7 @@ pub async fn get_ipd_final_bill_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, IpdFinalBillRow>(
         "SELECT \
@@ -848,9 +803,10 @@ pub async fn get_ipd_final_bill_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
+           adm.admission_number, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
-           b.bed_number, \
+           bl.name AS bed_number, \
            w.name AS ward_name, \
            u.full_name AS doctor_name, \
            d.name AS department, \
@@ -860,19 +816,19 @@ pub async fn get_ipd_final_bill_print_data(
            inv.discount_amount::text AS discount_amount, \
            inv.tax_amount::text AS tax_amount, \
            inv.total_amount::text AS total_amount, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = inv.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM invoices inv \
          JOIN patients p ON p.id = inv.patient_id AND p.tenant_id = inv.tenant_id \
          LEFT JOIN admissions adm ON adm.id = inv.admission_id AND adm.tenant_id = inv.tenant_id \
-         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
+         LEFT JOIN locations bl ON bl.id = adm.bed_id AND bl.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = adm.ward_id AND w.tenant_id = adm.tenant_id \
          LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, inv.doctor_id) \
          LEFT JOIN departments d ON d.id = COALESCE(adm.department_id, inv.department_id) \
            AND d.tenant_id = inv.tenant_id \
-         WHERE inv.id = $1 AND inv.tenant_id = $2",
+         WHERE inv.id = $1 AND inv.tenant_id = $2 AND inv.deleted_at IS NULL",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -885,7 +841,7 @@ pub async fn get_ipd_final_bill_print_data(
            COALESCE(category, 'Other') AS category, \
            SUM(total_price)::text AS amount \
          FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          GROUP BY category \
          ORDER BY category LIMIT 5000",
     )
@@ -906,7 +862,7 @@ pub async fn get_ipd_final_bill_print_data(
            COALESCE(tax_percent, 0)::text AS tax_percent, \
            total_price::text AS total \
          FROM invoice_items \
-         WHERE invoice_id = $1 AND tenant_id = $2 \
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY category, created_at LIMIT 5000",
     )
     .bind(invoice_id)
@@ -914,14 +870,23 @@ pub async fn get_ipd_final_bill_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get payments summary
-    let payments: (String, String, String) = sqlx::query_as(
-        "SELECT \
-           COALESCE(SUM(CASE WHEN payment_type = 'advance' THEN amount ELSE 0 END), 0)::text, \
-           COALESCE(SUM(CASE WHEN payment_type = 'insurance' THEN amount ELSE 0 END), 0)::text, \
-           COALESCE(SUM(amount), 0)::text \
-         FROM payments \
-         WHERE invoice_id = $1 AND tenant_id = $2 AND status = 'completed'",
+    // Nothing writes `payments.payment_type` other than 'bill', so advance and
+    // insurance come from the rows that record them, and paid from the
+    // invoice's own running total (payments + advance adjustments).
+    let payments: (String, String, String, String, String) = sqlx::query_as(
+        "SELECT adv::text, ins::text, inv.paid_amount::text, \
+           (inv.total_amount - ins)::text, \
+           (inv.total_amount - inv.paid_amount - inv.written_off_amount)::text \
+         FROM invoices inv, \
+         LATERAL (SELECT COALESCE(SUM(aa.amount_adjusted), 0) AS adv \
+                  FROM advance_adjustments aa \
+                  WHERE aa.invoice_id = inv.id AND aa.tenant_id = inv.tenant_id \
+                    AND aa.deleted_at IS NULL) a, \
+         LATERAL (SELECT COALESCE(SUM(ic.approved_amount), 0) AS ins \
+                  FROM insurance_claims ic \
+                  WHERE ic.invoice_id = inv.id AND ic.tenant_id = inv.tenant_id \
+                    AND ic.deleted_at IS NULL) i \
+         WHERE inv.id = $1 AND inv.tenant_id = $2",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -941,18 +906,13 @@ pub async fn get_ipd_final_bill_print_data(
     let date = row
         .issued_at
         .unwrap_or(row.created_at)
+        .with_timezone(&tz)
         .format("%d-%b-%Y")
         .to_string();
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
-    let total: f64 = row.total_amount.parse().unwrap_or(0.0);
-    let _advance: f64 = payments.0.parse().unwrap_or(0.0);
-    let insurance: f64 = payments.1.parse().unwrap_or(0.0);
-    let paid: f64 = payments.2.parse().unwrap_or(0.0);
-    let patient_payable = total - insurance;
-    let balance = total - paid;
-
     Ok(Json(IpdFinalBillPrintData {
+        admission_number: row.admission_number,
         invoice_number: row.invoice_number,
         invoice_date: date,
         patient_name: row.patient_name,
@@ -961,9 +921,11 @@ pub async fn get_ipd_final_bill_print_data(
         gender: row.gender,
         admission_date: row
             .admission_date
-            .map(|d| d.format("%d-%b-%Y").to_string())
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
             .unwrap_or_default(),
-        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        discharge_date: row
+            .discharge_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         doctor_name: row.doctor_name,
@@ -978,9 +940,9 @@ pub async fn get_ipd_final_bill_print_data(
         total_amount: row.total_amount,
         advance_paid: payments.0,
         insurance_approved: payments.1,
-        patient_payable: format!("{patient_payable:.2}"),
+        patient_payable: payments.3,
         amount_paid: payments.2,
-        balance_due: format!("{balance:.2}"),
+        balance_due: payments.4,
         los_days,
         hospital_name: h_name,
         hospital_gstin: row.hospital_gstin,
@@ -1000,6 +962,7 @@ pub async fn get_ipd_final_bill_print_data(
 struct ConsolidatedBillHeaderRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -1020,35 +983,36 @@ pub async fn get_admission_consolidated_bill_print_data(
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, ConsolidatedBillHeaderRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           adm.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
-           b.bed_number, \
+           bl.name AS bed_number, \
            w.name AS ward_name, \
            u.full_name AS doctor_name, \
            d.name AS department, \
            adm.primary_diagnosis AS diagnosis, \
            adm.discharge_type, \
-           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
             WHERE ts.tenant_id = adm.tenant_id \
-              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
             LIMIT 1) AS hospital_gstin \
          FROM admissions adm \
          JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
-         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
+         LEFT JOIN locations bl ON bl.id = adm.bed_id AND bl.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = adm.ward_id AND w.tenant_id = adm.tenant_id \
          LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, adm.admitting_doctor) \
          LEFT JOIN departments d ON d.id = adm.department_id AND d.tenant_id = adm.tenant_id \
          WHERE adm.id = $1 AND adm.tenant_id = $2",
@@ -1066,7 +1030,7 @@ pub async fn get_admission_consolidated_bill_print_data(
            COALESCE(SUM(tax_amount), 0)::text, \
            COALESCE(SUM(total_amount), 0)::text \
          FROM invoices \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
            AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)",
     )
     .bind(admission_id)
@@ -1081,6 +1045,7 @@ pub async fn get_admission_consolidated_bill_print_data(
          FROM invoice_items it \
          JOIN invoices inv ON inv.id = it.invoice_id \
          WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.deleted_at IS NULL AND it.deleted_at IS NULL \
            AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
          GROUP BY it.category \
          ORDER BY it.category LIMIT 5000",
@@ -1103,6 +1068,7 @@ pub async fn get_admission_consolidated_bill_print_data(
          FROM invoice_items it \
          JOIN invoices inv ON inv.id = it.invoice_id \
          WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.deleted_at IS NULL AND it.deleted_at IS NULL \
            AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
          ORDER BY it.category, it.created_at LIMIT 5000",
     )
@@ -1111,14 +1077,24 @@ pub async fn get_admission_consolidated_bill_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let payments: (String, String, String) = sqlx::query_as(
-        "SELECT \
-           COALESCE(SUM(CASE WHEN pay.payment_type = 'advance' THEN pay.amount ELSE 0 END), 0)::text, \
-           COALESCE(SUM(CASE WHEN pay.payment_type = 'insurance' THEN pay.amount ELSE 0 END), 0)::text, \
-           COALESCE(SUM(pay.amount), 0)::text \
-         FROM payments pay \
-         JOIN invoices inv ON inv.id = pay.invoice_id \
-         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 AND pay.status = 'completed'",
+    // Same sources as the single-invoice final bill, summed over the stay.
+    let payments: (String, String, String, String, String) = sqlx::query_as(
+        "WITH inv AS ( \
+           SELECT id, tenant_id, total_amount, paid_amount, written_off_amount FROM invoices \
+           WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+             AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)), \
+         t AS (SELECT COALESCE(SUM(total_amount), 0) AS total, \
+                      COALESCE(SUM(paid_amount), 0) AS paid, \
+                      COALESCE(SUM(written_off_amount), 0) AS written_off FROM inv), \
+         a AS (SELECT COALESCE(SUM(aa.amount_adjusted), 0) AS adv FROM advance_adjustments aa \
+               JOIN inv ON inv.id = aa.invoice_id AND inv.tenant_id = aa.tenant_id \
+               WHERE aa.deleted_at IS NULL), \
+         i AS (SELECT COALESCE(SUM(ic.approved_amount), 0) AS ins FROM insurance_claims ic \
+               JOIN inv ON inv.id = ic.invoice_id AND inv.tenant_id = ic.tenant_id \
+               WHERE ic.deleted_at IS NULL) \
+         SELECT a.adv::text, i.ins::text, t.paid::text, (t.total - i.ins)::text, \
+                (t.total - t.paid - t.written_off)::text \
+         FROM t, a, i",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1137,29 +1113,27 @@ pub async fn get_admission_consolidated_bill_print_data(
     let date = header
         .discharge_date
         .unwrap_or_else(chrono::Utc::now)
+        .with_timezone(&tz)
         .format("%d-%b-%Y")
         .to_string();
     let age_str = header.age.map(|a| format!("{} Y", a as i32));
-    let admission_ref = format!("IP/{}", &admission_id.to_string()[..8].to_uppercase());
-
-    let total: f64 = totals.3.parse().unwrap_or(0.0);
-    let insurance: f64 = payments.1.parse().unwrap_or(0.0);
-    let paid: f64 = payments.2.parse().unwrap_or(0.0);
-    let patient_payable = total - insurance;
-    let balance = total - paid;
+    let admission_ref = format!("IP/{}", admission_id.to_string()[..8].to_uppercase());
 
     Ok(Json(IpdFinalBillPrintData {
         invoice_number: admission_ref,
         invoice_date: date,
         patient_name: header.patient_name,
         uhid: header.uhid,
+        admission_number: header.admission_number,
         age: age_str,
         gender: header.gender,
         admission_date: header
             .admission_date
-            .map(|d| d.format("%d-%b-%Y").to_string())
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
             .unwrap_or_default(),
-        discharge_date: header.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        discharge_date: header
+            .discharge_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         bed_number: header.bed_number,
         ward_name: header.ward_name,
         doctor_name: header.doctor_name,
@@ -1174,9 +1148,9 @@ pub async fn get_admission_consolidated_bill_print_data(
         total_amount: totals.3,
         advance_paid: payments.0,
         insurance_approved: payments.1,
-        patient_payable: format!("{patient_payable:.2}"),
+        patient_payable: payments.3,
         amount_paid: payments.2,
-        balance_due: format!("{balance:.2}"),
+        balance_due: payments.4,
         los_days,
         hospital_name: h_name,
         hospital_gstin: header.hospital_gstin,
@@ -1189,6 +1163,7 @@ pub async fn get_admission_consolidated_bill_print_data(
 struct NoDuesRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
@@ -1210,23 +1185,24 @@ pub async fn get_no_dues_certificate_print_data(
 ) -> Result<Json<NoDuesCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, NoDuesRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           adm.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
            w.name AS ward_name, \
-           b.bed_number, \
+           bl.name AS bed_number, \
            c.total_billed::text AS total_billed, \
            c.total_paid::text AS total_paid, \
            c.balance::text AS balance, \
@@ -1236,8 +1212,8 @@ pub async fn get_no_dues_certificate_print_data(
          FROM ipd_no_dues_certificates c \
          JOIN admissions adm ON adm.id = c.admission_id AND adm.tenant_id = c.tenant_id \
          JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
-         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
+         LEFT JOIN locations bl ON bl.id = adm.bed_id AND bl.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = adm.ward_id AND w.tenant_id = adm.tenant_id \
          LEFT JOIN users u ON u.id = c.issued_by \
          WHERE c.admission_id = $1 AND c.tenant_id = $2",
     )
@@ -1253,20 +1229,27 @@ pub async fn get_no_dues_certificate_print_data(
     Ok(Json(NoDuesCertificatePrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} Y", a as i32)),
         gender: row.gender,
         admission_date: row
             .admission_date
-            .map(|d| d.format("%d-%b-%Y").to_string())
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
             .unwrap_or_default(),
-        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        discharge_date: row
+            .discharge_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         ward_name: row.ward_name,
         bed_number: row.bed_number,
         total_billed: row.total_billed,
         total_paid: row.total_paid,
         balance: row.balance,
         issued_by: row.issued_by,
-        issued_at: row.issued_at.format("%d-%b-%Y %H:%M").to_string(),
+        issued_at: row
+            .issued_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         notes: row.notes,
         hospital_name: h_name,
     }))
@@ -1276,54 +1259,59 @@ pub async fn get_no_dues_certificate_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct AdvanceReceiptRow {
-    reference_number: Option<String>,
+    advance_number: String,
     patient_name: String,
     uhid: String,
     admission_id: Option<Uuid>,
     amount: String,
-    mode: String,
-    notes: Option<String>,
+    payment_mode: String,
+    reference_number: Option<String>,
+    purpose: String,
     received_by: Option<String>,
-    paid_at: chrono::DateTime<chrono::Utc>,
+    created_at: chrono::DateTime<chrono::Utc>,
 }
 
 pub async fn get_advance_receipt_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(payment_id): Path<Uuid>,
+    Path(advance_id): Path<Uuid>,
 ) -> Result<Json<AdvanceReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::PAYMENT,
-        payment_id,
+        medbrains_authz_gate::links::PATIENT_ADVANCE,
+        advance_id,
     )
     .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdvanceReceiptRow>(
         "SELECT \
-           pay.reference_number, \
+           pa.advance_number, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           pay.admission_id, \
-           pay.amount::text AS amount, \
-           pay.mode::text AS mode, \
-           pay.notes, \
+           (SELECT a.id FROM admissions a \
+            WHERE a.encounter_id = pa.encounter_id AND a.tenant_id = pa.tenant_id \
+              AND a.deleted_at IS NULL \
+            ORDER BY a.admitted_at DESC LIMIT 1) AS admission_id, \
+           pa.amount::text AS amount, \
+           pa.payment_mode::text AS payment_mode, \
+           pa.reference_number, \
+           pa.purpose::text AS purpose, \
            u.full_name AS received_by, \
-           pay.paid_at \
-         FROM payments pay \
-         JOIN patients p ON p.id = pay.patient_id AND p.tenant_id = pay.tenant_id \
-         LEFT JOIN users u ON u.id = pay.received_by \
-         WHERE pay.id = $1 AND pay.tenant_id = $2 \
-           AND pay.payment_type = 'advance'",
+           pa.created_at \
+         FROM patient_advances pa \
+         JOIN patients p ON p.id = pa.patient_id AND p.tenant_id = pa.tenant_id \
+         LEFT JOIN users u ON u.id = pa.received_by \
+         WHERE pa.id = $1 AND pa.tenant_id = $2 AND pa.deleted_at IS NULL",
     )
-    .bind(payment_id)
+    .bind(advance_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
@@ -1336,19 +1324,20 @@ pub async fn get_advance_receipt_print_data(
     let amount_in_words = number_to_words(amount_val);
 
     Ok(Json(AdvanceReceiptPrintData {
-        receipt_number: row
-            .reference_number
-            .clone()
-            .unwrap_or_else(|| payment_id.to_string()),
-        receipt_date: row.paid_at.format("%d-%b-%Y").to_string(),
+        receipt_number: row.advance_number,
+        receipt_date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         admission_id: row.admission_id.map(|id| id.to_string()),
         amount: row.amount,
         amount_in_words,
-        payment_mode: row.mode,
+        payment_mode: row.payment_mode,
         reference_number: row.reference_number,
-        purpose: row.notes.unwrap_or_else(|| "Advance Deposit".to_string()),
+        purpose: row.purpose,
         received_by: row.received_by,
         hospital_name: h_name,
     }))
@@ -1389,6 +1378,7 @@ pub async fn get_refund_receipt_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RefundReceiptRow>(
         "SELECT \
@@ -1424,7 +1414,11 @@ pub async fn get_refund_receipt_print_data(
 
     Ok(Json(RefundReceiptPrintData {
         receipt_number: row.refund_number,
-        receipt_date: row.created_at.format("%d-%b-%Y").to_string(),
+        receipt_date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         original_receipt_number: row.original_receipt,
@@ -1443,7 +1437,7 @@ pub async fn get_refund_receipt_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct PreauthRow {
-    request_number: String,
+    pa_number: String,
     created_at: chrono::DateTime<chrono::Utc>,
     patient_name: String,
     uhid: String,
@@ -1452,14 +1446,14 @@ struct PreauthRow {
     policy_number: String,
     insurance_company: String,
     tpa_name: Option<String>,
-    employee_id: Option<String>,
-    corporate_name: Option<String>,
-    admission_date: Option<chrono::DateTime<chrono::Utc>>,
+    requested_start: Option<chrono::NaiveDate>,
     expected_los: Option<i32>,
     diagnosis: Option<String>,
-    estimated_cost: String,
+    diagnosis_codes: Option<Vec<String>>,
+    planned_procedure: Option<String>,
+    estimated_cost: Option<String>,
     treating_doctor: Option<String>,
-    contact_number: String,
+    contact_number: Option<String>,
 }
 
 pub async fn get_insurance_preauth_print_data(
@@ -1467,64 +1461,61 @@ pub async fn get_insurance_preauth_print_data(
     Extension(claims): Extension<Claims>,
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<InsurancePreauthPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `preauth_requests` does not exist in the schema.
+    // A pre-auth is a financial record: direct grant on the patient, as for
+    // every other link in the billing group.
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM prior_auth_requests \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(request_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PreauthRow>(
         "SELECT \
-           pa.request_number, \
+           pa.pa_number, \
            pa.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            ins.policy_number, \
-           ic.name AS insurance_company, \
-           tpa.name AS tpa_name, \
-           ins.employee_id, \
-           ins.corporate_name, \
-           pa.admission_date, \
-           pa.expected_los, \
-           pa.diagnosis, \
+           ins.insurance_provider AS insurance_company, \
+           ins.tpa_name, \
+           pa.requested_start, \
+           adm.estimated_los_days AS expected_los, \
+           COALESCE(adm.primary_diagnosis, adm.provisional_diagnosis) AS diagnosis, \
+           pa.diagnosis_codes, \
+           COALESCE(pa.service_description, pa.service_type) AS planned_procedure, \
            pa.estimated_cost::text AS estimated_cost, \
            u.full_name AS treating_doctor, \
            COALESCE(p.phone, p.emergency_contact_phone) AS contact_number \
-         FROM preauth_requests pa \
+         FROM prior_auth_requests pa \
          JOIN patients p ON p.id = pa.patient_id AND p.tenant_id = pa.tenant_id \
-         JOIN patient_insurance ins ON ins.id = pa.insurance_id AND ins.tenant_id = pa.tenant_id \
-         JOIN insurance_companies ic ON ic.id = ins.company_id AND ic.tenant_id = ins.tenant_id \
-         LEFT JOIN tpa_companies tpa ON tpa.id::text = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
-         LEFT JOIN users u ON u.id = pa.treating_doctor_id \
-         WHERE pa.id = $1 AND pa.tenant_id = $2",
+         JOIN patient_insurance ins ON ins.id = pa.patient_insurance_id \
+           AND ins.tenant_id = pa.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT a.estimated_los_days, a.primary_diagnosis, a.provisional_diagnosis \
+           FROM admissions a \
+           WHERE a.encounter_id = pa.encounter_id AND a.tenant_id = pa.tenant_id \
+             AND a.deleted_at IS NULL \
+           ORDER BY a.admitted_at DESC LIMIT 1) adm ON true \
+         LEFT JOIN users u ON u.id = pa.ordering_doctor_id \
+         WHERE pa.id = $1 AND pa.tenant_id = $2 AND pa.deleted_at IS NULL",
     )
     .bind(request_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await?;
-
-    // Get ICD codes
-    let icd_codes: Vec<String> = sqlx::query_scalar(
-        "SELECT icd_code FROM preauth_diagnoses \
-         WHERE preauth_id = $1 AND tenant_id = $2",
-    )
-    .bind(request_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get planned procedures
-    let procedures: Vec<String> = sqlx::query_scalar(
-        "SELECT procedure_name FROM preauth_procedures \
-         WHERE preauth_id = $1 AND tenant_id = $2",
-    )
-    .bind(request_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
     .await?;
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
@@ -1542,8 +1533,12 @@ pub async fn get_insurance_preauth_print_data(
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
     Ok(Json(InsurancePreauthPrintData {
-        request_number: row.request_number,
-        request_date: row.created_at.format("%d-%b-%Y").to_string(),
+        request_number: row.pa_number,
+        request_date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         age: age_str,
@@ -1551,13 +1546,16 @@ pub async fn get_insurance_preauth_print_data(
         policy_number: row.policy_number,
         insurance_company: row.insurance_company,
         tpa_name: row.tpa_name,
-        employee_id: row.employee_id,
-        corporate_name: row.corporate_name,
-        admission_date: row.admission_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        // ponytail: employee_id / corporate_name not recorded anywhere yet
+        employee_id: None,
+        corporate_name: None,
+        admission_date: row
+            .requested_start
+            .map(|d| d.format("%d-%b-%Y").to_string()),
         expected_los: row.expected_los,
         diagnosis: row.diagnosis,
-        icd_codes,
-        planned_procedures: procedures,
+        icd_codes: row.diagnosis_codes.unwrap_or_default(),
+        planned_procedures: row.planned_procedure.into_iter().collect(),
         estimated_cost: row.estimated_cost,
         treating_doctor: row.treating_doctor,
         contact_number: row.contact_number,
@@ -1570,18 +1568,19 @@ pub async fn get_insurance_preauth_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct CashlessClaimRow {
-    claim_number: String,
+    claim_number: Option<String>,
     created_at: chrono::DateTime<chrono::Utc>,
     patient_name: String,
     uhid: String,
-    policy_number: String,
+    admission_number: Option<String>,
+    policy_number: Option<String>,
     insurance_company: String,
     tpa_name: Option<String>,
-    admission_date: chrono::DateTime<chrono::Utc>,
+    admission_date: Option<chrono::DateTime<chrono::Utc>>,
     discharge_date: Option<chrono::DateTime<chrono::Utc>>,
     diagnosis: Option<String>,
     total_bill_amount: String,
-    approved_amount: String,
+    approved_amount: Option<String>,
     deductions: String,
     patient_payable: String,
     status: String,
@@ -1593,7 +1592,7 @@ pub async fn get_cashless_claim_print_data(
     Extension(claims): Extension<Claims>,
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<CashlessClaimPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     medbrains_authz_gate::require_access_via(
         &state,
@@ -1606,19 +1605,24 @@ pub async fn get_cashless_claim_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The claim's money and its stay are recorded on the claim itself
+    // (migration 1068 keeps them true as the payer answers and the patient pays).
     let row = sqlx::query_as::<_, CashlessClaimRow>(
         "SELECT \
            cl.claim_number, \
            cl.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           ins.policy_number, \
-           ic.name AS insurance_company, \
-           tpa.name AS tpa_name, \
+           adm.admission_number, \
+           cl.policy_number, \
+           cl.insurance_provider AS insurance_company, \
+           cl.tpa_name, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
-           adm.primary_diagnosis AS diagnosis, \
+           COALESCE(adm.final_diagnosis, adm.primary_diagnosis, adm.provisional_diagnosis) \
+             AS diagnosis, \
            cl.total_bill_amount::text AS total_bill_amount, \
            cl.approved_amount::text AS approved_amount, \
            cl.deductions::text AS deductions, \
@@ -1627,26 +1631,14 @@ pub async fn get_cashless_claim_print_data(
            u.full_name AS treating_doctor \
          FROM insurance_claims cl \
          JOIN patients p ON p.id = cl.patient_id AND p.tenant_id = cl.tenant_id \
-         JOIN admissions adm ON adm.id = cl.admission_id AND adm.tenant_id = cl.tenant_id \
-         JOIN patient_insurance ins ON ins.id = cl.insurance_id AND ins.tenant_id = cl.tenant_id \
-         JOIN insurance_companies ic ON ic.id = ins.company_id AND ic.tenant_id = ins.tenant_id \
-         LEFT JOIN tpa_companies tpa ON tpa.id::text = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
-         LEFT JOIN users u ON u.id = adm.attending_doctor_id \
-         WHERE cl.id = $1 AND cl.tenant_id = $2",
+         LEFT JOIN admissions adm ON adm.id = cl.admission_id \
+           AND adm.tenant_id = cl.tenant_id AND adm.deleted_at IS NULL \
+         LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, adm.admitting_doctor) \
+         WHERE cl.id = $1 AND cl.tenant_id = $2 AND cl.deleted_at IS NULL",
     )
     .bind(claim_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await?;
-
-    // Get procedures performed
-    let procedures: Vec<String> = sqlx::query_scalar(
-        "SELECT procedure_name FROM claim_procedures \
-         WHERE claim_id = $1 AND tenant_id = $2",
-    )
-    .bind(claim_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
     .await?;
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
@@ -1661,18 +1653,29 @@ pub async fn get_cashless_claim_print_data(
 
     tx.commit().await?;
 
+    // Claim number / policy / approval stay blank until the payer answers.
+    // ponytail: procedures performed are not recorded anywhere yet
     Ok(Json(CashlessClaimPrintData {
         claim_number: row.claim_number,
-        claim_date: row.created_at.format("%d-%b-%Y").to_string(),
+        claim_date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         policy_number: row.policy_number,
         insurance_company: row.insurance_company,
         tpa_name: row.tpa_name,
-        admission_date: row.admission_date.format("%d-%b-%Y").to_string(),
-        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        admission_date: row
+            .admission_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
+        discharge_date: row
+            .discharge_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         diagnosis: row.diagnosis,
-        procedures_performed: procedures,
+        procedures_performed: Vec::new(),
         total_bill_amount: row.total_bill_amount,
         approved_amount: row.approved_amount,
         deductions: row.deductions,
@@ -1685,86 +1688,56 @@ pub async fn get_cashless_claim_print_data(
 }
 
 // ── Package Estimate ────────────────────────────────────
+//
+// Printed from the package master: a quote of what the package costs and
+// covers. No per-patient estimate record exists, so the path id is the
+// `billing_packages.id` and the document names no patient.
 
 #[derive(Debug, sqlx::FromRow)]
 struct PackageEstimateRow {
-    estimate_number: String,
-    created_at: chrono::DateTime<chrono::Utc>,
-    valid_until: chrono::DateTime<chrono::Utc>,
-    patient_name: Option<String>,
+    valid_to: Option<chrono::DateTime<chrono::Utc>>,
     package_name: String,
     package_code: String,
-    procedure_name: String,
     package_price: String,
-    additional_charges_note: Option<String>,
 }
 
 pub async fn get_package_estimate_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(estimate_id): Path<Uuid>,
+    Path(package_id): Path<Uuid>,
 ) -> Result<Json<PackageEstimatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `package_estimates` does not exist in the schema.
+    // Master data, no patient on it: the permission checks above are the
+    // whole of its authorization.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PackageEstimateRow>(
         "SELECT \
-           pe.estimate_number, \
-           pe.created_at, \
-           pe.valid_until, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           pkg.name AS package_name, \
-           pkg.code AS package_code, \
-           pkg.procedure_name, \
-           pkg.price::text AS package_price, \
-           pkg.additional_charges_note \
-         FROM package_estimates pe \
-         JOIN packages pkg ON pkg.id = pe.package_id AND pkg.tenant_id = pe.tenant_id \
-         LEFT JOIN patients p ON p.id = pe.patient_id AND p.tenant_id = pe.tenant_id \
-         WHERE pe.id = $1 AND pe.tenant_id = $2",
+           bp.valid_to, \
+           bp.name AS package_name, \
+           bp.code AS package_code, \
+           bp.total_price::text AS package_price \
+         FROM billing_packages bp \
+         WHERE bp.id = $1 AND bp.tenant_id = $2 AND bp.deleted_at IS NULL",
     )
-    .bind(estimate_id)
+    .bind(package_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Get inclusions
     let inclusions: Vec<String> = sqlx::query_scalar(
-        "SELECT item_description FROM package_inclusions \
-         WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
+        "SELECT CASE WHEN quantity > 1 THEN description || ' × ' || quantity \
+                     ELSE description END \
+         FROM billing_package_items \
+         WHERE package_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 5000",
     )
-    .bind(estimate_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get exclusions
-    let exclusions: Vec<String> = sqlx::query_scalar(
-        "SELECT item_description FROM package_exclusions \
-         WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
-    )
-    .bind(estimate_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get terms and conditions
-    let terms: Vec<String> = sqlx::query_scalar(
-        "SELECT term_text FROM package_terms \
-         WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
-    )
-    .bind(estimate_id)
+    .bind(package_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -1774,18 +1747,26 @@ pub async fn get_package_estimate_print_data(
     tx.commit().await?;
 
     Ok(Json(PackageEstimatePrintData {
-        estimate_number: row.estimate_number,
-        estimate_date: row.created_at.format("%d-%b-%Y").to_string(),
-        valid_until: row.valid_until.format("%d-%b-%Y").to_string(),
-        patient_name: row.patient_name,
+        // ponytail: estimate_number / procedure_name not recorded anywhere yet
+        estimate_number: None,
+        estimate_date: chrono::Utc::now()
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        valid_until: row
+            .valid_to
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
+        patient_name: None,
         package_name: row.package_name,
         package_code: row.package_code,
-        procedure_name: row.procedure_name,
+        procedure_name: None,
         inclusions,
-        exclusions,
+        // ponytail: package exclusions / terms not recorded anywhere yet
+        exclusions: Vec::new(),
         package_price: row.package_price,
-        additional_charges_note: row.additional_charges_note,
-        terms_conditions: terms,
+        additional_charges_note: None,
+        terms_conditions: Vec::new(),
         hospital_name: h_name,
     }))
 }
@@ -1899,29 +1880,12 @@ struct CreditNoteRow {
     patient_name: String,
     uhid: String,
     patient_address: Option<String>,
-    patient_gstin: Option<String>,
     reason_for_credit: String,
-    subtotal: f64,
-    discount_amount: f64,
-    tax_amount: f64,
-    cgst_amount: f64,
-    sgst_amount: f64,
-    igst_amount: f64,
     total_credit_amount: f64,
-    remarks: Option<String>,
-    approved_by: Option<String>,
-    approved_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct CreditNoteItemRow {
-    description: String,
-    hsn_code: Option<String>,
-    quantity: f64,
-    unit_price: f64,
-    amount: f64,
-    tax_rate: f64,
-    tax_amount: f64,
+    hospital_name: String,
+    hospital_address: Option<String>,
+    hospital_logo_url: Option<String>,
+    hospital_gstin: Option<String>,
 }
 
 pub async fn get_credit_note_print_data(
@@ -1942,343 +1906,272 @@ pub async fn get_credit_note_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CreditNoteRow>(
         "SELECT \
            cn.credit_note_number, \
            cn.created_at AS credit_note_date, \
            i.invoice_number AS original_invoice_number, \
-           i.invoice_date AS original_invoice_date, \
+           COALESCE(i.invoice_date, i.issued_at, i.created_at) AS original_invoice_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            p.address_line1 AS patient_address, \
-           p.gstin AS patient_gstin, \
            cn.reason AS reason_for_credit, \
-           cn.subtotal, \
-           cn.discount_amount, \
-           cn.tax_amount, \
-           cn.cgst_amount, \
-           cn.sgst_amount, \
-           cn.igst_amount, \
-           cn.total_amount AS total_credit_amount, \
-           cn.remarks, \
-           u.full_name AS approved_by, \
-           cn.approved_at \
+           cn.amount::float8 AS total_credit_amount, \
+           t.name AS hospital_name, \
+           t.address_line1 AS hospital_address, \
+           t.logo_url AS hospital_logo_url, \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
+            WHERE ts.tenant_id = cn.tenant_id \
+              AND ts.category = 'billing' AND ts.key = 'gst_number' AND ts.deleted_at IS NULL \
+            LIMIT 1) AS hospital_gstin \
          FROM credit_notes cn \
          JOIN invoices i ON i.id = cn.invoice_id AND i.tenant_id = cn.tenant_id \
          JOIN patients p ON p.id = i.patient_id AND p.tenant_id = cn.tenant_id \
-         LEFT JOIN users u ON u.id = cn.approved_by_id \
-         WHERE cn.id = $1 AND cn.tenant_id = $2",
+         JOIN tenants t ON t.id = cn.tenant_id \
+         WHERE cn.id = $1 AND cn.tenant_id = $2 AND cn.deleted_at IS NULL",
     )
     .bind(credit_note_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let items = sqlx::query_as::<_, CreditNoteItemRow>(
-        "SELECT \
-           cni.description, \
-           cni.hsn_code, \
-           cni.quantity, \
-           cni.unit_price, \
-           cni.amount, \
-           cni.tax_rate, \
-           cni.tax_amount \
-         FROM credit_note_items cni \
-         WHERE cni.credit_note_id = $1 AND cni.tenant_id = $2 \
-         ORDER BY cni.display_order LIMIT 5000",
-    )
-    .bind(credit_note_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, address_line1, gstin FROM tenants WHERE id = $1",
-    )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
+    // ponytail: a credit note records only its total — no lines, tax split,
+    // remarks, approver or patient GSTIN are recorded anywhere yet; the split
+    // amounts print blank.
     Ok(Json(CreditNotePrintData {
         credit_note_number: row.credit_note_number,
-        credit_note_date: row.credit_note_date.format("%d-%b-%Y").to_string(),
+        credit_note_date: row
+            .credit_note_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         original_invoice_number: row.original_invoice_number,
-        original_invoice_date: row.original_invoice_date.format("%d-%b-%Y").to_string(),
+        original_invoice_date: row
+            .original_invoice_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         patient_address: row.patient_address,
-        patient_gstin: row.patient_gstin,
+        patient_gstin: None,
         reason_for_credit: row.reason_for_credit,
-        line_items: items
-            .into_iter()
-            .map(|i| CreditNoteItem {
-                description: i.description,
-                hsn_code: i.hsn_code,
-                quantity: i.quantity,
-                unit_price: i.unit_price,
-                amount: i.amount,
-                tax_rate: i.tax_rate,
-                tax_amount: i.tax_amount,
-            })
-            .collect(),
-        subtotal: row.subtotal,
-        discount_amount: row.discount_amount,
-        tax_amount: row.tax_amount,
-        cgst_amount: row.cgst_amount,
-        sgst_amount: row.sgst_amount,
-        igst_amount: row.igst_amount,
+        line_items: Vec::new(),
+        subtotal: None,
+        discount_amount: None,
+        tax_amount: None,
+        cgst_amount: None,
+        sgst_amount: None,
+        igst_amount: None,
         total_credit_amount: row.total_credit_amount,
         amount_in_words: amount_to_words(row.total_credit_amount),
-        remarks: row.remarks,
-        approved_by: row.approved_by,
-        approved_at: row
-            .approved_at
-            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
-        hospital_name: tenant.0,
-        hospital_address: tenant.2,
-        hospital_gstin: tenant.3,
-        hospital_logo_url: tenant.1,
+        remarks: None,
+        approved_by: None,
+        approved_at: None,
+        hospital_name: row.hospital_name,
+        hospital_address: row.hospital_address,
+        hospital_gstin: row.hospital_gstin,
+        hospital_logo_url: row.hospital_logo_url,
     }))
 }
 
 // ── Package Bill ────────────────────────────────────────────
+//
+// A patient's package purchase: `patient_package_subscriptions` (written by
+// medbrains-patient-packages), its `doctor_packages` master, the inclusions
+// with what has been consumed, and — when one was raised — the invoice it was
+// bought through. Every amount below is that invoice's; with no invoice there
+// is no bill amount to print, so they stay blank (`None`).
 
 #[derive(Debug, sqlx::FromRow)]
 struct PackageBillRow {
-    bill_number: String,
+    bill_number: Option<String>,
     bill_date: chrono::DateTime<chrono::Utc>,
     patient_name: String,
     uhid: String,
-    admission_number: Option<String>,
-    admission_date: Option<chrono::DateTime<chrono::Utc>>,
-    discharge_date: Option<chrono::DateTime<chrono::Utc>>,
     package_name: String,
-    package_code: Option<String>,
+    package_code: String,
     package_description: Option<String>,
     package_amount: f64,
-    additional_total: f64,
-    exclusion_total: f64,
-    gross_amount: f64,
-    discount_amount: f64,
-    tax_amount: f64,
-    net_amount: f64,
-    advance_paid: f64,
-    insurance_amount: f64,
-    balance_due: f64,
-    doctor_name: Option<String>,
-    department_name: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct PackageAdditionalRow {
-    description: String,
-    amount: f64,
-    reason: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct PackageExclusionRow {
-    description: String,
-    amount: f64,
+    gross_amount: Option<f64>,
+    discount_amount: Option<f64>,
+    tax_amount: Option<f64>,
+    net_amount: Option<f64>,
+    advance_paid: Option<f64>,
+    total_paid: Option<f64>,
+    insurance_amount: Option<f64>,
+    balance_due: Option<f64>,
+    hospital_name: String,
+    hospital_address: Option<String>,
+    hospital_logo_url: Option<String>,
+    hospital_gstin: Option<String>,
 }
 
 pub async fn get_package_bill_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(package_id): Path<Uuid>,
+    Path(subscription_id): Path<Uuid>,
 ) -> Result<Json<PackageBillPrintData>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
-    // Nullable patient: a package bill can be raised against a corporate
-    // account rather than a person. Optional form for the same reason.
-    medbrains_authz_gate::require_access_via_optional(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PACKAGE_BILL,
-        package_id,
-    )
-    .await?;
+    require_permission(&claims, permissions::patient_packages::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `package_bills.patient_id` and `.admission_id` are both
-    // NULLABLE, so neither can be a parent column — a row with a null would
-    // authorize as "no such record" rather than being refused on its merits.
+    // A purchase is a financial record: direct grant on the patient.
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM patient_package_subscriptions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(subscription_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PackageBillRow>(
         "SELECT \
-           pb.bill_number, \
-           pb.created_at AS bill_date, \
+           inv.invoice_number AS bill_number, \
+           s.purchased_at AS bill_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           a.id::text AS admission_number, \
-           a.admitted_at AS admission_date, \
-           a.discharged_at AS discharge_date, \
            pkg.name AS package_name, \
            pkg.code AS package_code, \
            pkg.description AS package_description, \
-           pb.package_amount, \
-           pb.additional_total, \
-           pb.exclusion_total, \
-           pb.gross_amount, \
-           pb.discount_amount, \
-           pb.tax_amount, \
-           pb.net_amount, \
-           pb.advance_paid, \
-           pb.insurance_amount, \
-           pb.balance_due, \
-           doc.full_name AS doctor_name, \
-           d.name AS department_name \
-         FROM package_bills pb \
-         JOIN patients p ON p.id = pb.patient_id AND p.tenant_id = pb.tenant_id \
-         LEFT JOIN admissions a ON a.id = pb.admission_id AND a.tenant_id = pb.tenant_id \
-         JOIN packages pkg ON pkg.id = pb.package_id AND pkg.tenant_id = pb.tenant_id \
-         LEFT JOIN users doc ON doc.id = pb.doctor_id \
-         LEFT JOIN departments d ON d.id = pkg.department_id AND d.tenant_id = pb.tenant_id \
-         WHERE pb.id = $1 AND pb.tenant_id = $2",
+           pkg.total_price::float8 AS package_amount, \
+           inv.subtotal::float8 AS gross_amount, \
+           inv.discount_amount::float8 AS discount_amount, \
+           inv.tax_amount::float8 AS tax_amount, \
+           inv.total_amount::float8 AS net_amount, \
+           CASE WHEN inv.id IS NOT NULL THEN \
+             (SELECT COALESCE(SUM(aa.amount_adjusted), 0) FROM advance_adjustments aa \
+              WHERE aa.invoice_id = inv.id AND aa.tenant_id = s.tenant_id \
+                AND aa.deleted_at IS NULL) END::float8 AS advance_paid, \
+           inv.paid_amount::float8 AS total_paid, \
+           CASE WHEN inv.id IS NOT NULL THEN \
+             (SELECT COALESCE(SUM(ic.approved_amount), 0) FROM insurance_claims ic \
+              WHERE ic.invoice_id = inv.id AND ic.tenant_id = s.tenant_id \
+                AND ic.deleted_at IS NULL) END::float8 AS insurance_amount, \
+           (inv.total_amount - inv.paid_amount - inv.written_off_amount)::float8 \
+             AS balance_due, \
+           t.name AS hospital_name, \
+           t.address_line1 AS hospital_address, \
+           t.logo_url AS hospital_logo_url, \
+           (SELECT NULLIF(ts.value #>> '{}', '') FROM tenant_settings ts \
+            WHERE ts.tenant_id = s.tenant_id AND ts.category = 'billing' \
+              AND ts.key = 'gst_number' AND ts.deleted_at IS NULL LIMIT 1) AS hospital_gstin \
+         FROM patient_package_subscriptions s \
+         JOIN patients p ON p.id = s.patient_id AND p.tenant_id = s.tenant_id \
+         JOIN doctor_packages pkg ON pkg.id = s.package_id AND pkg.tenant_id = s.tenant_id \
+         JOIN tenants t ON t.id = s.tenant_id \
+         LEFT JOIN invoices inv ON inv.id = s.purchased_via_invoice_id \
+           AND inv.tenant_id = s.tenant_id AND inv.deleted_at IS NULL \
+         WHERE s.id = $1 AND s.tenant_id = $2 AND s.deleted_at IS NULL",
     )
-    .bind(package_id)
+    .bind(subscription_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
+    // Each inclusion with what this subscription has used of it.
     let inclusions: Vec<String> = sqlx::query_scalar(
-        "SELECT description FROM package_inclusions \
-         WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
+        "SELECT i.inclusion_type || ' × ' || i.included_quantity \
+                || COALESCE(' — ' || i.notes, '') \
+                || ' (used ' || COALESCE(( \
+                     SELECT SUM(c.consumed_quantity) FROM patient_package_consumptions c \
+                     WHERE c.subscription_id = $1 AND c.tenant_id = i.tenant_id \
+                       AND c.inclusion_type = i.inclusion_type \
+                       AND c.deleted_at IS NULL), 0) || ')' \
+         FROM doctor_package_inclusions i \
+         JOIN patient_package_subscriptions s ON s.package_id = i.package_id \
+           AND s.tenant_id = i.tenant_id \
+         WHERE s.id = $1 AND s.tenant_id = $2 AND i.deleted_at IS NULL \
+         ORDER BY i.sort_order, i.id LIMIT 500",
     )
-    .bind(package_id)
+    .bind(subscription_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await?;
-
-    let additional_charges = sqlx::query_as::<_, PackageAdditionalRow>(
-        "SELECT description, amount, reason \
-         FROM package_additional_charges \
-         WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
-    )
-    .bind(package_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let exclusions_used = sqlx::query_as::<_, PackageExclusionRow>(
-        "SELECT description, amount \
-         FROM package_exclusions_used \
-         WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
-    )
-    .bind(package_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, address_line1, gstin FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
+    // ponytail: admission, doctor and department are not recorded against a
+    // package purchase anywhere yet
     Ok(Json(PackageBillPrintData {
         bill_number: row.bill_number,
-        bill_date: row.bill_date.format("%d-%b-%Y").to_string(),
+        bill_date: row
+            .bill_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
-        admission_number: row.admission_number,
-        admission_date: row.admission_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        admission_number: None,
+        admission_date: None,
+        discharge_date: None,
         package_name: row.package_name,
-        package_code: row.package_code,
+        package_code: Some(row.package_code),
         package_description: row.package_description,
         package_inclusions: inclusions,
         package_amount: row.package_amount,
-        additional_charges: additional_charges
-            .into_iter()
-            .map(|c| PackageAdditionalCharge {
-                description: c.description,
-                amount: c.amount,
-                reason: c.reason,
-            })
-            .collect(),
-        additional_total: row.additional_total,
-        exclusions_used: exclusions_used
-            .into_iter()
-            .map(|e| PackageExclusion {
-                description: e.description,
-                amount: e.amount,
-            })
-            .collect(),
-        exclusion_total: row.exclusion_total,
         gross_amount: row.gross_amount,
         discount_amount: row.discount_amount,
         tax_amount: row.tax_amount,
         net_amount: row.net_amount,
         advance_paid: row.advance_paid,
+        total_paid: row.total_paid,
         insurance_amount: row.insurance_amount,
         balance_due: row.balance_due,
-        amount_in_words: amount_to_words(row.net_amount),
-        doctor_name: row.doctor_name,
-        department: row.department_name,
-        hospital_name: tenant.0,
-        hospital_address: tenant.2,
-        hospital_gstin: tenant.3,
-        hospital_logo_url: tenant.1,
+        amount_in_words: row.net_amount.map_or_else(String::new, amount_to_words),
+        doctor_name: None,
+        department: None,
+        hospital_name: row.hospital_name,
+        hospital_address: row.hospital_address,
+        hospital_gstin: row.hospital_gstin,
+        hospital_logo_url: row.hospital_logo_url,
     }))
 }
 
 // ── Insurance Claim Form ────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
-#[allow(clippy::struct_excessive_bools)]
 struct InsuranceClaimRow {
-    claim_number: String,
+    claim_number: Option<String>,
     claim_date: chrono::DateTime<chrono::Utc>,
     claim_type: String,
     tpa_name: Option<String>,
-    insurance_company: Option<String>,
+    insurance_company: String,
     policy_number: Option<String>,
     member_id: Option<String>,
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     relation_to_primary: Option<String>,
     primary_holder_name: Option<String>,
-    primary_holder_id: Option<String>,
     admission_date: Option<chrono::DateTime<chrono::Utc>>,
     discharge_date: Option<chrono::DateTime<chrono::Utc>>,
     length_of_stay: Option<i32>,
-    diagnosis: String,
-    procedure_performed: Option<String>,
+    diagnosis: Option<String>,
     treating_doctor: Option<String>,
     department_name: Option<String>,
-    room_charges: f64,
-    nursing_charges: f64,
-    investigation_charges: f64,
-    medicine_charges: f64,
-    consultation_charges: f64,
-    procedure_charges: f64,
-    other_charges: f64,
     total_bill_amount: f64,
     pre_auth_amount: Option<f64>,
-    claim_amount: f64,
-    patient_payable: f64,
+    claim_amount: Option<f64>,
+    patient_payable: Option<f64>,
     pre_auth_number: Option<String>,
     pre_auth_date: Option<chrono::DateTime<chrono::Utc>>,
-    discharge_summary_attached: bool,
-    investigation_reports_attached: bool,
-    bill_attached: bool,
-    declaration_date: chrono::NaiveDate,
-    patient_signature_obtained: bool,
-    hospital_stamp: bool,
+    submitted_at: Option<chrono::DateTime<chrono::Utc>>,
+    hospital_name: String,
+    hospital_address: Option<String>,
+    hospital_logo_url: Option<String>,
 }
 
 pub async fn get_insurance_claim_print_data(
@@ -2286,7 +2179,7 @@ pub async fn get_insurance_claim_print_data(
     Extension(claims): Extension<Claims>,
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<InsuranceClaimPrintData>, AppError> {
-    require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     medbrains_authz_gate::require_access_via(
         &state,
@@ -2299,89 +2192,78 @@ pub async fn get_insurance_claim_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The claim records its own stay, policy and money (migration 1068).
     let row = sqlx::query_as::<_, InsuranceClaimRow>(
         "SELECT \
            ic.claim_number, \
            ic.created_at AS claim_date, \
            ic.claim_type, \
-           tpa.name AS tpa_name, \
-           ins.company_name AS insurance_company, \
-           pp.policy_number, \
-           pp.member_id, \
+           ic.tpa_name, \
+           ic.insurance_provider AS insurance_company, \
+           ic.policy_number, \
+           ic.member_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           pp.relation_to_primary, \
-           pp.primary_holder_name, \
-           pp.primary_holder_id, \
+           pol.policy_holder_relation AS relation_to_primary, \
+           pol.policy_holder_name AS primary_holder_name, \
            a.admitted_at AS admission_date, \
            a.discharged_at AS discharge_date, \
            EXTRACT(DAY FROM (a.discharged_at - a.admitted_at))::int AS length_of_stay, \
-           ic.diagnosis, \
-           ic.procedure_performed, \
+           COALESCE(a.final_diagnosis, a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis, \
            doc.full_name AS treating_doctor, \
            d.name AS department_name, \
-           ic.room_charges, \
-           ic.nursing_charges, \
-           ic.investigation_charges, \
-           ic.medicine_charges, \
-           ic.consultation_charges, \
-           ic.procedure_charges, \
-           ic.other_charges, \
-           ic.total_bill_amount, \
-           ic.pre_auth_amount, \
-           ic.claim_amount, \
-           ic.patient_payable, \
-           ic.pre_auth_number, \
-           ic.pre_auth_date, \
-           ic.discharge_summary_attached, \
-           ic.investigation_reports_attached, \
-           ic.bill_attached, \
-           ic.declaration_date, \
-           ic.patient_signature_obtained, \
-           ic.hospital_stamp \
+           ic.total_bill_amount::float8 AS total_bill_amount, \
+           ic.pre_auth_amount::float8 AS pre_auth_amount, \
+           COALESCE(ic.claim_amount, ic.total_bill_amount)::float8 AS claim_amount, \
+           ic.patient_payable::float8 AS patient_payable, \
+           pa.auth_number AS pre_auth_number, \
+           pa.responded_at AS pre_auth_date, \
+           ic.submitted_at, \
+           t.name AS hospital_name, \
+           t.address_line1 AS hospital_address, \
+           t.logo_url AS hospital_logo_url \
          FROM insurance_claims ic \
          JOIN patients p ON p.id = ic.patient_id AND p.tenant_id = ic.tenant_id \
-         LEFT JOIN patient_policies pp ON pp.id = ic.policy_id AND pp.tenant_id = ic.tenant_id \
-         LEFT JOIN insurance_companies ins ON ins.id = pp.insurance_company_id AND ins.tenant_id = ic.tenant_id \
-         LEFT JOIN tpas tpa ON tpa.id = pp.tpa_id AND tpa.tenant_id = ic.tenant_id \
-         LEFT JOIN admissions a ON a.id = ic.admission_id AND a.tenant_id = ic.tenant_id \
-         LEFT JOIN users doc ON doc.id = ic.treating_doctor_id \
+         JOIN tenants t ON t.id = ic.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT pi.policy_holder_relation, pi.policy_holder_name \
+           FROM patient_insurance pi \
+           WHERE pi.id = ic.insurance_id AND pi.tenant_id = ic.tenant_id \
+             AND pi.deleted_at IS NULL) pol ON true \
+         LEFT JOIN LATERAL ( \
+           SELECT r.auth_number, r.responded_at FROM prior_auth_requests r \
+           WHERE r.tenant_id = ic.tenant_id AND r.deleted_at IS NULL \
+             AND r.auth_number IS NOT NULL \
+             AND (r.insurance_claim_id = ic.id OR r.invoice_id = ic.invoice_id) \
+           ORDER BY r.responded_at DESC NULLS LAST LIMIT 1) pa ON true \
+         LEFT JOIN admissions a ON a.id = ic.admission_id \
+           AND a.tenant_id = ic.tenant_id AND a.deleted_at IS NULL \
+         LEFT JOIN users doc ON doc.id = COALESCE(a.attending_doctor_id, a.admitting_doctor) \
          LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = ic.tenant_id \
-         WHERE ic.id = $1 AND ic.tenant_id = $2",
+         WHERE ic.id = $1 AND ic.tenant_id = $2 AND ic.deleted_at IS NULL",
     )
     .bind(claim_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    let icd_codes: Vec<String> = sqlx::query_scalar(
-        "SELECT icd_code FROM insurance_claim_diagnoses \
-         WHERE claim_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
-         ORDER BY is_primary DESC LIMIT 5000",
-    )
+    // Charge heads from the claimed invoice's live lines.
+    let heads: Vec<(String, f64)> = sqlx::query_as(&format!(
+        "SELECT {CHARGE_HEAD_SQL} AS head, SUM(it.total_price)::float8 AS amount \
+         FROM invoice_items it \
+         JOIN insurance_claims ic ON ic.invoice_id = it.invoice_id AND ic.tenant_id = it.tenant_id \
+         {CHARGE_CATEGORY_JOIN} \
+         WHERE ic.id = $1 AND ic.tenant_id = $2 AND it.deleted_at IS NULL \
+         GROUP BY 1 LIMIT 20"
+    ))
     .bind(claim_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await?;
-
-    let procedure_codes: Vec<String> = sqlx::query_scalar(
-        "SELECT procedure_code FROM insurance_claim_procedures \
-         WHERE claim_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
-    )
-    .bind(claim_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, address_line1, empanelment_number FROM tenants WHERE id = $1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     let claim_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
@@ -2394,200 +2276,80 @@ pub async fn get_insurance_claim_print_data(
 
     tx.commit().await?;
 
+    let head = |name: &str| {
+        heads
+            .iter()
+            .find(|(h, _)| h == name)
+            .map_or(0.0, |(_, amount)| *amount)
+    };
     let age_display = row
         .age
         .map_or("Unknown".to_string(), |a| format!("{a:.0} Y"));
 
     Ok(Json(InsuranceClaimPrintData {
+        // Blank until the payer assigns one.
         claim_number: row.claim_number,
-        claim_date: row.claim_date.format("%d-%b-%Y").to_string(),
+        claim_date: row
+            .claim_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         claim_type: row.claim_type,
         tpa_name: row.tpa_name,
-        insurance_company: row.insurance_company,
+        insurance_company: Some(row.insurance_company),
         policy_number: row.policy_number,
         member_id: row.member_id,
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age_display,
         gender: row.gender,
         relation_to_primary: row.relation_to_primary,
         primary_holder_name: row.primary_holder_name,
-        primary_holder_id: row.primary_holder_id,
-        admission_date: row.admission_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        // ponytail: primary holder id, claim ICD/procedure codes, attachment and
+        // declaration flags, empanelment number not recorded anywhere yet
+        primary_holder_id: None,
+        admission_date: row
+            .admission_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
+        discharge_date: row
+            .discharge_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         length_of_stay: row.length_of_stay,
         diagnosis: row.diagnosis,
-        icd_codes,
-        procedure_performed: row.procedure_performed,
-        procedure_codes,
+        icd_codes: Vec::new(),
+        procedure_performed: None,
+        procedure_codes: Vec::new(),
         treating_doctor: row.treating_doctor.unwrap_or_default(),
         department: row.department_name,
-        room_charges: row.room_charges,
-        nursing_charges: row.nursing_charges,
-        investigation_charges: row.investigation_charges,
-        medicine_charges: row.medicine_charges,
-        consultation_charges: row.consultation_charges,
-        procedure_charges: row.procedure_charges,
-        other_charges: row.other_charges,
+        room_charges: head("room"),
+        nursing_charges: head("nursing"),
+        investigation_charges: head("investigation"),
+        medicine_charges: head("medicine"),
+        consultation_charges: head("consultation"),
+        procedure_charges: head("procedure"),
+        other_charges: head("other") + head("consumable"),
         total_bill_amount: row.total_bill_amount,
         pre_auth_amount: row.pre_auth_amount,
         claim_amount: row.claim_amount,
         patient_payable: row.patient_payable,
         pre_auth_number: row.pre_auth_number,
-        pre_auth_date: row.pre_auth_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        discharge_summary_attached: row.discharge_summary_attached,
-        investigation_reports_attached: row.investigation_reports_attached,
-        bill_attached: row.bill_attached,
-        declaration_date: row.declaration_date.format("%d-%b-%Y").to_string(),
-        patient_signature_obtained: row.patient_signature_obtained,
-        hospital_stamp: row.hospital_stamp,
-        hospital_name: tenant.0,
-        hospital_address: tenant.2,
-        hospital_empanelment_number: tenant.3,
-        hospital_logo_url: tenant.1,
+        pre_auth_date: row
+            .pre_auth_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
+        discharge_summary_attached: None,
+        investigation_reports_attached: None,
+        bill_attached: None,
+        declaration_date: row
+            .submitted_at
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string()),
+        patient_signature_obtained: None,
+        hospital_stamp: None,
+        hospital_name: row.hospital_name,
+        hospital_address: row.hospital_address,
+        hospital_empanelment_number: None,
+        hospital_logo_url: row.hospital_logo_url,
         signatures: medbrains_signing::signed_documents::to_print_signatures(claim_sigs),
-    }))
-}
-
-// ── TDS Certificate ────────────────────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct TdsCertRow {
-    certificate_number: String,
-    financial_year: String,
-    quarter: String,
-    deductor_name: String,
-    deductor_tan: String,
-    deductor_pan: String,
-    deductor_address: Option<String>,
-    deductee_name: String,
-    deductee_pan: String,
-    deductee_address: Option<String>,
-    section_code: String,
-    nature_of_payment: String,
-    total_payment: f64,
-    total_tds_deducted: f64,
-    total_tds_deposited: f64,
-    challan_number: Option<String>,
-    challan_date: Option<chrono::NaiveDate>,
-    bsr_code: Option<String>,
-    verified_by: Option<String>,
-    designation: Option<String>,
-    verification_date: chrono::NaiveDate,
-    place: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct TdsEntryRow {
-    invoice_number: String,
-    invoice_date: chrono::NaiveDate,
-    payment_date: chrono::NaiveDate,
-    gross_amount: f64,
-    tds_rate: f64,
-    tds_amount: f64,
-}
-
-pub async fn get_tds_certificate_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(tds_id): Path<Uuid>,
-) -> Result<Json<TdsCertificatePrintData>, AppError> {
-    require_permission(&claims, permissions::billing::tds::LIST)?;
-    // A tax-deduction certificate for a deductee, not a patient record;
-    // `tds_certificates` has no patient column.
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, TdsCertRow>(
-        "SELECT \
-           tc.certificate_number, \
-           tc.financial_year, \
-           tc.quarter, \
-           t.name AS deductor_name, \
-           t.tan AS deductor_tan, \
-           t.pan AS deductor_pan, \
-           t.address_line1 AS deductor_address, \
-           v.name AS deductee_name, \
-           v.pan AS deductee_pan, \
-           v.address AS deductee_address, \
-           tc.section_code, \
-           tc.nature_of_payment, \
-           tc.total_payment, \
-           tc.total_tds_deducted, \
-           tc.total_tds_deposited, \
-           tc.challan_number, \
-           tc.challan_date, \
-           tc.bsr_code, \
-           u.full_name AS verified_by, \
-           u.designation, \
-           tc.verification_date, \
-           tc.place \
-         FROM tds_certificates tc \
-         JOIN tenants t ON t.id = tc.tenant_id \
-         JOIN vendors v ON v.id = tc.vendor_id AND v.tenant_id = tc.tenant_id \
-         LEFT JOIN users u ON u.id = tc.verified_by_id \
-         WHERE tc.id = $1 AND tc.tenant_id = $2",
-    )
-    .bind(tds_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let entries = sqlx::query_as::<_, TdsEntryRow>(
-        "SELECT \
-           invoice_number, \
-           invoice_date, \
-           payment_date, \
-           gross_amount, \
-           tds_rate, \
-           tds_amount \
-         FROM tds_entries \
-         WHERE tds_certificate_id = $1 AND tenant_id = $2 \
-         ORDER BY invoice_date LIMIT 5000",
-    )
-    .bind(tds_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    Ok(Json(TdsCertificatePrintData {
-        certificate_number: row.certificate_number,
-        financial_year: row.financial_year,
-        quarter: row.quarter,
-        deductor_name: row.deductor_name,
-        deductor_tan: row.deductor_tan,
-        deductor_pan: row.deductor_pan,
-        deductor_address: row.deductor_address,
-        deductee_name: row.deductee_name,
-        deductee_pan: row.deductee_pan,
-        deductee_address: row.deductee_address,
-        section_code: row.section_code,
-        nature_of_payment: row.nature_of_payment,
-        tds_entries: entries
-            .into_iter()
-            .map(|e| TdsEntry {
-                invoice_number: e.invoice_number,
-                invoice_date: e.invoice_date.format("%d-%b-%Y").to_string(),
-                payment_date: e.payment_date.format("%d-%b-%Y").to_string(),
-                gross_amount: e.gross_amount,
-                tds_rate: e.tds_rate,
-                tds_amount: e.tds_amount,
-            })
-            .collect(),
-        total_payment: row.total_payment,
-        total_tds_deducted: row.total_tds_deducted,
-        total_tds_deposited: row.total_tds_deposited,
-        challan_number: row.challan_number,
-        challan_date: row.challan_date.map(|d| d.format("%d-%b-%Y").to_string()),
-        bsr_code: row.bsr_code,
-        verified_by: row.verified_by,
-        designation: row.designation,
-        verification_date: row.verification_date.format("%d-%b-%Y").to_string(),
-        place: row.place,
     }))
 }
 
@@ -2612,12 +2374,12 @@ pub fn router() -> axum::Router<AppState> {
             get(get_credit_note_print_data),
         )
         .route(
-            "/api/print-data/tds-certificate/{id}",
-            get(get_tds_certificate_print_data),
+            "/api/print-data/gst-invoice/{invoice_id}",
+            get(crate::gst_invoice::get_gst_invoice_print_data),
         )
         .route(
-            "/api/print-data/gst-invoice/{invoice_id}",
-            get(get_gst_invoice_print_data),
+            "/api/print-data/pharmacy-bill/{invoice_id}",
+            get(crate::gst_invoice::get_pharmacy_bill_print_data),
         )
         .route(
             "/api/print-data/opd-bill/{invoice_id}",
@@ -2636,7 +2398,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_admission_consolidated_bill_print_data),
         )
         .route(
-            "/api/print-data/advance-receipt/{payment_id}",
+            "/api/print-data/advance-receipt/{advance_id}",
             get(get_advance_receipt_print_data),
         )
         .route(
@@ -2652,11 +2414,11 @@ pub fn router() -> axum::Router<AppState> {
             get(get_cashless_claim_print_data),
         )
         .route(
-            "/api/print-data/package-estimate/{estimate_id}",
+            "/api/print-data/package-estimate/{package_id}",
             get(get_package_estimate_print_data),
         )
         .route(
-            "/api/print-data/package-bill/{package_bill_id}",
+            "/api/print-data/package-bill/{subscription_id}",
             get(get_package_bill_print_data),
         )
         .route(

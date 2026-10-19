@@ -5,6 +5,10 @@ agent_name = "Lab Bridge - Chemistry Wing"
 agent_key = "mbr_bridge_change_me_to_a_secure_key"
 api_base = "http://127.0.0.1:3000"
 
+# MedBrains API key (Admin → API keys) with devices.ingest, plus
+# devices.orders.send if orders go out to the analyzer.
+# api_key = "mbk_..."
+
 # SQLite buffer for offline resilience
 buffer_path = "bridge_buffer.db"
 
@@ -16,6 +20,23 @@ drain_interval_secs = 5
 
 # HL7 MLLP listener — set to receive HL7 v2 messages from lab analyzers
 hl7_listen = "0.0.0.0:2575"
+
+# ASTM E1381/E1394 listener for Sysmex-class analyzers (serial ones through a
+# serial-to-TCP converter). Point the analyzer's host connection here.
+# astm_listen = "0.0.0.0:5000"
+
+# Send collected samples' orders to the analyzer as HL7 ORM every N seconds.
+# The analyzer's address is the device's host and port in MedBrains
+# (Admin → Devices); needs device_instance_id.
+# order_poll_secs = 15
+
+# Print delivery: send queued print jobs (wristbands, labels, slips, pages)
+# to printers every N seconds. Printers are set up in MedBrains under
+# Documents → Printers with a network address (host or host:9100) or a USB
+# device path on this machine (/dev/usb/lp0). Needs documents.print_jobs.deliver
+# on the API key. List printer ids to serve only this site's printers.
+# print_poll_secs = 3
+# printer_ids = ["uuid-of-ward-3-zebra"]
 
 # Device instance ID (from MedBrains admin → Devices → your device)
 # device_instance_id = "uuid-of-device-instance"

@@ -35,6 +35,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button, IconButton, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 
@@ -289,11 +290,14 @@ export function IndicatorsTab() {
             {indicators.length} indicator(s)
           </Text>
         </Group>
-        {canManage && (
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-            New Indicator
-          </Button>
-        )}
+        <Group gap="xs">
+          <PrintRegisterButton documentKey="nabh-quality-report" period="month" />
+          {canManage && (
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
+              New Indicator
+            </Button>
+          )}
+        </Group>
       </Group>
 
       {indicatorView === "list" && (

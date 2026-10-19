@@ -31,6 +31,7 @@
   "pharmacyFinance": "Pharmacy Finance",
   "pharmacyFulfilment": "Fulfilment Queue",
   "pharmacyDispatch": "Collection Counter",
+  "pharmacyDeliveries": "Home Deliveries",
   "radiology": "Radiology",
   "bloodBank": "Blood Bank",
   "billing": "Billing",
@@ -40,6 +41,7 @@
   "interHospitalTransfers": "Inter-hospital transfers",
   "hospitalGroups": "Hospital groups",
   "interHospitalStock": "Inter-hospital stock",
+  "uhiRequests": "UHI requests",
   "homeHealthcare": "Home healthcare",
   "homeVisits": "Home visits",
   "clinicalTrials": "Clinical trials",
@@ -71,6 +73,9 @@
   "formBuilder": "Form Builder",
   "dashboardBuilder": "Dashboard Builder",
   "integrationHub": "Built-in Pipelines",
+  "formTemplates": "Forms",
+  "apiKeys": "API keys",
+  "webhooks": "Webhooks",
   "screenBuilder": "Screen Builder",
   "doctorSchedules": "Doctor Schedules",
   "administration": "Administration",
@@ -129,5 +134,9 @@
   "pairedDevices": "Paired Devices",
   "materials": "Materials",
   "approvals": "Approvals",
-  "marketing": "Marketing"
+  "marketing": "Marketing",
+  "onboardingWorkbook": "Onboarding workbook",
+  "testCycles": "Test cycles",
+  "snomed": "SNOMED CT",
+  "abdmDashboard": "ABDM dashboard"
 }

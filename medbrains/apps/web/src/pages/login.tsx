@@ -1,209 +1,54 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Anchor,
-  Box,
-  Center,
-  Checkbox,
-  Loader,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-  UnstyledButton,
-} from "@mantine/core";
+import { Anchor, Box, Center, Divider, Loader, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
-import { userSchema } from "@medbrains/schemas";
-import { useAuthStore, usePermissionStore } from "@medbrains/stores";
-import { IconLock, IconUser } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { api, nullOn404 } from "@medbrains/api";
+import { useAuthStore } from "@medbrains/stores";
+import type { SignInOptions } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
-import { Link, Navigate, useNavigate } from "react-router";
+import { Link, Navigate } from "react-router";
 import { Brand } from "@/components/Brand";
-import { HealthTipsSlider } from "@/components/HealthTipsSlider";
+import { DesktopConnection } from "@/components/login/DesktopConnection";
+import { HospitalCodeStep } from "@/components/login/HospitalCodeStep";
+import { PasswordSignIn } from "@/components/login/PasswordSignIn";
+import { SignInStage } from "@/components/login/SignInStage";
 import { SsoLoginButtons } from "@/components/SsoLoginButtons";
-import { Alert, Button, Image } from "@/components/ui";
-import {
-  DEFAULT_LOGIN_FORM_VALUES,
-  type LoginFormInput,
-  loginFormSchema,
-} from "@/forms/login.form";
-import {
-  defaultDesktopApiBase,
-  getStoredDesktopApiBase,
-  isTauriDesktopRuntime,
-  normalizeDesktopApiBase,
-  setStoredDesktopApiBase,
-} from "@/lib/desktop-runtime";
+import { Alert } from "@/components/ui";
+import { isTauriDesktopRuntime } from "@/lib/desktop-runtime";
 import { getRememberedHospitalCode, rememberHospitalCode } from "@/lib/hospital-code";
-import { sessionService } from "@/services/session.service";
 import classes from "./login.module.scss";
 
+/**
+ * Sign-in starts with the hospital. Its code (remembered on this device), or
+ * the hospital's own domain the page is on, names it; the server answers with
+ * that hospital's name and how it signs in — its own identity providers
+ * and/or username and password — and only those are offered.
+ */
 export function LoginPage() {
-  const [devCredsOpened, devCredsDisclosure] = useDisclosure(false);
-  const isDesktop = isTauriDesktopRuntime();
-  const defaultApiBase = defaultDesktopApiBase();
-  const [desktopSetupOpened, desktopSetupDisclosure] = useDisclosure(false);
-  const [desktopApiBaseInput, setDesktopApiBaseInput] = useState(
-    getStoredDesktopApiBase() ?? sessionService.getApiBase() ?? defaultApiBase,
-  );
-  const [connectionStatus, setConnectionStatus] = useState<{
-    color: "danger" | "success";
-    message: string;
-  } | null>(null);
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const setAuth = useAuthStore((s) => s.setAuth);
-  const setPermissions = usePermissionStore((s) => s.setPermissions);
-  // Only an empty server takes a registration (see onboarding/init), so the
-  // "new installation" prompt shows only when the server says it needs setup.
+  // null: no code yet — the server tries the hospital's own domain.
+  const [code, setCode] = useState<string | null>(() => getRememberedHospitalCode() || null);
+  const [choosing, setChoosing] = useState(false);
+  const options = useQuery({
+    queryKey: ["sign-in-options", code ?? "@domain"],
+    queryFn: () => api.getSignInOptions(code ?? undefined).catch(nullOn404),
+    staleTime: 300_000,
+    retry: false,
+  });
+  // Only an empty server takes a registration (see onboarding/init).
   const { data: onboarding } = useQuery({
     queryKey: ["onboarding-status"],
     queryFn: () => api.onboardingStatus(),
     staleTime: 300_000,
     retry: false,
   });
-  const needsSetup = onboarding?.needs_setup === true;
 
-  // SSO-first: when the tenant has an active identity provider, lead with the
-  // SSO button and hide the password form — but keep a break-glass escape hatch
-  // so an IdP outage can't lock out the local admin.
-  const { data: ssoProviders = [], isPending: ssoPending } = useQuery({
-    queryKey: ["sso-active-providers"],
-    queryFn: () => api.listActiveSsoProviders(window.location.hostname),
-    staleTime: 300_000,
-    retry: false,
-  });
-  const hasSso = ssoProviders.length > 0;
-  const [usePasswordLogin, setUsePasswordLogin] = useState(false);
-  // Nothing until the providers answer: a form shown first and then swapped
-  // for the SSO button vanished under a user already typing. If the lookup
-  // fails the form shows, so an outage never locks anyone out.
-  const showPasswordForm = !ssoPending && (!hasSso || usePasswordLogin);
+  if (user) return <Navigate to="/dashboard" replace />;
 
-  const loginForm = useForm<LoginFormInput>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: { ...DEFAULT_LOGIN_FORM_VALUES, hospital_code: getRememberedHospitalCode() },
-  });
-  const [hospitalStep, setHospitalStep] = useState(() => getRememberedHospitalCode() !== "");
-  const [hospitalAsked, setHospitalAsked] = useState(false);
-
-  const [mfaStep, setMfaStep] = useState(false);
-  const [mfaCode, setMfaCode] = useState("");
-
-  const loginMutation = useMutation({
-    mutationFn: (values: LoginFormInput & { mfa_code?: string }) =>
-      sessionService.login({
-        username: values.username,
-        password: values.password,
-        ...(values.mfa_code ? { mfa_code: values.mfa_code } : {}),
-        ...(values.hospital_code ? { hospital_code: values.hospital_code } : {}),
-      }),
-    // The refusal is shown on the form (below); no global "Action failed" toast.
-    onError: () => undefined,
-    onSuccess: (data, values) => {
-      if (data.hospital_required) {
-        setHospitalStep(true);
-        setHospitalAsked(true);
-        return;
-      }
-      if (data.mfa_required) {
-        setMfaStep(true);
-        return;
-      }
-      rememberHospitalCode(values.hospital_code);
-      const authUser = userSchema.parse({
-        ...data.user,
-        access_matrix: {},
-        is_active: true,
-        created_at: "",
-        updated_at: "",
-      });
-      setAuth(authUser);
-      setPermissions(data.user.role, data.permissions, data.field_access);
-      navigate("/dashboard");
-    },
-  });
-
-  const normalizedDesktopApiBase = normalizeDesktopApiBase(desktopApiBaseInput);
-
-  const saveDesktopConnection = () => {
-    if (!normalizedDesktopApiBase) {
-      setConnectionStatus({ color: "danger", message: "Enter a backend URL or /api." });
-      return;
-    }
-
-    setStoredDesktopApiBase(normalizedDesktopApiBase);
-    sessionService.setApiBase(normalizedDesktopApiBase);
-    window.location.reload();
-  };
-
-  const resetDesktopConnection = () => {
-    setStoredDesktopApiBase(null);
-    setDesktopApiBaseInput(defaultApiBase);
-    sessionService.setApiBase(defaultApiBase);
-    window.location.reload();
-  };
-
-  const testDesktopConnection = async () => {
-    if (!normalizedDesktopApiBase) {
-      setConnectionStatus({ color: "danger", message: "Enter a backend URL or /api." });
-      return;
-    }
-
-    setConnectionStatus(null);
-    try {
-      await sessionService.testHealthAtBase(normalizedDesktopApiBase);
-      setConnectionStatus({ color: "success", message: "Backend health check passed." });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Connection failed.";
-      setConnectionStatus({ color: "danger", message });
-    }
-  };
-
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
+  const hospital = choosing ? null : options.data;
   return (
     <Box className={classes.wrapper}>
-      {/* Left — marketing panel (complementary landmark) */}
-      <aside className={classes.manifesto} aria-label="About MedBrains">
-        <Box className={classes.manifestoLogo}>
-          <Image
-            src="/logo/medbrains-mark.svg"
-            alt=""
-            w={36}
-            h={36}
-            fit="contain"
-            radius={2}
-            loading="eager"
-          />
-          <span className={classes.manifestoLogoText}>MedBrains</span>
-        </Box>
+      <SignInStage />
 
-        <HealthTipsSlider />
-
-        {/* Subtle ECG line */}
-        <svg
-          className={classes.manifestoEcg}
-          viewBox="0 0 600 40"
-          fill="none"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <polyline
-            stroke="#ffffff"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            points="0,20 80,20 100,20 110,18 115,14 118,10 120,20 125,20 140,20 150,18 155,6 157,34 160,14 163,20 170,20 250,20 270,20 280,18 285,14 288,10 290,20 295,20 310,20 320,18 325,6 327,34 330,14 333,20 340,20 420,20 440,20 450,18 455,14 458,10 460,20 465,20 480,20 490,18 495,6 497,34 500,14 503,20 510,20 600,20"
-          />
-        </svg>
-      </aside>
-
-      {/* Right — white form (main landmark) */}
       <main className={classes.formSide}>
         <Box className={classes.container}>
           <Stack align="center" gap="xs" mb="xl">
@@ -214,247 +59,157 @@ export function LoginPage() {
               fw={600}
               c="var(--mb-text-secondary)"
               tt="uppercase"
-              style={{ letterSpacing: "0.08em", margin: 0 }}
+              className={classes.title}
             >
               Sign in
             </Text>
-            <Text size="sm" c="var(--mb-text-secondary)" ta="center">
-              Enter your credentials to continue
+            <Text
+              size="sm"
+              c="var(--mb-text-secondary)"
+              ta="center"
+              data-testid="login-hospital-name"
+            >
+              {hospital ? hospital.name : "Start with your hospital"}
             </Text>
           </Stack>
 
-          {ssoPending && (
+          {options.isPending && !choosing ? (
             <Center py="md">
               <Loader size="sm" aria-label="Checking how your hospital signs in" />
             </Center>
+          ) : hospital ? (
+            <HospitalSignIn
+              hospital={hospital}
+              onChangeHospital={() => {
+                rememberHospitalCode("");
+                setChoosing(true);
+              }}
+            />
+          ) : (
+            <HospitalCodeStep
+              initialCode={code ?? ""}
+              unknownCode={!choosing && code && options.data === null ? code : null}
+              failed={!choosing && options.isError}
+              checking={options.isFetching}
+              onSubmit={(next) => {
+                setChoosing(false);
+                setCode(next);
+              }}
+            />
           )}
 
-          {showPasswordForm && (
-            <form
-              onSubmit={loginForm.handleSubmit((values) =>
-                loginMutation.mutate(mfaStep ? { ...values, mfa_code: mfaCode } : values),
-              )}
-            >
-              <Stack gap="md">
-                <TextInput
-                  label="Username"
-                  placeholder="Enter your username"
-                  leftSection={<IconUser size={16} />}
-                  error={loginForm.formState.errors.username?.message}
-                  {...loginForm.register("username")}
-                  required
-                  size="md"
-                  autoComplete="username"
-                />
-                <PasswordInput
-                  label="Password"
-                  placeholder="Enter your password"
-                  leftSection={<IconLock size={16} />}
-                  error={loginForm.formState.errors.password?.message}
-                  {...loginForm.register("password")}
-                  required
-                  size="md"
-                  autoComplete="current-password"
-                  visibilityToggleButtonProps={{ "aria-label": "Show or hide password" }}
-                />
-
-                <Box className={classes.formFooter}>
-                  <Controller
-                    control={loginForm.control}
-                    name="remember_me"
-                    render={({ field }) => (
-                      <Checkbox
-                        label="Remember me"
-                        size="xs"
-                        checked={field.value}
-                        onChange={(event) => field.onChange(event.currentTarget.checked)}
-                      />
-                    )}
-                  />
-                  <Anchor component={Link} to="/forgot-password" size="xs" c="primary">
-                    Forgot password?
-                  </Anchor>
-                </Box>
-
-                {loginMutation.isError && (
-                  <Alert tone="danger" radius="md" data-testid="login-error">
-                    {loginMutation.error.message}
-                  </Alert>
-                )}
-
-                {!hospitalStep && (
-                  <Anchor
-                    component="button"
-                    type="button"
-                    size="xs"
-                    onClick={() => setHospitalStep(true)}
-                    data-testid="login-enter-hospital-code"
-                  >
-                    Enter hospital code
-                  </Anchor>
-                )}
-
-                {hospitalAsked && (
-                  <Alert tone="info" radius="md" data-testid="login-hospital-required">
-                    Your username is used in more than one hospital. Enter your hospital code.
-                  </Alert>
-                )}
-
-                {hospitalStep && (
-                  <TextInput
-                    label="Hospital code"
-                    description="The code your hospital gave you."
-                    placeholder="e.g. AMH"
-                    error={loginForm.formState.errors.hospital_code?.message}
-                    {...loginForm.register("hospital_code")}
-                    autoCapitalize="characters"
-                    autoFocus
-                    size="md"
-                    data-testid="login-hospital-code"
-                  />
-                )}
-
-                {mfaStep && (
-                  <TextInput
-                    label="Two-factor code"
-                    placeholder="6-digit code or recovery code"
-                    value={mfaCode}
-                    onChange={(event) => setMfaCode(event.currentTarget.value)}
-                    inputMode="numeric"
-                    autoFocus
-                    size="md"
-                  />
-                )}
-
-                <Button
-                  tone="primary"
-                  type="submit"
-                  fullWidth
-                  loading={loginMutation.isPending}
-                  size="md"
-                >
-                  {mfaStep ? "Verify & Sign In" : "Sign In"}
-                </Button>
-              </Stack>
-            </form>
-          )}
-
-          {hasSso &&
-            (usePasswordLogin ? (
-              <Center mt="sm">
-                <Anchor
-                  component="button"
-                  type="button"
-                  onClick={() => setUsePasswordLogin(false)}
-                  size="sm"
-                  c="dimmed"
-                >
-                  ← Back to single sign-on
-                </Anchor>
-              </Center>
-            ) : (
-              <Stack gap="sm" mt="md">
-                <SsoLoginButtons hideDivider />
-                <Center>
-                  <Anchor
-                    component="button"
-                    type="button"
-                    onClick={() => setUsePasswordLogin(true)}
-                    size="sm"
-                    c="dimmed"
-                  >
-                    Use a username &amp; password instead
-                  </Anchor>
-                </Center>
-              </Stack>
-            ))}
-
-          {isDesktop && (
-            <Box className={classes.desktopSetup}>
-              <UnstyledButton
-                className={classes.desktopSetupToggle}
-                onClick={desktopSetupDisclosure.toggle}
-                aria-expanded={desktopSetupOpened}
-                aria-controls="desktop-setup-panel"
-              >
-                Desktop connection setup
-              </UnstyledButton>
-
-              {desktopSetupOpened && (
-                <Box id="desktop-setup-panel" className={classes.desktopSetupPanel}>
-                  <TextInput
-                    label="Backend API URL"
-                    description="Use /api for local dev, or enter a vendor / on-prem server URL."
-                    placeholder="https://hospital.example.com/api"
-                    value={desktopApiBaseInput}
-                    onChange={(event) => {
-                      setDesktopApiBaseInput(event.currentTarget.value);
-                      setConnectionStatus(null);
-                    }}
-                    size="sm"
-                  />
-
-                  <Box className={classes.desktopSetupActions}>
-                    <Button tone="secondary" size="xs" onClick={testDesktopConnection}>
-                      Test
-                    </Button>
-                    <Button tone="primary" size="xs" onClick={saveDesktopConnection}>
-                      Save & reload
-                    </Button>
-                    <Button tone="ghost" size="xs" onClick={resetDesktopConnection}>
-                      Reset
-                    </Button>
-                  </Box>
-
-                  {connectionStatus && (
-                    <Alert tone={connectionStatus.color} radius="md">
-                      {connectionStatus.message}
-                    </Alert>
-                  )}
-                </Box>
-              )}
-            </Box>
-          )}
-
-          <Box className={classes.footer}>
-            {needsSetup && (
-              <Box className={classes.onboardingLink}>
-                New installation? <Link to="/onboarding">Set up now &rarr;</Link>
-              </Box>
-            )}
-
-            <Box className={classes.devHelper}>
-              <UnstyledButton
-                className={classes.devToggle}
-                onClick={devCredsDisclosure.toggle}
-                aria-expanded={devCredsOpened}
-                aria-controls="dev-creds-panel"
-              >
-                {devCredsOpened ? "Hide dev credentials" : "Dev credentials"}
-              </UnstyledButton>
-              {devCredsOpened && (
-                <Box id="dev-creds-panel" className={classes.devCreds}>
-                  <Text size="xs" c="var(--mb-text-secondary)" ff="var(--font-mono, monospace)">
-                    admin / admin123
-                  </Text>
-                </Box>
-              )}
-            </Box>
-
-            <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
-            <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
-              <Anchor component={Link} to="/terms" c="inherit">
-                Terms
-              </Anchor>
-              {" · "}
-              <Anchor component={Link} to="/privacy" c="inherit">
-                Privacy
-              </Anchor>
-            </Text>
-            <Brand surface="footer" />
-          </Box>
+          {isTauriDesktopRuntime() && <DesktopConnection />}
+          <LoginFooter
+            needsSetup={onboarding?.needs_setup === true}
+            trialOpen={onboarding?.trial_open === true}
+          />
         </Box>
       </main>
+    </Box>
+  );
+}
+
+/** Step 2: the methods this hospital uses, and a way back to step 1. */
+function HospitalSignIn({
+  hospital,
+  onChangeHospital,
+}: {
+  hospital: SignInOptions;
+  onChangeHospital: () => void;
+}) {
+  // Passwords off: the hospital's break-glass admin can still use one.
+  const [breakGlass, setBreakGlass] = useState(false);
+  const hasSso = hospital.providers.length > 0;
+  const showPassword = hospital.password || breakGlass;
+  return (
+    <Stack gap="md">
+      {hasSso && (
+        <SsoLoginButtons
+          providers={hospital.providers}
+          hideDivider
+          onStart={() => rememberHospitalCode(hospital.code)}
+        />
+      )}
+      {hasSso && showPassword && <Divider label="or" labelPosition="center" />}
+      {showPassword && <PasswordSignIn hospitalCode={hospital.code} />}
+      {!hasSso && !showPassword && (
+        <Alert tone="warning" radius="md" data-testid="login-no-methods">
+          {hospital.name} hasn't set up sign-in yet. Ask your IT desk.
+        </Alert>
+      )}
+      <Center>
+        <Stack gap={4} align="center">
+          {!hospital.password && !breakGlass && (
+            <Anchor
+              component="button"
+              type="button"
+              size="sm"
+              c="dimmed"
+              onClick={() => setBreakGlass(true)}
+            >
+              Administrator? Use a password
+            </Anchor>
+          )}
+          <Anchor
+            component="button"
+            type="button"
+            size="sm"
+            onClick={onChangeHospital}
+            data-testid="login-change-hospital"
+          >
+            Not {hospital.name}? Change hospital
+          </Anchor>
+        </Stack>
+      </Center>
+    </Stack>
+  );
+}
+
+function LoginFooter({ needsSetup, trialOpen }: { needsSetup: boolean; trialOpen: boolean }) {
+  const [devOpened, dev] = useDisclosure(false);
+  return (
+    <Box className={classes.footer}>
+      {needsSetup && (
+        <Box className={classes.onboardingLink}>
+          New installation? <Link to="/onboarding">Set up now &rarr;</Link>
+        </Box>
+      )}
+      {trialOpen && (
+        <Box className={classes.onboardingLink}>
+          New to MedBrains? <Link to="/trial">Start a free trial &rarr;</Link>
+        </Box>
+      )}
+      {/* The seeded admin's password, for local development only. */}
+      {import.meta.env.DEV && (
+        <Box className={classes.devHelper}>
+          <UnstyledButton
+            className={classes.devToggle}
+            onClick={dev.toggle}
+            aria-expanded={devOpened}
+            aria-controls="dev-creds-panel"
+          >
+            {devOpened ? "Hide dev credentials" : "Dev credentials"}
+          </UnstyledButton>
+          {devOpened && (
+            <Box id="dev-creds-panel" className={classes.devCreds}>
+              <Text size="xs" c="var(--mb-text-secondary)" ff="var(--font-mono, monospace)">
+                default / admin / admin123
+              </Text>
+            </Box>
+          )}
+        </Box>
+      )}
+      <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
+      <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
+        <Anchor component={Link} to="/terms" c="inherit">
+          Terms
+        </Anchor>
+        {" · "}
+        <Anchor component={Link} to="/privacy" c="inherit">
+          Privacy
+        </Anchor>
+      </Text>
+      <Brand surface="footer" />
     </Box>
   );
 }

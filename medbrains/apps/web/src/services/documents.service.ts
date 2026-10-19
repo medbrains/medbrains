@@ -22,6 +22,7 @@ export const documentsService = {
   markReviewed: (...args: Parameters<typeof api.markReviewed>) => api.markReviewed(...args),
   listPrinters: (...args: Parameters<typeof api.listPrinters>) => api.listPrinters(...args),
   createPrinter: (...args: Parameters<typeof api.createPrinter>) => api.createPrinter(...args),
+  setPrinterActive: (id: string, isActive: boolean) => api.setPrinterActive(id, isActive),
   listPrintJobs: (...args: Parameters<typeof api.listPrintJobs>) => api.listPrintJobs(...args),
   updatePrintJob: (...args: Parameters<typeof api.updatePrintJob>) => api.updatePrintJob(...args),
 };

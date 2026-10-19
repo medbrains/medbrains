@@ -35,6 +35,12 @@ function pharmacyOrderDetail(
 }
 
 describe("pharmacy workspace journey context", () => {
+  it("gives a walk-in counter sale no patient journey to act on", () => {
+    const base = pharmacyOrderDetail();
+    const walkIn = pharmacyOrderDetail({ order: { ...base.order, patient_id: null } });
+    expect(pharmacyOrderJourneyContext(walkIn)).toBeNull();
+  });
+
   it("routes billing handoffs to the invoice created from pharmacy billing indent", () => {
     const context = pharmacyOrderJourneyContext(
       pharmacyOrderDetail({ billing_invoice_id: "invoice-1" }),
@@ -47,7 +53,7 @@ describe("pharmacy workspace journey context", () => {
       activePharmacyOrderId: "pharmacy-order-1",
       patientId: "patient-1",
     });
-    expect(context.completedEvents).toContain("billing.invoice.created");
+    expect(context?.completedEvents).toContain("billing.invoice.created");
     expect(patientJourneyActionRoute("billing.open_ledger", context)).toBe(
       "/billing/invoices/invoice-1",
     );
@@ -68,8 +74,8 @@ describe("pharmacy workspace journey context", () => {
       }),
     );
 
-    expect(context.activeOrderContext).toBe("ipd");
-    expect(context.activeInvoiceId).toBeNull();
+    expect(context?.activeOrderContext).toBe("ipd");
+    expect(context?.activeInvoiceId).toBeNull();
     expect(patientJourneyActionRoute("billing.open_ledger", context)).toBe(
       "/billing?tab=invoices&patient_id=patient-1&admission_id=admission-1",
     );

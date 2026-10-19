@@ -4,7 +4,6 @@ import { Card, Group, SegmentedControl, Stack, Text, Tooltip } from "@mantine/co
 import { useDisclosure } from "@mantine/hooks";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
-  ClinicalJourneyContext,
   PharmacyOrderDetailResponse,
   PharmacyOrderItem,
   PrescriptionWithItems,
@@ -36,6 +35,7 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { printDocument } from "@/lib/print/printDocument";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { pharmacyOrderJourneyContext } from "../pharmacy-workspace";
+import { ArrangeDeliveryButton } from "./arrange-delivery-drawer";
 import { EditablePharmacyQuantity } from "./editable-quantity";
 import { NearExpiryHints } from "./near-expiry-hints";
 import { PrescriptionAuditTrail } from "./prescription-audit-trail";
@@ -137,6 +137,7 @@ export function PharmacyOrderDetail({
       items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
       witnessed_by?: string;
       allergy_override_reason?: string;
+      safety_override_reason?: string;
     }) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
       const order = await pharmacyService.dispenseOrder(orderId, payload);
@@ -202,13 +203,14 @@ export function PharmacyOrderDetail({
     ? (patientName?.full_name ?? "Linked patient")
     : "Patient restricted";
   const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
-  const journeyContext: ClinicalJourneyContext = pharmacyOrderJourneyContext(detail);
-  const completedEvents = journeyContext.completedEvents ?? [];
+  const journeyContext = pharmacyOrderJourneyContext(detail);
+  const completedEvents = journeyContext?.completedEvents ?? [];
 
   return (
     <Stack>
       <DispenseModal
         opened={dispenseOpen}
+        orderId={orderId}
         onClose={dispenseModal.close}
         items={detail.items}
         isDispensing={dispenseMutation.isPending}
@@ -253,11 +255,9 @@ export function PharmacyOrderDetail({
         </Text>
       )}
       {detail.order.prescription_id && (
-        <RepeatPanel
-          prescriptionId={detail.order.prescription_id}
-          pharmacyOrderId={detail.order.id}
-        />
+        <RepeatPanel prescriptionId={detail.order.prescription_id} />
       )}
+      <ArrangeDeliveryButton orderId={detail.order.id} orderStatus={detail.order.status} />
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.
@@ -311,11 +311,13 @@ export function PharmacyOrderDetail({
               {t("handoff.patient.message")}
             </Text>
           </Stack>
-          <PatientJourneyActions
-            context={journeyContext}
-            hiddenActionIds={["pharmacy.open_patient_queue"]}
-            size="xs"
-          />
+          {journeyContext && (
+            <PatientJourneyActions
+              context={journeyContext}
+              hiddenActionIds={["pharmacy.open_patient_queue"]}
+              size="xs"
+            />
+          )}
         </Group>
       </Card>
 

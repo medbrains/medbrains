@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -203,7 +205,7 @@ pub async fn list_visiting_hours(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, VisitingHours>(
-        "SELECT * FROM visiting_hours ORDER BY ward_id NULLS FIRST, day_of_week, start_time LIMIT 5000",
+        "SELECT * FROM visiting_hours WHERE deleted_at IS NULL ORDER BY ward_id NULLS FIRST, day_of_week, start_time LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -273,7 +275,7 @@ pub async fn list_visitors(
     let rows = if let Some(pid) = params.patient_id {
         medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
         sqlx::query_as::<_, VisitorRegistration>(
-            "SELECT * FROM visitor_registrations WHERE patient_id = $1 \
+            "SELECT * FROM visitor_registrations WHERE deleted_at IS NULL AND patient_id = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(pid)
@@ -281,7 +283,7 @@ pub async fn list_visitors(
         .await?
     } else if let Some(cat) = params.category {
         sqlx::query_as::<_, VisitorRegistration>(
-            "SELECT * FROM visitor_registrations WHERE category::text = $1 \
+            "SELECT * FROM visitor_registrations WHERE deleted_at IS NULL AND category::text = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(cat)
@@ -289,7 +291,7 @@ pub async fn list_visitors(
         .await?
     } else {
         sqlx::query_as::<_, VisitorRegistration>(
-            "SELECT * FROM visitor_registrations ORDER BY created_at DESC LIMIT 200",
+            "SELECT * FROM visitor_registrations WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -358,7 +360,7 @@ pub async fn list_passes(
 
     let rows = if let Some(status) = params.status {
         sqlx::query_as::<_, VisitorPass>(
-            "SELECT * FROM visitor_passes WHERE status::text = $1 \
+            "SELECT * FROM visitor_passes WHERE deleted_at IS NULL AND status::text = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(status)
@@ -366,7 +368,7 @@ pub async fn list_passes(
         .await?
     } else if let Some(reg_id) = params.registration_id {
         sqlx::query_as::<_, VisitorPass>(
-            "SELECT * FROM visitor_passes WHERE registration_id = $1 \
+            "SELECT * FROM visitor_passes WHERE deleted_at IS NULL AND registration_id = $1 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(reg_id)
@@ -374,7 +376,7 @@ pub async fn list_passes(
         .await?
     } else {
         sqlx::query_as::<_, VisitorPass>(
-            "SELECT * FROM visitor_passes ORDER BY created_at DESC LIMIT 200",
+            "SELECT * FROM visitor_passes WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -474,21 +476,21 @@ pub async fn list_visitor_logs(
 
     let rows = if let Some(pass_id) = params.pass_id {
         sqlx::query_as::<_, VisitorLog>(
-            "SELECT * FROM visitor_logs WHERE pass_id = $1 ORDER BY check_in_at DESC LIMIT 5000",
+            "SELECT * FROM visitor_logs WHERE deleted_at IS NULL AND pass_id = $1 ORDER BY check_in_at DESC LIMIT 5000",
         )
         .bind(pass_id)
         .fetch_all(&mut *tx)
         .await?
     } else if params.active_only.unwrap_or(false) {
         sqlx::query_as::<_, VisitorLog>(
-            "SELECT * FROM visitor_logs WHERE check_out_at IS NULL \
+            "SELECT * FROM visitor_logs WHERE deleted_at IS NULL AND check_out_at IS NULL \
              ORDER BY check_in_at DESC LIMIT 5000",
         )
         .fetch_all(&mut *tx)
         .await?
     } else {
         sqlx::query_as::<_, VisitorLog>(
-            "SELECT * FROM visitor_logs ORDER BY check_in_at DESC LIMIT 200",
+            "SELECT * FROM visitor_logs WHERE deleted_at IS NULL ORDER BY check_in_at DESC LIMIT 200",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -498,25 +500,38 @@ pub async fn list_visitor_logs(
     Ok(Json(rows))
 }
 
+/// Who may log a visitor in or out: the desk that issues passes, and the
+/// gate guard who only records entry and exit.
+const VISITOR_LOG_RECORDERS: &[&str] = &[
+    permissions::front_office::passes::MANAGE,
+    permissions::front_office::visitor_logs::RECORD,
+];
+
 pub async fn check_in_visitor(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorLog>, AppError> {
-    require_permission(&claims, permissions::front_office::passes::MANAGE)?;
+    require_any_permission(&claims, VISITOR_LOG_RECORDERS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Verify pass exists before insert to avoid 23503 FK error.
-    let pass_exists: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM visitor_passes WHERE id = $1 AND tenant_id = $2")
-            .bind(pass_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-    if pass_exists.is_none() {
-        return Err(AppError::NotFound);
+    // The pass must let the holder in now — the same rule the gate scan shows.
+    let valid_now: bool = sqlx::query_scalar(
+        "SELECT status::text = 'active' AND now() BETWEEN valid_from AND valid_until \
+         FROM visitor_passes WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(pass_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !valid_now {
+        return Err(AppError::Conflict(
+            "This pass is revoked, expired or not valid yet. Send the visitor to the front desk."
+                .into(),
+        ));
     }
 
     let row = sqlx::query_as::<_, VisitorLog>(
@@ -538,7 +553,7 @@ pub async fn check_out_visitor(
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorLog>, AppError> {
-    require_permission(&claims, permissions::front_office::passes::MANAGE)?;
+    require_any_permission(&claims, VISITOR_LOG_RECORDERS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -570,7 +585,7 @@ pub async fn list_queue_priority_rules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, QueuePriorityRule>(
-        "SELECT * FROM queue_priority_rules ORDER BY weight DESC, priority LIMIT 5000",
+        "SELECT * FROM queue_priority_rules WHERE deleted_at IS NULL ORDER BY weight DESC, priority LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -695,7 +710,7 @@ pub async fn list_enquiries(
 
     let rows = if let Some(etype) = params.enquiry_type {
         sqlx::query_as::<_, EnquiryLog>(
-            "SELECT * FROM enquiry_logs WHERE enquiry_type = $1 \
+            "SELECT * FROM enquiry_logs WHERE deleted_at IS NULL AND enquiry_type = $1 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(etype)
@@ -703,7 +718,7 @@ pub async fn list_enquiries(
         .await?
     } else if let Some(resolved) = params.resolved {
         sqlx::query_as::<_, EnquiryLog>(
-            "SELECT * FROM enquiry_logs WHERE resolved = $1 \
+            "SELECT * FROM enquiry_logs WHERE deleted_at IS NULL AND resolved = $1 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(resolved)
@@ -711,7 +726,7 @@ pub async fn list_enquiries(
         .await?
     } else {
         sqlx::query_as::<_, EnquiryLog>(
-            "SELECT * FROM enquiry_logs ORDER BY created_at DESC LIMIT 200",
+            "SELECT * FROM enquiry_logs WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -893,7 +908,9 @@ pub async fn visitor_analytics(
     let to = q.to.unwrap_or(today);
     let from = q.from.unwrap_or(to - chrono::Days::new(29));
     if from > to {
-        return Err(AppError::BadRequest("'from' must be on or before 'to'".into()));
+        return Err(AppError::BadRequest(
+            "'from' must be on or before 'to'".into(),
+        ));
     }
 
     let totals = sqlx::query!(

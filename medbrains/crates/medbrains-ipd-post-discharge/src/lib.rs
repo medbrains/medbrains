@@ -545,7 +545,7 @@ pub async fn list_post_discharge(
 
     let rows = sqlx::query_as::<_, PostDischargeFollowup>(
         "SELECT * FROM ipd_post_discharge_followups \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -680,7 +680,7 @@ pub async fn create_mortality_review(
          (tenant_id, admission_id, death_at, cause_of_death, primary_dx, \
           is_mlc_case, autopsy_required, review_due_at) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
-         ON CONFLICT (admission_id) DO UPDATE SET \
+         ON CONFLICT (admission_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            death_at = EXCLUDED.death_at, \
            cause_of_death = EXCLUDED.cause_of_death, \
            primary_dx = EXCLUDED.primary_dx, \
@@ -715,7 +715,7 @@ pub async fn list_mortality_reviews(
 
     let rows = sqlx::query_as::<_, MortalityReview>(
         "SELECT * FROM ipd_mortality_reviews \
-         WHERE tenant_id = $1 ORDER BY death_at DESC LIMIT 200",
+         WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY death_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

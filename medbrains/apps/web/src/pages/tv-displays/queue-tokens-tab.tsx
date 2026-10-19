@@ -28,6 +28,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { defaultQueueTokenFormValues, queueTokenFormToRequest } from "@/forms/tv-displays.form";
 import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
@@ -243,9 +244,16 @@ export function QueueTokensTab({ canManage }: { canManage: boolean }) {
       key: "token_number",
       label: "Token",
       render: (row) => (
-        <Badge tone="neutral" size="lg" variant="filled">
-          {row.token_number}
-        </Badge>
+        <Group gap="xs" wrap="nowrap">
+          <Badge tone="neutral" size="lg" variant="filled">
+            {row.token_number}
+          </Badge>
+          <PrintDocumentIconMenu
+            idKind="token"
+            recordId={row.id}
+            recordLabel={`token ${row.token_number}`}
+          />
+        </Group>
       ),
     },
     {

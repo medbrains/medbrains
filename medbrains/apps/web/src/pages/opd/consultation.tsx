@@ -1,45 +1,48 @@
-import { nullOn404 } from "@medbrains/api";
-// OPD ConsultationTab — split from opd.tsx (pure move).
+// OPD ConsultationTab — the visit's case sheet (RFCs/RFC-MODULE-clinical-notes.md).
 
-import { Select, Stack, Text } from "@mantine/core";
-import type {
-  Consultation,
-  ConsultationTemplate,
-  CreateConsultationRequest,
-  PatientConsultationHistoryRow,
-  UpdateConsultationRequest,
+import { Select, Stack } from "@mantine/core";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import {
+  type ConsultationTemplate,
+  type Note,
+  P,
+  type PatientConsultationHistoryRow,
 } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { SOAPNotes, useClinicalEmit } from "@/components";
+import { useState } from "react";
+import { useClinicalEmit } from "@/components";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
+import { SoapTimeline } from "@/components/Clinical/SoapTimeline";
+import { toast } from "@/components/ui";
+import { clinicalNotesService } from "@/services/clinicalNotes.service";
 import { opdService } from "@/services/opd.service";
-import { toCreateConsultationPayload } from "./consultation-utils";
 
 export function ConsultationTab({
   encounterId,
   patientId,
-  canUpdate,
 }: {
   encounterId: string;
   patientId: string;
-  canUpdate: boolean;
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const canWrite = useHasPermission(P.CLINICAL_NOTES.WRITE);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  // Earlier visits' notes keep the masking the SOAP field always had.
+  const soapAccess = useFieldAccess("opd.soap_note");
 
-  const { data: consultation } = useQuery<Consultation | null>({
-    queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
+  const { data: notes = [] } = useQuery({
+    queryKey: ["clinical-notes", encounterId],
+    queryFn: () => clinicalNotesService.listEncounterNotes(encounterId),
   });
-
   const { data: templates = [] } = useQuery<ConsultationTemplate[]>({
     queryKey: ["consultation-templates"],
     queryFn: () => opdService.listConsultationTemplates(),
     staleTime: 300_000,
+    enabled: canWrite,
   });
-
-  const { data: consultationHistory = [], isLoading: loadingConsultationHistory } = useQuery<
+  const { data: history = [], isLoading: loadingHistory } = useQuery<
     PatientConsultationHistoryRow[]
   >({
     queryKey: ["patient-consultations", patientId],
@@ -48,79 +51,61 @@ export function ConsultationTab({
     staleTime: 60_000,
   });
 
-  const templateOptions = templates.map((t) => ({
-    value: t.id,
-    label: `${t.name}${t.specialty ? ` (${t.specialty})` : ""}`,
-  }));
-
-  const selectedTemplate = useMemo(() => {
-    if (!templateId) return null;
-    return templates.find((t) => t.id === templateId) ?? null;
-  }, [templates, templateId]);
-
-  const templateDefaults = useMemo((): Partial<Consultation> | undefined => {
-    if (!selectedTemplate || consultation) return undefined;
-    return {
-      chief_complaint: selectedTemplate.chief_complaints.join(", ") || null,
-      plan: selectedTemplate.default_plan ?? null,
-    };
-  }, [selectedTemplate, consultation]);
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) =>
-      opdService.createConsultation(encounterId, data),
-    onSuccess: (consultation) => {
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-consultations", patientId] });
+  // A template starts the doctor's Consultation note with its complaints and plan.
+  const fromTemplate = useMutation({
+    mutationFn: (template: ConsultationTemplate) =>
+      clinicalNotesService.createNote(encounterId, {
+        note_type_code: "consultation",
+        sections: [
+          { code: "subjective", text: template.chief_complaints.join(", ") },
+          { code: "plan", text: template.default_plan ?? "" },
+        ],
+      }),
+    onSuccess: (note: Note) => {
+      setTemplateId(null);
+      void queryClient.invalidateQueries({ queryKey: ["clinical-notes", encounterId] });
       emit("opd.consultation.saved", {
-        consultation_id: consultation.id,
-        encounter_id: consultation.encounter_id,
+        consultation_id: note.id,
+        encounter_id: encounterId,
         patient_id: patientId,
-        source_record_id: consultation.id,
+        source_record_id: note.id,
       });
     },
+    onError: (error: Error) => toast.error(error.message, { title: "Template not applied" }),
   });
 
-  const handleSubmit = (data: CreateConsultationRequest | UpdateConsultationRequest) => {
-    createMutation.mutate(toCreateConsultationPayload(data));
-  };
-
-  if (!canUpdate && !consultation) {
-    return (
-      <Text c="dimmed" size="sm">
-        No consultation recorded yet.
-      </Text>
-    );
-  }
+  const hasMyConsultation = notes.some(
+    (n) => n.is_mine && n.note_type_code === "consultation" && n.status !== "entered_in_error",
+  );
 
   return (
-    <Stack gap="sm">
-      {!consultation && canUpdate && templateOptions.length > 0 && (
+    <Stack gap="md">
+      {canWrite && !hasMyConsultation && templates.length > 0 && (
         <Select
-          label="Load from template"
+          label="Start a consultation note from a template"
           placeholder="Select a consultation template..."
-          data={templateOptions}
+          data={templates.map((t) => ({
+            value: t.id,
+            label: `${t.name}${t.specialty ? ` (${t.specialty})` : ""}`,
+          }))}
           value={templateId}
-          onChange={setTemplateId}
-          clearable
+          onChange={(id) => {
+            const template = templates.find((t) => t.id === id);
+            if (template) fromTemplate.mutate(template);
+          }}
           searchable
           size="xs"
           maw={400}
         />
       )}
-      <SOAPNotes
-        key={consultation?.updated_at ?? templateId ?? "default"}
-        onSubmit={handleSubmit}
-        defaultValues={consultation ?? templateDefaults}
-        editorDefaultValues={templateDefaults}
-        historyNotes={consultationHistory}
-        isHistoryLoading={loadingConsultationHistory}
-        submitLabel="Save Note"
-        isSubmitting={createMutation.isPending}
-        readOnly={!canUpdate}
-      />
+      <CaseSheet encounterId={encounterId} />
+      {soapAccess !== "hidden" && (
+        <SoapTimeline
+          historyNotes={history}
+          isLoading={loadingHistory}
+          soapText={(value) => fieldAccessText(soapAccess, value)}
+        />
+      )}
     </Stack>
   );
 }
-
-// ── Diagnoses ────────────────────────────────────────────

@@ -9,10 +9,6 @@ export const ipdService = {
     api.createNursingTask(...args),
   updateNursingTask: (...args: Parameters<typeof api.updateNursingTask>) =>
     api.updateNursingTask(...args),
-  listProgressNotes: (...args: Parameters<typeof api.listProgressNotes>) =>
-    api.listProgressNotes(...args),
-  createProgressNote: (...args: Parameters<typeof api.createProgressNote>) =>
-    api.createProgressNote(...args),
   listAssessments: (...args: Parameters<typeof api.listAssessments>) =>
     api.listAssessments(...args),
   createAssessment: (...args: Parameters<typeof api.createAssessment>) =>
@@ -31,9 +27,21 @@ export const ipdService = {
     api.listIntakeOutput(...args),
   getIoBalance: (...args: Parameters<typeof api.getIoBalance>) => api.getIoBalance(...args),
   listInfusions: (...args: Parameters<typeof api.listInfusions>) => api.listInfusions(...args),
+  listBedsideTransfusions: (...args: Parameters<typeof api.listBedsideTransfusions>) =>
+    api.listBedsideTransfusions(...args),
+  startBedsideTransfusion: (...args: Parameters<typeof api.startBedsideTransfusion>) =>
+    api.startBedsideTransfusion(...args),
+  completeBedsideTransfusion: (...args: Parameters<typeof api.completeBedsideTransfusion>) =>
+    api.completeBedsideTransfusion(...args),
   createInfusion: (...args: Parameters<typeof api.createInfusion>) => api.createInfusion(...args),
   updateInfusion: (...args: Parameters<typeof api.updateInfusion>) => api.updateInfusion(...args),
   listCarePlans: (...args: Parameters<typeof api.listCarePlans>) => api.listCarePlans(...args),
+  createCarePlan: (...args: Parameters<typeof api.createCarePlan>) => api.createCarePlan(...args),
+  updateCarePlan: (...args: Parameters<typeof api.updateCarePlan>) => api.updateCarePlan(...args),
+  listNursingAssessments: (...args: Parameters<typeof api.listNursingAssessments>) =>
+    api.listNursingAssessments(...args),
+  createNursingAssessment: (...args: Parameters<typeof api.createNursingAssessment>) =>
+    api.createNursingAssessment(...args),
   listHandovers: (...args: Parameters<typeof api.listHandovers>) => api.listHandovers(...args),
   listAttenders: (...args: Parameters<typeof api.listAttenders>) => api.listAttenders(...args),
   createAttender: (...args: Parameters<typeof api.createAttender>) => api.createAttender(...args),

@@ -81,7 +81,7 @@ pub async fn list_handoff_entries(
     let rows = sqlx::query_as::<_, HandoffEntry>(
         "SELECT id, shift_id, author_user_id, author_name, category, note, authored_at \
          FROM nurse_shift_handoff_entries \
-         WHERE shift_id = $1 \
+         WHERE shift_id = $1 AND deleted_at IS NULL \
          ORDER BY authored_at DESC \
          LIMIT 500",
     )
@@ -178,7 +178,7 @@ pub async fn list_triage_entries(
         "SELECT id, er_visit_id, author_user_id, author_name, esi_level, chief_complaint, \
                 observation, authored_at \
          FROM ed_triage_entries \
-         WHERE er_visit_id = $1 \
+         WHERE er_visit_id = $1 AND deleted_at IS NULL \
          ORDER BY authored_at DESC \
          LIMIT 500",
     )

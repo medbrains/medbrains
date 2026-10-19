@@ -4,11 +4,11 @@
 //! progress notes, nursing assessments, MAR, vitals charts, I/O charts, and
 //! discharge checklists.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -55,6 +55,8 @@ struct AdmissionBaseRow {
     bed_number: Option<String>,
     ward_name: Option<String>,
     diagnosis: Option<String>,
+    /// The admission's encounter number — the IP number printed on charts.
+    admission_number: Option<String>,
 }
 
 // ── Progress Note ────────────────────────────────────────
@@ -70,6 +72,7 @@ pub async fn get_progress_note_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -80,12 +83,18 @@ pub async fn get_progress_note_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -97,7 +106,7 @@ pub async fn get_progress_note_print_data(
         "SELECT COALESCE(u.full_name, 'Attending Physician') \
          FROM admissions a \
          LEFT JOIN users u ON u.id = a.admitting_doctor \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -126,7 +135,7 @@ pub async fn get_progress_note_print_data(
            spo2::text, \
            pain_score::text \
          FROM vitals v \
-         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL) \
            AND v.tenant_id = $2 \
          ORDER BY v.recorded_at DESC \
          LIMIT 1",
@@ -159,8 +168,8 @@ pub async fn get_progress_note_print_data(
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         diagnosis: row.diagnosis,
-        note_date: now.format("%d-%b-%Y").to_string(),
-        note_time: Some(now.format("%H:%M").to_string()),
+        note_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        note_time: Some(now.with_timezone(&tz).format("%H:%M").to_string()),
         shift: None,
         subjective: None, // To be filled by clinician
         objective: None,
@@ -186,6 +195,7 @@ pub async fn get_nursing_assessment_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -196,12 +206,18 @@ pub async fn get_nursing_assessment_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -211,7 +227,7 @@ pub async fn get_nursing_assessment_print_data(
     // Get allergies
     let allergies: Vec<String> = sqlx::query_scalar(
         "SELECT allergen_name FROM patient_allergies \
-         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL) \
            AND tenant_id = $2 \
            AND is_active = true \
          ORDER BY created_at LIMIT 5000",
@@ -243,7 +259,7 @@ pub async fn get_nursing_assessment_print_data(
            spo2::text, \
            pain_score::text \
          FROM vitals v \
-         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL) \
            AND v.tenant_id = $2 \
          ORDER BY v.recorded_at DESC \
          LIMIT 1",
@@ -286,8 +302,8 @@ pub async fn get_nursing_assessment_print_data(
         admission_date: row.admission_date,
         bed_number: row.bed_number,
         ward_name: row.ward_name,
-        assessment_date: now.format("%d-%b-%Y").to_string(),
-        assessment_time: now.format("%H:%M").to_string(),
+        assessment_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        assessment_time: now.with_timezone(&tz).format("%H:%M").to_string(),
         shift: "morning".to_string(),
         chief_complaint: row.diagnosis,
         history: None,
@@ -322,6 +338,7 @@ pub async fn get_mar_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -332,12 +349,18 @@ pub async fn get_mar_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -347,7 +370,7 @@ pub async fn get_mar_print_data(
     // Get allergies
     let allergies: Vec<String> = sqlx::query_scalar(
         "SELECT allergen_name FROM patient_allergies \
-         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL) \
            AND tenant_id = $2 \
            AND is_active = true \
          ORDER BY created_at LIMIT 5000",
@@ -438,7 +461,7 @@ pub async fn get_mar_print_data(
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         allergies,
-        chart_date: now.format("%d-%b-%Y").to_string(),
+        chart_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         medications,
     }))
 }
@@ -456,6 +479,7 @@ pub async fn get_vitals_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -466,12 +490,18 @@ pub async fn get_vitals_chart_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -505,7 +535,7 @@ pub async fn get_vitals_chart_print_data(
            u.full_name AS recorded_by_name \
          FROM vitals v \
          LEFT JOIN users u ON u.id = v.recorded_by \
-         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1 AND deleted_at IS NULL) \
            AND v.tenant_id = $2 \
            AND (v.recorded_at >= CURRENT_DATE AND v.recorded_at < CURRENT_DATE + 1) \
          ORDER BY v.recorded_at LIMIT 5000",
@@ -523,7 +553,7 @@ pub async fn get_vitals_chart_print_data(
     let readings: Vec<VitalReading> = vitals
         .into_iter()
         .map(|v| VitalReading {
-            recorded_at: v.recorded_at.format("%H:%M").to_string(),
+            recorded_at: v.recorded_at.with_timezone(&tz).format("%H:%M").to_string(),
             shift: None,
             temperature: v.temperature.map(|t| format!("{t:.1}")),
             pulse: v.pulse_rate.map(|p| p.to_string()),
@@ -543,7 +573,7 @@ pub async fn get_vitals_chart_print_data(
         gender: row.gender,
         bed_number: row.bed_number,
         ward_name: row.ward_name,
-        chart_date: now.format("%d-%b-%Y").to_string(),
+        chart_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         readings,
     }))
 }
@@ -561,6 +591,7 @@ pub async fn get_io_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -571,12 +602,18 @@ pub async fn get_io_chart_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -633,7 +670,7 @@ pub async fn get_io_chart_print_data(
          JOIN intake_output_entries e \
            ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
          LEFT JOIN users u ON u.id = e.recorded_by \
-         WHERE a.id = $1 AND a.tenant_id = $2 \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
            AND e.deleted_at IS NULL \
            AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
          GROUP BY e.recorded_at \
@@ -667,7 +704,11 @@ pub async fn get_io_chart_print_data(
             total_intake += intake;
             total_output += output;
             IoEntry {
-                recorded_at: io.recorded_at.format("%H:%M").to_string(),
+                recorded_at: io
+                    .recorded_at
+                    .with_timezone(&tz)
+                    .format("%H:%M")
+                    .to_string(),
                 shift: None,
                 intake_oral: io.intake_oral,
                 intake_iv: io.intake_iv,
@@ -696,7 +737,7 @@ pub async fn get_io_chart_print_data(
         gender: row.gender,
         bed_number: row.bed_number,
         ward_name: row.ward_name,
-        chart_date: now.format("%d-%b-%Y").to_string(),
+        chart_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         entries,
         daily_totals,
     }))
@@ -715,6 +756,7 @@ pub async fn get_discharge_checklist_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct DischargeRow {
@@ -744,9 +786,14 @@ pub async fn get_discharge_checklist_print_data(
            a.discharge_type::text AS discharge_type \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -871,7 +918,7 @@ pub async fn get_discharge_checklist_print_data(
         admission_date: row.admission_date,
         expected_discharge_date: row
             .expected_discharge_date
-            .unwrap_or_else(|| now.format("%d-%b-%Y").to_string()),
+            .unwrap_or_else(|| now.with_timezone(&tz).format("%d-%b-%Y").to_string()),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         diagnosis: row.diagnosis,
@@ -904,6 +951,7 @@ pub async fn get_fluid_balance_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -914,12 +962,18 @@ pub async fn get_fluid_balance_chart_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -930,7 +984,7 @@ pub async fn get_fluid_balance_chart_print_data(
         "SELECT COALESCE(u.full_name, 'Attending Physician') \
          FROM admissions a \
          LEFT JOIN users u ON u.id = a.admitting_doctor \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -952,7 +1006,7 @@ pub async fn get_fluid_balance_chart_print_data(
          JOIN intake_output_entries e \
            ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
          LEFT JOIN users recorder ON recorder.id = e.recorded_by \
-         WHERE a.id = $1 AND a.tenant_id = $2 \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
            AND e.direction = 'intake' AND e.deleted_at IS NULL \
            AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
          ORDER BY e.recorded_at LIMIT 5000",
@@ -974,7 +1028,7 @@ pub async fn get_fluid_balance_chart_print_data(
          JOIN intake_output_entries e \
            ON e.encounter_id = a.encounter_id AND e.tenant_id = a.tenant_id \
          LEFT JOIN users recorder ON recorder.id = e.recorded_by \
-         WHERE a.id = $1 AND a.tenant_id = $2 \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
            AND e.direction = 'output' AND e.deleted_at IS NULL \
            AND (e.recorded_at >= CURRENT_DATE AND e.recorded_at < CURRENT_DATE + 1) \
          ORDER BY e.recorded_at LIMIT 5000",
@@ -993,10 +1047,10 @@ pub async fn get_fluid_balance_chart_print_data(
     Ok(Json(FluidBalanceChartPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        admission_number: "N/A".to_string(),
+        admission_number: row.admission_number.unwrap_or_default(),
         ward_name: row.ward_name.unwrap_or_else(|| "N/A".to_string()),
         bed_number: row.bed_number.unwrap_or_else(|| "N/A".to_string()),
-        chart_date: now.format("%d-%b-%Y").to_string(),
+        chart_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         attending_doctor,
         intake_entries,
         output_entries,
@@ -1023,6 +1077,7 @@ pub async fn get_pain_assessment_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -1033,36 +1088,47 @@ pub async fn get_pain_assessment_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
+    // Pain scores are charted against the admission's encounter.
+    // ponytail: aggravating/relieving factors, response and reassessment score
+    // are not recorded anywhere yet.
     let assessments = sqlx::query_as::<_, PainAssessmentEntry>(
         "SELECT \
-           recorded_at::text AS time, \
-           pain_score, \
-           pain_scale_used, \
-           pain_location, \
-           pain_character, \
-           aggravating_factors, \
-           relieving_factors, \
-           intervention_given, \
-           response_to_intervention, \
-           reassessment_score, \
-           assessor.full_name AS assessed_by \
-         FROM pain_assessments pa \
-         LEFT JOIN users assessor ON assessor.id = pa.assessed_by_id \
-         WHERE pa.admission_id = $1 AND pa.tenant_id = $2 \
-           AND (pa.recorded_at >= CURRENT_DATE AND pa.recorded_at < CURRENT_DATE + 1) \
-         ORDER BY pa.recorded_at LIMIT 5000",
+           pe.recorded_at::text AS time, \
+           pe.score AS pain_score, \
+           pe.scale AS pain_scale_used, \
+           pe.location AS pain_location, \
+           pe.character AS pain_character, \
+           NULL::text AS aggravating_factors, \
+           NULL::text AS relieving_factors, \
+           pe.intervention_taken AS intervention_given, \
+           NULL::text AS response_to_intervention, \
+           NULL::int4 AS reassessment_score, \
+           COALESCE(u.full_name, '') AS assessed_by \
+         FROM admissions a \
+         JOIN pain_score_entries pe ON pe.encounter_id = a.encounter_id \
+           AND pe.tenant_id = a.tenant_id AND pe.deleted_at IS NULL \
+         LEFT JOIN users u ON u.id = pe.recorded_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
+           AND pe.recorded_at >= CURRENT_DATE AND pe.recorded_at < CURRENT_DATE + 1 \
+         ORDER BY pe.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1070,17 +1136,19 @@ pub async fn get_pain_assessment_print_data(
     .await?;
 
     let assessed_by: String = sqlx::query_scalar(
-        "SELECT COALESCE(u.full_name, 'Nursing Staff') \
-         FROM pain_assessments pa \
-         LEFT JOIN users u ON u.id = pa.assessed_by_id \
-         WHERE pa.admission_id = $1 AND pa.tenant_id = $2 \
-         ORDER BY pa.recorded_at DESC LIMIT 1",
+        "SELECT COALESCE(u.full_name, '') \
+         FROM admissions a \
+         JOIN pain_score_entries pe ON pe.encounter_id = a.encounter_id \
+           AND pe.tenant_id = a.tenant_id AND pe.deleted_at IS NULL \
+         LEFT JOIN users u ON u.id = pe.recorded_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
+         ORDER BY pe.recorded_at DESC LIMIT 1",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
-    .unwrap_or_else(|| "Nursing Staff".to_string());
+    .unwrap_or_default();
 
     tx.commit().await?;
 
@@ -1089,10 +1157,10 @@ pub async fn get_pain_assessment_print_data(
     Ok(Json(PainAssessmentPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        admission_number: "N/A".to_string(),
+        admission_number: row.admission_number.unwrap_or_default(),
         ward_name: row.ward_name.unwrap_or_else(|| "N/A".to_string()),
         bed_number: row.bed_number.unwrap_or_else(|| "N/A".to_string()),
-        assessment_date: now.format("%d-%b-%Y").to_string(),
+        assessment_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         assessments,
         pain_management_plan: None,
         assessed_by,
@@ -1137,13 +1205,14 @@ pub async fn get_fall_risk_assessment_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, FallRiskRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           a.id::text AS admission_number, \
+           COALESCE(a.admission_number, '') AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
            COALESCE(fr.history_of_falling, 0) AS history_of_falling, \
@@ -1163,11 +1232,16 @@ pub async fn get_fall_risk_assessment_print_data(
            fr.next_reassessment_date \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           AND w.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN fall_risk_assessments fr ON fr.admission_id = a.id AND fr.tenant_id = a.tenant_id \
          LEFT JOIN users assessor ON assessor.id = fr.assessed_by_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1195,7 +1269,7 @@ pub async fn get_fall_risk_assessment_print_data(
         admission_number: row.admission_number,
         ward_name: row.ward_name,
         bed_number: row.bed_number,
-        assessment_date: now.format("%d-%b-%Y").to_string(),
+        assessment_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         history_of_falling: row.history_of_falling,
         secondary_diagnosis: row.secondary_diagnosis,
         ambulatory_aid: row.ambulatory_aid,
@@ -1227,20 +1301,18 @@ struct PressureUlcerRow {
     admission_number: String,
     ward_name: String,
     bed_number: String,
+    assessed_at: chrono::DateTime<chrono::Utc>,
     sensory_perception: i32,
     moisture: i32,
     activity: i32,
     mobility: i32,
     nutrition: i32,
     friction_shear: i32,
-    total_score: i32,
     risk_level: String,
-    repositioning_schedule: Option<String>,
-    support_surface: Option<String>,
-    nutrition_plan: Option<String>,
-    moisture_management: Option<String>,
+    repositioning_plan: Option<String>,
+    nutritional_plan: Option<String>,
+    skin_care_plan: Option<String>,
     assessed_by: String,
-    next_reassessment_date: Option<chrono::NaiveDate>,
 }
 
 pub async fn get_pressure_ulcer_risk_print_data(
@@ -1254,57 +1326,76 @@ pub async fn get_pressure_ulcer_risk_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The latest Braden assessment for the stay. Without one there is nothing
+    // honest to print — default subscores would read as a real risk grade.
     let row = sqlx::query_as::<_, PressureUlcerRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
-           a.id::text AS admission_number, \
+           COALESCE(a.admission_number, '') AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
-           COALESCE(pr.sensory_perception, 4) AS sensory_perception, \
-           COALESCE(pr.moisture, 4) AS moisture, \
-           COALESCE(pr.activity, 4) AS activity, \
-           COALESCE(pr.mobility, 4) AS mobility, \
-           COALESCE(pr.nutrition, 4) AS nutrition, \
-           COALESCE(pr.friction_shear, 3) AS friction_shear, \
-           COALESCE(pr.total_score, 23) AS total_score, \
-           COALESCE(pr.risk_level, 'No Risk') AS risk_level, \
-           pr.repositioning_schedule, \
-           pr.support_surface, \
-           pr.nutrition_plan, \
-           pr.moisture_management, \
-           COALESCE(assessor.full_name, 'Nursing Staff') AS assessed_by, \
-           pr.next_reassessment_date \
+           pr.assessed_at, \
+           pr.sensory_perception, \
+           pr.moisture, \
+           pr.activity, \
+           pr.mobility, \
+           pr.nutrition, \
+           pr.friction_shear, \
+           pr.risk_level, \
+           pr.repositioning_plan, \
+           pr.nutritional_plan, \
+           pr.skin_care_plan, \
+           COALESCE(u.full_name, '') AS assessed_by \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
+         JOIN LATERAL ( \
+           SELECT * FROM nabh_pressure_ulcer_assessments x \
+           WHERE x.admission_id = a.id AND x.tenant_id = a.tenant_id \
+             AND x.deleted_at IS NULL \
+           ORDER BY x.assessed_at DESC LIMIT 1 \
+         ) pr ON true \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           AND w.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
-         LEFT JOIN pressure_ulcer_assessments pr ON pr.admission_id = a.id AND pr.tenant_id = a.tenant_id \
-         LEFT JOIN users assessor ON assessor.id = pr.assessed_by_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND l.deleted_at IS NULL \
+         LEFT JOIN users u ON u.id = pr.assessed_by \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict("No Braden assessment has been recorded for this admission".to_owned())
+    })?;
 
+    // Wounds charted on the stay's encounter, plus any pressure injury noted
+    // on a Braden assessment.
     let skin_assessment = sqlx::query_as::<_, SkinAssessmentEntry>(
-        "SELECT body_area, skin_condition, stage, wound_size_cm, notes \
-         FROM skin_assessments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC LIMIT 5000",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let other_interventions: Vec<String> = sqlx::query_scalar(
-        "SELECT intervention_text FROM pressure_ulcer_interventions \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at LIMIT 5000",
+        "SELECT body_area, skin_condition, stage, wound_size_cm, notes FROM ( \
+           SELECT wa.recorded_at AS at, wa.body_site AS body_area, \
+             COALESCE(wa.classification, '') AS skin_condition, wa.stage, \
+             NULLIF(concat_ws(' x ', wa.length_cm::text, wa.width_cm::text, \
+               wa.depth_cm::text), '') AS wound_size_cm, \
+             wa.notes \
+           FROM admissions a \
+           JOIN wound_assessments wa ON wa.encounter_id = a.encounter_id \
+             AND wa.tenant_id = a.tenant_id AND wa.deleted_at IS NULL \
+           WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL \
+           UNION ALL \
+           SELECT pu.assessed_at, COALESCE(pu.injury_location, ''), 'Pressure injury', \
+             pu.injury_stage, NULL::text, pu.injury_description \
+           FROM nabh_pressure_ulcer_assessments pu \
+           WHERE pu.admission_id = $1 AND pu.tenant_id = $2 \
+             AND pu.deleted_at IS NULL AND pu.injury_present \
+         ) s ORDER BY at DESC LIMIT 500",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1313,7 +1404,12 @@ pub async fn get_pressure_ulcer_risk_print_data(
 
     tx.commit().await?;
 
-    let now = chrono::Utc::now();
+    let total_score = row.sensory_perception
+        + row.moisture
+        + row.activity
+        + row.mobility
+        + row.nutrition
+        + row.friction_shear;
 
     Ok(Json(PressureUlcerRiskPrintData {
         patient_name: row.patient_name,
@@ -1322,25 +1418,29 @@ pub async fn get_pressure_ulcer_risk_print_data(
         admission_number: row.admission_number,
         ward_name: row.ward_name,
         bed_number: row.bed_number,
-        assessment_date: now.format("%d-%b-%Y").to_string(),
+        assessment_date: row
+            .assessed_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         sensory_perception: row.sensory_perception,
         moisture: row.moisture,
         activity: row.activity,
         mobility: row.mobility,
         nutrition: row.nutrition,
         friction_shear: row.friction_shear,
-        total_score: row.total_score,
+        total_score,
         risk_level: row.risk_level,
         skin_assessment,
-        repositioning_schedule: row.repositioning_schedule,
-        support_surface: row.support_surface,
-        nutrition_plan: row.nutrition_plan,
-        moisture_management: row.moisture_management,
-        other_interventions,
+        repositioning_schedule: row.repositioning_plan,
+        // ponytail: support surface, moisture plan and reassessment date are
+        // not recorded anywhere yet; the skin-care plan prints as an intervention.
+        support_surface: None,
+        nutrition_plan: row.nutritional_plan,
+        moisture_management: None,
+        other_interventions: row.skin_care_plan.into_iter().collect(),
         assessed_by: row.assessed_by,
-        next_reassessment_date: row
-            .next_reassessment_date
-            .map(|d| d.format("%d-%b-%Y").to_string()),
+        next_reassessment_date: None,
     }))
 }
 
@@ -1357,6 +1457,7 @@ pub async fn get_gcs_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AdmissionBaseRow>(
         "SELECT \
@@ -1367,12 +1468,18 @@ pub async fn get_gcs_chart_print_data(
            a.admitted_at::date::text AS admission_date, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           a.admission_number AS admission_number \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+           AND e.deleted_at IS NULL \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           AND l.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+           AND w.deleted_at IS NULL \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1383,7 +1490,7 @@ pub async fn get_gcs_chart_print_data(
         "SELECT COALESCE(u.full_name, 'Attending Physician') \
          FROM admissions a \
          LEFT JOIN users u ON u.id = a.admitting_doctor \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1425,10 +1532,10 @@ pub async fn get_gcs_chart_print_data(
     Ok(Json(GcsChartPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        admission_number: "N/A".to_string(),
+        admission_number: row.admission_number.unwrap_or_default(),
         ward_name: row.ward_name.unwrap_or_else(|| "N/A".to_string()),
         bed_number: row.bed_number.unwrap_or_else(|| "N/A".to_string()),
-        chart_date: now.format("%d-%b-%Y").to_string(),
+        chart_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         diagnosis: row.diagnosis,
         entries,
         attending_doctor,
@@ -1439,6 +1546,7 @@ pub async fn get_gcs_chart_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct TransfusionReqRow {
+    patient_id: Uuid,
     patient_name: String,
     uhid: String,
     age: Option<f64>,
@@ -1448,87 +1556,127 @@ struct TransfusionReqRow {
     admission_number: Option<String>,
     ward_name: String,
     bed_number: String,
-    request_id: Uuid,
-    request_date: chrono::NaiveDate,
     clinical_indication: String,
     diagnosis: Option<String>,
-    hemoglobin: Option<String>,
-    hematocrit: Option<String>,
-    platelet_count: Option<String>,
-    pt_inr: Option<String>,
-    aptt: Option<String>,
     product_requested: String,
     units_requested: i32,
-    urgency: String,
-    special_requirements: Option<String>,
     previous_transfusions: Option<String>,
     previous_reactions: Option<String>,
-    pregnancy_history: Option<String>,
-    consent_obtained: bool,
-    sample_collected_by: Option<String>,
-    sample_collected_at: Option<chrono::DateTime<chrono::Utc>>,
     requested_by: Option<String>,
     requested_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// `request_id` is `crossmatch_requests.id` — the blood bank's record of the
+/// ward's request. Ward and bed come from the admission open when it was made.
 pub async fn get_transfusion_requisition_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<TransfusionRequisitionPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CROSSMATCH_REQUEST,
+        request_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, TransfusionReqRow>(
         "SELECT \
+           cr.patient_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           p.blood_group::text AS blood_group, \
-           '+'::text AS rh_factor, \
-           a.id::text AS admission_number, \
+           NULLIF(upper(split_part(cr.blood_group::text, '_', 1)), 'UNKNOWN') AS blood_group, \
+           CASE WHEN cr.blood_group::text LIKE '%_positive' THEN 'Positive' \
+                WHEN cr.blood_group::text LIKE '%_negative' THEN 'Negative' END AS rh_factor, \
+           a.admission_number AS admission_number, \
            COALESCE(w.name, 'N/A') AS ward_name, \
            COALESCE(l.name, 'N/A') AS bed_number, \
-           tr.id AS request_id, \
-           tr.request_date, \
-           tr.clinical_indication, \
-           tr.diagnosis, \
-           tr.hemoglobin, \
-           tr.hematocrit, \
-           tr.platelet_count, \
-           tr.pt_inr, \
-           tr.aptt, \
-           tr.product_requested::text AS product_requested, \
-           tr.units_requested, \
-           tr.urgency::text AS urgency, \
-           tr.special_requirements, \
-           tr.previous_transfusions, \
-           tr.previous_reactions, \
-           tr.pregnancy_history, \
-           COALESCE(tr.consent_obtained, false) AS consent_obtained, \
-           collector.full_name AS sample_collected_by, \
-           tr.sample_collected_at, \
+           COALESCE(cr.clinical_indication, '') AS clinical_indication, \
+           a.provisional_diagnosis AS diagnosis, \
+           cr.component_type::text AS product_requested, \
+           cr.units_requested, \
+           (SELECT NULLIF(count(*), 0)::text FROM transfusion_records t \
+             WHERE t.patient_id = cr.patient_id AND t.tenant_id = cr.tenant_id \
+               AND t.deleted_at IS NULL AND t.created_at < cr.created_at) \
+             AS previous_transfusions, \
+           (SELECT string_agg(DISTINCT t.reaction_type, ', ') FROM transfusion_records t \
+             WHERE t.patient_id = cr.patient_id AND t.tenant_id = cr.tenant_id \
+               AND t.deleted_at IS NULL AND t.has_reaction \
+               AND t.created_at < cr.created_at) AS previous_reactions, \
            requester.full_name AS requested_by, \
-           tr.created_at AS requested_at \
-         FROM transfusion_requests tr \
-         JOIN patients p ON p.id = tr.patient_id AND p.tenant_id = tr.tenant_id \
-         LEFT JOIN admissions a ON a.id = tr.admission_id AND a.tenant_id = tr.tenant_id \
-         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
-         LEFT JOIN users collector ON collector.id = tr.sample_collected_by_id \
-         LEFT JOIN users requester ON requester.id = tr.requested_by_id \
-         WHERE tr.id = $1 AND tr.tenant_id = $2",
+           cr.created_at AS requested_at \
+         FROM crossmatch_requests cr \
+         JOIN patients p ON p.id = cr.patient_id AND p.tenant_id = cr.tenant_id \
+           AND p.deleted_at IS NULL \
+         LEFT JOIN LATERAL ( \
+           SELECT ad.id, ad.encounter_id, ad.ward_id, ad.bed_id, ad.provisional_diagnosis, \
+                  ad.admission_number \
+           FROM admissions ad \
+           WHERE ad.patient_id = cr.patient_id AND ad.tenant_id = cr.tenant_id \
+             AND ad.deleted_at IS NULL AND ad.admitted_at <= cr.created_at \
+             AND (ad.discharged_at IS NULL OR ad.discharged_at >= cr.created_at) \
+           ORDER BY ad.admitted_at DESC LIMIT 1 \
+         ) a ON true \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = cr.tenant_id \
+           AND e.deleted_at IS NULL \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = cr.tenant_id \
+           AND w.deleted_at IS NULL \
+         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = cr.tenant_id \
+           AND l.deleted_at IS NULL \
+         LEFT JOIN users requester ON requester.id = cr.requested_by \
+         WHERE cr.id = $1 AND cr.tenant_id = $2 AND cr.deleted_at IS NULL",
     )
     .bind(request_id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
+    // Latest pre-transfusion value of each, as of the request, with its date.
+    // ponytail: matched on parameter name — switch to LOINC once lab_results carries it.
+    let labs: Vec<(String, String)> = sqlx::query_as(
+        "SELECT DISTINCT ON (r.k) r.k, \
+           r.value || COALESCE(' ' || r.unit, '') \
+             || ' (' || to_char(r.created_at, 'DD-Mon-YYYY') || ')' AS v \
+         FROM ( \
+           SELECT lr.value, lr.unit, lr.created_at, \
+             CASE \
+               WHEN lower(trim(lr.parameter_name)) IN \
+                 ('haemoglobin', 'hemoglobin', 'hb', 'hgb') THEN 'hb' \
+               WHEN lower(trim(lr.parameter_name)) IN \
+                 ('haematocrit', 'hematocrit', 'hct', 'pcv', 'packed cell volume') THEN 'hct' \
+               WHEN lower(trim(lr.parameter_name)) IN \
+                 ('platelet count', 'platelets', 'plt') THEN 'plt' \
+               WHEN lower(trim(lr.parameter_name)) IN ('inr', 'pt inr', 'pt/inr') THEN 'inr' \
+               WHEN lower(trim(lr.parameter_name)) IN \
+                 ('aptt', 'ptt', 'activated partial thromboplastin time') THEN 'aptt' \
+             END AS k \
+           FROM lab_results lr \
+           JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
+             AND lo.deleted_at IS NULL \
+           WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
+             AND lr.deleted_at IS NULL AND lr.created_at <= $3 \
+         ) r \
+         WHERE r.k IS NOT NULL \
+         ORDER BY r.k, r.created_at DESC LIMIT 5",
+    )
+    .bind(row.patient_id)
+    .bind(claims.tenant_id)
+    .bind(row.requested_at)
+    .fetch_all(&mut *tx)
+    .await?;
+
     tx.commit().await?;
+
+    let lab = |key: &str| labs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone());
 
     Ok(Json(TransfusionRequisitionPrintData {
         patient_name: row.patient_name,
@@ -1540,29 +1688,37 @@ pub async fn get_transfusion_requisition_print_data(
         admission_number: row.admission_number,
         ward_name: row.ward_name,
         bed_number: row.bed_number,
-        request_id: row.request_id.to_string(),
-        request_date: row.request_date.format("%d-%b-%Y").to_string(),
+        request_id: request_id.to_string(),
+        request_date: row
+            .requested_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         clinical_indication: row.clinical_indication,
         diagnosis: row.diagnosis,
-        hemoglobin: row.hemoglobin,
-        hematocrit: row.hematocrit,
-        platelet_count: row.platelet_count,
-        pt_inr: row.pt_inr,
-        aptt: row.aptt,
+        hemoglobin: lab("hb"),
+        hematocrit: lab("hct"),
+        platelet_count: lab("plt"),
+        pt_inr: lab("inr"),
+        aptt: lab("aptt"),
         product_requested: row.product_requested,
         units_requested: row.units_requested,
-        urgency: row.urgency,
-        special_requirements: row.special_requirements,
+        // ponytail: urgency, special requirements, pregnancy history, consent and
+        // sample collection are not recorded on a crossmatch request yet.
+        urgency: None,
+        special_requirements: None,
         previous_transfusions: row.previous_transfusions,
         previous_reactions: row.previous_reactions,
-        pregnancy_history: row.pregnancy_history,
-        consent_obtained: row.consent_obtained,
-        sample_collected_by: row.sample_collected_by,
-        sample_collected_at: row
-            .sample_collected_at
-            .map(|t| t.format("%d-%b-%Y %H:%M").to_string()),
+        pregnancy_history: None,
+        consent_obtained: None,
+        sample_collected_by: None,
+        sample_collected_at: None,
         requested_by: row.requested_by.unwrap_or_default(),
-        requested_at: row.requested_at.format("%d-%b-%Y %H:%M").to_string(),
+        requested_at: row
+            .requested_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
     }))
 }
 
@@ -1616,4 +1772,5 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/transfusion-requisition/{request_id}",
             get(get_transfusion_requisition_print_data),
-        )}
+        )
+}

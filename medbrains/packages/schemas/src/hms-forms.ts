@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { refineBloodPressure } from "./blood-pressure.js";
 import {
   formNumberValue,
   hasTrimmedValue,
@@ -314,28 +315,6 @@ export const securityCodeDebriefFormSchema = z.object({
 });
 export type SecurityCodeDebriefFormInput = z.infer<typeof securityCodeDebriefFormSchema>;
 
-export const soapNoteFormSchema = z
-  .object({
-    chief_complaint: z.string().max(4000, "Subjective note must be at most 4000 characters"),
-    examination: z.string().max(4000, "Objective note must be at most 4000 characters"),
-    history: z.string().max(4000, "Assessment note must be at most 4000 characters"),
-    plan: z.string().max(4000, "Plan note must be at most 4000 characters"),
-    notes: z.string().max(8000, "Combined note must be at most 8000 characters"),
-  })
-  .refine(
-    (value) =>
-      value.chief_complaint.trim().length > 0 ||
-      value.examination.trim().length > 0 ||
-      value.history.trim().length > 0 ||
-      value.plan.trim().length > 0 ||
-      value.notes.trim().length > 0,
-    {
-      message: "Enter at least one SOAP section",
-      path: ["chief_complaint"],
-    },
-  );
-export type SoapNoteFormInput = z.infer<typeof soapNoteFormSchema>;
-
 export const accessGroupFormSchema = z.object({
   code: requiredTrimmed("Group code is required", 64),
   name: requiredTrimmed("Group name is required", 255),
@@ -375,7 +354,7 @@ export const appointmentRecurrenceValues = ["weekly", "biweekly", "monthly"] as 
 export const shareRelationValues = ["viewer", "editor", "consultant"] as const;
 export const sharingSubjectTypeValues = ["user", "role", "department", "group"] as const;
 export const signerRoleValues = ["patient", "guardian", "witness", "doctor", "nurse"] as const;
-export const paymentModeValues = ["online", "upi_qr", "cash"] as const;
+export const paymentModeValues = ["online", "upi_qr", "cash", "card"] as const;
 export const billingChargeSourceValues = [
   "opd",
   "ipd",
@@ -474,15 +453,6 @@ export const ipdNursingTaskTypeValues = [
   "discharge_prep",
   "other",
 ] as const;
-export const ipdProgressNoteTypeFormSchema = z.enum([
-  "doctor_round",
-  "nursing_note",
-  "specialist_opinion",
-  "dietitian_note",
-  "physiotherapy_note",
-  "social_worker_note",
-  "discharge_note",
-]);
 /**
  * Draw containers, named by the additive that decides them.
  *
@@ -1076,7 +1046,7 @@ export const orderBasketDrugRouteValues = [
   "SL",
   "Per NG",
 ] as const;
-export const orderBasketLabPriorityValues = ["routine", "stat"] as const;
+export const orderBasketLabPriorityValues = ["routine", "urgent", "stat"] as const;
 export const orderBasketRadiologyPriorityValues = ["routine", "urgent", "stat"] as const;
 export const pharmacyStockTransactionTypeValues = [
   "receipt",
@@ -1600,6 +1570,7 @@ export const patientRegistrationFormSchema = z
     consultant_id: z.string().optional(),
     clinical_unit: z.string().optional(),
     camp_id: z.string().optional(),
+    campaign_id: z.string().optional(),
     camp_name: z.string().optional(),
     initial_diagnosis_text: z.string().optional(),
     icd10_code: z.string().optional(),
@@ -1643,6 +1614,13 @@ export const patientRegistrationFormSchema = z
     attendant_passes_count: optionalNonNegativeIntegerString,
     create_opd_visit: z.boolean().optional(),
     open_opd_after_registration: z.boolean().optional(),
+    // DPDP Act 2023: the notice shown, its language, and the purposes agreed.
+    privacy_notice_given: z.boolean().optional(),
+    privacy_language: z.enum(["en", "hi", "ta"]).optional(),
+    privacy_purposes: z
+      .array(z.enum(["abdm_linking", "insurance_claims", "health_reminders", "research"]))
+      .optional(),
+    privacy_guardian: z.string().optional(),
   })
   .superRefine((value, ctx) => {
     // The shared registration rules (registration-rules.ts), which the
@@ -1650,6 +1628,14 @@ export const patientRegistrationFormSchema = z
     for (const problem of registrationProblems(registrationCatalogue, registrationDraftOf(value))) {
       const path = FORM_FIELD_OF[problem.field] ?? problem.field;
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: problem.message });
+    }
+    // Consent asked without the notice is not consent (s.5).
+    if ((value.privacy_purposes?.length ?? 0) > 0 && !value.privacy_notice_given) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["privacy_notice_given"],
+        message: "Show the patient the privacy notice before recording what they agreed to",
+      });
     }
   });
 
@@ -1706,6 +1692,8 @@ export const pharmacyCatalogFormSchema = z.object({
   // to typing the name.
   barcode: z.string(),
   is_controlled: z.boolean(),
+  refill_policy: z.enum(["pharmacy", "doctor_approval", "never"]),
+  needs_cold_chain: z.boolean(),
 });
 
 export const miniAddLabTestFormSchema = z.object({
@@ -1739,6 +1727,8 @@ export const orderBasketDrugFormSchema = z
     indication: z.string(),
     schedule_x_serial: z.string(),
     is_schedule_x: z.boolean(),
+    /** A Reserve antibiotic or non-formulary medicine: the indication is its justification. */
+    needs_justification: z.boolean(),
   })
   .superRefine((value, ctx) => {
     if (value.is_schedule_x && value.schedule_x_serial.trim().length === 0) {
@@ -1746,6 +1736,13 @@ export const orderBasketDrugFormSchema = z
         code: z.ZodIssueCode.custom,
         path: ["schedule_x_serial"],
         message: "Schedule X paper Rx serial number is required",
+      });
+    }
+    if (value.needs_justification && value.indication.trim().length < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["indication"],
+        message: "State the indication (at least 5 characters)",
       });
     }
   });
@@ -1764,6 +1761,7 @@ export const orderBasketRadiologyFormSchema = z.object({
   priority: orderBasketRadiologyPriorityFormSchema,
   contrast_required: z.boolean(),
   pregnancy_checked: z.boolean(),
+  patient_pregnant: z.boolean(),
   allergy_flagged: z.boolean(),
   notes: z.string(),
 });
@@ -1852,50 +1850,6 @@ export const pharmacyPosSaleFormSchema = z.object({
   }, "Discount cannot exceed 100%"),
   items: z.array(pharmacyPosSaleItemFormSchema).min(1, "Add at least one medicine"),
 });
-
-export const pharmacyPosReturnItemFormSchema = z.object({
-  item_id: requiredTrimmed("Sale item is required"),
-  drug_name: requiredTrimmed("Drug name is required"),
-  batch_number: z.string(),
-  max_qty: nonNegativeNumber("Returnable quantity cannot be negative"),
-  return_qty: optionalNonNegativeIntegerNumber("Return quantity must be a whole number"),
-  unit_price: nonNegativeNumber("Unit price cannot be negative"),
-});
-
-export const pharmacyPosReturnFormSchema = z
-  .object({
-    reason: requiredTrimmed("Return reason is required", 255).refine(
-      (value) => value.trim().length >= 3,
-      "Enter at least 3 characters",
-    ),
-    items: z.array(pharmacyPosReturnItemFormSchema),
-  })
-  .superRefine((value, ctx) => {
-    let hasReturn = false;
-
-    value.items.forEach((item, index) => {
-      const returnQty = Number(item.return_qty || 0);
-      const maxQty = Number(item.max_qty || 0);
-      if (returnQty > 0) {
-        hasReturn = true;
-      }
-      if (returnQty > maxQty) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["items", index, "return_qty"],
-          message: "Return quantity cannot exceed remaining sale quantity",
-        });
-      }
-    });
-
-    if (!hasReturn) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["items"],
-        message: "Select at least one medicine to return",
-      });
-    }
-  });
 
 export const pharmacyRxReviewActionFormSchema = z.enum(["approved", "rejected", "on_hold"]);
 export const pharmacyRxReviewActionValues = pharmacyRxReviewActionFormSchema.options;
@@ -2381,14 +2335,6 @@ export const opdConsentReprintFormSchema = z.object({
   ),
 });
 
-export const ipdProgressNoteFormSchema = z.object({
-  note_type: ipdProgressNoteTypeFormSchema,
-  subjective: z.string(),
-  objective: z.string(),
-  assessment: z.string(),
-  plan: z.string(),
-});
-
 const bradenScoreFormValue = z.coerce.number().min(1).max(4);
 
 export const ipdClinicalAssessmentFormSchema = z.object({
@@ -2422,21 +2368,23 @@ export const ipdAttenderFormSchema = z.object({
   is_primary: z.boolean(),
 });
 
-export const icuFlowsheetFormSchema = z.object({
-  heart_rate: optionalNonNegativeIntegerNumber("Heart rate must be a whole number"),
-  systolic_bp: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number"),
-  diastolic_bp: optionalNonNegativeIntegerNumber("Diastolic BP must be a whole number"),
-  mean_arterial_bp: optionalNonNegativeIntegerNumber("MAP must be a whole number"),
-  respiratory_rate: optionalNonNegativeIntegerNumber("Respiratory rate must be a whole number"),
-  spo2: optionalNumericFormValue("SpO2 must be between 0 and 100", 0, 100),
-  temperature: optionalNumericFormValue("Temperature must be numeric"),
-  cvp: optionalNumericFormValue("CVP must be numeric"),
-  intake_ml: optionalNumericFormValue("Intake cannot be negative", 0),
-  output_ml: optionalNumericFormValue("Output cannot be negative", 0),
-  urine_ml: optionalNumericFormValue("Urine output cannot be negative", 0),
-  drain_ml: optionalNumericFormValue("Drain output cannot be negative", 0),
-  notes: z.string(),
-});
+export const icuFlowsheetFormSchema = z
+  .object({
+    heart_rate: optionalNonNegativeIntegerNumber("Heart rate must be a whole number"),
+    systolic_bp: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number"),
+    diastolic_bp: optionalNonNegativeIntegerNumber("Diastolic BP must be a whole number"),
+    mean_arterial_bp: optionalNonNegativeIntegerNumber("MAP must be a whole number"),
+    respiratory_rate: optionalNonNegativeIntegerNumber("Respiratory rate must be a whole number"),
+    spo2: optionalNumericFormValue("SpO2 must be between 0 and 100", 0, 100),
+    temperature: optionalNumericFormValue("Temperature must be numeric"),
+    cvp: optionalNumericFormValue("CVP must be numeric"),
+    intake_ml: optionalNumericFormValue("Intake cannot be negative", 0),
+    output_ml: optionalNumericFormValue("Output cannot be negative", 0),
+    urine_ml: optionalNumericFormValue("Urine output cannot be negative", 0),
+    drain_ml: optionalNumericFormValue("Drain output cannot be negative", 0),
+    notes: z.string(),
+  })
+  .superRefine(refineBloodPressure("systolic_bp", "diastolic_bp"));
 
 export const icuVentilatorModeFormSchema = z.enum([
   "cmv",
@@ -2561,6 +2509,8 @@ export const labCatalogFormSchema = z.object({
   critical_low: optionalNumericFormValue("Critical low must be numeric"),
   critical_high: optionalNumericFormValue("Critical high must be numeric"),
   delta_check_percent: optionalNumericFormValue("Delta check must be between 0 and 100", 0, 100),
+  /** Short names searched by ("LFT", "hemogram"). */
+  synonyms: z.array(z.string().trim().min(1).max(80)).max(20, "At most 20 short names"),
 });
 
 export const labPanelFormSchema = z.object({
@@ -3380,69 +3330,71 @@ export const campHistoryAnswerFormSchema = z.union([
   z.literal("no"),
 ]);
 
-export const campScreeningFormSchema = z.object({
-  registration_id: requiredTrimmed("Select a camp registration"),
-  bp_systolic: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number").refine(
-    (value) => {
+export const campScreeningFormSchema = z
+  .object({
+    registration_id: requiredTrimmed("Select a camp registration"),
+    bp_systolic: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number").refine(
+      (value) => {
+        if (typeof value === "string" && value.trim().length === 0) return true;
+        const parsed = typeof value === "number" ? value : Number(value);
+        return parsed <= 300;
+      },
+      "Systolic BP cannot exceed 300",
+    ),
+    bp_diastolic: optionalNonNegativeIntegerNumber("Diastolic BP must be a whole number").refine(
+      (value) => {
+        if (typeof value === "string" && value.trim().length === 0) return true;
+        const parsed = typeof value === "number" ? value : Number(value);
+        return parsed <= 220;
+      },
+      "Diastolic BP cannot exceed 220",
+    ),
+    pulse_rate: optionalNonNegativeIntegerNumber("Pulse must be a whole number").refine((value) => {
       if (typeof value === "string" && value.trim().length === 0) return true;
       const parsed = typeof value === "number" ? value : Number(value);
       return parsed <= 300;
-    },
-    "Systolic BP cannot exceed 300",
-  ),
-  bp_diastolic: optionalNonNegativeIntegerNumber("Diastolic BP must be a whole number").refine(
-    (value) => {
+    }, "Pulse cannot exceed 300"),
+    spo2: optionalNonNegativeIntegerNumber("SpO2 must be a whole number").refine((value) => {
       if (typeof value === "string" && value.trim().length === 0) return true;
       const parsed = typeof value === "number" ? value : Number(value);
-      return parsed <= 220;
-    },
-    "Diastolic BP cannot exceed 220",
-  ),
-  pulse_rate: optionalNonNegativeIntegerNumber("Pulse must be a whole number").refine((value) => {
-    if (typeof value === "string" && value.trim().length === 0) return true;
-    const parsed = typeof value === "number" ? value : Number(value);
-    return parsed <= 300;
-  }, "Pulse cannot exceed 300"),
-  spo2: optionalNonNegativeIntegerNumber("SpO2 must be a whole number").refine((value) => {
-    if (typeof value === "string" && value.trim().length === 0) return true;
-    const parsed = typeof value === "number" ? value : Number(value);
-    return parsed <= 100;
-  }, "SpO2 cannot exceed 100"),
-  temperature: optionalNumericFormValue("Temperature must be between 25 and 45 C", 25, 45),
-  blood_sugar_random: optionalNumericFormValue("Random blood sugar cannot be negative", 0),
-  height_cm: optionalNumericFormValue("Height must be between 30 and 250 cm", 30, 250),
-  weight_kg: optionalNumericFormValue("Weight must be between 0.5 and 350 kg", 0.5, 350),
-  bmi: optionalNumericFormValue("BMI cannot be negative", 0),
-  visual_acuity_left: z.string(),
-  visual_acuity_right: z.string(),
-  mh_diabetes: campHistoryAnswerFormSchema,
-  mh_hypertension: campHistoryAnswerFormSchema,
-  mh_asthma: campHistoryAnswerFormSchema,
-  mh_heart_disease: campHistoryAnswerFormSchema,
-  mh_thyroid_disorder: campHistoryAnswerFormSchema,
-  mh_previous_surgeries: campHistoryAnswerFormSchema,
-  mh_allergies: campHistoryAnswerFormSchema,
-  mh_smoking_history: campHistoryAnswerFormSchema,
-  mh_alcohol_use: campHistoryAnswerFormSchema,
-  mh_family_history: campHistoryAnswerFormSchema,
-  mh_others: campHistoryAnswerFormSchema,
-  medical_history_notes: z.string(),
-  test_hba1c: optionalNumericFormValue("HbA1c must be between 2 and 20 %", 2, 20),
-  test_haemoglobin: optionalNumericFormValue("Haemoglobin must be between 1 and 25 g/dl", 1, 25),
-  test_thyroid: optionalNumericFormValue("TSH cannot be negative", 0),
-  test_ecg: z.string(),
-  test_xray: z.string(),
-  test_bmd: z.string(),
-  test_biothesiometry: z.string(),
-  findings: z.string(),
-  diagnosis: z.string(),
-  advice: z.string(),
-  referred_to_hospital: z.boolean(),
-  referral_department: z.string(),
-  referral_doctor_name: z.string(),
-  referral_urgency: z.string(),
-  icd_codes: z.string(),
-});
+      return parsed <= 100;
+    }, "SpO2 cannot exceed 100"),
+    temperature: optionalNumericFormValue("Temperature must be between 25 and 45 C", 25, 45),
+    blood_sugar_random: optionalNumericFormValue("Random blood sugar cannot be negative", 0),
+    height_cm: optionalNumericFormValue("Height must be between 30 and 250 cm", 30, 250),
+    weight_kg: optionalNumericFormValue("Weight must be between 0.5 and 350 kg", 0.5, 350),
+    bmi: optionalNumericFormValue("BMI cannot be negative", 0),
+    visual_acuity_left: z.string(),
+    visual_acuity_right: z.string(),
+    mh_diabetes: campHistoryAnswerFormSchema,
+    mh_hypertension: campHistoryAnswerFormSchema,
+    mh_asthma: campHistoryAnswerFormSchema,
+    mh_heart_disease: campHistoryAnswerFormSchema,
+    mh_thyroid_disorder: campHistoryAnswerFormSchema,
+    mh_previous_surgeries: campHistoryAnswerFormSchema,
+    mh_allergies: campHistoryAnswerFormSchema,
+    mh_smoking_history: campHistoryAnswerFormSchema,
+    mh_alcohol_use: campHistoryAnswerFormSchema,
+    mh_family_history: campHistoryAnswerFormSchema,
+    mh_others: campHistoryAnswerFormSchema,
+    medical_history_notes: z.string(),
+    test_hba1c: optionalNumericFormValue("HbA1c must be between 2 and 20 %", 2, 20),
+    test_haemoglobin: optionalNumericFormValue("Haemoglobin must be between 1 and 25 g/dl", 1, 25),
+    test_thyroid: optionalNumericFormValue("TSH cannot be negative", 0),
+    test_ecg: z.string(),
+    test_xray: z.string(),
+    test_bmd: z.string(),
+    test_biothesiometry: z.string(),
+    findings: z.string(),
+    diagnosis: z.string(),
+    advice: z.string(),
+    referred_to_hospital: z.boolean(),
+    referral_department: z.string(),
+    referral_doctor_name: z.string(),
+    referral_urgency: z.string(),
+    icd_codes: z.string(),
+  })
+  .superRefine(refineBloodPressure("bp_systolic", "bp_diastolic"));
 
 export const campLabSampleFormSchema = z.object({
   registration_id: requiredTrimmed("Select a camp registration"),
@@ -3609,6 +3561,8 @@ export const cssdIndicatorFormSchema = z.object({
 });
 
 export const cssdIssuanceFormSchema = z.object({
+  load_id: z.string().min(1, "Choose the sterilisation load"),
+  load_item_id: z.string().min(1, "Choose the pack being issued"),
   issued_to_department: requiredTrimmed("Department is required", 255),
   issued_to_patient_id: z.string(),
   notes: z.string(),
@@ -3815,25 +3769,32 @@ export const orderSetTemplateFormSchema = z.object({
   trigger_diagnoses_text: z.string(),
 });
 
-export const orderSetItemFormSchema = z.object({
-  item_type: orderSetItemTypeFormSchema,
-  sort_order: optionalNonNegativeIntegerNumber("Sort order must be a whole number"),
-  is_mandatory: z.boolean(),
-  default_selected: z.boolean(),
-  lab_priority: z.string(),
-  lab_notes: z.string(),
-  drug_name: z.string(),
-  dosage: z.string(),
-  frequency: z.string(),
-  duration: z.string(),
-  route: z.string(),
-  med_instructions: z.string(),
-  task_type: z.string(),
-  task_description: z.string(),
-  task_frequency: z.string(),
-  diet_type: z.string(),
-  diet_instructions: z.string(),
-});
+export const orderSetItemFormSchema = z
+  .object({
+    item_type: orderSetItemTypeFormSchema,
+    sort_order: optionalNonNegativeIntegerNumber("Sort order must be a whole number"),
+    is_mandatory: z.boolean(),
+    default_selected: z.boolean(),
+    lab_test_id: z.string(),
+    lab_priority: z.string(),
+    lab_notes: z.string(),
+    drug_name: z.string(),
+    dosage: z.string(),
+    frequency: z.string(),
+    duration: z.string(),
+    route: z.string(),
+    med_instructions: z.string(),
+    task_type: z.string(),
+    task_description: z.string(),
+    task_frequency: z.string(),
+    diet_type: z.string(),
+    diet_instructions: z.string(),
+  })
+  // A lab line with no test orders nothing: activation skips it silently.
+  .refine((v) => v.item_type !== "lab" || v.lab_test_id.trim() !== "", {
+    message: "Pick the lab test this line orders",
+    path: ["lab_test_id"],
+  });
 
 const dayOfWeekFormValue = formNumberValue.refine((value) => {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -3891,6 +3852,7 @@ export const radiologyOrderFormSchema = z.object({
   priority: orderBasketRadiologyPriorityFormSchema,
   contrast_required: z.boolean(),
   pregnancy_checked: z.boolean(),
+  patient_pregnant: z.boolean(),
   allergy_flagged: z.boolean(),
   notes: z.string(),
 });
@@ -3916,11 +3878,17 @@ export const createPaymentFormSchema = (amount: number) =>
         });
       }
     }
-    if (value.mode === "upi_qr" && value.utrReference.trim().length === 0) {
+    if (
+      (value.mode === "upi_qr" || value.mode === "card") &&
+      value.utrReference.trim().length === 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["utrReference"],
-        message: "UTR / reference number is required",
+        message:
+          value.mode === "card"
+            ? "Card approval code is required"
+            : "UTR / reference number is required",
       });
     }
   });
@@ -3988,12 +3956,6 @@ export const opdFeedbackFormSchema = z.object({
 export const opdProcedureConsentFormSchema = z.object({
   procedure_name: requiredTrimmed("Procedure name is required", 255),
   consent_type: opdProcedureConsentTypeFormSchema,
-  risks_explained: z.string(),
-  alternatives_explained: z.string(),
-  benefits_explained: z.string(),
-  consented_by_name: z.string(),
-  consented_by_relation: z.string(),
-  witness_name: z.string(),
 });
 
 export const opdMedicalCertificateFormSchema = z
@@ -4823,6 +4785,8 @@ const procurementGrnItemFormSchema = z
 
 export const procurementGrnFormSchema = z.object({
   po_id: requiredTrimmed("Purchase order is required"),
+  /** Required where the hospital keeps stores — checked by the form and the server. */
+  store_location_id: z.string(),
   invoice_number: z.string(),
   notes: z.string(),
   items: z.array(procurementGrnItemFormSchema).min(1, "At least one item is required"),
@@ -5325,7 +5289,6 @@ export type IpdClinicalAssessmentTypeFormValue = z.infer<
   typeof ipdClinicalAssessmentTypeFormSchema
 >;
 export type IpdNursingTaskTypeFormValue = z.infer<typeof ipdNursingTaskTypeFormSchema>;
-export type IpdProgressNoteTypeFormValue = z.infer<typeof ipdProgressNoteTypeFormSchema>;
 export type LabContainerFormValue = z.infer<typeof labContainerFormSchema>;
 export type LabSampleTypeFormValue = z.infer<typeof labSampleTypeFormSchema>;
 export type LabMethodFormValue = z.infer<typeof labMethodFormSchema>;
@@ -5467,7 +5430,6 @@ export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentM
 export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
 export type PharmacyTransferFormInput = z.infer<typeof pharmacyTransferFormSchema>;
 export type PharmacyTransferItemFormInput = z.infer<typeof pharmacyTransferItemFormSchema>;
-export type PharmacyPosReturnFormInput = z.infer<typeof pharmacyPosReturnFormSchema>;
 export type PharmacyCashDrawerOpenFormInput = z.infer<typeof pharmacyCashDrawerOpenFormSchema>;
 export type PharmacyCashDrawerCloseFormInput = z.infer<typeof pharmacyCashDrawerCloseFormSchema>;
 export type PharmacyRxReviewFormInput = z.infer<typeof pharmacyRxReviewFormSchema>;
@@ -5518,7 +5480,6 @@ export type OpdCertificateReprintFormInput = z.infer<typeof opdCertificateReprin
 export type OpdConsentRevokeFormInput = z.infer<typeof opdConsentRevokeFormSchema>;
 export type OpdConsentReprintFormInput = z.infer<typeof opdConsentReprintFormSchema>;
 export type IpdNursingTaskFormInput = z.infer<typeof ipdNursingTaskFormSchema>;
-export type IpdProgressNoteFormInput = z.infer<typeof ipdProgressNoteFormSchema>;
 export type IpdClinicalAssessmentFormInput = z.infer<typeof ipdClinicalAssessmentFormSchema>;
 export type IpdAttenderFormInput = z.infer<typeof ipdAttenderFormSchema>;
 export type IcuFlowsheetFormInput = z.infer<typeof icuFlowsheetFormSchema>;

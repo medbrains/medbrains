@@ -1,6 +1,6 @@
-//! Batch-level stock movement between store locations.
+//! Batch-level stock movement between pharmacy store locations.
 //!
-//! Two flows move stock from one store to another — `pharmacy_transfer_requests`
+//! Two flows move stock from one pharmacy to another — `pharmacy_transfer_requests`
 //! and `pharmacy_store_indents` — and they are two halves of the same act: take
 //! from the source oldest-expiry-first, hand over, credit the destination. The
 //! transfer flow implemented it; the indent flow updated a status column and
@@ -13,6 +13,13 @@
 //! [`StockLine`] so the destination re-creates exactly what the source gave up
 //! — same batch number, same expiry, same cost. Anything else and a batch
 //! recall stops at the loading bay.
+//!
+//! The stock moved is `pharmacy_batches` — what dispensing, the stock view and
+//! FEFO selection read. These functions used to move `batch_stock`, the
+//! general store's table, which no pharmacy flow fills: the transfer screen
+//! showed stock the dispatch then called insufficient, and no pharmacy could
+//! ever supply another. What may leave a store is what may be dispensed from
+//! it: in date and cleared from quarantine.
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -90,10 +97,12 @@ pub async fn issue_fefo(
         }
 
         let batches: Vec<(Uuid, String, Option<chrono::NaiveDate>, Decimal, i32)> = sqlx::query_as(
-            "SELECT id, batch_number, expiry_date, unit_cost, quantity FROM batch_stock \
-             WHERE tenant_id = $1 AND store_location_id = $2 AND catalog_item_id = $3 \
-               AND quantity > 0 AND deleted_at IS NULL \
-             ORDER BY expiry_date ASC NULLS LAST FOR UPDATE",
+            "SELECT id, batch_number, expiry_date, COALESCE(purchase_rate, 0), quantity_on_hand \
+               FROM pharmacy_batches \
+              WHERE tenant_id = $1 AND store_location_id = $2 AND catalog_item_id = $3 \
+                AND quantity_on_hand > 0 AND deleted_at IS NULL \
+                AND expiry_date > CURRENT_DATE AND quarantine_status = 'cleared' \
+              ORDER BY expiry_date ASC, created_at ASC, id ASC FOR UPDATE",
         )
         .bind(tenant_id)
         .bind(from_location)
@@ -108,8 +117,8 @@ pub async fn issue_fefo(
             }
             let take = remaining.min(available);
             sqlx::query(
-                "UPDATE batch_stock SET quantity = quantity - $1, updated_at = now() \
-                 WHERE id = $2",
+                "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand - $1, \
+                 updated_at = now() WHERE id = $2",
             )
             .bind(take)
             .bind(batch_id)
@@ -151,7 +160,8 @@ pub async fn receive_lines(
 ) -> Result<(), StockError> {
     for line in lines {
         let updated = sqlx::query(
-            "UPDATE batch_stock SET quantity = quantity + $1, updated_at = now() \
+            "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
+             updated_at = now() \
              WHERE tenant_id = $2 AND store_location_id = $3 AND catalog_item_id = $4 \
                AND batch_number = $5 AND deleted_at IS NULL",
         )
@@ -164,10 +174,12 @@ pub async fn receive_lines(
         .await?;
 
         if updated.rows_affected() == 0 {
+            // Cleared at the source, so cleared here: the goods are the same.
             sqlx::query(
-                "INSERT INTO batch_stock \
+                "INSERT INTO pharmacy_batches \
                  (tenant_id, catalog_item_id, store_location_id, batch_number, expiry_date, \
-                  quantity, unit_cost) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                  quantity_received, quantity_on_hand, purchase_rate, quarantine_status) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'cleared')",
             )
             .bind(tenant_id)
             .bind(line.catalog_item_id)

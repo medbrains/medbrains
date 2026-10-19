@@ -1,32 +1,27 @@
-// IPD NursingTab — split from ipd.tsx (pure move).
+// IPD NursingTab — admission nursing assessment, care plans, shift handovers.
 
 import { Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { IpdCarePlan, IpdHandoverReport } from "@medbrains/types";
+import type { IpdHandoverReport } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Button } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { NursingAssessmentSection } from "./nursing-assessment-section";
+import { CarePlansSection } from "./nursing-care-plans";
 
 export function NursingTab({ admissionId }: { admissionId: string }) {
-  // Care plans and shift handovers are separate reads with separate codes.
+  // Shift handovers carry their own read code.
   // An empty handover list reads as "nothing was handed over".
-  const canListCarePlans = useHasPermission(P.IPD.CARE_PLANS_LIST);
   const canListHandovers = useHasPermission(P.IPD.HANDOVER_LIST);
 
-  const { data: carePlans } = useQuery({
-    queryKey: ["ipd-care-plans", admissionId],
-    queryFn: () => ipdService.listCarePlans(admissionId),
-    enabled: canListCarePlans,
-  });
   const { data: handovers } = useQuery({
     queryKey: ["ipd-handovers", admissionId],
     queryFn: () => ipdService.listHandovers(admissionId),
     enabled: canListHandovers,
   });
 
-  const plans = (carePlans ?? []) as IpdCarePlan[];
   const reports = (handovers ?? []) as IpdHandoverReport[];
 
   return (
@@ -44,38 +39,8 @@ export function NursingTab({ admissionId }: { admissionId: string }) {
         </Button>
       </Group>
 
-      <Text fw={600} size="sm">
-        Care Plans
-      </Text>
-      {plans.map((cp) => (
-        <Stack
-          key={cp.id}
-          gap={4}
-          p="xs"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
-        >
-          <Group justify="space-between">
-            <Text size="sm" fw={500}>
-              {cp.nursing_diagnosis}
-            </Text>
-            <Badge
-              size="xs"
-              tone={
-                cp.status === "active" ? "success" : cp.status === "resolved" ? "neutral" : "danger"
-              }
-            >
-              {cp.status}
-            </Badge>
-          </Group>
-          {cp.goals && <Text size="xs">Goals: {cp.goals}</Text>}
-          {cp.evaluation && <Text size="xs">Eval: {cp.evaluation}</Text>}
-        </Stack>
-      ))}
-      {plans.length === 0 && (
-        <Text c="dimmed" size="sm">
-          No care plans yet.
-        </Text>
-      )}
+      <NursingAssessmentSection admissionId={admissionId} />
+      <CarePlansSection admissionId={admissionId} />
 
       <Text fw={600} size="sm" mt="md">
         Handover Reports (ISBAR)

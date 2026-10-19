@@ -20,6 +20,7 @@ import {
   Table,
 } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { DomainOwnershipCard } from "./domain-ownership-card";
 
 const mailboxSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -168,7 +169,13 @@ export function DomainsEmailPage() {
       notifications.show({ title: "Could not send", message: err.message, color: "danger" }),
   });
   const statusTone = (s: string): BadgeTone =>
-    s === "sent" ? "success" : s === "failed" || s === "dlq" ? "danger" : "info";
+    s === "sent"
+      ? "success"
+      : s === "failed" || s === "dlq"
+        ? "danger"
+        : s === "skipped_unconfigured"
+          ? "warning"
+          : "info";
 
   return (
     <Stack>
@@ -176,6 +183,8 @@ export function DomainsEmailPage() {
         title="Domains & Email"
         subtitle="Your hospital's custom domain and the mail server that sends verification, invites and notifications."
       />
+
+      <DomainOwnershipCard />
 
       <Card withBorder padding="lg">
         <Group justify="space-between" mb="xs">

@@ -8,6 +8,7 @@ rust-version = "1.85"
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -17,6 +18,9 @@ chrono = { workspace = true }
 rust_decimal = { workspace = true }
 tracing = { workspace = true }
 medbrains-crypto = { path = "../medbrains-crypto" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+base64 = { workspace = true }
+reqwest = { workspace = true }
 
 [lints]
 workspace = true

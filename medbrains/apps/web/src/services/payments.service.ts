@@ -12,6 +12,8 @@ export const paymentsService = {
   getPaymentStatus: (id: string) => api.getPaymentStatus(id),
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
+  requestUpiCollect: (data: Parameters<typeof api.requestUpiCollect>[0]) =>
+    api.requestUpiCollect(data),
   listPaymentProviders: () => api.listPaymentProviders(),
   getReconSummary: () => api.getReconSummary(),
   listPaymentExceptions: (...args: Parameters<typeof api.listPaymentExceptions>) =>

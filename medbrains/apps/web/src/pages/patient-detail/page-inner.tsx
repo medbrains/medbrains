@@ -2,6 +2,7 @@
 
 import { Card, Grid, Group, Loader, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { ApiError } from "@medbrains/api";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CampRegistration,
@@ -41,19 +42,23 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AskAiButton } from "@/components/ai";
+import { ChartReview } from "@/components/Clinical/case-sheet/ChartReview";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
-import { NotesPanel } from "@/components/crdt/NotesPanel";
 import type { OrderBasketTab } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "@/components/PageHeader";
 import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSection";
+import { AbdmOtherHospitalsSection } from "@/components/Patient/abdm/AbdmOtherHospitalsSection";
+import { AbdmRecordsSection } from "@/components/Patient/abdm/AbdmRecordsSection";
 import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientUnavailable } from "@/components/Patient/PatientUnavailable";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
+import { QueryError } from "@/components/QueryError";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Badge, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
@@ -108,6 +113,7 @@ export function PatientDetailPageInner() {
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
+  const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -136,7 +142,12 @@ export function PatientDetailPageInner() {
     navigate(patientDetailWorkspaceTabRoute(patientId, activeDetailTab), { replace: true });
   }
 
-  const { data: patient, isLoading } = useQuery({
+  const {
+    data: patient,
+    isLoading,
+    error: patientError,
+    refetch: refetchPatient,
+  } = useQuery({
     queryKey: ["patient", patientId],
     queryFn: () => patientDetailService.getPatient(patientId),
     enabled: patientId.length > 0,
@@ -198,6 +209,14 @@ export function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
 
+  // A refusal is answered as "not found" so it is not an existence oracle;
+  // either way this user cannot open it here. Any other failure is an outage.
+  if (patientError instanceof ApiError && [403, 404].includes(patientError.status)) {
+    return <PatientUnavailable patientId={patientId} />;
+  }
+  if (patientError) {
+    return <QueryError error={patientError} onRetry={() => void refetchPatient()} />;
+  }
   if (isLoading || !patient) {
     return (
       <Stack align="center" py="xl">
@@ -372,7 +391,16 @@ export function PatientDetailPageInner() {
       section: "Programs",
       icon: <IconReportMedical size={14} />,
     },
-    { value: "notes", label: "Notes", section: "Records", icon: <IconReportMedical size={14} /> },
+    ...(canViewNotes
+      ? [
+          {
+            value: "notes" as const,
+            label: "Notes",
+            section: "Records",
+            icon: <IconReportMedical size={14} />,
+          },
+        ]
+      : []),
     { value: "merge", label: "Merge", section: "Admin", icon: <IconGitMerge size={14} /> },
   ] satisfies Array<{
     value: PatientDetailTabValue;
@@ -552,6 +580,8 @@ export function PatientDetailPageInner() {
               <Tabs.Panel id="patient-documents" value="documents" pt="md">
                 <Stack>
                   <DetailDocumentsTab patientId={patient.id} />
+                  <AbdmRecordsSection patientId={patient.id} />
+                  <AbdmOtherHospitalsSection patientId={patient.id} />
                   <PatientAccessLogSection patientId={patient.id} />
                 </Stack>
               </Tabs.Panel>
@@ -562,7 +592,7 @@ export function PatientDetailPageInner() {
                 <ActivePackagesSection patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-notes" value="notes" pt="md">
-                <NotesPanel patientId={patient.id} label="Clinical Notes" />
+                <ChartReview patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-merge" value="merge" pt="md">
                 <MergeTab patient={patient} />

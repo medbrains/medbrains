@@ -29,8 +29,11 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { NhcxPayerDirectory } from "@/components/Nhcx/NhcxPayerDirectory";
+import { NhcxPaymentsPanel } from "@/components/Nhcx/NhcxPaymentsPanel";
+import { NhcxSearchPanel } from "@/components/Nhcx/NhcxSearchPanel";
 import { SubmitToNhcxModal } from "@/components/Nhcx/SubmitToNhcxModal";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Button, IconButton } from "@/components/ui";
 import {
@@ -98,20 +101,14 @@ export function InsuranceClaimsTab({
     defaultValues: tpaRateCardDefaults,
   });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
-  const [nhcxAction, setNhcxAction] = useState<{
-    id: string;
-    mode: "submit" | "eligibility";
+  const [nhcxSend, setNhcxSend] = useState<{
+    claimId: string;
+    use: "preauthorization" | "claim";
   } | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
     queryFn: () => billingService.listInsuranceClaims(),
-  });
-
-  const { data: nhcxCallbacks = [] } = useQuery({
-    queryKey: ["nhcx-callbacks", detailClaim?.id],
-    queryFn: () => billingService.listNhcxCallbacks({ matched_id: detailClaim?.id }),
-    enabled: !!detailClaim,
   });
 
   const createMutation = useMutation({
@@ -289,6 +286,11 @@ export function InsuranceClaimsTab({
       ),
     },
     {
+      key: "total_bill_amount",
+      label: "Bill",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.total_bill_amount}</Text>,
+    },
+    {
       key: "pre_auth_amount",
       label: "Pre-Auth",
       sortable: true,
@@ -313,18 +315,36 @@ export function InsuranceClaimsTab({
       ),
     },
     {
+      key: "deductions",
+      label: "Deductions",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.deductions}</Text>,
+    },
+    {
+      key: "patient_payable",
+      label: "Patient pays",
+      render: (row: InsuranceClaim) => <Text size="sm">₹{row.patient_payable}</Text>,
+    },
+    {
       key: "actions",
       label: "",
-      render: (row: InsuranceClaim) =>
-        canCreate && row.status === "initiated" ? (
-          <Button
-            tone="secondary"
-            size="compact-xs"
-            onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
-          >
-            Request Pre-Auth
-          </Button>
-        ) : null,
+      render: (row: InsuranceClaim) => (
+        <Group gap={4}>
+          <PrintDocumentIconMenu
+            idKind="claim"
+            recordId={row.id}
+            recordLabel={row.claim_number ?? row.insurance_provider}
+          />
+          {canCreate && row.status === "initiated" && (
+            <Button
+              tone="secondary"
+              size="compact-xs"
+              onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
+            >
+              Request Pre-Auth
+            </Button>
+          )}
+        </Group>
+      ),
     },
   ];
 
@@ -497,24 +517,25 @@ export function InsuranceClaimsTab({
 
       <ClaimDetailDrawer
         claim={detailClaim}
-        callbacks={nhcxCallbacks}
         onClose={() => setDetailClaim(null)}
-        onNhcxAction={(c, mode) => {
+        onSubmitToNhcx={(c, use) => {
           setDetailClaim(null);
-          setNhcxAction({ id: c.id, mode });
+          setNhcxSend({ claimId: c.id, use });
         }}
       />
 
       <SubmitToNhcxModal
-        claimId={nhcxAction?.id ?? ""}
-        mode={nhcxAction?.mode ?? "submit"}
-        opened={!!nhcxAction}
-        onClose={() => setNhcxAction(null)}
+        key={nhcxSend ? `${nhcxSend.claimId}-${nhcxSend.use}` : "closed"}
+        claimId={nhcxSend?.claimId ?? ""}
+        defaultUse={nhcxSend?.use ?? "preauthorization"}
+        opened={!!nhcxSend}
+        onClose={() => setNhcxSend(null)}
       />
 
-      <Text fw={600} mt="lg">
-        NHCX
-      </Text>
+      <NhcxPaymentsPanel />
+
+      <NhcxSearchPanel />
+
       <NhcxPayerDirectory />
 
       <Text fw={600} mt="lg">

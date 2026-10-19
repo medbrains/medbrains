@@ -286,7 +286,10 @@ export function EndoscopyPage() {
             label="Procedure Type"
             required
             value={procForm.procedure_type}
-            onChange={(e) => setProcForm((p) => ({ ...p, procedure_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setProcForm((p) => ({ ...p, procedure_type: nextValue }));
+            }}
           />
           <Select
             label="Scope"
@@ -299,7 +302,10 @@ export function EndoscopyPage() {
           <TextInput
             label="Sedation Type"
             value={procForm.sedation_type ?? ""}
-            onChange={(e) => setProcForm((p) => ({ ...p, sedation_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setProcForm((p) => ({ ...p, sedation_type: nextValue }));
+            }}
           />
           <NumberInput
             label="Aldrete Score (Pre)"
@@ -343,17 +349,26 @@ export function EndoscopyPage() {
             label="Serial Number"
             required
             value={scopeForm.serial_number}
-            onChange={(e) => setScopeForm((p) => ({ ...p, serial_number: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setScopeForm((p) => ({ ...p, serial_number: nextValue }));
+            }}
           />
           <TextInput
             label="Model"
             value={scopeForm.model ?? ""}
-            onChange={(e) => setScopeForm((p) => ({ ...p, model: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setScopeForm((p) => ({ ...p, model: nextValue }));
+            }}
           />
           <TextInput
             label="Scope Type"
             value={scopeForm.scope_type ?? ""}
-            onChange={(e) => setScopeForm((p) => ({ ...p, scope_type: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setScopeForm((p) => ({ ...p, scope_type: nextValue }));
+            }}
           />
           <Button
             tone="primary"

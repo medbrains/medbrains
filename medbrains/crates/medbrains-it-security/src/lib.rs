@@ -21,6 +21,8 @@
 //! The sensitive-patient list then becomes a way to learn which patients carry
 //! a restricted diagnosis, which is the thing it exists to hide.
 
+mod break_glass_notify;
+
 use axum::routing::{delete, get, patch, post};
 use axum::{
     Extension, Json,
@@ -29,7 +31,6 @@ use axum::{
 use medbrains_core::it_security::{
     AccessAlert,
     AcknowledgeAlertRequest,
-    AddIncidentUpdateRequest,
     ApproveDisposalRequest,
     ApproveIncentiveRequest,
     AssignIncentivePlanRequest,
@@ -48,7 +49,6 @@ use medbrains_core::it_security::{
     CreateIncentivePlanRequest,
     CreateIncentiveRuleRequest,
     CreateMigrationRequest,
-    CreateSecurityIncidentRequest,
     CreateSensitivePatientRequest,
     CreateTatBenchmarkRequest,
     CreateTatRecordRequest,
@@ -72,18 +72,12 @@ use medbrains_core::it_security::{
     // Incentives
     IncentivePlan,
     IncentivePlanRule,
-    // CERT-In Compliance
-    IncidentQuery,
     MarkIncentivePaidRequest,
     // Data Migration
     MigrationQuery,
     // Onboarding
-    ReportToCertInRequest,
     ResolveIssueRequest,
     ReviewBreakGlassRequest,
-    SecurityIncident,
-    SecurityIncidentSummary,
-    SecurityIncidentUpdate,
     SensitivePatient,
     // Clinical Access Monitor
     SensitivePatientSummary,
@@ -101,7 +95,6 @@ use medbrains_core::it_security::{
     TatRecord,
     TatRecordSummary,
     UpdateComplianceRequest,
-    UpdateSecurityIncidentRequest,
     UpdateVulnerabilityRequest,
     Vulnerability,
 };
@@ -110,7 +103,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
@@ -248,6 +241,8 @@ async fn break_glass_access_rollup(
 pub async fn start_break_glass(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    client_ip: Option<Extension<medbrains_server_core::middleware::client_ip::ClientIp>>,
+    headers: axum::http::HeaderMap,
     jar: axum_extra::extract::CookieJar,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
@@ -314,6 +309,32 @@ pub async fn start_break_glass(
         grant_reason,
     )
     .execute(&mut *tx)
+    .await?;
+
+    // Where it came from, for the review.
+    let mut row = row;
+    row.ip_address = client_ip.map(|Extension(ip)| ip.as_str());
+    row.user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
+    sqlx::query("UPDATE break_glass_events SET ip_address = $2, user_agent = $3 WHERE id = $1")
+        .bind(id)
+        .bind(&row.ip_address)
+        .bind(&row.user_agent)
+        .execute(&mut *tx)
+        .await?;
+    break_glass_notify::notify(
+        &mut tx,
+        &break_glass_notify::BreakGlassStarted {
+            event_id: id,
+            tenant_id: claims.tenant_id,
+            user_id: claims.sub,
+            user_department_ids: &claims.department_ids,
+            patient_id: start.patient_id,
+            reason: &start.reason,
+        },
+    )
     .await?;
 
     tx.commit().await?;
@@ -393,6 +414,7 @@ pub async fn list_break_glass(
     Extension(claims): Extension<Claims>,
     Query(params): Query<BreakGlassQuery>,
 ) -> Result<Json<Vec<BreakGlassEventSummary>>, AppError> {
+    // allow-soft-deleted: an audit trail keeps every break-glass event, including people deleted since.
     require_permission(&claims, permissions::audit::REVIEW)?;
     // Oversight: the break-glass register is the record of who declared an
     // emergency and reached what. Narrowing it to the reviewer's own care team
@@ -640,6 +662,7 @@ pub async fn list_access_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<AccessAlert>>, AppError> {
+    // allow-soft-deleted: an audit trail keeps every alert, including those about people deleted since.
     require_permission(&claims, permissions::audit::ACCESS_VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -674,16 +697,21 @@ pub async fn acknowledge_access_alert(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, AccessAlert>(
+        // The note says what happened; the reviewer's words are added, not
+        // written over it. Reviewed once — a second acknowledgement is a 404.
         "UPDATE access_alerts
-         SET acknowledged_at = now(), acknowledged_by = $2, notes = $3
-         WHERE id = $1
+         SET acknowledged_at = now(), acknowledged_by = $2,
+             notes = concat_ws(E'\\n', notes, 'Reviewed: ' || NULLIF(trim($3), ''))
+         WHERE id = $1 AND tenant_id = $4 AND acknowledged_at IS NULL
          RETURNING *, NULL AS patient_name, NULL AS user_name",
     )
     .bind(id)
     .bind(claims.sub)
     .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -710,12 +738,12 @@ pub async fn list_disposals(
     let rows = sqlx::query_as::<_, StockDisposalSummary>(
         "SELECT d.id, d.request_number, s.name AS store_name, d.disposal_type, d.status,
          u.full_name AS requested_by_name, d.total_value,
-         (SELECT COUNT(*) FROM stock_disposal_items WHERE disposal_id = d.id) AS item_count,
+         (SELECT COUNT(*) FROM stock_disposal_items WHERE disposal_id = d.id AND deleted_at IS NULL) AS item_count,
          d.created_at
          FROM stock_disposal_requests d
          LEFT JOIN stores s ON s.id = d.store_id
          LEFT JOIN users u ON u.id = d.requested_by
-         WHERE ($1::uuid IS NULL OR d.store_id = $1)
+         WHERE d.deleted_at IS NULL AND ($1::uuid IS NULL OR d.store_id = $1)
          AND ($2::text IS NULL OR d.disposal_type = $2)
          AND ($3::text IS NULL OR d.status::text = $3)
          AND ($4::timestamptz IS NULL OR d.created_at >= $4::timestamptz)
@@ -993,7 +1021,7 @@ pub async fn list_tat_records(
          t.start_time, t.end_time, t.elapsed_minutes, t.benchmark_minutes, t.status
          FROM tat_records t
          LEFT JOIN patients p ON p.id = t.patient_id
-         WHERE ($1::text IS NULL OR t.category::text = $1)
+         WHERE t.deleted_at IS NULL AND ($1::text IS NULL OR t.category::text = $1)
          AND ($2::text IS NULL OR t.status = $2)
          AND ($3::uuid IS NULL OR t.department_id = $3)
          AND ($4::timestamptz IS NULL OR t.created_at >= $4::timestamptz)
@@ -1176,7 +1204,7 @@ pub async fn list_migrations(
 
     let rows = sqlx::query_as::<_, DataMigration>(
         "SELECT * FROM data_migrations
-         WHERE ($1::text IS NULL OR direction::text = $1)
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR direction::text = $1)
          AND ($2::text IS NULL OR entity_type = $2)
          AND ($3::text IS NULL OR status::text = $3)
          ORDER BY created_at DESC
@@ -1307,7 +1335,7 @@ pub async fn upsert_digest_subscription(
          email_enabled, push_enabled)
          VALUES ($1, $2, $3, $4, $5::time, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (tenant_id, user_id) DO UPDATE SET
-         frequency = COALESCE($4, eod_digest_subscriptions.frequency),
+         deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = eod_digest_subscriptions.is_active OR eod_digest_subscriptions.deleted_at IS NOT NULL, frequency = COALESCE($4, eod_digest_subscriptions.frequency),
          delivery_time = COALESCE($5::time, eod_digest_subscriptions.delivery_time),
          delivery_days = COALESCE($6, eod_digest_subscriptions.delivery_days),
          modules = COALESCE($7, eod_digest_subscriptions.modules),
@@ -1347,7 +1375,7 @@ pub async fn list_digest_history(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, EodDigestHistory>(
-        "SELECT * FROM eod_digest_history WHERE user_id = $1 ORDER BY digest_date DESC LIMIT 30",
+        "SELECT * FROM eod_digest_history WHERE user_id = $1 AND deleted_at IS NULL ORDER BY digest_date DESC LIMIT 30",
     )
     .bind(claims.sub)
     .fetch_all(&mut *tx)
@@ -1429,7 +1457,7 @@ pub async fn list_dq_issues(
 
     let rows = sqlx::query_as::<_, DataQualityIssue>(
         "SELECT * FROM data_quality_issues
-         WHERE ($1::text IS NULL OR category::text = $1)
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR category::text = $1)
          AND ($2::text IS NULL OR entity_type = $2)
          AND ($3::text IS NULL OR severity = $3)
          AND ($4::boolean IS NULL OR is_resolved = $4)
@@ -1562,357 +1590,6 @@ pub async fn dq_dashboard(
 // CERT-IN COMPLIANCE (Security Incidents & Vulnerabilities)
 // ══════════════════════════════════════════════════════════════
 
-/// List security incidents
-pub async fn list_security_incidents(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<IncidentQuery>,
-) -> Result<Json<Vec<SecurityIncidentSummary>>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let per_page = params.per_page.unwrap_or(50).min(200);
-    let offset = (params.page.unwrap_or(1) - 1).max(0) * per_page;
-
-    let rows = sqlx::query_as::<_, SecurityIncidentSummary>(
-        "SELECT id, incident_number, title, incident_type, severity, status,
-         detected_at, cert_in_reported, created_at
-         FROM security_incidents
-         WHERE ($1::text IS NULL OR incident_type = $1)
-         AND ($2::text IS NULL OR severity::text = $2)
-         AND ($3::text IS NULL OR status::text = $3)
-         AND ($4::boolean IS NULL OR cert_in_reported = $4)
-         AND ($5::timestamptz IS NULL OR detected_at >= $5::timestamptz)
-         AND ($6::timestamptz IS NULL OR detected_at <= $6::timestamptz)
-         ORDER BY detected_at DESC
-         LIMIT $7 OFFSET $8",
-    )
-    .bind(&params.incident_type)
-    .bind(&params.severity)
-    .bind(&params.status)
-    .bind(params.cert_in_reported)
-    .bind(&params.from)
-    .bind(&params.to)
-    .bind(per_page)
-    .bind(offset)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Get security incident detail
-pub async fn get_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row =
-        sqlx::query_as::<_, SecurityIncident>("SELECT * FROM security_incidents WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Create security incident
-pub async fn create_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateSecurityIncidentRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::CREATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Generate incident number
-    let seq: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(MAX(CAST(SUBSTRING(incident_number FROM 'INC-([0-9]+)') AS BIGINT)), 0) + 1
-         FROM security_incidents"
-    )
-    .fetch_one(&mut *tx)
-    .await?;
-    let incident_number = format!("INC-{:06}", seq.0);
-
-    let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "INSERT INTO security_incidents (id, tenant_id, incident_number, title, description,
-         incident_type, severity, detected_at, detected_by, affected_systems, affected_data_types,
-         estimated_impact)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&incident_number)
-    .bind(&body.title)
-    .bind(&body.description)
-    .bind(&body.incident_type)
-    .bind(body.severity)
-    .bind(body.detected_at)
-    .bind(claims.sub)
-    .bind(&body.affected_systems)
-    .bind(&body.affected_data_types)
-    .bind(&body.estimated_impact)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Update security incident
-pub async fn update_security_incident(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdateSecurityIncidentRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Get old status for logging
-    let old: SecurityIncident = sqlx::query_as("SELECT * FROM security_incidents WHERE id = $1")
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?;
-
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "UPDATE security_incidents SET
-         title = COALESCE($2, title),
-         description = COALESCE($3, description),
-         severity = COALESCE($4, severity),
-         status = COALESCE($5, status),
-         containment_steps = COALESCE($6, containment_steps),
-         eradication_steps = COALESCE($7, eradication_steps),
-         recovery_steps = COALESCE($8, recovery_steps),
-         lessons_learned = COALESCE($9, lessons_learned),
-         updated_at = now()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&body.title)
-    .bind(&body.description)
-    .bind(body.severity)
-    .bind(body.status)
-    .bind(&body.containment_steps)
-    .bind(&body.eradication_steps)
-    .bind(&body.recovery_steps)
-    .bind(&body.lessons_learned)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Log status change if changed
-    if let Some(new_status) = body.status {
-        if new_status != old.status {
-            sqlx::query(
-                "INSERT INTO security_incident_updates (id, incident_id, update_type, description,
-                 old_status, new_status, updated_by)
-                 VALUES ($1, $2, 'status_change', $3, $4, $5, $6)",
-            )
-            .bind(Uuid::new_v4())
-            .bind(id)
-            .bind(format!(
-                "Status changed from {:?} to {:?}",
-                old.status, new_status
-            ))
-            .bind(old.status)
-            .bind(new_status)
-            .bind(claims.sub)
-            .execute(&mut *tx)
-            .await?;
-        }
-    }
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Report incident to CERT-In
-pub async fn report_to_cert_in(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ReportToCertInRequest>,
-) -> Result<Json<SecurityIncident>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, SecurityIncident>(
-        "UPDATE security_incidents SET
-         cert_in_reported = true, cert_in_report_date = now(), cert_in_reference = $2,
-         updated_at = now()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&body.cert_in_reference)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Log the reporting
-    sqlx::query(
-        "INSERT INTO security_incident_updates (id, incident_id, update_type, description, updated_by)
-         VALUES ($1, $2, 'note', 'Reported to CERT-In', $3)"
-    )
-    .bind(Uuid::new_v4())
-    .bind(id)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Get incident updates
-pub async fn get_incident_updates(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Vec<SecurityIncidentUpdate>>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::LIST,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, SecurityIncidentUpdate>(
-        "SELECT su.*, u.full_name AS updated_by_name
-         FROM security_incident_updates su
-         LEFT JOIN users u ON u.id = su.updated_by
-         WHERE su.incident_id = $1
-         ORDER BY su.created_at DESC LIMIT 5000",
-    )
-    .bind(id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Add incident update
-pub async fn add_incident_update(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<AddIncidentUpdateRequest>,
-) -> Result<Json<SecurityIncidentUpdate>, AppError> {
-    // `security.incidents.*` exists for exactly this and is granted to Security
-    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
-    // to NO role, so the register was bypass-only: the role created to log
-    // security incidents could not log one. Both are accepted — an IT security
-    // administrator holding the broader code keeps access.
-    require_any_permission(
-        &claims,
-        &[
-            permissions::security::incidents::UPDATE,
-            permissions::admin::SECURITY,
-        ],
-    )?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, SecurityIncidentUpdate>(
-        "INSERT INTO security_incident_updates (id, incident_id, update_type, description, updated_by)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *, NULL AS updated_by_name"
-    )
-    .bind(Uuid::new_v4())
-    .bind(id)
-    .bind(&body.update_type)
-    .bind(&body.description)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
 /// List vulnerabilities
 pub async fn list_vulnerabilities(
     State(state): State<AppState>,
@@ -1924,7 +1601,7 @@ pub async fn list_vulnerabilities(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vulnerability>(
-        "SELECT * FROM vulnerabilities ORDER BY discovered_at DESC LIMIT 200",
+        "SELECT * FROM vulnerabilities WHERE deleted_at IS NULL ORDER BY discovered_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2016,7 +1693,7 @@ pub async fn list_compliance_requirements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ComplianceRequirement>(
-        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code LIMIT 5000",
+        "SELECT * FROM compliance_requirements WHERE deleted_at IS NULL ORDER BY framework, requirement_code LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2131,7 +1808,7 @@ pub async fn list_backups(
 
     let rows = sqlx::query_as::<_, BackupHistory>(
         "SELECT * FROM backup_history
-         WHERE tenant_id IS NULL OR tenant_id = $1
+         WHERE (tenant_id IS NULL OR tenant_id = $1) AND deleted_at IS NULL
          ORDER BY created_at DESC
          LIMIT 100",
     )
@@ -2158,7 +1835,7 @@ pub async fn list_incentive_plans(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IncentivePlan>(
-        "SELECT * FROM incentive_plans ORDER BY effective_from DESC LIMIT 5000",
+        "SELECT * FROM incentive_plans WHERE deleted_at IS NULL ORDER BY effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2274,6 +1951,7 @@ pub async fn list_doctor_incentive_assignments(
          FROM doctor_incentive_assignments a
          JOIN users u ON u.id = a.doctor_id
          JOIN incentive_plans p ON p.id = a.plan_id
+         WHERE a.deleted_at IS NULL
          ORDER BY a.effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
@@ -2329,6 +2007,7 @@ pub async fn list_incentive_calculations(
         "SELECT c.*, u.full_name AS doctor_name
          FROM incentive_calculations c
          JOIN users u ON u.id = c.doctor_id
+         WHERE c.deleted_at IS NULL
          ORDER BY c.period_start DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
@@ -2498,22 +2177,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/data-quality/dashboard", get(dq_dashboard))
         .route(
-            "/api/security-incidents",
-            get(list_security_incidents).post(create_security_incident),
-        )
-        .route(
-            "/api/security-incidents/{id}",
-            get(get_security_incident).patch(update_security_incident),
-        )
-        .route(
-            "/api/security-incidents/{id}/cert-in",
-            post(report_to_cert_in),
-        )
-        .route(
-            "/api/security-incidents/{id}/updates",
-            get(get_incident_updates).post(add_incident_update),
-        )
-        .route(
             "/api/vulnerabilities",
             get(list_vulnerabilities).post(create_vulnerability),
         )
@@ -2597,9 +2260,13 @@ mod authz_coverage_tests {
             //
             // Checked longest-first so `require_permission` cannot claim a
             // match inside `require_any_permission` if these ever converge.
-            let gated = ["require_any_permission", "require_permission", "require_step_up"]
-                .iter()
-                .any(|form| part.contains(form));
+            let gated = [
+                "require_any_permission",
+                "require_permission",
+                "require_step_up",
+            ]
+            .iter()
+            .any(|form| part.contains(form));
             if !gated {
                 ungated.push(name);
             }

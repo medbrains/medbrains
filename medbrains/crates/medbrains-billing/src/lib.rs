@@ -8,6 +8,7 @@ pub use accounting::*;
 // Insurance, TPA and co-pay — money that arrives from someone other than the
 // patient. Re-exported flat so `medbrains_billing::<handler>` paths stay unchanged.
 mod insurance;
+mod nhcx_recon;
 pub use insurance::*;
 
 // Advances and interim billing — money held before the bill exists.
@@ -39,6 +40,11 @@ pub use credit::*;
 
 // Day-end cash closing — the one place billing's source of truth is a drawer.
 mod cash_closing;
+pub mod final_bill;
+
+// Who pays each bill line: insurer, scheme or corporate, or the patient.
+pub mod payer_split;
+pub mod payer_split_api;
 pub use cash_closing::*;
 
 use axum::routing::{delete, get, post, put};
@@ -52,7 +58,7 @@ use chrono::NaiveDate;
 use medbrains_core::billing::{
     AuditAction, BillingAuditEntry, BillingPackage, BillingPackageItem, ChargeMaster, CreditNote,
     CreditPatient, CurrencyCode, ExchangeRate, Invoice, InvoiceDiscount, InvoiceItem,
-    InvoiceStatus, PatientAdvance, Payment, RatePlanItem, Receipt, Refund,
+    InvoiceStatus, PatientAdvance, Payment, PaymentMode, RatePlanItem, Receipt, Refund,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::form::FieldAccessLevel;
@@ -360,14 +366,40 @@ async fn ensure_invoice_view_access(
     claims: &Claims,
     invoice_id: Uuid,
 ) -> Result<(), AppError> {
+    use medbrains_authz::decision::{Outcome, any};
+    use medbrains_server_core::middleware::authorization::{collapse, outcome_of};
     let authz_ctx = authz_context(claims);
-    medbrains_server_core::middleware::authorization::collapse(
-        medbrains_server_core::middleware::authorization::outcome_of(
-            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id,).await,
-            "invoice",
-        ),
-    )
-
+    let invoice = outcome_of(
+        state
+            .authz
+            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id)
+            .await,
+        "invoice",
+    );
+    if invoice == Outcome::Allow {
+        return Ok(());
+    }
+    // The bill's own grant goes to whoever raised it, and auto-billed bills
+    // carry none. The billing desk reaches a bill the way it reaches every
+    // financial record: a direct grant on the patient — the billing hand-off
+    // a visit, a policy or a bill makes.
+    let patient: Option<Uuid> =
+        sqlx::query_scalar("SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2")
+            .bind(invoice_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await?;
+    let Some(patient) = patient else {
+        return collapse(any([invoice, Outcome::Deny]));
+    };
+    let direct = outcome_of(
+        state
+            .authz
+            .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient)
+            .await,
+        "patient",
+    );
+    collapse(any([invoice, direct]))
 }
 
 const BILLING_INVOICE_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -534,16 +566,20 @@ pub async fn list_invoices(
         None
     } else {
         Some(
-            match state.authz.list_accessible(&authz_ctx, "invoice", medbrains_authz::Relation::Viewer).await {
-            Ok(ids) => ids,
-            Err(e) => {
-                tracing::error!(error = %e, object_type = "invoice",
+            match state
+                .authz
+                .list_accessible(&authz_ctx, "invoice", medbrains_authz::Relation::Viewer)
+                .await
+            {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::error!(error = %e, object_type = "invoice",
                     "rebac: list_accessible failed; refusing rather than showing an empty list");
-                return Err(AppError::ServiceUnavailable(
-                    "authorization backend unavailable".to_owned(),
-                ));
-            }
-        },
+                    return Err(AppError::ServiceUnavailable(
+                        "authorization backend unavailable".to_owned(),
+                    ));
+                }
+            },
         )
     };
 
@@ -697,8 +733,7 @@ pub async fn create_invoice(
     // billing helper rather than the clinical one, for the reason
     // er_fast_invoice gives: treating somebody does not entitle you to
     // their bill, and billing them is not a treatment relationship either.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
     // No record check on body.patient_id, deliberately. Raising a bill is a
     // front-desk act against whoever presents, and the only relation written
     // below is Viewer on the invoice this call just created — scoped to the
@@ -815,6 +850,19 @@ pub async fn create_invoice(
             Some("invoice creator".to_owned()),
         )
         .await;
+    // A bill is billing's work: the billing desk, the TPA desk with it,
+    // reaches the patient it was raised for — also for a bill raised outside
+    // a visit, which no visit hand-off covers.
+    medbrains_authz_gate::hand_off(
+        &state,
+        &claims,
+        medbrains_authz_gate::HandOff {
+            object_type: "patient",
+            object_id: invoice.patient_id,
+            department_code: medbrains_authz_gate::BILLING,
+        },
+    )
+    .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
@@ -1243,6 +1291,7 @@ pub async fn issue_invoice(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     enforce_preauth_limit(&mut tx, &claims, id, &body).await?;
+    final_bill::ensure_final_bill_ready(&mut tx, claims.tenant_id, id).await?;
 
     // A zero-total invoice (free / medical-college / charity) has
     // nothing to collect, so it settles the moment it is issued
@@ -1538,67 +1587,95 @@ pub async fn record_payment(
     .execute(&mut *tx)
     .await?;
 
+    let bill = PaymentBill {
+        invoice_id,
+        patient_id: invoice.patient_id,
+        encounter_id: invoice.encounter_id,
+        admission_id: invoice.admission_id,
+    };
+    queue_payment_received(&mut tx, &claims, &bill, &payment).await?;
+    tx.commit().await?;
+    announce_payment_received(&state, &claims, &bill, &payment).await;
+
+    Ok(Json(payment))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Payment received — one event path for every way money is taken
+// ══════════════════════════════════════════════════════════
+
+/// The bill a payment lands on: what the payment-received event names.
+struct PaymentBill {
+    invoice_id: Uuid,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    admission_id: Option<Uuid>,
+}
+
+fn payment_received_payload(bill: &PaymentBill, payment: &Payment) -> serde_json::Value {
+    serde_json::json!({
+        "payment_id": payment.id,
+        "invoice_id": bill.invoice_id,
+        "patient_id": bill.patient_id,
+        "encounter_id": bill.encounter_id,
+        "admission_id": bill.admission_id,
+        "amount": payment.amount,
+        "payment_mode": format!("{:?}", payment.mode),
+        "receipt_number": payment.reference_number.as_deref(),
+    })
+}
+
+/// Queues the clinical event inside the payment's own transaction.
+async fn queue_payment_received(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    bill: &PaymentBill,
+    payment: &Payment,
+) -> Result<(), AppError> {
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::BillingPaymentReceived,
         payment.id,
         claims.sub,
-        serde_json::json!({
-            "payment_id": payment.id,
-            "invoice_id": invoice_id,
-            "patient_id": invoice.patient_id,
-            "encounter_id": invoice.encounter_id,
-            "admission_id": invoice.admission_id,
-            "amount": payment.amount,
-            "payment_mode": format!("{:?}", payment.mode),
-            "receipt_number": payment.reference_number.as_deref(),
-        }),
+        payment_received_payload(bill, payment),
     )
-    .with_patient(invoice.patient_id);
-    let event = if let Some(encounter_id) = invoice.encounter_id {
-        event.with_encounter(encounter_id)
-    } else {
-        event
+    .with_patient(bill.patient_id);
+    let event = match bill.encounter_id {
+        Some(encounter_id) => event.with_encounter(encounter_id),
+        None => event,
     };
-    let event = if let Some(admission_id) = invoice.admission_id {
-        event.with_admission(admission_id)
-    } else {
-        event
+    let event = match bill.admission_id {
+        Some(admission_id) => event.with_admission(admission_id),
+        None => event,
     };
-    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
+    Ok(())
+}
 
-    tx.commit().await?;
-
-    // Post-commit: a settled bill should leave the counter board when it is
-    // settled, not on the board's next poll — the patient is already walking away.
+/// Post-commit: a settled bill should leave the counter board when it is
+/// settled, not on the board's next poll — the patient is already walking away.
+async fn announce_payment_received(
+    state: &AppState,
+    claims: &Claims,
+    bill: &PaymentBill,
+    payment: &Payment,
+) {
     medbrains_notifications::publish_surface_board_signal(
-        &state,
+        state,
         claims.tenant_id,
         "billing",
         ClinicalEventName::BillingPaymentReceived.as_str(),
         "invoice",
-        invoice_id,
+        bill.invoice_id,
     );
-
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
         "billing.payment.received",
-        serde_json::json!({
-            "payment_id": payment.id,
-            "invoice_id": invoice_id,
-            "patient_id": invoice.patient_id,
-            "encounter_id": invoice.encounter_id,
-            "admission_id": invoice.admission_id,
-            "amount": payment.amount,
-            "payment_mode": format!("{:?}", payment.mode),
-            "receipt_number": payment.reference_number,
-        }),
+        payment_received_payload(bill, payment),
     )
     .await;
-
-    Ok(Json(payment))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1627,7 +1704,7 @@ pub async fn list_payments(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let payments = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY paid_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
@@ -1702,7 +1779,7 @@ pub async fn list_receipts(
 
     let rows = sqlx::query_as::<_, Receipt>(
         "SELECT * FROM receipts \
-         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
+         WHERE invoice_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -1832,7 +1909,8 @@ struct PharmItemInfo {
 struct RadOrderInfo {
     id: Uuid,
     patient_id: Uuid,
-    modality_id: Uuid,
+    /// The exam's own charge code, else `RAD-<modality code>`.
+    charge_code: String,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -1989,35 +2067,23 @@ pub async fn trigger_auto_charge(
             }
             "radiology" => {
                 let orders = sqlx::query_as::<_, RadOrderInfo>(
-                    "SELECT id, patient_id, modality_id FROM radiology_orders \
-                     WHERE encounter_id = $1 AND tenant_id = $2 \
-                       AND status IN ('completed', 'reported', 'verified')",
+                    "SELECT ro.id, ro.patient_id, \
+                            COALESCE(re.charge_code, 'RAD-' || rm.code, 'RAD-EXAM') AS charge_code \
+                     FROM radiology_orders ro \
+                     LEFT JOIN radiology_modalities rm \
+                       ON rm.id = ro.modality_id AND rm.tenant_id = ro.tenant_id \
+                     LEFT JOIN radiology_exams re \
+                       ON re.id = ro.exam_id AND re.tenant_id = ro.tenant_id \
+                     WHERE ro.encounter_id = $1 AND ro.tenant_id = $2 \
+                       AND ro.status IN ('completed', 'reported', 'verified')",
                 )
                 .bind(body.encounter_id)
                 .bind(claims.tenant_id)
                 .fetch_all(&mut *tx)
                 .await?;
 
-                // Same shape as lab above: one read for every modality this
-                // encounter touched, rather than one per order.
-                let modality_ids: Vec<Uuid> = orders.iter().map(|o| o.modality_id).collect();
-                let modalities: HashMap<Uuid, String> =
-                    sqlx::query_as::<_, (Uuid, String)>(
-                        "SELECT id, code FROM radiology_modalities \
-                         WHERE id = ANY($1) AND tenant_id = $2",
-                    )
-                    .bind(&modality_ids)
-                    .bind(claims.tenant_id)
-                    .fetch_all(&mut *tx)
-                    .await?
-                    .into_iter()
-                    .collect();
-
                 for o in &orders {
-                    let modality_code = modalities.get(&o.modality_id).cloned();
-
-                    let charge_code =
-                        modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
+                    let charge_code = o.charge_code.clone();
 
                     match auto_charge(
                         &mut tx,
@@ -2365,6 +2431,7 @@ pub async fn list_audit_log(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // allow-soft-deleted: the billing audit trail must show every entry, deleted or not.
     // Build dynamic WHERE
     let mut conditions = vec!["tenant_id = $1".to_owned()];
     let mut param_idx: usize = 2;
@@ -2475,13 +2542,14 @@ pub async fn list_exchange_rates(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ExchangeRateQuery>,
 ) -> Result<Json<Vec<ExchangeRate>>, AppError> {
-    require_permission(&claims, permissions::billing::reports::VIEW)?;
+    // Whoever bills a foreign-currency patient needs the rate to do it.
+    require_permission(&claims, permissions::billing::invoices::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ExchangeRate>(
-        "SELECT * FROM exchange_rates WHERE tenant_id = $1 \
+        "SELECT * FROM exchange_rates WHERE tenant_id = $1 AND deleted_at IS NULL \
          AND ($2::text IS NULL OR from_currency::text = $2) \
          AND ($3::date IS NULL OR effective_date >= $3) \
          AND ($4::date IS NULL OR effective_date <= $4) \
@@ -2512,7 +2580,7 @@ pub async fn create_exchange_rate(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateExchangeRateRequest>,
 ) -> Result<Json<ExchangeRate>, AppError> {
-    require_permission(&claims, permissions::billing::reports::VIEW)?;
+    require_permission(&claims, permissions::billing::exchange_rates::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2603,8 +2671,8 @@ pub async fn get_invoice_print_data(
 
     // Hospital info from tenant_settings
     let hospital_gstin = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value->>'gstin' FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'billing' AND key = 'hospital_gst'",
+        "SELECT NULLIF(value #>> '{}', '') FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'gst_number' AND deleted_at IS NULL",
     )
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
@@ -2694,8 +2762,7 @@ pub async fn check_billing_threshold(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<BillingThresholdStatus>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id)
-        .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2838,8 +2905,7 @@ pub async fn er_fast_invoice(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2984,13 +3050,9 @@ async fn create_installment(
     let total = invoice.total_amount;
     let count = req.installment_count;
     if count <= 0 {
-        return Err(AppError::BadRequest(
-            "installment_count must be > 0".into(),
-        ));
+        return Err(AppError::BadRequest("installment_count must be > 0".into()));
     }
-    let installment_amount = (total / Decimal::from(count))
-        .round_dp(2)
-        .normalize();
+    let installment_amount = (total / Decimal::from(count)).round_dp(2).normalize();
 
     let frequency = req.frequency.unwrap_or_else(|| "monthly".into());
     let interest_rate = req.interest_rate.unwrap_or_default();
@@ -3153,24 +3215,84 @@ async fn get_installment(
 
     let mut val = serde_json::to_value(&plan).unwrap_or_default();
     if let Some(obj) = val.as_object_mut() {
-        obj.insert("items".into(), serde_json::to_value(&items).unwrap_or_default());
+        obj.insert(
+            "items".into(),
+            serde_json::to_value(&items).unwrap_or_default(),
+        );
     }
 
     Ok(Json(val))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PayInstallmentRequest {
+    pub mode: PaymentMode,
+    pub reference_number: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PayInstallmentResponse {
+    pub item: medbrains_core::billing::PaymentInstallmentItem,
+    pub payment: Payment,
+    pub receipt: Receipt,
+}
+
+/// Takes an instalment as money: a `payments` row, the invoice's paid amount,
+/// a receipt, and the item marked paid — one transaction, or none of it.
 async fn pay_installment_item(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path((id, item_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, "billing.invoices.update")?;
+    Json(body): Json<PayInstallmentRequest>,
+) -> Result<Json<PayInstallmentResponse>, AppError> {
+    // Paying an instalment is taking money, the same act as a payment.
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    let reference = body
+        .reference_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    if matches!(body.mode, PaymentMode::Insurance | PaymentMode::Credit) {
+        return Err(AppError::BadRequest(
+            "An instalment is paid by cash, card, UPI, bank transfer or cheque".to_owned(),
+        ));
+    }
+    if body.mode != PaymentMode::Cash && reference.is_none() {
+        return Err(AppError::BadRequest(
+            "Enter the transaction or cheque reference for a non-cash payment".to_owned(),
+        ));
+    }
     let tenant_id = claims.tenant_id;
-    let mut tx = state.db.begin().await?;
 
-    // Verify installment item belongs to plan
+    let invoice_id: Uuid = {
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+        let invoice_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT invoice_id FROM payment_installments \
+             WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        tx.commit().await?;
+        invoice_id
+    };
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
     let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
-        "SELECT * FROM payment_installment_items WHERE id = $1 AND installment_id = $2 AND tenant_id = $3",
+        "SELECT * FROM payment_installment_items \
+         WHERE id = $1 AND installment_id = $2 AND tenant_id = $3 FOR UPDATE",
     )
     .bind(item_id)
     .bind(id)
@@ -3180,51 +3302,130 @@ async fn pay_installment_item(
     .ok_or(AppError::NotFound)?;
 
     if item.status != "pending" {
-        return Err(AppError::BadRequest(format!(
-            "Installment item is already {}",
+        return Err(AppError::Conflict(format!(
+            "This instalment is already {}",
             item.status
         )));
     }
 
-    let now = chrono::Utc::now();
-
-    // Mark item as paid
-    sqlx::query(
-        "UPDATE payment_installment_items SET status = 'paid', paid_at = $1, updated_at = $1 WHERE id = $2",
+    #[derive(sqlx::FromRow)]
+    struct InstalmentBill {
+        status: InvoiceStatus,
+        total_amount: Decimal,
+        paid_amount: Decimal,
+        patient_id: Uuid,
+        encounter_id: Option<Uuid>,
+        admission_id: Option<Uuid>,
+    }
+    let inv = sqlx::query_as::<_, InstalmentBill>(
+        "SELECT status, total_amount, paid_amount, patient_id, encounter_id, admission_id \
+         FROM invoices \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL FOR UPDATE",
     )
-    .bind(now)
-    .bind(item_id)
-    .execute(&mut *tx)
-    .await?;
+    .bind(invoice_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if !matches!(
+        inv.status,
+        InvoiceStatus::Issued | InvoiceStatus::PartiallyPaid
+    ) {
+        return Err(AppError::Conflict(
+            "Payments can be taken only against an issued bill with a balance".to_owned(),
+        ));
+    }
 
-    // Check if all items are paid → mark plan complete
-    let pending_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM payment_installment_items WHERE installment_id = $1 AND status = 'pending'",
+    let amount = (item.amount + item.penalty_amount).round_dp(2);
+    let outstanding = (inv.total_amount - inv.paid_amount).round_dp(2);
+    if amount > outstanding {
+        return Err(AppError::Conflict(format!(
+            "This instalment ({amount}) is more than the bill's outstanding balance \
+             ({outstanding}); collect the balance from the invoice instead"
+        )));
+    }
+
+    let payment = sqlx::query_as::<_, Payment>(
+        "INSERT INTO payments \
+         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now()) \
+         RETURNING *",
     )
-    .bind(id)
+    .bind(tenant_id)
+    .bind(invoice_id)
+    .bind(amount)
+    .bind(body.mode)
+    .bind(reference)
+    .bind(claims.sub)
+    .bind(format!("Instalment {}", item.installment_number))
     .fetch_one(&mut *tx)
     .await?;
 
-    if pending_count == 0 {
-        sqlx::query(
-            "UPDATE payment_installments SET status = 'completed', updated_at = $1 WHERE id = $2",
-        )
-        .bind(now)
-        .bind(id)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-
-    let updated_item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
-        "SELECT * FROM payment_installment_items WHERE id = $1",
+    sqlx::query(
+        "UPDATE invoices SET \
+         paid_amount = paid_amount + $1, \
+         status = CASE WHEN paid_amount + $1 >= total_amount THEN 'paid'::invoice_status \
+                       ELSE 'partially_paid'::invoice_status END, \
+         updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3",
     )
-    .bind(item_id)
-    .fetch_one(&state.db)
+    .bind(amount)
+    .bind(invoice_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(Json(serde_json::to_value(&updated_item).unwrap_or_default()))
+    let receipt_number = generate_receipt_number(&mut tx, &tenant_id).await?;
+    let receipt = sqlx::query_as::<_, Receipt>(
+        "INSERT INTO receipts \
+         (tenant_id, receipt_number, invoice_id, payment_id, amount, receipt_date) \
+         VALUES ($1, $2, $3, $4, $5, now()) \
+         RETURNING *",
+    )
+    .bind(tenant_id)
+    .bind(&receipt_number)
+    .bind(invoice_id)
+    .bind(payment.id)
+    .bind(amount)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "UPDATE payment_installment_items \
+         SET status = 'paid', paid_at = now(), payment_id = $1, updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3 RETURNING *",
+    )
+    .bind(payment.id)
+    .bind(item_id)
+    .bind(tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE payment_installments SET status = 'completed', updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND NOT EXISTS ( \
+           SELECT 1 FROM payment_installment_items \
+            WHERE installment_id = $1 AND tenant_id = $2 AND status = 'pending')",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let bill = PaymentBill {
+        invoice_id,
+        patient_id: inv.patient_id,
+        encounter_id: inv.encounter_id,
+        admission_id: inv.admission_id,
+    };
+    queue_payment_received(&mut tx, &claims, &bill, &payment).await?;
+    tx.commit().await?;
+    announce_payment_received(&state, &claims, &bill, &payment).await;
+    Ok(Json(PayInstallmentResponse {
+        item,
+        payment,
+        receipt,
+    }))
 }
 
 async fn waive_installment_item(
@@ -3289,7 +3490,9 @@ async fn waive_installment_item(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(serde_json::to_value(&updated_item).unwrap_or_default()))
+    Ok(Json(
+        serde_json::to_value(&updated_item).unwrap_or_default(),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3315,6 +3518,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/invoices/{id}/items/{iid}",
             delete(remove_invoice_item),
+        )
+        .route(
+            "/api/billing/admissions/{id}/final-bill-checklist",
+            get(final_bill::get_final_bill_checklist),
         )
         .route("/api/billing/invoices/{id}/issue", post(issue_invoice))
         .route("/api/billing/invoices/{id}/cancel", post(cancel_invoice))
@@ -3486,6 +3693,19 @@ pub fn router() -> axum::Router<AppState> {
             put(update_credit_patient),
         )
         .route(
+            "/api/billing/invoices/{id}/payer-split",
+            get(payer_split_api::get_payer_split),
+        )
+        .route(
+            "/api/billing/invoices/{id}/payer-split/apply",
+            post(payer_split_api::apply_payer_split),
+        )
+        .route(
+            "/api/billing/invoices/{id}/items/{iid}/payer",
+            put(payer_split_api::assign_item_payer),
+        )
+        .route("/api/billing/non-payables", get(payer_split_api::get_non_payables))
+        .route(
             "/api/billing/invoices/{id}/dual-insurance",
             get(get_dual_insurance_status).post(coordinate_dual_insurance),
         )
@@ -3558,7 +3778,6 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/billing/reports/profit-loss", get(report_profit_loss))
         .route("/api/billing/erp/export", post(export_to_erp))
         .route("/api/billing/erp/exports", get(list_erp_exports))
-        .route("/api/billing/copay/calculate", post(copay_calculation))
         .route("/api/billing/er-invoice", post(er_fast_invoice))
         .route(
             "/api/billing/concessions",

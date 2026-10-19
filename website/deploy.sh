@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+find dist -mindepth 2 -name index.html | while read -r page; do
+  slug="${page#dist/}"; slug="${slug%/index.html}"#!/usr/bin/env bash
 # Deploy ONLY the marketing website: build -> sync to S3 -> invalidate CloudFront.
 # Static site, so it does NOT go through Argo/EKS — it rides the same S3+CloudFront
 # path as apps/web. Provision the bucket + distribution via the `website` terraform
@@ -26,6 +27,14 @@ aws s3 sync dist/ "s3://$WEBSITE_BUCKET" --delete \
 aws s3 sync dist/ "s3://$WEBSITE_BUCKET" --delete \
   --exclude "*" --include "*.html" --include "*.xml" \
   --cache-control "public,max-age=0,must-revalidate"
+
+# S3 behind CloudFront has no directory index below the root: give each page
+# its clean address too (/pharmacy-management-software, /blog/heat-stroke-first-aid).
+find dist -mindepth 2 -name index.html | while read -r page; do
+  slug="${page#dist/}"; slug="${slug%/index.html}"
+  aws s3 cp "$page" "s3://$WEBSITE_BUCKET/$slug" --content-type "text/html; charset=utf-8" \
+    --cache-control "public,max-age=0,must-revalidate" --only-show-errors
+done
 
 echo "→ invalidating CloudFront $WEBSITE_DISTRIBUTION_ID"
 aws cloudfront create-invalidation --distribution-id "$WEBSITE_DISTRIBUTION_ID" --paths "/*" >/dev/null

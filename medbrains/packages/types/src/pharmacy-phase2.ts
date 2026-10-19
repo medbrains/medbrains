@@ -7,6 +7,7 @@ import type {
   PharmacyOrderItemInput,
   PharmacyReturnStatusType,
 } from "./medication-timing";
+import type { MedicationSafetyFinding } from "./pharmacy-phase3";
 
 // ── Pharmacy Phase 2 ──────────────────────────────────────
 
@@ -64,6 +65,9 @@ export interface PharmacyReturn {
   restocked: boolean;
   created_at: string;
   updated_at: string;
+  /** Sent by the list endpoints only, so identity shows without a per-row fetch. */
+  patient_name?: string;
+  patient_uhid?: string;
 }
 
 export interface PharmacyStoreAssignment {
@@ -96,6 +100,8 @@ export interface PharmacyValidationResult {
   warnings: string[];
   blocks: string[];
   interactions: unknown[];
+  /** The medication safety findings the dispense gate will ask about. */
+  findings: MedicationSafetyFinding[];
 }
 
 export interface NdpsBalanceRow {
@@ -531,6 +537,8 @@ export interface HomeVisit {
   documented_at: string | null;
   completed_at: string | null;
   created_at: string;
+  /** The visit's encounter: its case sheet. */
+  encounter_id: string | null;
 }
 
 /** A home medication administration (Hospital-at-Home eMAR — IV antibiotics / infusions). */
@@ -672,20 +680,6 @@ export interface HomeDischargeItem {
   completed_at: string | null;
   completed_by: string | null;
   notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** A Home Healthcare daily clinical progress note (visiting nurse / remote physician). */
-export interface HomeProgressNote {
-  id: string;
-  tenant_id: string;
-  patient_id: string;
-  note_date: string;
-  author_id: string | null;
-  author_role: string;
-  note_text: string;
-  vitals: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -886,6 +880,12 @@ export interface Admission {
   isolation_required: boolean;
   isolation_reason: string | null;
   primary_nurse_id: string | null;
+  /** IP number, e.g. IP-000123. */
+  admission_number: string | null;
+  /** Latest Morse fall scale was 45 or more. */
+  is_fall_risk: boolean;
+  /** Latest Braden scale was 12 or less. */
+  is_pressure_injury_risk: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -902,6 +902,10 @@ export interface AdmissionRow {
   patient_name: string;
   uhid: string;
   ward_name: string | null;
+  ward_id: string | null;
+  admission_number: string | null;
+  is_fall_risk: boolean;
+  is_pressure_injury_risk: boolean;
 }
 
 export type NursingTaskPriority = "routine" | "urgent" | "stat";

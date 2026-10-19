@@ -16,4 +16,14 @@ export const portalService = {
   getPortalLabReports: (token: string) => api.getPortalLabReports(token),
   getPortalPrescriptions: (token: string) => api.getPortalPrescriptions(token),
   getPortalAppointments: (token: string) => api.getPortalAppointments(token),
+  getPortalTeleconsults: (token: string) => api.getPortalTeleconsults(token),
+  getPortalRefills: (token: string) => api.getPortalRefills(token),
+  requestPortalRefill: (...args: Parameters<typeof api.requestPortalRefill>) =>
+    api.requestPortalRefill(...args),
+  getPortalPrivacy: (token: string) => api.getPortalPrivacy(token),
+  getPortalExport: (token: string) => api.getPortalExport(token),
+  setPortalDpdpConsent: (...args: Parameters<typeof api.setPortalDpdpConsent>) =>
+    api.setPortalDpdpConsent(...args),
+  createPortalPrivacyRequest: (...args: Parameters<typeof api.createPortalPrivacyRequest>) =>
+    api.createPortalPrivacyRequest(...args),
 };

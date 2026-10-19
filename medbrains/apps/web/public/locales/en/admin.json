@@ -15,11 +15,17 @@
   "settings.bedTypes": "Bed Types",
   "settings.billing": "Billing & Tax",
   "settings.paymentTerminals": "Payment Terminals",
+  "settings.abdm": "ABDM (ABHA & health records)",
+  "settings.abdmSharing": "ABDM sharing",
+  "settings.uhi": "UHI (patient apps)",
+  "settings.abdmScanShare": "ABDM Scan & Share",
+  "settings.nhcx": "NHCX",
   "settings.paymentExceptions": "Payment Reconciliation",
   "settings.branding": "Branding",
   "settings.deviceIntegrations": "Device Integrations",
   "settings.standards": "Standards",
   "settings.printTemplates": "Print Templates",
+  "settings.clinicalNotes": "Clinical notes",
   "settings.compliance": "Compliance",
   "settings.drugInteractions": "Drug Interactions",
   "settings.criticalValues": "Critical Values",
@@ -161,5 +167,6 @@
   "settings.oauthIntegrations": "Connected Accounts",
   "settings": {
     "tokens": "Tokens"
-  }
+  },
+  "settings.snomed": "SNOMED CT"
 }

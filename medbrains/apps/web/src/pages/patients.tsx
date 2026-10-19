@@ -1,7 +1,12 @@
 import { Card, Group, Stack, Text, TextInput, ThemeIcon, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { ClinicalJourneyActionId, ClinicalJourneyContext, Patient } from "@medbrains/types";
-import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
+import {
+  bloodGroupLabel,
+  P,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCash,
@@ -58,18 +63,6 @@ const genderColors: Record<string, string> = {
   female: "danger",
   other: "violet",
   unknown: "warning",
-};
-
-const bloodGroupLabels: Record<string, string> = {
-  a_positive: "A+",
-  a_negative: "A-",
-  b_positive: "B+",
-  b_negative: "B-",
-  ab_positive: "AB+",
-  ab_negative: "AB-",
-  o_positive: "O+",
-  o_negative: "O-",
-  unknown: "Unknown",
 };
 
 function buildFullName(patient: Patient): string {
@@ -258,7 +251,7 @@ function PatientsPageInner() {
             color="danger"
             icon={IconDroplet}
             label={t(`options.bloodGroup.${row.blood_group}`, {
-              defaultValue: bloodGroupLabels[row.blood_group] ?? row.blood_group,
+              defaultValue: bloodGroupLabel(row.blood_group),
             })}
             size="sm"
           />
@@ -420,7 +413,7 @@ function PatientsPageInner() {
         emptyDescription={
           debouncedSearch
             ? t("directory.empty.searchDescription")
-            : t("directory.empty.registerDescription")
+            : t("directory.empty.scopeDescription")
         }
         emptyAction={
           !debouncedSearch && canCreate

@@ -1,10 +1,5 @@
 import { api } from "@medbrains/api";
-import type {
-  CreateSubstitutionInput,
-  FefoBatch,
-  PharmacySubstitution,
-  RepeatEligibility,
-} from "@medbrains/types";
+import type { CreateSubstitutionInput, FefoBatch, PharmacySubstitution } from "@medbrains/types";
 
 export const pharmacyService = {
   selectFefoBatch: (data: {
@@ -13,8 +8,8 @@ export const pharmacyService = {
     store_location_id?: string;
   }) => api.selectFefoBatch(data) as Promise<{ batches: FefoBatch[] }>,
   dispenseRepeat: (...args: Parameters<typeof api.dispenseRepeat>) => api.dispenseRepeat(...args),
-  checkRepeatEligibility: (prescriptionId: string) =>
-    api.checkRepeatEligibility(prescriptionId) as Promise<RepeatEligibility>,
+  checkRepeatEligibility: (...args: Parameters<typeof api.checkRepeatEligibility>) =>
+    api.checkRepeatEligibility(...args),
   createSubstitution: (data: CreateSubstitutionInput) =>
     api.createSubstitution(
       data as unknown as Record<string, unknown>,
@@ -26,6 +21,8 @@ export const pharmacyService = {
   listPharmacyOrders: (...args: Parameters<typeof api.listPharmacyOrders>) =>
     api.listPharmacyOrders(...args),
   dispenseOrder: (...args: Parameters<typeof api.dispenseOrder>) => api.dispenseOrder(...args),
+  validatePharmacyOrder: (...args: Parameters<typeof api.validatePharmacyOrder>) =>
+    api.validatePharmacyOrder(...args),
   listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
     api.listPatientAllergies(...args),
   cancelPharmacyOrder: (...args: Parameters<typeof api.cancelPharmacyOrder>) =>
@@ -52,6 +49,8 @@ export const pharmacyService = {
     api.importPharmacyCatalog(...args),
   createPharmacyCatalog: (...args: Parameters<typeof api.createPharmacyCatalog>) =>
     api.createPharmacyCatalog(...args),
+  updatePharmacyCatalog: (...args: Parameters<typeof api.updatePharmacyCatalog>) =>
+    api.updatePharmacyCatalog(...args),
   listStock: (...args: Parameters<typeof api.listStock>) => api.listStock(...args),
   createStockTransaction: (...args: Parameters<typeof api.createStockTransaction>) =>
     api.createStockTransaction(...args),
@@ -117,12 +116,18 @@ export const pharmacyService = {
   getPosDaySummary: (...args: Parameters<typeof api.getPosDaySummary>) =>
     api.getPosDaySummary(...args),
   listPosSales: (...args: Parameters<typeof api.listPosSales>) => api.listPosSales(...args),
+  getPosSale: (...args: Parameters<typeof api.getPosSale>) => api.getPosSale(...args),
+  getPosPrices: (...args: Parameters<typeof api.getPosPrices>) => api.getPosPrices(...args),
+  searchCounterPatients: (...args: Parameters<typeof api.searchCounterPatients>) =>
+    api.searchCounterPatients(...args),
   listPosSaleItems: (...args: Parameters<typeof api.listPosSaleItems>) =>
     api.listPosSaleItems(...args),
   createPosSale: (...args: Parameters<typeof api.createPosSale>) => api.createPosSale(...args),
   cancelPharmacyPosSale: (...args: Parameters<typeof api.cancelPharmacyPosSale>) =>
     api.cancelPharmacyPosSale(...args),
   returnPosItems: (...args: Parameters<typeof api.returnPosItems>) => api.returnPosItems(...args),
+  getPosReturnable: (saleId: string) => api.getPosReturnable(saleId),
+  lookupPosReceipt: (number: string) => api.lookupPosReceipt(number),
   listPharmacyCreditNotes: (...args: Parameters<typeof api.listPharmacyCreditNotes>) =>
     api.listPharmacyCreditNotes(...args),
   approvePharmacyCreditNote: (...args: Parameters<typeof api.approvePharmacyCreditNote>) =>

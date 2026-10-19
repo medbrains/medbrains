@@ -14,6 +14,8 @@ export interface RichTextEditorProps {
   minHeight?: number;
   /** Render read-only (no toolbar interactions). */
   readOnly?: boolean;
+  /** "compact" keeps bold, italic and lists — for several editors on one screen. */
+  toolbar?: "full" | "compact";
 }
 
 /**
@@ -27,11 +29,22 @@ export function RichTextEditor({
   ariaLabel,
   minHeight = 180,
   readOnly = false,
+  toolbar = "full",
 }: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit, Link],
     content: value,
     editable: !readOnly,
+    // The name goes on the editable element itself — the textbox a screen
+    // reader lands on — not on the wrapper around it.
+    editorProps: {
+      attributes: {
+        role: "textbox",
+        "aria-multiline": "true",
+        ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        ...(readOnly ? { "aria-readonly": "true" } : {}),
+      },
+    },
     onUpdate: ({ editor: instance }) => onChange?.(instance.getHTML()),
   });
 
@@ -44,7 +57,17 @@ export function RichTextEditor({
 
   return (
     <MantineRichTextEditor editor={editor}>
-      {!readOnly && (
+      {!readOnly && toolbar === "compact" && (
+        <MantineRichTextEditor.Toolbar>
+          <MantineRichTextEditor.ControlsGroup>
+            <MantineRichTextEditor.Bold />
+            <MantineRichTextEditor.Italic />
+            <MantineRichTextEditor.BulletList />
+            <MantineRichTextEditor.OrderedList />
+          </MantineRichTextEditor.ControlsGroup>
+        </MantineRichTextEditor.Toolbar>
+      )}
+      {!readOnly && toolbar === "full" && (
         <MantineRichTextEditor.Toolbar sticky stickyOffset={0}>
           <MantineRichTextEditor.ControlsGroup>
             <MantineRichTextEditor.Bold />
@@ -65,7 +88,7 @@ export function RichTextEditor({
           </MantineRichTextEditor.ControlsGroup>
         </MantineRichTextEditor.Toolbar>
       )}
-      <MantineRichTextEditor.Content aria-label={ariaLabel} style={{ minHeight }} />
+      <MantineRichTextEditor.Content style={{ minHeight }} />
     </MantineRichTextEditor>
   );
 }

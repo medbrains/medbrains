@@ -44,6 +44,8 @@ export interface CreateMaternityRegistrationRequest {
   blood_group?: string;
 }
 
+export type AncOedema = "none" | "pedal" | "generalised";
+
 export interface AncVisit {
   id: string;
   tenant_id: string;
@@ -56,24 +58,37 @@ export interface AncVisit {
   fundal_height_cm: number | null;
   fetal_heart_rate: number | null;
   hemoglobin: number | null;
+  urine_protein: string | null;
+  urine_sugar: string | null;
+  oedema: AncOedema | null;
   pcpndt_form_f_filed: boolean;
   pcpndt_form_f_number: string | null;
+  ultrasound_done: boolean;
   examined_by: string;
+  visit_date: string;
+  next_visit_date: string | null;
+  notes: string | null;
   created_at: string;
 }
 
 export interface CreateAncVisitRequest {
   visit_number: number;
-  gestational_weeks?: number;
+  gestational_weeks: number;
   weight_kg?: number;
   bp_systolic?: number;
   bp_diastolic?: number;
   fundal_height_cm?: number;
   fetal_heart_rate?: number;
   hemoglobin?: number;
+  /** Dipstick: nil / trace / 1+ / 2+ / 3+ / 4+. */
+  urine_protein?: string;
+  urine_sugar?: string;
+  oedema?: AncOedema;
   pcpndt_form_f_filed?: boolean;
   pcpndt_form_f_number?: string;
-  examined_by: string;
+  ultrasound_done?: boolean;
+  next_visit_date?: string;
+  notes?: string;
 }
 
 export interface LaborRecord {

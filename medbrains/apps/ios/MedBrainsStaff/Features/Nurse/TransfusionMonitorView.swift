@@ -143,6 +143,7 @@ private struct ObservationForm: View {
     @State private var pulse = ""
     @State private var systolic = ""
     @State private var diastolic = ""
+    @State private var showBpErrors = false
     @State private var adverseSigns = false
     @State private var notes = ""
     @State private var busy = false
@@ -154,10 +155,7 @@ private struct ObservationForm: View {
             Text(phaseLabel[phase] ?? phase).font(CarbonType.heading01).foregroundStyle(MedBrainsTheme.ink)
             numberField("Temperature (°C)", $temperature, "t", decimal: true)
             numberField("Pulse", $pulse, "p")
-            HStack(spacing: 8) {
-                numberField("Systolic", $systolic, "s")
-                numberField("Diastolic", $diastolic, "d")
-            }
+            BloodPressureFields(systolic: $systolic, diastolic: $diastolic, showErrors: showBpErrors)
             Toggle("Rigors, rash, breathlessness or back pain", isOn: $adverseSigns).font(CarbonType.body).tint(MedBrainsTheme.interactive)
             CarbonField("Notes", isFocused: focus == "n") { TextField("Notes", text: $notes, axis: .vertical).focused($focus, equals: "n") }
             if let failure { CarbonNotification(kind: .error, title: "Not saved", message: failure) }
@@ -179,11 +177,19 @@ private struct ObservationForm: View {
 
     private func save() async {
         guard let client else { return }
+        let bp: BloodPressure.Reading
+        switch BloodPressure.reading(systolic: systolic, diastolic: diastolic) {
+        case .success(let reading): bp = reading
+        case .failure(let refused):
+            showBpErrors = true
+            failure = refused.message
+            return
+        }
         busy = true
         defer { busy = false }
         failure = nil
         do {
-            _ = try await NurseApi(client: client).recordObservation(transfusionId, RecordObservationPayload(phase: phase, temperatureC: number(temperature), pulse: number(pulse).map(Int.init), systolicBp: number(systolic).map(Int.init), diastolicBp: number(diastolic).map(Int.init), adverseSigns: adverseSigns, notes: notes.isEmpty ? nil : notes))
+            _ = try await NurseApi(client: client).recordObservation(transfusionId, RecordObservationPayload(phase: phase, temperatureC: number(temperature), pulse: number(pulse).map(Int.init), systolicBp: bp.systolic, diastolicBp: bp.diastolic, adverseSigns: adverseSigns, notes: notes.isEmpty ? nil : notes))
             onRecorded(phase == "completion")
         } catch { failure = (error as? ApiError)?.message ?? "The observations could not be saved." }
     }

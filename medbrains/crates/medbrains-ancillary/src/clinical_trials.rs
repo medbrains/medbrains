@@ -346,7 +346,7 @@ pub async fn list_trial_consents(
         "SELECT {CONSENT_COLS} FROM consent_records cr \
          LEFT JOIN patients p ON p.id = cr.patient_id \
          LEFT JOIN consent_templates ct ON ct.id = cr.template_id \
-         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 ORDER BY cr.created_at DESC LIMIT 500"
+         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 AND cr.deleted_at IS NULL ORDER BY cr.created_at DESC LIMIT 500"
     ))
     .bind(claims.tenant_id)
     .bind(id)
@@ -427,6 +427,8 @@ pub async fn list_trial_visits(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<TrialVisit>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_permission(&claims, permissions::specialty::clinical_trials::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -571,6 +573,8 @@ pub async fn list_adverse_events(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<TrialAdverseEvent>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_permission(&claims, permissions::specialty::clinical_trials::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -721,6 +725,8 @@ pub async fn list_randomizations(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<TrialRandomization>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_permission(&claims, permissions::specialty::clinical_trials::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

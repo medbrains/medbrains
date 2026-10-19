@@ -94,7 +94,12 @@ pnpm --filter "@medbrains/types" \
      --filter "@medbrains/stores" \
      --filter "@medbrains/expressions" \
      --filter "@medbrains/crdt" build
+# The website (repo-root website/) is the app's landing page: the web build
+# copies it in and the server answers / with it. Sign-in stays on this host.
+(cd "$REPO_ROOT/../website" && pnpm install --frozen-lockfile && PUBLIC_SIGN_IN_URL=/login pnpm build)
 pnpm --filter @medbrains/web exec vite build
+# The user guide, served by the app at /help (apps/docs).
+pnpm --filter @medbrains/web run build:help
 
 # Ship the SPA as one file, not 1,571.
 #
@@ -116,10 +121,11 @@ say "dist.tgz $(du -h apps/web/dist.tgz | cut -f1) (from $(du -sh apps/web/dist 
 # this script exists to prevent, so check rather than assume.
 echo "==> verifying artefacts exist"
 missing=0
-for f in "target/$TARGET/release/medbrains-server" \
-         "target/$TARGET/release/medbrains-archive" \
-         "target/$TARGET/release/medbrains-proxy" \
-         "apps/web/dist/index.html"; do
+for f in "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-server" \
+         "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-archive" \
+         "${CARGO_TARGET_DIR:-target}/$TARGET/release/medbrains-proxy" \
+         "apps/web/dist/index.html" \
+         "apps/web/dist/home.html"; do
     if [ -e "$f" ]; then
         say "ok      $f"
     else

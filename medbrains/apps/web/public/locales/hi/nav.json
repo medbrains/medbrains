@@ -30,6 +30,7 @@
   "pharmacyFinance": "फार्मेसी वित्त",
   "pharmacyFulfilment": "पूर्ति कतार",
   "pharmacyDispatch": "संग्रह काउंटर",
+  "pharmacyDeliveries": "होम डिलीवरी",
   "radiology": "रेडियोलॉजी",
   "bloodBank": "ब्लड बैंक",
   "billing": "बिलिंग",
@@ -58,6 +59,9 @@
   "formBuilder": "फॉर्म बिल्डर",
   "dashboardBuilder": "डैशबोर्ड बिल्डर",
   "integrationHub": "अंतर्निहित पाइपलाइन",
+  "formTemplates": "फ़ॉर्म",
+  "apiKeys": "API कुंजियाँ",
+  "webhooks": "वेबहुक",
   "screenBuilder": "स्क्रीन बिल्डर",
   "doctorSchedules": "डॉक्टर शेड्यूल",
   "administration": "प्रशासन",
@@ -110,5 +114,6 @@
   "nabhIndicators": "NABH संकेतक",
   "pairedDevices": "युग्मित डिवाइस",
   "materials": "सामग्री प्रबंधन",
-  "approvals": "अनुमोदन"
+  "approvals": "अनुमोदन",
+  "onboardingWorkbook": "ऑनबोर्डिंग वर्कबुक"
 }

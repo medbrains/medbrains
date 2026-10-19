@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DocumentActions } from "@/components";
 import { Badge, Button, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
+import { FinalBillChecklist } from "./FinalBillChecklist";
 
 export function BillingTab({ admissionId }: { admissionId: string }) {
   const billingQueryClient = useQueryClient();
@@ -71,6 +72,7 @@ export function BillingTab({ admissionId }: { admissionId: string }) {
 
   return (
     <Stack>
+      {canViewInvoices && <FinalBillChecklist admissionId={admissionId} />}
       <Group justify="space-between" align="center">
         <Text size="sm" fw={600}>
           Billing

@@ -16,7 +16,7 @@ pub async fn register(client: &reqwest::Client, cfg: &BridgeConfig) -> Result<Uu
             .ok()
             .and_then(|h| h.into_string().ok())
             .unwrap_or_else(|| "unknown".to_owned()),
-        "capabilities": ["hl7_v2"],
+        "capabilities": ["hl7_v2", "astm", "hl7_orders_out", "print"],
         "deployment_mode": cfg.deployment_mode,
     });
 

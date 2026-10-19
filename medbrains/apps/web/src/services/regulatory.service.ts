@@ -20,12 +20,21 @@ export const regulatoryService = {
   listChecklists: (...args: Parameters<typeof api.listChecklists>) => api.listChecklists(...args),
   createChecklist: (...args: Parameters<typeof api.createChecklist>) =>
     api.createChecklist(...args),
+  getChecklist: (...args: Parameters<typeof api.getChecklist>) => api.getChecklist(...args),
+  batchChecklistItems: (...args: Parameters<typeof api.batchChecklistItems>) =>
+    api.batchChecklistItems(...args),
+  updateChecklistItem: (...args: Parameters<typeof api.updateChecklistItem>) =>
+    api.updateChecklistItem(...args),
+  deleteChecklistItem: (...args: Parameters<typeof api.deleteChecklistItem>) =>
+    api.deleteChecklistItem(...args),
   autoPopulateChecklist: (...args: Parameters<typeof api.autoPopulateChecklist>) =>
     api.autoPopulateChecklist(...args),
   getComplianceGaps: (...args: Parameters<typeof api.getComplianceGaps>) =>
     api.getComplianceGaps(...args),
   listPcpndtForms: (...args: Parameters<typeof api.listPcpndtForms>) =>
     api.listPcpndtForms(...args),
+  completePcpndtForm: (...args: Parameters<typeof api.completePcpndtForm>) =>
+    api.completePcpndtForm(...args),
   createPcpndtForm: (...args: Parameters<typeof api.createPcpndtForm>) =>
     api.createPcpndtForm(...args),
   listAdrReports: (...args: Parameters<typeof api.listAdrReports>) => api.listAdrReports(...args),

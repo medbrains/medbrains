@@ -179,7 +179,13 @@ export function PatientFlowNavigator({
     ...baseContext,
     completedEvents: mergeJourneyEventNames(baseContext, recentEvents),
   };
-  const { items, summary } = buildPatientFlowReadiness(context, hasPermission);
+  // A step the user may not take is not offered: a row of disabled
+  // "Permission required" chips is noise, and the same rule hides any button.
+  const items = buildPatientFlowReadiness(context, hasPermission).items.filter(
+    (item) => item.blockedReason !== "permission",
+  );
+  const enabled = items.filter((item) => item.enabled).length;
+  const blocked = items.length - enabled;
 
   return (
     <div className={styles.wrapper} data-compact={compact || undefined}>
@@ -227,13 +233,10 @@ export function PatientFlowNavigator({
         <Group gap="xs" wrap="wrap" align="center">
           {actions}
           <OperationalSignal
-            label={t("patientJourney.flow.readySummary", {
-              enabled: summary.enabled,
-              total: summary.total,
-            })}
-            shape={summary.blocked > 0 ? "diamond" : "pill"}
+            label={t("patientJourney.flow.readySummary", { enabled, total: items.length })}
+            shape={blocked > 0 ? "diamond" : "pill"}
             size="xs"
-            tone={summary.blocked > 0 ? "blocked" : "ready"}
+            tone={blocked > 0 ? "blocked" : "ready"}
           />
         </Group>
       </Group>

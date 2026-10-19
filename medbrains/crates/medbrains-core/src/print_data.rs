@@ -111,6 +111,8 @@ pub struct WristbandPrintData {
     pub is_reprint: bool,
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub date_of_birth: Option<String>,
@@ -122,6 +124,11 @@ pub struct WristbandPrintData {
     pub is_critical: bool,
     pub is_mlc: bool,
     pub allergies: Vec<String>,
+    /// The UHID as a Code 128 barcode (SVG) — what bedside scanners read
+    /// and what the medication check compares against.
+    pub barcode_svg: String,
+    /// The UHID as a QR code (SVG), for phones and 2D scanners.
+    pub qr_svg: String,
 }
 
 // ── OPD Certificates / Consents ─────────────────────────
@@ -235,6 +242,8 @@ pub struct ErDischargeSummaryPrintData {
 pub struct DischargeSummaryPrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -246,6 +255,15 @@ pub struct DischargeSummaryPrintData {
     pub discharge_type: Option<String>,
     pub discharge_summary: Option<String>,
     pub diagnosis: Option<String>,
+    /// The structured discharge summary, when one was written.
+    pub final_diagnosis: Option<String>,
+    pub course_in_hospital: Option<String>,
+    pub treatment_given: Option<String>,
+    /// Procedures performed, joined into one line.
+    pub procedures_performed: Option<String>,
+    pub investigation_summary: Option<String>,
+    pub condition_at_discharge: Option<String>,
+    pub follow_up_instructions: Option<String>,
     /// Digital signatures stamped onto the PDF. Empty array = unsigned
     /// (template should render "DRAFT — UNSIGNED" watermark).
     #[serde(default)]
@@ -294,32 +312,8 @@ pub struct EstimateItemLine {
     pub total_price: String,
 }
 
-// ── GST Invoice ──────────────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GstInvoicePrintData {
-    pub invoice_number: String,
-    pub patient_name: String,
-    pub uhid: String,
-    pub subtotal: String,
-    pub tax_amount: String,
-    pub total_amount: String,
-    pub hospital_gstin: Option<String>,
-    pub hospital_name: Option<String>,
-    pub hospital_address: Option<String>,
-    pub items: Vec<GstInvoiceItemLine>,
-    pub date: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct GstInvoiceItemLine {
-    pub description: String,
-    pub hsn_code: Option<String>,
-    pub quantity: i32,
-    pub unit_price: String,
-    pub tax_percent: String,
-    pub total_price: String,
-}
+// ── GST Invoice (and the pharmacy bill it becomes) ──────────
+pub use crate::gst_invoice_print::{GstInvoiceItemLine, GstInvoicePrintData};
 
 // ── Consent Forms ───────────────────────────────────────
 
@@ -406,7 +400,10 @@ pub struct VisitorPassPrintData {
     pub issued_at: String,
     pub issued_by: Option<String>,
     pub photo_url: Option<String>,
+    /// The pass number: what the gate scans.
     pub qr_code_data: String,
+    /// `qr_code_data` drawn as a QR code (SVG).
+    pub qr_svg: String,
 }
 
 // ── MRD Forms ───────────────────────────────────────────
@@ -696,6 +693,8 @@ pub struct IpdFinalBillPrintData {
     pub invoice_date: String,
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -732,6 +731,8 @@ pub struct BillCategoryTotal {
 pub struct NoDuesCertificatePrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub admission_date: String,
@@ -798,9 +799,9 @@ pub struct InsurancePreauthPrintData {
     pub diagnosis: Option<String>,
     pub icd_codes: Vec<String>,
     pub planned_procedures: Vec<String>,
-    pub estimated_cost: String,
+    pub estimated_cost: Option<String>,
     pub treating_doctor: Option<String>,
-    pub contact_number: String,
+    pub contact_number: Option<String>,
     pub hospital_name: Option<String>,
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
@@ -808,19 +809,21 @@ pub struct InsurancePreauthPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashlessClaimPrintData {
-    pub claim_number: String,
+    pub claim_number: Option<String>,
     pub claim_date: String,
     pub patient_name: String,
     pub uhid: String,
-    pub policy_number: String,
+    /// IP number of the admission the claim is for.
+    pub admission_number: Option<String>,
+    pub policy_number: Option<String>,
     pub insurance_company: String,
     pub tpa_name: Option<String>,
-    pub admission_date: String,
+    pub admission_date: Option<String>,
     pub discharge_date: Option<String>,
     pub diagnosis: Option<String>,
     pub procedures_performed: Vec<String>,
     pub total_bill_amount: String,
-    pub approved_amount: String,
+    pub approved_amount: Option<String>,
     pub deductions: String,
     pub patient_payable: String,
     pub claim_status: String,
@@ -832,13 +835,13 @@ pub struct CashlessClaimPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageEstimatePrintData {
-    pub estimate_number: String,
+    pub estimate_number: Option<String>,
     pub estimate_date: String,
     pub valid_until: String,
     pub patient_name: Option<String>,
     pub package_name: String,
     pub package_code: String,
-    pub procedure_name: String,
+    pub procedure_name: Option<String>,
     pub inclusions: Vec<String>,
     pub exclusions: Vec<String>,
     pub package_price: String,
@@ -848,39 +851,6 @@ pub struct PackageEstimatePrintData {
 }
 
 // ── Lab/Blood Bank Report Prints (Phase 2) ───────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CultureSensitivityPrintData {
-    pub patient_name: String,
-    pub uhid: String,
-    pub age: Option<String>,
-    pub gender: String,
-    pub sample_type: String,
-    pub sample_id: String,
-    pub collected_at: Option<String>,
-    pub received_at: Option<String>,
-    pub reported_at: Option<String>,
-    pub referring_doctor: Option<String>,
-    pub clinical_history: Option<String>,
-    pub organism_isolated: Option<String>,
-    pub colony_count: Option<String>,
-    pub gram_stain: Option<String>,
-    pub sensitivity_results: Vec<AntibioticSensitivity>,
-    pub interpretation: Option<String>,
-    pub comments: Option<String>,
-    pub microbiologist_name: Option<String>,
-    pub hospital_name: Option<String>,
-    pub nabl_logo: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct AntibioticSensitivity {
-    pub antibiotic_name: String,
-    pub antibiotic_class: Option<String>,
-    pub mic: Option<String>,
-    pub interpretation: String, // S, I, R
-    pub zone_size: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistopathReportPrintData {
@@ -898,6 +868,7 @@ pub struct HistopathReportPrintData {
     pub gross_description: Option<String>,
     pub microscopic_description: Option<String>,
     pub diagnosis: String,
+    pub icd_code: Option<String>,
     pub icd_o_morphology: Option<String>,
     pub icd_o_topography: Option<String>,
     pub staging: Option<String>,
@@ -1078,7 +1049,7 @@ pub struct ResearchConsentPrintData {
     pub iec_approval_number: String,
     pub iec_approval_date: String,
     pub sponsor_name: Option<String>,
-    pub study_purpose: String,
+    pub study_purpose: Option<String>,
     pub procedures_involved: Vec<String>,
     pub risks_benefits: String,
     pub compensation: Option<String>,
@@ -1105,7 +1076,7 @@ pub struct AbdmConsentPrintData {
     /// evidence they did.
     pub is_recorded_consent: bool,
     /// What was actually agreed to. Empty on a blank form, and empty on a
-    /// recorded consent too: `dpdp_consents` stores that consent was given,
+    /// recorded consent too: an `abdm_linking` consent records that it was given,
     /// not a purpose-by-purpose breakdown, so the purposes below are the ones
     /// the form offers rather than ones anybody ticked.
     pub purposes_consented: Vec<String>,
@@ -1192,6 +1163,8 @@ pub struct StatOrder {
 pub struct TransferSummaryPrintData {
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission.
+    pub admission_number: Option<String>,
     pub age: Option<String>,
     pub gender: String,
     pub transfer_date: String,
@@ -1215,27 +1188,6 @@ pub struct TransferSummaryPrintData {
     pub receiving_nurse: Option<String>,
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PatientEducationPrintData {
-    pub patient_name: String,
-    pub uhid: String,
-    pub material_title: String,
-    pub material_code: String,
-    pub category: String, // disease, procedure, medication, lifestyle
-    pub content_sections: Vec<EducationSection>,
-    pub language: String,
-    pub provided_date: String,
-    pub provided_by: Option<String>,
-    pub hospital_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct EducationSection {
-    pub heading: String,
-    pub content: String,
-    pub bullet_points: Vec<String>,
 }
 
 // ── Identity Prints Enhancement (Phase 2) ────────────────
@@ -1320,6 +1272,10 @@ pub struct PreopAssessmentPrintData {
     pub surgeon_name: String,
     pub anesthesiologist_name: Option<String>,
     pub asa_grade: Option<String>,
+    pub clearance_status: Option<String>,
+    pub airway_assessment: Option<String>,
+    pub cardiac_assessment: Option<String>,
+    pub pulmonary_assessment: Option<String>,
     pub allergies: Vec<String>,
     pub current_medications: Vec<String>,
     pub medical_history: Vec<String>,
@@ -1412,8 +1368,8 @@ pub struct AnesthesiaRecordPrintData {
     pub surgery_id: String,
     pub procedure_name: String,
     pub surgery_date: String,
-    pub anesthesia_type: String,
-    pub asa_grade: String,
+    pub anesthesia_type: Option<String>,
+    pub asa_grade: Option<String>,
     pub anesthesiologist_name: String,
     // Airway Management
     pub airway_type: Option<String>,
@@ -1433,10 +1389,10 @@ pub struct AnesthesiaRecordPrintData {
     pub urine_output_ml: Option<i32>,
     pub blood_loss_ml: Option<i32>,
     // Times
-    pub anesthesia_start: String,
+    pub anesthesia_start: Option<String>,
     pub surgery_start: String,
     pub surgery_end: String,
-    pub anesthesia_end: String,
+    pub anesthesia_end: Option<String>,
     // Recovery
     pub extubation_time: Option<String>,
     pub pacu_arrival_time: Option<String>,
@@ -1489,6 +1445,9 @@ pub struct OperationNotesPrintData {
     pub surgery_date: String,
     pub procedure_name: String,
     pub procedure_code: Option<String>,
+    /// What the operation went ahead on: the linked written consent and/or
+    /// the two-doctor emergency certification.
+    pub consent_basis: String,
     pub indication: String,
     pub surgeon_name: String,
     pub assistant_surgeons: Vec<String>,
@@ -1503,13 +1462,14 @@ pub struct OperationNotesPrintData {
     pub specimens_sent: Vec<String>,
     pub drain_details: Option<String>,
     pub closure_details: Option<String>,
+    pub implants: Vec<String>,
     pub estimated_blood_loss_ml: Option<i32>,
     pub transfusion_given: Option<String>,
     pub complications: Option<String>,
     // Times
     pub surgery_start: String,
     pub surgery_end: String,
-    pub duration_minutes: i32,
+    pub duration_minutes: Option<i32>,
     // Post-Op
     pub immediate_postop_condition: Option<String>,
     pub postop_instructions: Option<String>,
@@ -1532,15 +1492,18 @@ pub struct PostopOrdersPrintData {
     pub position_orders: Option<String>,
     pub activity_orders: Option<String>,
     pub iv_fluids: Vec<PostopFluidOrder>,
+    pub fluid_orders: Option<String>,
     pub medications: Vec<PostopMedicationOrder>,
     pub monitoring_orders: Vec<String>,
     pub drain_care: Option<String>,
     pub wound_care: Option<String>,
     pub vte_prophylaxis: Option<String>,
     pub pain_management: Option<String>,
+    pub pain_assessment: Option<String>,
     pub lab_orders: Vec<String>,
     pub imaging_orders: Vec<String>,
     pub special_instructions: Option<String>,
+    pub orders: Vec<String>,
     pub warning_signs: Vec<String>,
     pub ordered_by: String,
     pub ordered_at: String,
@@ -1577,14 +1540,14 @@ pub struct TransfusionMonitoringPrintData {
     pub bag_number: String,
     pub blood_group: String,
     pub rh_factor: String,
-    pub volume_ml: i32,
+    pub volume_ml: Option<i32>,
     pub expiry_date: String,
     // Pre-Transfusion
     pub pre_vitals: TransfusionVitals,
-    pub crossmatch_compatible: bool,
+    pub crossmatch_compatible: Option<bool>,
     pub patient_id_verified_by: String,
     pub product_verified_by: String,
-    pub consent_on_file: bool,
+    pub consent_on_file: Option<bool>,
     pub transfusion_start_time: String,
     pub started_by: String,
     // During Transfusion (15 min intervals)
@@ -1820,12 +1783,12 @@ pub struct TransfusionRequisitionPrintData {
     pub aptt: Option<String>,
     pub product_requested: String,
     pub units_requested: i32,
-    pub urgency: String,
+    pub urgency: Option<String>,
     pub special_requirements: Option<String>,
     pub previous_transfusions: Option<String>,
     pub previous_reactions: Option<String>,
     pub pregnancy_history: Option<String>,
-    pub consent_obtained: bool,
+    pub consent_obtained: Option<bool>,
     pub sample_collected_by: Option<String>,
     pub sample_collected_at: Option<String>,
     pub requested_by: String,
@@ -1852,9 +1815,9 @@ pub struct AmaFormPrintData {
     pub ama_time: String,
     // Declaration content
     pub risks_explained: Vec<String>,
-    pub patient_understands_risks: bool,
-    pub patient_refuses_treatment: bool,
-    pub patient_assumes_responsibility: bool,
+    pub patient_understands_risks: Option<bool>,
+    pub patient_refuses_treatment: Option<bool>,
+    pub patient_assumes_responsibility: Option<bool>,
     pub reason_for_ama: Option<String>,
     // Signatures
     pub patient_signature_obtained: bool,
@@ -1866,10 +1829,10 @@ pub struct AmaFormPrintData {
     pub witness2_name: Option<String>,
     pub witness2_designation: Option<String>,
     pub doctor_name: String,
-    pub doctor_signature_obtained: bool,
+    pub doctor_signature_obtained: Option<bool>,
     // Thumb impression if illiterate
-    pub thumb_impression_taken: bool,
-    pub interpreter_used: bool,
+    pub thumb_impression_taken: Option<bool>,
+    pub interpreter_used: Option<bool>,
     pub interpreter_name: Option<String>,
     pub interpreter_language: Option<String>,
     #[serde(default)]
@@ -1988,6 +1951,9 @@ pub struct WoundEntry {
     pub surrounding_area: Option<String>,
     pub healing_stage: Option<String>,
     pub probable_age_of_wound: Option<String>,
+    pub description: Option<String>,
+    pub probable_weapon: Option<String>,
+    pub nature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2016,6 +1982,7 @@ pub struct AgeEstimationPrintData {
     pub xray_elbow_findings: Option<String>,
     pub xray_shoulder_findings: Option<String>,
     pub epiphyseal_fusion_status: Vec<EpiphysealFusion>,
+    pub ossification_findings: Option<String>,
     // Opinion
     pub estimated_age_years: String,
     pub age_range_min: Option<i32>,
@@ -2068,9 +2035,9 @@ pub struct DeathDeclarationPrintData {
     pub manner_of_death: String,
     pub is_mlc: bool,
     pub mlc_number: Option<String>,
-    pub autopsy_required: bool,
-    pub autopsy_performed: bool,
-    pub relatives_informed: bool,
+    pub autopsy_required: Option<bool>,
+    pub autopsy_performed: Option<bool>,
+    pub relatives_informed: Option<bool>,
     pub relative_name: Option<String>,
     pub relative_relationship: Option<String>,
     pub declared_by: String,
@@ -2100,6 +2067,7 @@ pub struct MlcDocumentationPrintData {
     pub prognosis: String,
     pub permanent_disability: Option<String>,
     pub disability_percentage: Option<String>,
+    pub examination_findings: Option<String>,
     // Police/Legal
     pub police_station: Option<String>,
     pub fir_number: Option<String>,
@@ -2124,7 +2092,7 @@ pub struct PoliceVisitEntry {
     pub officer_name: String,
     pub officer_rank: String,
     pub purpose: String,
-    pub statement_recorded: bool,
+    pub statement_recorded: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -2150,6 +2118,7 @@ pub struct MlcDateEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IncidentReportPrintData {
     pub incident_id: String,
+    pub title: String,
     pub report_date: String,
     pub report_time: String,
     pub incident_date: String,
@@ -2173,9 +2142,9 @@ pub struct IncidentReportPrintData {
     pub contributing_factors: Vec<String>,
     pub reported_by: String,
     pub reported_by_designation: String,
-    pub department_head_notified: bool,
-    pub quality_dept_notified: bool,
-    pub risk_management_notified: bool,
+    pub department_head_notified: Option<bool>,
+    pub quality_dept_notified: Option<bool>,
+    pub risk_management_notified: Option<bool>,
     pub status: String,
 }
 
@@ -2281,6 +2250,7 @@ pub struct CapaFormPrintData {
     // Root Cause (if corrective)
     pub root_cause_analysis: Option<String>,
     pub root_cause_method: Option<String>,
+    pub action_plan: Option<String>,
     // Action Plan
     pub proposed_actions: Vec<CapaAction>,
     // Implementation
@@ -2340,9 +2310,9 @@ pub struct AdrReportPrintData {
     pub relevant_history: Option<String>,
     pub allergies: Option<String>,
     // De-challenge / Re-challenge
-    pub dechallenge_done: bool,
+    pub dechallenge_done: Option<bool>,
     pub dechallenge_result: Option<String>,
-    pub rechallenge_done: bool,
+    pub rechallenge_done: Option<bool>,
     pub rechallenge_result: Option<String>,
     // Causality Assessment
     pub causality_assessment: Option<String>,
@@ -2401,34 +2371,35 @@ pub struct TransfusionReactionPrintData {
     pub product_type: String,
     pub bag_number: String,
     pub donor_blood_group: String,
-    pub volume_transfused_ml: i32,
-    pub volume_remaining_ml: i32,
+    pub volume_transfused_ml: Option<i32>,
+    pub volume_remaining_ml: Option<i32>,
     // Reaction Details
     pub reaction_type: String,
     pub symptoms: Vec<String>,
     pub vital_signs_during_reaction: TransfusionVitals,
     pub severity: String,
+    pub reaction_details: Option<String>,
     // Immediate Management
-    pub transfusion_stopped: bool,
+    pub transfusion_stopped: Option<bool>,
     pub transfusion_stopped_time: Option<String>,
-    pub iv_line_kept_open: bool,
-    pub doctor_informed: bool,
+    pub iv_line_kept_open: Option<bool>,
+    pub doctor_informed: Option<bool>,
     pub doctor_name: Option<String>,
-    pub blood_bank_informed: bool,
+    pub blood_bank_informed: Option<bool>,
     pub immediate_treatment: String,
     // Investigation
-    pub repeat_grouping_done: bool,
-    pub repeat_crossmatch_done: bool,
+    pub repeat_grouping_done: Option<bool>,
+    pub repeat_crossmatch_done: Option<bool>,
     pub dcoombs_test: Option<String>,
     pub urine_hemoglobin: Option<String>,
     pub plasma_hemoglobin: Option<String>,
     pub ldh: Option<String>,
     pub bilirubin: Option<String>,
-    pub blood_culture_sent: bool,
-    pub bag_returned_to_blood_bank: bool,
+    pub blood_culture_sent: Option<bool>,
+    pub bag_returned_to_blood_bank: Option<bool>,
     // Outcome
     pub patient_outcome: String,
-    pub reaction_resolved: bool,
+    pub reaction_resolved: Option<bool>,
     pub permanent_sequelae: Option<String>,
     // For Hemovigilance
     pub imputability: Option<String>,
@@ -2654,7 +2625,7 @@ pub struct RadiologyReportFullPrintData {
     pub body_part: Option<String>,
     pub laterality: Option<String>,
     pub clinical_history: Option<String>,
-    pub contrast_used: bool,
+    pub contrast_used: Option<bool>,
     pub contrast_details: Option<String>,
     pub technique: Option<String>,
     pub findings: String,
@@ -2720,7 +2691,7 @@ pub struct DeathCertificatePrintData {
     // Administrative
     pub mlc_case: bool,
     pub mlc_number: Option<String>,
-    pub autopsy_performed: bool,
+    pub autopsy_performed: Option<bool>,
     pub autopsy_findings: Option<String>,
     pub informant_name: Option<String>,
     pub informant_relationship: Option<String>,
@@ -2754,12 +2725,12 @@ pub struct CreditNotePrintData {
     pub patient_gstin: Option<String>,
     pub reason_for_credit: String,
     pub line_items: Vec<CreditNoteItem>,
-    pub subtotal: f64,
-    pub discount_amount: f64,
-    pub tax_amount: f64,
-    pub cgst_amount: f64,
-    pub sgst_amount: f64,
-    pub igst_amount: f64,
+    pub subtotal: Option<f64>,
+    pub discount_amount: Option<f64>,
+    pub tax_amount: Option<f64>,
+    pub cgst_amount: Option<f64>,
+    pub sgst_amount: Option<f64>,
+    pub igst_amount: Option<f64>,
     pub total_credit_amount: f64,
     pub amount_in_words: String,
     pub remarks: Option<String>,
@@ -2785,7 +2756,7 @@ pub struct CreditNoteItem {
 /// Package Bill print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PackageBillPrintData {
-    pub bill_number: String,
+    pub bill_number: Option<String>,
     pub bill_date: String,
     pub patient_name: String,
     pub uhid: String,
@@ -2797,17 +2768,14 @@ pub struct PackageBillPrintData {
     pub package_description: Option<String>,
     pub package_inclusions: Vec<String>,
     pub package_amount: f64,
-    pub additional_charges: Vec<PackageAdditionalCharge>,
-    pub additional_total: f64,
-    pub exclusions_used: Vec<PackageExclusion>,
-    pub exclusion_total: f64,
-    pub gross_amount: f64,
-    pub discount_amount: f64,
-    pub tax_amount: f64,
-    pub net_amount: f64,
-    pub advance_paid: f64,
-    pub insurance_amount: f64,
-    pub balance_due: f64,
+    pub gross_amount: Option<f64>,
+    pub discount_amount: Option<f64>,
+    pub tax_amount: Option<f64>,
+    pub net_amount: Option<f64>,
+    pub advance_paid: Option<f64>,
+    pub total_paid: Option<f64>,
+    pub insurance_amount: Option<f64>,
+    pub balance_due: Option<f64>,
     pub amount_in_words: String,
     pub doctor_name: Option<String>,
     pub department: Option<String>,
@@ -2817,23 +2785,10 @@ pub struct PackageBillPrintData {
     pub hospital_logo_url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PackageAdditionalCharge {
-    pub description: String,
-    pub amount: f64,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PackageExclusion {
-    pub description: String,
-    pub amount: f64,
-}
-
 /// Insurance Claim Form (CGHS/ECHS/ESI/Ayushman Bharat)
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct InsuranceClaimPrintData {
-    pub claim_number: String,
+    pub claim_number: Option<String>,
     pub claim_date: String,
     pub claim_type: String,
     pub tpa_name: Option<String>,
@@ -2843,6 +2798,8 @@ pub struct InsuranceClaimPrintData {
     // Patient Information
     pub patient_name: String,
     pub uhid: String,
+    /// IP number of the admission the claim is for.
+    pub admission_number: Option<String>,
     pub age_display: String,
     pub gender: String,
     pub relation_to_primary: Option<String>,
@@ -2852,7 +2809,7 @@ pub struct InsuranceClaimPrintData {
     pub admission_date: Option<String>,
     pub discharge_date: Option<String>,
     pub length_of_stay: Option<i32>,
-    pub diagnosis: String,
+    pub diagnosis: Option<String>,
     pub icd_codes: Vec<String>,
     pub procedure_performed: Option<String>,
     pub procedure_codes: Vec<String>,
@@ -2868,67 +2825,24 @@ pub struct InsuranceClaimPrintData {
     pub other_charges: f64,
     pub total_bill_amount: f64,
     pub pre_auth_amount: Option<f64>,
-    pub claim_amount: f64,
-    pub patient_payable: f64,
+    pub claim_amount: Option<f64>,
+    pub patient_payable: Option<f64>,
     // Documents
     pub pre_auth_number: Option<String>,
     pub pre_auth_date: Option<String>,
-    pub discharge_summary_attached: bool,
-    pub investigation_reports_attached: bool,
-    pub bill_attached: bool,
+    pub discharge_summary_attached: Option<bool>,
+    pub investigation_reports_attached: Option<bool>,
+    pub bill_attached: Option<bool>,
     // Declaration
-    pub declaration_date: String,
-    pub patient_signature_obtained: bool,
-    pub hospital_stamp: bool,
+    pub declaration_date: Option<String>,
+    pub patient_signature_obtained: Option<bool>,
+    pub hospital_stamp: Option<bool>,
     pub hospital_name: String,
     pub hospital_address: Option<String>,
     pub hospital_empanelment_number: Option<String>,
     pub hospital_logo_url: Option<String>,
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
-}
-
-/// TDS Certificate print data
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct TdsCertificatePrintData {
-    pub certificate_number: String,
-    pub financial_year: String,
-    pub quarter: String,
-    // Deductor Details (Hospital)
-    pub deductor_name: String,
-    pub deductor_tan: String,
-    pub deductor_pan: String,
-    pub deductor_address: Option<String>,
-    // Deductee Details (Vendor/Doctor)
-    pub deductee_name: String,
-    pub deductee_pan: String,
-    pub deductee_address: Option<String>,
-    // TDS Details
-    pub section_code: String,
-    pub nature_of_payment: String,
-    pub tds_entries: Vec<TdsEntry>,
-    pub total_payment: f64,
-    pub total_tds_deducted: f64,
-    pub total_tds_deposited: f64,
-    // Challan Details
-    pub challan_number: Option<String>,
-    pub challan_date: Option<String>,
-    pub bsr_code: Option<String>,
-    // Verification
-    pub verified_by: Option<String>,
-    pub designation: Option<String>,
-    pub verification_date: String,
-    pub place: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TdsEntry {
-    pub invoice_number: String,
-    pub invoice_date: String,
-    pub payment_date: String,
-    pub gross_amount: f64,
-    pub tds_rate: f64,
-    pub tds_amount: f64,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2956,8 +2870,8 @@ pub struct QualityIndicator {
     pub indicator_code: String,
     pub indicator_name: String,
     pub category: String,
-    pub numerator: i32,
-    pub denominator: i32,
+    pub numerator: Option<i32>,
+    pub denominator: Option<i32>,
     pub rate: f64,
     pub benchmark: Option<f64>,
     pub status: String,
@@ -3009,7 +2923,7 @@ pub struct NablQualityReportPrintData {
     pub turnaround_times: Vec<TatMetric>,
     pub critical_value_reporting: CriticalValueMetrics,
     pub sample_rejection_rate: f64,
-    pub repeat_rate: f64,
+    pub repeat_rate: Option<f64>,
     pub prepared_by: Option<String>,
     pub quality_manager: Option<String>,
     pub hospital_logo_url: Option<String>,
@@ -3044,7 +2958,7 @@ pub struct TatMetric {
 pub struct CriticalValueMetrics {
     pub total_critical_values: i32,
     pub reported_within_target: i32,
-    pub average_reporting_time_minutes: f64,
+    pub average_reporting_time_minutes: Option<f64>,
 }
 
 /// SPCB BMW Quarterly Returns
@@ -3057,15 +2971,15 @@ pub struct SpcbBmwReturnsPrintData {
     pub hospital_address: Option<String>,
     pub authorization_number: Option<String>,
     pub total_beds: i32,
-    pub average_occupancy: f64,
+    pub average_occupancy: Option<f64>,
     pub waste_categories: Vec<BmwCategory>,
     pub total_waste_kg: f64,
     pub cbwtf_name: Option<String>,
     pub cbwtf_authorization: Option<String>,
     pub disposal_records: Vec<DisposalRecord>,
-    pub training_conducted: bool,
+    pub training_conducted: Option<bool>,
     pub training_attendees: Option<i32>,
-    pub incidents_reported: i32,
+    pub incidents_reported: Option<i32>,
     pub authorized_signatory: Option<String>,
     pub designation: Option<String>,
     pub hospital_logo_url: Option<String>,
@@ -3119,12 +3033,12 @@ pub struct MedicalGasSystem {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CylinderStorage {
-    pub total_capacity: i32,
+    pub total_capacity: Option<i32>,
     pub oxygen_cylinders: i32,
     pub nitrous_oxide_cylinders: i32,
     pub co2_cylinders: i32,
     pub other_cylinders: i32,
-    pub storage_compliant: bool,
+    pub storage_compliant: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -3150,14 +3064,14 @@ pub struct DrugLicenseReportPrintData {
     pub hospital_name: String,
     pub drug_license_number: String,
     pub license_type: String,
-    pub valid_from: String,
-    pub valid_until: String,
+    pub valid_from: Option<String>,
+    pub valid_until: Option<String>,
     pub licensing_authority: String,
     pub registered_pharmacist: Option<String>,
     pub registration_number: Option<String>,
     pub authorized_categories: Vec<String>,
     pub controlled_substance_license: Option<String>,
-    pub storage_conditions_compliant: bool,
+    pub storage_conditions_compliant: Option<bool>,
     pub inspection_history: Vec<DrugInspection>,
     pub current_stock_summary: Vec<DrugStockCategory>,
     pub expiry_alerts: Vec<ExpiryAlert>,
@@ -3186,6 +3100,64 @@ pub struct ExpiryAlert {
     pub expiry_date: String,
     pub quantity: i32,
     pub days_to_expiry: i32,
+}
+
+/// PC-PNDT Form F — the statutory record of one ultrasonography of a pregnant
+/// woman (Rule 9(4)). The sex of the fetus is never recorded, so it is not here.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PcpndtFormFPrintData {
+    pub form_number: String,
+    pub clinic: FormFClinic,
+    pub woman: FormFWoman,
+    pub referral: FormFReferral,
+    pub procedure: FormFProcedure,
+    pub declarations: FormFDeclarations,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FormFClinic {
+    pub name: String,
+    pub address: String,
+    pub pcpndt_registration_number: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFWoman {
+    pub name: String,
+    pub uhid: String,
+    pub age_years: Option<i32>,
+    pub husband_or_father: Option<String>,
+    pub address: Option<String>,
+    pub phone: Option<String>,
+    pub living_sons: Option<i32>,
+    pub living_daughters: Option<i32>,
+    pub last_menstrual_period: Option<String>,
+    pub weeks_of_pregnancy: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFReferral {
+    pub self_referred: bool,
+    pub referred_by: Option<String>,
+    pub referring_doctor_registration: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct FormFProcedure {
+    pub procedure: String,
+    pub indication: Option<String>,
+    pub performed_by: Option<String>,
+    pub performing_doctor_registration: Option<String>,
+    pub performed_on: String,
+    pub result: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FormFDeclarations {
+    pub woman: String,
+    pub woman_declared_at: Option<String>,
+    pub doctor: String,
+    pub doctor_declared_at: Option<String>,
 }
 
 /// PCPNDT Compliance Report
@@ -3227,9 +3199,6 @@ pub struct PcpndtPersonnel {
 pub struct PcpndtProcedure {
     pub procedure_type: String,
     pub total_count: i32,
-    pub male_fetus: i32,
-    pub female_fetus: i32,
-    pub indeterminate: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -3237,7 +3206,7 @@ pub struct FormFCompliance {
     pub total_forms: i32,
     pub complete_forms: i32,
     pub incomplete_forms: i32,
-    pub compliance_percentage: f64,
+    pub compliance_percentage: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -3260,8 +3229,8 @@ pub struct BirthRegisterPrintData {
     pub total_births: i32,
     pub male_births: i32,
     pub female_births: i32,
-    pub live_births: i32,
-    pub still_births: i32,
+    pub live_births: Option<i32>,
+    pub still_births: Option<i32>,
     pub prepared_by: Option<String>,
     pub verified_by: Option<String>,
     pub hospital_logo_url: Option<String>,
@@ -3274,10 +3243,10 @@ pub struct BirthRegisterEntry {
     pub date_of_birth: String,
     pub time_of_birth: String,
     pub gender: String,
-    pub birth_weight_grams: i32,
+    pub birth_weight_grams: Option<i32>,
     pub birth_type: String,
     pub mother_name: String,
-    pub mother_age: i32,
+    pub mother_age: Option<i32>,
     pub father_name: String,
     pub address: String,
     pub delivery_type: String,
@@ -3327,7 +3296,7 @@ pub struct MlcRegisterSummaryPrintData {
     pub entries: Vec<MlcRegisterSummaryEntry>,
     pub total_cases: i32,
     pub by_case_type: Vec<MlcCaseTypeCount>,
-    pub by_outcome: Vec<MlcOutcomeCount>,
+    pub by_status: Vec<MlcStatusCount>,
     pub pending_cases: i32,
     pub prepared_by: Option<String>,
     pub hospital_logo_url: Option<String>,
@@ -3340,10 +3309,11 @@ pub struct MlcRegisterSummaryEntry {
     pub registration_date: String,
     pub patient_name: String,
     pub age_gender: String,
-    pub case_type: String,
-    pub police_station: String,
+    pub case_type: Option<String>,
+    pub police_station: Option<String>,
     pub fir_number: Option<String>,
-    pub outcome: String,
+    /// The patient's condition at discharge, as recorded on the case.
+    pub outcome: Option<String>,
     pub current_status: String,
 }
 
@@ -3354,8 +3324,8 @@ pub struct MlcCaseTypeCount {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct MlcOutcomeCount {
-    pub outcome: String,
+pub struct MlcStatusCount {
+    pub status: String,
     pub count: i32,
 }
 
@@ -3368,7 +3338,7 @@ pub struct AebasAttendanceReportPrintData {
     pub aebas_unit_code: Option<String>,
     pub department_summary: Vec<DepartmentAttendance>,
     pub total_employees: i32,
-    pub average_attendance_percentage: f64,
+    pub average_attendance_percentage: Option<f64>,
     pub total_working_days: i32,
     pub holidays: i32,
     pub prepared_by: Option<String>,
@@ -3382,44 +3352,7 @@ pub struct DepartmentAttendance {
     pub average_present: f64,
     pub average_absent: f64,
     pub average_leave: f64,
-    pub attendance_percentage: f64,
-}
-
-/// NMC NARF Self-Assessment
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct NmcNarfAssessmentPrintData {
-    pub assessment_year: i32,
-    pub report_date: String,
-    pub hospital_name: String,
-    pub nmc_registration_number: Option<String>,
-    pub assessment_sections: Vec<NarfSection>,
-    pub overall_score: f64,
-    pub maximum_score: f64,
-    pub percentage: f64,
-    pub grade: String,
-    pub strengths: Vec<String>,
-    pub areas_for_improvement: Vec<String>,
-    pub action_plan: Vec<String>,
-    pub assessed_by: Option<String>,
-    pub verified_by: Option<String>,
-    pub hospital_logo_url: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NarfSection {
-    pub section_name: String,
-    pub max_score: f64,
-    pub achieved_score: f64,
-    pub percentage: f64,
-    pub criteria: Vec<NarfCriterion>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NarfCriterion {
-    pub criterion: String,
-    pub max_marks: f64,
-    pub achieved_marks: f64,
-    pub evidence: Option<String>,
+    pub attendance_percentage: Option<f64>,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3476,7 +3409,7 @@ pub struct PurchaseOrderPrintData {
     pub discount_percentage: Option<f64>,
     pub discount_amount: f64,
     pub tax_amount: f64,
-    pub freight_charges: f64,
+    pub freight_charges: Option<f64>,
     pub total_amount: f64,
     pub amount_in_words: String,
     pub terms_and_conditions: Vec<String>,
@@ -3533,7 +3466,7 @@ pub struct GrnItem {
     pub expiry_date: Option<String>,
     pub manufacturing_date: Option<String>,
     pub unit: String,
-    pub quantity_ordered: f64,
+    pub quantity_ordered: Option<f64>,
     pub quantity_received: f64,
     pub quantity_accepted: f64,
     pub quantity_rejected: f64,
@@ -3548,7 +3481,7 @@ pub struct MaterialIssueVoucherPrintData {
     pub voucher_number: String,
     pub voucher_date: String,
     pub issue_type: String,
-    pub issuing_store: String,
+    pub issuing_store: Option<String>,
     pub receiving_department: String,
     pub receiving_cost_center: Option<String>,
     pub requested_by: String,
@@ -3583,7 +3516,7 @@ pub struct StockTransferNotePrintData {
     pub transfer_date: String,
     pub from_store: String,
     pub to_store: String,
-    pub transfer_type: String,
+    pub transfer_type: Option<String>,
     pub items: Vec<TransferItem>,
     pub total_items: i32,
     pub total_value: f64,
@@ -3606,8 +3539,8 @@ pub struct TransferItem {
     pub expiry_date: Option<String>,
     pub unit: String,
     pub quantity: f64,
-    pub unit_price: f64,
-    pub amount: f64,
+    pub unit_price: Option<f64>,
+    pub amount: Option<f64>,
 }
 
 /// NDPS Controlled Substance Register
@@ -3615,15 +3548,15 @@ pub struct TransferItem {
 pub struct NdpsRegisterPrintData {
     pub report_period: String,
     pub report_date: String,
-    pub store_name: String,
-    pub license_number: String,
-    pub license_valid_until: String,
+    pub store_name: Option<String>,
+    pub license_number: Option<String>,
+    pub license_valid_until: Option<String>,
     pub opening_balance: Vec<NdpsBalance>,
     pub transactions: Vec<NdpsTransaction>,
     pub closing_balance: Vec<NdpsBalance>,
     pub physical_verification_date: Option<String>,
     pub discrepancies: Vec<String>,
-    pub register_maintained_by: String,
+    pub register_maintained_by: Option<String>,
     pub verified_by: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
@@ -3633,7 +3566,7 @@ pub struct NdpsRegisterPrintData {
 pub struct NdpsBalance {
     pub drug_name: String,
     pub schedule: String,
-    pub batch_number: String,
+    pub batch_number: Option<String>,
     pub unit: String,
     pub quantity: f64,
 }
@@ -3642,7 +3575,7 @@ pub struct NdpsBalance {
 pub struct NdpsTransaction {
     pub transaction_date: String,
     pub drug_name: String,
-    pub batch_number: String,
+    pub batch_number: Option<String>,
     pub transaction_type: String,
     pub quantity: f64,
     pub balance_after: f64,
@@ -3677,8 +3610,8 @@ pub struct ExpiryDrugItem {
     pub days_to_expiry: i32,
     pub quantity: f64,
     pub unit: String,
-    pub unit_price: f64,
-    pub total_value: f64,
+    pub unit_price: Option<f64>,
+    pub total_value: Option<f64>,
     pub manufacturer: Option<String>,
     pub supplier: Option<String>,
     pub location: String,
@@ -3694,19 +3627,19 @@ pub struct EquipmentCondemnationPrintData {
     pub serial_number: Option<String>,
     pub make: Option<String>,
     pub model: Option<String>,
-    pub location: String,
-    pub department: String,
+    pub location: Option<String>,
+    pub department: Option<String>,
     pub purchase_date: Option<String>,
     pub purchase_value: Option<f64>,
     pub current_book_value: Option<f64>,
     pub reason_for_condemnation: String,
-    pub condition_assessment: String,
+    pub condition_assessment: Option<String>,
     pub inspection_findings: String,
     pub repair_history: Vec<RepairHistoryEntry>,
-    pub total_repair_cost: f64,
+    pub total_repair_cost: Option<f64>,
     pub disposal_recommendation: String,
     pub estimated_salvage_value: Option<f64>,
-    pub inspected_by: String,
+    pub inspected_by: Option<String>,
     pub recommended_by: String,
     pub approved_by: Option<String>,
     pub approval_date: Option<String>,
@@ -3773,7 +3706,7 @@ pub struct PmChecklistPrintData {
     pub last_pm_date: Option<String>,
     pub pm_frequency: String,
     pub checklist_items: Vec<PmChecklistItem>,
-    pub overall_condition: String,
+    pub overall_condition: Option<String>,
     pub issues_found: Vec<String>,
     pub corrective_actions: Vec<String>,
     pub parts_replaced: Vec<PartReplaced>,
@@ -3902,15 +3835,15 @@ pub struct LeaveApplicationPrintData {
     pub application_date: String,
     pub employee_name: String,
     pub employee_id: String,
-    pub department: String,
-    pub designation: String,
+    pub department: Option<String>,
+    pub designation: Option<String>,
     pub leave_type: String,
     pub leave_from: String,
     pub leave_to: String,
-    pub total_days: i32,
+    pub total_days: f64,
     pub reason: String,
-    pub leave_balance_before: i32,
-    pub leave_balance_after: i32,
+    pub leave_balance_before: Option<f64>,
+    pub leave_balance_after: Option<f64>,
     pub relieving_officer: Option<String>,
     pub contact_during_leave: Option<String>,
     pub approver_name: Option<String>,
@@ -3965,23 +3898,23 @@ pub struct AttendanceSummary {
 /// Training Attendance / Certificate print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct TrainingCertificatePrintData {
-    pub certificate_number: String,
+    pub certificate_number: Option<String>,
     pub certificate_date: String,
     pub employee_name: String,
     pub employee_id: String,
-    pub designation: String,
-    pub department: String,
+    pub designation: Option<String>,
+    pub department: Option<String>,
     pub training_title: String,
-    pub training_type: String, // Internal, External, Online
+    pub training_type: Option<String>,
     pub training_date: String,
-    pub training_duration: String,
+    pub training_duration: Option<String>,
     pub trainer_name: Option<String>,
     pub trainer_organization: Option<String>,
     pub topics_covered: Vec<String>,
     pub score: Option<f64>,
     pub grade: Option<String>,
     pub certificate_valid_until: Option<String>,
-    pub issued_by: String,
+    pub issued_by: Option<String>,
     pub qr_verification_url: Option<String>,
     pub hospital_name: String,
     pub hospital_logo_url: Option<String>,
@@ -4006,7 +3939,7 @@ pub struct StaffCredentialFormPrintData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CredentialDetail {
     pub credential_type: String, // Degree, License, Registration, Certification
-    pub credential_name: String,
+    pub credential_name: Option<String>,
     pub issuing_authority: String,
     pub credential_number: String,
     pub issue_date: Option<String>,
@@ -4019,7 +3952,7 @@ pub struct CredentialDetail {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VisitorRegisterPrintData {
     pub register_date: String,
-    pub location: String, // Security Desk, Department
+    pub location: Option<String>, // Security Desk, Department
     pub entries: Vec<VisitorEntry>,
     pub total_visitors: i32,
     pub hospital_name: String,
@@ -4035,6 +3968,7 @@ pub struct VisitorEntry {
     pub purpose: String,
     pub visiting_department: Option<String>,
     pub visiting_person: Option<String>,
+    pub ward: Option<String>,
     pub patient_name: Option<String>,
     pub patient_uhid: Option<String>,
     pub in_time: String,
@@ -4055,7 +3989,7 @@ pub struct AmcContractPrintData {
     pub equipment_covered: Vec<EquipmentCoverage>,
     pub contract_start: String,
     pub contract_end: String,
-    pub contract_value: f64,
+    pub contract_value: Option<f64>,
     pub payment_terms: Option<String>,
     pub response_time_sla: Option<String>,
     pub resolution_time_sla: Option<String>,
@@ -4086,9 +4020,9 @@ pub struct EscalationContact {
 /// Calibration Certificate / Record print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CalibrationCertificatePrintData {
-    pub certificate_number: String,
-    pub calibration_date: String,
-    pub next_calibration_due: String,
+    pub certificate_number: Option<String>,
+    pub calibration_date: Option<String>,
+    pub next_calibration_due: Option<String>,
     pub equipment_name: String,
     pub equipment_id: String,
     pub serial_number: Option<String>,
@@ -4119,7 +4053,7 @@ pub struct CalibrationParameter {
 /// Equipment Breakdown Report print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct EquipmentBreakdownReportPrintData {
-    pub report_number: String,
+    pub report_number: Option<String>,
     pub report_date: String,
     pub equipment_name: String,
     pub equipment_id: String,
@@ -4134,7 +4068,7 @@ pub struct EquipmentBreakdownReportPrintData {
     pub root_cause: Option<String>,
     pub repair_action: Option<String>,
     pub parts_replaced: Vec<ReplacedPart>,
-    pub downtime_hours: f64,
+    pub downtime_hours: Option<f64>,
     pub repair_cost: Option<f64>,
     pub repaired_by: Option<String>,
     pub repair_completed_at: Option<String>,
@@ -4205,15 +4139,15 @@ pub struct CalibrationEvent {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MgpsDailyLogPrintData {
     pub log_date: String,
-    pub shift: String,
+    pub shift: Option<String>,
     pub operator_name: String,
     pub readings: Vec<MgpsReading>,
-    pub consumption: MgpsConsumption,
+    pub consumption: Option<MgpsConsumption>,
     pub incidents: Vec<MgpsIncident>,
     pub cylinder_status: Vec<CylinderBank>,
     pub manifold_status: String,
     pub remarks: Option<String>,
-    pub supervisor_verified: bool,
+    pub supervisor_verified: Option<bool>,
     pub supervisor_name: Option<String>,
     pub hospital_name: String,
 }
@@ -4221,8 +4155,8 @@ pub struct MgpsDailyLogPrintData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MgpsReading {
     pub time: String,
-    pub gas_type: String,   // O2, N2O, Air, Vacuum, N2
-    pub line_pressure: f64, // bar
+    pub gas_type: String,           // O2, N2O, Air, Vacuum, N2
+    pub line_pressure: Option<f64>, // bar
     pub purity_percent: Option<f64>,
     pub flow_rate: Option<f64>,
     pub alarm_status: String,
@@ -4261,7 +4195,7 @@ pub struct WaterQualityTestPrintData {
     pub sample_id: String,
     pub sample_location: String,
     pub sample_type: String, // RO Water, Raw Water, Treated Water, Dialysis Water
-    pub collected_by: String,
+    pub collected_by: Option<String>,
     pub tested_by: String,
     pub test_parameters: Vec<WaterTestParameter>,
     pub overall_result: String, // Pass, Fail
@@ -4318,18 +4252,18 @@ pub struct RunEvent {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FuelStatus {
-    pub opening_level: f64,
-    pub closing_level: f64,
-    pub fuel_added: f64,
-    pub fuel_consumed: f64,
+    pub opening_level: Option<f64>,
+    pub closing_level: Option<f64>,
+    pub fuel_added: Option<f64>,
+    pub fuel_consumed: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BatteryStatus {
-    pub voltage: f64,
-    pub current: f64,
-    pub charge_percent: f64,
-    pub health_status: String,
+    pub voltage: Option<f64>,
+    pub current: Option<f64>,
+    pub charge_percent: Option<f64>,
+    pub health_status: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -4339,14 +4273,14 @@ pub struct DgUpsParameters {
     pub voltage_b: Option<f64>,
     pub frequency: Option<f64>,
     pub load_kw: Option<f64>,
-    pub runtime_hours: f64,
+    pub runtime_hours: Option<f64>,
 }
 
 /// Fire Equipment Inspection Checklist print data
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FireEquipmentInspectionPrintData {
     pub inspection_date: String,
-    pub inspection_number: String,
+    pub inspection_number: Option<String>,
     pub inspector_name: String,
     pub inspector_designation: String,
     pub area_inspected: String,
@@ -4359,7 +4293,7 @@ pub struct FireEquipmentInspectionPrintData {
     pub deficiencies_found: Vec<String>,
     pub corrective_actions: Vec<String>,
     pub next_inspection_due: String,
-    pub supervisor_verified: bool,
+    pub supervisor_verified: Option<bool>,
     pub hospital_name: String,
 }
 
@@ -4369,20 +4303,20 @@ pub struct FireExtinguisherCheck {
     pub extinguisher_type: String, // ABC, CO2, DCP, Foam
     pub capacity: String,
     pub expiry_date: String,
-    pub pressure_ok: bool,
-    pub seal_intact: bool,
-    pub accessible: bool,
-    pub signage_ok: bool,
+    pub pressure_ok: Option<bool>,
+    pub seal_intact: Option<bool>,
+    pub accessible: Option<bool>,
+    pub signage_ok: Option<bool>,
     pub status: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FireAlarmCheck {
     pub zone: String,
-    pub panel_ok: bool,
-    pub detectors_ok: bool,
-    pub sounders_ok: bool,
-    pub battery_ok: bool,
+    pub panel_ok: Option<bool>,
+    pub detectors_ok: Option<bool>,
+    pub sounders_ok: Option<bool>,
+    pub battery_ok: Option<bool>,
     pub last_tested: Option<String>,
     pub status: String,
 }
@@ -4390,29 +4324,29 @@ pub struct FireAlarmCheck {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FireHydrantCheck {
     pub location: String,
-    pub water_flow_ok: bool,
+    pub water_flow_ok: Option<bool>,
     pub hose_condition: String,
-    pub nozzle_ok: bool,
-    pub valve_operational: bool,
+    pub nozzle_ok: Option<bool>,
+    pub valve_operational: Option<bool>,
     pub status: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmergencyExitCheck {
     pub location: String,
-    pub signage_illuminated: bool,
-    pub path_clear: bool,
-    pub door_operational: bool,
-    pub panic_bar_ok: bool,
+    pub signage_illuminated: Option<bool>,
+    pub path_clear: Option<bool>,
+    pub door_operational: Option<bool>,
+    pub panic_bar_ok: Option<bool>,
     pub status: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SprinklerCheck {
     pub zones_inspected: i32,
-    pub heads_ok: bool,
-    pub valve_ok: bool,
-    pub pressure_ok: bool,
+    pub heads_ok: Option<bool>,
+    pub valve_ok: Option<bool>,
+    pub pressure_ok: Option<bool>,
     pub last_flow_test: Option<String>,
     pub status: String,
 }
@@ -4448,15 +4382,15 @@ pub struct MateriovigilanceReportPrintData {
 /// Fire Safety Mock Drill Report print data
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FireMockDrillReportPrintData {
-    pub drill_number: String,
+    pub drill_number: Option<String>,
     pub drill_date: String,
     pub drill_time: String,
     pub drill_type: String, // Announced, Unannounced
     pub scenario: String,
     pub area_covered: String,
-    pub participants_count: i32,
-    pub evacuation_time_minutes: f64,
-    pub target_time_minutes: f64,
+    pub participants_count: Option<i32>,
+    pub evacuation_time_minutes: Option<f64>,
+    pub target_time_minutes: Option<f64>,
     pub observations: Vec<DrillObservation>,
     pub equipment_used: Vec<String>,
     pub first_responders: Vec<FirstResponder>,
@@ -4472,7 +4406,7 @@ pub struct FireMockDrillReportPrintData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DrillObservation {
     pub observation: String,
-    pub category: String, // Positive, Negative, Neutral
+    pub category: Option<String>, // Positive, Negative, Neutral
     pub action_required: Option<String>,
 }
 
@@ -4530,7 +4464,7 @@ pub struct BloodDonorFormPrintData {
     pub registration_number: String,
     pub registration_date: String,
     pub donor_name: String,
-    pub age: i32,
+    pub age: Option<i32>,
     pub gender: String,
     pub blood_group: String,
     pub rh_factor: String,
@@ -4546,7 +4480,7 @@ pub struct BloodDonorFormPrintData {
     pub last_donation_date: Option<String>,
     pub medical_history: DonorMedicalHistory,
     pub physical_exam: DonorPhysicalExam,
-    pub consent_given: bool,
+    pub consent_given: Option<bool>,
     pub consent_date: Option<String>,
     pub medical_officer: Option<String>,
     pub hospital_name: String,
@@ -4554,34 +4488,34 @@ pub struct BloodDonorFormPrintData {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DonorMedicalHistory {
-    pub recent_illness: bool,
-    pub recent_surgery: bool,
-    pub recent_transfusion: bool,
-    pub chronic_disease: bool,
-    pub on_medication: bool,
-    pub pregnant_or_lactating: bool,
-    pub high_risk_behavior: bool,
-    pub tattoo_recent: bool,
+    pub recent_illness: Option<bool>,
+    pub recent_surgery: Option<bool>,
+    pub recent_transfusion: Option<bool>,
+    pub chronic_disease: Option<bool>,
+    pub on_medication: Option<bool>,
+    pub pregnant_or_lactating: Option<bool>,
+    pub high_risk_behavior: Option<bool>,
+    pub tattoo_recent: Option<bool>,
     pub details: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DonorPhysicalExam {
-    pub weight_kg: f64,
-    pub blood_pressure: String,
-    pub pulse: i32,
-    pub temperature: f64,
-    pub hemoglobin: f64,
-    pub fit_to_donate: bool,
+    pub weight_kg: Option<f64>,
+    pub blood_pressure: Option<String>,
+    pub pulse: Option<i32>,
+    pub temperature: Option<f64>,
+    pub hemoglobin: Option<f64>,
+    pub fit_to_donate: Option<bool>,
     pub deferral_reason: Option<String>,
 }
 
 /// Blood Bank Cross-Match Requisition print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CrossMatchRequisitionPrintData {
-    pub requisition_number: String,
+    pub requisition_number: Option<String>,
     pub requisition_date: String,
-    pub urgency: String, // Routine, Urgent, Emergency
+    pub urgency: Option<String>, // Routine, Urgent, Emergency
     pub patient_name: String,
     pub uhid: String,
     pub age_gender: String,
@@ -4596,8 +4530,8 @@ pub struct CrossMatchRequisitionPrintData {
     pub previous_transfusions: i32,
     pub transfusion_reactions_history: bool,
     pub reaction_details: Option<String>,
-    pub sample_collected_by: String,
-    pub sample_collected_at: String,
+    pub sample_collected_by: Option<String>,
+    pub sample_collected_at: Option<String>,
     pub requesting_doctor: String,
     pub doctor_signature_date: String,
     pub hospital_name: String,
@@ -4633,68 +4567,42 @@ pub struct AppointmentSlipPrintData {
 /// DPDP Act Data Processing Consent print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DpdpConsentPrintData {
-    pub consent_number: String,
     pub consent_date: String,
     pub patient_name: String,
     pub uhid: String,
-    pub guardian_name: Option<String>,
-    pub data_categories: Vec<DataCategory>,
-    pub processing_purposes: Vec<ProcessingPurpose>,
-    pub data_sharing: Vec<DataSharingEntity>,
-    pub retention_period: String,
-    pub patient_rights: Vec<String>,
-    pub grievance_officer: GrievanceOfficer,
-    pub consent_given: bool,
-    pub consent_method: String, // Physical, Digital, OTP
+    pub consented_by: String,
+    pub consented_by_relation: Option<String>,
+    /// The consent template the patient was shown, when one was used.
+    pub consent_form: Option<String>,
+    pub consent_version: Option<String>,
+    /// granted, denied, withdrawn or pending.
+    pub consent_status: String,
+    pub consent_method: String,
     pub witness_name: Option<String>,
+    pub valid_until: Option<String>,
+    pub withdrawn_at: Option<String>,
+    pub withdrawal_reason: Option<String>,
+    pub patient_rights: Vec<String>,
     pub hospital_name: String,
-    pub hospital_dpo_contact: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DataCategory {
-    pub category: String,
-    pub description: String,
-    pub is_sensitive: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ProcessingPurpose {
-    pub purpose: String,
-    pub legal_basis: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DataSharingEntity {
-    pub entity_type: String,
-    pub entity_name: Option<String>,
-    pub purpose: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GrievanceOfficer {
-    pub name: String,
-    pub email: String,
-    pub phone: Option<String>,
 }
 
 /// Video Consent Recording Attachment print data
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct VideoConsentPrintData {
-    pub consent_number: String,
+    pub consent_number: Option<String>,
     pub consent_date: String,
     pub patient_name: String,
     pub uhid: String,
     pub consent_type: String,
     pub procedure_name: Option<String>,
     pub video_reference_id: String,
-    pub video_duration_seconds: i32,
+    pub video_duration_seconds: Option<i32>,
     pub video_recorded_at: String,
     pub qr_code_to_video: String,
     pub video_url: String,
-    pub video_verified: bool,
-    pub patient_visible_in_video: bool,
-    pub verbal_consent_given: bool,
+    pub video_verified: Option<bool>,
+    pub patient_visible_in_video: Option<bool>,
+    pub verbal_consent_given: Option<bool>,
     pub witness_name: Option<String>,
     pub witness_relationship: Option<String>,
     pub recording_staff: String,
@@ -4722,14 +4630,14 @@ pub struct RestraintDocumentationPrintData {
     pub physician_assessment: String,
     pub nursing_monitoring: Vec<RestraintMonitoring>,
     pub patient_condition_on_release: Option<String>,
-    pub family_notified: bool,
+    pub family_notified: Option<bool>,
     pub family_notification_datetime: Option<String>,
-    pub patient_rights_explained: bool,
-    pub consent_obtained: bool,
+    pub patient_rights_explained: Option<bool>,
+    pub consent_obtained: Option<bool>,
     pub consent_from: Option<String>,
-    pub review_by_psychiatrist: bool,
+    pub review_by_psychiatrist: Option<bool>,
     pub psychiatrist_name: Option<String>,
-    pub mhca_compliance_verified: bool,
+    pub mhca_compliance_verified: Option<bool>,
     pub hospital_name: String,
 }
 
@@ -4843,55 +4751,28 @@ pub struct InternRotation {
     pub status: String, // Pending, Ongoing, Completed
 }
 
-/// PG Logbook Entry print data
+/// PG logbook entry print data — one row of `pg_logbook_entries`.
+///
+/// Carries only what the entry records: the logbook captures a title, a free
+/// text description and ICD/procedure codes, not structured case sections.
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PgLogbookEntryPrintData {
     pub entry_id: String,
     pub entry_date: String,
+    pub entry_type: String, // case, procedure, ward_round, emergency, seminar, other
+    pub title: String,
+    pub description: Option<String>,
+    pub diagnosis_codes: Vec<String>,
+    pub procedure_codes: Vec<String>,
     pub resident_name: String,
-    pub resident_registration: String,
-    pub course: String, // MD/MS/DNB
-    pub department: String,
-    pub year_of_training: i32,
-    pub entry_type: String, // Case, Procedure, Surgery, Academic
-    pub case_details: Option<PgCaseEntry>,
-    pub procedure_details: Option<PgProcedureEntry>,
-    pub academic_activity: Option<PgAcademicEntry>,
-    pub supervisor_name: String,
-    pub supervisor_remarks: Option<String>,
+    pub resident_registration: Option<String>,
+    pub department: Option<String>,
+    /// UHID of the case's patient, when the entry hangs from an encounter.
+    pub patient_uhid: Option<String>,
+    pub supervisor_name: Option<String>,
     pub verified: bool,
     pub verification_date: Option<String>,
     pub college_name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PgCaseEntry {
-    pub diagnosis: String,
-    pub presenting_complaints: String,
-    pub examination_findings: String,
-    pub investigations: String,
-    pub treatment_given: String,
-    pub learning_points: String,
-    pub case_outcome: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PgProcedureEntry {
-    pub procedure_name: String,
-    pub indication: String,
-    pub technique: String,
-    pub complications: Option<String>,
-    pub assisted_or_performed: String,
-    pub count_this_rotation: i32,
-    pub cumulative_count: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PgAcademicEntry {
-    pub activity_type: String, // Seminar, Journal Club, Case Presentation
-    pub topic: String,
-    pub duration_minutes: i32,
-    pub feedback_received: Option<String>,
 }
 
 /// Internal Assessment Marks print data
@@ -5377,41 +5258,31 @@ pub struct StipendComponent {
     pub amount: f64,
 }
 
-/// Hospital Branding Configuration print data (letterhead, logo placement)
+/// Hospital branding print data — the caller's own `tenants` row.
+///
+/// Layout choices (logo position, header style, watermark) are not stored
+/// anywhere, so they are not invented here.
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct HospitalBrandingPrintData {
     pub hospital_name: String,
-    pub hospital_tagline: Option<String>,
-    pub logo_url: String,
-    pub logo_position: String, // Left, Center, Right
-    pub logo_size: String,     // Small, Medium, Large
-    pub secondary_logo_url: Option<String>,
-    pub header_style: String, // Minimal, Standard, Full
-    pub header_background_color: Option<String>,
-    pub header_text_color: Option<String>,
-    pub footer_style: String,
-    pub address_line_1: String,
+    pub logo_url: Option<String>,
+    pub address_line_1: Option<String>,
     pub address_line_2: Option<String>,
-    pub city: String,
-    pub state: String,
-    pub pincode: String,
-    pub phone_numbers: Vec<String>,
-    pub email: String,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub pincode: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
     pub website: Option<String>,
-    pub registration_numbers: Vec<HospitalRegistration>,
-    pub accreditations: Vec<String>,
-    pub iso_certifications: Vec<String>,
-    pub nabh_accredited: bool,
+    pub accreditation: Option<String>,
     pub nabl_accredited: bool,
-    pub jci_accredited: bool,
-    pub watermark_text: Option<String>,
-    pub watermark_opacity: f64,
-    pub footer_disclaimer: Option<String>,
+    #[sqlx(skip)]
+    pub registration_numbers: Vec<HospitalRegistration>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct HospitalRegistration {
-    pub registration_type: String, // CEA, NABH, NABL, Drug License, etc.
+    pub registration_type: String, // Hospital registration, NABH, NABL, NMC, PCPNDT, GSTIN, ...
     pub registration_number: String,
     pub valid_until: Option<String>,
 }
@@ -5448,7 +5319,7 @@ pub struct DispensingLabelPrintData {
     /// medical practitioner only", and the rest of the D&C Act wording.
     pub schedule_warning: Option<String>,
     pub black_box_warning: Option<String>,
-    pub is_controlled: bool,
+    pub is_controlled: Option<bool>,
     pub dispensed_on: String,
     pub dispensed_by: Option<String>,
     pub prescriber_name: Option<String>,

@@ -102,6 +102,7 @@ pub async fn list_callbacks(
     Extension(claims): Extension<Claims>,
     Query(q): Query<CallbackQuery>,
 ) -> Result<Json<Vec<Callback>>, AppError> {
+    // allow-soft-deleted: tasks have no soft delete; a task assigned to someone since deleted must still show, to be reassigned.
     // A callback list is the enquiry pipeline filtered by what is due, so it
     // is the same read as the pipeline itself.
     require_permission(&claims, permissions::marketing::pipeline::VIEW)?;

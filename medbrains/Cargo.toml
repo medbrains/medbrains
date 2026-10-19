@@ -14,6 +14,7 @@ members = [
     "crates/medbrains-approvals-store",
     "crates/medbrains-approvals",
     "crates/medbrains-snomed",
+    "crates/medbrains-terminology",
     "crates/medbrains-approvals-api",
     "crates/medbrains-api-keys",
     "crates/medbrains-api-keys-api",
@@ -68,6 +69,7 @@ members = [
     "crates/medbrains-devices",
     "crates/medbrains-specialty-interventional",
     "crates/medbrains-consent",
+    "crates/medbrains-forms",
     "crates/medbrains-security",
     "crates/medbrains-pharmacy-finance",
     "crates/medbrains-pharmacy-fulfilment",
@@ -96,10 +98,13 @@ members = [
     "crates/medbrains-mail-provisioning",
     "crates/medbrains-pharmacy-petty-cash",
     "crates/medbrains-pharmacy-repeats",
+    "crates/medbrains-pharmacy-delivery",
     "crates/medbrains-ward-stock",
+    "crates/medbrains-clinical-notes",
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
+    "crates/medbrains-notes",
     "crates/medbrains-vte",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",
@@ -211,6 +216,9 @@ base64 = "0.22"
 
 # Compression (cold-tier ObjectStore)
 flate2 = "1"
+# SNOMED CT RF2 release packages arrive as zip files. Read-only use: no
+# encryption, no legacy codecs.
+zip = { version = "4.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Validation
 regex = "1"
@@ -218,7 +226,7 @@ url = "2"
 
 # Async streams (WebSocket)
 futures = "0.3"
-async-trait = "0.1"
+async-trait = "0.1.92"
 async-stream = "0.3"
 
 # Hybrid deploy mode — local Ed25519 JWT signer + tests

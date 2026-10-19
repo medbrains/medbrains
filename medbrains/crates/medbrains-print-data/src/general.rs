@@ -4,19 +4,18 @@
 //! render a printable document. No HTML is produced here; the frontend template
 //! engine does the rendering.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
-    AntibioticSensitivity, ComponentSlipPrintData, CrossmatchReportPrintData, CrossmatchUnit,
-    CultureSensitivityPrintData, HistopathReportPrintData, IhcMarker,
-    InvestigationRequisitionPrintData, LabOrderHeaderRow, LabReportPrintData, LabResultLine,
-    MedicationLine, OrderedTest, PatientCardPrintData, PrescriptionHeaderRow,
+    ComponentSlipPrintData, CrossmatchReportPrintData, CrossmatchUnit, HistopathReportPrintData,
+    IhcMarker, InvestigationRequisitionPrintData, LabOrderHeaderRow, LabReportPrintData,
+    LabResultLine, MedicationLine, OrderedTest, PatientCardPrintData, PrescriptionHeaderRow,
     PrescriptionPrintData, RadiologyReportPrintData,
 };
 
@@ -33,12 +32,12 @@ pub async fn get_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<PrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id)
-        .await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     // Header: patient + encounter + doctor + department + diagnosis
     let header = sqlx::query_as::<_, PrescriptionHeaderRow>(
@@ -99,7 +98,11 @@ pub async fn get_prescription_print_data(
         doctor_name: header.doctor_name,
         department: header.department,
         diagnosis: header.diagnosis,
-        date: header.encounter_date.format("%d-%b-%Y").to_string(),
+        date: header
+            .encounter_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         medications,
         advice: header.advice,
         follow_up: header.follow_up,
@@ -125,6 +128,7 @@ pub async fn get_lab_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let header = sqlx::query_as::<_, LabOrderHeaderRow>(
         "SELECT \
@@ -136,12 +140,14 @@ pub async fn get_lab_report_print_data(
            tc.sample_type, \
            lo.collected_at, \
            lo.verified_at, \
-           doc.full_name AS referring_doctor, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
            verifier.full_name AS pathologist_name \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
          LEFT JOIN users doc ON doc.id = lo.ordered_by \
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
          LEFT JOIN users verifier ON verifier.id = lo.verified_by \
          WHERE lo.id = $1 AND lo.tenant_id = $2",
     )
@@ -184,7 +190,7 @@ pub async fn get_lab_report_print_data(
 
     let age_str = header.age.map(|a| format!("{} yrs", a as i64));
     let fmt_ts = |dt: Option<chrono::DateTime<chrono::Utc>>| {
-        dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string())
+        dt.map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
     };
 
     Ok(Json(LabReportPrintData {
@@ -239,6 +245,7 @@ pub async fn get_radiology_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RadiologyReportRow>(
         "SELECT \
@@ -289,7 +296,11 @@ pub async fn get_radiology_report_print_data(
         recommendations: row.recommendations,
         reported_by: row.reported_by_name,
         verified_by: row.verified_by_name,
-        date: row.created_at.format("%d-%b-%Y").to_string(),
+        date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
     }))
 }
 
@@ -320,6 +331,7 @@ pub async fn get_patient_card_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, PatientCardRow>(
         "SELECT \
@@ -353,7 +365,11 @@ pub async fn get_patient_card_print_data(
         email: row.email,
         address: row.address,
         category: row.category,
-        registered_at: row.created_at.format("%d-%b-%Y").to_string(),
+        registered_at: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
     }))
 }
 
@@ -369,140 +385,6 @@ async fn hospital_name(
         .await?
         .flatten();
     Ok(name)
-}
-
-// ── Culture Sensitivity Report ──────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct CultureSensitivityRow {
-    patient_name: String,
-    uhid: String,
-    age: Option<f64>,
-    gender: String,
-    sample_type: String,
-    sample_id: String,
-    collected_at: Option<chrono::DateTime<chrono::Utc>>,
-    received_at: Option<chrono::DateTime<chrono::Utc>>,
-    reported_at: Option<chrono::DateTime<chrono::Utc>>,
-    referring_doctor: Option<String>,
-    clinical_history: Option<String>,
-    organism_isolated: Option<String>,
-    colony_count: Option<String>,
-    gram_stain: Option<String>,
-    interpretation: Option<String>,
-    comments: Option<String>,
-    microbiologist_name: Option<String>,
-}
-
-pub async fn get_culture_sensitivity_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(order_id): Path<Uuid>,
-) -> Result<Json<CultureSensitivityPrintData>, AppError> {
-    require_permission(&claims, permissions::lab::orders::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        order_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, CultureSensitivityRow>(
-        "SELECT \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
-           p.gender::text AS gender, \
-           lo.sample_type, \
-           lo.sample_id, \
-           lo.collected_at, \
-           lo.received_at, \
-           lo.verified_at AS reported_at, \
-           doc.full_name AS referring_doctor, \
-           lo.clinical_history, \
-           cr.organism_isolated, \
-           cr.colony_count, \
-           cr.gram_stain, \
-           cr.interpretation, \
-           cr.comments, \
-           micro.full_name AS microbiologist_name \
-         FROM lab_orders lo \
-         JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
-         JOIN culture_results cr ON cr.order_id = lo.id AND cr.tenant_id = lo.tenant_id \
-         LEFT JOIN users doc ON doc.id = lo.ordered_by \
-         LEFT JOIN users micro ON micro.id = lo.verified_by \
-         WHERE lo.id = $1 AND lo.tenant_id = $2",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get sensitivity results
-    let sensitivities = sqlx::query_as::<_, AntibioticSensitivity>(
-        "SELECT \
-           antibiotic_name, \
-           antibiotic_class, \
-           mic, \
-           interpretation, \
-           zone_size \
-         FROM antibiotic_sensitivities \
-         WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY antibiotic_class, antibiotic_name LIMIT 5000",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
-
-    // Check NABL accreditation
-    let nabl_logo: bool = sqlx::query_scalar(
-        "SELECT COALESCE((value->>'nabl_accredited')::boolean, false) \
-         FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'lab' AND key = 'accreditation' \
-         LIMIT 1",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(false);
-
-    tx.commit().await?;
-
-    let fmt_ts = |dt: Option<chrono::DateTime<chrono::Utc>>| {
-        dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string())
-    };
-    let age_str = row.age.map(|a| format!("{} Y", a as i32));
-
-    Ok(Json(CultureSensitivityPrintData {
-        patient_name: row.patient_name,
-        uhid: row.uhid,
-        age: age_str,
-        gender: row.gender,
-        sample_type: row.sample_type,
-        sample_id: row.sample_id,
-        collected_at: fmt_ts(row.collected_at),
-        received_at: fmt_ts(row.received_at),
-        reported_at: fmt_ts(row.reported_at),
-        referring_doctor: row.referring_doctor,
-        clinical_history: row.clinical_history,
-        organism_isolated: row.organism_isolated,
-        colony_count: row.colony_count,
-        gram_stain: row.gram_stain,
-        sensitivity_results: sensitivities,
-        interpretation: row.interpretation,
-        comments: row.comments,
-        microbiologist_name: row.microbiologist_name,
-        hospital_name: h_name,
-        nabl_logo,
-    }))
 }
 
 // ── Histopathology Report ───────────────────────────────
@@ -523,14 +405,14 @@ struct HistopathRow {
     gross_description: Option<String>,
     microscopic_description: Option<String>,
     diagnosis: String,
-    icd_o_morphology: Option<String>,
-    icd_o_topography: Option<String>,
     staging: Option<String>,
     grade: Option<String>,
     margin_status: Option<String>,
     lymph_node_status: Option<String>,
+    icd_code: Option<String>,
     comments: Option<String>,
     pathologist_name: Option<String>,
+    report_id: Uuid,
 }
 
 pub async fn get_histopath_report_print_data(
@@ -550,51 +432,69 @@ pub async fn get_histopath_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The report the pathologist signed is `lab_histopath_reports` (written by
+    // `create_histopath_report`); the latest live one for the order is printed.
     let row = sqlx::query_as::<_, HistopathRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           lo.sample_type AS specimen_type, \
-           lo.sample_id AS specimen_id, \
+           COALESCE(hr.specimen_type, lo.sample_type, '') AS specimen_type, \
+           COALESCE(lo.sample_id, lo.sample_barcode, '') AS specimen_id, \
            lo.collected_at, \
            lo.received_at, \
-           lo.verified_at AS reported_at, \
-           doc.full_name AS referring_doctor, \
-           lo.clinical_history, \
+           hr.reported_at, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
+           COALESCE(hr.clinical_history, lo.clinical_history) AS clinical_history, \
            hr.gross_description, \
-           hr.microscopic_description, \
-           hr.diagnosis, \
-           hr.icd_o_morphology, \
-           hr.icd_o_topography, \
-           hr.staging, \
-           hr.grade, \
-           hr.margin_status, \
-           hr.lymph_node_status, \
-           hr.comments, \
-           pathol.full_name AS pathologist_name \
+           hr.microscopy_findings AS microscopic_description, \
+           COALESCE(hr.diagnosis, '') AS diagnosis, \
+           hr.icd_code::text AS icd_code, \
+           hr.synoptic_data->>'staging' AS staging, \
+           hr.synoptic_data->>'grade' AS grade, \
+           hr.synoptic_data->>'margin_status' AS margin_status, \
+           hr.synoptic_data->>'lymph_node_status' AS lymph_node_status, \
+           hr.notes AS comments, \
+           pathol.full_name AS pathologist_name, \
+           hr.id AS report_id \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
-         JOIN histopath_results hr ON hr.order_id = lo.id AND hr.tenant_id = lo.tenant_id \
+           AND p.deleted_at IS NULL \
+         JOIN LATERAL ( \
+           SELECT * FROM lab_histopath_reports h \
+           WHERE h.order_id = lo.id AND h.tenant_id = lo.tenant_id \
+             AND h.deleted_at IS NULL \
+           ORDER BY h.reported_at DESC NULLS LAST, h.created_at DESC LIMIT 1 \
+         ) hr ON true \
          LEFT JOIN users doc ON doc.id = lo.ordered_by \
-         LEFT JOIN users pathol ON pathol.id = lo.verified_by \
-         WHERE lo.id = $1 AND lo.tenant_id = $2",
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
+         LEFT JOIN users pathol ON pathol.id = hr.pathologist_id \
+         WHERE lo.id = $1 AND lo.tenant_id = $2 AND lo.deleted_at IS NULL",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
-    // Get IHC markers
+    // IHC is free-form jsonb on the report; only well-formed marker objects
+    // (an array of `{marker_name, result, ...}`) are printed.
     let ihc_markers = sqlx::query_as::<_, IhcMarker>(
-        "SELECT marker_name, result, intensity, percentage \
-         FROM ihc_markers \
-         WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY marker_name LIMIT 5000",
+        "SELECT e->>'marker_name' AS marker_name, e->>'result' AS result, \
+                e->>'intensity' AS intensity, e->>'percentage' AS percentage \
+         FROM lab_histopath_reports h \
+         CROSS JOIN LATERAL jsonb_array_elements( \
+           CASE WHEN jsonb_typeof(h.immunohistochemistry) = 'array' \
+                THEN h.immunohistochemistry ELSE '[]'::jsonb END) e \
+         WHERE h.id = $1 AND h.tenant_id = $2 \
+           AND jsonb_typeof(e) = 'object' AND e ? 'marker_name' AND e ? 'result' \
+         ORDER BY 1 LIMIT 500",
     )
-    .bind(order_id)
+    .bind(row.report_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -616,7 +516,7 @@ pub async fn get_histopath_report_print_data(
     tx.commit().await?;
 
     let fmt_ts = |dt: Option<chrono::DateTime<chrono::Utc>>| {
-        dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string())
+        dt.map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
     };
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
@@ -635,8 +535,11 @@ pub async fn get_histopath_report_print_data(
         gross_description: row.gross_description,
         microscopic_description: row.microscopic_description,
         diagnosis: row.diagnosis,
-        icd_o_morphology: row.icd_o_morphology,
-        icd_o_topography: row.icd_o_topography,
+        icd_code: row.icd_code,
+        // ponytail: icd_o_morphology/topography not recorded anywhere yet — the
+        // report's `icd_code` is not ICD-O, so it is not printed under that label.
+        icd_o_morphology: None,
+        icd_o_topography: None,
         staging: row.staging,
         grade: row.grade,
         margin_status: row.margin_status,
@@ -686,6 +589,7 @@ pub async fn get_crossmatch_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CrossmatchReportRow>(
         "SELECT \
@@ -755,7 +659,11 @@ pub async fn get_crossmatch_report_print_data(
         gender: row.gender,
         blood_group: row.blood_group,
         rh_type: row.rh_type,
-        request_date: row.request_date.format("%d-%b-%Y").to_string(),
+        request_date: row
+            .request_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         request_number: row.request_number,
         ward: row.ward,
         bed: row.bed,
@@ -794,54 +702,77 @@ struct ComponentSlipRow {
     verified_by: Option<String>,
 }
 
+/// The issue slip for a unit, keyed on the transfusion record.
+///
+/// The bank records an issue in one place: `create_transfusion` inserts the
+/// `transfusion_records` row and stamps `issued_to_patient / issued_at /
+/// issued_by` on the component in the same transaction. The `component_issues`
+/// table this used to read has never had a writer, so the slip could not print.
 pub async fn get_component_slip_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(issue_id): Path<Uuid>,
+    Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<ComponentSlipPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
-    // Not guarded: reaches a patient only through `component_issues.request_id`
-    // -> `blood_requests.patient_id`, and both columns are NULLABLE.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TRANSFUSION_RECORD,
+        transfusion_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The ward and bed are the admission the patient was in when the unit
+    // was hung, not wherever they are now.
     let row = sqlx::query_as::<_, ComponentSlipRow>(
         "SELECT \
-           ci.issue_number, \
-           ci.issued_at AS issue_date, \
+           'TR-' || upper(left(tr.id::text, 8)) AS issue_number, \
+           COALESCE(bc.issued_at, tr.started_at) AS issue_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           br.patient_blood_group AS blood_group, \
-           w.name AS ward, \
-           b.bed_number AS bed, \
-           bu.bag_number, \
-           bu.component_type, \
-           bu.volume_ml, \
-           bu.donation_date, \
-           bu.expiry_date, \
-           cm.result AS crossmatch_result, \
-           ci.special_instructions, \
+           COALESCE(p.blood_group::text, bc.blood_group::text) AS blood_group, \
+           adm.ward, \
+           adm.bed, \
+           bc.bag_number::text AS bag_number, \
+           bc.component_type::text AS component_type, \
+           bc.volume_ml, \
+           bd.donated_at::date AS donation_date, \
+           bc.expiry_at::date AS expiry_date, \
+           xm.result::text AS crossmatch_result, \
+           tr.notes AS special_instructions, \
            issuer.full_name AS issued_by, \
            verifier.full_name AS verified_by \
-         FROM component_issues ci \
-         JOIN blood_units bu ON bu.id = ci.unit_id AND bu.tenant_id = ci.tenant_id \
-         JOIN blood_requests br ON br.id = ci.request_id AND br.tenant_id = ci.tenant_id \
-         JOIN patients p ON p.id = br.patient_id AND p.tenant_id = br.tenant_id \
-         LEFT JOIN crossmatch_results cm ON cm.unit_id = bu.id AND cm.request_id = br.id \
-           AND cm.tenant_id = ci.tenant_id \
-         LEFT JOIN admissions adm ON adm.id = br.admission_id AND adm.tenant_id = br.tenant_id \
-         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
-         LEFT JOIN users issuer ON issuer.id = ci.issued_by \
-         LEFT JOIN users verifier ON verifier.id = ci.verified_by \
-         WHERE ci.id = $1 AND ci.tenant_id = $2",
+         FROM transfusion_records tr \
+         JOIN blood_components bc ON bc.id = tr.component_id AND bc.tenant_id = tr.tenant_id \
+         JOIN blood_donations bd ON bd.id = bc.donation_id AND bd.tenant_id = bc.tenant_id \
+         JOIN patients p ON p.id = tr.patient_id AND p.tenant_id = tr.tenant_id \
+         LEFT JOIN crossmatch_requests xm ON xm.id = tr.crossmatch_id \
+           AND xm.tenant_id = tr.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT w.name AS ward, b.bed_number AS bed \
+             FROM admissions a \
+             LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = a.tenant_id \
+             LEFT JOIN wards w ON w.id = COALESCE(a.ward_id, b.ward_id) \
+               AND w.tenant_id = a.tenant_id \
+            WHERE a.patient_id = tr.patient_id AND a.tenant_id = tr.tenant_id \
+              AND a.admitted_at <= tr.started_at \
+            ORDER BY a.admitted_at DESC \
+            LIMIT 1 \
+         ) adm ON true \
+         LEFT JOIN users issuer ON issuer.id = COALESCE(bc.issued_by, tr.administered_by) \
+         LEFT JOIN users verifier ON verifier.id = tr.product_verified_by \
+         WHERE tr.id = $1 AND tr.tenant_id = $2 AND tr.deleted_at IS NULL",
     )
-    .bind(issue_id)
+    .bind(transfusion_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
@@ -852,8 +783,16 @@ pub async fn get_component_slip_print_data(
 
     Ok(Json(ComponentSlipPrintData {
         issue_number: row.issue_number,
-        issue_date: row.issue_date.format("%d-%b-%Y").to_string(),
-        issue_time: row.issue_date.format("%H:%M").to_string(),
+        issue_date: row
+            .issue_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        issue_time: row
+            .issue_date
+            .with_timezone(&tz)
+            .format("%H:%M")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         blood_group: row.blood_group,
@@ -911,6 +850,7 @@ pub async fn get_investigation_requisition_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, InvestigationRequisitionRow>(
         "SELECT \
@@ -988,7 +928,11 @@ pub async fn get_investigation_requisition_print_data(
 
     Ok(Json(InvestigationRequisitionPrintData {
         requisition_number: row.requisition_number,
-        requisition_date: row.requisition_date.format("%d-%b-%Y").to_string(),
+        requisition_date: row
+            .requisition_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         patient_name: row.patient_name,
         uhid: row.uhid,
         age: age_str,
@@ -1025,10 +969,6 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/print-data/patient-card/{patient_id}",
             get(get_patient_card_print_data),
-        )
-        .route(
-            "/api/print-data/culture-sensitivity/{order_id}",
-            get(get_culture_sensitivity_print_data),
         )
         .route(
             "/api/print-data/histopath-report/{order_id}",

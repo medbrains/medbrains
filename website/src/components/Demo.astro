@@ -1,0 +1,133 @@
+---
+import { ENQUIRY_TENANT, SITE, WHATSAPP } from "../consts";
+
+const waBase = `https://wa.me/${WHATSAPP.number}`;
+const waHref = `${waBase}?text=${encodeURIComponent(WHATSAPP.prefilledText)}`;
+const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` : undefined;
+---
+
+<section id="demo" class="section demo" aria-labelledby="demo-title">
+  <div class="wrap layout">
+    <div>
+      <p class="eyebrow">Book a demo</p>
+      <h2 id="demo-title" class="section-title">See it run on your departments.</h2>
+      <p class="section-lede">Tell us about your hospital. We'll walk through the screens your teams would use — with your workflows, not a slideshow.</p>
+      <ul class="points">
+        <li>A 30-minute walkthrough, online or at your hospital</li>
+        <li>Your departments, your tariff, your forms</li>
+        <li>A clear plan and price for going live</li>
+      </ul>
+      <p class="alt">Rather talk now? <a href={waHref} target="_blank" rel="noopener">WhatsApp us</a> or write to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
+    </div>
+    <form class="form reveal" action={waBase} method="GET" data-whatsapp={waBase} data-enquiry={enquiryUrl} data-tenant={ENQUIRY_TENANT || undefined}>
+      <!-- Honeypot: people never see or fill this; bots that do are dropped by the server. -->
+      <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <label>Your name<input name="name" required autocomplete="name" /></label>
+      <label>Hospital or clinic<input name="hospital" required autocomplete="organization" /></label>
+      <div class="two">
+        <label>Phone<input name="phone" type="tel" required autocomplete="tel" inputmode="tel" /></label>
+        <label>City<input name="city" autocomplete="address-level2" /></label>
+      </div>
+      <label>Beds
+        <select name="beds">
+          <option>Clinic (no beds)</option>
+          <option>Up to 50 beds</option>
+          <option>50–200 beds</option>
+          <option>200+ beds</option>
+          <option>Group of hospitals</option>
+        </select>
+      </label>
+      <label>What would you like to see?<textarea name="message" rows="3"></textarea></label>
+      <button class="btn btn-primary" type="submit">Request a demo <span aria-hidden="true">→</span></button>
+      <p class="status" role="status" aria-live="polite"></p>
+      <p class="fine">We reply within one working day. We never share your details.</p>
+    </form>
+  </div>
+</section>
+
+<script>
+  // The request lands in MedBrains' own Marketing → Enquiries list when a tenant
+  // is configured; otherwise, or if that fails, it goes out on WhatsApp.
+  const form = document.querySelector<HTMLFormElement>(".demo form");
+  const status = form?.querySelector<HTMLElement>(".status");
+  const params = new URLSearchParams(location.search);
+  const track = [...params].filter(([k]) => k.startsWith("utm_") || k.endsWith("clid"));
+
+  const summary = (data: FormData) => {
+    const line = (k: string, label: string) => (data.get(k) ? `${label}: ${data.get(k)}` : "");
+    return [line("hospital", "Hospital"), line("city", "City"), line("beds", "Size"), line("message", "Interested in")]
+      .filter(Boolean).join("\n");
+  };
+  const toWhatsApp = (data: FormData) => {
+    const text = `Hi MedBrains, I'd like a demo.\nName: ${data.get("name")}\nPhone: ${data.get("phone")}\n${summary(data)}`;
+    const url = `${form?.dataset.whatsapp}?text=${encodeURIComponent(text)}`;
+    // After a failed send the browser may block a pop-up; then go there directly.
+    // (With "noopener" window.open always returns null, so the opener is cut by hand.)
+    const win = window.open(url, "_blank");
+    if (win) win.opener = null;
+    else location.href = url;
+  };
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const { enquiry, tenant } = form.dataset;
+    if (!enquiry || !tenant) return toWhatsApp(data);
+    const button = form.querySelector<HTMLButtonElement>("button[type=submit]");
+    if (button) button.disabled = true;
+    try {
+      const res = await fetch(enquiry, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_code: tenant,
+          name: data.get("name"),
+          phone: data.get("phone"),
+          message: summary(data),
+          source: params.get("from") ?? params.get("utm_source") ?? "website",
+          campaign_ref: params.get("utm_campaign"),
+          external_ref: track.length ? new URLSearchParams(track).toString() : null,
+          website: data.get("website"),
+        }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      form.reset();
+      if (status) status.textContent = "Thank you — we'll call you within one working day.";
+    } catch {
+      if (status) status.textContent = "We couldn't send that just now, so we've opened WhatsApp instead.";
+      toWhatsApp(data);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  });
+</script>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .demo {
+    background: radial-gradient(800px 500px at 90% 20%, var(--glow-blue), transparent 65%),
+      radial-gradient(600px 420px at 0% 90%, var(--glow-green), transparent 65%), var(--night-2);
+  }
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
+  .points { list-style: none; padding: 0; margin: 32px 0; display: grid; gap: 12px; }
+  .points li { padding-left: 32px; position: relative; font-weight: 500; }
+  .points li::before { content: "✓"; position: absolute; left: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; background: var(--blue); color: #fff; }
+  .alt { color: var(--night-text); }
+  .alt a { color: var(--sky); font-weight: 600; }
+  .form { color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 32px; display: grid; gap: 16px; box-shadow: var(--shadow); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  label { display: grid; gap: 6px; font-weight: 600; font-size: .9rem; }
+  input, select, textarea {
+    font: 400 1rem var(--sans); color: var(--ink); min-height: 48px; padding: 10px 14px;
+    border: 1.5px solid var(--line); border-radius: 10px; background: #fff;
+  }
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--blue-tint); border-color: var(--blue); outline-offset: 0; }
+  .form .btn { justify-content: center; margin-top: 4px; }
+  .trap { position: absolute; left: -9999px; width: 1px; height: 1px; }
+  .status { margin: 0; font-weight: 600; color: var(--blue-deep); text-align: center; }
+  .status:empty { display: none; }
+  .fine { margin: 0; font-size: .82rem; color: var(--muted); text-align: center; }
+  @include below(lg) { .layout { grid-template-columns: 1fr; gap: 48px; } }
+  @include below(sm) { .two { grid-template-columns: 1fr; } .form { padding: 24px; } }
+</style>

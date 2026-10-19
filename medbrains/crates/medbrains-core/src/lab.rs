@@ -125,6 +125,11 @@ pub struct LabTestCatalog {
     pub fasting_required: bool,
     /// `None` means unspecified, not zero.
     pub fasting_hours: Option<i32>,
+    /// Short names and abbreviations people search by ("LFT", "hemogram").
+    /// Defaulted so queries naming their columns need not select it.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub synonyms: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

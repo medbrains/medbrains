@@ -436,7 +436,7 @@ pub async fn list_credit_notes(
 
     let rows = sqlx::query_as::<_, PharmacyCreditNote>(
         "SELECT * FROM pharmacy_credit_notes \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -633,7 +633,7 @@ pub async fn settle_credit_note(
                 "INSERT INTO credit_patients \
                  (tenant_id, patient_id, current_balance, notes) \
                  VALUES ($1, $2, $3, $4) \
-                 ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+                 ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                  current_balance = credit_patients.current_balance + $3",
             )
             .bind(claims.tenant_id)
@@ -730,7 +730,7 @@ pub async fn list_store_indents(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreIndent>(
-        "SELECT * FROM pharmacy_store_indents WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM pharmacy_store_indents WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -998,13 +998,15 @@ pub async fn list_patient_orders_for_return(
          )) FILTER (WHERE poi.id IS NOT NULL), '[]') AS items \
          FROM pharmacy_orders po \
          LEFT JOIN pharmacy_order_items poi ON poi.order_id = po.id AND poi.tenant_id = po.tenant_id \
+           AND poi.deleted_at IS NULL \
          LEFT JOIN LATERAL ( \
            SELECT COALESCE(SUM(pr.quantity_returned) FILTER (WHERE pr.status <> 'rejected'), 0)::integer \
              AS returned_quantity \
            FROM pharmacy_returns pr \
            WHERE pr.order_item_id = poi.id AND pr.tenant_id = poi.tenant_id \
+             AND pr.deleted_at IS NULL \
          ) return_totals ON TRUE \
-         WHERE po.patient_id = $1 AND po.tenant_id = $2 \
+         WHERE po.patient_id = $1 AND po.tenant_id = $2 AND po.deleted_at IS NULL \
            AND po.status IN ('dispensed', 'ordered', 'collected') \
          GROUP BY po.id, po.created_at, po.status \
          ORDER BY po.created_at DESC LIMIT 20",

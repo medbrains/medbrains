@@ -8,7 +8,7 @@ import Observation
 
 /// Where a field's choices come from.
 enum OptionSource: String, Decodable, Sendable {
-    case none, fixed, departments, doctors, camps, icd11
+    case none, fixed, departments, doctors, camps, campaigns, icd11
     case drugCatalogue = "drug_catalogue"
 }
 

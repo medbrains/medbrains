@@ -20,13 +20,14 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
 use medbrains_core::permissions;
+use medbrains_pharmacy::rx_safety;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
-use state::{effective_mode, may_transition, Mode, Refusal, Stage};
+use state::{Mode, Refusal, Stage, effective_mode, may_transition};
 use uuid::Uuid;
 
 impl From<Refusal> for AppError {
@@ -362,6 +363,7 @@ async fn simple_transition(
     claims: &Claims,
     order_id: Uuid,
     to: Stage,
+    safety_override_reason: Option<&str>,
 ) -> Result<Json<StageResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -381,6 +383,22 @@ async fn simple_transition(
     // point this module controls. Moving it is one call once billing creates
     // pack-and-collect orders itself.
     if to == Stage::Picking {
+        // Picking is where this medicine leaves the shelf for the patient, so
+        // it passes the same safety gate as a counter dispense.
+        let (encounter_id, lines) = release_lines(&mut tx, claims.tenant_id, order_id).await?;
+        rx_safety::gate_release_in_tx(
+            state,
+            &mut tx,
+            claims,
+            &rx_safety::Release {
+                patient_id: Some(ctx.patient_id),
+                encounter_id,
+                order_id: Some(order_id),
+                lines: &lines,
+                override_reason: safety_override_reason,
+            },
+        )
+        .await?;
         commit_stock(&mut tx, claims.tenant_id, order_id, ctx.store_location_id).await?;
     }
 
@@ -412,14 +430,55 @@ async fn simple_transition(
     }))
 }
 
+/// Body of a claim: only needed to override a medication safety block.
+#[derive(Debug, Deserialize)]
+pub struct ClaimRequest {
+    pub safety_override_reason: Option<String>,
+}
+
 /// `POST /api/pharmacy/fulfilment/{id}/claim` — a picker takes the order.
 pub async fn claim_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    body: Option<Json<ClaimRequest>>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::PICK)?;
-    simple_transition(&state, &claims, id, Stage::Picking).await
+    let reason = body
+        .as_ref()
+        .and_then(|Json(b)| b.safety_override_reason.as_deref());
+    simple_transition(&state, &claims, id, Stage::Picking, reason).await
+}
+
+/// The order's encounter and its live lines, as the safety gate reads them.
+async fn release_lines(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+    order_id: Uuid,
+) -> Result<(Option<Uuid>, Vec<rx_safety::RxLine>), AppError> {
+    let encounter_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT encounter_id FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let rows: Vec<(String, Option<Uuid>)> = sqlx::query_as(
+        "SELECT drug_name, catalog_item_id FROM pharmacy_order_items \
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL AND deleted_at IS NULL",
+    )
+    .bind(order_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let lines = rows
+        .into_iter()
+        .map(|(drug_name, catalog_item_id)| rx_safety::RxLine {
+            drug_name,
+            catalog_item_id,
+        })
+        .collect();
+    Ok((encounter_id, lines))
 }
 
 /// `POST /api/pharmacy/fulfilment/{id}/pack` — everything on the order is in the bag.
@@ -429,7 +488,7 @@ pub async fn pack_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::PACK)?;
-    simple_transition(&state, &claims, id, Stage::Packed).await
+    simple_transition(&state, &claims, id, Stage::Packed, None).await
 }
 
 /// `POST /api/pharmacy/fulfilment/{id}/verified` — the pack has been checked.
@@ -443,7 +502,7 @@ pub async fn mark_verified(
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::VERIFY)?;
-    simple_transition(&state, &claims, id, Stage::Verified).await
+    simple_transition(&state, &claims, id, Stage::Verified, None).await
 }
 
 /// `POST /api/pharmacy/fulfilment/{id}/ready` — call the patient.
@@ -453,7 +512,7 @@ pub async fn mark_ready(
     Path(id): Path<Uuid>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::DISPATCH)?;
-    simple_transition(&state, &claims, id, Stage::Ready).await
+    simple_transition(&state, &claims, id, Stage::Ready, None).await
 }
 
 // ══════════════════════════════════════════════════════════
@@ -659,7 +718,7 @@ pub async fn collect_order(
     Json(body): Json<CollectRequest>,
 ) -> Result<Json<StageResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::fulfilment::DISPATCH)?;
-    simple_transition(&state, &claims, body.order_id, Stage::Collected).await
+    simple_transition(&state, &claims, body.order_id, Stage::Collected, None).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -811,7 +870,8 @@ pub async fn cancel_order(
 
 /// One order line as `commit_stock` reads it: id, catalogue item, name,
 /// quantity, and the batch it has already been given (if any).
-type StockLineRow = (Uuid, Option<Uuid>, String, i32, Option<Uuid>);/// Take the order's lines off the shelf, oldest expiry first.
+type StockLineRow = (Uuid, Option<Uuid>, String, i32, Option<Uuid>);
+/// Take the order's lines off the shelf, oldest expiry first.
 ///
 /// Mirrors `dispense_order`'s decrement exactly — same table, same columns, same
 /// FEFO order, same refusal to touch an expired or quarantined batch — because

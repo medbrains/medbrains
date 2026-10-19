@@ -5,7 +5,12 @@
 //! and joins them on graceful shutdown.
 
 pub mod appointment_reminders;
+pub mod access_alert_scan;
+pub mod prescription_expiry;
+pub mod pacs_sync;
+pub mod breach_deadline_escalation;
 pub mod bridge_pusher;
+pub mod calibration_lock;
 pub mod critical_alert_escalation;
 pub mod enquiry_sla_escalation;
 pub mod marketing_message_status;
@@ -15,6 +20,7 @@ pub mod notification_listener;
 pub mod nurse_call_escalation;
 pub mod on_call;
 pub mod queue_rollover;
+pub mod restraint_observation_escalation;
 pub mod retention;
 pub mod room_rent;
 pub mod simulator;

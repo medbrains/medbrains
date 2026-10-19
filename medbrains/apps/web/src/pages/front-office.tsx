@@ -1,8 +1,10 @@
+import { GateCheck } from "@/components/FrontOffice/GateCheck";
 import { EnquiryDeskTab } from "./front-office/enquiry-desk-tab";
 import { PatientFlowHub } from "./front-office/patient-flow-hub";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
 import { QueueDashboardTab } from "./front-office/queue-dashboard-tab";
 import { QueueMetricsTab } from "./front-office/queue-metrics-tab";
+import { ScanShareTab } from "./front-office/scan-share-tab";
 import {
   BILLING_BOARD,
   EMERGENCY_BOARD,
@@ -24,6 +26,8 @@ import {
   IconDoorEnter,
   IconGauge,
   IconPhone,
+  IconQrcode,
+  IconScan,
   IconSettings,
   IconUserPlus,
   IconUsers,
@@ -42,9 +46,11 @@ import {
 
 const FRONT_OFFICE_TAB_VALUES = [
   "patient-flow",
+  "scan-share",
   "queue",
   "token-boards",
   "visitors",
+  "gate",
   "config",
   "enquiry",
   "analytics",
@@ -59,6 +65,7 @@ const FRONT_OFFICE_PAGE_PERMISSIONS: readonly string[] = [
   P.FRONT_OFFICE.VISITORS_MANAGE,
   P.FRONT_OFFICE.PASSES_LIST,
   P.FRONT_OFFICE.PASSES_MANAGE,
+  P.FRONT_OFFICE.PASSES_VERIFY,
   P.FRONT_OFFICE.QUEUE_LIST,
   P.FRONT_OFFICE.QUEUE_MANAGE,
   P.FRONT_OFFICE.ENQUIRY_LIST,
@@ -68,6 +75,7 @@ const FRONT_OFFICE_PAGE_PERMISSIONS: readonly string[] = [
   P.OPD.VISIT_CREATE,
   P.EMERGENCY.VISITS_CREATE,
   P.BILLING.INVOICES_CREATE,
+  P.ABDM.SCANSHARE.VIEW,
 ];
 
 interface FrontOfficeTabConfig {
@@ -91,7 +99,10 @@ export function FrontOfficePage() {
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
   const canViewPasses = useHasPermission(P.FRONT_OFFICE.PASSES_LIST);
   const canManagePasses = useHasPermission(P.FRONT_OFFICE.PASSES_MANAGE);
+  const canRecordVisitLogs = useHasPermission(P.FRONT_OFFICE.VISITOR_LOGS_RECORD);
+  const canVerifyPasses = useHasPermission(P.FRONT_OFFICE.PASSES_VERIFY);
   const canViewQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
+  const canViewScanShare = useHasPermission(P.ABDM.SCANSHARE.VIEW);
   const canManageQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
   const canViewEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_LIST);
   const canCreateEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_CREATE);
@@ -147,6 +158,13 @@ export function FrontOfficePage() {
       icon: <IconUserPlus size={16} />,
     });
   }
+  if (canViewScanShare) {
+    visibleTabs.push({
+      value: "scan-share",
+      label: "Scan & Share",
+      icon: <IconQrcode size={16} />,
+    });
+  }
   if (canViewQueue) {
     visibleTabs.push({
       value: "queue",
@@ -167,6 +185,9 @@ export function FrontOfficePage() {
       label: "Visitor Management",
       icon: <IconDoorEnter size={16} />,
     });
+  }
+  if (canVerifyPasses) {
+    visibleTabs.push({ value: "gate", label: "Gate check", icon: <IconScan size={16} /> });
   }
   if (canOpenQueueConfig) {
     visibleTabs.push({
@@ -259,6 +280,11 @@ export function FrontOfficePage() {
             />
           </Tabs.Panel>
         )}
+        {canViewScanShare && (
+          <Tabs.Panel value="scan-share" pt="md">
+            <ScanShareTab />
+          </Tabs.Panel>
+        )}
         {canViewQueue && (
           <Tabs.Panel value="queue" pt="md">
             <QueueDashboardTab />
@@ -279,7 +305,16 @@ export function FrontOfficePage() {
         )}
         {canOpenVisitors && (
           <Tabs.Panel value="visitors" pt="md">
-            <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
+            <VisitorManagementTab
+              canCreate={canCreateVisitors}
+              canManagePasses={canManagePasses}
+              canRecordVisits={canManagePasses || canRecordVisitLogs}
+            />
+          </Tabs.Panel>
+        )}
+        {canVerifyPasses && (
+          <Tabs.Panel value="gate" pt="md">
+            <GateCheck />
           </Tabs.Panel>
         )}
         {canOpenQueueConfig && (

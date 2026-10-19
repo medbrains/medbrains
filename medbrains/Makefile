@@ -1,4 +1,4 @@
-.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db dev-db-roles db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https dev-pf-setup dev-pf-remove \
        build build-backend build-frontend \
@@ -8,7 +8,7 @@
        mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
-       check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
+       check-ui-api check-types check-print-types check-ui-seam check-raw-html check-secrets check-all \
        check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-ui-permission-match-strict check-ui-permission-match-update-baseline check-relation-parity check-parent-id-scoping check-soft-delete-filter check-phi-audit-coverage authz-ledger coverage-ledger coverage-ledger-check coverage-ledger-update-baseline \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers check-migration-immutable e2e-generate e2e-screens e2e-linkages e2e-writes e2e-writes-generate e2e-rbac-generate native-tokens native-core native-ios native-ios-test native-android \
@@ -220,8 +220,17 @@ db-reset: ## Wipe database and restart fresh
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@echo "Database reset. Run 'make dev-backend' to re-run migrations + seed."
 
+dev-db-roles: ## Give medbrains_app + medbrains_outbox_worker the dev password from .env.example
+	@bash -c '. deploy/standalone/db-roles.sh && db_roles_sql medbrains_dev medbrains_dev' \
+		| docker compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -U medbrains -d medbrains
+	@echo "medbrains_app and medbrains_outbox_worker log in with medbrains_dev"
+
 db-shell: ## Open psql shell
 	docker compose exec postgres psql -U medbrains -d medbrains
+
+partition-audit-tables: ## MAINTENANCE WINDOW: rebuild access_log/security_access_logs/break_glass_events as monthly partitions (DATABASE_URL, else local dev DB)
+	@if [ -n "$(DATABASE_URL)" ]; then psql "$(DATABASE_URL)" -f scripts/maintenance/partition-audit-tables.sql; \
+	else docker compose exec -T postgres psql -U medbrains -d medbrains < scripts/maintenance/partition-audit-tables.sql; fi
 
 logs: ## Tail database logs
 	docker compose logs -f postgres
@@ -302,6 +311,9 @@ check-ui-api: ## Verify UI pages ↔ API method coverage
 check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
+check-print-types: ## Verify print-data.generated.ts matches print_data.rs
+	python3 scripts/generate_print_types.py --check
+
 check-circular: ## Fail on circular imports in the web app (prevents TDZ-class build crashes)
 	pnpm --filter=@medbrains/web run check:circular
 
@@ -317,13 +329,16 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-permissions check-permission-codes check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-permissions check-permission-codes check-field-classes check-authz-collapse check-query-collapse check-boundary-filter check-parent-id-scoping check-soft-delete-filter check-api check-ui-api check-types check-print-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking check-registration-catalogue check-partial-upserts check-updater-events ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 gen-registration: ## Regenerate the web's registration catalogue + fixtures from the Rust rules
 	bash scripts/build_guard.sh --wait
 	python3 scripts/generate_registration_catalogue.py
 
-check-partial-upserts: ## Fail if an upsert on a live-rows-only unique key omits its predicate
+check-updater-events: ## Fail if a React state updater reads an event's currentTarget (null by then: the screen crashes)
+	python3 scripts/check_updater_event_reads.py
+
+check-partial-upserts: ## Fail if an upsert omits a live-rows-only key predicate, or DO UPDATEs a soft-deletable row without reviving it
 	python3 scripts/check_partial_upserts.py
 
 check-registration-catalogue: ## Fail if the web's registration catalogue is stale against the Rust

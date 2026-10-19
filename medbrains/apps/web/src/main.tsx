@@ -27,6 +27,8 @@ import "@fontsource/ibm-plex-sans/700.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/500.css";
 import "@fontsource/ibm-plex-mono/600.css";
+// The website's display face (Archivo Expanded), for the sign-in page headline.
+import "@fontsource-variable/archivo/wdth.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/tiptap/styles.css";
@@ -54,6 +56,8 @@ sessionService.setApiBase(
   import.meta.env.VITE_API_BASE || (isTauriDesktop ? desktopApiBase : "/api"),
 );
 sessionService.configureNativeAuth(isTauriDesktop ? "desktop" : null);
+// A response that drifts from its schema throws while developing, logs in production.
+sessionService.setStrictResponseValidation(import.meta.env.DEV);
 
 const runtimeState = globalThis as typeof globalThis & {
   __medbrainsConsoleReporterInstalled?: boolean;

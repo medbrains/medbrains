@@ -121,6 +121,26 @@ export interface MarketingCampaign {
   target_areas: string[];
   /** What it physically was — `channel` is coarser than a pamphlet run. */
   medium: string | null;
+  /** The code on the ad or in a link (`?c=DIWALI25`) that attributes a patient. */
+  code: string | null;
+}
+
+/** A running campaign as the registration desk picks it: name and code only. */
+export interface MarketingCampaignOption {
+  id: string;
+  name: string;
+  channel: string;
+  code: string | null;
+}
+
+/** Where a patient came from. */
+export interface PatientAcquisition {
+  campaign_id: string | null;
+  campaign_name: string | null;
+  channel: string | null;
+  captured_via: "registration" | "link" | "enquiry" | "correction";
+  captured_by_name: string | null;
+  captured_at: string;
 }
 
 /**
@@ -137,6 +157,7 @@ export interface UpsertMarketingCampaignRequest {
   ended_on?: string;
   target_areas?: string[];
   medium?: string;
+  code?: string;
 }
 
 /**
@@ -553,6 +574,11 @@ export interface MarketingSendPolicy {
   quiet_from: string;
   quiet_to: string;
   timezone: string;
+}
+
+/** Whether the hospital's website enquiry form files leads here. */
+export interface MarketingWebFormSetting {
+  enabled: boolean;
 }
 
 /** Reasons a number lands on the do-not-contact list. */

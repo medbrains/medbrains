@@ -1,0 +1,32 @@
+# On-site PACS for one hospital (#226): Orthanc on the hospital network, next
+# to the scanners. MedBrains fills its modality worklist and reads studies
+# back; radiologists open images in its OHIF viewer. Settings come from
+# /etc/medbrains-pacs/pacs.env, written by install.sh.
+services:
+  orthanc:
+    # Pinned by digest: an image update is a reviewed change, not a restart.
+    image: orthancteam/orthanc@sha256:d2705f2c56547e55ce9bc2250fd22d05d326493b3f3d9fa191ecb7db8ca6b5a2
+    restart: unless-stopped
+    env_file: /etc/medbrains-pacs/pacs.env
+    environment:
+      ORTHANC__NAME: ${PACS_NAME:-Hospital PACS}
+      ORTHANC__DICOM_AET: ${PACS_AET:-HOSPPACS}
+      # Only scanners listed in DICOM_MODALITIES may store or query.
+      ORTHANC__DICOM_ALWAYS_ALLOW_STORE: "false"
+      ORTHANC__DICOM_ALWAYS_ALLOW_FIND: "false"
+      ORTHANC__DICOM_CHECK_MODALITY_HOST: "true"
+      ORTHANC__DICOM_CHECK_CALLED_AET: "true"
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      OHIF_PLUGIN_ENABLED: "true"
+      WORKLISTS_PLUGIN_ENABLED: "true"
+      ORTHANC__WORKLISTS__SAVE_IN_ORTHANC_DATABASE: "true"
+      ORTHANC__WORKLISTS__DELETE_WORKLISTS_ON_STABLE_STUDY: "true"
+      ORTHANC__STABLE_AGE: "60"
+    ports:
+      # The hospital LAN only — never 0.0.0.0 on a machine with a public route.
+      - "${PACS_BIND_IP:?set PACS_BIND_IP}:8042:8042"
+      - "${PACS_BIND_IP:?set PACS_BIND_IP}:4242:4242"
+    volumes:
+      # Images and the index live on the host, so a backup is a directory.
+      - /srv/orthanc/db:/var/lib/orthanc/db

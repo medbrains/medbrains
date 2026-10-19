@@ -7,8 +7,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
-  Badge,
   Button,
   Card,
   Divider,
@@ -34,6 +32,9 @@ import { IconPackage, IconPlus, IconRefresh, IconShoppingBag } from "@tabler/ico
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { Badge, type BadgeTone, IconButton } from "@/components/ui";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import { patientPackagesService } from "@/services/patientPackages.service";
 
 interface ActivePackagesSectionProps {
@@ -139,9 +140,12 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
                 queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] })
               }
               onRefund={() => {
-                if (window.confirm("Refund this subscription? Cannot be undone.")) {
-                  refund.mutate(s.id);
-                }
+                confirmDestructive({
+                  title: "Refund subscription",
+                  message: "Mark this package subscription as refunded? This cannot be undone.",
+                  confirmLabel: "Refund subscription",
+                  onConfirm: () => refund.mutate(s.id),
+                });
               }}
             />
           ))}
@@ -165,7 +169,7 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
                 <Group justify="space-between">
                   <Stack gap={2}>
                     <Group gap="xs">
-                      <Badge size="xs" color={statusColor(s.status)}>
+                      <Badge size="xs" tone={statusTone(s.status)}>
                         {s.status}
                       </Badge>
                       <Text size="sm" fw={500}>
@@ -177,6 +181,11 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
                       {packageAmountText(billingAmountAccess, s.total_paid)}
                     </Text>
                   </Stack>
+                  <PrintDocumentIconMenu
+                    idKind="package_subscription"
+                    recordId={s.id}
+                    recordLabel={s.package_name ?? undefined}
+                  />
                 </Group>
               </Card>
             ))}
@@ -254,7 +263,7 @@ function SubscriptionCard({
             <Text fw={600} size="sm">
               {sub.package_name ?? sub.package_id.slice(0, 8)}
             </Text>
-            <Badge size="xs" color="primary">
+            <Badge size="xs" tone="primary">
               Active
             </Badge>
           </Group>
@@ -263,13 +272,20 @@ function SubscriptionCard({
             {validUntil.toLocaleDateString()} ({daysLeft}d left)
           </Text>
         </Stack>
-        {canRefund && (
-          <Tooltip label="Mark as refunded">
-            <ActionIcon variant="subtle" color="orange" onClick={onRefund}>
-              <IconRefresh size={16} />
-            </ActionIcon>
-          </Tooltip>
-        )}
+        <Group gap={4}>
+          <PrintDocumentIconMenu
+            idKind="package_subscription"
+            recordId={sub.id}
+            recordLabel={sub.package_name ?? undefined}
+          />
+          {canRefund && (
+            <Tooltip label="Mark as refunded">
+              <IconButton tone="danger" aria-label="Mark as refunded" onClick={onRefund}>
+                <IconRefresh size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Group>
       </Group>
 
       <Stack gap="xs">
@@ -474,19 +490,17 @@ function SubscribeModal({
   );
 }
 
-function statusColor(s: string): string {
+function statusTone(s: string): BadgeTone {
   switch (s) {
     case "active":
       return "primary";
-    case "exhausted":
-      return "gray";
     case "expired":
-      return "orange";
+      return "warning";
     case "refunded":
-      return "red";
+      return "danger";
     case "suspended":
-      return "yellow";
+      return "warning";
     default:
-      return "gray";
+      return "neutral";
   }
 }

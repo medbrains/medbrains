@@ -134,7 +134,7 @@ pub async fn list_petty_cash(
     let limit = q.limit.unwrap_or(100).min(500);
     let rows = sqlx::query_as::<_, PettyCashVoucher>(
         "SELECT * FROM pharmacy_petty_cash_vouchers \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR cash_drawer_id = $3) \
          ORDER BY created_at DESC LIMIT $4",
@@ -220,7 +220,7 @@ pub async fn list_float_movements(
 
     let rows = sqlx::query_as::<_, FloatMovement>(
         "SELECT * FROM pharmacy_cash_float_movements \
-         WHERE tenant_id = $1 ORDER BY moved_at DESC LIMIT 200",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY moved_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

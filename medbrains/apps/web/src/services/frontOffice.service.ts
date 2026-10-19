@@ -1,6 +1,10 @@
 import { api } from "@medbrains/api";
 
 export const frontOfficeService = {
+  scanVisitorPass: (...args: Parameters<typeof api.scanVisitorPass>) =>
+    api.scanVisitorPass(...args),
+  getVisitorPassPrintData: (...args: Parameters<typeof api.getVisitorPassPrintData>) =>
+    api.getVisitorPassPrintData(...args),
   listTokenBoard: (params: Parameters<typeof api.listTokenBoard>[0]) => api.listTokenBoard(params),
   requeueToken: (id: string) => api.requeueToken(id),
   getQueueStats: api.getQueueStats,

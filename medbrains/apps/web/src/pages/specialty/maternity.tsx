@@ -19,11 +19,15 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
+import { describeMatchError, MotherBabyMatchPanel } from "../security/mother-baby-match-panel";
+import { AncVisitDrawer } from "./AncVisitDrawer";
+import { isPreEclampsiaRangeBp } from "./anc-visit-form";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   success: "success",
@@ -80,10 +84,11 @@ function NewbornVerifyDrawer({
         scanned_mother_uhid: uhid.trim(),
         scanned_band: band.trim() || undefined,
       }),
-    onError: (e: Error) =>
-      notifications.show({ title: "Could not verify identity", message: e.message, color: "red" }),
+    // A mismatch is a 409 with the server's words; an outage is not a match.
+    onError: () => undefined,
   });
   const result = verify.data;
+  const failure = verify.isError ? describeMatchError(verify.error) : null;
   return (
     <Drawer
       opened={newbornId !== null}
@@ -98,8 +103,8 @@ function NewbornVerifyDrawer({
     >
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
-          Scan the mother's wristband UHID (and optionally the baby's ID band) to confirm the baby
-          matches the mother before feeding, handover or discharge.
+          Scan the mother's wristband UHID and the baby's ID band to confirm the baby matches the
+          mother before feeding, handover or discharge.
         </Text>
         <TextInput
           label="Mother UHID"
@@ -107,7 +112,7 @@ function NewbornVerifyDrawer({
           onChange={(e) => setUhid(e.currentTarget.value)}
         />
         <TextInput
-          label="Baby ID band (optional)"
+          label="Baby ID band"
           value={band}
           onChange={(e) => setBand(e.currentTarget.value)}
         />
@@ -119,13 +124,15 @@ function NewbornVerifyDrawer({
         >
           Verify
         </Button>
-        {result && (
-          <Group>
-            <Badge tone={result.verified ? "success" : "danger"}>
-              {result.verified ? "MATCH — safe to proceed" : "MISMATCH — do not proceed"}
-            </Badge>
-            {result.band_match === false && <Badge tone="danger">Band mismatch</Badge>}
-          </Group>
+        {result?.verified && (
+          <Alert tone="success" title="Match — safe to proceed">
+            This baby belongs to this mother. The check is recorded.
+          </Alert>
+        )}
+        {failure && (
+          <Alert tone="danger" title={failure.title}>
+            {failure.message}
+          </Alert>
         )}
       </Stack>
     </Drawer>
@@ -144,9 +151,13 @@ export function MaternityPage() {
   // regardless, so a user who may see registrations still issues requests the
   // server will refuse — and the tab promises data that never arrives.
   const canViewAnc = useHasPermission(P.SPECIALTY.MATERNITY.ANC_LIST);
+  const canCreateAnc = useHasPermission(P.SPECIALTY.MATERNITY.ANC_CREATE);
+  const [ancOpen, setAncOpen] = useState(false);
   const canViewLabor = useHasPermission(P.SPECIALTY.MATERNITY.LABOR_LIST);
   const canViewNewborn = useHasPermission(P.SPECIALTY.MATERNITY.NEWBORN_LIST);
   const canViewPostnatal = useHasPermission(P.SPECIALTY.MATERNITY.POSTNATAL_LIST);
+  // Generated into P by the coordinator; literal until then.
+  const canVerifyMatch = useHasPermission(P.SECURITY.PATIENT_SAFETY_VERIFY_MATCH);
 
   const [tab, setTab] = useState<string | null>("registrations");
   const [regOpen, regHandlers] = useDisclosure(false);
@@ -280,9 +291,16 @@ export function MaternityPage() {
       key: "bp",
       label: "BP",
       render: (r) => (
-        <Text size="sm">
-          {r.bp_systolic && r.bp_diastolic ? `${r.bp_systolic}/${r.bp_diastolic}` : "—"}
-        </Text>
+        <Group gap={4}>
+          <Text size="sm">
+            {r.bp_systolic && r.bp_diastolic ? `${r.bp_systolic}/${r.bp_diastolic}` : "—"}
+          </Text>
+          {isPreEclampsiaRangeBp(r.bp_systolic, r.bp_diastolic) && (
+            <Badge tone="danger" size="xs">
+              ≥140/90
+            </Badge>
+          )}
+        </Group>
       ),
     },
     { key: "fhr", label: "FHR", render: (r) => <Text size="sm">{r.fetal_heart_rate ?? "—"}</Text> },
@@ -406,7 +424,12 @@ export function MaternityPage() {
     {
       key: "band",
       label: "ID Band",
-      render: (r) => <Text size="sm">{r.id_band_number ?? "—"}</Text>,
+      render: (r) => (
+        <Group gap="xs" wrap="nowrap">
+          <Text size="sm">{r.id_band_number ?? "—"}</Text>
+          <PrintDocumentIconMenu idKind="newborn" recordId={r.id} recordLabel="infant wristband" />
+        </Group>
+      ),
     },
     {
       key: "verify",
@@ -451,7 +474,22 @@ export function MaternityPage() {
         </Tabs.Panel>
         <Tabs.Panel value="anc" pt="md">
           {selectedRegId ? (
-            <DataTable columns={ancCols} data={ancVisits} loading={false} rowKey={(r) => r.id} />
+            <Stack gap="sm">
+              {canCreateAnc && (
+                <Group justify="flex-end">
+                  <Button onClick={() => setAncOpen(true)}>Record ANC visit</Button>
+                </Group>
+              )}
+              <DataTable columns={ancCols} data={ancVisits} loading={false} rowKey={(r) => r.id} />
+              {canCreateAnc && (
+                <AncVisitDrawer
+                  registrationId={selectedRegId}
+                  nextVisitNumber={ancVisits.length + 1}
+                  opened={ancOpen}
+                  onClose={() => setAncOpen(false)}
+                />
+              )}
+            </Stack>
           ) : (
             <Text c="dimmed">Select a registration to view ANC visits</Text>
           )}
@@ -469,6 +507,7 @@ export function MaternityPage() {
           )}
         </Tabs.Panel>
         <Tabs.Panel value="newborn" pt="md">
+          {canVerifyMatch && <MotherBabyMatchPanel />}
           {selectedLaborId ? (
             <Stack>
               <Text fw={600}>Newborn Records</Text>
@@ -530,21 +569,28 @@ export function MaternityPage() {
             label="Registration Number"
             required
             value={regForm.registration_number}
-            onChange={(e) =>
-              setRegForm((p) => ({ ...p, registration_number: e.currentTarget.value }))
-            }
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, registration_number: nextValue }));
+            }}
           />
           <TextInput
             label="LMP Date"
             placeholder="YYYY-MM-DD"
             value={regForm.lmp_date ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, lmp_date: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, lmp_date: nextValue }));
+            }}
           />
           <TextInput
             label="EDD Date"
             placeholder="YYYY-MM-DD"
             value={regForm.edd_date ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, edd_date: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, edd_date: nextValue }));
+            }}
           />
           <Group grow>
             <NumberInput
@@ -585,7 +631,10 @@ export function MaternityPage() {
           <TextInput
             label="Blood Group"
             value={regForm.blood_group ?? ""}
-            onChange={(e) => setRegForm((p) => ({ ...p, blood_group: e.currentTarget.value }))}
+            onChange={(e) => {
+              const nextValue = e.currentTarget.value;
+              setRegForm((p) => ({ ...p, blood_group: nextValue }));
+            }}
           />
           <Button
             tone="primary"

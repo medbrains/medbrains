@@ -28,10 +28,14 @@ use medbrains_server_core::middleware::authorization::{
 };
 use medbrains_server_core::state::AppState;
 
+mod catalog_search;
+pub mod direct;
 mod order_filter;
 mod priority;
 mod reference_range;
 mod westgard;
+use catalog_search::{search_catalog, search_limit};
+use medbrains_core::synonyms::clean_synonyms;
 use order_filter::{Bind, build_order_filter};
 use priority::{normalize_lab_priority, token_priority};
 use reference_range::{LabRefRow, RefVerdict, judge};
@@ -60,6 +64,9 @@ pub struct ListOrdersQuery {
 #[derive(Debug, Serialize)]
 pub struct OrderListResponse {
     pub orders: Vec<LabOrder>,
+    /// Who each order is for, so the worklist names the patient without
+    /// fetching every patient's record.
+    pub patients: Vec<medbrains_server_services::patient_identity::PatientIdentity>,
     pub total: i64,
     pub page: i64,
     pub per_page: i64,
@@ -214,6 +221,8 @@ pub struct CreateCatalogRequest {
     pub container: Option<String>,
     pub fasting_required: Option<bool>,
     pub fasting_hours: Option<i32>,
+    /// Short names searched by. `None` on update leaves them as they are.
+    pub synonyms: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -239,6 +248,8 @@ pub struct UpdateCatalogRequest {
     pub container: Option<String>,
     pub fasting_required: Option<bool>,
     pub fasting_hours: Option<i32>,
+    /// Short names searched by. `None` on update leaves them as they are.
+    pub synonyms: Option<Vec<String>>,
 }
 
 // Panel types
@@ -459,6 +470,7 @@ pub async fn list_orders(
     if visible_ids.as_ref().is_some_and(Vec::is_empty) {
         return Ok(Json(OrderListResponse {
             orders: Vec::new(),
+            patients: Vec::new(),
             total: 0,
             page,
             per_page,
@@ -467,7 +479,7 @@ pub async fn list_orders(
 
     let (where_clause, binds, next_idx) = build_order_filter(&params, visible_ids.as_deref());
 
-    let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause}");
+    let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for bind in &binds {
         cq = match bind {
@@ -479,7 +491,7 @@ pub async fn list_orders(
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
-        "SELECT * FROM lab_orders WHERE {where_clause} \
+        "SELECT * FROM lab_orders WHERE {where_clause} AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT ${next_idx} OFFSET ${}",
         next_idx + 1
     );
@@ -492,10 +504,26 @@ pub async fn list_orders(
         };
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
+    let restricted = medbrains_server_core::middleware::field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let patient_ids: Vec<Uuid> = orders.iter().map(|o| o.patient_id).collect();
+    let patients = medbrains_server_services::patient_identity::patient_identities(
+        &mut tx,
+        claims.tenant_id,
+        &patient_ids,
+        &restricted,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(Json(OrderListResponse {
         orders,
+        patients,
         total,
         page,
         per_page,
@@ -563,6 +591,20 @@ pub async fn create_order_in_tx_with_options(
     if encounter_patient_id != body.patient_id {
         return Err(AppError::BadRequest(
             "encounter does not belong to patient".to_owned(),
+        ));
+    }
+
+    let test_orderable = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM lab_test_catalog \
+         WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL)",
+    )
+    .bind(body.test_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if !test_orderable {
+        return Err(AppError::BadRequest(
+            "This test is retired or not in the catalogue — pick another.".to_owned(),
         ));
     }
 
@@ -663,7 +705,18 @@ async fn auto_bill_lab_order_in_tx(
     {
         return Ok(());
     }
+    charge_lab_order_in_tx(tx, claims, order).await?;
+    Ok(())
+}
 
+/// Puts one order's test on the patient's invoice at the catalogue price,
+/// whatever the tenant's auto-billing setting. Returns the invoice, or
+/// `None` when the test is no longer in the catalogue.
+pub(crate) async fn charge_lab_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order: &LabOrder,
+) -> Result<Option<Uuid>, AppError> {
     #[derive(sqlx::FromRow)]
     struct TestInfo {
         code: String,
@@ -681,10 +734,10 @@ async fn auto_bill_lab_order_in_tx(
     .await?;
 
     let Some(test) = test_info else {
-        return Ok(());
+        return Ok(None);
     };
 
-    medbrains_server_services::billing::auto_charge(
+    let charged = medbrains_server_services::billing::auto_charge(
         tx,
         &claims.tenant_id,
         medbrains_server_services::billing::AutoChargeInput {
@@ -701,7 +754,7 @@ async fn auto_bill_lab_order_in_tx(
     )
     .await?;
 
-    Ok(())
+    Ok(Some(charged.invoice_id))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -861,6 +914,19 @@ async fn mark_order_collected(
     .await?;
 
     if let Some(ref o) = order {
+        // The draw is done: take the patient off the blood-draw queue, which
+        // otherwise kept showing them as waiting after the tube was labelled.
+        sqlx::query(
+            "UPDATE lab_phlebotomy_queue SET status = 'completed'::lab_phlebotomy_status, \
+             completed_at = now(), updated_at = now() \
+             WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+               AND status IN ('waiting'::lab_phlebotomy_status, 'in_progress'::lab_phlebotomy_status)",
+        )
+        .bind(o.id)
+        .bind(claims.tenant_id)
+        .execute(&mut **tx)
+        .await?;
+
         let event = ClinicalEventEnvelope::new(
             claims.tenant_id,
             ClinicalEventName::LabSampleCollected,
@@ -884,13 +950,40 @@ async fn mark_order_collected(
     Ok(order)
 }
 
+/// Why a status change found nothing to update. A double click, or a
+/// colleague who moved the order first, used to read as "not found" — as if
+/// the order had vanished. Only a missing order is a 404.
+async fn transition_refused(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    id: Uuid,
+    expected: &str,
+) -> AppError {
+    let status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM lab_orders WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await;
+    match status {
+        Ok(Some(status)) => AppError::Conflict(format!(
+            "This order is {}; it must be {expected}. Refresh and try again.",
+            status.replace('_', " ")
+        )),
+        Ok(None) => AppError::NotFound,
+        Err(error) => error.into(),
+    }
+}
+
 pub async fn collect_sample(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<CollectSampleRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
+    // The draw, not result entry: nurses and phlebotomists collect.
+    require_permission(&claims, permissions::lab::samples::COLLECT)?;
 
     // The URL names a child record; the care relationship is one hop away on
     // its parent. Resolve then authorize — see medbrains_authz_gate::links.
@@ -913,6 +1006,12 @@ pub async fn collect_sample(
         body.sample_barcode.as_deref(),
     )
     .await?;
+
+    if order.is_none() {
+        return Err(
+            transition_refused(&mut tx, claims.tenant_id, id, "waiting for collection").await,
+        );
+    }
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -950,6 +1049,10 @@ pub async fn start_processing(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if order.is_none() {
+        return Err(transition_refused(&mut tx, claims.tenant_id, id, "sample collected").await);
+    }
+
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
 }
@@ -974,6 +1077,23 @@ pub async fn complete_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // A test is completed by its results. Completing an empty one billed the
+    // patient and told the ward it was done, and only verification noticed
+    // there was nothing to release.
+    let has_results: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM lab_results \
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL)",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !has_results {
+        return Err(AppError::Conflict(
+            "Enter the results before completing this test".to_owned(),
+        ));
+    }
+
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
          status = 'completed'::lab_order_status, \
@@ -987,8 +1107,13 @@ pub async fn complete_order(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if order.is_none() {
+        return Err(transition_refused(&mut tx, claims.tenant_id, id, "processing").await);
+    }
+
     if let Some(ref o) = order {
-        auto_bill_lab_order_in_tx(&mut tx, &claims, o).await?;
+        // A billing fault must not hold back a finished result.
+        best_effort_auto_bill_lab_order_in_tx(&mut tx, &claims, o).await?;
 
         let event = ClinicalEventEnvelope::new(
             claims.tenant_id,
@@ -1204,6 +1329,10 @@ pub async fn verify_results(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if order.is_none() {
+        return Err(transition_refused(&mut tx, claims.tenant_id, id, "completed").await);
+    }
+
     if let Some(ref o) = order {
         let event = ClinicalEventEnvelope::new(
             claims.tenant_id,
@@ -1221,6 +1350,7 @@ pub async fn verify_results(
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
         medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        direct::close_walk_in_visit_if_done(&mut tx, claims.tenant_id, o.encounter_id).await?;
 
         // Close the loop back to the ordering clinician: signal that verified results
         // are ready to review. Routine (non-critical) results otherwise gave the doctor
@@ -1301,7 +1431,17 @@ pub async fn cancel_order(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if order.is_some() {
+    if order.is_none() {
+        return Err(transition_refused(
+            &mut tx,
+            claims.tenant_id,
+            id,
+            "ordered or sample collected",
+        )
+        .await);
+    }
+
+    if let Some(ref o) = order {
         medbrains_server_services::billing::reverse_auto_charge_for_source(
             &mut tx,
             &claims.tenant_id,
@@ -1311,6 +1451,7 @@ pub async fn cancel_order(
             "Lab order cancelled",
         )
         .await?;
+        direct::close_walk_in_visit_if_done(&mut tx, claims.tenant_id, o.encounter_id).await?;
     }
 
     tx.commit().await?;
@@ -1540,6 +1681,9 @@ pub async fn add_results(
         }
         medbrains_core::lab::LabOrderStatus::Verified => {
             Some("already verified — correct a value through an amendment instead")
+        }
+        medbrains_core::lab::LabOrderStatus::Ordered => {
+            Some("not collected yet — collect the sample first")
         }
         _ => None,
     };
@@ -1815,7 +1959,7 @@ pub async fn list_results(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabResult>(
-        "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at LIMIT 5000",
     )
     .bind(order_id)
@@ -1831,9 +1975,17 @@ pub async fn list_results(
 //  Test Catalog CRUD
 // ══════════════════════════════════════════════════════════
 
+#[derive(Debug, Deserialize)]
+pub struct CatalogQuery {
+    /// Ranked search over code, name, short names and LOINC; active tests only.
+    pub search: Option<String>,
+    pub limit: Option<i64>,
+}
+
 pub async fn list_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<CatalogQuery>,
 ) -> Result<Json<Vec<LabTestCatalog>>, AppError> {
     require_any_permission(
         &claims,
@@ -1847,12 +1999,20 @@ pub async fn list_catalog(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, LabTestCatalog>(
-        "SELECT * FROM lab_test_catalog WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let term = query.search.as_deref().map(str::trim).unwrap_or_default();
+    // Without a term this is the whole catalogue, retired tests included:
+    // the worklist names old orders from it.
+    // allow-soft-deleted: a deleted test still names the historical orders that used it
+    let rows = if term.is_empty() {
+        sqlx::query_as::<_, LabTestCatalog>(
+            "SELECT * FROM lab_test_catalog WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
+    } else {
+        search_catalog(&mut tx, claims.tenant_id, term, search_limit(query.limit)).await?
+    };
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -1875,10 +2035,11 @@ pub async fn create_catalog_entry(
           loinc_code, method, specimen_volume, \
           critical_low, critical_high, delta_check_percent, \
           auto_validation_rules, allows_add_on, \
-          container, fasting_required, fasting_hours) \
+          container, fasting_required, fasting_hours, synonyms) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
                  $10, $11, $12, $13, $14, $15, $16, \
-                 COALESCE($17, false), $18, COALESCE($19, false), $20) \
+                 COALESCE($17, false), $18, COALESCE($19, false), $20, \
+                 COALESCE($21, '{}'::text[])) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1901,6 +2062,7 @@ pub async fn create_catalog_entry(
     .bind(&body.container)
     .bind(body.fasting_required)
     .bind(body.fasting_hours)
+    .bind(clean_synonyms(body.synonyms.as_deref()))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1940,6 +2102,7 @@ pub async fn update_catalog_entry(
          container = COALESCE($17, container), \
          fasting_required = COALESCE($18, fasting_required), \
          fasting_hours = COALESCE($19, fasting_hours), \
+         synonyms = COALESCE($22, synonyms), \
          updated_at = now() \
          WHERE id = $20 AND tenant_id = $21 \
          RETURNING *",
@@ -1965,6 +2128,11 @@ pub async fn update_catalog_entry(
     .bind(body.fasting_hours)
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(
+        body.synonyms
+            .as_deref()
+            .map(|list| clean_synonyms(Some(list))),
+    )
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -2513,7 +2681,7 @@ pub async fn list_amendments(
 
     let rows = sqlx::query_as::<_, LabResultAmendment>(
         "SELECT * FROM lab_result_amendments \
-         WHERE order_id = $1 AND tenant_id = $2 ORDER BY amended_at DESC LIMIT 5000",
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL ORDER BY amended_at DESC LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -2807,7 +2975,7 @@ pub async fn list_reagent_lots(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabReagentLot>(
-        "SELECT * FROM lab_reagent_lots WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM lab_reagent_lots WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2909,7 +3077,7 @@ pub async fn list_qc_results(
 
     let rows = if let Some(test_id) = params.test_id {
         sqlx::query_as::<_, LabQcResult>(
-            "SELECT * FROM lab_qc_results WHERE tenant_id = $1 AND test_id = $2 \
+            "SELECT * FROM lab_qc_results WHERE tenant_id = $1 AND deleted_at IS NULL AND test_id = $2 \
              ORDER BY run_time DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -2918,7 +3086,7 @@ pub async fn list_qc_results(
         .await?
     } else {
         sqlx::query_as::<_, LabQcResult>(
-            "SELECT * FROM lab_qc_results WHERE tenant_id = $1 \
+            "SELECT * FROM lab_qc_results WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY run_time DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -3119,7 +3287,7 @@ pub async fn list_calibrations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabCalibration>(
-        "SELECT * FROM lab_calibrations WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM lab_calibrations WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3178,7 +3346,7 @@ pub async fn list_phlebotomy_queue(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabPhlebotomyQueue>(
-        "SELECT * FROM lab_phlebotomy_queue WHERE tenant_id = $1 \
+        "SELECT * FROM lab_phlebotomy_queue WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY \
            CASE priority WHEN 'stat'::lab_priority THEN 0 \
                          WHEN 'urgent'::lab_priority THEN 1 \
@@ -3312,7 +3480,7 @@ pub async fn list_outsourced_orders(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabOutsourcedOrder>(
-        "SELECT * FROM lab_outsourced_orders WHERE tenant_id = $1 \
+        "SELECT * FROM lab_outsourced_orders WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -3800,7 +3968,7 @@ pub async fn list_home_collections(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections \
-             WHERE tenant_id = $1 AND status::text = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND status::text = $2 \
              ORDER BY scheduled_date, created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -3810,7 +3978,7 @@ pub async fn list_home_collections(
     } else if let Some(date) = params.date {
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections \
-             WHERE tenant_id = $1 AND scheduled_date = $2 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND scheduled_date = $2 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -3819,7 +3987,7 @@ pub async fn list_home_collections(
         .await?
     } else {
         sqlx::query_as::<_, LabHomeCollection>(
-            "SELECT * FROM lab_home_collections WHERE tenant_id = $1 \
+            "SELECT * FROM lab_home_collections WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY scheduled_date DESC, created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -3998,7 +4166,7 @@ pub async fn list_collection_centers(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabCollectionCenter>(
-        "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4089,7 +4257,7 @@ pub async fn list_sample_archive(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, LabSampleArchive>(
-            "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 AND status::text = $2 \
+            "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 AND deleted_at IS NULL AND status::text = $2 \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -4098,7 +4266,7 @@ pub async fn list_sample_archive(
         .await?
     } else {
         sqlx::query_as::<_, LabSampleArchive>(
-            "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 \
+            "SELECT * FROM lab_sample_archive WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -4185,7 +4353,7 @@ pub async fn list_report_dispatches(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = if let Some(order_id) = params.order_id {
         sqlx::query_as::<_, LabReportDispatch>(
-            "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND order_id = $2 \
+            "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND deleted_at IS NULL AND order_id = $2 \
              ORDER BY dispatched_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -4194,7 +4362,7 @@ pub async fn list_report_dispatches(
         .await?
     } else {
         sqlx::query_as::<_, LabReportDispatch>(
-            "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 \
+            "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY dispatched_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -4333,7 +4501,7 @@ pub async fn list_report_templates(
                              is_active, created_at, updated_at";
     let rows = if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, LabReportTemplateListItem>(&format!(
-            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 AND department_id = $2 \
+            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 AND deleted_at IS NULL AND department_id = $2 \
              ORDER BY template_name LIMIT 5000"
         ))
         .bind(claims.tenant_id)
@@ -4342,7 +4510,7 @@ pub async fn list_report_templates(
         .await?
     } else {
         sqlx::query_as::<_, LabReportTemplateListItem>(&format!(
-            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name LIMIT 5000"
+            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY template_name LIMIT 5000"
         ))
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -4490,7 +4658,7 @@ pub async fn list_eqas(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = if let Some(test_id) = params.test_id {
         sqlx::query_as::<_, LabEqasResult>(
-            "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND test_id = $2 \
+            "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND deleted_at IS NULL AND test_id = $2 \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
@@ -4499,7 +4667,7 @@ pub async fn list_eqas(
         .await?
     } else {
         sqlx::query_as::<_, LabEqasResult>(
-            "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 \
+            "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY created_at DESC LIMIT 200",
         )
         .bind(claims.tenant_id)
@@ -4588,7 +4756,7 @@ pub async fn list_proficiency_tests(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabProficiencyTest>(
-        "SELECT * FROM lab_proficiency_tests WHERE tenant_id = $1 \
+        "SELECT * FROM lab_proficiency_tests WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -4648,7 +4816,7 @@ pub async fn list_nabl_documents(
         (Some(doc_type), true) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
-                 WHERE tenant_id = $1 AND document_type = $2 AND is_current = true \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND document_type = $2 AND is_current = true \
                  ORDER BY effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
@@ -4659,7 +4827,7 @@ pub async fn list_nabl_documents(
         (Some(doc_type), false) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
-                 WHERE tenant_id = $1 AND document_type = $2 ORDER BY effective_date DESC LIMIT 5000",
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND document_type = $2 ORDER BY effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(doc_type)
@@ -4669,7 +4837,7 @@ pub async fn list_nabl_documents(
         (None, true) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
-                 WHERE tenant_id = $1 AND is_current = true \
+                 WHERE tenant_id = $1 AND deleted_at IS NULL AND is_current = true \
                  ORDER BY document_type, effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
@@ -4678,7 +4846,7 @@ pub async fn list_nabl_documents(
         }
         (None, false) => {
             sqlx::query_as::<_, LabNablDocument>(
-                "SELECT * FROM lab_nabl_documents WHERE tenant_id = $1 \
+                "SELECT * FROM lab_nabl_documents WHERE tenant_id = $1 AND deleted_at IS NULL \
                  ORDER BY document_type, effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
@@ -4995,7 +5163,7 @@ pub async fn list_b2b_clients(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabB2bClient>(
-        "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5083,7 +5251,7 @@ pub async fn list_b2b_rates(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabB2bRate>(
-        "SELECT * FROM lab_b2b_rates WHERE tenant_id = $1 AND client_id = $2 \
+        "SELECT * FROM lab_b2b_rates WHERE tenant_id = $1 AND deleted_at IS NULL AND client_id = $2 \
          ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -5109,7 +5277,7 @@ pub async fn create_b2b_rate(
           effective_from, effective_to) \
          VALUES ($1,$2,$3,$4,$5,$6,$7) \
          ON CONFLICT (tenant_id, client_id, test_id) \
-         DO UPDATE SET agreed_price = EXCLUDED.agreed_price, \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, agreed_price = EXCLUDED.agreed_price, \
            discount_percent = EXCLUDED.discount_percent, \
            effective_from = EXCLUDED.effective_from, \
            effective_to = EXCLUDED.effective_to, updated_at = now() \
@@ -5500,43 +5668,91 @@ pub struct BulkPrintRequest {
     pub order_ids: Vec<Uuid>,
 }
 
+/// How lab reports reach patients — one hospital-wide setting.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReportDeliveryConfig {
+    pub sms_enabled: bool,
+    pub whatsapp_enabled: bool,
+    pub email_enabled: bool,
+    pub auto_dispatch: bool,
+    pub default_method: String,
+}
+
+impl Default for ReportDeliveryConfig {
+    fn default() -> Self {
+        Self {
+            sms_enabled: false,
+            whatsapp_enabled: false,
+            email_enabled: false,
+            auto_dispatch: false,
+            default_method: "counter".to_owned(),
+        }
+    }
+}
+
+const DELIVERY_METHODS: &[&str] = &["counter", "email", "sms", "whatsapp", "portal", "courier"];
+
 /// GET /api/lab/report-delivery-config
 pub async fn get_report_delivery_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<ReportDeliveryConfig>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let config: Option<serde_json::Value> = sqlx::query_scalar(
+    let stored: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings WHERE tenant_id=$1 AND category='lab' AND key='report_delivery_config'",
     ).bind(claims.tenant_id).fetch_optional(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(config.unwrap_or(serde_json::json!({
-        "sms_enabled": false, "whatsapp_enabled": false, "email_enabled": false,
-        "auto_dispatch": false, "default_method": "counter"
-    }))))
+    // A row written before the shape was fixed falls back to the defaults
+    // rather than failing the whole settings screen.
+    Ok(Json(
+        stored
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default(),
+    ))
 }
 
 /// PUT /api/lab/report-delivery-config
 pub async fn update_report_delivery_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    Json(body): Json<ReportDeliveryConfig>,
+) -> Result<Json<ReportDeliveryConfig>, AppError> {
+    require_permission(&claims, permissions::lab::report_delivery::MANAGE)?;
+    if !DELIVERY_METHODS.contains(&body.default_method.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Unknown delivery method '{}'. Choose one of: {}.",
+            body.default_method,
+            DELIVERY_METHODS.join(", ")
+        )));
+    }
+    let channel_off = match body.default_method.as_str() {
+        "sms" => !body.sms_enabled,
+        "whatsapp" => !body.whatsapp_enabled,
+        "email" => !body.email_enabled,
+        _ => false,
+    };
+    if channel_off {
+        return Err(AppError::BadRequest(
+            "The default method is switched off. Turn that channel on, or pick another default."
+                .into(),
+        ));
+    }
+    let value = serde_json::to_value(&body)
+        .map_err(|e| AppError::Internal(format!("delivery config: {e}")))?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     sqlx::query(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
          VALUES (gen_random_uuid(),$1,'lab','report_delivery_config',$2) \
-         ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
+         ON CONFLICT (tenant_id,category,key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value=$2,updated_at=now()",
     )
     .bind(claims.tenant_id)
-    .bind(&body)
+    .bind(&value)
     .execute(&mut *tx)
     .await?;
 
@@ -5549,7 +5765,14 @@ pub async fn list_referral_doctors(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    require_permission(&claims, permissions::lab::b2b::LIST)?;
+    // The walk-in counter picks the outside doctor from this list too.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::lab::b2b::LIST,
+            permissions::lab::orders::DIRECT,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -5563,14 +5786,19 @@ pub async fn list_referral_doctors(
             Option<String>,
             Option<f64>,
             bool,
+            Option<String>,
         ),
     >(
         // Tenant-scoped explicitly. These three carried no tenant predicate at
         // all and leaned entirely on RLS; on a table whose policy is missing
         // that is a cross-tenant read of who refers to whom and what they are
         // paid for it.
-        "SELECT id, name, phone, specialization, hospital_name, commission_pct, is_active \
-         FROM lab_referral_doctors WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        // `commission_pct` is NUMERIC; it is read as float8 because that is
+        // what the tuple decodes — NUMERIC into f64 fails at runtime.
+        "SELECT id, name, phone, specialization, hospital_name, \
+                commission_pct::float8, is_active, registration_no \
+         FROM lab_referral_doctors WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5581,7 +5809,8 @@ pub async fn list_referral_doctors(
         .map(|r| {
             serde_json::json!({
                 "id": r.0, "name": r.1, "phone": r.2, "specialization": r.3,
-                "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6
+                "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6,
+                "registration_no": r.7
             })
         })
         .collect();
@@ -5672,7 +5901,7 @@ pub async fn list_referral_payouts(
     >(
         "SELECT p.id, p.referral_doctor_id, p.period_start, p.period_end, \
          p.order_count, p.total_revenue, p.commission_amount, p.status::text \
-         FROM lab_referral_payouts p WHERE p.tenant_id = $1 \
+         FROM lab_referral_payouts p WHERE p.tenant_id = $1 AND p.deleted_at IS NULL \
          ORDER BY p.period_end DESC LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -5926,6 +6155,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/lab/phlebotomy/{id}/assign", put(assign_phlebotomist))
         .route("/api/lab/reports/bulk-print", post(bulk_print_reports))
         .route("/api/lab/report-delivery-config", get(get_report_delivery_config).put(update_report_delivery_config))
+        .route("/api/lab/direct-orders", post(direct::create_direct_orders))
         .route("/api/lab/referral-doctors", get(list_referral_doctors).post(create_referral_doctor))
         .route("/api/lab/referral-doctors/{id}", put(update_referral_doctor))
         .route("/api/lab/referral-payouts", get(list_referral_payouts).post(create_referral_payout))

@@ -8,6 +8,13 @@
  */
 
 export type KpiBaseline = "weekday" | "yesterday" | "week";
+
+/** The baselines a KPI is read against, as the controls name them. */
+export const KPI_BASELINES: { value: KpiBaseline; label: string }[] = [
+  { value: "weekday", label: "Usual weekday" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "week", label: "Last 7 days" },
+];
 export type KpiTone = "good" | "bad" | "neutral";
 
 export interface KpiReading {
@@ -18,6 +25,10 @@ export interface KpiReading {
   so_far: boolean;
   baselines: Record<KpiBaseline, number | null>;
   series: { date: string; value: number | null }[];
+  /** What a reader may narrow it by — `department` where the KPI has one. */
+  filters?: string[];
+  /** The department it is narrowed to, when it is. */
+  department_id?: string | null;
 }
 
 export interface KpiComparison {
@@ -36,7 +47,7 @@ export function isKpiReading(data: unknown): data is KpiReading {
   );
 }
 
-const DECIMALS: Record<string, number> = { min: 1, h: 1, days: 1, "%": 1, visits: 0 };
+const DECIMALS: Record<string, number> = { min: 1, h: 1, days: 1, "%": 1, visits: 0, patients: 0 };
 
 function round(n: number, unit: string): number {
   const f = 10 ** (DECIMALS[unit] ?? 1);
@@ -58,6 +69,7 @@ export function formatKpi(value: number | null, unit: string): string {
 
 const WORDS: Record<string, [up: string, down: string]> = {
   visits: ["more", "fewer"],
+  patients: ["more", "fewer"],
   min: ["longer", "shorter"],
   h: ["longer", "shorter"],
   days: ["longer", "shorter"],

@@ -18,6 +18,7 @@ use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
+        client_ip::ClientIp,
         cookies::{build_access_cookie, build_csrf_cookie, build_refresh_cookie, clear_cookie},
         field_access,
     },
@@ -25,6 +26,7 @@ use medbrains_server_core::{
 };
 
 mod hospital;
+mod sign_in_options;
 
 // ── Login ───────────────────────────────────────────────────
 
@@ -55,12 +57,14 @@ pub struct UserInfo {
 const MAX_FAILED_LOGINS: i32 = 5;
 const LOCKOUT_MINUTES: i32 = 15;
 
-/// Increment the per-account failure counter; lock the account once the
-/// threshold is reached and write an audit entry for the lockout.
+/// Increment the per-account failure counter, lock the account once the
+/// threshold is reached, and audit the failure with the caller's address —
+/// every failure, not only the lockout, so a slow guess below the threshold
+/// still leaves a trail (DPDP Rule 6, NABH IMS).
 async fn record_failed_login(
     state: &AppState,
-    user_id: Uuid,
-    tenant_id: Uuid,
+    (user_id, tenant_id): (Uuid, Uuid),
+    ip: Option<&str>,
 ) -> Result<(), AppError> {
     let now_locked: bool = sqlx::query_scalar(
         "UPDATE users SET \
@@ -78,28 +82,59 @@ async fn record_failed_login(
     .fetch_one(&state.db)
     .await?;
 
-    if now_locked {
-        let mut tx = state.db.begin().await?;
-        medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let actions: &[&str] =
+        if now_locked { &["login_failed", "account_locked"] } else { &["login_failed"] };
+    for action in actions {
         medbrains_db::audit::AuditLogger::log(
             &mut tx,
             &medbrains_db::audit::AuditEntry {
                 tenant_id,
                 user_id: Some(user_id),
-                action: "account_locked",
+                action,
                 entity_type: "user",
                 entity_id: Some(user_id),
                 old_values: None,
                 new_values: None,
-                ip_address: None,
+                ip_address: ip,
             },
         )
         .await
         .map_err(AppError::from)?;
-        tx.commit().await?;
+    }
+    tx.commit().await?;
+    if now_locked {
         tracing::warn!(%user_id, "account locked after repeated failed logins");
     }
+    Ok(())
+}
 
+/// A sign-in for a name no account in that hospital has. Audited against the
+/// hospital, without the name typed — people type passwords into the wrong box.
+async fn record_unknown_account(
+    state: &AppState,
+    tenant_id: Uuid,
+    ip: Option<&str>,
+) -> Result<(), AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id,
+            user_id: None,
+            action: "login_failed_unknown_account",
+            entity_type: "user",
+            entity_id: None,
+            old_values: None,
+            new_values: None,
+            ip_address: ip,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+    tx.commit().await?;
     Ok(())
 }
 
@@ -241,7 +276,8 @@ async fn password_login_blocked(
     let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled'",
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(&mut *conn)
@@ -254,7 +290,8 @@ async fn password_login_blocked(
     // Passwords disabled — allow only the break-glass admin through.
     let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username'",
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username' \
+           AND deleted_at IS NULL",
     )
     .bind(tenant_id)
     .fetch_optional(db)
@@ -266,9 +303,11 @@ async fn password_login_blocked(
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
+    client_ip: Option<Extension<ClientIp>>,
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> Result<axum::response::Response, AppError> {
+    let ip = client_ip.map(|Extension(ip)| ip.as_str());
     // Find the user within the hospital the sign-in names (see `hospital`);
     // across every hospital only when none is named, and never by picking one
     // of two accounts that share the name.
@@ -291,7 +330,12 @@ pub async fn login(
     .await?;
     let row = match hospital::account(rows) {
         hospital::Account::One(row) => row,
-        hospital::Account::None => return Err(AppError::Unauthorized),
+        hospital::Account::None => {
+            if let Some(tenant_id) = tenant {
+                record_unknown_account(&state, tenant_id, ip.as_deref()).await?;
+            }
+            return Err(AppError::Unauthorized);
+        }
         hospital::Account::Ambiguous => return Ok(hospital::hospital_required().into_response()),
     };
 
@@ -335,7 +379,7 @@ pub async fn login(
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .is_err()
     {
-        record_failed_login(&state, row.id, row.tenant_id).await?;
+        record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
         return Err(AppError::Unauthorized);
     }
 
@@ -358,7 +402,7 @@ pub async fn login(
             }
             Some(code) => {
                 if !medbrains_mfa::verify_mfa_code(&state.db, row.tenant_id, row.id, code).await? {
-                    record_failed_login(&state, row.id, row.tenant_id).await?;
+                    record_failed_login(&state, (row.id, row.tenant_id), ip.as_deref()).await?;
                     return Err(AppError::Unauthorized);
                 }
             }
@@ -1548,6 +1592,7 @@ pub fn router() -> axum::Router<AppState> {
             post(confirm_password_reset),
         )
         .route("/api/auth/refresh", post(refresh_token))
+        .route("/api/auth/sign-in-options", get(sign_in_options::sign_in_options))
 }
 
 /// Protected auth routes — require `Extension<Claims>` from `auth_middleware`,

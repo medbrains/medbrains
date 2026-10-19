@@ -16,9 +16,11 @@ import { useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router";
 import { PageHeader } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
+import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
 import { ErObservationPanel } from "@/components/Emergency/ErObservationPanel";
+import { ErTriageAssessmentPanel } from "@/components/Emergency/ErTriageAssessmentPanel";
 import { Alert, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
@@ -203,6 +205,14 @@ export function EmergencyVisitDetailPage() {
                         <IconHeartbeat size={18} />
                         <Text fw={700}>Triage</Text>
                       </Group>
+                      <ErTriageAssessmentPanel
+                        visitId={visit.id}
+                        canView={canViewTriage}
+                        canCreate={canCreateTriage}
+                      />
+                      <Text size="sm" fw={600}>
+                        Triage log
+                      </Text>
                       <TriagePanel visitId={visit.id} canAppend={canCreateTriage} />
                       {!canViewTriage && canCreateTriage && (
                         <Text size="xs" c="dimmed">
@@ -221,6 +231,13 @@ export function EmergencyVisitDetailPage() {
                       canCreate={canCreateResuscitation}
                     />
                   </Box>
+                )}
+                {/* The ER visit's notes: every clinician's dated, signed entries
+                    (RFC-MODULE-clinical-notes, phase 2b). */}
+                {visit.encounter_id && (
+                  <Card id="er-case-sheet" withBorder>
+                    <CaseSheet encounterId={visit.encounter_id} />
+                  </Card>
                 )}
                 <PatientConsumablesPanel
                   patientId={visit.patient_id}

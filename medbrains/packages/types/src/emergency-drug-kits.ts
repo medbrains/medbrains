@@ -59,6 +59,8 @@ export interface BasketLabItem {
 export interface BasketRadiologyItem {
   kind: "radiology";
   modality_id: string;
+  /** Catalogue exam, when one was picked. */
+  exam_id?: string | null;
   body_part?: string | null;
   /** FMA concept from the body-site picker; null when typed. */
   body_part_code?: string | null;
@@ -68,6 +70,7 @@ export interface BasketRadiologyItem {
   scheduled_at?: string | null;
   contrast_required?: boolean | null;
   pregnancy_checked?: boolean | null;
+  patient_pregnant?: boolean | null;
   allergy_flagged?: boolean | null;
   notes?: string | null;
 }
@@ -199,6 +202,8 @@ export interface DoctorProfile {
   photo_url: string | null;
   languages_spoken: string[];
   is_active: boolean;
+  hpr_id: string | null;
+  hpr_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -410,19 +415,6 @@ export interface VerbalOrderEntry {
   countersigned_by?: string | null;
   countersigned_by_name?: string | null;
   compliance_status: VerbalOrderComplianceStatus;
-}
-
-/**
- * Visual signature block data for printed PDFs.
- * Mirrors `medbrains_core::print_data::PrintSignatureData`.
- */
-export interface PrintSignatureData {
-  signed_at: string;
-  signer_name: string | null;
-  display_image_url: string | null;
-  display_block: string | null;
-  verify_ref: string;
-  legal_class: string;
 }
 
 // ─────────────────────────────────────────────────────────

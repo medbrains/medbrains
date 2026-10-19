@@ -66,6 +66,7 @@ object OptionSource {
     const val DEPARTMENTS = "departments"
     const val DOCTORS = "doctors"
     const val CAMPS = "camps"
+    const val CAMPAIGNS = "campaigns"
     const val ICD11 = "icd11"
     const val DRUG_CATALOGUE = "drug_catalogue"
 }
@@ -75,12 +76,14 @@ data class OptionLists(
     val departments: List<CatalogueOption> = emptyList(),
     val doctors: List<CatalogueOption> = emptyList(),
     val camps: List<CatalogueOption> = emptyList(),
+    val campaigns: List<CatalogueOption> = emptyList(),
 ) {
     fun options(field: CatalogueField): List<CatalogueOption> = when (field.options.source) {
         OptionSource.FIXED -> field.options.options.orEmpty()
         OptionSource.DEPARTMENTS -> departments
         OptionSource.DOCTORS -> doctors
         OptionSource.CAMPS -> camps
+        OptionSource.CAMPAIGNS -> campaigns
         else -> emptyList()
     }
 }

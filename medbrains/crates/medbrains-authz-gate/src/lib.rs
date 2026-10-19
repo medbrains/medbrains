@@ -331,15 +331,22 @@ pub mod links {
     /// Printed documents. Each names the record it renders, not the patient,
     /// so every print endpoint needs the hop.
     pub const OT_BOOKING: ParentLink = ParentLink::on_patient("ot_bookings");
-    pub const SURGERY: ParentLink = ParentLink::on_patient("surgeries");
+    /// Blood: a crossmatch request and a transfusion given, both on the patient.
+    pub const CROSSMATCH_REQUEST: ParentLink = ParentLink::on_patient("crossmatch_requests");
+    pub const TRANSFUSION_RECORD: ParentLink = ParentLink::on_patient("transfusion_records");
+    /// A signed consent — general, procedure, research.
+    pub const CONSENT_RECORD: ParentLink = ParentLink::on_patient("consent_records");
     pub const APPOINTMENT: ParentLink = ParentLink::on_patient("appointments");
-    pub const DPDP_CONSENT: ParentLink = ParentLink::on_patient("dpdp_consents");
+    /// A patient's recorded consent — treatment, data sharing, ABDM linking.
+    pub const PATIENT_CONSENT: ParentLink = ParentLink::on_patient("patient_consents");
     pub const PROCEDURE_CONSENT: ParentLink = ParentLink::on_patient("procedure_consents");
     /// A case-sheet packet is the whole chart assembled for release.
     ///
     /// Keyed on `patient_id`, which is NOT NULL, rather than on the nullable
     /// `encounter_id`/`admission_id` — a packet may be assembled from either.
     pub const CASE_SHEET_PACKET: ParentLink = ParentLink::on_patient("mrd_case_sheet_packets");
+    /// A medical record's physical file in MRD, held per patient.
+    pub const MRD_RECORD: ParentLink = ParentLink::on_patient("mrd_medical_records");
 
     /// Clinical-trial subject records. Each carries a NOT NULL `patient_id`
     /// beside its `trial_id`, so the hop is direct — the trial is the roster,
@@ -356,12 +363,14 @@ pub mod links {
     /// A patient reminder — cancelling one stops an outreach to that person.
     pub const PATIENT_REMINDER: ParentLink = ParentLink::on_patient("patient_reminders");
 
-    /// A queue token and a package bill both have a NULLABLE `patient_id` — a
-    /// token can be issued before a patient is identified, and a package bill
-    /// can be raised against a corporate account. Use these with
-    /// `require_access_via_optional`, never `require_access_via`.
+    /// A queue token has a NULLABLE `patient_id` — it can be issued before a
+    /// patient is identified. Use it with `require_access_via_optional`, never
+    /// `require_access_via`.
     pub const QUEUE_TOKEN: ParentLink = ParentLink::on_patient("queue_tokens");
-    pub const PACKAGE_BILL: ParentLink = ParentLink::on_patient("package_bills");
+    /// A token in the unified queue (`tokens`, what the OPD/lab/pharmacy desks
+    /// issue). `patient_id` is NULLABLE for the same reason as `QUEUE_TOKEN` —
+    /// use it with `require_access_via_optional`.
+    pub const TOKEN: ParentLink = ParentLink::on_patient("tokens");
 
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
 
@@ -375,12 +384,17 @@ pub mod links {
         ParentLink::on_patient("restraint_documentation");
     /// A medico-legal case: assault, accident, poisoning, custodial injury.
     pub const MLC_CASE: ParentLink = ParentLink::on_patient("mlc_cases");
+    /// An MLC document — age estimation, SBAR, POCSO report — on its case.
+    pub const MLC_DOCUMENT: ParentLink = ParentLink {
+        table: "mlc_documents",
+        column: "mlc_case_id",
+        parent: ParentKind::Via(&MLC_CASE),
+    };
     pub const MLC_POLICE_INTIMATION: ParentLink = ParentLink {
         table: "mlc_police_intimations",
         column: "mlc_case_id",
         parent: ParentKind::Via(&MLC_CASE),
     };
-    pub const PATIENT_EDUCATION: ParentLink = ParentLink::on_patient("patient_education");
 
     /// Money. These chain to `INVOICE`, which is `PatientDirect` — a receipt
     /// is not clinical, and treating a patient must not reach their bill.
@@ -447,17 +461,10 @@ pub mod links {
     /// Sometimes-clinical records — use with `require_access_via_optional`.
     /// Their `patient_id` is nullable because an incident can involve staff or
     /// equipment and no patient at all.
-    pub const INCIDENT_REPORT: ParentLink = ParentLink::on_patient("incident_reports");
+    pub const QUALITY_INCIDENT: ParentLink = ParentLink::on_patient("quality_incidents");
     pub const ADR_REPORT: ParentLink = ParentLink::on_patient("adr_reports");
     pub const MATERIOVIGILANCE_REPORT: ParentLink =
         ParentLink::on_patient("materiovigilance_reports");
-    /// A root-cause analysis hangs off the incident it investigates, and that
-    /// link is itself nullable — an RCA can be opened before one is filed.
-    pub const RCA_REPORT: ParentLink = ParentLink {
-        table: "rca_reports",
-        column: "incident_id",
-        parent: ParentKind::Via(&INCIDENT_REPORT),
-    };
 
     /// An emergency visit. `er_discharge_summaries.er_visit_id` is NOT NULL and
     /// `er_visits.patient_id` is NOT NULL, so this chain is total.

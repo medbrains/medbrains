@@ -45,6 +45,9 @@ pub struct RadiologyModality {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub is_ultrasound: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -67,10 +70,50 @@ pub struct RadiologyOrder {
     pub notes: Option<String>,
     pub contrast_required: bool,
     pub pregnancy_checked: bool,
+    /// She is pregnant: an ultrasound then needs a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub patient_pregnant: bool,
     pub allergy_flagged: bool,
     pub cancellation_reason: Option<String>,
+    /// The catalogue exam ordered; `None` for orders placed by modality alone.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub exam_id: Option<Uuid>,
+    /// Written into every image; links the study back to this order (#226).
+    #[sqlx(default)]
+    #[serde(default)]
+    pub accession_number: String,
+    /// The study the PACS holds for this order, once it has arrived.
+    #[sqlx(default)]
+    #[serde(default)]
+    pub pacs_study_uid: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// One orderable imaging exam ("CT Brain Plain") under one modality.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RadiologyExam {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub modality_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub body_part: Option<String>,
+    pub body_part_code: Option<String>,
+    pub laterality_required: bool,
+    /// `none`, `with`, `without` or `with_and_without`.
+    pub contrast: String,
+    pub synonyms: Vec<String>,
+    /// The `charge_master` code this exam is billed under.
+    pub charge_code: Option<String>,
+    pub preparation: Option<String>,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    /// A scan of a pregnancy: ordering it opens a PC-PNDT Form F.
+    #[sqlx(default)]
+    pub pcpndt_applicable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

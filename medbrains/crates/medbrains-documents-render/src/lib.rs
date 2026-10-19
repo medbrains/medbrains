@@ -5,7 +5,7 @@
 //! `document_outputs`, return a presigned download URL. Tenant rows in
 //! `document_templates` override the built-in system templates.
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -17,12 +17,13 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
-use medbrains_core::permissions;
 
+pub mod delivery;
 mod templates;
 pub(crate) use templates::{SYSTEM_TEMPLATES, SystemTemplate};
 
@@ -31,6 +32,22 @@ pub struct RenderRequest {
     pub template_code: String,
     pub source_id: Uuid,
     pub watermark: Option<String>,
+}
+
+/// An error with every cause behind it. Tera's own message ("Failed to
+/// render 'doc.html'") names no field; the cause under it does, and
+/// `AppError::Internal` logs whatever it is given.
+fn error_chain(e: &dyn std::error::Error) -> String {
+    const MAX_DEPTH: usize = 8;
+    let mut out = e.to_string();
+    let mut cause = e.source();
+    for _ in 0..MAX_DEPTH {
+        let Some(c) = cause else { break };
+        out.push_str(": ");
+        out.push_str(&c.to_string());
+        cause = c.source();
+    }
+    out
 }
 
 fn renderer(state: &AppState) -> Result<&medbrains_print::gotenberg::GotenbergClient, AppError> {
@@ -150,10 +167,11 @@ async fn record_output(
         "INSERT INTO document_outputs ( \
            tenant_id, module_code, source_table, source_id, patient_id, \
            document_number, title, category, status, file_url, file_size_bytes, \
-           mime_type, page_count, watermark, context_snapshot, document_hash, generated_by) \
+           mime_type, page_count, watermark, context_snapshot, document_hash, generated_by, \
+           template_code) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, \
            'custom'::document_template_category, 'generated'::document_output_status, \
-           $8, $9, 'application/pdf', NULL, $10::watermark_type, $11, $12, $13) \
+           $8, $9, 'application/pdf', NULL, $10::watermark_type, $11, $12, $13, $14) \
          RETURNING id",
     )
     .bind(claims.tenant_id)
@@ -169,20 +187,38 @@ async fn record_output(
     .bind(context)
     .bind(&document_hash)
     .bind(claims.sub)
+    .bind(template.code)
     .fetch_one(&mut **tx)
     .await?;
 
     Ok(id)
 }
 
-/// POST /api/documents/render
-pub async fn render_document(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<RenderRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    let gotenberg = renderer(&state)?;
+/// A PDF rendered from a built-in template and stored as a document output.
+#[derive(Debug)]
+pub struct StoredPdf {
+    pub document_output_id: Uuid,
+    pub file_key: String,
+    pub title: &'static str,
+    pub pdf: Vec<u8>,
+    pub filed_to_mrd: bool,
+}
+
+/// Render `template_code` for `source_id` as `claims` — the template's
+/// print-data handler checks their permission and access — through
+/// Gotenberg, store the PDF and record it in `document_outputs`.
+///
+/// # Errors
+/// 503 when Gotenberg is unset or cannot render; the print-data handler's
+/// own 400/403/404; 400 for an unknown template.
+pub async fn render_stored(
+    state: &AppState,
+    claims: &Claims,
+    template_code: &str,
+    source_id: Uuid,
+    watermark: Option<&str>,
+) -> Result<StoredPdf, AppError> {
+    let gotenberg = renderer(state)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -190,20 +226,16 @@ pub async fn render_document(
 
     let template = SYSTEM_TEMPLATES
         .iter()
-        .find(|t| t.code == body.template_code)
-        .ok_or_else(|| {
-            AppError::BadRequest(format!("unknown template_code '{}'", body.template_code))
-        })?;
+        .find(|t| t.code == template_code)
+        .ok_or_else(|| AppError::BadRequest(format!("unknown template_code '{template_code}'")))?;
     let (html_template, paper, margins) =
-        resolve_template(&mut tx, claims.tenant_id, &body.template_code).await?;
+        resolve_template(&mut tx, claims.tenant_id, template_code).await?;
 
     // Bind live data — context builders reuse the print_data fetchers.
     let (mut context, patient_id) =
-        templates::build_context(&state, &claims, template.code, body.source_id).await?;
+        templates::build_context(state, claims, template.code, source_id).await?;
 
-    let watermark = body
-        .watermark
-        .as_deref()
+    let watermark = watermark
         .filter(|w| {
             matches!(
                 *w,
@@ -211,6 +243,7 @@ pub async fn render_document(
             )
         })
         .unwrap_or("none");
+    let watermark = sign_or_mark_draft(&mut context, watermark);
 
     if let Some(obj) = context.as_object_mut() {
         obj.insert(
@@ -225,7 +258,7 @@ pub async fn render_document(
     }
 
     let html = medbrains_print::engine::render_html(&html_template, &context)
-        .map_err(|e| AppError::Internal(format!("template render: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("template render: {}", error_chain(&e))))?;
     let pdf = gotenberg
         .html_to_pdf(&html, paper, margins)
         .await
@@ -245,23 +278,49 @@ pub async fn render_document(
         .map_err(|e| AppError::Internal(format!("document store: {e}")))?;
 
     let document_output_id = record_output(
-        &mut tx,
-        &claims,
-        template,
-        body.source_id,
-        patient_id,
-        &file_key,
-        &pdf,
-        &context,
-        watermark,
+        &mut tx, claims, template, source_id, patient_id, &file_key, &pdf, &context, watermark,
     )
     .await?;
+    // The printed case sheet is the visit's record: file it to MRD as it is made.
+    let filed_to_mrd = template.code == "clinical_notes"
+        && medbrains_clinical_notes::print::file_to_mrd(
+            &mut tx,
+            claims.tenant_id,
+            source_id,
+            document_output_id,
+        )
+        .await?;
     tx.commit().await?;
 
+    Ok(StoredPdf {
+        document_output_id,
+        file_key,
+        title: template.title,
+        pdf,
+        filed_to_mrd,
+    })
+}
+
+/// POST /api/documents/render
+pub async fn render_document(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<RenderRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+    let out = render_stored(
+        &state,
+        &claims,
+        &body.template_code,
+        body.source_id,
+        body.watermark.as_deref(),
+    )
+    .await?;
     Ok(Json(serde_json::json!({
-        "document_output_id": document_output_id,
-        "file_key": file_key,
-        "download_url": format!("/api/documents/{document_output_id}/download"),
+        "filed_to_mrd": out.filed_to_mrd,
+        "document_output_id": out.document_output_id,
+        "file_key": out.file_key,
+        "download_url": format!("/api/documents/{}/download", out.document_output_id),
     })))
 }
 
@@ -308,6 +367,29 @@ pub async fn download_document(
     ))
 }
 
+/// A clinical document carries the list of its signatures. The first one
+/// is printed in the page's signature block; a document whose list is empty
+/// is unsigned and prints as a DRAFT, unless the caller asked for a stronger
+/// mark (cancelled, duplicate, ...). Documents with no signature list (bills,
+/// labels) are left alone.
+fn sign_or_mark_draft<'a>(context: &mut serde_json::Value, watermark: &'a str) -> &'a str {
+    let Some(obj) = context.as_object_mut() else {
+        return watermark;
+    };
+    let first = match obj.get("signatures").and_then(serde_json::Value::as_array) {
+        None => return watermark,
+        Some(list) => list.first().cloned(),
+    };
+    match first {
+        Some(signature) => {
+            obj.entry("signature").or_insert(signature);
+            watermark
+        }
+        None if watermark == "none" => "draft",
+        None => watermark,
+    }
+}
+
 /// GET /api/documents/templates/{code}/preview — render the template
 /// against its bundled sample context; PDF inline for the editor.
 pub async fn preview_template(
@@ -339,7 +421,7 @@ pub async fn preview_template(
     tx.commit().await?;
 
     let html = medbrains_print::engine::render_html(&html_template, &context)
-        .map_err(|e| AppError::Internal(format!("template render: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("template render: {}", error_chain(&e))))?;
     let pdf = gotenberg
         .html_to_pdf(&html, paper, margins)
         .await
@@ -382,16 +464,15 @@ pub async fn queue_print(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM document_outputs WHERE id = $1 AND tenant_id = $2)",
+    let template_code: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT template_code FROM document_outputs WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
-    if !exists {
-        return Err(AppError::NotFound);
-    }
+    let template_code = template_code.ok_or(AppError::NotFound)?.unwrap_or_default();
+    let printer = delivery::route(&mut tx, &claims, &template_code, body.printer_id).await?;
 
     let job_id: Uuid = sqlx::query_scalar(
         "INSERT INTO print_jobs (tenant_id, document_output_id, printer_id, copies, submitted_by) \
@@ -399,16 +480,16 @@ pub async fn queue_print(
     )
     .bind(claims.tenant_id)
     .bind(id)
-    .bind(body.printer_id)
+    .bind(printer.id)
     .bind(body.copies.clamp(1, 10))
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
 
-    Ok(Json(
-        serde_json::json!({ "print_job_id": job_id, "status": "queued" }),
-    ))
+    Ok(Json(serde_json::json!({
+        "print_job_id": job_id, "status": "queued", "printer_name": printer.name,
+    })))
 }
 
 // ── Template management (admin) ─────────────────────────────
@@ -489,7 +570,7 @@ pub async fn save_template(
                 "INSERT INTO document_templates \
                    (tenant_id, code, name, module_code, body_layout, created_by) \
                  VALUES ($1, $2, $3, $4, jsonb_build_object('html', $5::text), $6) \
-                 ON CONFLICT (tenant_id, code) DO UPDATE SET \
+                 ON CONFLICT (tenant_id, code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                    body_layout = jsonb_build_object('html', $5::text), \
                    version = document_templates.version + 1, \
                    is_active = true, updated_at = now()",
@@ -521,28 +602,46 @@ pub async fn save_template(
 /// Document-render routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .route("/api/documents/render", post(render_document))
+        .route("/api/documents/{id}/download", get(download_document))
+        .route("/api/documents/{id}/queue-print", post(queue_print))
+        .route("/api/documents/print-jobs/claim", post(delivery::claim_print_jobs))
         .route(
-            "/api/documents/render",
-            post(render_document),
-        )
-        .route(
-            "/api/documents/{id}/download",
-            get(download_document),
-        )
-        .route(
-            "/api/documents/{id}/queue-print",
-            post(queue_print),
+            "/api/documents/print-jobs/{id}/result",
+            post(delivery::report_print_job),
         )
         .route(
             "/api/documents/render/templates/{code}/preview",
             get(preview_template),
         )
-        .route(
-            "/api/documents/render/templates",
-            get(list_templates),
-        )
-        .route(
-            "/api/documents/render/templates/{code}",
-            put(save_template),
-        )
+        .route("/api/documents/render/templates", get(list_templates))
+        .route("/api/documents/render/templates/{code}", put(save_template))
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use serde_json::json;
+
+    use super::sign_or_mark_draft;
+
+    #[test]
+    fn an_unsigned_clinical_document_prints_as_a_draft() {
+        let mut ctx = json!({ "signatures": [] });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "draft");
+        assert_eq!(sign_or_mark_draft(&mut ctx, "cancelled"), "cancelled");
+    }
+
+    #[test]
+    fn a_signed_document_prints_its_first_signature() {
+        let mut ctx = json!({ "signatures": [{ "verify_ref": "abc" }, { "verify_ref": "def" }] });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "none");
+        assert_eq!(ctx["signature"]["verify_ref"], "abc");
+    }
+
+    #[test]
+    fn a_bill_is_not_a_signed_document() {
+        let mut ctx = json!({ "total": 100 });
+        assert_eq!(sign_or_mark_draft(&mut ctx, "none"), "none");
+        assert!(ctx.get("signature").is_none());
+    }
 }

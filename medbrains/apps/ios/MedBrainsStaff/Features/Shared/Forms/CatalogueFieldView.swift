@@ -2,11 +2,12 @@ import MedBrainsUI
 import SwiftUI
 
 /// The loaded lists a field's choices can come from (departments, doctors,
-/// camps); fixed choices come with the field itself.
+/// camps, campaigns); fixed choices come with the field itself.
 struct OptionLists: Sendable {
     var departments: [CatalogueOption] = []
     var doctors: [CatalogueOption] = []
     var camps: [CatalogueOption] = []
+    var campaigns: [CatalogueOption] = []
 
     func options(for field: CatalogueField) -> [CatalogueOption] {
         switch field.options.source {
@@ -14,6 +15,7 @@ struct OptionLists: Sendable {
         case .departments: departments
         case .doctors: doctors
         case .camps: camps
+        case .campaigns: campaigns
         case .none, .drugCatalogue, .icd11: []
         }
     }

@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+mod access;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -7,17 +9,19 @@ use axum::{
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::mrd::{
-    MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdFormRecord,
-    MrdMedicalRecord, MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
+    MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdMedicalRecord,
+    MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put};
+use axum::routing::{get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -286,8 +290,7 @@ pub async fn list_records(
     // Dual-mode: with ?patient_id it is one patient's records, without it it is
     // every patient's. Both resolve to a set of permitted ids so the dangerous
     // mode cannot be left open while the safe one looks guarded.
-    let permitted_patients =
-        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+    let permitted_patients = access::list_filter(&state, &claims, q.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -295,7 +298,8 @@ pub async fn list_records(
 
     let rows = sqlx::query_as::<_, MrdMedicalRecord>(
         "SELECT * FROM mrd_medical_records \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL \
+           AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
            AND ($2::text IS NULL OR status::text = $2) \
            AND ($3::text IS NULL OR record_type = $3) \
          ORDER BY created_at DESC LIMIT 500",
@@ -317,8 +321,7 @@ pub async fn create_record(
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
     // The body names the patient the record is opened on.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -326,8 +329,12 @@ pub async fn create_record(
 
     // Register-first lock (opt-in): an OPD medical record needs a registered OPD visit.
     if body.record_type.as_deref().unwrap_or("opd") == "opd" {
-        medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
-            .await?;
+        medbrains_server_services::mrd_lock::assert_patient_opd_registered(
+            &mut tx,
+            &claims.tenant_id,
+            body.patient_id,
+        )
+        .await?;
     }
 
     // Auto-generate record number from sequence if not provided
@@ -394,6 +401,7 @@ pub async fn get_record(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
+    access::open_record(&state, &claims, id, "get record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -416,6 +424,7 @@ pub async fn update_record(
     Json(body): Json<UpdateRecordRequest>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, id, "update record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -457,6 +466,7 @@ pub async fn list_movements(
     Path(record_id): Path<Uuid>,
 ) -> Result<Json<Vec<MrdRecordMovement>>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
+    access::open_record(&state, &claims, record_id, "list movements").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -464,7 +474,7 @@ pub async fn list_movements(
 
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
-         WHERE medical_record_id = $1 \
+         WHERE medical_record_id = $1 AND deleted_at IS NULL \
          ORDER BY issued_at DESC LIMIT 5000",
     )
     .bind(record_id)
@@ -482,6 +492,7 @@ pub async fn issue_record(
     Json(body): Json<IssueRecordRequest>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, record_id, "issue record").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -524,6 +535,7 @@ pub async fn return_record(
     Path((record_id, movement_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
+    access::open_record(&state, &claims, record_id, "return record").await?;
 
     // The URL names a parent; scope the statement by it so it cannot address a
     // child under the wrong one. Without this the parent segment is decorative
@@ -563,7 +575,8 @@ pub async fn list_births(
 
     let rows = sqlx::query_as::<_, MrdBirthRegister>(
         "SELECT * FROM mrd_birth_register \
-         WHERE ($1::date IS NULL OR birth_date >= $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR birth_date >= $1) \
            AND ($2::date IS NULL OR birth_date <= $2) \
          ORDER BY birth_date DESC, birth_time DESC NULLS LAST LIMIT 500",
     )
@@ -585,8 +598,7 @@ pub async fn create_birth(
     // A birth register entry is statutory, and the register itself is rightly
     // unfiltered — but CREATING one names a specific patient, and recording a
     // birth against the wrong person is a legal document about the wrong life.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -686,7 +698,8 @@ pub async fn list_deaths(
 
     let rows = sqlx::query_as::<_, MrdDeathRegister>(
         "SELECT * FROM mrd_death_register \
-         WHERE ($1::date IS NULL OR death_date >= $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR death_date >= $1) \
            AND ($2::date IS NULL OR death_date <= $2) \
          ORDER BY death_date DESC, death_time DESC NULLS LAST LIMIT 500",
     )
@@ -708,8 +721,7 @@ pub async fn create_death(
     // As with births: reading the death register is statutory and stays open;
     // recording a death against a named patient is not something
     // `mrd.deaths.create` alone should authorise on ANY patient in the tenant.
-    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -811,7 +823,7 @@ pub async fn list_retention_policies(
         .await?;
 
     let rows = sqlx::query_as::<_, MrdRetentionPolicy>(
-        "SELECT * FROM mrd_retention_policies ORDER BY record_type, category LIMIT 5000",
+        "SELECT * FROM mrd_retention_policies WHERE deleted_at IS NULL ORDER BY record_type, category LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1057,6 +1069,40 @@ async fn count_case_sheet_evidence(
     Ok(count)
 }
 
+/// Every note on the visit's case sheet is signed, and countersigned where a
+/// resident wrote it: until then it is not the final record, so a packet
+/// holding one is not complete.
+async fn push_unsigned_notes_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    items: &mut Vec<MrdCaseSheetCompletenessItem>,
+    tenant_id: Uuid,
+    encounter_id: Uuid,
+    source_module: &str,
+) -> Result<(), AppError> {
+    let unsigned: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM clinical_notes \
+          WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
+            AND (status = 'draft' OR (status = 'signed' AND cosign_status = 'pending'))",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let missing =
+        format!("{unsigned} note(s) on the case sheet are unsigned or awaiting countersign");
+    push_completeness_item(
+        items,
+        "unsigned_notes",
+        "Clinical notes signed",
+        source_module,
+        true,
+        i64::from(unsigned == 0),
+        "Every note on the case sheet is signed",
+        &missing,
+    );
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn push_completeness_item(
     items: &mut Vec<MrdCaseSheetCompletenessItem>,
@@ -1105,9 +1151,9 @@ async fn create_case_sheet_pages(
             ("opd-cover", "OPD case sheet cover", "opd", "encounters"),
             (
                 "opd-datewise-soap",
-                "Datewise SOAP notes consolidation",
+                "Clinical notes, datewise",
                 "opd",
-                "consultations",
+                "clinical_notes",
             ),
             (
                 "opd-history",
@@ -1141,9 +1187,9 @@ async fn create_case_sheet_pages(
             ("ipd-admission-note", "Admission note", "ipd", "admissions"),
             (
                 "ipd-datewise-soap",
-                "Datewise SOAP progress notes consolidation",
+                "Clinical notes, datewise",
                 "ipd",
-                "ipd_progress_notes",
+                "clinical_notes",
             ),
             (
                 "ipd-nursing",
@@ -1193,7 +1239,7 @@ async fn create_case_sheet_pages(
              (tenant_id, packet_id, page_code, page_title, page_order, \
               source_module, source_table, source_id, status) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available') \
-             ON CONFLICT (packet_id, page_code) DO UPDATE SET \
+             ON CONFLICT (packet_id, page_code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
                page_title = EXCLUDED.page_title, \
                page_order = EXCLUDED.page_order, \
                source_module = EXCLUDED.source_module, \
@@ -1236,7 +1282,7 @@ pub async fn list_storage_locations(
 
     let rows = sqlx::query_as::<_, MrdStorageLocation>(
         "SELECT * FROM mrd_storage_locations \
-         WHERE tenant_id = $1 ORDER BY is_active DESC, code LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY is_active DESC, code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1353,8 +1399,7 @@ pub async fn list_case_sheet_packets(
     // Dual-mode: with ?patient_id it is one patient's records, without it it is
     // every patient's. Both resolve to a set of permitted ids so the dangerous
     // mode cannot be left open while the safe one looks guarded.
-    let permitted_patients =
-        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+    let permitted_patients = access::list_filter(&state, &claims, q.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1364,7 +1409,7 @@ pub async fn list_case_sheet_packets(
         "{} WHERE p.tenant_id = $1 \
            AND ($2::text IS NULL OR p.status = $2::text) \
            AND ($3::text IS NULL OR p.packet_type = $3::text) \
-           AND ($4::uuid IS NULL OR p.patient_id = $4) \
+           AND ($4::uuid[] IS NULL OR p.patient_id = ANY($4)) \
            AND ($5::uuid IS NULL OR p.encounter_id = $5) \
            AND ($6::uuid IS NULL OR p.admission_id = $6) \
          ORDER BY p.created_at DESC LIMIT 500",
@@ -1389,6 +1434,7 @@ pub async fn get_case_sheet_packet(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    access::open_packet(&state, &claims, id, "get case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1404,6 +1450,7 @@ pub async fn list_case_sheet_pages(
     Path(packet_id): Path<Uuid>,
 ) -> Result<Json<Vec<MrdCaseSheetPage>>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    access::open_packet(&state, &claims, packet_id, "list case sheet pages").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1411,7 +1458,7 @@ pub async fn list_case_sheet_pages(
 
     let rows = sqlx::query_as::<_, MrdCaseSheetPage>(
         "SELECT * FROM mrd_case_sheet_pages \
-         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order LIMIT 5000",
+         WHERE tenant_id = $1 AND packet_id = $2 AND deleted_at IS NULL ORDER BY page_order LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(packet_id)
@@ -1429,13 +1476,7 @@ pub async fn get_case_sheet_completeness(
 ) -> Result<Json<MrdCaseSheetCompletenessResponse>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
     // The path names the packet; the patient is one hop away on it.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CASE_SHEET_PACKET,
-        packet_id,
-    )
-    .await?;
+    access::open_packet(&state, &claims, packet_id, "get case sheet completeness").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1516,6 +1557,8 @@ pub async fn get_case_sheet_completeness(
             "SOAP note is available for MRD datewise consolidation",
             "SOAP note is missing for MRD datewise consolidation",
         );
+        push_unsigned_notes_item(&mut tx, &mut items, claims.tenant_id, encounter_id, "opd")
+            .await?;
 
         let diagnosis_count = count_case_sheet_evidence(
             &mut tx,
@@ -1708,6 +1751,14 @@ pub async fn get_case_sheet_completeness(
             "Datewise SOAP/progress notes are available for MRD consolidation",
             "Datewise SOAP/progress notes are missing for MRD consolidation",
         );
+        push_unsigned_notes_item(
+            &mut tx,
+            &mut items,
+            claims.tenant_id,
+            admission.encounter_id,
+            "ipd",
+        )
+        .await?;
 
         let nursing_count = count_case_sheet_evidence(
             &mut tx,
@@ -2214,13 +2265,7 @@ pub async fn print_case_sheet_packet(
     // any authenticated user in the tenant could perform it once per packet.
     // `mrd.case_sheets.print` already existed and was simply never asked for.
     require_permission(&claims, permissions::mrd::case_sheets::PRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::CASE_SHEET_PACKET,
-        id,
-    )
-    .await?;
+    access::open_packet(&state, &claims, id, "print case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2388,11 +2433,21 @@ pub async fn update_case_sheet_page_status(
     Json(body): Json<UpdatePageStatusRequest>,
 ) -> Result<Json<MrdCaseSheetPage>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    access::open_packet(&state, &claims, packet_id, "update case sheet page status").await?;
 
     if !["deficient", "waived", "available"].contains(&body.status.as_str()) {
-        return Err(AppError::BadRequest(format!("Invalid page status '{}'.", body.status)));
+        return Err(AppError::BadRequest(format!(
+            "Invalid page status '{}'.",
+            body.status
+        )));
     }
-    if body.status == "deficient" && body.deficiency_reason.as_deref().unwrap_or("").trim().is_empty()
+    if body.status == "deficient"
+        && body
+            .deficiency_reason
+            .as_deref()
+            .unwrap_or("")
+            .trim()
+            .is_empty()
     {
         return Err(AppError::BadRequest(
             "A reason is required to flag a page deficient.".to_owned(),
@@ -2400,7 +2455,8 @@ pub async fn update_case_sheet_page_status(
     }
 
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
 
     let row = sqlx::query_as::<_, MrdCaseSheetPage>(
         "UPDATE mrd_case_sheet_pages SET \
@@ -2433,6 +2489,7 @@ pub async fn file_case_sheet_packet(
     Json(body): Json<FileCaseSheetPacketRequest>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    access::open_packet(&state, &claims, id, "file case sheet packet").await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2656,177 +2713,21 @@ pub async fn stats_admission_discharge(
     }))
 }
 
-// ══════════════════════════════════════════════════════════
-//  Form Records
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct ListFormRecordsQuery {
-    pub admission_id: Option<Uuid>,
-    pub form_type: Option<String>,
-}
-
-pub async fn list_form_records(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(params): Query<ListFormRecordsQuery>,
-) -> Result<Json<Vec<MrdFormRecord>>, AppError> {
-    require_permission(&claims, permissions::mrd::forms::VIEW)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, MrdFormRecord>(
-        "SELECT f.*,
-                uc.full_name AS completed_by_name,
-                uv.full_name AS verified_by_name
-         FROM mrd_form_records f
-         LEFT JOIN users uc ON uc.id = f.completed_by
-         LEFT JOIN users uv ON uv.id = f.verified_by
-         WHERE ($1::uuid IS NULL OR f.admission_id = $1)
-           AND ($2::text  IS NULL OR f.form_type   = $2)
-         ORDER BY f.form_date DESC, f.form_type LIMIT 5000",
-    )
-    .bind(params.admission_id)
-    .bind(params.form_type)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CompleteFormRecordBody {
-    pub notes: Option<String>,
-}
-
-pub async fn complete_form_record(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(_body): Json<CompleteFormRecordBody>,
-) -> Result<Json<MrdFormRecord>, AppError> {
-    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
-    let user_id = claims.sub;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, MrdFormRecord>(
-        "UPDATE mrd_form_records
-            SET completed_by = $2, completed_at = NOW()
-          WHERE id = $1
-          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
-    )
-    .bind(id)
-    .bind(user_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-pub async fn verify_form_record(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<MrdFormRecord>, AppError> {
-    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
-    let user_id = claims.sub;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, MrdFormRecord>(
-        "UPDATE mrd_form_records
-            SET verified_by = $2, verified_at = NOW()
-          WHERE id = $1
-          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
-    )
-    .bind(id)
-    .bind(user_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AttachDocumentBody {
-    pub s3_key: String,
-}
-
-pub async fn attach_form_document(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<AttachDocumentBody>,
-) -> Result<Json<MrdFormRecord>, AppError> {
-    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
-    // Enforce tenant isolation: key must start with tenant prefix
-    let prefix = format!("{}/", claims.tenant_id);
-    if !body.s3_key.starts_with(&prefix) {
-        return Err(AppError::BadRequest(
-            "s3_key must belong to your tenant".to_string(),
-        ));
-    }
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, MrdFormRecord>(
-        "UPDATE mrd_form_records
-            SET pdf_url = $2
-          WHERE id = $1
-          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
-    )
-    .bind(id)
-    .bind(&body.s3_key)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Medical Records Department (records, coding, deficiencies, ROI, forms) routes.
+/// Medical Records Department (records, coding, deficiencies, ROI) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/mrd/records",
-            get(list_records).post(create_record),
-        )
-        .route(
-            "/api/mrd/records/{id}",
-            get(get_record).put(update_record),
-        )
-        .route(
-            "/api/mrd/records/{id}/movements",
-            get(list_movements),
-        )
-        .route(
-            "/api/mrd/records/{id}/issue",
-            post(issue_record),
-        )
+        .route("/api/mrd/records", get(list_records).post(create_record))
+        .route("/api/mrd/records/{id}", get(get_record).put(update_record))
+        .route("/api/mrd/records/{id}/movements", get(list_movements))
+        .route("/api/mrd/records/{id}/issue", post(issue_record))
         .route(
             "/api/mrd/records/{record_id}/movements/{id}/return",
             post(return_record),
         )
-        .route(
-            "/api/mrd/births",
-            get(list_births).post(create_birth),
-        )
-        .route(
-            "/api/mrd/births/{id}",
-            get(get_birth),
-        )
-        .route(
-            "/api/mrd/deaths",
-            get(list_deaths).post(create_death),
-        )
-        .route(
-            "/api/mrd/deaths/{id}",
-            get(get_death),
-        )
+        .route("/api/mrd/births", get(list_births).post(create_birth))
+        .route("/api/mrd/births/{id}", get(get_birth))
+        .route("/api/mrd/deaths", get(list_deaths).post(create_death))
+        .route("/api/mrd/deaths/{id}", get(get_death))
         .route(
             "/api/mrd/retention-policies",
             get(list_retention_policies).post(create_retention_policy),
@@ -2843,10 +2744,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/storage-locations/{id}",
             put(update_storage_location),
         )
-        .route(
-            "/api/mrd/case-sheets",
-            get(list_case_sheet_packets),
-        )
+        .route("/api/mrd/case-sheets", get(list_case_sheet_packets))
         .route(
             "/api/mrd/case-sheets/from-opd/{encounter_id}",
             post(generate_opd_case_sheet_packet),
@@ -2855,10 +2753,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/mrd/case-sheets/from-ipd/{admission_id}",
             post(generate_ipd_case_sheet_packet),
         )
-        .route(
-            "/api/mrd/case-sheets/{id}",
-            get(get_case_sheet_packet),
-        )
+        .route("/api/mrd/case-sheets/{id}", get(get_case_sheet_packet))
         .route(
             "/api/mrd/case-sheets/{id}/pages",
             get(list_case_sheet_pages),
@@ -2886,21 +2781,5 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/mrd/stats/admission-discharge",
             get(stats_admission_discharge),
-        )
-        .route(
-            "/api/mrd/form-records",
-            get(list_form_records),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/complete",
-            post(complete_form_record),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/verify",
-            post(verify_form_record),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/attach-document",
-            post(attach_form_document),
         )
 }

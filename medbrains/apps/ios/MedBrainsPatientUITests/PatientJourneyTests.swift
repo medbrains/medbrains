@@ -1,9 +1,12 @@
 import XCTest
 
 /// The patient's way in and the hospital's record of them, proven against
-/// the server. Only one sign-in is possible per run — the seeded code
-/// (`scripts/seed_portal_otp.sh 9876500777 424242`) is spent by it — so the
-/// signed-in scenarios share one test and the refusals stand alone.
+/// the server. Only one sign-in is possible per run — the seeded code is
+/// spent by it — so the signed-in scenarios share one test and the refusals
+/// stand alone. Each run signs in as a fresh patient:
+/// `TEST_RUNNER_PORTAL_PHONE=$(scripts/seed_portal_patient.sh 424242)`
+/// (a fixed phone drifts — one run admitted it, and nothing opens an OPD
+/// visit for a patient in hospital).
 ///
 /// - An unregistered number and a registered one get the same reply: the code
 ///   step, and no wording that says which it was.
@@ -17,7 +20,7 @@ import XCTest
 /// - An unreachable hospital names itself; it never blames the number.
 final class PatientJourneyTests: XCTestCase {
     private var app: XCUIApplication!
-    private let phone = "9876500777"
+    private let phone = ProcessInfo.processInfo.environment["PORTAL_PHONE"] ?? "9876500777"
     private let backend = ProcessInfo.processInfo.environment["MEDBRAINS_BASE_URL"] ?? "http://127.0.0.1:3000"
 
     override func setUp() {
@@ -63,7 +66,61 @@ final class PatientJourneyTests: XCTestCase {
         add(shot)
     }
 
+    /// Wait for `element`; when it never comes, keep the screen and its tree.
+    private func waitOrDump(_ id: String, timeout: TimeInterval = 10) -> Bool {
+        if el(id).waitForExistence(timeout: timeout) { return true }
+        shoot("missing-\(id)")
+        let tree = XCTAttachment(string: app.debugDescription)
+        tree.name = "tree"
+        tree.lifetime = .keepAlways
+        add(tree)
+        return false
+    }
+
     private func sees(_ text: String) -> Bool { app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists }
+
+    // MARK: privacy
+    /// From the record, the patient changes what they agree to and makes a
+    /// request — part of the signed-in walk, because the seeded code signs in once.
+    private func privacyStep(_ seed: PortalSeed, patientId: String) {
+        let reminders = "health_reminders"
+        let hadReminders = seed.dpdpConsent(patientId: patientId).purposes.contains(reminders)
+        let requestsBefore = seed.privacyRequests(patientId: patientId).count
+        el("module-consent").tap()
+        XCTAssertTrue(waitOrDump("screen-privacy"))
+        XCTAssertTrue(waitOrDump("privacy-save"), "the notice and the choices load")
+        XCTAssertFalse(el("privacy-save").isEnabled, "nothing to save until a choice changes")
+
+        // The patient changes their mind about reminders, and saves it themselves.
+        let toggle = app.switches["purpose-\(reminders)"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        // The switch itself, not its label: a tap on the text does not flip it.
+        if toggle.switches.firstMatch.exists { toggle.switches.firstMatch.tap() } else { toggle.tap() }
+        XCTAssertTrue(el("privacy-save").isEnabled)
+        el("privacy-save").tap()
+        XCTAssertTrue(waitOrDump("privacy-outcome"))
+        let after = seed.dpdpConsent(patientId: patientId)
+        XCTAssertEqual(after.purposes.contains(reminders), !hadReminders, "the server holds the patient's new choice")
+        XCTAssertEqual(after.source, "portal", "recorded as the patient's own decision")
+        shoot("patient-06c-privacy-saved")
+
+        // Their record, downloaded to hand on — the share sheet is the phone's own.
+        el("privacy-export").tap()
+        XCTAssertTrue(waitOrDump("privacy-share-export", timeout: 15), "the record downloaded and can be shared")
+
+        // A request, made from the phone, reaches the privacy officer's register.
+        el("privacy-make-request").tap()
+        XCTAssertTrue(waitOrDump("request-details"))
+        el("request-details").tap()
+        el("request-details").typeText("Please show me everything you hold about me")
+        app.buttons["request-send"].firstMatch.tap()
+        XCTAssertTrue(waitOrDump("privacy-outcome"))
+        let requests = seed.privacyRequests(patientId: patientId)
+        XCTAssertEqual(requests.count, requestsBefore + 1)
+        XCTAssertEqual(requests.first?["received_via"] as? String, "portal")
+        shoot("patient-06d-privacy-request")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
 
     // MARK: refusals
 
@@ -123,6 +180,8 @@ final class PatientJourneyTests: XCTestCase {
         guard let bill = seed.invoice(patientId: patientId, amount: 1_234.50) else { return XCTFail("the desk raises a bill through the real API") }
         XCTAssertEqual(bill.total, 1_234.50, accuracy: 0.001, "the server holds the charge")
         let owed = seed.outstanding(patientId: patientId)
+        guard let rx = seed.dispensedPrescription(patientId: patientId) else { return XCTFail("a prescription written and dispensed through the real API") }
+        let waitingBefore = seed.refillRequestsAwaiting(drug: rx.drug)
 
         launch()
         signOutIfSignedIn()
@@ -148,6 +207,21 @@ final class PatientJourneyTests: XCTestCase {
         XCTAssertTrue(sees(String(format: "₹%.2f", owed)), "still to pay = the sum of the server's balances")
         shoot("patient-06-bills")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        // The month's supply runs out: the patient asks, and it goes to the doctor.
+        el("module-prescriptions").tap()
+        XCTAssertTrue(el("screen-prescriptions").waitForExistence(timeout: 10))
+        // The button names the prescription it asks for.
+        XCTAssertTrue(waitOrDump("request-refill-\(rx.id)"), "the dispensed prescription is offered for refill")
+        let ask = el("request-refill-\(rx.id)")
+        XCTAssertTrue(sees("approves it first"), "told the doctor decides, before asking")
+        ask.tap()
+        XCTAssertTrue(el("refill-outcome").waitForExistence(timeout: 10))
+        XCTAssertTrue(sees("With your doctor"), "the request shows where it is")
+        XCTAssertEqual(seed.refillRequestsAwaiting(drug: rx.drug), waitingBefore + 1, "and it is in the prescriber's sign-offs")
+        shoot("patient-06b-refill-requested")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        privacyStep(seed, patientId: patientId)
 
         seed.setModule("companion", enabled: true)
         app.terminate()

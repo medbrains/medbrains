@@ -1,6 +1,16 @@
 import { api } from "@medbrains/api";
 
 export const billingService = {
+  getPayerSplit: (invoiceId: string) => api.getPayerSplit(invoiceId),
+  assignItemPayer: (...args: Parameters<typeof api.assignItemPayer>) =>
+    api.assignItemPayer(...args),
+  applyPayerSplit: (invoiceId: string) => api.applyPayerSplit(invoiceId),
+  getNonPayables: () => api.getNonPayables(),
+  listExchangeRates: (...args: Parameters<typeof api.listExchangeRates>) =>
+    api.listExchangeRates(...args),
+  createExchangeRate: (...args: Parameters<typeof api.createExchangeRate>) =>
+    api.createExchangeRate(...args),
+  verifyBill: (...args: Parameters<typeof api.verifyBill>) => api.verifyBill(...args),
   listInvoices: (...args: Parameters<typeof api.listInvoices>) => api.listInvoices(...args),
   cloneInvoice: (...args: Parameters<typeof api.cloneInvoice>) => api.cloneInvoice(...args),
   createInvoice: (...args: Parameters<typeof api.createInvoice>) => api.createInvoice(...args),
@@ -32,7 +42,6 @@ export const billingService = {
     api.importChargeMaster(...args),
   deleteChargeMaster: (...args: Parameters<typeof api.deleteChargeMaster>) =>
     api.deleteChargeMaster(...args),
-  calculateCopay: (...args: Parameters<typeof api.calculateCopay>) => api.calculateCopay(...args),
   erFastInvoice: (...args: Parameters<typeof api.erFastInvoice>) => api.erFastInvoice(...args),
   listPackages: (...args: Parameters<typeof api.listPackages>) => api.listPackages(...args),
   createPackage: (...args: Parameters<typeof api.createPackage>) => api.createPackage(...args),
@@ -72,6 +81,8 @@ export const billingService = {
     api.updateTenantSetting(...args),
   listAdvances: (...args: Parameters<typeof api.listAdvances>) => api.listAdvances(...args),
   createAdvance: (...args: Parameters<typeof api.createAdvance>) => api.createAdvance(...args),
+  getFinalBillChecklist: (...args: Parameters<typeof api.getFinalBillChecklist>) =>
+    api.getFinalBillChecklist(...args),
   adjustAdvance: (...args: Parameters<typeof api.adjustAdvance>) => api.adjustAdvance(...args),
   refundAdvance: (...args: Parameters<typeof api.refundAdvance>) => api.refundAdvance(...args),
   listCorporates: (...args: Parameters<typeof api.listCorporates>) => api.listCorporates(...args),

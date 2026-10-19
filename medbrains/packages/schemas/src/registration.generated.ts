@@ -703,6 +703,21 @@ export const registrationCatalogue: RegistrationCatalogue = {
       default: null,
     },
     {
+      id: "campaign_id",
+      label: "Campaign",
+      step: "intake",
+      kind: "select",
+      options: {
+        source: "campaigns",
+      },
+      rules: [],
+      sent: true,
+      hint: "The advert, offer or drive that brought them in, if they say.",
+      show_when: [],
+      hide_when: [],
+      default: null,
+    },
+    {
       id: "department_id",
       label: "Department",
       step: "intake",

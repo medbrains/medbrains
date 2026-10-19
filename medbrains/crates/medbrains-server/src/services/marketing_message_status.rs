@@ -80,7 +80,8 @@ async fn reconcile(pool: &PgPool) -> Result<(u64, u64), AppError> {
     .await?
     .rows_affected();
 
-    // Exhausted retries. Recorded as failed rather than left queued: a run
+    // Exhausted retries, or no provider configured (`skipped_unconfigured`:
+    // nothing was sent). Recorded as failed rather than left queued: a run
     // that looks permanently in-flight tells an operator nothing, and a
     // message that never arrived must not count against a frequency cap.
     let failed = sqlx::query(
@@ -90,7 +91,7 @@ async fn reconcile(pool: &PgPool) -> Result<(u64, u64), AppError> {
          FROM outbox_events o \
          WHERE o.aggregate_type = 'mkt_message' AND o.aggregate_id = m.id \
            AND o.tenant_id = m.tenant_id \
-           AND o.status = 'dlq' AND m.status = 'queued'",
+           AND o.status IN ('dlq', 'skipped_unconfigured') AND m.status = 'queued'",
     )
     .execute(pool)
     .await?

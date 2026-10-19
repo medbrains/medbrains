@@ -77,6 +77,8 @@ export interface DashboardWidget {
   min_height: number;
   refresh_interval: number | null;
   is_visible: boolean;
+  /** The catalogue entry this widget was placed from, if any. */
+  template_code: string | null;
   permission_code: string | null;
   sort_order: number;
   created_at: string;
@@ -102,6 +104,8 @@ export interface DashboardWithWidgets {
 export interface WidgetTemplate {
   id: string;
   tenant_id: string | null;
+  /** Stable key a placed widget names; ids change when the catalogue syncs. */
+  code: string | null;
   name: string;
   description: string | null;
   widget_type: WidgetType;
@@ -119,7 +123,11 @@ export interface WidgetTemplate {
 }
 
 export interface WidgetDataSource {
-  type: "module_query" | "api" | "static";
+  type: "module_query" | "api" | "static" | "sql_count" | "report";
+  /** For `report`: the report whose chart this widget is. */
+  report_id?: string;
+  /** For `report`: drawn as stacked bars. */
+  stacked?: boolean;
   module?: string;
   query?: string;
   params?: Record<string, unknown>;
@@ -260,6 +268,11 @@ export interface WidgetDataResponse {
   widget_id: string;
   data: unknown;
   fetched_at: string;
+}
+
+/** A viewer's own narrowing of one widget (only narrows; never widens). */
+export interface WidgetViewFilter {
+  department_id?: string;
 }
 
 export interface DashboardStatsResponse {
@@ -575,6 +588,9 @@ export interface ImplantRegistryEntry {
   id: string;
   tenant_id: string;
   catalog_item_id: string;
+  /** Joined by the list endpoint only; null on create/update responses. */
+  catalog_item_name: string | null;
+  catalog_item_code: string | null;
   batch_stock_id: string | null;
   patient_id: string;
   serial_number: string | null;
@@ -595,6 +611,9 @@ export interface EquipmentCondemnation {
   id: string;
   tenant_id: string;
   catalog_item_id: string;
+  /** Joined by the list endpoint only; null on create/update responses. */
+  catalog_item_name: string | null;
+  catalog_item_code: string | null;
   condemnation_number: string;
   status: CondemnationStatus;
   reason: string;
@@ -829,7 +848,7 @@ export interface ConsignmentUsageRequest {
 //  OPD Module
 // ══════════════════════════════════════════════════════════
 
-export type EncounterType = "opd" | "ipd" | "emergency";
+export type EncounterType = "opd" | "ipd" | "emergency" | "home_health";
 export type EncounterStatus = "open" | "in_progress" | "completed" | "cancelled";
 export type QueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
@@ -870,6 +889,8 @@ export interface OpdQueue {
   created_at: string;
   updated_at: string;
 }
+
+export type QueueRowKind = "primary" | "cross_consult" | "returned";
 
 export interface QueueEntry {
   id: string;
@@ -916,6 +937,11 @@ export interface QueueEntry {
   appointment_slot_start: string | null;
   appointment_slot_end: string | null;
   appointment_reason: string | null;
+  /** `primary`, `cross_consult` (a colleague's opinion) or `returned`. */
+  kind: QueueRowKind;
+  /** For a referral row: who asked, and why. */
+  referral_from_doctor: string | null;
+  referral_reason: string | null;
 }
 
 export interface EncounterListResponse {
@@ -943,6 +969,18 @@ export interface CreateEncounterResponse {
   token_number: string | null;
   /** Why the queue gave no token, e.g. "General OPD is closed — tokens from 15:00". */
   token_refused: string | null;
+}
+
+/**
+ * A returning patient's last OPD visit, for the desk starting today's.
+ * An id is null when that doctor or department no longer takes patients.
+ */
+export interface LastOpdVisit {
+  encounter_date: string;
+  doctor_id: string | null;
+  doctor_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
 }
 
 /** Move a waiting visit to another department. */
@@ -1712,39 +1750,6 @@ export interface Consultation {
   updated_at: string;
 }
 
-export interface CreateConsultationRequest {
-  chief_complaint?: string;
-  history?: string;
-  examination?: string;
-  plan?: string;
-  notes?: string;
-  hpi?: string;
-  past_medical_history?: PastMedicalEntry[];
-  past_surgical_history?: PastSurgicalEntry[];
-  family_history?: FamilyHistoryEntry[];
-  social_history?: SocialHistory;
-  review_of_systems?: ReviewOfSystems;
-  physical_examination?: PhysicalExamination;
-  general_appearance?: string;
-}
-
-export interface UpdateConsultationRequest {
-  chief_complaint?: string;
-  history?: string;
-  examination?: string;
-  plan?: string;
-  notes?: string;
-  hpi?: string;
-  past_medical_history?: PastMedicalEntry[];
-  past_surgical_history?: PastSurgicalEntry[];
-  family_history?: FamilyHistoryEntry[];
-  social_history?: SocialHistory;
-  review_of_systems?: ReviewOfSystems;
-  physical_examination?: PhysicalExamination;
-  general_appearance?: string;
-  snomed_codes?: Array<{ code: string; display: string }>;
-}
-
 export type DiagnosisSeverity = "mild" | "moderate" | "severe" | "critical";
 export type DiagnosisCertainty = "suspected" | "probable" | "confirmed" | "ruled_out";
 export type DiagnosisCodingSystem = "icd10" | "icd11" | "snomed";
@@ -1769,6 +1774,10 @@ export interface Diagnosis {
   snomed_code: string | null;
   snomed_display: string | null;
   created_at: string;
+  /** Who made the diagnosis; null for diagnoses from before it was kept. */
+  recorded_by_name?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CreateDiagnosisRequest {
@@ -2043,6 +2052,10 @@ export interface Prescription {
   read_back_confirmed: boolean;
   countersign_due_at: string | null;
   is_signed: boolean;
+  repeats_allowed: number;
+  repeat_interval_days: number | null;
+  repeats_used: number;
+  valid_until: string | null;
   created_at: string;
   updated_at: string;
 }

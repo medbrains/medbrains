@@ -93,6 +93,10 @@ pub fn router() -> Router<AppState> {
             get(documents::list_printers).post(documents::create_printer),
         )
         .route(
+            "/api/documents/printers/{id}/active",
+            put(documents::set_printer_active),
+        )
+        .route(
             "/api/documents/print-editor/capabilities",
             get(documents::print_editor_capabilities),
         )

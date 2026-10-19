@@ -2,30 +2,37 @@ package com.medbrains.patient
 
 import android.content.Intent
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.After
 import com.medbrains.testkit.Evidence
+import java.io.File
+import org.junit.After
 import org.junit.Rule
-import org.junit.rules.RuleChain
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
 /**
  * The patient's way in and the hospital's record of them, proven against the
- * server. See PatientJourneyTests.swift for the scenarios; the code is seeded
- * with `scripts/seed_portal_otp.sh 9876500777 424242` before the run and is
- * spent by the one sign-in, so the signed-in scenarios share a test.
+ * server. See PatientJourneyTests.swift for the scenarios. The code is spent
+ * by the one sign-in, so the signed-in scenarios share a test. Each run signs
+ * in as a fresh patient: `PHONE=$(scripts/seed_portal_patient.sh 424242)`, passed
+ * as `-Pandroid.testInstrumentationRunnerArguments.portalPhone=$PHONE`.
  */
 @RunWith(AndroidJUnit4::class)
 class PatientJourneyTest {
@@ -33,7 +40,7 @@ class PatientJourneyTest {
 
     @get:Rule
     val chain: RuleChain = RuleChain.outerRule(compose).around(Evidence { compose })
-    private val phone = "9876500777"
+    private val phone = InstrumentationRegistry.getArguments().getString("portalPhone") ?: "9876500777"
     private var scenario: ActivityScenario<MainActivity>? = null
 
     private fun launch(baseUrl: String = "http://10.0.2.2:3000") {
@@ -101,6 +108,49 @@ class PatientJourneyTest {
 
     // ── the record
 
+    /**
+     * From the record, the patient changes what they agree to and makes a
+     * request — part of the signed-in walk, because the seeded code signs in once.
+     */
+    private fun privacyStep(seed: PortalSeed, patientId: String) {
+        val reminders = "health_reminders"
+        val hadReminders = reminders in seed.dpdpConsent(patientId).first
+        val requestsBefore = seed.privacyRequests(patientId).length()
+        compose.onNodeWithTag("module-consent").performClick()
+        compose.waitUntil(10_000) { has("privacy-save") }
+        compose.onNodeWithTag("privacy-save").assertIsNotEnabled()
+
+        // The patient changes their mind about reminders, and saves it themselves.
+        compose.onNodeWithTag("purpose-$reminders").performScrollTo().performClick()
+        compose.onNodeWithTag("privacy-save").performScrollTo().assertIsEnabled().performClick()
+        compose.waitUntil(10_000) { has("privacy-outcome") }
+        val (purposes, source) = seed.dpdpConsent(patientId)
+        check((reminders in purposes) == !hadReminders) { "the server holds the patient's new choice" }
+        check(source == "portal") { "recorded as the patient's own decision" }
+
+        // Their record, downloaded to hand on — the share sheet is the phone's own.
+        compose.onNodeWithTag("privacy-export").performScrollTo().performClick()
+        // The notification speaks its message as a content description, not as text.
+        fun outcome() = compose.onAllNodes(hasTestTag("privacy-outcome")).fetchSemanticsNodes().joinToString { it.config.toString() }
+        runCatching { compose.waitUntil(30_000) { has("privacy-share-export") || "didn't download" in outcome() } }
+        check(has("privacy-share-export")) {
+            val tree = compose.onRoot(useUnmergedTree = true).printToString().lines()
+                .filter { "privacy" in it || "Download" in it || "Preparing" in it || "Share" in it || "Text =" in it }
+                .take(40).joinToString("\n")
+            "the record downloads: ${outcome()}\n$tree"
+        }
+        val saved = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "$EXPORT_DIR/$EXPORT_FILE").readText()
+        check(saved.contains("\"resourceType\":\"Bundle\"") && saved.contains(patientId)) { "the file is the patient's FHIR record" }
+
+        // A request, made from the phone, reaches the privacy officer's register.
+        compose.onNodeWithTag("privacy-make-request").performScrollTo().performClick()
+        compose.waitUntil(5_000) { has("request-details") }
+        compose.onNodeWithTag("request-details").performScrollTo().performTextInput("Please show me everything you hold about me")
+        compose.onNodeWithTag("request-send").performScrollTo().performClick()
+        compose.waitUntil(10_000) { seed.privacyRequests(patientId).length() == requestsBefore + 1 }
+        check(seed.privacyRequests(patientId).getJSONObject(0).optString("received_via") == "portal") { "on the register as a portal request" }
+    }
+
     @Test
     fun theSeededCodeOpensTheRecordTheDeskHolds() {
         val seed = PortalSeed.admin()
@@ -110,6 +160,8 @@ class PatientJourneyTest {
             val bill = checkNotNull(seed.invoice(patientId, 1234.50)) { "the desk raises a bill through the real API" }
             check(bill.total == 1234.50) { "the server holds the charge" }
             val owed = seed.outstanding(patientId)
+            val (rx, drug) = seed.dispensedPrescription(patientId)
+            val waitingBefore = seed.refillRequestsAwaiting(drug)
 
             launch(); signOutIfSignedIn()
             compose.onNodeWithTag("phone").performTextInput(phone)
@@ -129,6 +181,21 @@ class PatientJourneyTest {
             check(seesText("₹%.2f".format(bill.total), sub = true)) { "the server's total, not a client sum" }
             check(seesText("₹%.2f due".format(bill.balance), sub = true)) { "unpaid, and says so" }
             check(seesText("₹%.2f".format(owed))) { "still to pay = the sum of the server's balances" }
+
+            // The supply runs out: the patient asks, and it goes to the doctor.
+            launch()
+            compose.waitUntil(15_000) { has("module-prescriptions") }
+            compose.onNodeWithTag("module-prescriptions").performClick()
+            compose.waitUntil(10_000) { has("refill-$rx") }
+            check(seesText("approves it first", sub = true)) { "told the doctor decides, before asking" }
+            compose.onNodeWithTag("request-refill-$rx").performScrollTo().performClick()
+            compose.waitUntil(10_000) { has("refill-outcome") }
+            compose.waitUntil(10_000) { seesText("With your doctor") }
+            check(seed.refillRequestsAwaiting(drug) == waitingBefore + 1) { "and it is in the prescriber's sign-offs" }
+            // Back to the record the way the walk does it: the session survives a relaunch.
+            launch()
+            compose.waitUntil(15_000) { has("module-consent") }
+            privacyStep(seed, patientId)
 
             seed.setModule("companion", enabled = true)
             launch()

@@ -37,6 +37,11 @@ pub struct PharmacyCatalog {
     /// GTIN/EAN-13 or other pack barcode identifying the product. Batch and
     /// expiry are not encoded here — those live on the batch.
     pub barcode: Option<String>,
+    /// Who may let a refill through on the patient's request: `pharmacy`,
+    /// `doctor_approval` or `never`. Controlled drugs are never refilled.
+    pub refill_policy: String,
+    /// Needs refrigeration: delivered only by the hospital's runner, never by courier.
+    pub needs_cold_chain: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,7 +51,9 @@ pub struct PharmacyOrder {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub prescription_id: Option<Uuid>,
-    pub patient_id: Uuid,
+    /// None for a walk-in counter sale: the column is nullable and an
+    /// over-the-counter sale need not name anyone.
+    pub patient_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
     pub ordered_by: Uuid,
     pub status: String,
@@ -61,6 +68,14 @@ pub struct PharmacyOrder {
     pub dispensed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The patient's name and UHID, sent by the lists so a pharmacist can
+    /// check identity without fetching each record; absent elsewhere.
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patient_name: Option<String>,
+    #[sqlx(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patient_uhid: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -34,6 +34,7 @@ pub async fn list_modules(
         "SELECT DISTINCT module_code, \
          MIN(entity_label) AS label \
          FROM module_entity_schemas \
+         WHERE deleted_at IS NULL \
          GROUP BY module_code \
          ORDER BY module_code LIMIT 5000",
     )
@@ -67,7 +68,7 @@ pub async fn list_module_entities(
 
     let entities = sqlx::query_as::<_, ModuleEntitySchema>(
         "SELECT * FROM module_entity_schemas \
-         WHERE module_code = $1 \
+         WHERE module_code = $1 AND deleted_at IS NULL \
          ORDER BY entity_label LIMIT 5000",
     )
     .bind(&code)
@@ -86,7 +87,7 @@ pub async fn list_event_schemas(
     require_permission(&claims, permissions::integration::LIST)?;
 
     let events = sqlx::query_as::<_, EventSchema>(
-        "SELECT * FROM event_schemas ORDER BY module_code, event_type LIMIT 5000",
+        "SELECT * FROM event_schemas WHERE deleted_at IS NULL ORDER BY module_code, event_type LIMIT 5000",
     )
     .fetch_all(&state.db)
     .await?;

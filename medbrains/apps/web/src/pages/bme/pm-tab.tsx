@@ -31,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { BREAKDOWN_PRIORITIES, fmtDate, PM_FREQUENCIES, priorityBadge } from "./shared";
@@ -232,6 +233,10 @@ export function PmTab() {
           </Tooltip>
         ) : null,
     },
+    printColumn<BmeWorkOrder>("bme_work_order", {
+      label: (r) => r.work_order_number,
+      when: (r) => r.order_type === "preventive",
+    }),
   ];
 
   const pmCompliance = useMemo(() => {

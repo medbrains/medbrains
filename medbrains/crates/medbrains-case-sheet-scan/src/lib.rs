@@ -59,7 +59,7 @@ pub async fn create_scan(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Register-first lock (opt-in): no case-sheet scan until the OPD visit is registered.
-    medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
+    medbrains_server_services::mrd_lock::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
 
     let scan = sqlx::query_as::<_, CaseSheetScan>(
         "INSERT INTO case_sheet_scans \
@@ -312,7 +312,7 @@ pub async fn commit_scan(
             (tenant_id, patient_id, text, last_author_id, \
              last_author_name, last_edited_at, version) \
          VALUES ($1, $2, $3, $4, (SELECT full_name FROM users WHERE id = $4), now(), 1) \
-         ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, patient_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
             text = patient_clinical_notes.text || E'\\n\\n' || EXCLUDED.text, \
             last_author_id = EXCLUDED.last_author_id, \
             last_author_name = EXCLUDED.last_author_name, \

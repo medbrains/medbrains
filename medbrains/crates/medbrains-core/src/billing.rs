@@ -43,6 +43,8 @@ pub enum ChargeSource {
     Diet,
     Cssd,
     Ambulance,
+    Consumable,
+    Dental,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -312,6 +314,23 @@ pub struct InsuranceClaim {
     pub nhcx_recipient_code: Option<String>,
     pub nhcx_response_payload: Option<serde_json::Value>,
     pub nhcx_response_at: Option<DateTime<Utc>>,
+    pub nhcx_workflow_id: Option<Uuid>,
+    /// `queued` → `sent` | `send_failed`, then the payer's `x-hcx-status`.
+    pub nhcx_status: Option<String>,
+    /// Why the gateway refused the message, when it did.
+    pub nhcx_disposition: Option<String>,
+    /// The payer's FHIR outcome: `complete`, `partial`, `error` or `queued`.
+    pub nhcx_outcome: Option<String>,
+    pub nhcx_submitted_at: Option<DateTime<Utc>>,
+    pub admission_id: Option<Uuid>,
+    pub insurance_id: Option<Uuid>,
+    pub claim_amount: Option<rust_decimal::Decimal>,
+    /// The claimed invoice's total, kept by the `insurance_claim_money` trigger.
+    pub total_bill_amount: rust_decimal::Decimal,
+    /// What the payer will not pay: bill total less the approved amount.
+    pub deductions: rust_decimal::Decimal,
+    /// Bill total less the payer's share less what the patient already paid.
+    pub patient_payable: rust_decimal::Decimal,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

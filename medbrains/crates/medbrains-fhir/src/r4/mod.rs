@@ -6,7 +6,9 @@
 pub mod bundle;
 pub mod claim;
 pub mod coding;
+pub mod composition;
 pub mod coverage;
+pub mod diagnostic_report;
 pub mod encounter;
 pub mod identifier;
 pub mod observation;
@@ -26,4 +28,6 @@ pub enum Resource {
     Coverage(coverage::Coverage),
     Claim(claim::Claim),
     Bundle(bundle::Bundle),
+    Composition(composition::Composition),
+    DiagnosticReport(diagnostic_report::DiagnosticReport),
 }

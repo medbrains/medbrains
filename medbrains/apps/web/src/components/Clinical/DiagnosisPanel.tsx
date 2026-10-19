@@ -23,12 +23,12 @@ import {
   type FieldAccessLevel,
   P,
   type PatientDiagnosisRow,
+  type SnomedConceptHit,
   type TerminologySearchResult,
   type UpdateDiagnosisRequest,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconCircleCheck, IconPlus, IconRotateClockwise, IconTrash } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -37,11 +37,10 @@ import {
   terminologySourceLabel,
   terminologySystemLabel,
 } from "@/domain/clinical/terminology-policy";
-import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { todayDateString } from "@/lib/date-utils";
-import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import styles from "./diagnosis-panel.module.scss";
 import { Icd11CodeSelect } from "./Icd11CodeSelect";
+import { SnomedConceptSelect } from "./SnomedConceptSelect";
 
 interface DiagnosisPanelProps {
   encounterId: string;
@@ -105,6 +104,14 @@ function canEditDiagnosisField(access: FieldAccessLevel): boolean {
   return access === "edit";
 }
 
+/** Who made it — the visit's doctor only stands in when nobody was recorded. */
+function diagnosisAuthor(d: { recorded_by_name?: string | null; doctor_name?: string | null }) {
+  if (d.recorded_by_name) return `Recorded by ${d.recorded_by_name}`;
+  return d.doctor_name
+    ? `Visit doctor ${d.doctor_name} (author not recorded)`
+    : "Author not recorded";
+}
+
 function displayDate(value: string | null | undefined): string {
   if (!value) return "Not dated";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
@@ -154,8 +161,6 @@ export function DiagnosisPanel({
   const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
   const [snomedCode, setSnomedCode] = useState("");
   const [snomedDisplay, setSnomedDisplay] = useState("");
-  const [terminologySearch, setTerminologySearch] = useState("");
-  const pacedTerminologySearch = usePacedQueryValue(terminologySearch.trim(), 300);
   const [isPrimary, setIsPrimary] = useState(false);
   const [severity, setSeverity] = useState<DiagnosisSeverity | null>("moderate");
   const [certainty, setCertainty] = useState<DiagnosisCertainty | null>("confirmed");
@@ -164,7 +169,9 @@ export function DiagnosisPanel({
   const [resolutionNote, setResolutionNote] = useState("");
   const [resolutionOpened, resolutionHandlers] = useDisclosure(false);
   const primarySystem = DIAGNOSIS_TERMINOLOGY_POLICY.primarySystem;
-  const snomedEnabled = DIAGNOSIS_TERMINOLOGY_POLICY.secondarySystems.includes("snomed");
+  // SNOMED CT alongside ICD-11, for those who may browse it; stored in
+  // diagnoses.snomed_code and counted by hierarchy in SNOMED analytics.
+  const canCodeSnomed = useHasPermission(P.TERMINOLOGY.SNOMED.VIEW);
   const canEditDiagnosis = canEditDiagnosisField(diagnosisAccess);
   const canCreateDiagnosis = canCreate && hasDiagnosisCreatePermission && canEditDiagnosis;
   const canUpdateDiagnosis = canUpdate && hasDiagnosisUpdatePermission && canEditDiagnosis;
@@ -173,24 +180,12 @@ export function DiagnosisPanel({
   const diagnosisText = (value: string | null | undefined) =>
     fieldAccessText(diagnosisAccess, value);
 
-  const { data: snomedResults } = useQuery({
-    queryKey: ["terminology-search", "snomed", pacedTerminologySearch],
-    queryFn: () =>
-      clinicalSupportService.searchTerminology({
-        system: "snomed",
-        q: pacedTerminologySearch,
-        limit: 5,
-      }),
-    enabled: snomedEnabled && pacedTerminologySearch.length >= 2,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 60 * 60 * 1000,
-  });
-
-  const handleSnomedSelect = (result: TerminologySearchResult) => {
-    setSnomedCode(result.code);
-    setSnomedDisplay(result.display);
-    if (!description.trim()) {
-      setDescription(result.display);
+  const handleSnomedSelect = (hit: SnomedConceptHit | null) => {
+    const term = hit?.preferred_term ?? hit?.fsn ?? "";
+    setSnomedCode(hit?.concept_id ?? "");
+    setSnomedDisplay(term);
+    if (hit && !description.trim()) {
+      setDescription(term);
     }
   };
 
@@ -199,7 +194,6 @@ export function DiagnosisPanel({
     if (!nextValue) {
       setSelectedIcd11(null);
       setDescription("");
-      setTerminologySearch("");
     }
   };
 
@@ -207,7 +201,6 @@ export function DiagnosisPanel({
     setSelectedIcd11(result);
     setIcdCode(result.code);
     setDescription(result.display);
-    setTerminologySearch(result.display);
   };
 
   const handleAdd = () => {
@@ -231,7 +224,6 @@ export function DiagnosisPanel({
     setSelectedIcd11(null);
     setSnomedCode("");
     setSnomedDisplay("");
-    setTerminologySearch("");
     setIsPrimary(false);
     setSeverity("moderate");
     setCertainty("confirmed");
@@ -320,7 +312,6 @@ export function DiagnosisPanel({
               placeholder={terminologySearchPlaceholder(primarySystem)}
               value={icdCode || null}
               onChange={handleIcdCodeChange}
-              onSearchTextChange={setTerminologySearch}
               onSelectResult={handleIcdResultSelect}
               w={300}
               size="sm"
@@ -381,23 +372,15 @@ export function DiagnosisPanel({
               {t("common:add")}
             </Button>
           </Group>
-          {snomedEnabled && (snomedResults?.length ?? 0) > 0 && (
-            <Group gap={6}>
-              <Text size="xs" c="dimmed">
-                SNOMED CT concepts
-              </Text>
-              {snomedResults?.map((result) => (
-                <Button
-                  key={result.code}
-                  size="compact-xs"
-                  variant={snomedCode === result.code ? "filled" : "light"}
-                  color="teal"
-                  onClick={() => handleSnomedSelect(result)}
-                >
-                  {result.display}
-                </Button>
-              ))}
-            </Group>
+          {canCodeSnomed && (
+            <SnomedConceptSelect
+              aria-label="SNOMED CT concept"
+              placeholder="SNOMED CT concept (optional)"
+              value={snomedCode || null}
+              displayValue={snomedDisplay}
+              onChange={handleSnomedSelect}
+              size="sm"
+            />
           )}
         </Stack>
       )}
@@ -564,8 +547,10 @@ export function DiagnosisPanel({
                     )}
                   </Group>
                   <Text size="xs" c="dimmed" mt={4}>
-                    {displayDate(diagnosis.created_at)} ·{" "}
-                    {diagnosis.doctor_name ?? "Provider not recorded"}
+                    {displayDate(diagnosis.created_at)} · {diagnosisAuthor(diagnosis)}
+                    {diagnosis.updated_by_name && diagnosis.updated_at
+                      ? ` · changed by ${diagnosis.updated_by_name} ${displayDate(diagnosis.updated_at)}`
+                      : ""}
                     {canShowDiagnosisDetails && diagnosis.resolved_date
                       ? ` · resolved ${displayDate(diagnosis.resolved_date)}`
                       : ""}

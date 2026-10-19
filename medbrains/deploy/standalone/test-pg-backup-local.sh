@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Runnable check for medbrains-pg-backup's local (BACKUP_DIR) destination.
-# That path ends in `find -delete` over a directory of PHI dumps and runs
-# as root on a host we do not own, so the guards get a test.
+# Runnable check for medbrains-pg-backup: the local (BACKUP_DIR) destination,
+# whose `find -delete` over PHI dumps runs as root on a host we do not own,
+# and the S3 destination's database + files shipping (aws stubbed).
 #
 #   bash deploy/standalone/test-pg-backup-local.sh
 set -uo pipefail
@@ -75,5 +75,36 @@ run "$DIR" BACKUP_KEEP_DAYS=14 > /dev/null
 touch -t "$(date -v-3d +%Y%m%d0000 2>/dev/null || date -d '3 days ago' +%Y%m%d0000)" "$DIR/dead.dump.partial"
 run "$DIR" > /dev/null
 [[ ! -f "$DIR/dead.dump.partial" ]] && ok "clears a stale .partial" || bad "clears a stale .partial"
+
+# 8. Local branch copies no files: a second copy on the same disk is not a backup.
+files=$(find "$DIR" -type f ! -name '*.dump' 2>/dev/null | wc -l | tr -d ' ')
+[[ "$files" == "0" ]] && ok "local branch writes only dumps" || bad "local branch writes only dumps ($files other files)"
+
+# 9-11. S3 branch: dump streams to pg-backups/, each file root syncs to
+# file-backups/<host><root>/ with pgdata excluded, and an absent root is skipped.
+cat > "$TMP/bin/aws" <<STUB
+#!/bin/sh
+echo "\$*" >> "$TMP/aws.log"
+# Only \`s3 cp -\` reads stdin; draining it for \`sync\` would block forever.
+[ "\$3" = "-" ] && cat > /dev/null
+exit 0
+STUB
+chmod +x "$TMP/bin/aws"
+mkdir -p "$TMP/files/objects" "$TMP/files/pgdata"
+out="$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$TMP" \
+        POSTGRES_USER=medbrains POSTGRES_DB=medbrains \
+        DATABASE_URL="postgres://u:p@127.0.0.1:5432/medbrains" \
+        BACKUP_BUCKET=bkt BACKUP_FILES_ROOTS="$TMP/files $TMP/nope" \
+        bash "$SCRIPT" 2>&1)"; rc=$?
+host="$(hostname)"
+if [[ $rc -eq 0 ]] && grep -q "^s3 cp - s3://bkt/pg-backups/$host/" "$TMP/aws.log"; then
+    ok "s3: dump streams to pg-backups/"
+else bad "s3: dump streams to pg-backups/ (rc=$rc): $out"; fi
+if grep -q "^s3 sync $TMP/files s3://bkt/file-backups/$host$TMP/files/ --exclude pgdata/\*" "$TMP/aws.log"; then
+    ok "s3: files sync to file-backups/<host><root>/ excluding pgdata"
+else bad "s3: files sync: $(cat "$TMP/aws.log")"; fi
+if [[ "$out" == *"$TMP/nope absent, skipping"* ]] && ! grep -q "$TMP/nope" "$TMP/aws.log"; then
+    ok "s3: absent file root skipped"
+else bad "s3: absent file root skipped"; fi
 
 exit "$fail"

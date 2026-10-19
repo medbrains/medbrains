@@ -10,7 +10,7 @@ final class RoleLandingTests: JourneyCase {
     private let landing: [(String, String?)] = [
         ("doctor", "Doctor"), ("nurse", "Nurse"), ("receptionist", "Reception"), ("front_office_staff", "Reception"),
         ("pharmacist", "Pharmacy"), ("lab_technician", "Lab"), ("blood_bank_tech", "Blood Bank"), ("billing_clerk", "Billing"),
-        ("biomed_engineer", "BME"), ("security_guard", "Security"), ("hr_officer", "HR"), ("camp_coordinator", "Camp"), ("hospital_admin", "Doctor"),
+        ("biomed_engineer", "BME"), ("security_guard", "Security"), ("hr_officer", "HR"), ("camp_coordinator", "Camp"), ("delivery_runner", "Deliveries"), ("hospital_admin", "Doctor"),
         ("dietitian", nil), ("canteen_staff", nil),
     ]
 
@@ -28,6 +28,7 @@ final class RoleLandingTests: JourneyCase {
             field.tap(); field.typeText(who.username)
             app.secureTextFields["Password"].tap(); app.secureTextFields["Password"].typeText(who.password)
             app.buttons["signIn"].tap()
+            Session.declineSavePassword(app)
             if let tab {
                 let button = app.tabBars.buttons[tab].firstMatch
                 XCTAssertTrue(button.waitForExistence(timeout: 15), "\(role) lands on \(tab)")

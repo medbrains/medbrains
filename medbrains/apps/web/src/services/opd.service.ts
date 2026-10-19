@@ -2,6 +2,7 @@ import { api } from "@medbrains/api";
 
 export const opdService = {
   getEncounter: (...args: Parameters<typeof api.getEncounter>) => api.getEncounter(...args),
+  getLastOpdVisit: (patientId: string) => api.getLastOpdVisit(patientId),
   getRegistrationPolicy: () => api.getRegistrationPolicy(),
   updateRegistrationPolicy: (data: Parameters<typeof api.updateRegistrationPolicy>[0]) =>
     api.updateRegistrationPolicy(data),
@@ -42,10 +43,6 @@ export const opdService = {
     api.opdPharmacyDispatchStatus(...args),
   listConsultationTemplates: (...args: Parameters<typeof api.listConsultationTemplates>) =>
     api.listConsultationTemplates(...args),
-  createConsultation: (...args: Parameters<typeof api.createConsultation>) =>
-    api.createConsultation(...args),
-  updateConsultation: (...args: Parameters<typeof api.updateConsultation>) =>
-    api.updateConsultation(...args),
   createDiagnosis: (...args: Parameters<typeof api.createDiagnosis>) =>
     api.createDiagnosis(...args),
   updateDiagnosis: (...args: Parameters<typeof api.updateDiagnosis>) =>
@@ -94,6 +91,12 @@ export const opdService = {
   listPatientReferrals: (...args: Parameters<typeof api.listPatientReferrals>) =>
     api.listPatientReferrals(...args),
   createReferral: (...args: Parameters<typeof api.createReferral>) => api.createReferral(...args),
+  acceptReferral: (...args: Parameters<typeof api.acceptReferral>) => api.acceptReferral(...args),
+  declineReferral: (...args: Parameters<typeof api.declineReferral>) =>
+    api.declineReferral(...args),
+  completeReferral: (...args: Parameters<typeof api.completeReferral>) =>
+    api.completeReferral(...args),
+  cancelReferral: (...args: Parameters<typeof api.cancelReferral>) => api.cancelReferral(...args),
   listReminders: (...args: Parameters<typeof api.listReminders>) => api.listReminders(...args),
   createReminder: (...args: Parameters<typeof api.createReminder>) => api.createReminder(...args),
   completeReminder: (...args: Parameters<typeof api.completeReminder>) =>

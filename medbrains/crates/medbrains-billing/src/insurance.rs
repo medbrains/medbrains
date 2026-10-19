@@ -14,10 +14,11 @@ use axum::{
 };
 use chrono::NaiveDate;
 use medbrains_core::billing::{InsuranceClaim, Invoice, InvoiceStatus, TpaRateCard};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use medbrains_server_core::{
@@ -69,7 +70,7 @@ pub async fn list_insurance_claims(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, InsuranceClaim>(
-        "SELECT * FROM insurance_claims WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM insurance_claims WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -121,8 +122,7 @@ pub async fn create_insurance_claim(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -229,6 +229,9 @@ pub async fn create_insurance_claim(
         .map(str::trim)
         .filter(|v| !v.is_empty());
 
+    // total_bill_amount, deductions, patient_payable, admission_id and
+    // insurance_id are derived by the `insurance_claim_money` trigger (1068)
+    // from the invoice and the patient's policy, on every write by any caller.
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "INSERT INTO insurance_claims \
          (tenant_id, invoice_id, patient_id, insurance_provider, policy_number, \
@@ -287,10 +290,11 @@ pub async fn update_insurance_claim(
         invoice_total: Decimal,
         approved_amount: Option<Decimal>,
         settled_amount: Option<Decimal>,
+        status: String,
     }
 
     let gate = sqlx::query_as::<_, ClaimSettleGate>(
-        "SELECT i.total_amount AS invoice_total, ic.approved_amount, ic.settled_amount \
+        "SELECT i.total_amount AS invoice_total, ic.approved_amount, ic.settled_amount, ic.status \
          FROM insurance_claims ic \
          JOIN invoices i ON i.id = ic.invoice_id AND i.tenant_id = ic.tenant_id \
          WHERE ic.id = $1 AND ic.tenant_id = $2",
@@ -373,6 +377,19 @@ pub async fn update_insurance_claim(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // The patient hears about an approval once, on the change into it.
+    if claim.status == "claim_approved" && gate.status != "claim_approved" {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BillingClaimApproved,
+            claim.id,
+            claims.sub,
+            serde_json::json!({ "claim_id": claim.id, "patient_id": claim.patient_id }),
+        )
+        .with_patient(claim.patient_id);
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
 
     tx.commit().await?;
     Ok(Json(claim))
@@ -646,8 +663,9 @@ pub async fn coordinate_dual_insurance(
     if remaining > Decimal::ZERO {
         // Check for secondary insurance on patient
         let secondary_ins = sqlx::query_scalar::<_, Option<String>>(
-            "SELECT provider_name FROM patient_insurance \
+            "SELECT insurance_provider FROM patient_insurance \
              WHERE patient_id = $1 AND tenant_id = $2 AND priority = 2 AND is_active = true \
+               AND deleted_at IS NULL \
              LIMIT 1",
         )
         .bind(invoice.patient_id)
@@ -839,88 +857,6 @@ pub async fn update_reimbursement_docs(
     Ok(Json(row))
 }
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/billing/copay/calculate
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct CopayCalculationRequest {
-    pub invoice_id: Uuid,
-}
-
-pub async fn copay_calculation(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CopayCalculationRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::INVOICE,
-        body.invoice_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Fetch invoice total
-    let invoice =
-        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
-            .bind(body.invoice_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or(AppError::NotFound)?;
-
-    // Fetch insurance verification for the patient
-    let verification = sqlx::query_as::<_, (Option<Decimal>, Option<Decimal>)>(
-        "SELECT co_pay_percent, out_of_pocket_max \
-         FROM insurance_verifications \
-         WHERE patient_id = $1 AND tenant_id = $2 \
-           AND status = 'active' \
-         ORDER BY verified_at DESC LIMIT 1",
-    )
-    .bind(invoice.patient_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-
-    let total = invoice.total_amount;
-
-    match verification {
-        Some((copay_pct, max_coverage)) => {
-            let copay = copay_pct
-                .map(|pct| total * pct / Decimal::from(100))
-                .unwrap_or_default();
-            let max_cov = max_coverage.unwrap_or(total);
-            let insurance_pays = (total - copay).min(max_cov);
-            let patient_pays = total - insurance_pays;
-
-            Ok(Json(serde_json::json!({
-                "invoice_id": body.invoice_id,
-                "invoice_total": total,
-                "copay_percent": copay_pct,
-                "max_coverage": max_coverage,
-                "insurance_pays": insurance_pays,
-                "patient_pays": patient_pays,
-                "has_insurance_verification": true,
-            })))
-        }
-        None => Ok(Json(serde_json::json!({
-            "invoice_id": body.invoice_id,
-            "invoice_total": total,
-            "insurance_pays": Decimal::ZERO,
-            "patient_pays": total,
-            "has_insurance_verification": false,
-            "message": "No active insurance verification found",
-        }))),
-    }
-}
-
 // ══════════════════════════════════════════════════════════════════
 //  TPA bank-statement reconciliation (priority #4)
 // ══════════════════════════════════════════════════════════════════
@@ -966,8 +902,12 @@ pub async fn auto_match_bank_transactions(
     .fetch_all(&mut *tx)
     .await?;
 
-    let mut matched = 0i64;
-    let mut variance_flagged = 0i64;
+    // Credits a payer already reported through NHCX match by their UTR, and
+    // their claims are already settled — they must not be settled again.
+    let txn_ids: Vec<Uuid> = unmatched.iter().map(|t| t.id).collect();
+    let nhcx = crate::nhcx_recon::match_nhcx_credits(&mut tx, &claims, &txn_ids).await?;
+    let mut matched = nhcx.transactions.len() as i64;
+    let mut variance_flagged = nhcx.variance_flagged;
     let processed = unmatched.len() as i64;
 
     // Strategies 1 and 2 both resolve a claim_number, so they are one query
@@ -1005,7 +945,10 @@ pub async fn auto_match_bank_transactions(
         .collect()
     };
 
-    for txn in &unmatched {
+    for txn in unmatched
+        .iter()
+        .filter(|t| !nhcx.transactions.contains(&t.id))
+    {
         // Strategy 1 — exact reference match against claim_number.
         let claim_by_ref = txn
             .reference_number
@@ -1028,7 +971,7 @@ pub async fn auto_match_bank_transactions(
             let by_amount: Option<(Uuid, Decimal, Option<Decimal>)> = sqlx::query_as(
                 "SELECT id, approved_amount::NUMERIC, settled_amount \
                      FROM insurance_claims \
-                     WHERE tenant_id = $1 AND status = 'approved' \
+                     WHERE tenant_id = $1 AND status = 'claim_approved' \
                        AND approved_amount IS NOT NULL \
                        AND ABS(approved_amount - $2) < 1 \
                      ORDER BY submitted_at DESC LIMIT 1",
@@ -1138,7 +1081,7 @@ fn extract_claim_number_from_description(desc: &str) -> Option<String> {
                 .take_while(|c| c.is_alphanumeric() || *c == '-')
                 .collect();
             if candidate.len() >= 4 {
-                return Some(format!("{}{}", &prefix.replace(' ', ""), candidate));
+                return Some(format!("{}{}", prefix.replace(' ', ""), candidate));
             }
         }
     }

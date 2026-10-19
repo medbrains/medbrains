@@ -9,8 +9,10 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
+import { EmployeeTrainingRecords } from "./employee-training-records";
 import { statusBadgeTone } from "./shared";
 
 export function EmployeeDetailDrawer({
@@ -31,6 +33,7 @@ export function EmployeeDetailDrawer({
   // licence and registration history is not the same read as their leave.
   const canListCredentials = useHasPermission(P.HR.CREDENTIALS_LIST);
   const canListLeave = useHasPermission(P.HR.LEAVE_LIST);
+  const canListTraining = useHasPermission(P.HR.TRAINING.LIST);
   const { data: employee } = useQuery({
     queryKey: ["hr-employee", employeeId],
     queryFn: () => hrService.getEmployee(employeeId),
@@ -45,6 +48,18 @@ export function EmployeeDetailDrawer({
     queryKey: ["hr-leave-balances", employeeId],
     queryFn: () => hrService.listLeaveBalances(employeeId),
     enabled: opened && canListLeave,
+  });
+
+  // Verification against the original — chemotherapy administration, for one,
+  // is honoured at the bedside only once verified.
+  const verifyCred = useMutation({
+    mutationFn: (credentialId: string) =>
+      hrService.updateCredential(employeeId, credentialId, { verify: true }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-credentials", employeeId] });
+      toast.success("Credential verified");
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not verify" }),
   });
 
   // ── Add credential ──
@@ -87,11 +102,16 @@ export function EmployeeDetailDrawer({
       position="right"
       size="lg"
     >
+      <Group gap="md" mb="md">
+        <PrintDocumentMenu idKind="employee" recordId={employee?.id} />
+        <PrintDocumentMenu idKind="user" recordId={employee?.user_id} />
+      </Group>
       <Tabs value={subTab} onChange={setSubTab}>
         <Tabs.List mb="md">
           <Tabs.Tab value="info">Info</Tabs.Tab>
           <Tabs.Tab value="credentials">Credentials</Tabs.Tab>
           <Tabs.Tab value="leave-balances">Leave Balances</Tabs.Tab>
+          {canListTraining && <Tabs.Tab value="training">Training</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="info">
@@ -217,6 +237,29 @@ export function EmployeeDetailDrawer({
                   </Badge>
                 ),
               },
+              {
+                key: "verified",
+                label: "Verified",
+                render: (r: EmployeeCredential) =>
+                  r.verified_at ? (
+                    <Badge tone="success" size="sm">
+                      Verified {new Date(r.verified_at).toLocaleDateString()}
+                    </Badge>
+                  ) : canManageCredentials ? (
+                    <Button
+                      tone="secondary"
+                      size="xs"
+                      loading={verifyCred.isPending && verifyCred.variables === r.id}
+                      onClick={() => verifyCred.mutate(r.id)}
+                    >
+                      Verify
+                    </Button>
+                  ) : (
+                    <Text size="sm" c="dimmed">
+                      Not verified
+                    </Text>
+                  ),
+              },
             ]}
           />
           {/* Add Credential sub-drawer */}
@@ -245,6 +288,10 @@ export function EmployeeDetailDrawer({
                   { value: "fire_safety", label: "Fire Safety" },
                   { value: "radiation_safety", label: "Radiation Safety" },
                   { value: "nabh_orientation", label: "NABH Orientation" },
+                  {
+                    value: "chemotherapy_administration",
+                    label: "Chemotherapy administration",
+                  },
                 ]}
               />
               <TextInput
@@ -328,6 +375,15 @@ export function EmployeeDetailDrawer({
             ]}
           />
         </Tabs.Panel>
+
+        {canListTraining && (
+          <Tabs.Panel value="training">
+            <EmployeeTrainingRecords
+              employeeId={employeeId}
+              enabled={opened && subTab === "training"}
+            />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </Drawer>
   );

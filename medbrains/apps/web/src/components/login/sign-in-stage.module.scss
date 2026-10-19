@@ -1,0 +1,93 @@
+// Sign-in left side: layout here, every colour from the --mb-stage-* tokens.
+
+.stage {
+  color: var(--mb-stage-text);
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+.inner {
+  max-width: 600px;
+}
+
+.brand {
+  color: var(--mb-stage-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.eyebrow {
+  color: var(--mb-stage-sky);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--mb-stage-text);
+  font-family: var(--mb-font-display);
+  font-stretch: 125%;
+  font-size: clamp(32px, 3.6vw, 52px);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+
+.gradient {
+  display: block;
+  background: var(--mb-gradient-signal);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.lede {
+  color: var(--mb-stage-text-muted);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--mb-stage-surface);
+  border: 1px solid var(--mb-stage-line);
+  color: var(--mb-stage-accent);
+}
+
+.pointTitle {
+  color: var(--mb-stage-text);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.pointBody {
+  color: var(--mb-stage-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tip {
+  padding: var(--mantine-spacing-md) var(--mantine-spacing-lg);
+  border-radius: 14px;
+  background: var(--mb-stage-surface);
+  border: 1px solid var(--mb-stage-line);
+}

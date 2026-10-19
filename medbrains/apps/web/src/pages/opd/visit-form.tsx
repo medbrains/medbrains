@@ -9,6 +9,7 @@ import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useEffectOnce } from "react-use";
 import { DoctorSearchSelect, PatientSearchSelect, useClinicalEmit } from "@/components";
 import { Alert, Button, toast } from "@/components/ui";
 import {
@@ -19,6 +20,9 @@ import {
 import { campService } from "@/services/camp.service";
 import { ipdService } from "@/services/ipd.service";
 import { opdService } from "@/services/opd.service";
+import { LastVisitHint } from "./LastVisitHint";
+
+const lastVisitKey = (patientId: string) => ["opd-last-visit", patientId];
 
 interface OpdVisitFormProps {
   initialPatientId?: string;
@@ -31,6 +35,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
   const queryClient = useQueryClient();
   const {
     control,
+    getFieldState,
     handleSubmit,
     reset,
     setValue,
@@ -53,6 +58,32 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
     enabled: Boolean(selectedPatientId),
   });
   const hasActiveAdmission = (activeAdmissions?.admissions ?? []).length > 0;
+
+  // A returning patient goes back to the doctor who saw them, unless the
+  // desk has already chosen one for today.
+  const lastVisit = useQuery({
+    queryKey: lastVisitKey(selectedPatientId),
+    queryFn: () => opdService.getLastOpdVisit(selectedPatientId),
+    enabled: Boolean(selectedPatientId),
+  });
+  const prefillFromLastVisit = async (patientId: string) => {
+    if (!patientId) return;
+    const last = await queryClient
+      .fetchQuery({
+        queryKey: lastVisitKey(patientId),
+        queryFn: () => opdService.getLastOpdVisit(patientId),
+      })
+      .catch(() => null);
+    if (!getFieldState("department_id").isDirty) {
+      setValue("department_id", last?.department_id ?? null, { shouldValidate: true });
+    }
+    if (!getFieldState("doctor_id").isDirty) {
+      setValue("doctor_id", last?.doctor_id ?? null);
+    }
+  };
+  useEffectOnce(() => {
+    void prefillFromLastVisit(initialPatientId);
+  });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -158,12 +189,16 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
         render={({ field }) => (
           <PatientSearchSelect
             value={field.value}
-            onChange={field.onChange}
+            onChange={(value) => {
+              field.onChange(value);
+              void prefillFromLastVisit(value);
+            }}
             error={errors.patient_id?.message}
             required
           />
         )}
       />
+      {selectedPatientId && <LastVisitHint visit={lastVisit.data} isError={lastVisit.isError} />}
       <Controller
         control={control}
         name="department_id"

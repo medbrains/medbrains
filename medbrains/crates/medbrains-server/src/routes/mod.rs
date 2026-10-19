@@ -1,4 +1,5 @@
 pub mod abdm;
+pub mod uhi;
 pub mod access;
 pub mod admin;
 pub mod admin_simulator;
@@ -10,6 +11,10 @@ pub mod debug;
 pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
+pub mod portal_privacy;
+pub mod portal_refills;
+pub mod portal_tele;
+pub mod bill_verify;
 pub mod rx_verify;
 pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -86,11 +91,25 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
+        // Caddy on-demand TLS asks before issuing a certificate.
+        .merge(medbrains_infra_settings::public_router())
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
-        // NHCX async-response webhook — gateway authenticates via JWS,
-        // not bearer token, so this lives on the public router.
-        .merge(medbrains_nhcx_callback::router())
+        // NHCX gateway callbacks — authenticated by the gateway's RS256 JWT,
+        // not a user session, so they live on the public router.
+        .merge(medbrains_nhcx_callback::public_router())
+        // ABDM gateway callbacks (HIP) — each authenticated by the gateway's
+        // JWT and the HFR facility ID in X-HIP-ID, never by a user session.
+        .merge(abdm::hip::public_router())
+        // ABDM HIU callbacks (X-HIU-ID) and the HIPs' data push to us.
+        .merge(abdm::hiu::public_router())
+        // UHI calls from patient apps — each signed, naming its hospital by
+        // the subscriber ID in the path.
+        .merge(uhi::public_router())
+        .route(
+            "/api/abdm/gateway/callback",
+            post(abdm::hip_relay::receive_callback),
+        )
         // Device pairing — gated by short-lived one-time token, not JWT
         .merge(medbrains_device_pairing::router())
         // Device-code pairing — a display has no credentials yet, so asking for a
@@ -168,6 +187,8 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — sequences
         // Setup — services
         .merge(medbrains_catalog_import::router())
+        // SNOMED CT store: releases, search, hierarchy, ECL, analytics
+        .merge(medbrains_terminology::router())
         .merge(medbrains_infra_settings::router())
         .merge(medbrains_mail_provisioning::router())
         // Setup — bed types
@@ -302,7 +323,6 @@ pub fn build_router(state: AppState) -> Router {
         // ── Billing Phase 3 — Bank Reconciliation ────────
         // Static routes MUST be before {id}
         // ── TPA reconciliation (priority #4) ─────────────
-        // NHCX webhook history — read-only audit log of received callbacks
         // ── Billing Phase 3 — TDS ───────────────────────
         // ── Billing Phase 3 — GST Returns ────────────────
         // Static route MUST be before {id}
@@ -319,6 +339,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Pharmacy ────────────────────────────────────
         .merge(medbrains_pharmacy::router())
         .merge(medbrains_ward_stock::router())
+        .merge(medbrains_clinical_notes::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
         .merge(medbrains_pharmacy_finance::router())
         .merge(medbrains_pharmacy_fulfilment::router())
@@ -326,39 +347,142 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────
         .merge(medbrains_pharmacy_payments::router())
-        // ── ABDM (Phase 11): HFR registration + gateway HIP relay ─
+        // ── ABDM (Phase 11): HFR/HPR registries + gateway HIP relay ─
+        .route("/api/abdm/hfr", get(abdm::hfr::list_registrations))
+        .route("/api/abdm/hfr/facilities", get(abdm::hfr::list_facilities))
+        .route("/api/abdm/hfr/facilities/{id}", put(abdm::hfr::link_facility))
         .route(
-            "/api/abdm/hfr",
-            get(abdm::hfr::list_registrations).post(abdm::hfr::register),
+            "/api/abdm/hfr/facilities/{id}/register",
+            post(abdm::hfr::register_facility),
+        )
+        .route("/api/abdm/hpr/coverage", get(abdm::hpr::coverage))
+        .route("/api/abdm/hpr/doctors/{id}", put(abdm::hpr::set_hpr_id))
+        .route(
+            "/api/abdm/hpr/doctors/{id}/verify",
+            post(abdm::hpr::verify_hpr_id),
         )
         .route(
-            "/api/abdm/hfr/tenant",
-            get(abdm::hfr::get_tenant_facility),
+            "/api/abdm/settings",
+            get(abdm::settings::get_settings).put(abdm::settings::save_settings),
+        )
+        .route(
+            "/api/abdm/settings/test",
+            post(abdm::settings::test_connection),
         )
         .route(
             "/api/abdm/abha/status",
             get(abdm::abha::status),
         )
         .route(
-            "/api/abdm/abha/session",
-            post(abdm::abha::create_session),
+            "/api/abdm/abha/verifications",
+            post(abdm::abha_verify::start),
         )
         .route(
-            "/api/abdm/abha/public-certificate",
-            post(abdm::abha::public_certificate),
+            "/api/abdm/abha/verifications/{id}/resend",
+            post(abdm::abha_verify::resend),
         )
         .route(
-            "/api/abdm/abha/login/request-otp",
-            post(abdm::abha::request_login_otp),
+            "/api/abdm/abha/verifications/{id}/otp",
+            post(abdm::abha_verify::submit_otp),
         )
         .route(
-            "/api/abdm/abha/login/verify",
-            post(abdm::abha::verify_login_otp),
+            "/api/abdm/abha/verifications/{id}/account",
+            post(abdm::abha_verify::choose_account),
         )
         .route(
-            "/api/abdm/gateway/callback",
-            post(abdm::hip_relay::receive_callback),
+            "/api/abdm/abha/enrolments",
+            post(abdm::abha_enrol::start),
         )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/otp",
+            post(abdm::abha_enrol::submit_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/mobile-otp",
+            post(abdm::abha_enrol::submit_mobile_otp),
+        )
+        .route(
+            "/api/abdm/abha/enrolments/{id}/address",
+            post(abdm::abha_enrol::choose_address),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/qr",
+            get(abdm::abha_card::qr),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/mobile",
+            post(abdm::abha_account::request_mobile),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/mobile/verify",
+            post(abdm::abha_account::verify_mobile),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/email",
+            post(abdm::abha_account::request_email),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/card",
+            get(abdm::abha_card::card),
+        )
+        .route(
+            "/api/abdm/abha/verifications/{id}/link",
+            post(abdm::abha_link::link),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/records",
+            get(abdm::hip::records::patient_records),
+        )
+        .route(
+            "/api/abdm/care-contexts/{id}/link",
+            post(abdm::hip::records::link_now),
+        )
+        .route(
+            "/api/abdm/sharing/summary",
+            get(abdm::hip::records::sharing_summary),
+        )
+        .route("/api/abdm/dashboard", get(abdm::dashboard::dashboard))
+        .route(
+            "/api/abdm/scan-share/counters",
+            get(abdm::scan_share::counters),
+        )
+        .route("/api/abdm/scan-share/queue", get(abdm::scan_share::queue))
+        .route(
+            "/api/abdm/scan-share/{id}/verification",
+            post(abdm::scan_share::verification),
+        )
+        .route(
+            "/api/abdm/scan-share/{id}/complete",
+            post(abdm::scan_share::complete),
+        )
+        .route(
+            "/api/abdm/scan-share/{id}/dismiss",
+            post(abdm::scan_share::dismiss),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/consent-requests",
+            post(abdm::hiu::requests::raise),
+        )
+        .route(
+            "/api/abdm/patients/{patient_id}/received-records",
+            get(abdm::hiu::view::patient_view),
+        )
+        .route(
+            "/api/abdm/consent-requests/{id}/check-status",
+            post(abdm::hiu::status::check),
+        )
+        .route(
+            "/api/abdm/received-records/{id}",
+            get(abdm::hiu::view::received_record),
+        )
+        .route(
+            "/api/uhi/settings",
+            get(uhi::settings::get_settings).put(uhi::settings::save_settings),
+        )
+        .route("/api/uhi/settings/keys", post(uhi::settings::generate_keys))
+        .route("/api/uhi/requests", get(uhi::queue::list))
+        .route("/api/uhi/requests/{id}/accept", post(uhi::queue::accept))
+        .route("/api/uhi/requests/{id}/decline", post(uhi::queue::decline))
         .route(
             "/api/abdm/gateway/callbacks/pending",
             get(abdm::hip_relay::list_pending_callbacks),
@@ -369,6 +493,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
         .merge(medbrains_pharmacy_repeats::router())
+        .merge(medbrains_pharmacy_delivery::router())
         // ── Pharmacy Finance: Cash Drawer ──────────────────
         .merge(medbrains_pharmacy_cash_drawer::router())
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
@@ -468,6 +593,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
         .merge(medbrains_consent::router())
+        .merge(medbrains_forms::router())
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
         .merge(medbrains_ambulance::router())
@@ -476,6 +602,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_communications::router())
         .merge(medbrains_analytics::router())
         .merge(medbrains_facilities::router())
+        // NHCX — callback history, status and Settings → NHCX.
+        .merge(medbrains_nhcx_callback::router())
         // ── Security Department ──────────────────────────────────
         .merge(medbrains_security::router())
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
@@ -631,6 +759,7 @@ pub fn build_router(state: AppState) -> Router {
         // Medical news feed — global ingested articles (list/search + reader).
         // News / health advisories — public list (any auth'd role), admin CRUD.
         .merge(medbrains_news::router())
+        .merge(medbrains_notes::router())
         .route(
             "/api/audit/access-log/patient/{id}",
             get(audit::patient_access_log),
@@ -747,6 +876,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/public/prescriptions/verify/{token}",
             get(rx_verify::verify_prescription),
         )
+        // The QR on a printed bill: insurers and patients check it is genuine.
+        .route("/api/public/bills/verify", get(bill_verify::verify_bill))
         // The hospital's own "contact us" form. Off unless the tenant turns it
         // on, and 404 either way so this cannot enumerate who runs MedBrains.
         .merge(medbrains_marketing::public_router());
@@ -763,6 +894,19 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/portal/appointments", get(portal::portal_appointments))
         .route("/api/portal/entitlements", get(portal::portal_entitlements))
+        .route("/api/portal/refills", get(portal_refills::portal_refills))
+        .route("/api/portal/teleconsults", get(portal_tele::portal_teleconsults))
+        .route(
+            "/api/portal/prescriptions/{id}/refill-request",
+            post(portal_refills::portal_request_refill),
+        )
+        .route("/api/portal/privacy", get(portal_privacy::portal_privacy))
+        .route("/api/portal/privacy/export", get(portal_privacy::portal_export))
+        .route("/api/portal/dpdp-consent", put(portal_privacy::portal_set_consent))
+        .route(
+            "/api/portal/privacy-requests",
+            post(portal_privacy::portal_create_request),
+        )
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +
@@ -786,5 +930,12 @@ pub fn build_router(state: AppState) -> Router {
         .merge(public_booking)
         .merge(portal_routes)
         .merge(reminder_routes)
+        // An API path nothing answers is a JSON 404, never the app's HTML:
+        // the SPA fallback answers 200, so a mistyped call would otherwise
+        // read as success. Specific routes win over the wildcard.
+        .route(
+            "/api/{*rest}",
+            axum::routing::any(|| async { medbrains_server_core::error::AppError::NotFound }),
+        )
         .with_state(state)
 }

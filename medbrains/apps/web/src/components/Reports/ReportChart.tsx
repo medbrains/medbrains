@@ -12,12 +12,11 @@ import {
 import { usePermissionStore } from "@medbrains/stores";
 import {
   IconArrowsMaximize,
-  IconCalendarStats,
   IconDotsVertical,
   IconDownload,
   IconFileSpreadsheet,
+  IconLayoutDashboard,
   IconLink,
-  IconMail,
   IconPhoto,
   IconReport,
 } from "@tabler/icons-react";
@@ -83,6 +82,7 @@ import {
 import { type EChartsCoreOption, type EChartsType, init, use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef, useState } from "react";
+import { useReportExport } from "./useReportExport";
 
 use([
   BarChart,
@@ -147,13 +147,21 @@ interface ReportChartProps {
   title: string;
   description: string;
   permission: string;
-  option: EChartsCoreOption;
+  /** Null when there is nothing real to draw; `emptyMessage` says why. */
+  option: EChartsCoreOption | null;
+  emptyMessage?: string;
   isLoading?: boolean;
   height?: number;
   status?: string;
   disabledActions?: boolean;
   sourceHref?: string;
   onViewDetails?: () => void;
+  /** Put this chart on, or take it off, the reader's own dashboard. */
+  dashboard?: { placed: boolean; onToggle: () => void };
+  /** The rows behind the chart, for the exports. */
+  rows?: Record<string, unknown>[];
+  /** A link to this report for a colleague — it still needs their login. */
+  link?: string;
 }
 
 export function ReportChart({
@@ -161,12 +169,16 @@ export function ReportChart({
   description,
   permission,
   option,
+  emptyMessage = "Nothing to chart.",
   isLoading = false,
   height = 280,
   status,
   disabledActions = false,
   sourceHref,
   onViewDetails,
+  dashboard,
+  rows = [],
+  link,
 }: ReportChartProps) {
   const canView = usePermissionStore((state) => state.hasPermission(permission));
   const [expanded, setExpanded] = useState(false);
@@ -174,9 +186,12 @@ export function ReportChart({
   const chartRef = useRef<EChartsType | null>(null);
   const expandedHostRef = useRef<HTMLDivElement | null>(null);
   const expandedChartRef = useRef<EChartsType | null>(null);
+  const hasChart = option !== null;
+  const hasRows = !disabledActions && rows.length > 0;
+  const exporter = useReportExport({ title, rows, chartRef, link });
 
   useEffect(() => {
-    if (!canView || !hostRef.current) return;
+    if (!canView || !hasChart || !hostRef.current) return;
 
     const chart = init(hostRef.current, undefined, { renderer: "canvas" });
     chartRef.current = chart;
@@ -189,15 +204,16 @@ export function ReportChart({
       chart.dispose();
       chartRef.current = null;
     };
-  }, [canView]);
+    // The host appears only once there is a chart; it is created then.
+  }, [canView, hasChart]);
 
   useEffect(() => {
-    if (!canView || !chartRef.current) return;
+    if (!canView || !chartRef.current || !option) return;
     chartRef.current.setOption(option, true);
   }, [canView, option]);
 
   useEffect(() => {
-    if (!canView || !expanded || !expandedHostRef.current) return;
+    if (!canView || !hasChart || !expanded || !expandedHostRef.current) return;
 
     const chart = init(expandedHostRef.current, undefined, { renderer: "canvas" });
     expandedChartRef.current = chart;
@@ -218,10 +234,10 @@ export function ReportChart({
       chart.dispose();
       expandedChartRef.current = null;
     };
-  }, [canView, expanded]);
+  }, [canView, expanded, hasChart]);
 
   useEffect(() => {
-    if (!canView || !expanded || !expandedChartRef.current) return;
+    if (!canView || !expanded || !expandedChartRef.current || !option) return;
 
     expandedChartRef.current.setOption(option, true);
     expandedChartRef.current.resize();
@@ -274,32 +290,54 @@ export function ReportChart({
                   </ActionIcon>
                 </Menu.Target>
                 <Menu.Dropdown>
+                  {dashboard && (
+                    <>
+                      <Menu.Item
+                        leftSection={<IconLayoutDashboard size={14} />}
+                        onClick={dashboard.onToggle}
+                      >
+                        {dashboard.placed ? "Remove from my dashboard" : "Add to my dashboard"}
+                      </Menu.Item>
+                      <Menu.Divider />
+                    </>
+                  )}
                   <Menu.Label>Export</Menu.Label>
-                  <Menu.Item leftSection={<IconDownload size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconDownload size={14} />}
+                    disabled={!hasRows}
+                    onClick={exporter.csv}
+                  >
                     Download CSV
                   </Menu.Item>
                   <Menu.Item
                     leftSection={<IconFileSpreadsheet size={14} />}
-                    disabled={disabledActions}
+                    disabled={!hasRows}
+                    onClick={exporter.excel}
                   >
                     Download Excel
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconReport size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconReport size={14} />}
+                    disabled={!hasRows}
+                    onClick={exporter.pdf}
+                  >
                     Export PDF
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconPhoto size={14} />} disabled={disabledActions}>
+                  <Menu.Item
+                    leftSection={<IconPhoto size={14} />}
+                    disabled={!hasChart}
+                    onClick={exporter.image}
+                  >
                     Save chart image
                   </Menu.Item>
-                  <Menu.Divider />
-                  <Menu.Item leftSection={<IconLink size={14} />} disabled={disabledActions}>
-                    Secure share link
-                  </Menu.Item>
-                  <Menu.Item leftSection={<IconCalendarStats size={14} />}>
-                    Schedule report
-                  </Menu.Item>
-                  <Menu.Item leftSection={<IconMail size={14} />} disabled={disabledActions}>
-                    Email now
-                  </Menu.Item>
+                  {link && (
+                    <>
+                      <Menu.Divider />
+                      <Menu.Item leftSection={<IconLink size={14} />} onClick={exporter.copyLink}>
+                        Copy link
+                      </Menu.Item>
+                    </>
+                  )}
                   {sourceHref && (
                     <>
                       <Menu.Divider />
@@ -325,12 +363,20 @@ export function ReportChart({
                 View details
               </Button>
             )}
-            <div
-              ref={hostRef}
-              role="img"
-              style={{ height, width: "100%" }}
-              aria-label={`${title} chart`}
-            />
+            {hasChart ? (
+              <div
+                ref={hostRef}
+                role="img"
+                style={{ height, width: "100%" }}
+                aria-label={`${title} chart`}
+              />
+            ) : (
+              <Stack h={height} justify="center" align="center" px="md">
+                <Text size="sm" c="dimmed" ta="center">
+                  {isLoading ? "Loading…" : emptyMessage}
+                </Text>
+              </Stack>
+            )}
           </div>
         </Stack>
       </Card>

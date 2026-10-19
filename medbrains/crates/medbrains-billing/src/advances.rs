@@ -135,7 +135,7 @@ pub async fn list_advances(
     let rows = if let Some(pid) = params.patient_id {
         sqlx::query_as::<_, PatientAdvance>(
             "SELECT * FROM patient_advances \
-             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(pid)
@@ -144,7 +144,7 @@ pub async fn list_advances(
     } else {
         sqlx::query_as::<_, PatientAdvance>(
             "SELECT * FROM patient_advances \
-             WHERE tenant_id = $1 AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
              ORDER BY created_at DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -170,8 +170,7 @@ pub async fn create_advance(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -543,8 +542,7 @@ pub async fn create_interim_invoice(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

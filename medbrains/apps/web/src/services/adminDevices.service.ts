@@ -10,6 +10,7 @@ export type PairedDeviceRow = Awaited<ReturnType<typeof api.listPairedDevices>>[
 
 export const adminDevicesService = {
   listDeviceInstances: () => api.listDeviceInstances(),
+  listDeviceMessages: (deviceId: string) => api.listDeviceMessages(deviceId),
   createDeviceInstance: (data: CreateDeviceInstanceInput) => api.createDeviceInstance(data),
   listAdapterCatalog: (params?: ListAdapterCatalogInput) => api.listAdapterCatalog(params),
   previewAdapterConfig: (adapterCode: string, departmentCode?: string) =>

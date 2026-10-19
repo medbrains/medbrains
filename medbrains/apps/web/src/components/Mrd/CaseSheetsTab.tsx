@@ -23,7 +23,7 @@ import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, useClinicalEmit } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Alert, Badge, Button, toast } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { PRINT_COPY_PACKETS, printCopyRouteLabel } from "@/utils/printCopies";
 import { CaseSheetDrawers } from "./CaseSheetDrawers";
@@ -86,7 +86,11 @@ export function CaseSheetsTab() {
     defaultValues: MRD_REPRINT_FORM_DEFAULTS,
   });
 
-  const { data: packets = [], isLoading } = useQuery({
+  const {
+    data: packets = [],
+    isLoading,
+    isError: packetsFailed,
+  } = useQuery({
     queryKey: [
       "mrd-case-sheets",
       statusFilter,
@@ -363,6 +367,12 @@ export function CaseSheetsTab() {
         </Group>
       </Card>
 
+      {/* A list that could not load is not an empty one. */}
+      {packetsFailed && (
+        <Alert tone="danger" title="Case sheets could not be loaded" mb="md">
+          Reload the page; if it keeps failing, tell IT.
+        </Alert>
+      )}
       <DataTable
         columns={columns}
         data={packets}

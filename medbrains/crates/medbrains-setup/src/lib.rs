@@ -2,6 +2,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
+pub mod workbook;
 use axum::routing::{delete, get, post, put};
 use axum::{
     Extension, Json,
@@ -136,6 +137,12 @@ pub async fn update_tenant(
            locale = COALESCE($11, locale), \
            currency = COALESCE($12, currency), \
            fy_start_month = COALESCE($13, fy_start_month), \
+           custom_domain_verified_at = CASE \
+             WHEN NULLIF(COALESCE($14, custom_domain), '') IS DISTINCT FROM custom_domain \
+             THEN NULL ELSE custom_domain_verified_at END, \
+           custom_domain_token = CASE \
+             WHEN NULLIF(COALESCE($14, custom_domain), '') IS DISTINCT FROM custom_domain \
+             THEN encode(gen_random_bytes(16), 'hex') ELSE custom_domain_token END, \
            custom_domain = NULLIF(COALESCE($14, custom_domain), '') \
            WHERE id = $15 \
            RETURNING id, code, name, address_line1, address_line2, city, pincode, \
@@ -369,7 +376,7 @@ pub async fn create_compliance(
          (tenant_id, facility_id, regulatory_body_id, license_number, status) \
          VALUES ($1, $2, $3, $4, COALESCE($5, 'pending')) \
          ON CONFLICT (tenant_id, facility_id, regulatory_body_id) \
-         DO UPDATE SET license_number = EXCLUDED.license_number, status = EXCLUDED.status \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, license_number = EXCLUDED.license_number, status = EXCLUDED.status \
          RETURNING id, tenant_id, facility_id, regulatory_body_id, license_number, status",
     )
     .bind(claims.tenant_id)
@@ -1164,6 +1171,9 @@ pub struct SetupUserRow {
     pub department_ids: Vec<Uuid>,
     pub is_active: bool,
     pub access_matrix: Value,
+    /// The consultant who countersigns this user's clinical notes.
+    #[sqlx(default)]
+    pub supervisor_id: Option<Uuid>,
 }
 
 pub async fn list_users(
@@ -1182,7 +1192,7 @@ pub async fn list_users(
         // page at /admin/api-keys, where the key they belong to is visible.
         "SELECT id, tenant_id, username, email, full_name, role::text, \
          specialization, medical_registration_number, qualification, \
-         consultation_fee, department_ids, is_active, access_matrix \
+         consultation_fee, department_ids, is_active, access_matrix, supervisor_id \
          FROM users WHERE tenant_id = $1 AND is_service_account = false AND deleted_at IS NULL \
          ORDER BY is_active DESC, created_at DESC LIMIT 5000",
         // ponytail: capped at 5000, active and newest first — oldest-first hid
@@ -1223,6 +1233,10 @@ pub async fn list_doctors(
             permissions::emergency::visits::UPDATE,
             permissions::ot::bookings::CREATE,
             permissions::ot::bookings::UPDATE,
+            // Whoever places a lab or imaging order names the doctor behind it.
+            permissions::lab::orders::CREATE,
+            permissions::lab::orders::DIRECT,
+            permissions::radiology::orders::CREATE,
         ],
     )?;
     let mut tx = state.db.begin().await?;
@@ -1498,6 +1512,68 @@ pub async fn update_user(
     tx.commit().await?;
 
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetSupervisorRequest {
+    /// The consultant who countersigns this user's notes; `null` clears it.
+    pub supervisor_id: Option<Uuid>,
+}
+
+/// `PUT /api/setup/users/{id}/supervisor` — whose countersignature this
+/// user's clinical notes need (RFCs/RFC-MODULE-clinical-notes.md, 3b).
+pub async fn set_user_supervisor(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetSupervisorRequest>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(supervisor) = body.supervisor_id {
+        if supervisor == id {
+            return Err(AppError::BadRequest(
+                "A doctor cannot countersign their own notes".to_owned(),
+            ));
+        }
+        // An active doctor, and not one who is themselves supervised by this
+        // user — two residents countersigning each other is no countersign.
+        let (is_doctor, supervises_back): (bool, bool) = sqlx::query_as(
+            "SELECT role = 'doctor' AND is_active, coalesce(supervisor_id = $2, false) \
+               FROM users WHERE id = $1 AND tenant_id = $3 AND deleted_at IS NULL",
+        )
+        .bind(supervisor)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("Choose an active doctor".to_owned()))?;
+        if !is_doctor {
+            return Err(AppError::BadRequest("Choose an active doctor".to_owned()));
+        }
+        if supervises_back {
+            return Err(AppError::BadRequest(
+                "That doctor's own notes are countersigned by this user".to_owned(),
+            ));
+        }
+    }
+    let updated = sqlx::query(
+        "UPDATE users SET supervisor_id = $2, updated_at = now() \
+          WHERE id = $1 AND tenant_id = $3 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(body.supervisor_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+    tx.commit().await?;
+    Ok(Json(
+        serde_json::json!({ "id": id, "supervisor_id": body.supervisor_id }),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1952,7 +2028,7 @@ pub async fn list_modules(
         .await?;
 
     let rows = sqlx::query_as::<_, ModuleConfig>(
-        "SELECT * FROM module_config WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        "SELECT * FROM module_config WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2134,7 +2210,8 @@ pub async fn update_branding(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'branding', $2, $3) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value \
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -2181,7 +2258,7 @@ pub async fn create_sequence(
         "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
          VALUES ($1, $2, $3, 0, $4) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, prefix = EXCLUDED.prefix, pad_width = EXCLUDED.pad_width \
          RETURNING id, tenant_id, seq_type, prefix, current_val, pad_width",
     )
     .bind(claims.tenant_id)
@@ -2739,6 +2816,19 @@ pub struct SettingsQuery {
 /// hospital is defended and how long it keeps things.
 const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
 
+/// Categories with their own screen and endpoint, because they hold secrets
+/// the generic settings API would hand back verbatim.
+const OWN_ENDPOINT_CATEGORIES: &[&str] = &["abdm"];
+
+fn refuse_own_endpoint_category(category: &str) -> Result<(), AppError> {
+    if OWN_ENDPOINT_CATEGORIES.contains(&category) {
+        return Err(AppError::BadRequest(format!(
+            "'{category}' settings are managed on their own screen, not here"
+        )));
+    }
+    Ok(())
+}
+
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2751,6 +2841,7 @@ pub async fn get_settings(
     // non-critical and fall back to defaults, silently. A ward that configured
     // its vitals set had the configuration ignored for every nurse, and a
     // hospital on imperial units was shown metric.
+    refuse_own_endpoint_category(&params.category)?;
     if SENSITIVE_SETTING_CATEGORIES.contains(&params.category.as_str()) {
         require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     } else {
@@ -2763,6 +2854,7 @@ pub async fn get_settings(
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = $2 \
+           AND deleted_at IS NULL \
          ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -2788,6 +2880,7 @@ pub async fn update_setting(
     Json(body): Json<UpdateSettingRequest>,
 ) -> Result<Json<TenantSettings>, AppError> {
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    refuse_own_endpoint_category(&body.category)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2796,7 +2889,8 @@ pub async fn update_setting(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value \
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -3019,7 +3113,8 @@ pub async fn update_secure_device_setting(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value, updated_at = now() \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now(), \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -3305,7 +3400,8 @@ async fn upsert_setting_in_tx(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
     )
     .bind(tenant_id)
     .bind(category)
@@ -4688,7 +4784,8 @@ pub async fn upsert_print_template(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, $2, $3, $4) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET value = EXCLUDED.value, \
+                       deleted_at = NULL, deleted_by = NULL, delete_reason = NULL",
     )
     .bind(claims.tenant_id)
     .bind("print_templates")
@@ -5389,7 +5486,7 @@ pub async fn list_brand_entities(
         ),
     >(
         "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
-         FROM brand_entities ORDER BY is_default DESC, name LIMIT 5000",
+         FROM brand_entities WHERE deleted_at IS NULL ORDER BY is_default DESC, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -5694,7 +5791,7 @@ pub async fn add_access_group_member(
          SELECT $1, $2, $3, $4 \
          WHERE EXISTS (SELECT 1 FROM access_groups WHERE id = $1 AND tenant_id = $3) \
            AND EXISTS (SELECT 1 FROM users WHERE id = $2 AND tenant_id = $3) \
-         ON CONFLICT (group_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at",
+         ON CONFLICT (group_id, user_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, expires_at = EXCLUDED.expires_at",
     )
     .bind(group_id)
     .bind(body.user_id)
@@ -5773,6 +5870,7 @@ pub async fn list_visible_screens(
     Extension(claims): Extension<Claims>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<VisibleScreen>>, AppError> {
+    // allow-soft-deleted: reads the signed-in caller's own role, not a list of users.
     // Scoped: these masters are row-level secured, and the policy admits this
     // hospital's rows plus the shared ones. Read off the bare pool it admits
     // neither, and a clinical master list that comes back empty reads as a
@@ -5892,6 +5990,7 @@ pub async fn remove_access_group_member(
 /// Setup / configuration (access groups, invitations, config import/export, health, onboarding) authed routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
+        .merge(workbook::router())
         .route(
             "/api/access-groups",
             get(list_access_groups).post(create_access_group),
@@ -5987,6 +6086,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/users/{id}",
             put(update_user).delete(delete_user),
         )
+        .route("/api/setup/users/{id}/supervisor", put(set_user_supervisor))
         .route(
             "/api/setup/users/{id}/reset-password",
             post(reset_user_password),

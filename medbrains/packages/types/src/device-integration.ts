@@ -167,6 +167,34 @@ export interface DeviceMessage {
   created_at: string;
 }
 
+/** A collected sample waiting to be loaded onto an analyzer (#227). */
+export interface AnalyzerOrder {
+  order_id: string;
+  sample_barcode: string;
+  sample_type: string | null;
+  is_stat: boolean;
+  collected_at: string;
+  test_code: string;
+  test_name: string;
+  uhid: string;
+  first_name: string;
+  last_name: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+}
+
+export interface AnalyzerWorklist {
+  analyzer: { name: string; host: string | null; port: number | null };
+  orders: AnalyzerOrder[];
+}
+
+export interface AnalyzerOrderSent {
+  order_id: string;
+  control_id: string;
+  delivered: boolean;
+  error?: string | null;
+}
+
 export interface DeviceConfigHistory {
   id: string;
   device_instance_id: string;

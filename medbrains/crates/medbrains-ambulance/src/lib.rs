@@ -256,7 +256,8 @@ pub async fn list_ambulances(
 
     let rows = sqlx::query_as::<_, Ambulance>(
         "SELECT * FROM ambulances \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR ambulance_type::text = $2) \
          ORDER BY ambulance_code LIMIT 200",
     )
@@ -453,7 +454,8 @@ pub async fn list_drivers(
 
     let rows = sqlx::query_as::<_, AmbulanceDriver>(
         "SELECT * FROM ambulance_drivers \
-         WHERE ($1::bool IS NULL OR is_active = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::bool IS NULL OR is_active = $1) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.is_active)
@@ -557,7 +559,8 @@ pub async fn list_trips(
 
     let rows = sqlx::query_as::<_, AmbulanceTrip>(
         "SELECT * FROM ambulance_trips \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR trip_type::text = $2) \
          AND ($3::uuid IS NULL OR ambulance_id = $3) \
          AND ($4::text IS NULL OR priority::text = $4) \
@@ -821,7 +824,7 @@ pub async fn list_trip_logs(
 
     let rows = sqlx::query_as::<_, AmbulanceTripLog>(
         "SELECT * FROM ambulance_trip_logs \
-         WHERE trip_id = $1 ORDER BY recorded_at ASC LIMIT 5000",
+         WHERE trip_id = $1 AND deleted_at IS NULL ORDER BY recorded_at ASC LIMIT 5000",
     )
     .bind(trip_id)
     .fetch_all(&mut *tx)
@@ -878,7 +881,8 @@ pub async fn list_maintenance(
 
     let rows = sqlx::query_as::<_, AmbulanceMaintenance>(
         "SELECT * FROM ambulance_maintenance \
-         WHERE ($1::uuid IS NULL OR ambulance_id = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::uuid IS NULL OR ambulance_id = $1) \
          AND ($2::text IS NULL OR status::text = $2) \
          ORDER BY scheduled_date DESC LIMIT 200",
     )

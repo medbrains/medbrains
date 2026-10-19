@@ -26,6 +26,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -127,6 +129,13 @@ export function MgpsTab() {
       label: "Time",
       render: (r) => <Text size="sm">{new Date(r.reading_at).toLocaleString()}</Text>,
     },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu idKind="gas_reading" recordId={r.id} recordLabel={r.gas_type} />
+      ),
+    },
   ];
 
   const compCols: Column<FmsGasCompliance>[] = [
@@ -184,11 +193,14 @@ export function MgpsTab() {
         <Text fw={600} size="lg">
           PESO / Drug License Compliance
         </Text>
-        {canManageCompliance && (
-          <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openCompliance}>
-            Add Compliance
-          </Button>
-        )}
+        <Group>
+          <PrintRegisterButton documentKey="peso-compliance" period="year" />
+          {canManageCompliance && (
+            <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openCompliance}>
+              Add Compliance
+            </Button>
+          )}
+        </Group>
       </Group>
       <DataTable
         columns={compCols}

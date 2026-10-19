@@ -579,8 +579,12 @@ export interface CreatePatientRequest {
   registration_type?: RegistrationType;
   registration_source?: RegistrationSource;
   financial_class?: FinancialClass;
+  /** The campaign the patient came through, picked at the desk. */
+  campaign_id?: string;
   abha_number?: string;
   abha_address?: string;
+  /** The desk's "Verify ABHA" record; with it the ABHA is saved as verified. */
+  abha_verification_id?: string;
   aadhaar_number?: string;
   referred_by_name?: string;
   referred_by_phone?: string;
@@ -605,6 +609,98 @@ export interface CreatePatientRequest {
   is_unknown_patient?: boolean;
   attributes?: Record<string, unknown>;
   contact?: PatientContactPreferences;
+  /** The DPDP notice shown at the desk, and what the patient agreed to. */
+  privacy?: DpdpConsentInput;
+}
+
+/** Purposes beyond care that need the patient's own yes (DPDP Act 2023 s.6). */
+export type DpdpPurpose = "abdm_linking" | "insurance_claims" | "health_reminders" | "research";
+export type DpdpNoticeLanguage = "en" | "hi" | "ta";
+
+export interface DpdpConsentInput {
+  notice_version: string;
+  notice_language: DpdpNoticeLanguage;
+  purposes: DpdpPurpose[];
+  guardian_name?: string;
+}
+
+/** One decision on the consent ledger; the newest is the current answer. */
+export interface DpdpConsentRecord {
+  purposes: DpdpPurpose[];
+  notice_version: string | null;
+  notice_language: DpdpNoticeLanguage | null;
+  guardian_name: string | null;
+  source: "registration" | "patient_update" | "portal";
+  recorded_by_name: string | null;
+  created_at: string;
+}
+
+/** DPDP Act s.11-14: what the patient asked the hospital for. */
+export type PrivacyRequestType = "access" | "correction" | "erasure" | "nominee" | "grievance";
+export type PrivacyRequestChannel = "desk" | "email" | "phone" | "letter" | "portal";
+
+export interface PrivacyRequest {
+  id: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  request_type: PrivacyRequestType;
+  details: string;
+  received_via: PrivacyRequestChannel;
+  received_at: string;
+  /** 90 days after it arrived (Rules 2025 r.14). */
+  due_at: string;
+  status: "open" | "completed" | "refused";
+  nominee_name: string | null;
+  nominee_relation: string | null;
+  nominee_contact: string | null;
+  decision: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  recorded_by_name: string | null;
+}
+
+export interface CreatePrivacyRequest {
+  patient_id: string;
+  request_type: PrivacyRequestType;
+  details: string;
+  received_via?: PrivacyRequestChannel;
+  nominee_name?: string;
+  nominee_relation?: string;
+  nominee_contact?: string;
+}
+
+export interface DecidePrivacyRequest {
+  status: "completed" | "refused";
+  decision: string;
+}
+
+/** What the hospital holds about a patient — the answer to an access request. */
+export interface PatientDataSummary {
+  held: Array<{ category: string; count: number }>;
+  staff_who_viewed: number;
+  insurers: string[];
+}
+
+/** The patient's own privacy page in the portal. */
+export interface PortalPrivacy {
+  consent: PatientDpdpConsent;
+  requests: PrivacyRequest[];
+  held: PatientDataSummary;
+}
+
+export interface PortalPrivacyRequestInput {
+  request_type: PrivacyRequestType;
+  details: string;
+  nominee_name?: string;
+  nominee_relation?: string;
+  nominee_contact?: string;
+}
+
+export interface PatientDpdpConsent {
+  notice_version: string;
+  purposes: DpdpPurpose[];
+  history: DpdpConsentRecord[];
 }
 
 /**

@@ -83,6 +83,9 @@ export interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   loading?: boolean;
+  /** The query's error. Without it, a failed load elsewhere on the screen still keeps an empty table from claiming "no data". */
+  error?: unknown;
+  onRetry?: () => void;
   total?: number;
   emptyIcon?: ReactNode;
   emptyTitle?: string;

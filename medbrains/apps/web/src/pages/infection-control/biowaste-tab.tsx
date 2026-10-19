@@ -26,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button, Table } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 import { statusColorTone } from "./shared";
@@ -175,11 +176,14 @@ export function BiowasteTab() {
             </Text>
           )}
         </Group>
-        {canCreate && subView === "records" && (
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-            Add Record
-          </Button>
-        )}
+        <Group>
+          <PrintRegisterButton documentKey="spcb-bmw-returns" period="quarter" />
+          {canCreate && subView === "records" && (
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
+              Add Record
+            </Button>
+          )}
+        </Group>
       </Group>
 
       {subView === "records" ? (

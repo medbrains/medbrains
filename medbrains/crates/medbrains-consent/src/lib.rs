@@ -369,6 +369,7 @@ pub async fn list_audit(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // allow-soft-deleted: the consent audit trail must show every entry, deleted or not.
     let rows = sqlx::query_as::<_, ConsentAuditEntry>(
         "SELECT * FROM consent_audit_log \
          WHERE ($1::uuid IS NULL OR patient_id = $1) \

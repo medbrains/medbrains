@@ -9,6 +9,7 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }
 argon2 = { workspace = true }

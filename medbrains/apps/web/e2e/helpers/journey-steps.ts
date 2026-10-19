@@ -244,22 +244,33 @@ export async function createEncounter(
   return resp.encounter.id;
 }
 
+/**
+ * The doctor's consultation, written and signed on the visit's case sheet —
+ * the record the OPD screens and the consultation projection read. Keys are
+ * the old consultation fields: `history` lands in Assessment, which the
+ * projection keeps in that column.
+ */
 export async function createConsultation(
   ctx: AuthContext,
   encounterId: string,
-  body: Record<string, unknown> = {
+  body: { chief_complaint?: string; history?: string; examination?: string; plan?: string } = {
     chief_complaint: "Fever x 3 days",
     history: "Onset gradual",
     examination: "Temp 38.4C",
     plan: "Antipyretic + follow-up",
   },
 ): Promise<void> {
-  await api(
-    ctx,
-    "POST",
-    `/api/opd/encounters/${encounterId}/consultation`,
-    body,
-  );
+  const paragraph = (text?: string) => (text ? `<p>${text}</p>` : "");
+  const note = await api<{ id: string }>(ctx, "POST", `/api/encounters/${encounterId}/clinical-notes`, {
+    note_type_code: "consultation",
+    sections: [
+      { code: "subjective", text: paragraph(body.chief_complaint) },
+      { code: "objective", text: paragraph(body.examination) },
+      { code: "assessment", text: paragraph(body.history) },
+      { code: "plan", text: paragraph(body.plan) },
+    ],
+  });
+  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {});
 }
 
 export interface PrescriptionFanout {
@@ -553,6 +564,37 @@ export interface AvailableBedLite {
   ward_id: string | null;
 }
 
+/**
+ * A ward of this run's own with `count` clean beds, made through the screens'
+ * own API (create ward, create bed locations, map them). A bed journey takes
+ * beds from here, never from the shared pool: earlier runs leave beds
+ * occupied, or released and waiting for housekeeping, and a test that
+ * depends on the pool fails for reasons that are not its own.
+ */
+export async function freshWardBeds(ctx: AuthContext, count: number): Promise<AvailableBedLite[]> {
+  const tag = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+  const ward = await api<{ id: string }>(ctx, "POST", "/api/ipd/wards", {
+    code: `W${tag}`,
+    name: `Run ward ${tag}`,
+  });
+  // A bed sits in a room, as on the ward.
+  const locations = await api<{ id: string; level: string }[]>(ctx, "GET", "/api/setup/locations");
+  const room = locations.find((l) => l.level === "room");
+  if (!room) throw new Error("the seed has rooms to put beds in");
+  const beds: AvailableBedLite[] = [];
+  for (let i = 1; i <= count; i += 1) {
+    const bed = await api<{ id: string }>(ctx, "POST", "/api/setup/locations", {
+      parent_id: room.id,
+      level: "bed",
+      code: `B${tag}${i}`,
+      name: `Bed ${tag}-${i}`,
+    });
+    await api(ctx, "POST", `/api/ipd/wards/${ward.id}/beds`, { bed_location_id: bed.id });
+    beds.push({ bed_id: bed.id, bed_number: `${tag}-${i}`, ward_id: ward.id });
+  }
+  return beds;
+}
+
 /** Uncached, unlike seed-resolvers' `getAvailableBed`: a bed journey needs the list as it is now. */
 export async function listAvailableBeds(ctx: AuthContext): Promise<AvailableBedLite[]> {
   return api(ctx, "GET", "/api/ipd/beds/available");
@@ -609,6 +651,7 @@ export async function createIpdProgressNote(
   ctx: AuthContext,
   admissionId: string,
   opts: {
+    /** Days before today the round was (0 or less): a note records care given. */
     dayOffset?: number;
     noteType?: string;
     subjective?: string;
@@ -616,18 +659,33 @@ export async function createIpdProgressNote(
     assessment?: string;
     plan?: string;
   } = {},
-): Promise<{ id: string; note_date: string; note_type: string }> {
+): Promise<{ id: string }> {
   const dayOffset = opts.dayOffset ?? 0;
-  return api(ctx, "POST", `/api/ipd/admissions/${admissionId}/progress-notes`, {
-    note_type: opts.noteType ?? "doctor_round",
-    note_date: dateDaysFromNow(dayOffset),
-    subjective: opts.subjective ?? `Day ${dayOffset} review: symptoms improving`,
-    objective: opts.objective ?? "Vitals stable, no new red flags",
-    assessment: opts.assessment ?? "Observation admission, clinically stable",
-    plan:
-      opts.plan ??
-      "Continue monitoring, medication administration, and discharge planning",
+  if (dayOffset > 0) throw new Error("A progress note cannot record a round not yet done");
+  const admission = await api<{ admission: { encounter_id: string } }>(
+    ctx,
+    "GET",
+    `/api/ipd/admissions/${admissionId}`,
+  );
+  const encounterId = admission.admission.encounter_id;
+  const serviceAt = new Date(Date.now() + dayOffset * 86_400_000).toISOString();
+  const note = await api<{ id: string }>(ctx, "POST", `/api/encounters/${encounterId}/clinical-notes`, {
+    note_type_code: opts.noteType ?? "progress",
+    service_at: serviceAt,
+    sections: [
+      { code: "subjective", text: opts.subjective ?? `Day ${dayOffset} review: symptoms improving` },
+      { code: "objective", text: opts.objective ?? "Vitals stable, no new red flags" },
+      { code: "assessment", text: opts.assessment ?? "Observation admission, clinically stable" },
+      {
+        code: "plan",
+        text: opts.plan ?? "Continue monitoring, medication administration, and discharge planning",
+      },
+    ],
   });
+  await api(ctx, "POST", `/api/clinical-notes/${note.id}/sign`, {
+    late_entry_reason: dayOffset < 0 ? "Round written up after the day it was done" : undefined,
+  });
+  return note;
 }
 
 export async function createIpdClinicalAssessment(
@@ -887,10 +945,19 @@ export async function createGoodsReceiptNote(
     purchaseOrderItem: PurchaseOrderItemLite;
     invoiceAmount?: string;
     invoiceDate?: string;
+    /** The receiving store; the first active one when not given. */
+    storeLocationId?: string;
   },
 ): Promise<GrnDetailLite> {
+  // Received stock lands in a store — the server refuses a GRN that names none.
+  const storeLocationId =
+    opts.storeLocationId ??
+    (
+      await api<{ id: string; is_active: boolean }[]>(ctx, "GET", "/api/procurement/store-locations")
+    ).find((store) => store.is_active)?.id;
   return api(ctx, "POST", "/api/procurement/grns", {
     po_id: opts.purchaseOrderId,
+    store_location_id: storeLocationId,
     invoice_number: `INV-E2E-${String(Date.now()).slice(-8)}`,
     invoice_date: opts.invoiceDate ?? dateDaysFromNow(2),
     invoice_amount: opts.invoiceAmount ?? "1250.00",
@@ -1681,6 +1748,8 @@ export async function createDonor(ctx: AuthContext, bloodGroup: string): Promise
     first_name: "E2E",
     last_name: `Donor${ts}`,
     blood_group: bloodGroup,
+    gender: "male",
+    date_of_birth: "1990-01-01",
   });
 }
 
@@ -1688,6 +1757,38 @@ export async function createDonation(ctx: AuthContext, donorId: string): Promise
   return api(ctx, "POST", `/api/blood-bank/donors/${donorId}/donations`, {
     bag_number: `E2E-BAG-${Date.now().toString(36)}`,
     volume_ml: 450,
+    // Measured at the couch: the server refuses a collection without them.
+    weight_kg: 60,
+    hemoglobin_g_dl: 13.5,
+    systolic_bp: 120,
+    diastolic_bp: 80,
+    pulse: 72,
+  });
+}
+
+/** All five statutory TTI markers non-reactive — nothing is released otherwise. */
+export async function screenDonationNonReactive(ctx: AuthContext, donationId: string): Promise<void> {
+  await api(ctx, "POST", `/api/blood-bank/donations/${donationId}/tti`, {
+    results: ["hiv", "hbsag", "hcv", "syphilis", "malaria"].map((marker) => ({
+      marker,
+      result: "non_reactive",
+    })),
+  });
+}
+
+/** A compatible crossmatch for this patient and unit — red cells are issued on nothing less. */
+export async function crossmatchCompatible(
+  ctx: AuthContext,
+  args: { patientId: string; componentId: string; bloodGroup: string },
+): Promise<void> {
+  const xm = await api<{ id: string }>(ctx, "POST", "/api/blood-bank/crossmatch", {
+    patient_id: args.patientId,
+    blood_group: args.bloodGroup,
+  });
+  await api(ctx, "PUT", `/api/blood-bank/crossmatch/${xm.id}`, {
+    status: "compatible",
+    result: "compatible",
+    component_id: args.componentId,
   });
 }
 

@@ -90,7 +90,8 @@ pub async fn list_appointments(
          FROM appointments a \
          JOIN patients p ON p.id = a.patient_id \
          JOIN users u ON u.id = a.doctor_id \
-         WHERE ($1::date IS NULL OR a.appointment_date = $1) \
+         WHERE a.deleted_at IS NULL \
+         AND ($1::date IS NULL OR a.appointment_date = $1) \
          AND ($2::uuid IS NULL OR a.doctor_id = $2) \
          AND ($3::uuid IS NULL OR a.department_id = $3) \
          AND ($4::uuid IS NULL OR a.patient_id = $4) \

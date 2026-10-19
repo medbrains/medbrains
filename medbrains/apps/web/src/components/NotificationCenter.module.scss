@@ -3,7 +3,6 @@
 }
 
 .item {
-  display: block;
   width: 100%;
   padding: 11px 16px;
   border-bottom: 1px solid var(--mb-border-subtle, #eceef0);
@@ -16,6 +15,12 @@
   &[data-unread] {
     background: color-mix(in srgb, var(--mb-brand, #0f62fe) 4%, transparent);
   }
+}
+
+.itemMain {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
 }
 
 .body {

@@ -126,6 +126,10 @@ pub struct CssdSterilizationLoad {
     pub flash_reason: Option<String>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Set when the whole load is recalled; no pack from it may be issued.
+    pub recalled_at: Option<DateTime<Utc>>,
+    pub recalled_by: Option<Uuid>,
+    pub recall_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

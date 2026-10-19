@@ -751,6 +751,36 @@ const LAB_TESTS: &[(&str, &str, &str, &str, &str, &str, i32)] = &[
     ),
 ];
 
+/// Short names the counter and clinicians search by (migration 1070
+/// backfilled tenants that existed before it; this covers new ones).
+const LAB_SYNONYMS: &[(&str, &[&str])] = &[
+    (
+        "CBC",
+        &[
+            "hemogram",
+            "haemogram",
+            "CBP",
+            "complete blood picture",
+            "FBC",
+        ],
+    ),
+    ("PROF_HEMO", &["hemogram", "haemogram"]),
+    ("PROF_LFT", &["LFT", "liver function"]),
+    (
+        "PROF_KFT",
+        &["KFT", "RFT", "renal function", "kidney function"],
+    ),
+    ("PROF_THYROID", &["TFT", "thyroid function"]),
+    ("PROF_LIPID", &["lipid", "cholesterol"]),
+    ("PROF_DIAB", &["diabetes", "sugar profile"]),
+    ("FBS", &["fasting glucose", "fasting sugar", "FPG"]),
+    ("PPBS", &["post meal sugar", "PP sugar", "PPG"]),
+    ("RBS", &["random glucose", "random sugar", "GRBS"]),
+    ("HBA1C", &["A1c", "glycated", "glycosylated"]),
+    ("SGPT", &["ALT"]),
+    ("SGOT", &["AST"]),
+];
+
 /// Seed lab test catalog for the DEFAULT tenant.
 /// Idempotent — skips tests that already exist.
 pub(super) async fn seed_lab_catalog(
@@ -779,6 +809,18 @@ pub(super) async fn seed_lab_catalog(
         .bind(unit)
         .bind(price)
         .bind(tat_hours)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    for &(code, synonyms) in LAB_SYNONYMS {
+        sqlx::query(
+            "UPDATE lab_test_catalog SET synonyms = $3 \
+             WHERE tenant_id = $1 AND code = $2 AND synonyms = '{}'",
+        )
+        .bind(tenant_id)
+        .bind(code)
+        .bind(synonyms)
         .execute(&mut *tx)
         .await?;
     }

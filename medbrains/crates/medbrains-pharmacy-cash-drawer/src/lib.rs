@@ -2,7 +2,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-finance.md items #1, #2, #3.
 
-use axum::routing::{get,put};
+use axum::routing::{get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -14,6 +14,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+pub mod day_close;
+pub mod day_close_report;
+pub mod day_close_rules;
 
 use medbrains_server_core::{
     error::AppError,
@@ -105,6 +109,20 @@ pub async fn open_drawer(
             "cashier already has an open drawer — close current shift first".to_owned(),
         ));
     }
+    let day_closed: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pharmacy_day_closes WHERE tenant_id = $1 \
+            AND pharmacy_location_id = $2 AND status = 'closed' AND deleted_at IS NULL \
+            AND business_date = tenant_local_date($1, now()))",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.pharmacy_location_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if day_closed {
+        return Err(AppError::Conflict(
+            "Today is already closed at this counter; a supervisor must reopen it".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, CashDrawer>(
         "INSERT INTO pharmacy_cash_drawers \
@@ -143,26 +161,16 @@ pub async fn close_drawer(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Compute expected_close_amount from drawer's opening_float +
-    // sum of cash payments - sum of cash refunds - approved petty cash.
-    // Simplified version: opening_float + payments - refunds.
-    // Production: extend with petty cash + cash float movements.
-    let drawer: Option<(Decimal,)> = sqlx::query_as(
-        "SELECT opening_float FROM pharmacy_cash_drawers \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'open' \
-         FOR UPDATE",
+    // What the drawer should hold — the same function the day close sums.
+    let expected_close: Option<Decimal> = sqlx::query_scalar::<_, Decimal>(
+        "SELECT pharmacy_drawer_expected_cash(d.id) FROM pharmacy_cash_drawers d \
+          WHERE d.id = $1 AND d.tenant_id = $2 AND d.status = 'open' FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
-
-    let opening_float = drawer.ok_or(AppError::NotFound)?.0;
-
-    // Fold in cash payments + refunds for this drawer's window.
-    // This is a placeholder — actual aggregation needs join to
-    // pharmacy_payments + pharmacy_petty_cash_vouchers + cash_float_movements.
-    let expected_close = opening_float;
+    let expected_close = expected_close.ok_or(AppError::NotFound)?;
 
     let row = sqlx::query_as::<_, CashDrawer>(
         "UPDATE pharmacy_cash_drawers SET \
@@ -246,7 +254,7 @@ pub async fn list_drawers(
 
     let rows = sqlx::query_as::<_, CashDrawer>(
         "SELECT * FROM pharmacy_cash_drawers \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR cashier_user_id = $3) \
            AND ($4::uuid IS NULL OR pharmacy_location_id = $4) \
@@ -270,15 +278,20 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/pharmacy/cash-drawers",
-            get(list_drawers)
-                .post(open_drawer),
+            get(list_drawers).post(open_drawer),
         )
         .route(
             "/api/pharmacy/cash-drawers/me/active",
             get(get_my_active_drawer),
         )
+        .route("/api/pharmacy/cash-drawers/{id}/close", put(close_drawer))
         .route(
-            "/api/pharmacy/cash-drawers/{id}/close",
-            put(close_drawer),
+            "/api/pharmacy/day-close",
+            get(day_close::list_counter_days).post(day_close::close_day),
+        )
+        .route("/api/pharmacy/day-close/report", get(day_close::get_day_report))
+        .route(
+            "/api/pharmacy/day-close/{id}/reopen",
+            post(day_close::reopen_day),
         )
 }

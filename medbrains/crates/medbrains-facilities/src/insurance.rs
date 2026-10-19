@@ -218,7 +218,7 @@ async fn generate_number(
         "INSERT INTO sequences (tenant_id, seq_type, current_val) \
          VALUES ($1, $2, 1) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET current_val = sequences.current_val + 1 \
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, current_val = sequences.current_val + 1 \
          RETURNING current_val",
     )
     .bind(tenant_id)
@@ -342,7 +342,7 @@ pub async fn list_verifications(
 
     let rows: Vec<InsuranceVerification> = sqlx::query_as(
         "SELECT * FROM insurance_verifications \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
            AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
            AND ($3::text IS NULL OR status::text = $3) \
            AND ($4::date IS NULL OR created_at::date >= $4) \
@@ -438,7 +438,7 @@ pub async fn list_prior_auths(
 
     let rows: Vec<PriorAuthRequest> = sqlx::query_as(
         "SELECT * FROM prior_auth_requests \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
            AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
            AND ($3::text IS NULL OR status::text = $3) \
            AND ($4::text IS NULL OR urgency::text = $4) \
@@ -933,7 +933,7 @@ pub async fn list_appeals(
 
     let rows: Vec<PriorAuthAppeal> = sqlx::query_as(
         "SELECT * FROM prior_auth_appeals \
-         WHERE tenant_id = $1 \
+         WHERE deleted_at IS NULL AND tenant_id = $1 \
            AND ($2::uuid IS NULL OR prior_auth_id = $2) \
            AND ($3::text IS NULL OR status::text = $3) \
          ORDER BY created_at DESC \
@@ -1112,7 +1112,7 @@ pub async fn list_rules(
 
     let rows: Vec<PaRequirementRule> = sqlx::query_as(
         "SELECT * FROM pa_requirement_rules \
-         WHERE tenant_id = $1 ORDER BY priority DESC, rule_name LIMIT 5000",
+         WHERE deleted_at IS NULL AND tenant_id = $1 ORDER BY priority DESC, rule_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

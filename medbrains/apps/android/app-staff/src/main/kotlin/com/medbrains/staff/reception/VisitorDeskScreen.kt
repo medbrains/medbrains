@@ -154,7 +154,10 @@ fun VisitorDeskScreen(nav: NavHostController, api: FrontOfficeApi) {
                 list.sortedBy { when (stateOf(it)) { "overdue" -> 0; "active" -> 1; else -> 2 } }.forEach { pass ->
                     val s = stateOf(pass)
                     val isIn = insideOf(pass)
-                    val actions = if (identity?.can("front_office.passes.manage") == true) passActions(s, isIn) else emptyList()
+                    // The desk issues and revokes; the gate guard only records entry and exit.
+                    val canManage = identity?.can("front_office.passes.manage") == true
+                    val canRecord = canManage || identity?.can("front_office.visitor_logs.record") == true
+                    val actions = if (canRecord) passActions(s, isIn).filter { canManage || it != "revoke" } else emptyList()
                     Column(Modifier.fillMaxWidth()) {
                         CarbonActionRow(
                             visitors.firstOrNull { it.id == pass.registration_id }?.visitor_name ?: "Visitor",

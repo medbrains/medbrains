@@ -106,7 +106,7 @@ pub async fn list_packages(
 
     let rows = sqlx::query_as::<_, DoctorPackage>(
         "SELECT * FROM doctor_packages \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ($2::boolean IS NULL OR is_active = $2) \
            AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%' OR code ILIKE '%' || $3 || '%') \
          ORDER BY name LIMIT 5000",

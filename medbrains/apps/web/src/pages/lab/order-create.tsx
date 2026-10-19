@@ -1,11 +1,13 @@
-import { Select, Stack, TextInput } from "@mantine/core";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateLabOrderRequest, LabPriority } from "@medbrains/types";
+import type { DirectLabOrderResponse, LabPriority } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconArrowLeft, IconFlask } from "@tabler/icons-react";
+import { IconArrowLeft, IconFlask, IconReceipt } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { ClinicalEventProvider, PageHeader, useClinicalEmit } from "@/components";
@@ -13,24 +15,36 @@ import { EncounterSelect } from "@/components/EncounterSelect";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Panel, SegmentedControl } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { labService } from "@/services/lab.service";
 import { lookupsService } from "@/services/lookups.service";
-import { toLabPriority } from "./shared";
+import { billingInvoicePaymentRoute, billingInvoiceWorkspaceRoute } from "../billing-workspace";
+import {
+  addCounterTest,
+  emptyCounterForm,
+  formatRupees,
+  LAB_ORDERS_DIRECT,
+  type LabCounterFormValues,
+  labCounterFormSchema,
+  toDirectLabOrderRequest,
+} from "./order-create.form";
+import { ReferralFields } from "./order-create-referral";
+import { SelectedTests } from "./order-create-tests";
+
+const PRIORITY_OPTIONS = [
+  { value: "routine", label: "Routine" },
+  { value: "urgent", label: "Urgent" },
+  { value: "stat", label: "STAT" },
+];
 
 /**
- * Placing a lab order, on a screen rather than in a drawer.
- *
- * The drawer this replaces let the order be submitted with no encounter.
- * `lab_orders.encounter_id` is NOT NULL in the database, so that request
- * reached Postgres, violated the constraint and came back as "Failed to
- * create order" — a message that gave the person at the counter nothing to
- * act on and no hint that the empty Encounter field was the cause.
+ * The lab counter: order tests against a patient's visit, or — for a walk-in
+ * with no doctor's order here — open the lab visit, record who referred
+ * them and raise the bill in one step.
  */
 export function LabOrderCreatePage() {
   useRequirePermission(P.LAB.ORDERS_CREATE);
-
   return (
     <ClinicalEventProvider moduleCode="lab" contextCode="lab-order-create">
       <LabOrderCreatePageInner />
@@ -43,49 +57,96 @@ function LabOrderCreatePageInner() {
   const navigate = useNavigate();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [patientId, setPatientId] = useState("");
-  const [testId, setTestId] = useState("");
-  const [encounterId, setEncounterId] = useState("");
-  const [priority, setPriority] = useState<LabPriority>("routine");
-  const [clinicalNotes, setClinicalNotes] = useState("");
+  const canWalkIn = useHasPermission(LAB_ORDERS_DIRECT);
+  const canTakePayment = useHasPermission(P.BILLING.PAYMENTS_CREATE);
   // Visit lookup is a patient read the create permission does not imply.
   const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
+  const [raised, setRaised] = useState<DirectLabOrderResponse | null>(null);
+  const form = useForm<LabCounterFormValues>({
+    resolver: zodResolver(labCounterFormSchema),
+    defaultValues: emptyCounterForm(canWalkIn ? "walk_in" : "visit"),
+  });
+  const { control, handleSubmit, reset, setValue, formState } = form;
+  const [mode, patientId, tests] = useWatch({ control, name: ["mode", "patient_id", "tests"] });
 
-  // Read separately from EncounterSelect so the screen can say *why* the
-  // encounter box is empty. TanStack de-duplicates the two reads — this is
-  // the same query key the select uses, not a second round trip.
+  // Same key as EncounterSelect: says *why* the visit box is empty.
   const { data: visits, isLoading: visitsLoading } = useQuery({
     queryKey: ["encounter-search", patientId],
     queryFn: () => lookupsService.listPatientVisits(patientId),
-    enabled: Boolean(patientId) && canViewPatient,
+    enabled: mode === "visit" && Boolean(patientId) && canViewPatient,
     staleTime: 30_000,
   });
-  const hasNoVisits = Boolean(patientId) && !visitsLoading && (visits ?? []).length === 0;
+  const hasNoVisits =
+    mode === "visit" && Boolean(patientId) && !visitsLoading && (visits ?? []).length === 0;
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateLabOrderRequest) => labService.createLabOrder(data),
-    onSuccess: (result, variables) => {
+  const onError = (error: Error) =>
+    notifications.show({ title: "Order not placed", message: error.message, color: "danger" });
+
+  const visitMutation = useMutation({
+    // ponytail: one request per test (a handful at most) through the
+    // existing order endpoint; the walk-in path is the batched one.
+    mutationFn: async (v: LabCounterFormValues) => {
+      const placed = [];
+      for (const test of v.tests) {
+        placed.push(
+          await labService.createLabOrder({
+            patient_id: v.patient_id,
+            test_id: test.id,
+            encounter_id: v.encounter_id,
+            priority: v.priority as LabPriority,
+            notes: v.clinical_history || undefined,
+          }),
+        );
+      }
+      return placed;
+    },
+    onSuccess: (orders) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
-      notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
-      emit("order.created", {
-        encounter_id: result.encounter_id,
-        order_id: result.id,
-        order_type: "lab",
-        patient_id: result.patient_id,
-        priority: result.priority,
-        test_id: result.test_id,
-        source_test_id: variables.test_id,
-      });
-      // Onto the order that was just placed, not back to a list the user then
-      // has to search to find it in.
-      navigate(`/lab/orders/${result.id}`);
+      for (const order of orders) {
+        emit("order.created", {
+          encounter_id: order.encounter_id,
+          order_id: order.id,
+          order_type: "lab",
+          patient_id: order.patient_id,
+          priority: order.priority,
+          test_id: order.test_id,
+        });
+      }
+      notifications.show({ title: "Order placed", message: "", color: "success" });
+      navigate(orders.length === 1 ? `/lab/orders/${orders[0]?.id}` : "/lab");
     },
-    onError: (error: Error) => {
-      notifications.show({ title: "Error", message: error.message, color: "danger" });
-    },
+    onError,
   });
 
-  const canSubmit = Boolean(patientId && testId && encounterId);
+  const walkInMutation = useMutation({
+    mutationFn: (v: LabCounterFormValues) =>
+      labService.createDirectLabOrder(toDirectLabOrderRequest(v)),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
+      if (canTakePayment && result.invoice_id) {
+        navigate(billingInvoicePaymentRoute(result.invoice_id));
+        return;
+      }
+      setRaised(result);
+    },
+    onError,
+  });
+
+  const submit = handleSubmit((v) =>
+    v.mode === "walk_in" ? walkInMutation.mutate(v) : visitMutation.mutate(v),
+  );
+
+  if (raised) {
+    return (
+      <BillRaised
+        result={raised}
+        onNext={() => {
+          setRaised(null);
+          reset(emptyCounterForm("walk_in"));
+        }}
+      />
+    );
+  }
 
   return (
     <Stack>
@@ -102,54 +163,155 @@ function LabOrderCreatePageInner() {
           </Button>
         }
       />
-      <Stack maw={640}>
-        <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
-        <LabTestSearchSelect value={testId} onChange={(id) => setTestId(id)} required />
-        <EncounterSelect
-          value={encounterId}
-          onChange={(id) => setEncounterId(id)}
-          patientId={patientId || undefined}
-          required
-        />
-        {hasNoVisits && (
-          <Alert tone="warning">
-            This patient has no recorded visit. A lab order belongs to one — register the visit in
-            OPD, or at a camp check the patient in first, then place the order.
-          </Alert>
+      <Stack component="form" maw={720} onSubmit={submit}>
+        {canWalkIn && (
+          <Controller
+            control={control}
+            name="mode"
+            render={({ field }) => (
+              <SegmentedControl
+                aria-label="Order type"
+                data={[
+                  { value: "walk_in", label: "Walk-in (no doctor's order here)" },
+                  { value: "visit", label: "Against a visit" },
+                ]}
+                value={field.value}
+                onChange={(value) => field.onChange(value)}
+              />
+            )}
+          />
         )}
-        <Select
-          label={t("label.priority")}
-          data={[
-            { value: "routine", label: "Routine" },
-            { value: "urgent", label: "Urgent" },
-            { value: "stat", label: "STAT" },
-          ]}
-          value={priority}
-          onChange={(value) => setPriority(toLabPriority(value))}
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={formState.errors.patient_id?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label={t("label.clinicalNotes")}
-          value={clinicalNotes}
-          onChange={(e) => setClinicalNotes(e.currentTarget.value)}
-        />
-        <Button
-          tone="primary"
-          disabled={!canSubmit}
-          onClick={() =>
-            createMutation.mutate({
-              patient_id: patientId,
-              test_id: testId,
-              encounter_id: encounterId,
-              priority,
-              notes: clinicalNotes || undefined,
-            })
-          }
-          loading={createMutation.isPending}
-        >
-          Place Order
-        </Button>
+        <PatientContextBanner patientId={patientId} hideLoadingState />
+
+        <Panel title="Tests">
+          <Stack gap="xs">
+            <LabTestSearchSelect
+              label="Add a test"
+              value=""
+              clearOnSelect
+              onChange={(_, test) => {
+                if (test) setValue("tests", addCounterTest(tests, test), { shouldValidate: true });
+              }}
+              error={formState.errors.tests?.message}
+            />
+            <SelectedTests
+              tests={tests}
+              onRemove={(id) =>
+                setValue(
+                  "tests",
+                  tests.filter((x) => x.id !== id),
+                  { shouldValidate: true },
+                )
+              }
+            />
+          </Stack>
+        </Panel>
+
+        {mode === "visit" ? (
+          <>
+            <Controller
+              control={control}
+              name="encounter_id"
+              render={({ field }) => (
+                <EncounterSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  patientId={patientId || undefined}
+                  error={formState.errors.encounter_id?.message}
+                  required
+                />
+              )}
+            />
+            {hasNoVisits && (
+              <Alert tone="warning">
+                This patient has no recorded visit.
+                {canWalkIn
+                  ? " Switch to Walk-in to book the tests at the lab counter."
+                  : " Register the visit in OPD, or check the patient in at the camp, first."}
+              </Alert>
+            )}
+          </>
+        ) : (
+          <ReferralFields control={control} errors={formState.errors} />
+        )}
+
+        <Group grow align="flex-start">
+          <Controller
+            control={control}
+            name="priority"
+            render={({ field }) => (
+              <Select
+                label={t("label.priority")}
+                data={PRIORITY_OPTIONS}
+                value={field.value}
+                onChange={(value) => value && field.onChange(value)}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="clinical_history"
+            render={({ field }) => (
+              <TextInput label="Clinical history" placeholder="e.g. fever 3 days" {...field} />
+            )}
+          />
+        </Group>
+        <Group justify="flex-end">
+          <Button
+            tone="primary"
+            type="submit"
+            loading={walkInMutation.isPending || visitMutation.isPending}
+          >
+            {mode === "walk_in" ? "Book tests and raise bill" : "Place order"}
+          </Button>
+        </Group>
       </Stack>
+    </Stack>
+  );
+}
+
+function BillRaised({ result, onNext }: { result: DirectLabOrderResponse; onNext: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <Stack maw={720}>
+      <Alert
+        tone="success"
+        title={`Bill raised ${formatRupees(result.total)} — collect at billing`}
+      >
+        <Text size="sm">
+          {result.orders.length} {result.orders.length === 1 ? "test is" : "tests are"} booked. Send
+          the patient to the billing desk; the sample is drawn once the bill is paid.
+        </Text>
+      </Alert>
+      <Group>
+        {result.invoice_id && (
+          <Button
+            tone="secondary"
+            leftSection={<IconReceipt size={16} />}
+            onClick={() => navigate(billingInvoiceWorkspaceRoute(result.invoice_id ?? ""))}
+          >
+            Open the bill
+          </Button>
+        )}
+        <Button tone="secondary" onClick={() => navigate(`/lab/orders/${result.orders[0]?.id}`)}>
+          Open the order
+        </Button>
+        <Button tone="primary" onClick={onNext}>
+          Next walk-in
+        </Button>
+      </Group>
     </Stack>
   );
 }

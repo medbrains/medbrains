@@ -35,7 +35,7 @@ import { campRegistrationOptionLabel, campWorkPath } from "./shared";
  * afternoon of blood pressures written down and nothing else.
  */
 export function CampFollowupCreatePage() {
-  useRequirePermission(P.CAMP.FOLLOWUPS_MANAGE);
+  useRequirePermission(P.CAMP.FOLLOWUPS_SCHEDULE);
 
   const { t } = useTranslation("camp");
   const navigate = useNavigate();

@@ -1459,17 +1459,6 @@ describe("/billing endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("calculateCopay → POST /billing/copay/calculate", async () => {
-    mockOk({});
-    await api.calculateCopay({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/billing/copay/calculate");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
   it("erFastInvoice → POST /billing/er-invoice", async () => {
     mockOk({});
     await api.erFastInvoice({ test: "data" });
@@ -5639,36 +5628,6 @@ describe("/ipd endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("listProgressNotes → GET /ipd/admissions/{param_1}/progress-notes", async () => {
-    mockOk({});
-    await api.listProgressNotes(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-  });
-
-  it("createProgressNote → POST /ipd/admissions/{param_1}/progress-notes", async () => {
-    mockOk({});
-    await api.createProgressNote(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("updateProgressNote → PUT /ipd/admissions/{param_1}/progress-notes/{param_2}", async () => {
-    mockOk({});
-    await api.updateProgressNote(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
   it("listAssessments → GET /ipd/admissions/{param_1}/assessments", async () => {
     mockOk({});
     await api.listAssessments(UUID);
@@ -7446,28 +7405,6 @@ describe("/opd endpoints", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
-  });
-
-  it("createConsultation → POST /opd/encounters/{param_1}/consultation", async () => {
-    mockOk({});
-    await api.createConsultation(UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/opd/encounters");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
-  });
-
-  it("updateConsultation → PUT /opd/encounters/{param_1}/consultation/{param_2}", async () => {
-    mockOk({});
-    await api.updateConsultation(UUID, UUID, { test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/opd/encounters");
-    expect(opts.method).toBe("PUT");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
   it("listDiagnoses → GET /opd/encounters/{param_1}/diagnoses", async () => {
@@ -9268,14 +9205,6 @@ describe("/print-data endpoints", () => {
     expect(url).toContain("/api/print-data/credit-note");
   });
 
-  it("getTdsCertPrintData → GET /print-data/tds-certificate/{param_1}", async () => {
-    mockOk({});
-    await api.getTdsCertPrintData(UUID);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/print-data/tds-certificate");
-  });
-
   it("getGstInvoicePrintData → GET /print-data/gst-invoice/{param_1}", async () => {
     mockOk({});
     await api.getGstInvoicePrintData(UUID);
@@ -10560,40 +10489,40 @@ describe("/security endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("listSecurityIncidents → GET /security-incidents", async () => {
+  it("listSecurityIncidents → GET /security/incidents", async () => {
     mockOk({});
     await api.listSecurityIncidents();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/security-incidents");
+    expect(url.split("?")[0]).toBe("/api/security/incidents");
   });
 
-  it("getSecurityIncident → GET /security-incidents/{param_1}", async () => {
+  it("getSecurityIncident → GET /security/incidents/{param_1}", async () => {
     mockOk({});
     await api.getSecurityIncident(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
   });
 
-  it("createSecurityIncident → POST /security-incidents", async () => {
+  it("createSecurityIncident → POST /security/incidents", async () => {
     mockOk({});
     await api.createSecurityIncident({ test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/security-incidents");
+    expect(url.split("?")[0]).toBe("/api/security/incidents");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("updateSecurityIncident → PATCH /security-incidents/{param_1}", async () => {
+  it("updateSecurityIncident → PUT /security/incidents/{param_1}", async () => {
     mockOk({});
     await api.updateSecurityIncident(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
-    expect(opts.method).toBe("PATCH");
+    expect(url).toContain("/api/security/incidents");
+    expect(opts.method).toBe("PUT");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
@@ -10674,33 +10603,33 @@ describe("/security endpoints", () => {
 });
 
 describe("/it-security endpoints", () => {
-  it("reportToCertIn → POST /security-incidents/{param_1}/cert-in", async () => {
+  it("recordIncidentNotice → POST /security/incidents/{param_1}/notices", async () => {
     mockOk({});
-    await api.reportToCertIn(UUID, { test: "data" });
+    await api.recordIncidentNotice(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
-    expect(url).toContain("/cert-in");
+    expect(url).toContain("/api/security/incidents");
+    expect(url).toContain("/notices");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
-  it("getIncidentUpdates → GET /security-incidents/{param_1}/updates", async () => {
+  it("getIncidentUpdates → GET /security/incidents/{param_1}/updates", async () => {
     mockOk({});
     await api.getIncidentUpdates(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
     expect(url).toContain("/updates");
   });
 
-  it("addIncidentUpdate → POST /security-incidents/{param_1}/updates", async () => {
+  it("addIncidentUpdate → POST /security/incidents/{param_1}/updates", async () => {
     mockOk({});
     await api.addIncidentUpdate(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain("/api/security-incidents");
+    expect(url).toContain("/api/security/incidents");
     expect(url).toContain("/updates");
     expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
@@ -10770,25 +10699,6 @@ describe("/it-security endpoints", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/backups");
-  });
-
-  it("getOnboardingProgress → GET /it-onboarding/progress", async () => {
-    mockOk({});
-    await api.getOnboardingProgress();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/it-onboarding/progress");
-  });
-
-  it("completeOnboardingStep → POST /it-onboarding/complete-step", async () => {
-    mockOk({});
-    await api.completeOnboardingStep({ test: "data" });
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("/api/it-onboarding/complete-step");
-    expect(opts.method).toBe("POST");
-    expect(opts.body).toBeDefined();
-    expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 });
 

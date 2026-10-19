@@ -1,10 +1,10 @@
 //! Print-data endpoints — wristband, appointment, death certificate, discharge.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -13,12 +13,11 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
-    DischargeSummaryPrintData, EducationSection, ErDischargeSummaryPrintData, InfantWristbandPrintData,
-    KeyImage, LabParameter,
+    DischargeSummaryPrintData, ErDischargeSummaryPrintData, InfantWristbandPrintData, LabParameter,
     LabReportFullPrintData, OpdCertificatePrintData, OpdPrescriptionPrintData,
-    OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PatientEducationPrintData,
-    PrescriptionMedication, RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder,
-    TokenSlipPrintData, TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
+    OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PrescriptionMedication,
+    RadiologyReportFullPrintData, RegistrationCardPrintData, TokenSlipPrintData,
+    TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
     TreatmentChartPrintData, TrendValue, VisitorPassPrintData, WristbandPrintData,
 };
 
@@ -97,8 +96,16 @@ fn formatted_date(date: Option<chrono::NaiveDate>) -> Option<String> {
     date.map(|value| value.format("%d-%b-%Y").to_string())
 }
 
-fn formatted_datetime(datetime: Option<chrono::DateTime<Utc>>) -> Option<String> {
-    datetime.map(|value| value.format("%d-%b-%Y %H:%M").to_string())
+fn formatted_datetime(
+    datetime: Option<chrono::DateTime<Utc>>,
+    tz: chrono::FixedOffset,
+) -> Option<String> {
+    datetime.map(|value| {
+        value
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string()
+    })
 }
 
 async fn hospital_name(
@@ -126,6 +133,7 @@ pub async fn get_opd_certificate_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -150,13 +158,13 @@ pub async fn get_opd_certificate_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::opd::certificates::REPRINT)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
-        certificate_id,
-    )
-    .await?;
+        medbrains_authz_gate::require_access_via(
+            &state,
+            &claims,
+            medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
+            certificate_id,
+        )
+        .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first certificate print".to_owned(),
@@ -203,7 +211,7 @@ pub async fn get_opd_certificate_print_data(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let today = Utc::now().format("%Y%m%d").to_string();
+    let today = Utc::now().with_timezone(&tz).format("%Y%m%d").to_string();
     let document_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::bigint \
          FROM document_outputs \
@@ -319,6 +327,7 @@ pub async fn get_opd_consent_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -408,7 +417,7 @@ pub async fn get_opd_consent_print_data(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let today = Utc::now().format("%Y%m%d").to_string();
+    let today = Utc::now().with_timezone(&tz).format("%Y%m%d").to_string();
     let document_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::bigint \
          FROM document_outputs \
@@ -511,10 +520,14 @@ pub async fn get_opd_consent_print_data(
         consented_by_relation: row.consented_by_relation,
         witness_name: row.witness_name,
         witness_designation: row.witness_designation,
-        signed_at: formatted_datetime(row.signed_at),
-        withdrawn_at: formatted_datetime(row.withdrawn_at),
+        signed_at: formatted_datetime(row.signed_at, tz),
+        withdrawn_at: formatted_datetime(row.withdrawn_at, tz),
         withdrawal_reason: row.withdrawal_reason,
-        created_at: row.created_at.format("%d-%b-%Y %H:%M").to_string(),
+        created_at: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         hospital_name: h_name,
     }))
 }
@@ -532,6 +545,7 @@ struct WristbandRow {
     encounter_id: Uuid,
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     date_of_birth: Option<chrono::NaiveDate>,
@@ -557,6 +571,7 @@ pub async fn get_wristband_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
@@ -598,6 +613,7 @@ pub async fn get_wristband_print_data(
            a.encounter_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.date_of_birth, \
@@ -625,6 +641,7 @@ pub async fn get_wristband_print_data(
          WHERE patient_id = $1 \
            AND tenant_id = $2 \
            AND is_active = true \
+           AND deleted_at IS NULL \
          ORDER BY created_at LIMIT 5000",
     )
     .bind(row.patient_id)
@@ -632,7 +649,7 @@ pub async fn get_wristband_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let today = Utc::now().format("%Y%m%d").to_string();
+    let today = Utc::now().with_timezone(&tz).format("%Y%m%d").to_string();
     let document_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::bigint \
          FROM document_outputs \
@@ -707,16 +724,29 @@ pub async fn get_wristband_print_data(
 
     tx.commit().await?;
 
+    // The band carries the UHID itself: the bedside medication check compares
+    // the scanned code to it (BCMA), so any other payload would be refused.
+    let barcode_svg = medbrains_print::codes::code128_svg(&row.uhid, 40)
+        .map_err(|e| AppError::Internal(format!("wristband barcode: {e}")))?;
+    let qr_svg = medbrains_print::codes::qr_svg(&row.uhid)
+        .map_err(|e| AppError::Internal(format!("wristband qr: {e}")))?;
     Ok(Json(WristbandPrintData {
+        barcode_svg,
+        qr_svg,
         document_number,
         is_reprint,
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
         date_of_birth: row.date_of_birth.map(|d| d.format("%d-%b-%Y").to_string()),
         blood_group: row.blood_group,
-        admission_date: row.admitted_at.format("%d-%b-%Y").to_string(),
+        admission_date: row
+            .admitted_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         doctor_name: row.doctor_name,
@@ -732,6 +762,7 @@ pub async fn get_wristband_print_data(
 struct DischargeSummaryRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     admitted_at: chrono::DateTime<Utc>,
@@ -743,6 +774,13 @@ struct DischargeSummaryRow {
     discharge_type: Option<String>,
     discharge_summary: Option<String>,
     diagnosis: Option<String>,
+    final_diagnosis: Option<String>,
+    course_in_hospital: Option<String>,
+    treatment_given: Option<String>,
+    procedures_performed: Option<String>,
+    investigation_summary: Option<String>,
+    condition_at_discharge: Option<String>,
+    follow_up_instructions: Option<String>,
 }
 
 pub async fn get_discharge_print_data(
@@ -757,11 +795,13 @@ pub async fn get_discharge_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, DischargeSummaryRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            a.admitted_at, \
@@ -772,9 +812,16 @@ pub async fn get_discharge_print_data(
            w.name AS ward_name, \
            a.discharge_type::text AS discharge_type, \
            a.discharge_summary, \
-           a.provisional_diagnosis AS diagnosis \
+           a.provisional_diagnosis AS diagnosis, \
+           s.final_diagnosis, s.course_in_hospital, s.treatment_given, \
+           (SELECT string_agg(COALESCE(pp->>'name', pp #>> '{}'), '; ') \
+              FROM jsonb_array_elements(s.procedures_performed) pp) AS procedures_performed, \
+           s.investigation_summary, s.condition_at_discharge, s.follow_up_instructions \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         LEFT JOIN ipd_discharge_summaries s ON s.admission_id = a.id \
+                                             AND s.tenant_id = a.tenant_id \
+                                             AND s.deleted_at IS NULL \
          LEFT JOIN encounters e ON e.id = a.encounter_id \
                                 AND e.tenant_id = a.tenant_id \
          LEFT JOIN departments dept ON dept.id = e.department_id \
@@ -800,15 +847,21 @@ pub async fn get_discharge_print_data(
 
     tx.commit().await?;
 
-    let fmt_ts =
-        |dt: Option<chrono::DateTime<Utc>>| dt.map(|d| d.format("%d-%b-%Y %H:%M").to_string());
+    let fmt_ts = |dt: Option<chrono::DateTime<Utc>>| {
+        dt.map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
+    };
 
     Ok(Json(DischargeSummaryPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
-        admission_date: row.admitted_at.format("%d-%b-%Y").to_string(),
+        admission_date: row
+            .admitted_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         discharge_date: fmt_ts(row.discharged_at),
         department: row.department,
         doctor_name: row.doctor_name,
@@ -817,6 +870,13 @@ pub async fn get_discharge_print_data(
         discharge_type: row.discharge_type,
         discharge_summary: row.discharge_summary,
         diagnosis: row.diagnosis,
+        final_diagnosis: row.final_diagnosis,
+        course_in_hospital: row.course_in_hospital,
+        treatment_given: row.treatment_given,
+        procedures_performed: row.procedures_performed,
+        investigation_summary: row.investigation_summary,
+        condition_at_discharge: row.condition_at_discharge,
+        follow_up_instructions: row.follow_up_instructions,
         signatures: sigs
             .into_iter()
             .map(|s| medbrains_core::print_data::PrintSignatureData {
@@ -875,6 +935,7 @@ pub async fn get_er_discharge_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, ErDischargeRow>(
         "SELECT \
@@ -918,8 +979,14 @@ pub async fn get_er_discharge_print_data(
         uhid: row.uhid,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
         gender: row.gender,
-        arrival_time: row.arrival_time.format("%d-%b-%Y %H:%M").to_string(),
-        discharge_date: row.finalized_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        arrival_time: row
+            .arrival_time
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
+        discharge_date: row
+            .finalized_at
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()),
         chief_complaint: row.chief_complaint,
         triage_level: row.triage_level,
         disposition: row.disposition,
@@ -941,9 +1008,11 @@ pub async fn get_er_discharge_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct TokenSlipRow {
+    source: String,
     token_number: String,
-    created_at: chrono::DateTime<Utc>,
-    department_id: Uuid,
+    token_day: String,
+    token_time: String,
+    department_id: Option<Uuid>,
     token_date: chrono::NaiveDate,
     token_seq: i32,
     patient_name: Option<String>,
@@ -954,6 +1023,9 @@ struct TokenSlipRow {
     priority: String,
 }
 
+/// A token slip for either queue the product runs: the unified `tokens` queue
+/// (OPD, lab, pharmacy, billing desks) or the TV-display `queue_tokens` list.
+/// Both are live, so the id is looked up in `tokens` first.
 pub async fn get_token_slip_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -962,70 +1034,115 @@ pub async fn get_token_slip_print_data(
     require_permission(&claims, permissions::front_office::queue::LIST)?;
     // The token's patient is nullable — a token can be issued before the
     // person is identified — so the optional form: a missing token is
-    // NotFound, a token with no patient passes on the permission alone.
-    medbrains_authz_gate::require_access_via_optional(
+    // NotFound, a token with no patient passes on the permission alone. Only a
+    // NotFound falls through to the other table; any other answer, a denial or
+    // a fault, stands.
+    match medbrains_authz_gate::require_access_via_optional(
         &state,
         &claims,
-        medbrains_authz_gate::links::QUEUE_TOKEN,
+        medbrains_authz_gate::links::TOKEN,
         token_id,
     )
-    .await?;
-    // Not guarded: `queue_tokens.patient_id` is NULLABLE — a walk-in token
-    // exists before a patient is registered — so it cannot be a parent column.
+    .await
+    {
+        Err(AppError::NotFound) => {
+            medbrains_authz_gate::require_access_via_optional(
+                &state,
+                &claims,
+                medbrains_authz_gate::links::QUEUE_TOKEN,
+                token_id,
+            )
+            .await?;
+        }
+        other => other?,
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, TokenSlipRow>(
-        "SELECT \
-           qt.token_number, \
-           qt.created_at, \
-           qt.department_id, \
-           qt.token_date, \
-           qt.token_seq, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           dept.name AS department_name, \
-           doc.full_name AS doctor_name, \
-           td.room_number, \
-           qt.priority::text AS priority \
-         FROM queue_tokens qt \
-         LEFT JOIN patients p ON p.id = qt.patient_id AND p.tenant_id = qt.tenant_id \
-         LEFT JOIN departments dept ON dept.id = qt.department_id \
-                                    AND dept.tenant_id = qt.tenant_id \
-         LEFT JOIN users doc ON doc.id = qt.doctor_id \
-         LEFT JOIN tv_displays td ON td.department_id = qt.department_id \
-                                  AND td.tenant_id = qt.tenant_id \
-                                  AND td.is_active = true \
-         WHERE qt.id = $1 AND qt.tenant_id = $2",
+        "SELECT * FROM ( \
+           SELECT 'tokens' AS source, \
+             t.number AS token_number, \
+             to_char(t.created_at, 'DD-Mon-YYYY') AS token_day, \
+             to_char(t.created_at, 'HH24:MI') AS token_time, \
+             NULL::uuid AS department_id, \
+             t.token_date, \
+             t.seq AS token_seq, \
+             COALESCE(t.patient_name, concat_ws(' ', p.first_name, p.last_name)) \
+               AS patient_name, \
+             p.uhid, \
+             COALESCE(t.scope_label, initcap(t.module)) AS department_name, \
+             NULL::text AS doctor_name, \
+             t.counter_label AS room_number, \
+             t.priority \
+           FROM tokens t \
+           LEFT JOIN patients p ON p.id = t.patient_id AND p.tenant_id = t.tenant_id \
+           WHERE t.id = $1 AND t.tenant_id = $2 \
+           UNION ALL \
+           SELECT 'queue_tokens', \
+             qt.token_number, \
+             to_char(qt.created_at, 'DD-Mon-YYYY'), \
+             to_char(qt.created_at, 'HH24:MI'), \
+             qt.department_id, \
+             qt.token_date, \
+             qt.token_seq, \
+             concat_ws(' ', p.first_name, p.last_name), \
+             p.uhid, \
+             dept.name, \
+             doc.full_name, \
+             td.room_number, \
+             qt.priority::text \
+           FROM queue_tokens qt \
+           LEFT JOIN patients p ON p.id = qt.patient_id AND p.tenant_id = qt.tenant_id \
+           LEFT JOIN departments dept ON dept.id = qt.department_id \
+                                      AND dept.tenant_id = qt.tenant_id \
+           LEFT JOIN users doc ON doc.id = qt.doctor_id \
+           LEFT JOIN tv_displays td ON td.department_id = qt.department_id \
+                                    AND td.tenant_id = qt.tenant_id \
+                                    AND td.is_active = true \
+           WHERE qt.id = $1 AND qt.tenant_id = $2 \
+         ) slip \
+         ORDER BY source = 'tokens' DESC \
+         LIMIT 1",
     )
     .bind(token_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
 
     // Ask the queue module rather than counting here: the slip must promise the
     // same wait the board shows, and two implementations would drift apart.
-    let (_, estimated_wait_minutes) = medbrains_tv::position_and_wait(
-        &state.db,
-        claims.tenant_id,
-        row.department_id,
-        row.token_date,
-        row.token_seq,
-        &row.priority,
-    )
-    .await?;
+    // ponytail: only the TV-display queue has an estimator; a unified-queue
+    // token prints no wait rather than an invented one.
+    let estimated_wait_minutes = match (row.source.as_str(), row.department_id) {
+        ("queue_tokens", Some(department_id)) => {
+            medbrains_tv::position_and_wait(
+                &state.db,
+                claims.tenant_id,
+                department_id,
+                row.token_date,
+                row.token_seq,
+                &row.priority,
+            )
+            .await?
+            .1
+        }
+        _ => None,
+    };
 
     // Generate QR code data (token ID for verification)
     let qr_data = format!("MBTOKEN:{token_id}");
 
     Ok(Json(TokenSlipPrintData {
         token_number: row.token_number,
-        token_date: row.created_at.format("%d-%b-%Y").to_string(),
-        token_time: row.created_at.format("%H:%M").to_string(),
+        token_date: row.token_day,
+        token_time: row.token_time,
         patient_name: row.patient_name,
         uhid: row.uhid,
         department_name: row.department_name.unwrap_or_default(),
@@ -1047,6 +1164,7 @@ struct VisitorPassRow {
     visitor_phone: String,
     visitor_id_type: Option<String>,
     visitor_id_number: Option<String>,
+    photo_url: Option<String>,
     patient_name: String,
     patient_uhid: String,
     ward_name: Option<String>,
@@ -1058,55 +1176,46 @@ struct VisitorPassRow {
     issued_by_name: Option<String>,
 }
 
+/// A visitor pass as printed: who it is for, whom they visit, until when —
+/// and a QR of the pass number, which the gate scans to check it now
+/// (`/api/front-office/passes/scan`).
 pub async fn get_visitor_pass_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorPassPrintData>, AppError> {
     require_permission(&claims, permissions::front_office::passes::LIST)?;
-    // Visitor passes name a visitor, not a patient; no patient column exists.
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, VisitorPassRow>(
-        "SELECT \
-           vp.pass_number, \
-           vp.visitor_name, \
-           vp.visitor_phone, \
-           vp.visitor_id_type, \
-           vp.visitor_id_number, \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid AS patient_uhid, \
-           w.name AS ward_name, \
-           l.name AS bed_number, \
-           vp.relation, \
-           vp.valid_from, \
-           vp.valid_until, \
-           vp.created_at, \
-           u.full_name AS issued_by_name \
-         FROM visitor_passes vp \
-         JOIN patients p ON p.id = vp.patient_id AND p.tenant_id = vp.tenant_id \
-         LEFT JOIN admissions a ON a.patient_id = p.id \
-                                AND a.tenant_id = vp.tenant_id \
-                                AND a.discharged_at IS NULL \
-         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = vp.tenant_id \
-         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = vp.tenant_id \
-         LEFT JOIN users u ON u.id = vp.issued_by \
-         WHERE vp.id = $1 AND vp.tenant_id = $2",
+        "SELECT vp.pass_number, r.visitor_name, COALESCE(r.phone, '') AS visitor_phone, \
+                r.id_type::text AS visitor_id_type, r.id_number AS visitor_id_number, r.photo_url, \
+                COALESCE(p.first_name || ' ' || p.last_name, '') AS patient_name, \
+                COALESCE(p.uhid, '') AS patient_uhid, \
+                COALESCE(w.name, aw.name) AS ward_name, vp.bed_number, r.relationship AS relation, \
+                vp.valid_from, vp.valid_until, vp.created_at, u.full_name AS issued_by_name \
+           FROM visitor_passes vp \
+           JOIN visitor_registrations r ON r.id = vp.registration_id \
+           LEFT JOIN patients p ON p.id = r.patient_id \
+           LEFT JOIN wards w ON w.id = vp.ward_id \
+           LEFT JOIN wards aw ON aw.id = r.ward_id \
+           LEFT JOIN users u ON u.id = vp.issued_by \
+          WHERE vp.id = $1 AND vp.tenant_id = $2 AND vp.deleted_at IS NULL",
     )
     .bind(pass_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
-
-    // Generate QR code data (pass ID for verification)
-    let qr_data = format!("MBVISITOR:{pass_id}");
+    let qr_svg = medbrains_print::codes::qr_svg(&row.pass_number)
+        .map_err(|e| AppError::Internal(format!("pass qr: {e}")))?;
 
     Ok(Json(VisitorPassPrintData {
+        qr_code_data: row.pass_number.clone(),
+        qr_svg,
         pass_number: row.pass_number,
         visitor_name: row.visitor_name,
         visitor_phone: row.visitor_phone,
@@ -1117,12 +1226,23 @@ pub async fn get_visitor_pass_print_data(
         patient_ward: row.ward_name,
         patient_bed: row.bed_number,
         relation: row.relation,
-        valid_from: row.valid_from.format("%d-%b-%Y %H:%M").to_string(),
-        valid_until: row.valid_until.format("%d-%b-%Y %H:%M").to_string(),
-        issued_at: row.created_at.format("%d-%b-%Y %H:%M").to_string(),
+        valid_from: row
+            .valid_from
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
+        valid_until: row
+            .valid_until
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
+        issued_at: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         issued_by: row.issued_by_name,
-        photo_url: None,
-        qr_code_data: qr_data,
+        photo_url: row.photo_url,
     }))
 }
 
@@ -1153,7 +1273,9 @@ pub async fn get_treatment_chart_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // `admissions.bed_id` points at `locations`, not `beds`.
     let row = sqlx::query_as::<_, TreatmentChartRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
@@ -1161,86 +1283,77 @@ pub async fn get_treatment_chart_print_data(
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            a.admitted_at AS admission_date, \
-           b.bed_number, \
+           l.name AS bed_number, \
            w.name AS ward_name, \
-           a.primary_diagnosis AS diagnosis, \
+           COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis, \
            doc.full_name AS treating_doctor \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-         LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = a.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
-         LEFT JOIN users doc ON doc.id = a.attending_doctor_id \
-         WHERE a.id = $1 AND a.tenant_id = $2",
+         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+         LEFT JOIN users doc ON doc.id = COALESCE(a.attending_doctor_id, a.admitting_doctor) \
+         WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
-    // Get allergies
     let allergies: Vec<String> = sqlx::query_scalar(
-        "SELECT allergen_name FROM patient_allergies \
-         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
-           AND tenant_id = $2 AND is_active = true",
+        "SELECT pa.allergen_name FROM patient_allergies pa \
+         JOIN admissions a ON a.patient_id = pa.patient_id AND a.tenant_id = pa.tenant_id \
+         WHERE a.id = $1 AND pa.tenant_id = $2 \
+           AND pa.is_active = true AND pa.deleted_at IS NULL \
+         ORDER BY pa.created_at LIMIT 500",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get active medications
+    // IPD prescriptions hang off the admitting encounter; `admission_id` is
+    // rarely set, so either link counts. Time slots print only when the
+    // prescriber set them — a default timetable would be an order nobody gave.
     let medications: Vec<TreatmentChartMedication> = sqlx::query_as(
         "SELECT \
            pi.drug_name, \
            pi.dosage AS dose, \
-           pi.route, \
+           COALESCE(pi.route, '') AS route, \
            pi.frequency, \
-           COALESCE(pi.time_slots, ARRAY['08:00', '14:00', '20:00']) AS time_slots, \
+           COALESCE(pi.time_slots, '{}'::text[]) AS time_slots, \
            pr.created_at::date::text AS start_date, \
            pi.end_date::text AS end_date, \
            pi.instructions AS special_instructions \
          FROM prescription_items pi \
          JOIN prescriptions pr ON pr.id = pi.prescription_id AND pr.tenant_id = pi.tenant_id \
-         WHERE pr.admission_id = $1 AND pr.tenant_id = $2 \
-           AND pi.status = 'active' \
-         ORDER BY pi.created_at LIMIT 5000",
+         JOIN admissions a ON a.tenant_id = pr.tenant_id \
+          AND (pr.admission_id = a.id OR pr.encounter_id = a.encounter_id) \
+         WHERE a.id = $1 AND pr.tenant_id = $2 \
+           AND pr.deleted_at IS NULL AND pi.deleted_at IS NULL \
+           AND pi.item_status = 'active' \
+         ORDER BY pi.created_at LIMIT 500",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get IV fluids
+    // Running or paused drips: the IPD module writes 'running' and closes
+    // them with `actual_end_time` / `discontinued_at`.
     let iv_fluids: Vec<TreatmentChartIvFluid> = sqlx::query_as(
         "SELECT \
            fluid_name, \
            volume_ml, \
-           rate, \
-           COALESCE(additives, '{}') AS additives, \
-           start_time::text AS start_time, \
-           duration_hours \
+           COALESCE(rate, rate_ml_per_hr::text || ' ml/hr', '') AS rate, \
+           COALESCE(additives, '{}'::text[]) AS additives, \
+           COALESCE(started_at, start_time)::text AS start_time, \
+           round(duration_hours)::int4 AS duration_hours \
          FROM iv_fluid_orders \
          WHERE admission_id = $1 AND tenant_id = $2 \
-           AND status = 'active' \
-         ORDER BY created_at LIMIT 5000",
-    )
-    .bind(admission_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get stat orders
-    let stat_orders: Vec<StatOrder> = sqlx::query_as(
-        "SELECT \
-           order_type, \
-           description, \
-           so.created_at::text AS ordered_at, \
-           u.full_name AS ordered_by \
-         FROM stat_orders so \
-         LEFT JOIN users u ON u.id = so.ordered_by \
-         WHERE so.admission_id = $1 AND so.tenant_id = $2 \
-           AND (so.created_at >= CURRENT_DATE AND so.created_at < CURRENT_DATE + 1) \
-         ORDER BY so.created_at DESC LIMIT 5000",
+           AND deleted_at IS NULL \
+           AND status IN ('running', 'paused') \
+         ORDER BY created_at LIMIT 500",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1264,15 +1377,20 @@ pub async fn get_treatment_chart_print_data(
         uhid: row.uhid,
         age: age_str,
         gender: row.gender,
-        admission_date: row.admission_date.format("%d-%b-%Y").to_string(),
+        admission_date: row
+            .admission_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         diagnosis: row.diagnosis,
         allergies,
-        chart_date: Utc::now().format("%d-%b-%Y").to_string(),
+        chart_date: Utc::now().with_timezone(&tz).format("%d-%b-%Y").to_string(),
         medications,
         iv_fluids,
-        stat_orders,
+        // ponytail: `stat_orders` is never written; STAT orders print once something records them
+        stat_orders: Vec::new(),
         treating_doctor: row.treating_doctor,
         signatures: medbrains_signing::signed_documents::to_print_signatures(chart_sigs),
     }))
@@ -1284,6 +1402,7 @@ pub async fn get_treatment_chart_print_data(
 struct TransferSummaryRow {
     patient_name: String,
     uhid: String,
+    admission_number: Option<String>,
     age: Option<f64>,
     gender: String,
     transfer_date: chrono::DateTime<Utc>,
@@ -1297,153 +1416,184 @@ struct TransferSummaryRow {
     vital_signs: Option<String>,
     handover_notes: Option<String>,
     transferring_doctor: Option<String>,
-    receiving_doctor: Option<String>,
     transferring_nurse: Option<String>,
-    receiving_nurse: Option<String>,
+    isolation_required: bool,
+    isolation_reason: Option<String>,
 }
 
+/// An intra-hospital ward/bed move, printed from `ipd_transfer_logs` — the
+/// row the IPD transfer action writes. The path id is that log row's id.
 pub async fn get_transfer_summary_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(transfer_id): Path<Uuid>,
+    Path(transfer_log_id): Path<Uuid>,
 ) -> Result<Json<TransferSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: this handler is written against a `patient_transfers` that
-    // does not exist. It selects `pt.tenant_id`, `pt.from_ward_id` and
-    // `pt.to_bed_id` for an intra-hospital ward move, while the table of that
-    // name in the schema is an INTER-TENANT referral record —
-    // `source_tenant_id`/`dest_tenant_id`, no ward or bed columns. The name
-    // collides; the handler cannot run. A parent link cannot be built either,
-    // because `require_access_via` scopes on `tenant_id` and this table has none.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
+
+    // The log carries the admission; access is decided on the admission.
+    let admission_id: Uuid = sqlx::query_scalar(
+        "SELECT admission_id FROM ipd_transfer_logs \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(transfer_log_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let row = sqlx::query_as::<_, TransferSummaryRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           pt.transferred_at AS transfer_date, \
-           fw.name AS from_ward, \
-           fb.bed_number AS from_bed, \
-           tw.name AS to_ward, \
-           tb.bed_number AS to_bed, \
-           pt.transfer_reason, \
-           a.primary_diagnosis AS diagnosis, \
-           pt.patient_condition AS current_condition, \
-           pt.vital_signs::text AS vital_signs, \
-           pt.handover_notes, \
-           td.full_name AS transferring_doctor, \
-           rd.full_name AS receiving_doctor, \
-           tn.full_name AS transferring_nurse, \
-           rn.full_name AS receiving_nurse \
-         FROM patient_transfers pt \
-         JOIN admissions a ON a.id = pt.admission_id AND a.tenant_id = pt.tenant_id \
+           t.transferred_at AS transfer_date, \
+           COALESCE(fw.name, '') AS from_ward, \
+           fl.name AS from_bed, \
+           COALESCE(tw.name, '') AS to_ward, \
+           tl.name AS to_bed, \
+           COALESCE(t.reason, '') AS transfer_reason, \
+           COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis, \
+           COALESCE(t.clinical_summary, '') AS current_condition, \
+           NULLIF(concat_ws(', ', \
+             'BP ' || COALESCE(v.systolic_bp, v.bp_systolic) || '/' \
+                   || COALESCE(v.diastolic_bp, v.bp_diastolic), \
+             'Pulse ' || COALESCE(v.pulse, v.pulse_rate), \
+             'Temp ' || v.temperature, \
+             'RR ' || v.respiratory_rate, \
+             'SpO2 ' || v.spo2 || '%'), '') AS vital_signs, \
+           t.notes AS handover_notes, \
+           CASE WHEN u.role = 'doctor' THEN u.full_name END AS transferring_doctor, \
+           CASE WHEN u.role = 'nurse' THEN u.full_name END AS transferring_nurse, \
+           a.isolation_required, \
+           a.isolation_reason \
+         FROM ipd_transfer_logs t \
+         JOIN admissions a ON a.id = t.admission_id AND a.tenant_id = t.tenant_id \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-         JOIN wards fw ON fw.id = pt.from_ward_id AND fw.tenant_id = pt.tenant_id \
-         JOIN wards tw ON tw.id = pt.to_ward_id AND tw.tenant_id = pt.tenant_id \
-         LEFT JOIN beds fb ON fb.id = pt.from_bed_id AND fb.tenant_id = pt.tenant_id \
-         LEFT JOIN beds tb ON tb.id = pt.to_bed_id AND tb.tenant_id = pt.tenant_id \
-         LEFT JOIN users td ON td.id = pt.transferring_doctor_id \
-         LEFT JOIN users rd ON rd.id = pt.receiving_doctor_id \
-         LEFT JOIN users tn ON tn.id = pt.transferring_nurse_id \
-         LEFT JOIN users rn ON rn.id = pt.receiving_nurse_id \
-         WHERE pt.id = $1 AND pt.tenant_id = $2",
+         LEFT JOIN wards fw ON fw.id = t.from_ward_id AND fw.tenant_id = t.tenant_id \
+         LEFT JOIN wards tw ON tw.id = t.to_ward_id AND tw.tenant_id = t.tenant_id \
+         LEFT JOIN locations fl ON fl.id = t.from_bed_id AND fl.tenant_id = t.tenant_id \
+         LEFT JOIN locations tl ON tl.id = t.to_bed_id AND tl.tenant_id = t.tenant_id \
+         LEFT JOIN users u ON u.id = t.transferred_by \
+         LEFT JOIN LATERAL ( \
+           SELECT vv.* FROM vitals vv \
+           WHERE vv.encounter_id = a.encounter_id AND vv.tenant_id = a.tenant_id \
+             AND vv.deleted_at IS NULL AND vv.recorded_at <= t.transferred_at \
+           ORDER BY vv.recorded_at DESC LIMIT 1 \
+         ) v ON true \
+         WHERE t.id = $1 AND t.tenant_id = $2 AND t.deleted_at IS NULL",
     )
-    .bind(transfer_id)
+    .bind(transfer_log_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
-    // Get current medications
+    // IPD prescriptions hang off the admitting encounter; `admission_id` is
+    // rarely set, so either link counts.
     let medications: Vec<String> = sqlx::query_scalar(
         "SELECT pi.drug_name || ' ' || pi.dosage || ' ' || pi.frequency \
          FROM prescription_items pi \
          JOIN prescriptions pr ON pr.id = pi.prescription_id AND pr.tenant_id = pi.tenant_id \
-         WHERE pr.admission_id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
-           AND pr.tenant_id = $2 AND pi.status = 'active'",
+         JOIN admissions a ON a.tenant_id = pr.tenant_id \
+          AND (pr.admission_id = a.id OR pr.encounter_id = a.encounter_id) \
+         WHERE a.id = $1 AND pr.tenant_id = $2 \
+           AND pr.deleted_at IS NULL AND pi.deleted_at IS NULL \
+           AND pi.item_status = 'active' \
+         ORDER BY pi.created_at LIMIT 500",
     )
-    .bind(transfer_id)
+    .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get pending investigations
+    // `lab_orders` hangs off the encounter, which the admission carries.
     let pending_investigations: Vec<String> = sqlx::query_scalar(
-        // Two faults. `lab_orders` has no `admission_id` -- it hangs off the
-        // encounter, and the admission carries that -- so this reached the
-        // admission through a column that does not exist. And `collected` is
-        // not a member of `lab_order_status`; the value is `sample_collected`,
-        // and comparing the enum against a string it does not contain is a
-        // hard error, not an empty result.
-        //
-        // It lists what is still outstanding before a patient is moved to
-        // another ward, so failing meant the transfer summary printed as
-        // though nothing were pending.
         "SELECT tc.name FROM lab_orders lo \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
          JOIN admissions adm ON adm.encounter_id = lo.encounter_id \
            AND adm.tenant_id = lo.tenant_id \
-         WHERE adm.id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
+         WHERE adm.id = $1 \
            AND lo.tenant_id = $2 \
            AND lo.deleted_at IS NULL \
            AND lo.status IN ('ordered'::lab_order_status, \
                              'sample_collected'::lab_order_status, \
-                             'processing'::lab_order_status)",
+                             'processing'::lab_order_status) \
+         ORDER BY lo.created_at LIMIT 500",
     )
-    .bind(transfer_id)
+    .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get pending consultations
+    // Cross-department referrals raised during this stay and not yet closed.
     let pending_consultations: Vec<String> = sqlx::query_scalar(
-        "SELECT d.name || ' - ' || COALESCE(u.full_name, 'Pending') \
-         FROM consultation_requests cr \
-         JOIN departments d ON d.id = cr.to_department_id AND d.tenant_id = cr.tenant_id \
-         LEFT JOIN users u ON u.id = cr.consultant_id \
-         WHERE cr.admission_id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
-           AND cr.tenant_id = $2 AND cr.status = 'pending'",
+        "SELECT d.name || COALESCE(' - ' || u.full_name, '') || ' (' || r.status || ')' \
+         FROM referrals r \
+         JOIN admissions a ON a.id = $1 AND a.tenant_id = r.tenant_id \
+         JOIN departments d ON d.id = r.to_department_id AND d.tenant_id = r.tenant_id \
+         LEFT JOIN users u ON u.id = r.to_doctor_id \
+         WHERE r.tenant_id = $2 AND r.deleted_at IS NULL \
+           AND r.status IN ('pending', 'accepted') \
+           AND (r.encounter_id = a.encounter_id \
+                OR (r.patient_id = a.patient_id AND r.created_at >= a.admitted_at)) \
+         ORDER BY r.created_at LIMIT 500",
     )
-    .bind(transfer_id)
+    .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
-    // Get special precautions
-    let special_precautions: Vec<String> = sqlx::query_scalar(
-        "SELECT precaution_type FROM patient_precautions \
-         WHERE admission_id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
-           AND tenant_id = $2 AND is_active = true",
+    let allergies: Vec<String> = sqlx::query_scalar(
+        "SELECT 'Allergy: ' || pa.allergen_name || COALESCE(' (' || pa.severity::text || ')', '') \
+         FROM patient_allergies pa \
+         JOIN admissions a ON a.patient_id = pa.patient_id AND a.tenant_id = pa.tenant_id \
+         WHERE a.id = $1 AND pa.tenant_id = $2 \
+           AND pa.is_active = true AND pa.deleted_at IS NULL \
+         ORDER BY pa.created_at LIMIT 500",
     )
-    .bind(transfer_id)
+    .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await?;
-
-    let transfer_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-        &mut tx,
-        &claims.tenant_id,
-        "discharge_summary",
-        transfer_id,
-    )
     .await?;
 
     tx.commit().await?;
+
+    let mut special_precautions = Vec::with_capacity(allergies.len() + 1);
+    if row.isolation_required {
+        special_precautions.push(match &row.isolation_reason {
+            Some(reason) => format!("Isolation: {reason}"),
+            None => "Isolation".to_owned(),
+        });
+    }
+    special_precautions.extend(allergies);
 
     let age_str = row.age.map(|a| format!("{} Y", a as i32));
 
     Ok(Json(TransferSummaryPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: age_str,
         gender: row.gender,
-        transfer_date: row.transfer_date.format("%d-%b-%Y").to_string(),
-        transfer_time: row.transfer_date.format("%H:%M").to_string(),
+        transfer_date: row
+            .transfer_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        transfer_time: row
+            .transfer_date
+            .with_timezone(&tz)
+            .format("%H:%M")
+            .to_string(),
         from_ward: row.from_ward,
         from_bed: row.from_bed,
         to_ward: row.to_ward,
@@ -1458,101 +1608,16 @@ pub async fn get_transfer_summary_print_data(
         special_precautions,
         handover_notes: row.handover_notes,
         transferring_doctor: row.transferring_doctor,
-        receiving_doctor: row.receiving_doctor,
+        // ponytail: the transfer log records who moved the patient, not who received them
+        receiving_doctor: None,
         transferring_nurse: row.transferring_nurse,
-        receiving_nurse: row.receiving_nurse,
-        signatures: medbrains_signing::signed_documents::to_print_signatures(transfer_sigs),
+        receiving_nurse: None,
+        // ponytail: `signed_records.record_type` has no transfer type, so nothing can sign one yet
+        signatures: Vec::new(),
     }))
 }
 
 // ── Patient Education Material ─────────────────────────
-
-#[derive(Debug, sqlx::FromRow)]
-struct PatientEducationRow {
-    patient_name: String,
-    uhid: String,
-    material_title: String,
-    material_code: String,
-    category: String,
-    language: String,
-    provided_date: chrono::DateTime<Utc>,
-    provided_by: Option<String>,
-}
-
-pub async fn get_patient_education_print_data(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(material_id): Path<Uuid>,
-) -> Result<Json<PatientEducationPrintData>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::PATIENT_EDUCATION,
-        material_id,
-    )
-    .await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = sqlx::query_as::<_, PatientEducationRow>(
-        "SELECT \
-           (p.first_name || ' ' || p.last_name) AS patient_name, \
-           p.uhid, \
-           em.title AS material_title, \
-           em.code AS material_code, \
-           em.category, \
-           COALESCE(pe.language, 'en') AS language, \
-           pe.provided_at AS provided_date, \
-           u.full_name AS provided_by \
-         FROM patient_education pe \
-         JOIN patients p ON p.id = pe.patient_id AND p.tenant_id = pe.tenant_id \
-         JOIN education_materials em ON em.id = pe.material_id AND em.tenant_id = pe.tenant_id \
-         LEFT JOIN users u ON u.id = pe.provided_by \
-         WHERE pe.id = $1 AND pe.tenant_id = $2",
-    )
-    .bind(material_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Get content sections
-    let sections: Vec<EducationSection> = sqlx::query_as(
-        "SELECT heading, content, COALESCE(bullet_points, '{}') AS bullet_points \
-         FROM education_material_sections \
-         WHERE material_id = (SELECT material_id FROM patient_education WHERE id = $1) \
-           AND tenant_id = $2 \
-         ORDER BY sort_order LIMIT 5000",
-    )
-    .bind(material_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Get hospital name
-    let h_name: Option<String> = sqlx::query_scalar("SELECT name FROM tenants WHERE id = $1")
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .flatten();
-
-    tx.commit().await?;
-
-    Ok(Json(PatientEducationPrintData {
-        patient_name: row.patient_name,
-        uhid: row.uhid,
-        material_title: row.material_title,
-        material_code: row.material_code,
-        category: row.category,
-        content_sections: sections,
-        language: row.language,
-        provided_date: row.provided_date.format("%d-%b-%Y").to_string(),
-        provided_by: row.provided_by,
-        hospital_name: h_name,
-    }))
-}
 
 // ── Registration Card (Enhanced) ───────────────────────
 
@@ -1584,6 +1649,7 @@ pub async fn get_registration_card_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, RegistrationCardRow>(
         "SELECT \
@@ -1612,6 +1678,7 @@ pub async fn get_registration_card_print_data(
     let allergies: Vec<String> = sqlx::query_scalar(
         "SELECT allergen_name FROM patient_allergies \
          WHERE patient_id = $1 AND tenant_id = $2 AND is_active = true \
+           AND deleted_at IS NULL \
          ORDER BY severity DESC LIMIT 5000",
     )
     .bind(patient_id)
@@ -1661,7 +1728,11 @@ pub async fn get_registration_card_print_data(
         allergies,
         photo_url: row.photo_url,
         qr_code_data: qr_data,
-        registration_date: row.created_at.format("%d-%b-%Y").to_string(),
+        registration_date: row
+            .created_at
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
         hospital_name: h_name,
     }))
 }
@@ -1674,8 +1745,7 @@ struct InfantWristbandRow {
     mother_uhid: String,
     baby_id: String,
     baby_gender: String,
-    date_of_birth: chrono::NaiveDate,
-    time_of_birth: chrono::NaiveTime,
+    birth_date: chrono::DateTime<Utc>,
     birth_weight_grams: i32,
     delivery_type: String,
     ward_name: Option<String>,
@@ -1701,32 +1771,41 @@ pub async fn get_infant_wristband_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The maternity module writes `birth_date`, `weight_gm`, `id_band_number`
+    // and a nullable `mother_id`; the mother is otherwise reached through the
+    // labour record's registration, and ward/bed through its admission.
     let row = sqlx::query_as::<_, InfantWristbandRow>(
         "SELECT \
            (m.first_name || ' ' || m.last_name) AS mother_name, \
            m.uhid AS mother_uhid, \
-           nb.baby_id, \
+           COALESCE(nb.id_band_number, nb.baby_id, nb.id::text) AS baby_id, \
            nb.gender AS baby_gender, \
-           nb.date_of_birth, \
-           nb.time_of_birth, \
-           nb.birth_weight_grams, \
-           nb.delivery_type, \
+           nb.birth_date, \
+           COALESCE(nb.birth_weight_grams, nb.weight_gm) AS birth_weight_grams, \
+           COALESCE(nb.delivery_type, lr.delivery_type::text, '') AS delivery_type, \
            w.name AS ward_name, \
-           b.bed_number, \
+           l.name AS bed_number, \
            doc.full_name AS attending_doctor \
          FROM newborn_records nb \
-         JOIN patients m ON m.id = nb.mother_id AND m.tenant_id = nb.tenant_id \
-         LEFT JOIN admissions a ON a.id = nb.mother_admission_id AND a.tenant_id = nb.tenant_id \
-         LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = nb.tenant_id \
-         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = nb.tenant_id \
-         LEFT JOIN users doc ON doc.id = nb.attending_doctor_id \
-         WHERE nb.id = $1 AND nb.tenant_id = $2",
+         JOIN labor_records lr ON lr.id = nb.labor_id AND lr.tenant_id = nb.tenant_id \
+         JOIN maternity_registrations mr ON mr.id = lr.registration_id \
+                                         AND mr.tenant_id = lr.tenant_id \
+         JOIN patients m ON m.id = COALESCE(nb.mother_id, mr.patient_id) \
+                        AND m.tenant_id = nb.tenant_id \
+         LEFT JOIN admissions a ON a.id = COALESCE(nb.mother_admission_id, lr.admission_id) \
+                               AND a.tenant_id = nb.tenant_id \
+         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+         LEFT JOIN users doc ON doc.id = COALESCE(nb.attending_doctor_id, lr.attending_doctor_id) \
+         WHERE nb.id = $1 AND nb.tenant_id = $2 AND nb.deleted_at IS NULL",
     )
     .bind(newborn_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
 
@@ -1738,8 +1817,16 @@ pub async fn get_infant_wristband_print_data(
         mother_uhid: row.mother_uhid,
         baby_id: row.baby_id,
         baby_gender: row.baby_gender,
-        date_of_birth: row.date_of_birth.format("%d-%b-%Y").to_string(),
-        time_of_birth: row.time_of_birth.format("%H:%M").to_string(),
+        date_of_birth: row
+            .birth_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        time_of_birth: row
+            .birth_date
+            .with_timezone(&tz)
+            .format("%H:%M")
+            .to_string(),
         birth_weight_grams: row.birth_weight_grams,
         delivery_type: row.delivery_type,
         ward_name: row.ward_name,
@@ -1813,7 +1900,11 @@ pub async fn get_opd_prescription_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // The consultation screen writes `consultations` and `diagnoses`; the
+    // encounter's own note columns are read first where a visit filled them.
+    // Vitals are the latest set on the encounter, numerics cast for f64.
     let row = sqlx::query_as::<_, OpdPrescriptionRow>(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
@@ -1826,51 +1917,75 @@ pub async fn get_opd_prescription_print_data(
            e.encounter_number, \
            d.name AS department_name, \
            doc.full_name AS doctor_name, \
-           doc.registration_number AS doctor_reg_number, \
+           COALESCE(doc.medical_registration_number, doc.registration_number) \
+             AS doctor_reg_number, \
            doc.qualification AS doctor_qualification, \
-           e.chief_complaints, \
-           e.examination_findings, \
-           e.diagnosis, \
-           e.advice, \
+           COALESCE(e.chief_complaints, c.chief_complaint) AS chief_complaints, \
+           COALESCE(e.examination_findings, c.examination) AS examination_findings, \
+           COALESCE(e.diagnosis, dx.diagnosis) AS diagnosis, \
+           COALESCE(e.advice, c.plan) AS advice, \
            e.follow_up_date, \
            e.follow_up_instructions, \
            e.referral_notes, \
-           v.bp_systolic, \
-           v.bp_diastolic, \
-           v.pulse, \
-           v.temperature, \
+           COALESCE(v.systolic_bp, v.bp_systolic) AS bp_systolic, \
+           COALESCE(v.diastolic_bp, v.bp_diastolic) AS bp_diastolic, \
+           COALESCE(v.pulse, v.pulse_rate) AS pulse, \
+           v.temperature::float8 AS temperature, \
            v.spo2, \
            v.respiratory_rate, \
-           v.height_cm, \
-           v.weight_kg \
+           v.height_cm::float8 AS height_cm, \
+           v.weight_kg::float8 AS weight_kg \
          FROM encounters e \
          JOIN patients p ON p.id = e.patient_id AND p.tenant_id = e.tenant_id \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN users doc ON doc.id = e.doctor_id \
-         LEFT JOIN vitals v ON v.encounter_id = e.id AND v.tenant_id = e.tenant_id \
-         WHERE e.id = $1 AND e.tenant_id = $2",
+         LEFT JOIN LATERAL ( \
+           SELECT cc.chief_complaint, cc.examination, cc.plan FROM consultations cc \
+           WHERE cc.encounter_id = e.id AND cc.tenant_id = e.tenant_id \
+             AND cc.deleted_at IS NULL \
+           ORDER BY cc.created_at DESC LIMIT 1 \
+         ) c ON true \
+         LEFT JOIN LATERAL ( \
+           SELECT string_agg(dg.description, '; ' ORDER BY dg.is_primary DESC, dg.created_at) \
+             AS diagnosis \
+           FROM diagnoses dg \
+           WHERE dg.encounter_id = e.id AND dg.tenant_id = e.tenant_id \
+             AND dg.deleted_at IS NULL \
+         ) dx ON true \
+         LEFT JOIN LATERAL ( \
+           SELECT vv.* FROM vitals vv \
+           WHERE vv.encounter_id = e.id AND vv.tenant_id = e.tenant_id \
+             AND vv.deleted_at IS NULL \
+           ORDER BY vv.recorded_at DESC LIMIT 1 \
+         ) v ON true \
+         WHERE e.id = $1 AND e.tenant_id = $2 AND e.deleted_at IS NULL",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let medications = sqlx::query_as::<_, PrescriptionMedicationRow>(
         "SELECT \
-           COALESCE(dc.brand_name, pm.drug_name) AS drug_name, \
-           dc.generic_name, \
-           pm.dose, \
-           pm.route, \
-           pm.frequency, \
-           pm.duration, \
-           pm.quantity, \
-           pm.instructions, \
-           COALESCE(dc.is_controlled, false) AS is_controlled, \
-           dc.schedule::text AS schedule \
-         FROM prescription_medications pm \
-         LEFT JOIN drug_catalog dc ON dc.id = pm.drug_catalog_id AND dc.tenant_id = pm.tenant_id \
-         WHERE pm.encounter_id = $1 AND pm.tenant_id = $2 \
-         ORDER BY pm.created_at LIMIT 5000",
+           pi.drug_name, \
+           pc.generic_name, \
+           pi.dosage AS dose, \
+           COALESCE(pi.route, '') AS route, \
+           pi.frequency, \
+           pi.duration, \
+           pi.quantity, \
+           pi.instructions, \
+           COALESCE(pc.is_controlled, false) AS is_controlled, \
+           pc.drug_schedule AS schedule \
+         FROM prescription_items pi \
+         JOIN prescriptions pr ON pr.id = pi.prescription_id AND pr.tenant_id = pi.tenant_id \
+         LEFT JOIN pharmacy_catalog pc ON pc.id = pi.catalog_item_id \
+                                      AND pc.tenant_id = pi.tenant_id \
+         WHERE pr.encounter_id = $1 AND pr.tenant_id = $2 \
+           AND pr.deleted_at IS NULL AND pi.deleted_at IS NULL \
+           AND pi.item_status = 'active' \
+         ORDER BY pi.created_at LIMIT 500",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -1878,9 +1993,10 @@ pub async fn get_opd_prescription_print_data(
     .await?;
 
     let icd_codes: Vec<String> = sqlx::query_scalar(
-        "SELECT icd_code FROM encounter_diagnoses \
+        "SELECT icd_code FROM diagnoses \
          WHERE encounter_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
-         ORDER BY is_primary DESC LIMIT 5000",
+           AND deleted_at IS NULL \
+         ORDER BY is_primary DESC, created_at LIMIT 500",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -1894,13 +2010,30 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-        &mut tx,
-        &claims.tenant_id,
-        "prescription",
-        encounter_id,
+    // Signing keys a prescription on `prescriptions.id`, and a visit can
+    // carry several. ponytail: one signature lookup per prescription (capped
+    // at 20) — batch once the signing crate takes a list of record ids.
+    let prescription_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM prescriptions \
+         WHERE encounter_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 20",
     )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
     .await?;
+    let mut sigs = Vec::new();
+    for prescription_id in prescription_ids {
+        sigs.extend(
+            medbrains_signing::signed_documents::fetch_all_signatures_for_print(
+                &mut tx,
+                &claims.tenant_id,
+                "prescription",
+                prescription_id,
+            )
+            .await?,
+        );
+    }
     let preview_signature_url: Option<String> =
         sigs.iter().find_map(|s| s.display_image_url.clone());
 
@@ -1921,7 +2054,11 @@ pub async fn get_opd_prescription_print_data(
         gender: row.gender,
         phone: row.phone,
         address: row.address,
-        encounter_date: row.encounter_date.format("%d-%b-%Y %H:%M").to_string(),
+        encounter_date: row
+            .encounter_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         encounter_number: row.encounter_number,
         department: row.department_name,
         doctor_name: row.doctor_name.unwrap_or_default(),
@@ -1966,17 +2103,7 @@ pub async fn get_opd_prescription_print_data(
         hospital_logo_url: tenant.1,
         hospital_address: tenant.2,
         hospital_phone: tenant.3,
-        signatures: sigs
-            .into_iter()
-            .map(|s| medbrains_core::print_data::PrintSignatureData {
-                signed_at: s.signed_at.to_rfc3339(),
-                signer_name: s.signer_name,
-                display_image_url: s.display_image_url,
-                display_block: s.display_block,
-                verify_ref: s.verify_ref,
-                legal_class: s.legal_class,
-            })
-            .collect(),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(sigs),
     }))
 }
 
@@ -2049,6 +2176,7 @@ pub async fn get_lab_report_full_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, LabReportFullRow>(
         "SELECT \
@@ -2056,15 +2184,15 @@ pub async fn get_lab_report_full_print_data(
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           lo.sample_id, \
+           COALESCE(lo.sample_id, lo.sample_barcode) AS sample_id, \
            lo.accession_number, \
-           lo.order_date, \
-           lo.collection_date, \
-           lo.report_date, \
-           doc.full_name AS referring_doctor, \
+           COALESCE(lo.order_date, lo.created_at) AS order_date, \
+           COALESCE(lo.collection_date, lo.collected_at) AS collection_date, \
+           COALESCE(lo.report_date, lo.verified_at, lo.completed_at) AS report_date, \
+           COALESCE(od.full_name, rd.name, CASE WHEN lo.is_self_referred THEN 'Self' END, doc.full_name) AS referring_doctor, \
            d.name AS department_name, \
-           w.name AS ward_name, \
-           b.bed_number, \
+           adm.ward_name, \
+           adm.bed_number, \
            tc.name AS test_name, \
            tc.code AS test_code, \
            tc.loinc_code, \
@@ -2073,25 +2201,35 @@ pub async fn get_lab_report_full_print_data(
            lo.interpretation, \
            lo.comments, \
            path.full_name AS pathologist_name, \
-           path.registration_number AS pathologist_reg_number, \
+           COALESCE(path.medical_registration_number, path.registration_number) \
+             AS pathologist_reg_number, \
            tech.full_name AS technician_name, \
            lo.verified_at \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
-         LEFT JOIN users doc ON doc.id = lo.ordering_doctor_id \
-         LEFT JOIN departments d ON d.id = lo.department_id AND d.tenant_id = lo.tenant_id \
-         LEFT JOIN admissions a ON a.patient_id = lo.patient_id AND a.status = 'admitted' AND a.tenant_id = lo.tenant_id \
-         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = lo.tenant_id \
-         LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = lo.tenant_id \
-         LEFT JOIN users path ON path.id = lo.verified_by_id \
+         LEFT JOIN users doc ON doc.id = COALESCE(lo.ordering_doctor_id, lo.ordered_by) \
+         LEFT JOIN users od ON od.id = lo.ordering_doctor_id \
+         LEFT JOIN lab_referral_doctors rd ON rd.id = lo.referral_doctor_id AND rd.tenant_id = lo.tenant_id \
+         LEFT JOIN departments d ON d.id = COALESCE(lo.department_id, tc.department_id) \
+                                AND d.tenant_id = lo.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT w.name AS ward_name, l.name AS bed_number FROM admissions a \
+           LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           WHERE a.patient_id = lo.patient_id AND a.tenant_id = lo.tenant_id \
+             AND a.status = 'admitted'::admission_status AND a.deleted_at IS NULL \
+           ORDER BY a.admitted_at DESC LIMIT 1 \
+         ) adm ON true \
+         LEFT JOIN users path ON path.id = COALESCE(lo.verified_by_id, lo.verified_by) \
          LEFT JOIN users tech ON tech.id = lo.performed_by_id \
-         WHERE lo.id = $1 AND lo.tenant_id = $2",
+         WHERE lo.id = $1 AND lo.tenant_id = $2 AND lo.deleted_at IS NULL",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     // Same rule as the short report: authorisation comes before reporting.
     // This is the fuller sheet — it carries the pathologist's and the
@@ -2187,13 +2325,32 @@ pub async fn get_lab_report_full_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let lab_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
-        &mut tx,
-        &claims.tenant_id,
-        "lab_report",
-        order_id,
+    // Signing keys a lab report on each `lab_results.id`, not the order.
+    // ponytail: one signature lookup per result (capped at 200) — batch once
+    // the signing crate takes a list of record ids.
+    let result_ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT lr.id FROM lab_results lr \
+         JOIN lab_orders sib ON sib.id = lr.order_id AND sib.tenant_id = lr.tenant_id \
+         WHERE sib.tenant_id = $2 AND (sib.id = $1 OR sib.parent_order_id = $1) \
+           AND lr.deleted_at IS NULL AND sib.deleted_at IS NULL \
+         ORDER BY lr.created_at LIMIT 200",
     )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
     .await?;
+    let mut lab_sigs = Vec::new();
+    for result_id in result_ids {
+        lab_sigs.extend(
+            medbrains_signing::signed_documents::fetch_all_signatures_for_print(
+                &mut tx,
+                &claims.tenant_id,
+                "lab_report",
+                result_id,
+            )
+            .await?,
+        );
+    }
 
     tx.commit().await?;
 
@@ -2214,14 +2371,14 @@ pub async fn get_lab_report_full_print_data(
         accession_number: row.accession_number.unwrap_or_default(),
         order_date: row
             .order_date
-            .map(|d| d.format("%d-%b-%Y").to_string())
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y").to_string())
             .unwrap_or_default(),
         collection_date: row
             .collection_date
-            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()),
         report_date: row
             .report_date
-            .map(|d| d.format("%d-%b-%Y %H:%M").to_string())
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
             .unwrap_or_default(),
         referring_doctor: row.referring_doctor,
         department: row.department_name,
@@ -2261,7 +2418,7 @@ pub async fn get_lab_report_full_print_data(
         technician_name: row.technician_name,
         verified_at: row
             .verified_at
-            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()),
         nabl_accredited: tenant.2.unwrap_or(false),
         nabl_certificate_number: tenant.3,
         nabl_logo_url: None,
@@ -2314,6 +2471,7 @@ pub async fn get_cumulative_lab_report_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let patient = sqlx::query_as::<_, CumulativeLabRow>(
         "SELECT \
@@ -2338,16 +2496,17 @@ pub async fn get_cumulative_lab_report_print_data(
            lr.parameter_name, \
            lr.unit, \
            COALESCE(lr.reference_range, lr.normal_range) AS reference_range, \
-           lo.report_date AS result_date, \
+           COALESCE(lo.report_date, lo.verified_at) AS result_date, \
            COALESCE(lr.result_value, lr.value) AS result_value, \
            (lr.is_abnormal \
              OR (lr.flag IS NOT NULL AND lr.flag::text <> 'normal')) AS is_abnormal \
          FROM lab_results lr \
          JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
-         WHERE lo.patient_id = $1 AND lo.tenant_id = $2 AND lr.deleted_at IS NULL \
-           AND lo.report_date >= NOW() - INTERVAL '6 months' \
+         WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
+           AND lr.deleted_at IS NULL AND lo.deleted_at IS NULL \
+           AND COALESCE(lo.report_date, lo.verified_at) >= NOW() - INTERVAL '6 months' \
            AND lo.status = 'verified' \
-         ORDER BY lr.parameter_name, lo.report_date LIMIT 5000",
+         ORDER BY lr.parameter_name, COALESCE(lo.report_date, lo.verified_at) LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -2381,7 +2540,11 @@ pub async fn get_cumulative_lab_report_print_data(
             let values: Vec<TrendValue> = rows
                 .into_iter()
                 .map(|r| TrendValue {
-                    date: r.result_date.format("%d-%b-%Y").to_string(),
+                    date: r
+                        .result_date
+                        .with_timezone(&tz)
+                        .format("%d-%b-%Y")
+                        .to_string(),
                     value: r.result_value,
                     is_abnormal: r.is_abnormal,
                 })
@@ -2406,9 +2569,12 @@ pub async fn get_cumulative_lab_report_print_data(
         uhid: patient.uhid,
         age_display,
         gender: patient.gender,
-        report_date: now.format("%d-%b-%Y").to_string(),
-        date_range_start: six_months_ago.format("%d-%b-%Y").to_string(),
-        date_range_end: now.format("%d-%b-%Y").to_string(),
+        report_date: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
+        date_range_start: six_months_ago
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        date_range_end: now.with_timezone(&tz).format("%d-%b-%Y").to_string(),
         test_name: "Cumulative Report".to_string(),
         parameter_trends,
         pathologist_name: String::new(),
@@ -2423,13 +2589,13 @@ pub async fn get_cumulative_lab_report_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct RadiologyReportFullRow {
+    report_id: Uuid,
     patient_name: String,
     uhid: String,
     age: Option<f64>,
     gender: String,
-    accession_number: String,
     order_date: chrono::DateTime<Utc>,
-    exam_date: chrono::DateTime<Utc>,
+    exam_date: Option<chrono::DateTime<Utc>>,
     report_date: chrono::DateTime<Utc>,
     referring_doctor: Option<String>,
     department_name: Option<String>,
@@ -2437,30 +2603,21 @@ struct RadiologyReportFullRow {
     bed_number: Option<String>,
     modality: String,
     exam_name: String,
-    exam_code: Option<String>,
     body_part: Option<String>,
     laterality: Option<String>,
     clinical_history: Option<String>,
-    contrast_used: bool,
-    contrast_details: Option<String>,
-    technique: Option<String>,
+    contrast_used: Option<bool>,
     findings: String,
     impression: String,
     recommendations: Option<String>,
     radiologist_name: Option<String>,
     radiologist_reg_number: Option<String>,
-    technologist_name: Option<String>,
     verified_at: Option<chrono::DateTime<Utc>>,
     pacs_study_uid: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct KeyImageRow {
-    image_url: String,
-    series_description: Option<String>,
-    annotation: Option<String>,
-}
-
+/// The latest non-draft report on a radiology order. The path id is the
+/// order (`radiology_orders.id`); the report is the newest one written on it.
 pub async fn get_radiology_report_full_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2478,65 +2635,65 @@ pub async fn get_radiology_report_full_print_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let tz = crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
+    // A draft is not a report: an order with only a draft prints nothing.
     let row = sqlx::query_as::<_, RadiologyReportFullRow>(
         "SELECT \
+           rr.id AS report_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
-           ro.accession_number, \
-           ro.order_date, \
-           ro.exam_date, \
-           ro.report_date, \
+           ro.created_at AS order_date, \
+           COALESCE(ro.completed_at, ro.scheduled_at) AS exam_date, \
+           rr.created_at AS report_date, \
            doc.full_name AS referring_doctor, \
            d.name AS department_name, \
-           w.name AS ward_name, \
-           b.bed_number, \
-           ro.modality, \
-           ec.name AS exam_name, \
-           ec.code AS exam_code, \
-           ec.body_part, \
-           ro.laterality, \
-           ro.clinical_history, \
-           ro.contrast_used, \
-           ro.contrast_details, \
-           ro.technique, \
-           ro.findings, \
-           ro.impression, \
-           ro.recommendations, \
+           adm.ward_name, \
+           adm.bed_number, \
+           rm.name AS modality, \
+           concat_ws(' ', rm.name, ro.body_part) AS exam_name, \
+           ro.body_part, \
+           ro.body_part_laterality AS laterality, \
+           ro.clinical_indication AS clinical_history, \
+           ro.contrast_required AS contrast_used, \
+           rr.findings, \
+           COALESCE(rr.impression, '') AS impression, \
+           rr.recommendations, \
            rad.full_name AS radiologist_name, \
-           rad.registration_number AS radiologist_reg_number, \
-           tech.full_name AS technologist_name, \
-           ro.verified_at, \
+           COALESCE(rad.medical_registration_number, rad.registration_number) \
+             AS radiologist_reg_number, \
+           rr.verified_at, \
            ro.pacs_study_uid \
          FROM radiology_orders ro \
          JOIN patients p ON p.id = ro.patient_id AND p.tenant_id = ro.tenant_id \
-         JOIN exam_catalog ec ON ec.id = ro.exam_id AND ec.tenant_id = ro.tenant_id \
-         LEFT JOIN users doc ON doc.id = ro.ordering_doctor_id \
-         LEFT JOIN departments d ON d.id = ro.department_id AND d.tenant_id = ro.tenant_id \
-         LEFT JOIN admissions a ON a.patient_id = ro.patient_id AND a.status = 'admitted' AND a.tenant_id = ro.tenant_id \
-         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = ro.tenant_id \
-         LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = ro.tenant_id \
-         LEFT JOIN users rad ON rad.id = ro.reported_by_id \
-         LEFT JOIN users tech ON tech.id = ro.performed_by_id \
-         WHERE ro.id = $1 AND ro.tenant_id = $2",
+         JOIN radiology_modalities rm ON rm.id = ro.modality_id AND rm.tenant_id = ro.tenant_id \
+         JOIN LATERAL ( \
+           SELECT r.* FROM radiology_reports r \
+           WHERE r.order_id = ro.id AND r.tenant_id = ro.tenant_id \
+             AND r.deleted_at IS NULL AND r.status <> 'draft'::radiology_report_status \
+           ORDER BY r.created_at DESC LIMIT 1 \
+         ) rr ON true \
+         LEFT JOIN users doc ON doc.id = ro.ordered_by \
+         LEFT JOIN encounters e ON e.id = ro.encounter_id AND e.tenant_id = ro.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = ro.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT w.name AS ward_name, l.name AS bed_number FROM admissions a \
+           LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+           LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+           WHERE a.patient_id = ro.patient_id AND a.tenant_id = ro.tenant_id \
+             AND a.status = 'admitted'::admission_status AND a.deleted_at IS NULL \
+           ORDER BY a.admitted_at DESC LIMIT 1 \
+         ) adm ON true \
+         LEFT JOIN users rad ON rad.id = rr.reported_by \
+         WHERE ro.id = $1 AND ro.tenant_id = $2 AND ro.deleted_at IS NULL",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let key_images = sqlx::query_as::<_, KeyImageRow>(
-        "SELECT image_url, series_description, annotation \
-         FROM radiology_key_images \
-         WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order LIMIT 5000",
-    )
-    .bind(order_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>)>(
         "SELECT name, logo_url FROM tenants WHERE id = $1",
@@ -2545,11 +2702,12 @@ pub async fn get_radiology_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Signing keys radiology signatures on the report row, not the order.
     let rad_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "radiology_report",
-        order_id,
+        row.report_id,
     )
     .await?;
 
@@ -2564,41 +2722,47 @@ pub async fn get_radiology_report_full_print_data(
         uhid: row.uhid,
         age_display,
         gender: row.gender,
-        accession_number: row.accession_number,
-        order_date: row.order_date.format("%d-%b-%Y").to_string(),
-        exam_date: row.exam_date.format("%d-%b-%Y %H:%M").to_string(),
-        report_date: row.report_date.format("%d-%b-%Y %H:%M").to_string(),
+        // ponytail: radiology orders carry no accession number yet
+        accession_number: String::new(),
+        order_date: row
+            .order_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y")
+            .to_string(),
+        exam_date: row
+            .exam_date
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string())
+            .unwrap_or_default(),
+        report_date: row
+            .report_date
+            .with_timezone(&tz)
+            .format("%d-%b-%Y %H:%M")
+            .to_string(),
         referring_doctor: row.referring_doctor,
         department: row.department_name,
         ward_name: row.ward_name,
         bed_number: row.bed_number,
         modality: row.modality,
         exam_name: row.exam_name,
-        exam_code: row.exam_code,
+        // ponytail: no exam catalogue, contrast detail, technique, technologist or key images recorded anywhere yet
+        exam_code: None,
         body_part: row.body_part,
         laterality: row.laterality,
         clinical_history: row.clinical_history,
         contrast_used: row.contrast_used,
-        contrast_details: row.contrast_details,
-        technique: row.technique,
+        contrast_details: None,
+        technique: None,
         findings: row.findings,
         impression: row.impression,
         recommendations: row.recommendations,
-        key_images: key_images
-            .into_iter()
-            .map(|i| KeyImage {
-                image_url: i.image_url,
-                series_description: i.series_description,
-                annotation: i.annotation,
-            })
-            .collect(),
+        key_images: Vec::new(),
         radiologist_name: row.radiologist_name.unwrap_or_default(),
         radiologist_registration_number: row.radiologist_reg_number,
         radiologist_signature_url: None,
-        technologist_name: row.technologist_name,
+        technologist_name: None,
         verified_at: row
             .verified_at
-            .map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+            .map(|d| d.with_timezone(&tz).format("%d-%b-%Y %H:%M").to_string()),
         pacs_study_uid: row.pacs_study_uid,
         hospital_name: tenant.0,
         hospital_logo_url: tenant.1,
@@ -2619,11 +2783,8 @@ pub async fn get_radiology_report_full_print_data(
 // ── Death Certificate (Form 4/4A) ────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
-#[allow(clippy::struct_excessive_bools)]
 struct DeathCertRow {
-    certificate_number: Option<String>,
-    registration_number: Option<String>,
-    registration_date: Option<chrono::NaiveDate>,
+    summary_id: Uuid,
     deceased_name: String,
     uhid: Option<String>,
     age_at_death: Option<f64>,
@@ -2633,111 +2794,86 @@ struct DeathCertRow {
     mother_name: Option<String>,
     spouse_name: Option<String>,
     permanent_address: Option<String>,
-    place_of_death: Option<String>,
+    ward_name: Option<String>,
     date_of_death: chrono::NaiveDate,
     time_of_death: chrono::NaiveTime,
     manner_of_death: Option<String>,
-    cause_immediate: Option<String>,
+    cause_immediate: String,
     cause_antecedent: Option<String>,
+    cause_other: Option<String>,
     cause_underlying: Option<String>,
     duration_of_illness: Option<String>,
-    icd_code_immediate: Option<String>,
-    icd_code_underlying: Option<String>,
-    attended_by_doctor: bool,
     attending_doctor_name: Option<String>,
     doctor_registration_number: Option<String>,
-    hospital_admission_date: Option<chrono::NaiveDate>,
-    pregnancy_status: Option<String>,
-    pregnancy_contributed: Option<bool>,
-    mlc_case: bool,
-    mlc_number: Option<String>,
-    autopsy_performed: bool,
-    autopsy_findings: Option<String>,
-    informant_name: Option<String>,
-    informant_relationship: Option<String>,
-    informant_address: Option<String>,
+    hospital_admission_date: chrono::NaiveDate,
+    is_medico_legal: bool,
     certifying_doctor_name: Option<String>,
     certifying_doctor_registration: Option<String>,
     certification_date: chrono::NaiveDate,
 }
 
+/// Form 4 for a death in the hospital, printed from the IPD death summary
+/// (`ipd_death_summaries`) — the record the IPD death screen writes. The
+/// path id is the admission the patient died in.
 pub async fn get_death_certificate_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(patient_id): Path<Uuid>,
+    Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, DeathCertRow>(
         "SELECT \
-           dr.certificate_number, \
-           dr.registration_number, \
-           dr.registration_date, \
+           ds.id AS summary_id, \
            (p.first_name || ' ' || p.last_name) AS deceased_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(dr.date_of_death, p.date_of_birth))::float8 AS age_at_death, \
+           EXTRACT(YEAR FROM age(ds.date_of_death, p.date_of_birth))::float8 AS age_at_death, \
            p.gender::text AS gender, \
            p.date_of_birth, \
            p.father_name, \
            p.mother_name, \
            p.spouse_name, \
            p.address_line1 AS permanent_address, \
-           dr.place_of_death, \
-           dr.date_of_death, \
-           dr.time_of_death, \
-           dr.manner_of_death, \
-           dr.cause_immediate, \
-           dr.cause_antecedent, \
-           dr.cause_underlying, \
-           dr.duration_of_illness, \
-           dr.icd_code_immediate, \
-           dr.icd_code_underlying, \
-           dr.attended_by_doctor, \
+           w.name AS ward_name, \
+           ds.date_of_death, \
+           ds.time_of_death, \
+           ds.manner_of_death::text AS manner_of_death, \
+           ds.cause_of_death_primary AS cause_immediate, \
+           ds.cause_of_death_secondary AS cause_antecedent, \
+           ds.cause_of_death_tertiary AS cause_other, \
+           ds.cause_of_death_underlying AS cause_underlying, \
+           ds.duration_of_illness, \
            doc.full_name AS attending_doctor_name, \
-           doc.registration_number AS doctor_registration_number, \
+           COALESCE(doc.medical_registration_number, doc.registration_number) \
+             AS doctor_registration_number, \
            a.admitted_at::date AS hospital_admission_date, \
-           dr.pregnancy_status, \
-           dr.pregnancy_contributed, \
-           dr.mlc_case, \
-           dr.mlc_number, \
-           dr.autopsy_performed, \
-           dr.autopsy_findings, \
-           dr.informant_name, \
-           dr.informant_relationship, \
-           dr.informant_address, \
+           ds.is_medico_legal, \
            cert.full_name AS certifying_doctor_name, \
-           cert.registration_number AS certifying_doctor_registration, \
-           dr.certification_date \
-         FROM death_records dr \
-         JOIN patients p ON p.id = dr.patient_id AND p.tenant_id = dr.tenant_id \
-         LEFT JOIN admissions a ON a.patient_id = dr.patient_id AND a.tenant_id = dr.tenant_id \
-         LEFT JOIN users doc ON doc.id = dr.attending_doctor_id \
-         LEFT JOIN users cert ON cert.id = dr.certified_by_id \
-         WHERE dr.patient_id = $1 AND dr.tenant_id = $2 \
-         ORDER BY dr.created_at DESC \
+           COALESCE(cert.medical_registration_number, cert.registration_number) \
+             AS certifying_doctor_registration, \
+           ds.created_at::date AS certification_date \
+         FROM ipd_death_summaries ds \
+         JOIN admissions a ON a.id = ds.admission_id AND a.tenant_id = ds.tenant_id \
+         JOIN patients p ON p.id = ds.patient_id AND p.tenant_id = ds.tenant_id \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+         LEFT JOIN users doc ON doc.id = COALESCE(a.attending_doctor_id, a.admitting_doctor) \
+         LEFT JOIN users cert ON cert.id = ds.certifying_doctor_id \
+         WHERE ds.admission_id = $1 AND ds.tenant_id = $2 AND ds.deleted_at IS NULL \
+         ORDER BY ds.created_at DESC \
          LIMIT 1",
     )
-    .bind(patient_id)
+    .bind(admission_id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let other_conditions: Vec<String> = sqlx::query_scalar(
-        "SELECT condition_description FROM death_other_conditions \
-         WHERE death_record_id = (SELECT id FROM death_records WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 1) \
-           AND tenant_id = $2 \
-         ORDER BY display_order",
-    )
-    .bind(patient_id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, address_line1 FROM tenants WHERE id = $1",
@@ -2750,7 +2886,7 @@ pub async fn get_death_certificate_print_data(
         &mut tx,
         &claims.tenant_id,
         "death_certificate",
-        patient_id,
+        row.summary_id,
     )
     .await?;
 
@@ -2759,15 +2895,19 @@ pub async fn get_death_certificate_print_data(
     let age_display = row
         .age_at_death
         .map_or("Unknown".to_string(), |a| format!("{a:.0} years"));
+    // A death summary exists only for a death during this admission, so the
+    // place is this hospital — and the ward, where one was recorded.
+    let place_of_death = match &row.ward_name {
+        Some(ward) => format!("{}, {ward}", tenant.0),
+        None => tenant.0.clone(),
+    };
 
     Ok(Json(DeathCertificatePrintData {
-        certificate_number: row
-            .certificate_number
-            .unwrap_or_else(|| "PENDING".to_string()),
-        registration_number: row.registration_number,
-        registration_date: row
-            .registration_date
-            .map(|d| d.format("%d-%b-%Y").to_string()),
+        // ponytail: no certificate/registration number, ICD coding, pregnancy,
+        // autopsy outcome or informant is recorded on the death summary yet
+        certificate_number: String::new(),
+        registration_number: None,
+        registration_date: None,
         deceased_name: row.deceased_name,
         uhid: row.uhid,
         age_at_death: age_display,
@@ -2777,49 +2917,38 @@ pub async fn get_death_certificate_print_data(
         mother_name: row.mother_name,
         spouse_name: row.spouse_name,
         permanent_address: row.permanent_address,
-        place_of_death: row.place_of_death.unwrap_or_else(|| tenant.0.clone()),
+        place_of_death,
         date_of_death: row.date_of_death.format("%d-%b-%Y").to_string(),
         time_of_death: row.time_of_death.format("%H:%M").to_string(),
-        manner_of_death: row.manner_of_death.unwrap_or_else(|| "Natural".to_string()),
-        cause_of_death_immediate: row.cause_immediate.unwrap_or_default(),
+        manner_of_death: row.manner_of_death.unwrap_or_default(),
+        cause_of_death_immediate: row.cause_immediate,
         cause_of_death_antecedent: row.cause_antecedent,
         cause_of_death_underlying: row.cause_underlying,
-        other_significant_conditions: other_conditions,
+        other_significant_conditions: row.cause_other.into_iter().collect(),
         duration_of_illness: row.duration_of_illness,
-        icd_code_immediate: row.icd_code_immediate,
-        icd_code_underlying: row.icd_code_underlying,
-        attended_by_doctor: row.attended_by_doctor,
+        icd_code_immediate: None,
+        icd_code_underlying: None,
+        // An in-patient death is attended: the admission names its doctor.
+        attended_by_doctor: row.attending_doctor_name.is_some(),
         attending_doctor_name: row.attending_doctor_name,
         doctor_registration_number: row.doctor_registration_number,
-        hospital_admission_date: row
-            .hospital_admission_date
-            .map(|d| d.format("%d-%b-%Y").to_string()),
-        pregnancy_status: row.pregnancy_status,
-        pregnancy_contributed: row.pregnancy_contributed,
-        mlc_case: row.mlc_case,
-        mlc_number: row.mlc_number,
-        autopsy_performed: row.autopsy_performed,
-        autopsy_findings: row.autopsy_findings,
-        informant_name: row.informant_name,
-        informant_relationship: row.informant_relationship,
-        informant_address: row.informant_address,
+        hospital_admission_date: Some(row.hospital_admission_date.format("%d-%b-%Y").to_string()),
+        pregnancy_status: None,
+        pregnancy_contributed: None,
+        mlc_case: row.is_medico_legal,
+        mlc_number: None,
+        autopsy_performed: None,
+        autopsy_findings: None,
+        informant_name: None,
+        informant_relationship: None,
+        informant_address: None,
         certifying_doctor_name: row.certifying_doctor_name.unwrap_or_default(),
         certifying_doctor_registration: row.certifying_doctor_registration,
         certification_date: row.certification_date.format("%d-%b-%Y").to_string(),
         hospital_name: tenant.0,
         hospital_address: tenant.2,
         hospital_logo_url: tenant.1,
-        signatures: death_sigs
-            .into_iter()
-            .map(|s| medbrains_core::print_data::PrintSignatureData {
-                signed_at: s.signed_at.to_rfc3339(),
-                signer_name: s.signer_name,
-                display_image_url: s.display_image_url,
-                display_block: s.display_block,
-                verify_ref: s.verify_ref,
-                legal_class: s.legal_class,
-            })
-            .collect(),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(death_sigs),
     }))
 }
 
@@ -2828,51 +2957,58 @@ pub async fn get_death_certificate_print_data(
 // ══════════════════════════════════════════════════════════════════════════════
 
 use chrono::Utc;
-use sqlx::PgPool;
 
 use medbrains_core::print_data::{
-    BloodDonorFormPrintData, CrossMatchRequisitionPrintData, DataCategory, DataSharingEntity,
-    DonorMedicalHistory, DonorPhysicalExam, DpdpConsentPrintData, GrievanceOfficer,
-    OtRegisterPrintData, OtSurgeryEntry, ProcessingPurpose, RestraintDocumentationPrintData,
-    RestraintMonitoring, VideoConsentPrintData,
+    BloodDonorFormPrintData, CrossMatchRequisitionPrintData, DonorMedicalHistory,
+    DonorPhysicalExam, DpdpConsentPrintData, OtRegisterPrintData, OtSurgeryEntry,
+    RestraintDocumentationPrintData, RestraintMonitoring, VideoConsentPrintData,
 };
 
 // ── Helper Functions (Phase 5) ────────────────────────────────────────────────
 
-async fn get_tenant_info(
-    pool: &PgPool,
-) -> Result<(String, Option<String>, Option<String>), AppError> {
-    let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT name, logo_url, address_line1 FROM tenants WHERE is_active = true LIMIT 1",
+/// The caller's own hospital letterhead: name, logo, address line, phone.
+async fn tenant_letterhead(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+) -> Result<(String, Option<String>, Option<String>, Option<String>), AppError> {
+    Ok(
+        sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<String>)>(
+            "SELECT name, logo_url, address_line1, phone FROM tenants WHERE id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(conn)
+        .await?,
     )
-    .fetch_optional(pool)
-    .await?
-    .unwrap_or(("Hospital".to_string(), None, None));
-
-    Ok(tenant)
 }
 
 // ── OT Register ───────────────────────────────────────────────────────────────
 
-/// GET /print-data/ot-register/{ot_id}/{date}
+/// GET /print-data/ot-register/{ot_room_id}/{date}
+///
+/// One theatre's cases for one day, from `ot_bookings` and the case,
+/// anaesthesia and post-op records the theatre team writes against them.
 pub async fn get_ot_register_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((ot_id, date)): Path<(Uuid, String)>,
+    Path((ot_room_id, date)): Path<(Uuid, String)>,
 ) -> Result<Json<OtRegisterPrintData>, AppError> {
     // The OT register is the log of cases performed; `ot::case_records` is the
     // permission that governs those records elsewhere.
     require_permission(&claims, permissions::ot::case_records::LIST)?;
-    // Not guarded: `operation_theatres` does not exist in the schema.
+    // No per-record check: a register lists every patient through one theatre
+    // that day, which is exactly what `ot::case_records::LIST` grants.
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
+    // A bad date is refused, not silently swapped for today's register.
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .unwrap_or_else(|_| Utc::now().date_naive());
+        .map_err(|_| AppError::BadRequest("date must be YYYY-MM-DD".to_owned()))?;
 
     #[derive(sqlx::FromRow)]
     struct OtRow {
@@ -2881,15 +3017,14 @@ pub async fn get_ot_register_print_data(
     }
 
     let ot = sqlx::query_as::<_, OtRow>(
-        "SELECT name as ot_name, ot_number FROM operation_theatres WHERE id = $1",
+        "SELECT name AS ot_name, code::text AS ot_number FROM ot_rooms \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
     )
-    .bind(ot_id)
+    .bind(ot_room_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .unwrap_or(OtRow {
-        ot_name: "Operation Theatre".to_string(),
-        ot_number: "OT-1".to_string(),
-    });
+    .ok_or(AppError::NotFound)?;
 
     #[derive(sqlx::FromRow)]
     struct SurgeryRow {
@@ -2914,56 +3049,93 @@ pub async fn get_ot_register_print_data(
         complications: Option<String>,
     }
 
+    // Team members are jsonb arrays of user ids; an entry that is not a user
+    // id is printed as written.
     let surgeries_raw = sqlx::query_as::<_, SurgeryRow>(
         r"
         SELECT
-            (p.first_name || ' ' || p.last_name) as patient_name,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
-            EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 as age,
-            p.gender::text as gender,
-            a.id::text AS ip_number,
-            s.diagnosis,
-            s.procedure_name,
-            s.surgery_type,
-            surgeon.full_name as surgeon_name,
-            asst.full_name as assistant_surgeon,
-            anesth.full_name as anesthesiologist,
-            s.anesthesia_type,
-            s.scrub_nurse,
-            s.circulating_nurse,
-            s.scheduled_time,
-            s.actual_start_time as actual_start,
-            s.actual_end_time as actual_end,
-            s.outcome,
-            s.complications
-        FROM surgeries s
-        JOIN patients p ON s.patient_id = p.id
-        LEFT JOIN admissions a ON s.admission_id = a.id
-        LEFT JOIN users surgeon ON s.surgeon_id = surgeon.id
-        LEFT JOIN users asst ON s.assistant_surgeon_id = asst.id
-        LEFT JOIN users anesth ON s.anesthesiologist_id = anesth.id
-        WHERE s.ot_id = $1 AND DATE(s.scheduled_time) = $2
-        ORDER BY s.scheduled_time
+            EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 AS age,
+            p.gender::text AS gender,
+            a.admission_number AS ip_number,
+            COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis,
+            COALESCE(cr.procedure_performed, b.procedure_name) AS procedure_name,
+            b.priority::text AS surgery_type,
+            COALESCE(cs.full_name, ps.full_name) AS surgeon_name,
+            (SELECT string_agg(COALESCE(u.full_name, e.v), ', ')
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(b.assistant_surgeons) = 'array'
+                    THEN b.assistant_surgeons ELSE '[]'::jsonb END) e(v)
+               LEFT JOIN users u ON u.id::text = e.v) AS assistant_surgeon,
+            an.full_name AS anesthesiologist,
+            ar.anesthesia_type::text AS anesthesia_type,
+            (SELECT string_agg(COALESCE(u.full_name, e.v), ', ')
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(b.scrub_nurses) = 'array'
+                    THEN b.scrub_nurses ELSE '[]'::jsonb END) e(v)
+               LEFT JOIN users u ON u.id::text = e.v) AS scrub_nurse,
+            (SELECT string_agg(COALESCE(u.full_name, e.v), ', ')
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(b.circulating_nurses) = 'array'
+                    THEN b.circulating_nurses ELSE '[]'::jsonb END) e(v)
+               LEFT JOIN users u ON u.id::text = e.v) AS circulating_nurse,
+            b.scheduled_start AS scheduled_time,
+            COALESCE(b.actual_start, b.actual_start_time) AS actual_start,
+            COALESCE(b.actual_end, b.actual_end_time) AS actual_end,
+            po.disposition AS outcome,
+            NULLIF(concat_ws('; ', cr.complications, ar.complications), '') AS complications
+        FROM ot_bookings b
+        JOIN patients p ON p.id = b.patient_id AND p.tenant_id = b.tenant_id
+        LEFT JOIN admissions a ON a.id = b.admission_id AND a.tenant_id = b.tenant_id
+        LEFT JOIN LATERAL (
+            SELECT c.* FROM ot_case_records c
+            WHERE c.booking_id = b.id AND c.tenant_id = b.tenant_id AND c.deleted_at IS NULL
+            ORDER BY c.created_at DESC LIMIT 1
+        ) cr ON true
+        LEFT JOIN LATERAL (
+            SELECT x.* FROM ot_anesthesia_records x
+            WHERE x.booking_id = b.id AND x.tenant_id = b.tenant_id AND x.deleted_at IS NULL
+            ORDER BY x.created_at DESC LIMIT 1
+        ) ar ON true
+        LEFT JOIN LATERAL (
+            SELECT y.disposition FROM ot_postop_records y
+            WHERE y.booking_id = b.id AND y.tenant_id = b.tenant_id AND y.deleted_at IS NULL
+            ORDER BY y.created_at DESC LIMIT 1
+        ) po ON true
+        LEFT JOIN users cs ON cs.id = cr.surgeon_id
+        LEFT JOIN users ps ON ps.id = COALESCE(b.surgeon_id, b.primary_surgeon_id)
+        LEFT JOIN users an ON an.id = COALESCE(ar.anesthetist_id, b.anesthesiologist_id, b.anesthetist_id)
+        WHERE b.ot_room_id = $1 AND b.tenant_id = $2 AND b.scheduled_date = $3
+          AND b.deleted_at IS NULL
+          AND b.status NOT IN ('cancelled'::ot_booking_status, 'postponed'::ot_booking_status)
+        ORDER BY b.scheduled_start
+        LIMIT 500
         ",
     )
-    .bind(ot_id)
+    .bind(ot_room_id)
+    .bind(claims.tenant_id)
     .bind(register_date)
     .fetch_all(&mut *conn)
     .await?;
 
-    let mut elective = 0;
-    let mut emergency = 0;
+    let printed_by: String =
+        sqlx::query_scalar("SELECT full_name FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(claims.sub)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *conn)
+            .await?
+            .unwrap_or_default();
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
+
+    // `ot_case_priority` is elective / urgent / emergency; the register has
+    // two columns, so anything unplanned counts as emergency.
+    let total_elective = surgeries_raw
+        .iter()
+        .filter(|s| s.surgery_type == "elective")
+        .count() as i32;
 
     let surgeries: Vec<OtSurgeryEntry> = surgeries_raw
         .into_iter()
         .enumerate()
         .map(|(idx, s)| {
-            if s.surgery_type.to_lowercase().contains("emergency") {
-                emergency += 1;
-            } else {
-                elective += 1;
-            }
-
             let duration = match (s.actual_start, s.actual_end) {
                 (Some(start), Some(end)) => Some((end - start).num_minutes() as i32),
                 _ => None,
@@ -2986,13 +3158,21 @@ pub async fn get_ot_register_print_data(
                 surgery_type: s.surgery_type,
                 surgeon: s.surgeon_name.unwrap_or_default(),
                 assistant_surgeon: s.assistant_surgeon,
-                anesthesiologist: s.anesthesiologist.unwrap_or_else(|| "N/A".to_string()),
-                anesthesia_type: s.anesthesia_type.unwrap_or_else(|| "GA".to_string()),
+                anesthesiologist: s.anesthesiologist.unwrap_or_default(),
+                anesthesia_type: s.anesthesia_type.unwrap_or_default(),
                 scrub_nurse: s.scrub_nurse,
                 circulating_nurse: s.circulating_nurse,
-                scheduled_time: s.scheduled_time.format("%H:%M").to_string(),
-                actual_start: s.actual_start.map(|t| t.format("%H:%M").to_string()),
-                actual_end: s.actual_end.map(|t| t.format("%H:%M").to_string()),
+                scheduled_time: s
+                    .scheduled_time
+                    .with_timezone(&tz)
+                    .format("%H:%M")
+                    .to_string(),
+                actual_start: s
+                    .actual_start
+                    .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
+                actual_end: s
+                    .actual_end
+                    .map(|t| t.with_timezone(&tz).format("%H:%M").to_string()),
                 duration_minutes: duration,
                 outcome: s.outcome,
                 complications: s.complications,
@@ -3001,7 +3181,6 @@ pub async fn get_ot_register_print_data(
         .collect();
 
     let total = surgeries.len() as i32;
-    let tenant = get_tenant_info(&state.db).await?;
 
     Ok(Json(OtRegisterPrintData {
         register_date: register_date.format("%d-%m-%Y").to_string(),
@@ -3009,9 +3188,9 @@ pub async fn get_ot_register_print_data(
         ot_number: ot.ot_number,
         surgeries,
         total_surgeries: total,
-        total_elective: elective,
-        total_emergency: emergency,
-        printed_by: "System".to_string(),
+        total_elective,
+        total_emergency: total - total_elective,
+        printed_by,
         hospital_name: tenant.0,
     }))
 }
@@ -3031,123 +3210,133 @@ pub async fn get_blood_donor_form_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct DonorRow {
         registration_number: String,
         registration_date: chrono::DateTime<Utc>,
         donor_name: String,
-        age: i32,
+        age: Option<i32>,
         gender: String,
         blood_group: String,
         rh_factor: String,
-        father_husband_name: Option<String>,
         address: String,
         phone: String,
         email: Option<String>,
         id_proof_type: String,
         id_proof_number: String,
-        occupation: Option<String>,
         donation_type: String,
         previous_donations: i32,
-        last_donation_date: Option<chrono::NaiveDate>,
-        weight_kg: Option<f64>,
-        blood_pressure: Option<String>,
-        pulse: Option<i32>,
-        temperature: Option<f64>,
-        hemoglobin: Option<f64>,
-        fit_to_donate: bool,
+        last_donation_date: Option<chrono::DateTime<Utc>>,
+        is_deferred: bool,
         deferral_reason: Option<String>,
-        consent_given: bool,
-        consent_date: Option<chrono::NaiveDate>,
+        medical_history: Option<String>,
         medical_officer: Option<String>,
     }
 
+    // The blood-bank screen writes `donor_number`, the name parts, `blood_group`,
+    // contact and ID fields; the duplicate print-era columns beside them
+    // (`registration_number`, `donor_name`, `age`, `weight_kg` …) are never
+    // written. Donation type and medical officer come from the latest donation.
     let donor = sqlx::query_as::<_, DonorRow>(
         r"
         SELECT
-            d.registration_number,
-            d.created_at as registration_date,
-            d.donor_name,
-            d.age,
-            d.gender,
-            d.blood_group,
-            d.rh_factor,
-            d.father_husband_name,
-            d.address,
-            d.phone,
+            d.donor_number AS registration_number,
+            d.created_at AS registration_date,
+            (d.first_name || ' ' || d.last_name) AS donor_name,
+            EXTRACT(YEAR FROM AGE(d.date_of_birth))::int4 AS age,
+            COALESCE(d.gender, '') AS gender,
+            upper(split_part(d.blood_group::text, '_', 1)) AS blood_group,
+            CASE split_part(d.blood_group::text, '_', 2)
+                WHEN 'positive' THEN '+' WHEN 'negative' THEN '-' ELSE '' END AS rh_factor,
+            COALESCE(d.address, '') AS address,
+            COALESCE(d.phone, '') AS phone,
             d.email,
-            d.id_proof_type,
-            d.id_proof_number,
-            d.occupation,
-            d.donation_type,
-            d.previous_donations,
-            d.last_donation_date,
-            d.weight_kg,
-            d.blood_pressure,
-            d.pulse,
-            d.temperature,
-            d.hemoglobin,
-            d.fit_to_donate,
+            COALESCE(d.id_type, '') AS id_proof_type,
+            COALESCE(d.id_number, '') AS id_proof_number,
+            COALESCE(ld.donation_type::text, '') AS donation_type,
+            d.total_donations AS previous_donations,
+            d.last_donation AS last_donation_date,
+            d.is_deferred,
             d.deferral_reason,
-            d.consent_given,
-            d.consent_date,
-            mo.full_name as medical_officer
+            NULLIF(d.medical_history, '{}'::jsonb)::text AS medical_history,
+            mo.full_name AS medical_officer
         FROM blood_donors d
-        LEFT JOIN users mo ON d.medical_officer_id = mo.id
-        WHERE d.id = $1
+        LEFT JOIN LATERAL (
+            SELECT bd.donation_type, bd.medical_officer_id FROM blood_donations bd
+            WHERE bd.donor_id = d.id AND bd.tenant_id = d.tenant_id AND bd.deleted_at IS NULL
+            ORDER BY bd.donated_at DESC LIMIT 1
+        ) ld ON true
+        LEFT JOIN users mo ON mo.id = ld.medical_officer_id
+        WHERE d.id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL
         ",
     )
     .bind(donor_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(BloodDonorFormPrintData {
         registration_number: donor.registration_number,
-        registration_date: donor.registration_date.format("%d-%m-%Y").to_string(),
+        registration_date: donor
+            .registration_date
+            .with_timezone(&tz)
+            .format("%d-%m-%Y")
+            .to_string(),
         donor_name: donor.donor_name,
         age: donor.age,
         gender: donor.gender,
         blood_group: donor.blood_group,
         rh_factor: donor.rh_factor,
-        father_husband_name: donor.father_husband_name,
+        father_husband_name: None,
         address: donor.address,
         phone: donor.phone,
         email: donor.email,
         id_proof_type: donor.id_proof_type,
         id_proof_number: donor.id_proof_number,
-        occupation: donor.occupation,
+        occupation: None,
         donation_type: donor.donation_type,
         previous_donations: donor.previous_donations,
         last_donation_date: donor
             .last_donation_date
-            .map(|d| d.format("%d-%m-%Y").to_string()),
+            .map(|d| d.with_timezone(&tz).format("%d-%m-%Y").to_string()),
+        // ponytail: no donor questionnaire or pre-donation exam is captured
+        // anywhere; the boxes print as not recorded and the free-text history
+        // is whatever `medical_history` holds.
         medical_history: DonorMedicalHistory {
-            recent_illness: false,
-            recent_surgery: false,
-            recent_transfusion: false,
-            chronic_disease: false,
-            on_medication: false,
-            pregnant_or_lactating: false,
-            high_risk_behavior: false,
-            tattoo_recent: false,
-            details: None,
+            recent_illness: None,
+            recent_surgery: None,
+            recent_transfusion: None,
+            chronic_disease: None,
+            on_medication: None,
+            pregnant_or_lactating: None,
+            high_risk_behavior: None,
+            tattoo_recent: None,
+            details: donor.medical_history,
         },
         physical_exam: DonorPhysicalExam {
-            weight_kg: donor.weight_kg.unwrap_or(60.0),
-            blood_pressure: donor.blood_pressure.unwrap_or_else(|| "120/80".to_string()),
-            pulse: donor.pulse.unwrap_or(72),
-            temperature: donor.temperature.unwrap_or(98.6),
-            hemoglobin: donor.hemoglobin.unwrap_or(14.0),
-            fit_to_donate: donor.fit_to_donate,
-            deferral_reason: donor.deferral_reason,
+            weight_kg: None,
+            blood_pressure: None,
+            pulse: None,
+            temperature: None,
+            hemoglobin: None,
+            // Never "fit" without an examination; a recorded deferral is
+            // "not fit", anything else is not recorded.
+            fit_to_donate: donor.is_deferred.then_some(false),
+            deferral_reason: if donor.is_deferred {
+                donor.deferral_reason
+            } else {
+                None
+            },
         },
-        consent_given: donor.consent_given,
-        consent_date: donor.consent_date.map(|d| d.format("%d-%m-%Y").to_string()),
+        consent_given: None,
+        consent_date: None,
         medical_officer: donor.medical_officer,
         hospital_name: tenant.0,
     }))
@@ -3155,27 +3344,27 @@ pub async fn get_blood_donor_form_print_data(
 
 // ── Blood Bank Cross-Match Requisition ────────────────────────────────────────
 
-/// GET /print-data/cross-match-requisition/{requisition_id}
+/// GET /print-data/cross-match-requisition/{crossmatch_request_id}
 pub async fn get_cross_match_requisition_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(requisition_id): Path<Uuid>,
+    Path(crossmatch_request_id): Path<Uuid>,
 ) -> Result<Json<CrossMatchRequisitionPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `cross_match_requisitions` does not exist in the schema.
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReqRow {
-        requisition_number: String,
+        patient_id: Uuid,
         requisition_date: chrono::DateTime<Utc>,
-        urgency: String,
         patient_name: String,
         uhid: String,
         age: Option<f64>,
@@ -3191,51 +3380,68 @@ pub async fn get_cross_match_requisition_print_data(
         previous_transfusions: i32,
         reaction_history: bool,
         reaction_details: Option<String>,
-        sample_collected_by: Option<String>,
-        sample_collected_at: chrono::DateTime<Utc>,
         requesting_doctor: Option<String>,
-        signature_date: chrono::DateTime<Utc>,
     }
 
+    // Transfusion history is what `transfusion_records` holds for this patient
+    // before the request was raised; the ward is the stay open at that moment.
     let req = sqlx::query_as::<_, ReqRow>(
         r"
         SELECT
-            cr.requisition_number,
-            cr.created_at as requisition_date,
-            cr.urgency,
-            (p.first_name || ' ' || p.last_name) as patient_name,
+            cr.patient_id,
+            cr.created_at AS requisition_date,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
-            EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 as age,
-            p.gender::text as gender,
-            a.id::text AS ip_number,
-            COALESCE(cr.ward_bed, 'N/A') as ward_bed,
-            p.blood_group::text as blood_group,
-            '+'::text as rh_factor,
-            cr.diagnosis,
-            cr.indication,
-            cr.units_required,
-            cr.component_type,
-            COALESCE(cr.previous_transfusions, 0) as previous_transfusions,
-            COALESCE(cr.transfusion_reaction_history, false) as reaction_history,
-            cr.reaction_details,
-            collector.full_name as sample_collected_by,
-            cr.sample_collected_at,
-            doctor.full_name as requesting_doctor,
-            cr.created_at as signature_date
-        FROM cross_match_requisitions cr
-        JOIN patients p ON cr.patient_id = p.id
-        LEFT JOIN admissions a ON cr.admission_id = a.id
-        LEFT JOIN users collector ON cr.sample_collected_by = collector.id
-        LEFT JOIN users doctor ON cr.requesting_doctor_id = doctor.id
-        WHERE cr.id = $1
+            EXTRACT(YEAR FROM AGE(p.date_of_birth))::float8 AS age,
+            p.gender::text AS gender,
+            adm.admission_number AS ip_number,
+            concat_ws(' / ', adm.ward_name, adm.bed_name) AS ward_bed,
+            upper(split_part(cr.blood_group::text, '_', 1)) AS blood_group,
+            CASE split_part(cr.blood_group::text, '_', 2)
+                WHEN 'positive' THEN '+' WHEN 'negative' THEN '-' ELSE '' END AS rh_factor,
+            COALESCE(adm.diagnosis, '') AS diagnosis,
+            COALESCE(cr.clinical_indication, '') AS indication,
+            cr.units_requested AS units_required,
+            cr.component_type::text AS component_type,
+            hx.previous_transfusions,
+            hx.reaction_history,
+            hx.reaction_details,
+            doctor.full_name AS requesting_doctor
+        FROM crossmatch_requests cr
+        JOIN patients p ON p.id = cr.patient_id AND p.tenant_id = cr.tenant_id
+        LEFT JOIN users doctor ON doctor.id = cr.requested_by
+        LEFT JOIN LATERAL (
+            SELECT a.id, a.admission_number, w.name AS ward_name, l.name AS bed_name,
+                   COALESCE(a.primary_diagnosis, a.provisional_diagnosis) AS diagnosis
+            FROM admissions a
+            LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id
+            LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id
+            WHERE a.patient_id = cr.patient_id AND a.tenant_id = cr.tenant_id
+              AND a.deleted_at IS NULL AND a.admitted_at <= cr.created_at
+              AND (a.discharged_at IS NULL OR a.discharged_at >= cr.created_at)
+            ORDER BY a.admitted_at DESC LIMIT 1
+        ) adm ON true
+        CROSS JOIN LATERAL (
+            SELECT COUNT(*)::int4 AS previous_transfusions,
+                   COALESCE(bool_or(t.has_reaction), false) AS reaction_history,
+                   string_agg(concat_ws(': ', t.reaction_type, t.reaction_details), '; ')
+                       FILTER (WHERE t.has_reaction) AS reaction_details
+            FROM transfusion_records t
+            WHERE t.patient_id = cr.patient_id AND t.tenant_id = cr.tenant_id
+              AND t.deleted_at IS NULL AND t.started_at < cr.created_at
+        ) hx
+        WHERE cr.id = $1 AND cr.tenant_id = $2 AND cr.deleted_at IS NULL
         ",
     )
-    .bind(requisition_id)
+    .bind(crossmatch_request_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, req.patient_id).await?;
+
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
 
     let age_gender = format!(
         "{}/{}",
@@ -3244,9 +3450,14 @@ pub async fn get_cross_match_requisition_print_data(
     );
 
     Ok(Json(CrossMatchRequisitionPrintData {
-        requisition_number: req.requisition_number,
-        requisition_date: req.requisition_date.format("%d-%m-%Y %H:%M").to_string(),
-        urgency: req.urgency,
+        // ponytail: crossmatch requests carry no requisition number, urgency or sample collection yet
+        requisition_number: None,
+        requisition_date: req
+            .requisition_date
+            .with_timezone(&tz)
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
+        urgency: None,
         patient_name: req.patient_name,
         uhid: req.uhid,
         age_gender,
@@ -3261,10 +3472,14 @@ pub async fn get_cross_match_requisition_print_data(
         previous_transfusions: req.previous_transfusions,
         transfusion_reactions_history: req.reaction_history,
         reaction_details: req.reaction_details,
-        sample_collected_by: req.sample_collected_by.unwrap_or_default(),
-        sample_collected_at: req.sample_collected_at.format("%d-%m-%Y %H:%M").to_string(),
+        sample_collected_by: None,
+        sample_collected_at: None,
         requesting_doctor: req.requesting_doctor.unwrap_or_default(),
-        doctor_signature_date: req.signature_date.format("%d-%m-%Y").to_string(),
+        doctor_signature_date: req
+            .requisition_date
+            .with_timezone(&tz)
+            .format("%d-%m-%Y")
+            .to_string(),
         hospital_name: tenant.0,
     }))
 }
@@ -3291,7 +3506,9 @@ pub async fn get_appointment_slip_print_data(
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ApptRow {
@@ -3304,41 +3521,37 @@ pub async fn get_appointment_slip_print_data(
         doctor_name: String,
         doctor_designation: Option<String>,
         department_name: Option<String>,
-        clinic_location: Option<String>,
         visit_type: String,
-        preparation_instructions: Option<String>,
     }
 
     let appt = sqlx::query_as::<_, ApptRow>(
         r"
         SELECT
-            a.appointment_number,
+            COALESCE(a.token_number::text, '') AS appointment_number,
             a.appointment_date,
-            a.appointment_time,
-            (p.first_name || ' ' || p.last_name) as patient_name,
+            a.slot_start AS appointment_time,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
             p.phone,
-            d.full_name as doctor_name,
-            des.name as doctor_designation,
-            dept.name as department_name,
-            l.name as clinic_location,
-            a.visit_type,
-            a.preparation_instructions
+            d.full_name AS doctor_name,
+            COALESCE(des.name, d.designation) AS doctor_designation,
+            dept.name AS department_name,
+            a.appointment_type::text AS visit_type
         FROM appointments a
-        JOIN patients p ON a.patient_id = p.id
-        JOIN users d ON a.doctor_id = d.id
-        LEFT JOIN designations des ON d.designation_id = des.id
-        LEFT JOIN departments dept ON a.department_id = dept.id
-        LEFT JOIN locations l ON a.location_id = l.id
-        WHERE a.id = $1
+        JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id
+        JOIN users d ON d.id = a.doctor_id
+        LEFT JOIN designations des ON des.id = d.designation_id
+        LEFT JOIN departments dept ON dept.id = a.department_id AND dept.tenant_id = a.tenant_id
+        WHERE a.id = $1 AND a.tenant_id = $2 AND a.deleted_at IS NULL
         ",
     )
     .bind(appointment_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(AppointmentSlipPrintData {
         appointment_number: appt.appointment_number,
@@ -3350,17 +3563,15 @@ pub async fn get_appointment_slip_print_data(
         doctor_name: appt.doctor_name,
         doctor_designation: appt.doctor_designation,
         department: appt.department_name.unwrap_or_default(),
-        clinic_location: appt.clinic_location,
+        // ponytail: appointments carry no room, preparation notes, wait estimate,
+        // document checklist or cancellation policy yet
+        clinic_location: None,
         visit_type: appt.visit_type,
-        preparation_instructions: appt.preparation_instructions,
-        documents_to_bring: vec![
-            "Photo ID".to_string(),
-            "Previous Reports".to_string(),
-            "Insurance Card (if applicable)".to_string(),
-        ],
-        estimated_wait_time: Some("15-20 minutes".to_string()),
-        contact_for_queries: Some("Reception: 1800-XXX-XXXX".to_string()),
-        cancellation_policy: Some("Please cancel at least 24 hours in advance".to_string()),
+        preparation_instructions: None,
+        documents_to_bring: Vec::new(),
+        estimated_wait_time: None,
+        contact_for_queries: tenant.3,
+        cancellation_policy: None,
         qr_code_data: Some(format!("APPT:{appointment_id}")),
         hospital_name: tenant.0,
         hospital_address: tenant.2,
@@ -3371,171 +3582,140 @@ pub async fn get_appointment_slip_print_data(
 // ── DPDP Act Consent ──────────────────────────────────────────────────────────
 
 /// GET /print-data/dpdp-consent/{consent_id}
+///
+/// A patient's data-sharing consent as the registration desk recorded it: a
+/// `patient_consents` row of type `data_sharing`. Prints what was recorded —
+/// who consented, how, on which form version, and whether it still stands —
+/// and nothing the record does not say about where the data goes.
 pub async fn get_dpdp_consent_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(consent_id): Path<Uuid>,
 ) -> Result<Json<DpdpConsentPrintData>, AppError> {
-    // No other code reads `dpdp_consents`, so there is no sibling handler to
-    // copy from. A DPDP consent is a signed consent record, which is what
+    // A DPDP consent is a signed consent record, which is what
     // `consent::signatures` governs.
     require_permission(&claims, permissions::consent::signatures::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
-        medbrains_authz_gate::links::DPDP_CONSENT,
+        medbrains_authz_gate::links::PATIENT_CONSENT,
         consent_id,
     )
     .await?;
 
-    // A tenant-scoped connection rather than the bare pool: every table below
-    // is row-level secured, and a pool query carries no tenant, so under
-    // enforcement this prints an empty form. A blank statutory register is
-    // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    crate::set_print_timezone(&mut tx, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ConsentRow {
-        consent_number: String,
-        consent_date: chrono::DateTime<Utc>,
+        consent_date: String,
         patient_name: String,
         uhid: String,
-        guardian_name: Option<String>,
-        retention_period: String,
-        consent_given: bool,
+        consented_by: String,
+        consented_by_relation: Option<String>,
+        consent_form: Option<String>,
+        consent_version: Option<String>,
+        consent_status: String,
         consent_method: String,
         witness_name: Option<String>,
+        valid_until: Option<String>,
+        withdrawn_at: Option<String>,
+        withdrawal_reason: Option<String>,
     }
 
     let consent = sqlx::query_as::<_, ConsentRow>(
-        r"
-        SELECT
-            c.consent_number,
-            c.created_at as consent_date,
-            (p.first_name || ' ' || p.last_name) as patient_name,
-            p.uhid,
-            c.guardian_name,
-            COALESCE(c.retention_period, '5 years or as per legal requirement') as retention_period,
-            c.consent_given,
-            COALESCE(c.consent_method, 'Physical') as consent_method,
-            c.witness_name
-        FROM dpdp_consents c
-        JOIN patients p ON c.patient_id = p.id
-        WHERE c.id = $1
-        ",
+        "SELECT \
+           to_char(c.consent_date, 'DD-MM-YYYY HH24:MI') AS consent_date, \
+           concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+           p.uhid, \
+           c.consented_by, \
+           c.consented_by_relation, \
+           ct.name AS consent_form, \
+           COALESCE(c.consent_version, ct.version::text) AS consent_version, \
+           c.consent_status::text AS consent_status, \
+           c.capture_mode::text AS consent_method, \
+           c.witness_name, \
+           to_char(c.valid_until, 'DD-MM-YYYY') AS valid_until, \
+           to_char(c.revoked_at, 'DD-MM-YYYY HH24:MI') AS withdrawn_at, \
+           c.revoked_reason AS withdrawal_reason \
+         FROM patient_consents c \
+         JOIN patients p ON p.id = c.patient_id AND p.tenant_id = c.tenant_id \
+         LEFT JOIN consent_templates ct ON ct.id = c.template_id \
+         WHERE c.id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL \
+           AND c.consent_type = 'data_sharing'",
     )
     .bind(consent_id)
-    .fetch_optional(&mut *conn)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    let tenant = tenant_letterhead(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
 
-    let data_categories = vec![
-        DataCategory {
-            category: "Personal Identifiers".to_string(),
-            description: "Name, Address, Phone, Email, Aadhaar/ID".to_string(),
-            is_sensitive: false,
-        },
-        DataCategory {
-            category: "Health Data".to_string(),
-            description: "Medical history, diagnoses, treatments, prescriptions".to_string(),
-            is_sensitive: true,
-        },
-        DataCategory {
-            category: "Financial Data".to_string(),
-            description: "Billing, insurance, payment information".to_string(),
-            is_sensitive: true,
-        },
-    ];
-
-    let processing_purposes = vec![
-        ProcessingPurpose {
-            purpose: "Treatment and Care".to_string(),
-            legal_basis: "Vital Interest / Consent".to_string(),
-        },
-        ProcessingPurpose {
-            purpose: "Billing and Insurance Claims".to_string(),
-            legal_basis: "Contractual Necessity".to_string(),
-        },
-        ProcessingPurpose {
-            purpose: "Legal and Regulatory Compliance".to_string(),
-            legal_basis: "Legal Obligation".to_string(),
-        },
-    ];
-
-    let data_sharing = vec![
-        DataSharingEntity {
-            entity_type: "Insurance TPA".to_string(),
-            entity_name: None,
-            purpose: "Claim processing".to_string(),
-        },
-        DataSharingEntity {
-            entity_type: "Government Authority".to_string(),
-            entity_name: Some("MoHFW / ABDM".to_string()),
-            purpose: "Public health reporting".to_string(),
-        },
-        DataSharingEntity {
-            entity_type: "Lab / Diagnostic Partner".to_string(),
-            entity_name: None,
-            purpose: "Sample processing".to_string(),
-        },
-    ];
-
+    // Fixed form wording: the Data Principal's rights as the DPDP Act 2023
+    // states them. Nothing here asserts what this hospital does with the data.
     let patient_rights = vec![
-        "Right to Access: Request a copy of your personal data".to_string(),
-        "Right to Correction: Request correction of inaccurate data".to_string(),
-        "Right to Erasure: Request deletion of your data (subject to legal retention)".to_string(),
-        "Right to Withdraw Consent: Withdraw consent at any time".to_string(),
-        "Right to Grievance Redressal: Lodge complaints with Data Protection Officer".to_string(),
+        "Right to access information about your personal data (s.11)".to_string(),
+        "Right to correction, completion, updating and erasure of your personal data (s.12)"
+            .to_string(),
+        "Right to grievance redressal with the hospital, and thereafter with the Data \
+         Protection Board of India (s.13)"
+            .to_string(),
+        "Right to nominate a person to exercise these rights on your death or incapacity (s.14)"
+            .to_string(),
+        "Right to withdraw consent at any time, as easily as it was given (s.6(4))".to_string(),
     ];
 
     Ok(Json(DpdpConsentPrintData {
-        consent_number: consent.consent_number,
-        consent_date: consent.consent_date.format("%d-%m-%Y").to_string(),
+        consent_date: consent.consent_date,
         patient_name: consent.patient_name,
         uhid: consent.uhid,
-        guardian_name: consent.guardian_name,
-        data_categories,
-        processing_purposes,
-        data_sharing,
-        retention_period: consent.retention_period,
-        patient_rights,
-        grievance_officer: GrievanceOfficer {
-            name: "Data Protection Officer".to_string(),
-            email: "dpo@hospital.com".to_string(),
-            phone: Some("1800-XXX-XXXX".to_string()),
-        },
-        consent_given: consent.consent_given,
+        consented_by: consent.consented_by,
+        consented_by_relation: consent.consented_by_relation,
+        consent_form: consent.consent_form,
+        consent_version: consent.consent_version,
+        consent_status: consent.consent_status,
         consent_method: consent.consent_method,
         witness_name: consent.witness_name,
+        valid_until: consent.valid_until,
+        withdrawn_at: consent.withdrawn_at,
+        withdrawal_reason: consent.withdrawal_reason,
+        patient_rights,
         hospital_name: tenant.0,
-        hospital_dpo_contact: Some("dpo@hospital.com".to_string()),
     }))
 }
 
 // ── Video Consent Recording ───────────────────────────────────────────────────
 
-/// GET /print-data/video-consent/{video_consent_id}
+/// GET /print-data/video-consent/{signature_id}
+///
+/// A video-recorded consent is a `consent_signature_metadata` row with a
+/// `video_consent_url`; it signs either a `patient_consents` or a
+/// `procedure_consents` row (`consent_source`), which names the patient.
 pub async fn get_video_consent_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(video_consent_id): Path<Uuid>,
+    Path(signature_id): Path<Uuid>,
 ) -> Result<Json<VideoConsentPrintData>, AppError> {
     // Same reasoning as the DPDP consent above — a signed consent record.
     require_permission(&claims, permissions::consent::signatures::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    // Not guarded: `video_consents` does not exist in the schema.
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct VideoRow {
+        patient_id: Uuid,
         consent_number: String,
         consent_date: chrono::DateTime<Utc>,
         patient_name: String,
@@ -3543,69 +3723,78 @@ pub async fn get_video_consent_print_data(
         consent_type: String,
         procedure_name: Option<String>,
         video_reference_id: String,
-        video_duration_seconds: i32,
         video_recorded_at: chrono::DateTime<Utc>,
         video_url: String,
-        video_verified: bool,
-        patient_visible: bool,
-        verbal_consent: bool,
         witness_name: Option<String>,
-        witness_relationship: Option<String>,
         recording_staff: Option<String>,
     }
 
     let video = sqlx::query_as::<_, VideoRow>(
         r"
         SELECT
-            vc.consent_number,
-            vc.created_at as consent_date,
-            (p.first_name || ' ' || p.last_name) as patient_name,
+            p.id AS patient_id,
+            csm.consent_id::text AS consent_number,
+            COALESCE(pc.consent_date, prc.signed_at, csm.captured_at) AS consent_date,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
-            vc.consent_type,
-            vc.procedure_name,
-            vc.video_reference_id,
-            vc.video_duration_seconds,
-            vc.video_recorded_at,
-            vc.video_url,
-            vc.video_verified,
-            vc.patient_visible_in_video as patient_visible,
-            vc.verbal_consent_given as verbal_consent,
-            vc.witness_name,
-            vc.witness_relationship,
-            recorder.full_name as recording_staff
-        FROM video_consents vc
-        JOIN patients p ON vc.patient_id = p.id
-        LEFT JOIN users recorder ON vc.recorded_by = recorder.id
-        WHERE vc.id = $1
+            COALESCE(pc.consent_type::text, prc.consent_type) AS consent_type,
+            prc.procedure_name,
+            csm.id::text AS video_reference_id,
+            csm.captured_at AS video_recorded_at,
+            csm.video_consent_url AS video_url,
+            COALESCE(csm.witness_name, pc.witness_name, prc.witness_name) AS witness_name,
+            recorder.full_name AS recording_staff
+        FROM consent_signature_metadata csm
+        LEFT JOIN patient_consents pc ON csm.consent_source = 'patient_consent'
+            AND pc.id = csm.consent_id AND pc.tenant_id = csm.tenant_id
+            AND pc.deleted_at IS NULL
+        LEFT JOIN procedure_consents prc ON csm.consent_source = 'procedure_consent'
+            AND prc.id = csm.consent_id AND prc.tenant_id = csm.tenant_id
+            AND prc.deleted_at IS NULL
+        JOIN patients p ON p.id = COALESCE(pc.patient_id, prc.patient_id)
+            AND p.tenant_id = csm.tenant_id
+        LEFT JOIN users recorder ON recorder.id = csm.captured_by
+        WHERE csm.id = $1 AND csm.tenant_id = $2 AND csm.deleted_at IS NULL
+          AND csm.video_consent_url IS NOT NULL
         ",
     )
-    .bind(video_consent_id)
+    .bind(signature_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, video.patient_id).await?;
+
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
 
     Ok(Json(VideoConsentPrintData {
-        consent_number: video.consent_number,
-        consent_date: video.consent_date.format("%d-%m-%Y").to_string(),
+        consent_number: Some(video.consent_number),
+        consent_date: video
+            .consent_date
+            .with_timezone(&tz)
+            .format("%d-%m-%Y")
+            .to_string(),
         patient_name: video.patient_name,
         uhid: video.uhid,
         consent_type: video.consent_type,
         procedure_name: video.procedure_name,
-        video_reference_id: video.video_reference_id.clone(),
-        video_duration_seconds: video.video_duration_seconds,
-        video_recorded_at: video.video_recorded_at.format("%d-%m-%Y %H:%M").to_string(),
-        qr_code_to_video: format!(
-            "https://hospital.com/video-consent/{}",
-            video.video_reference_id
-        ),
+        video_reference_id: video.video_reference_id,
+        // ponytail: duration, verification and the visible/verbal flags are not recorded anywhere yet
+        video_duration_seconds: None,
+        video_recorded_at: video
+            .video_recorded_at
+            .with_timezone(&tz)
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
+        // The QR opens the recording itself, not a made-up portal address.
+        qr_code_to_video: video.video_url.clone(),
         video_url: video.video_url,
-        video_verified: video.video_verified,
-        patient_visible_in_video: video.patient_visible,
-        verbal_consent_given: video.verbal_consent,
+        video_verified: None,
+        patient_visible_in_video: None,
+        verbal_consent_given: None,
         witness_name: video.witness_name,
-        witness_relationship: video.witness_relationship,
+        witness_relationship: None,
         recording_staff: video.recording_staff.unwrap_or_default(),
         hospital_name: tenant.0,
     }))
@@ -3613,7 +3802,7 @@ pub async fn get_video_consent_print_data(
 
 // ── Restraint Documentation Form ──────────────────────────────────────────────
 
-/// GET /print-data/restraint-documentation/{restraint_id}
+/// GET /print-data/restraint-documentation/{restraint_doc_id}
 #[derive(Debug, sqlx::FromRow)]
 struct RestraintMonitoringRow {
     check_time: chrono::DateTime<Utc>,
@@ -3628,95 +3817,80 @@ struct RestraintMonitoringRow {
 pub async fn get_restraint_documentation_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(restraint_id): Path<Uuid>,
+    Path(restraint_doc_id): Path<Uuid>,
 ) -> Result<Json<RestraintDocumentationPrintData>, AppError> {
     // `nurse_clinical.rs` guards the restraint record itself with this.
     require_permission(&claims, permissions::nurse::restraint::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::RESTRAINT_DOCUMENTATION,
-        restraint_id,
-    )
-    .await?;
 
     // A tenant-scoped connection rather than the bare pool: every table below
     // is row-level secured, and a pool query carries no tenant, so under
     // enforcement this prints an empty form. A blank statutory register is
     // worse than a failed one — it looks filed.
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut pooled = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let mut conn = sqlx::Connection::begin(&mut *pooled).await?;
+    let tz = crate::set_print_timezone(&mut conn, &claims.tenant_id).await?;
+
+    // A restraint episode is an `ipd_clinical_documentations` row of type
+    // `restraint` (the IPD clinical-docs screen); its rounds are
+    // `restraint_monitoring_logs.clinical_doc_id`. `restraint_documentation`
+    // is never written. Access is decided on the admission it belongs to.
+    let admission_id: Uuid = sqlx::query_scalar(
+        "SELECT admission_id FROM ipd_clinical_documentations \
+         WHERE id = $1 AND tenant_id = $2 AND doc_type = 'restraint' \
+           AND deleted_at IS NULL",
+    )
+    .bind(restraint_doc_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct RestraintRow {
-        form_number: String,
         form_date: chrono::DateTime<Utc>,
         patient_name: String,
         uhid: String,
-        ip_number: Option<String>,
+        ip_number: String,
         ward: String,
         diagnosis: String,
         restraint_type: String,
-        restraint_device: Option<String>,
         indication: String,
         start_datetime: chrono::DateTime<Utc>,
-        planned_duration: String,
         actual_end: Option<chrono::DateTime<Utc>>,
         ordering_physician: Option<String>,
-        physician_assessment: String,
-        patient_condition_on_release: Option<String>,
-        family_notified: bool,
-        family_notification_datetime: Option<chrono::DateTime<Utc>>,
-        patient_rights_explained: bool,
-        consent_obtained: bool,
-        consent_from: Option<String>,
-        review_by_psychiatrist: bool,
-        psychiatrist_name: Option<String>,
-        mhca_compliance_verified: bool,
     }
 
     let restraint = sqlx::query_as::<_, RestraintRow>(
         r"
         SELECT
-            r.form_number,
-            r.created_at as form_date,
-            (p.first_name || ' ' || p.last_name) as patient_name,
+            d.created_at AS form_date,
+            (p.first_name || ' ' || p.last_name) AS patient_name,
             p.uhid,
-            a.id::text AS ip_number,
-            COALESCE(w.name, 'Ward') as ward,
-            r.diagnosis,
-            r.restraint_type,
-            r.restraint_device,
-            r.indication,
-            r.start_datetime,
-            r.planned_duration,
-            r.actual_end_datetime as actual_end,
-            physician.full_name as ordering_physician,
-            r.physician_assessment,
-            r.patient_condition_on_release,
-            r.family_notified,
-            r.family_notification_datetime,
-            r.patient_rights_explained,
-            r.consent_obtained,
-            r.consent_from,
-            r.review_by_psychiatrist,
-            psych.full_name as psychiatrist_name,
-            r.mhca_compliance_verified
-        FROM restraint_documentation r
-        JOIN patients p ON r.patient_id = p.id
-        LEFT JOIN admissions a ON r.admission_id = a.id
-        LEFT JOIN wards w ON r.ward_id = w.id
-        LEFT JOIN users physician ON r.ordering_physician_id = physician.id
-        LEFT JOIN users psych ON r.psychiatrist_id = psych.id
-        WHERE r.id = $1
+            a.admission_number AS ip_number,
+            COALESCE(w.name, '') AS ward,
+            COALESCE(a.primary_diagnosis, a.provisional_diagnosis, '') AS diagnosis,
+            d.title AS restraint_type,
+            COALESCE(d.notes, '') AS indication,
+            d.recorded_at AS start_datetime,
+            d.resolved_at AS actual_end,
+            CASE WHEN u.role = 'doctor' THEN u.full_name END AS ordering_physician
+        FROM ipd_clinical_documentations d
+        JOIN admissions a ON a.id = d.admission_id AND a.tenant_id = d.tenant_id
+        JOIN patients p ON p.id = d.patient_id AND p.tenant_id = d.tenant_id
+        LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id
+        LEFT JOIN users u ON u.id = d.recorded_by
+        WHERE d.id = $1 AND d.tenant_id = $2 AND d.deleted_at IS NULL
         ",
     )
-    .bind(restraint_id)
+    .bind(restraint_doc_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *conn)
     .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    .ok_or(AppError::NotFound)?;
 
-    let tenant = get_tenant_info(&state.db).await?;
+    let tenant = tenant_letterhead(&mut conn, claims.tenant_id).await?;
 
     // The monitoring rounds that were actually recorded.
     //
@@ -3741,14 +3915,18 @@ pub async fn get_restraint_documentation_print_data(
           WHERE m.clinical_doc_id = $1 AND m.tenant_id = $2 AND m.deleted_at IS NULL \
           ORDER BY m.check_time \
           LIMIT 200",
-        restraint_id,
+        restraint_doc_id,
         claims.tenant_id,
     )
     .fetch_all(&mut *conn)
     .await?
     .into_iter()
     .map(|row| RestraintMonitoring {
-        datetime: row.check_time.format("%d-%m-%Y %H:%M").to_string(),
+        datetime: row
+            .check_time
+            .with_timezone(&tz)
+            .format("%d-%m-%Y %H:%M")
+            .to_string(),
         nurse_name: row.checked_by.unwrap_or_else(|| "Not recorded".to_owned()),
         patient_condition: row
             .patient_response
@@ -3771,15 +3949,22 @@ pub async fn get_restraint_documentation_print_data(
     .collect::<Vec<_>>();
 
     Ok(Json(RestraintDocumentationPrintData {
-        form_number: restraint.form_number,
-        form_date: restraint.form_date.format("%d-%m-%Y").to_string(),
+        // ponytail: form number, device, planned duration, assessment, release
+        // condition, family/rights/consent/psychiatrist/MHCA fields are not
+        // recorded on the restraint episode yet; the struct's bools should be Options.
+        form_number: String::new(),
+        form_date: restraint
+            .form_date
+            .with_timezone(&tz)
+            .format("%d-%m-%Y")
+            .to_string(),
         patient_name: restraint.patient_name,
         uhid: restraint.uhid,
-        ip_number: restraint.ip_number,
+        ip_number: Some(restraint.ip_number),
         ward: restraint.ward,
         diagnosis: restraint.diagnosis,
         restraint_type: restraint.restraint_type,
-        restraint_device: restraint.restraint_device,
+        restraint_device: None,
         indication: restraint.indication,
         // Nothing records what was tried before the restraint, so nothing is
         // claimed. This was three hardcoded sentences asserting de-escalation,
@@ -3789,26 +3974,25 @@ pub async fn get_restraint_documentation_print_data(
         alternatives_tried: Vec::new(),
         start_datetime: restraint
             .start_datetime
+            .with_timezone(&tz)
             .format("%d-%m-%Y %H:%M")
             .to_string(),
-        planned_duration: restraint.planned_duration,
+        planned_duration: String::new(),
         actual_end_datetime: restraint
             .actual_end
-            .map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
+            .map(|t| t.with_timezone(&tz).format("%d-%m-%Y %H:%M").to_string()),
         ordering_physician: restraint.ordering_physician.unwrap_or_default(),
-        physician_assessment: restraint.physician_assessment,
+        physician_assessment: String::new(),
         nursing_monitoring: monitoring,
-        patient_condition_on_release: restraint.patient_condition_on_release,
-        family_notified: restraint.family_notified,
-        family_notification_datetime: restraint
-            .family_notification_datetime
-            .map(|t| t.format("%d-%m-%Y %H:%M").to_string()),
-        patient_rights_explained: restraint.patient_rights_explained,
-        consent_obtained: restraint.consent_obtained,
-        consent_from: restraint.consent_from,
-        review_by_psychiatrist: restraint.review_by_psychiatrist,
-        psychiatrist_name: restraint.psychiatrist_name,
-        mhca_compliance_verified: restraint.mhca_compliance_verified,
+        patient_condition_on_release: None,
+        family_notified: None,
+        family_notification_datetime: None,
+        patient_rights_explained: None,
+        consent_obtained: None,
+        consent_from: None,
+        review_by_psychiatrist: None,
+        psychiatrist_name: None,
+        mhca_compliance_verified: None,
         hospital_name: tenant.0,
     }))
 }
@@ -3853,12 +4037,8 @@ pub fn router() -> axum::Router<AppState> {
             get(get_treatment_chart_print_data),
         )
         .route(
-            "/api/print-data/transfer-summary/{transfer_id}",
+            "/api/print-data/transfer-summary/{transfer_log_id}",
             get(get_transfer_summary_print_data),
-        )
-        .route(
-            "/api/print-data/patient-education/{material_id}",
-            get(get_patient_education_print_data),
         )
         .route(
             "/api/print-data/registration-card/{patient_id}",
@@ -3885,7 +4065,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_radiology_report_full_print_data),
         )
         .route(
-            "/api/print-data/ot-register/{ot_id}/{date}",
+            "/api/print-data/ot-register/{ot_room_id}/{date}",
             get(get_ot_register_print_data),
         )
         .route(
@@ -3893,7 +4073,7 @@ pub fn router() -> axum::Router<AppState> {
             get(get_blood_donor_form_print_data),
         )
         .route(
-            "/api/print-data/cross-match-requisition/{requisition_id}",
+            "/api/print-data/cross-match-requisition/{crossmatch_request_id}",
             get(get_cross_match_requisition_print_data),
         )
         .route(
@@ -3901,11 +4081,11 @@ pub fn router() -> axum::Router<AppState> {
             get(get_dpdp_consent_print_data),
         )
         .route(
-            "/api/print-data/video-consent/{video_consent_id}",
+            "/api/print-data/video-consent/{signature_id}",
             get(get_video_consent_print_data),
         )
         .route(
-            "/api/print-data/restraint-documentation/{restraint_id}",
+            "/api/print-data/restraint-documentation/{restraint_doc_id}",
             get(get_restraint_documentation_print_data),
         )
 }

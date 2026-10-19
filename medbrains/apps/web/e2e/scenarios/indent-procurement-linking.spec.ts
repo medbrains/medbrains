@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { navigateTo, routeApiDirect } from "../helpers";
+import { api, getAuthContextFromCookies } from "../helpers/api";
+import type { AuthContext } from "../helpers/types";
 
 function uniqueSuffix(): string {
   return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -24,18 +26,16 @@ async function waitForApiResponse<T>(
   return (await response.json()) as T;
 }
 
-async function createDepartment(page: Page, code: string, name: string) {
-  await navigateTo(page, "/admin/settings#departments");
-  await page.getByRole("button", { name: "Add Department" }).click();
-
-  const dialog = page.getByRole("dialog").filter({ hasText: "Add Department" });
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Code").fill(code);
-  await dialog.getByLabel("Name").fill(name);
-  await dialog.getByRole("button", { name: "Create" }).click();
-
-  await expect(page.locator("tr", { hasText: code })).toContainText(name, {
-    timeout: 10_000,
+/**
+ * The department is starting data, made through the API: this journey is
+ * about indents, and the settings table it would otherwise wait on lists
+ * every department the test runs ever made.
+ */
+async function createDepartment(ctx: AuthContext, code: string, name: string) {
+  await api(ctx, "POST", "/api/setup/departments", {
+    code,
+    name,
+    department_type: "clinical",
   });
 }
 
@@ -91,7 +91,10 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 
-  test("should link an approved indent into procurement and surface it in the flow sidecar", async ({ page }) => {
+  test("should link an approved indent into procurement and surface it in the flow sidecar", async ({
+    page,
+    request,
+  }) => {
     const suffix = uniqueSuffix();
     const departmentCode = `IND${suffix.slice(-6)}`;
     const departmentName = `Indent E2E Department ${suffix}`;
@@ -102,7 +105,7 @@ test.describe("Indent Workflow and Procurement Sidecar", () => {
     const vendorCode = `VEN${suffix.slice(-6)}`;
     const vendorName = `Indent Linked Vendor ${suffix}`;
 
-    await createDepartment(page, departmentCode, departmentName);
+    await createDepartment(await getAuthContextFromCookies(request), departmentCode, departmentName);
     await createCatalogItem(page, catalogCode, catalogName);
     await createVendor(page, vendorCode, vendorName);
 

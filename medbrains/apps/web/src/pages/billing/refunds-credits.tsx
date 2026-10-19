@@ -37,6 +37,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, IconButton } from "@/components/ui";
 import {
   billingNumberOrFallback,
@@ -44,6 +45,7 @@ import {
   billingPaymentModeOptions,
 } from "@/forms/billing.form";
 import { billingService } from "@/services/billing.service";
+import { ApplyCreditNoteModal } from "./apply-credit-note-modal";
 
 export function RefundsCreditsTab({
   canCreate,
@@ -57,6 +59,7 @@ export function RefundsCreditsTab({
   const [showRefund, setShowRefund] = useState(false);
   const [showCredit, setShowCredit] = useState(false);
   const [showWriteOff, setShowWriteOff] = useState(false);
+  const [applyingNote, setApplyingNote] = useState<CreditNote | null>(null);
   const refundDefaults: BillingRefundFormInput = {
     invoice_id: "",
     amount: 0,
@@ -134,12 +137,6 @@ export function RefundsCreditsTab({
       setShowCredit(false);
       resetCredit(creditDefaults);
     },
-  });
-
-  const applyMutation = useMutation({
-    mutationFn: ({ noteId, invoiceId }: { noteId: string; invoiceId: string }) =>
-      billingService.applyCreditNote(noteId, invoiceId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["credit-notes"] }),
   });
 
   const [writeOffsPage, setWriteOffsPage] = useState(1);
@@ -303,6 +300,13 @@ export function RefundsCreditsTab({
         <Text size="sm">{new Date(row.refunded_at).toLocaleDateString()}</Text>
       ),
     },
+    {
+      key: "actions",
+      label: "",
+      render: (row: Refund) => (
+        <PrintDocumentIconMenu idKind="refund" recordId={row.id} recordLabel={row.refund_number} />
+      ),
+    },
   ];
 
   const creditColumns = [
@@ -345,24 +349,28 @@ export function RefundsCreditsTab({
     {
       key: "actions",
       label: "",
-      render: (row: CreditNote) =>
-        row.status === "active" && canCreate ? (
-          <Button
-            tone="secondary"
-            size="compact-xs"
-            onClick={() => {
-              const invoiceId = prompt("Enter Invoice ID to apply credit note:");
-              if (invoiceId) applyMutation.mutate({ noteId: row.id, invoiceId });
-            }}
-          >
-            Apply
-          </Button>
-        ) : null,
+      render: (row: CreditNote) => (
+        <Group gap={4}>
+          <PrintDocumentIconMenu
+            idKind="credit_note"
+            recordId={row.id}
+            recordLabel={row.credit_note_number}
+          />
+          {row.status === "active" && canCreate && (
+            <Button tone="secondary" size="compact-xs" onClick={() => setApplyingNote(row)}>
+              Apply
+            </Button>
+          )}
+        </Group>
+      ),
     },
   ];
 
   return (
     <Stack>
+      {applyingNote && (
+        <ApplyCreditNoteModal note={applyingNote} onClose={() => setApplyingNote(null)} />
+      )}
       <Text fw={600}>Refunds</Text>
       {canCreate && (
         <>

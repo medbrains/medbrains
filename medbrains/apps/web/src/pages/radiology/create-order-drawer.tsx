@@ -5,7 +5,7 @@ import { Checkbox, Drawer, Select, Stack, Switch, Textarea } from "@mantine/core
 import { notifications } from "@mantine/notifications";
 import type { RadiologyOrderFormInput } from "@medbrains/schemas";
 import { radiologyOrderFormSchema } from "@medbrains/schemas";
-import type { CreateRadiologyOrderRequest, RadiologyModality } from "@medbrains/types";
+import type { CreateRadiologyOrderRequest, RadiologyExamListItem } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -15,16 +15,23 @@ import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
 import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { RadiologyExamSelect } from "@/components/RadiologyExamSelect";
 import { Alert, Button } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useConsentGate } from "@/hooks/useConsentGate";
+import { examOrderDefaults } from "@/lib/radiology-exams";
+import { modalityLoadError, toModalityOptions } from "@/lib/radiology-modalities";
 import { radiologyService } from "@/services/radiology.service";
 
 export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const emit = useClinicalEmit();
 
-  const { data: modalities } = useQuery({
+  const {
+    data: modalities = [],
+    isLoading: modalitiesLoading,
+    error: modalitiesError,
+  } = useQuery({
     queryKey: ["radiology-modalities"],
     queryFn: () => radiologyService.listRadiologyModalities(),
   });
@@ -37,6 +44,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     priority: "routine",
     contrast_required: false,
     pregnancy_checked: false,
+    patient_pregnant: false,
     allergy_flagged: false,
     notes: "",
   };
@@ -45,6 +53,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
     register,
     reset,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<RadiologyOrderFormInput>({
@@ -72,6 +81,20 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
   const [consentOverride, setConsentOverride] = useState(false);
   // The picked site's code and side, beside the words the form holds.
   const [site, setSite] = useState<BodySite | null>(null);
+  // The catalogue exam, when one was picked; it belongs to the chosen modality.
+  const [exam, setExam] = useState<RadiologyExamListItem | null>(null);
+  const modalityId = watch("modality_id");
+
+  const pickExam = (next: RadiologyExamListItem | null) => {
+    setExam(next);
+    if (!next) return;
+    const defaults = examOrderDefaults(next);
+    if (defaults.site) {
+      setSite(defaults.site);
+      setValue("body_part", defaults.site.label);
+    }
+    setValue("contrast_required", defaults.contrastRequired);
+  };
   const consentSettled =
     !contrastRequired ||
     consentGate.outcome === "allow" ||
@@ -103,13 +126,19 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
       });
       reset(orderDefaults);
       setSite(null);
+      setExam(null);
       onClose();
+    },
+    onError: (error: Error) => {
+      notifications.show({
+        title: "Could not place the order",
+        message: error.message,
+        color: "danger",
+      });
     },
   });
 
-  const modalityOptions = (modalities ?? [])
-    .filter((m: RadiologyModality) => m.is_active)
-    .map((m: RadiologyModality) => ({ value: m.id, label: `${m.code} — ${m.name}` }));
+  const modalityOptions = toModalityOptions(modalities);
 
   const handleCreateOrder = (values: RadiologyOrderFormInput) => {
     createMutation.mutate({
@@ -123,7 +152,9 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
       notes: radiologyOptionalText(values.notes),
       contrast_required: values.contrast_required,
       pregnancy_checked: values.pregnancy_checked,
+      patient_pregnant: values.patient_pregnant,
       allergy_flagged: values.allergy_flagged,
+      exam_id: exam?.id,
     });
   };
 
@@ -158,12 +189,25 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
               required
               data={modalityOptions}
               value={field.value || null}
-              onChange={(value) => field.onChange(value ?? "")}
-              error={errors.modality_id?.message}
+              onChange={(value) => {
+                field.onChange(value ?? "");
+                setExam(null);
+              }}
+              error={
+                errors.modality_id?.message ??
+                modalityLoadError(modalities, modalitiesLoading, modalitiesError)
+              }
+              nothingFoundMessage="No modality by that name"
               searchable
             />
           )}
         />
+        <RadiologyExamSelect modalityId={modalityId} value={exam?.id ?? ""} onChange={pickExam} />
+        {exam?.preparation && (
+          <Alert tone="info" title="Patient preparation">
+            {exam.preparation}
+          </Alert>
+        )}
         <Controller
           control={control}
           name="body_part"
@@ -249,6 +293,18 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
               checked={field.value}
               onChange={(event) => field.onChange(event.currentTarget.checked)}
               error={errors.pregnancy_checked?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="patient_pregnant"
+          render={({ field }) => (
+            <Checkbox
+              label="Patient is pregnant"
+              description="An ultrasound then opens a PC-PNDT Form F, needed before the report is verified"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
             />
           )}
         />

@@ -78,6 +78,15 @@ public enum ServerTime {
         fractional.string(from: date)
     }
 
+    /// "9 Nov 2026" for a calendar date the server sends as YYYY-MM-DD (an
+    /// expiry, a birthday): no time, and no time zone to shift it a day.
+    public static func day(_ text: String?) -> String {
+        guard let text, let date = try? Date(text, strategy: .iso8601.year().month().day()) else { return "—" }
+        var style = Date.FormatStyle.dateTime.day().month(.abbreviated).year()
+        style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return date.formatted(style)
+    }
+
     /// "12 Sep, 14:05" — short enough for a row, in the device's locale.
     public static func short(_ text: String?) -> String {
         guard let date = parse(text) else { return "—" }

@@ -1,0 +1,7 @@
+# pnpm 9 refuses a workspace file without packages; this site is one package.
+packages:
+  - "."
+allowBuilds:
+  '@parcel/watcher': false
+  esbuild: true
+  sharp: true

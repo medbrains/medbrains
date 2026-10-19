@@ -14,6 +14,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Badge, Button } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { fmt } from "./mrdShared";
@@ -121,6 +122,7 @@ export function DeathsTab() {
   return (
     <>
       <Group justify="flex-end" mb="md">
+        <PrintRegisterButton documentKey="death-register" period="month" />
         {canCreate && (
           <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Register Death

@@ -135,7 +135,10 @@ export function DigitizeTab() {
             <Input
               placeholder="record number"
               value={barcodes[it.id] ?? ""}
-              onChange={(e) => setBarcodes((b) => ({ ...b, [it.id]: e.currentTarget.value }))}
+              onChange={(e) => {
+                const nextValue = e.currentTarget.value;
+                setBarcodes((b) => ({ ...b, [it.id]: nextValue }));
+              }}
               size="xs"
               w={150}
             />

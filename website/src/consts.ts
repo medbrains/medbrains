@@ -8,9 +8,13 @@ const env = import.meta.env;
 
 export const SITE = {
   brand: env.PUBLIC_BRAND ?? "MedBrains",
-  tagline: env.PUBLIC_TAGLINE ?? "The hospital management system built audit-ready.",
-  domain: env.PUBLIC_DOMAIN ?? "medbrains.com",
-  email: env.PUBLIC_EMAIL ?? "hello@medbrains.com",
+  tagline: env.PUBLIC_TAGLINE ?? "The whole hospital, on one system.",
+  domain: env.PUBLIC_DOMAIN ?? "medbrains.in",
+  email: env.PUBLIC_EMAIL ?? "hello@medbrains.in",
+  // Where hospital staff sign in — the app, not this site.
+  app: env.PUBLIC_APP_URL ?? "https://app.medbrains.in",
+  // The copy the app serves at its own root signs in on its own host (/login).
+  signIn: env.PUBLIC_SIGN_IN_URL ?? `${env.PUBLIC_APP_URL ?? "https://app.medbrains.in"}/login`,
 };
 
 // WhatsApp Business — international format, digits only, no + or spaces.
@@ -22,10 +26,11 @@ export const WHATSAPP = {
 export const SOCIAL = {
   facebook: env.PUBLIC_FACEBOOK ?? "https://www.facebook.com/share/17i9Q7CDHs/?mibextid=wwXIfr",
   instagram: env.PUBLIC_INSTAGRAM ?? "https://instagram.com/medbrains_official",
-  github: env.PUBLIC_GITHUB ?? "https://github.com/YOUR_ORG/medbrains",
-  linkedin: env.PUBLIC_LINKEDIN ?? "https://linkedin.com/company/YOUR_PAGE",
+  // Shown only once set: a link to a placeholder page is worse than none.
+  linkedin: env.PUBLIC_LINKEDIN ?? "",
 };
 
-// Contact form -> Formspree (no backend). Create a form at https://formspree.io,
-// then set PUBLIC_FORMSPREE_ID to the form id (last path segment of the endpoint).
-export const FORMSPREE_ID = env.PUBLIC_FORMSPREE_ID ?? "YOUR_FORM_ID";
+// The demo form files a lead in MedBrains' own Marketing → Enquiries, under this
+// hospital code (the server must also list the site in CORS_ORIGIN and have
+// "Accept enquiries from our website" switched on). Unset, it opens WhatsApp.
+export const ENQUIRY_TENANT = env.PUBLIC_ENQUIRY_TENANT ?? "";

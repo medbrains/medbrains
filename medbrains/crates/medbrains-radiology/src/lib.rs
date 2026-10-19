@@ -18,8 +18,14 @@ use uuid::Uuid;
 use axum::routing::{get,post,put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{
+    require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
+
+pub mod exams;
+pub mod form_f;
+pub mod pacs;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -404,7 +410,13 @@ pub struct CreateOrderRequest {
     pub notes: Option<String>,
     pub contrast_required: Option<bool>,
     pub pregnancy_checked: Option<bool>,
+    /// She is pregnant: an ultrasound then needs a PC-PNDT Form F.
+    pub patient_pregnant: Option<bool>,
     pub allergy_flagged: Option<bool>,
+    /// The catalogue exam; must belong to `modality_id`. Body part and
+    /// contrast default from it when the request leaves them empty.
+    #[serde(default)]
+    pub exam_id: Option<Uuid>,
     /// Internal training / simulator flag. See OPD CreateEncounterRequest.
     #[serde(default)]
     pub is_dummy: Option<bool>,
@@ -437,6 +449,8 @@ pub struct CreateModalityRequest {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    /// An ultrasound on a pregnant woman needs a PC-PNDT Form F.
+    pub is_ultrasound: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -444,6 +458,7 @@ pub struct UpdateModalityRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
+    pub is_ultrasound: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -565,7 +580,7 @@ pub async fn list_orders(
 
     let where_clause = conditions.join(" AND ");
 
-    let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE {where_clause}");
+    let count_sql = format!("SELECT COUNT(*) FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
     for b in &binds {
         if let Some(u) = b.uuid_val {
@@ -581,7 +596,7 @@ pub async fn list_orders(
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
-        "SELECT * FROM radiology_orders WHERE {where_clause} \
+        "SELECT * FROM radiology_orders WHERE deleted_at IS NULL AND {where_clause} \
          ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
@@ -662,7 +677,18 @@ pub async fn create_order_in_tx_with_options(
     options: CreateOrderOptions,
 ) -> Result<RadiologyOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
-    let contrast = body.contrast_required.unwrap_or(false);
+    let exam = exam_defaults(tx, claims.tenant_id, body).await?;
+    let contrast = body
+        .contrast_required
+        .unwrap_or_else(|| exam.as_ref().is_some_and(|e| e.contrast_given));
+    let body_part = body
+        .body_part
+        .clone()
+        .or_else(|| exam.as_ref().and_then(|e| e.body_part.clone()));
+    let body_part_code = body
+        .body_part_code
+        .clone()
+        .or_else(|| exam.as_ref().and_then(|e| e.body_part_code.clone()));
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
     let allergy = body.allergy_flagged.unwrap_or(false);
 
@@ -691,10 +717,10 @@ pub async fn create_order_in_tx_with_options(
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
           body_part, clinical_indication, priority, status, \
           scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy, \
-          body_part_code, body_part_laterality) \
+          body_part_code, body_part_laterality, exam_id, patient_pregnant) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::radiology_priority, \
                  'ordered'::radiology_order_status, \
-                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16) \
+                 $9::timestamptz, $10, $11, $12, $13, $14, $15, $16, $17, $18) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -702,7 +728,7 @@ pub async fn create_order_in_tx_with_options(
     .bind(body.encounter_id)
     .bind(body.modality_id)
     .bind(claims.sub)
-    .bind(&body.body_part)
+    .bind(&body_part)
     .bind(&body.clinical_indication)
     .bind(priority)
     .bind(&body.scheduled_at)
@@ -711,16 +737,63 @@ pub async fn create_order_in_tx_with_options(
     .bind(pregnancy)
     .bind(allergy)
     .bind(is_dummy)
-    .bind(&body.body_part_code)
+    .bind(&body_part_code)
     .bind(body.body_part_laterality.map(medbrains_core::body_site::Laterality::as_str))
+    .bind(body.exam_id)
+    .bind(body.patient_pregnant.unwrap_or(false))
     .fetch_one(&mut **tx)
     .await?;
+
+    form_f::open_if_required(tx, claims.tenant_id, order.id, claims.sub).await?;
+    // Onto the modality worklist, when the hospital has a PACS.
+    pacs::queue_worklist(tx, claims.tenant_id, &order).await?;
 
     if options.auto_bill {
         best_effort_auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
     }
 
     Ok(order)
+}
+
+/// What an ordered exam fills in when the request leaves it empty.
+struct ExamDefaults {
+    body_part: Option<String>,
+    body_part_code: Option<String>,
+    contrast_given: bool,
+}
+
+/// Checks the exam is orderable and belongs to the ordered modality.
+async fn exam_defaults(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &CreateOrderRequest,
+) -> Result<Option<ExamDefaults>, AppError> {
+    let Some(exam_id) = body.exam_id else {
+        return Ok(None);
+    };
+    let row: Option<(Uuid, Option<String>, Option<String>, String)> = sqlx::query_as(
+        "SELECT modality_id, body_part, body_part_code, contrast FROM radiology_exams \
+         WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL",
+    )
+    .bind(exam_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((modality_id, body_part, body_part_code, contrast)) = row else {
+        return Err(AppError::BadRequest(
+            "That exam is retired or not in the catalogue.".to_owned(),
+        ));
+    };
+    if modality_id != body.modality_id {
+        return Err(AppError::BadRequest(
+            "That exam is not done on the chosen modality.".to_owned(),
+        ));
+    }
+    Ok(Some(ExamDefaults {
+        body_part,
+        body_part_code,
+        contrast_given: matches!(contrast.as_str(), "with" | "with_and_without"),
+    }))
 }
 
 async fn best_effort_auto_bill_radiology_order_in_tx(
@@ -775,23 +848,23 @@ async fn auto_bill_radiology_order_in_tx(
         name: String,
     }
 
+    // The exam's own charge code when it has one, else `RAD-<modality>`.
     let modality = sqlx::query_as::<_, ModalityBillingInfo>(
-        "SELECT code, name FROM radiology_modalities \
-         WHERE id = $1 AND tenant_id = $2",
+        "SELECT COALESCE(re.charge_code, 'RAD-' || rm.code) AS code, \
+                COALESCE(re.name, rm.name) AS name \
+         FROM radiology_modalities rm \
+         LEFT JOIN radiology_exams re ON re.id = $3 AND re.tenant_id = rm.tenant_id \
+         WHERE rm.id = $1 AND rm.tenant_id = $2",
     )
     .bind(order.modality_id)
     .bind(claims.tenant_id)
+    .bind(order.exam_id)
     .fetch_optional(&mut **tx)
     .await?;
 
     let (charge_code, description) = modality.map_or_else(
         || ("RAD-EXAM".to_owned(), None),
-        |m| {
-            (
-                format!("RAD-{}", m.code),
-                Some(format!("Radiology - {}", m.name)),
-            )
-        },
+        |m| (m.code, Some(format!("Radiology - {}", m.name))),
     );
 
     medbrains_server_services::billing::auto_charge(
@@ -1282,6 +1355,18 @@ pub async fn verify_report(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // PC-PNDT: no report of an ultrasound of a pregnant woman without her Form F.
+    let order_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT order_id FROM radiology_reports WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(order_id) = order_id {
+        form_f::require_complete(&mut tx, claims.tenant_id, order_id).await?;
+    }
+
     let report = sqlx::query_as::<_, RadiologyReport>(
         "UPDATE radiology_reports SET \
          status = 'final'::radiology_report_status, \
@@ -1381,7 +1466,16 @@ pub async fn list_modalities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyModality>>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Ordering an exam means picking its modality: a doctor holds
+    // `orders.create` without `orders.list`, and got an empty picker.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::radiology::orders::LIST,
+            permissions::radiology::orders::CREATE,
+            permissions::radiology::modalities::MANAGE,
+        ],
+    )?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1422,13 +1516,14 @@ pub async fn create_modality(
         .await?;
 
     let modality = sqlx::query_as::<_, RadiologyModality>(
-        "INSERT INTO radiology_modalities (tenant_id, code, name, description) \
-         VALUES ($1, $2, $3, $4) RETURNING *",
+        "INSERT INTO radiology_modalities (tenant_id, code, name, description, is_ultrasound) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false)) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&body.code)
     .bind(&body.name)
     .bind(&body.description)
+    .bind(body.is_ultrasound)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1459,6 +1554,7 @@ pub async fn update_modality(
          name = COALESCE($1, name), \
          description = COALESCE($2, description), \
          is_active = COALESCE($3, is_active), \
+         is_ultrasound = COALESCE($6, is_ultrasound), \
          updated_at = now() \
          WHERE id = $4 AND tenant_id = $5 \
          RETURNING *",
@@ -1468,6 +1564,7 @@ pub async fn update_modality(
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(body.is_ultrasound)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -1798,7 +1895,7 @@ pub async fn list_dicom_studies(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
-         WHERE tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
     )
     .bind(params.patient_id)
@@ -2048,7 +2145,7 @@ pub async fn update_pacs_config(
     sqlx::query(
         "INSERT INTO tenant_settings (id,tenant_id,category,key,value) \
          VALUES (gen_random_uuid(),$1,'radiology','pacs_config',$2) \
-         ON CONFLICT (tenant_id,category,key) DO UPDATE SET value=$2,updated_at=now()",
+         ON CONFLICT (tenant_id,category,key) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value=$2,updated_at=now()",
     )
     .bind(claims.tenant_id)
     .bind(&body)
@@ -2078,7 +2175,7 @@ pub async fn list_dosimetry_records(
     let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
         "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
          d.dose_value, d.is_compliant \
-         FROM radiology_dosimetry_records d WHERE d.tenant_id = $1 \
+         FROM radiology_dosimetry_records d WHERE d.deleted_at IS NULL AND d.tenant_id = $1 \
          ORDER BY d.monitoring_period_end DESC LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -2243,9 +2340,10 @@ pub async fn list_patient_reports(
                 ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at \
          FROM radiology_reports r \
          JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
+              AND o.deleted_at IS NULL \
          LEFT JOIN radiology_modalities m ON m.id = o.modality_id AND m.tenant_id = o.tenant_id \
          LEFT JOIN radiology_critical_alerts ca ON ca.report_id = r.id AND ca.tenant_id = r.tenant_id \
-         WHERE o.patient_id = $1 AND r.tenant_id = $2 \
+         WHERE r.deleted_at IS NULL AND o.patient_id = $1 AND r.tenant_id = $2 \
          ORDER BY o.created_at DESC LIMIT 200",
     )
     .bind(patient_id)
@@ -2340,6 +2438,11 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/radiology/critical-alerts/{id}/acknowledge",
             put(acknowledge_critical_alert),
+        )
+        .route("/api/radiology/exams", get(exams::list_exams).post(exams::create_exam))
+        .route(
+            "/api/radiology/exams/{id}",
+            put(exams::update_exam).delete(exams::delete_exam),
         )
         .route(
             "/api/radiology/modalities",

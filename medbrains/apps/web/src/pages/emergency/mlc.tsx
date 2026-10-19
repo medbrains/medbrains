@@ -18,6 +18,7 @@ import type { MlcCaseFormInput, MlcCaseUpdateFormInput } from "@medbrains/schema
 import { mlcCaseFormSchema, mlcCaseUpdateFormSchema } from "@medbrains/schemas";
 import { useFieldAccess } from "@medbrains/stores";
 import type { CreateMlcCaseRequest, MlcCase, UpdateMlcCaseRequest } from "@medbrains/types";
+import { ValidationError } from "@medbrains/utils";
 import { IconFileText, IconGavel, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -27,6 +28,8 @@ import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Alert, Button, IconButton } from "@/components/ui";
 import {
   emergencyMlcBroughtByOptions,
@@ -36,6 +39,7 @@ import {
 } from "@/forms/emergency.form";
 import { emergencyService } from "@/services/emergency.service";
 import { MlcCaseDetail } from "./mlc-case-detail";
+import { PoliceContactSettings } from "./police-contact-settings";
 import {
   canEditSensitiveField,
   canViewSensitiveField,
@@ -177,7 +181,14 @@ export function MlcTab({
       notifications.show({ title: "MLC Updated", message: "MLC case details updated" });
     },
     onError: (e: Error) =>
-      notifications.show({ title: "MLC update blocked", message: e.message, color: "red" }),
+      notifications.show({
+        title: "MLC update blocked",
+        message:
+          e instanceof ValidationError
+            ? Object.values(e.fields).flat().join(" ") || e.message
+            : e.message,
+        color: "red",
+      }),
   });
 
   const mlcStatusColor = (s: string) => {
@@ -377,6 +388,7 @@ export function MlcTab({
               </IconButton>
             </Tooltip>
           )}
+          <PrintDocumentIconMenu idKind="mlc_case" recordId={r.id} recordLabel={r.mlc_number} />
           {canUpdate && (
             <Tooltip label="Update MLC case">
               <IconButton
@@ -396,8 +408,9 @@ export function MlcTab({
 
   return (
     <Stack mt="md">
-      {canCreate && (
-        <Group justify="flex-end">
+      <Group justify="flex-end">
+        <PrintRegisterButton documentKey="mlc-register-summary" period="month" />
+        {canCreate && (
           <Button
             tone="primary"
             leftSection={<IconPlus size={16} />}
@@ -408,8 +421,9 @@ export function MlcTab({
           >
             Register MLC Case
           </Button>
-        </Group>
-      )}
+        )}
+      </Group>
+      <PoliceContactSettings />
       {canList ? (
         <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       ) : (

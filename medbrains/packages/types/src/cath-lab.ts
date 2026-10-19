@@ -48,25 +48,43 @@ export type CathDeviceType =
   | "other";
 
 /** Ophthalmology — a comprehensive eye exam. Per-eye: OD = right, OS = left. */
-export interface OphthoExam {
-  id: string;
-  tenant_id: string;
-  patient_id: string;
-  encounter_id: string | null;
+/** The eye OPD workup (#231). OD = right eye, OS = left; `visual_acuity_*`
+ * is unaided distance acuity. Signed, its refraction is the spectacle Rx. */
+export interface OphthoWorkup {
   visual_acuity_od: string | null;
   visual_acuity_os: string | null;
+  bcva_od: string | null;
+  bcva_os: string | null;
+  near_va_od: string | null;
+  near_va_os: string | null;
   sphere_od: string | null;
   sphere_os: string | null;
   cylinder_od: string | null;
   cylinder_os: string | null;
   axis_od: number | null;
   axis_os: number | null;
+  add_od: string | null;
+  add_os: string | null;
   iop_od: string | null;
   iop_os: string | null;
+  pd_mm: string | null;
+  lens_type: "single_vision" | "bifocal" | "progressive" | "none" | null;
+  lens_advice: string | null;
+  review_after_months: number | null;
   slit_lamp: string | null;
   fundus: string | null;
   diagnosis: string | null;
   plan: string | null;
+}
+
+export interface OphthoExam extends OphthoWorkup {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  signed_by: string | null;
+  signed_at: string | null;
+  signed_by_name: string | null;
   examined_by: string | null;
   examined_at: string | null;
   status: string;
@@ -74,33 +92,13 @@ export interface OphthoExam {
   updated_at: string;
 }
 
-export interface CreateOphthoExamRequest {
+export interface CreateOphthoExamRequest extends Partial<OphthoWorkup> {
   patient_id: string;
   encounter_id?: string | null;
-  visual_acuity_od?: string | null;
-  visual_acuity_os?: string | null;
-  sphere_od?: string | null;
-  sphere_os?: string | null;
-  cylinder_od?: string | null;
-  cylinder_os?: string | null;
-  axis_od?: number | null;
-  axis_os?: number | null;
-  iop_od?: string | null;
-  iop_os?: string | null;
-  slit_lamp?: string | null;
-  fundus?: string | null;
-  diagnosis?: string | null;
-  plan?: string | null;
-  status?: string | null;
 }
 
-export interface UpdateOphthoExamRequest {
-  slit_lamp?: string | null;
-  fundus?: string | null;
-  diagnosis?: string | null;
-  plan?: string | null;
-  status?: string | null;
-}
+/** The whole workup; replaces what was recorded, while the exam is unsigned. */
+export type UpdateOphthoExamRequest = Partial<OphthoWorkup>;
 
 /** Dental — a dental exam (visit) + its tooth-wise chart entries. */
 export interface DentalExam {
@@ -129,6 +127,37 @@ export interface DentalChartEntry {
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** One procedure on a dental treatment plan; money arrives as a decimal string. */
+export interface DentalTreatmentItem {
+  id: string;
+  exam_id: string;
+  tooth_number: string | null;
+  procedure: string;
+  charge_code: string | null;
+  price: string | number;
+  status: "planned" | "done" | "cancelled";
+  done_at: string | null;
+  done_by: string | null;
+  invoice_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PlanDentalTreatmentRequest {
+  tooth_number?: string;
+  procedure: string;
+  charge_code?: string;
+  price: number;
+  notes?: string;
+}
+
+export interface UpdateDentalChartEntryRequest {
+  condition: string;
+  surface?: string | null;
+  treatment_planned?: string | null;
+  notes?: string | null;
 }
 
 export interface CreateDentalExamRequest {

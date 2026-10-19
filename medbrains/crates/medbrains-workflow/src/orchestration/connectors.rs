@@ -22,7 +22,7 @@ pub async fn list_connectors(
                 health_check_url, last_health_check, is_healthy, retry_config, \
                 rate_limit, stats, created_by, created_at, updated_at \
          FROM connectors \
-         WHERE tenant_id = $1 OR tenant_id IS NULL \
+         WHERE (tenant_id = $1 OR tenant_id IS NULL) AND deleted_at IS NULL \
          ORDER BY name",
     )
     .bind(tenant_id)

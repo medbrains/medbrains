@@ -18,6 +18,7 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { isBloodPressureValid } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateOccScreeningRequest, OccHealthScreening } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -31,7 +32,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable } from "@/components";
+import { BloodPressureInput, DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
@@ -96,8 +97,8 @@ export function ScreeningsPanel() {
     medical_history: [] as string[],
     height_cm: "",
     weight_kg: "",
-    bp_systolic: "",
-    bp_diastolic: "",
+    bp_systolic: undefined as number | undefined,
+    bp_diastolic: undefined as number | undefined,
     vision_left: "",
     vision_right: "",
     hearing_test: "",
@@ -128,8 +129,8 @@ export function ScreeningsPanel() {
         medical_history: [],
         height_cm: "",
         weight_kg: "",
-        bp_systolic: "",
-        bp_diastolic: "",
+        bp_systolic: undefined,
+        bp_diastolic: undefined,
         vision_left: "",
         vision_right: "",
         hearing_test: "",
@@ -446,24 +447,17 @@ export function ScreeningsPanel() {
                     }
                   />
                 </Group>
-                <Group grow>
-                  <TextInput
-                    label="BP Systolic"
-                    size="xs"
-                    value={preEmpForm.bp_systolic}
-                    onChange={(e) =>
-                      setPreEmpForm({ ...preEmpForm, bp_systolic: e.currentTarget.value })
-                    }
-                  />
-                  <TextInput
-                    label="BP Diastolic"
-                    size="xs"
-                    value={preEmpForm.bp_diastolic}
-                    onChange={(e) =>
-                      setPreEmpForm({ ...preEmpForm, bp_diastolic: e.currentTarget.value })
-                    }
-                  />
-                </Group>
+                <BloodPressureInput
+                  size="xs"
+                  value={{ systolic: preEmpForm.bp_systolic, diastolic: preEmpForm.bp_diastolic }}
+                  onChange={(bp) =>
+                    setPreEmpForm({
+                      ...preEmpForm,
+                      bp_systolic: bp.systolic,
+                      bp_diastolic: bp.diastolic,
+                    })
+                  }
+                />
                 <Group grow>
                   <TextInput
                     label="Vision Left"
@@ -533,7 +527,11 @@ export function ScreeningsPanel() {
             tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
-            disabled={!form.employee_id || !form.screening_date}
+            disabled={
+              !form.employee_id ||
+              !form.screening_date ||
+              !isBloodPressureValid(preEmpForm.bp_systolic, preEmpForm.bp_diastolic)
+            }
           >
             Create Screening
           </Button>

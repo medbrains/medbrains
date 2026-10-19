@@ -1,6 +1,7 @@
 package com.medbrains.staff
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -117,6 +118,28 @@ class ReceptionJourneyTest {
         compose.waitUntil(5_000) { has("field-first_name") }
         compose.onNodeWithTag("field-first_name").performScrollTo().assert(hasText(""))
         check(seesText(api.list("/api/setup/departments").first { it.optString("id") == dept }.optString("name"))) { "the desk's department survived the next walk-in" }
+    }
+
+    /** The campaign that brought a walk-in is picked at the desk and recorded against the patient. */
+    @Test
+    fun theCampaignThatBroughtThePatientIsRecorded() {
+        val name = "Knee camp ${Api.RUN}${++serial}"
+        val campaign = api.obj("POST", "/api/marketing/campaigns", org.json.JSONObject(mapOf("name" to name, "channel" to "print", "source" to "newspaper")))
+        val campaignId = campaign.getString("id")
+        // The desk loads campaigns as it opens: reopen it to see the new one.
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(15_000) { has("module-home-reception") }
+        val phone = freshPhone()
+        openRegister()
+        fillPerson("Camp", "Walkin${Api.RUN}", phone)
+        compose.onNodeWithTag("field-campaign_id").performScrollTo()
+        with(Session) { compose.choose("field-campaign_id", campaignId, name) }
+        submitRegistration()
+        compose.waitUntil(15_000) { has("registered-uhid") }
+        val id = checkNotNull(patientByPhone(phone)) { "the record exists" }.getString("id")
+        val acquisition = api.obj("GET", "/api/patients/$id/acquisition")
+        check(acquisition.optString("campaign_id") == campaignId) { "the campaign is recorded against the patient: $acquisition" }
+        check(acquisition.optString("captured_via") == "registration")
     }
 
     /** A returning patient registered at another desk: reached the other way: the desk types them in fresh and the duplicate check offers the record that already exists. Find reaches them too now (`patients.find`), but the desk that does not think to search must still be caught here. */
@@ -274,6 +297,30 @@ class ReceptionJourneyTest {
         compose.waitUntil(10_000) { has("screen-reception-queue") }
         compose.waitUntil(10_000) { has("reception-queue-tokens") }
         compose.onNodeWithTag("reception-queue-tokens").performScrollToNode(hasTestTag("queue-row-$id"))
+    }
+
+    /** A returning patient goes back to the doctor who saw them: starting the visit names the last one and has that consultant chosen. */
+    @Test
+    fun aReturningPatientIsOfferedTheDoctorWhoSawThemLast() {
+        val dept = checkNotNull(api.firstDepartmentId())
+        val doctor = checkNotNull(api.list("/api/setup/doctors").firstOrNull()) { "a doctor" }
+        val doctorName = doctor.getString("full_name")
+        val p = api.patient("Return")
+        val id = p.getString("id")
+        val earlier = org.json.JSONObject().put("patient_id", id).put("department_id", dept).put("doctor_id", doctor.getString("id")).put("visit_type", "walk_in")
+        check(api.call("POST", "/api/opd/encounters", earlier).first in 200..299) { "an earlier visit with that doctor" }
+        tap("module-action-find")
+        compose.waitUntil(10_000) { has("screen-find-patient") }
+        type("find-search", p.getString("uhid"))
+        tap("find-submit")
+        compose.waitUntil(10_000) { has("find-row-$id") }
+        tap("find-row-$id")
+        compose.waitUntil(10_000) { has("screen-reception-patient") }
+        tap("patient-start-visit")
+        compose.waitUntil(10_000) { has("last-visit") }
+        for (tag in listOf("last-visit", "picker-consultant")) {
+            compose.onNode(hasTestTag(tag) and hasAnyDescendant(hasText(doctorName, substring = true)), useUnmergedTree = true).assertExists()
+        }
     }
 
     @Test

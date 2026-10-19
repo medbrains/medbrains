@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useHasPermission } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   CreateFmsWorkOrderRequest,
   FmsWorkOrder,
@@ -26,6 +26,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -44,6 +46,11 @@ const WO_STATUSES = [
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
 ];
+
+/** What the assignee may do with their own work order (the server enforces the same set). */
+const PERFORMER_STATUSES = WO_STATUSES.filter((s) =>
+  ["in_progress", "on_hold", "completed"].includes(s.value),
+);
 
 const MAINTENANCE_CATEGORIES = [
   { value: "plumbing", label: "Plumbing" },
@@ -95,6 +102,8 @@ function woStatusColor(s: string): BadgeTone {
 export function WorkOrdersTab() {
   const canCreate = useHasPermission(P.FACILITIES.WORK_ORDERS_CREATE);
   const canManage = useHasPermission(P.FACILITIES.WORK_ORDERS_MANAGE);
+  const canPerform = useHasPermission(P.FACILITIES.WORK_ORDERS_PERFORM);
+  const myUserId = useAuthStore((s) => s.user?.id);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [statusOpen, { open: openStatus, close: closeStatus }] = useDisclosure(false);
   const [pmOpen, { open: openPm, close: closePm }] = useDisclosure(false);
@@ -110,6 +119,7 @@ export function WorkOrdersTab() {
   const [statusForm, setStatusForm] = useState<UpdateFmsWorkOrderStatusRequest>({
     status: "assigned",
   });
+  const [assigneeEmployeeId, setAssigneeEmployeeId] = useState("");
   const [pmForm, setPmForm] = useState<SchedulePmRequest>({
     frequency: "monthly",
     start_date: new Date().toISOString().slice(0, 10),
@@ -133,6 +143,8 @@ export function WorkOrdersTab() {
       closeStatus();
       notifications.show({ title: "Success", message: "Status updated" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Work order not updated", message: e.message, color: "danger" }),
   });
   const schedulePm = useMutation({
     mutationFn: () => facilitiesService.schedulePm(pmForm),
@@ -194,12 +206,17 @@ export function WorkOrdersTab() {
       key: "actions",
       label: "",
       render: (r) =>
-        canManage && r.status !== "completed" && r.status !== "cancelled" ? (
+        (canManage || (canPerform && r.assigned_to === myUserId)) &&
+        r.status !== "completed" &&
+        r.status !== "cancelled" ? (
           <Tooltip label="Update Status">
             <IconButton
               onClick={() => {
                 setSelectedWo(r);
-                setStatusForm({ status: r.status === "open" ? "assigned" : "in_progress" });
+                setStatusForm({
+                  status: canManage && r.status === "open" ? "assigned" : "in_progress",
+                });
+                setAssigneeEmployeeId("");
                 openStatus();
               }}
               aria-label="Edit"
@@ -208,6 +225,17 @@ export function WorkOrdersTab() {
             </IconButton>
           </Tooltip>
         ) : null,
+    },
+    {
+      key: "print",
+      label: "",
+      render: (r) => (
+        <PrintDocumentIconMenu
+          idKind="fms_work_order"
+          recordId={r.id}
+          recordLabel={r.work_order_number}
+        />
+      ),
     },
   ];
 
@@ -290,9 +318,24 @@ export function WorkOrdersTab() {
         size="xl"
       >
         <Stack>
+          {canManage && (
+            <EmployeeSearchSelect
+              label="Assign to"
+              value={assigneeEmployeeId}
+              onChange={(id, emp) => {
+                setAssigneeEmployeeId(id);
+                setStatusForm({ ...statusForm, assigned_to: emp?.user_id });
+              }}
+              error={
+                assigneeEmployeeId && !statusForm.assigned_to
+                  ? "This employee has no login, so cannot be assigned work"
+                  : undefined
+              }
+            />
+          )}
           <Select
             label="Status"
-            data={WO_STATUSES}
+            data={canManage ? WO_STATUSES : PERFORMER_STATUSES}
             value={statusForm.status}
             onChange={(v) =>
               setStatusForm({

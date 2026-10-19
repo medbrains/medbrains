@@ -30,6 +30,7 @@
   "pharmacyFinance": "مالية الصيدلية",
   "pharmacyFulfilment": "قائمة التجهيز",
   "pharmacyDispatch": "منضدة الاستلام",
+  "pharmacyDeliveries": "التوصيل المنزلي",
   "radiology": "الأشعة",
   "bloodBank": "بنك الدم",
   "billing": "الفوترة",
@@ -58,6 +59,9 @@
   "formBuilder": "منشئ النماذج",
   "dashboardBuilder": "منشئ لوحة التحكم",
   "integrationHub": "خطوط الأنابيب المدمجة",
+  "formTemplates": "النماذج",
+  "apiKeys": "مفاتيح API",
+  "webhooks": "خطافات الويب",
   "screenBuilder": "منشئ الشاشات",
   "doctorSchedules": "جداول الأطباء",
   "administration": "الإدارة",
@@ -110,5 +114,6 @@
   "nabhIndicators": "مؤشرات NABH",
   "pairedDevices": "الأجهزة المقترنة",
   "materials": "إدارة المواد",
-  "approvals": "الموافقات"
+  "approvals": "الموافقات",
+  "onboardingWorkbook": "دفتر إعداد المنشأة"
 }

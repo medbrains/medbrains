@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 777;
+pub const PERMISSION_COUNT: usize = 803;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -27,6 +27,20 @@ pub const fn all_codes() -> Vec<&'static str> {
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
+}
+
+/// Sticky notes: a person's own notes, shared to department boards or colleagues.
+///
+/// Notes are for the ward's logistics — rotas, reminders, a broken monitor —
+/// never for patient information, which belongs in the chart where it is
+/// audited and consented.
+pub mod notes {
+    /// Keep notes and share them.
+    /// Write your own notes and share them to department boards or with colleagues.
+    pub const USE: &str = "notes.use";
+    /// Take notes off a department board.
+    /// Remove a note from the board of a department you belong to, whoever wrote it.
+    pub const MODERATE: &str = "notes.moderate";
 }
 
 /// Workflow automation.
@@ -61,6 +75,34 @@ pub mod patients {
     pub const UPDATE: &str = "patients.update";
     pub const DELETE: &str = "patients.delete";
 
+    pub mod privacy_requests {
+        /// See patients' privacy requests.
+        ///
+        /// The DPDP Act rights register: requests to see, correct or erase
+        /// personal data, to name a nominee, and privacy grievances, with
+        /// the 90-day answer due date of each.
+        pub const LIST: &str = "patients.privacy_requests.list";
+        /// Record a patient's privacy request.
+        ///
+        /// Take down a request the patient makes at the desk, by email or by
+        /// phone, so it starts its 90-day clock the day it arrives.
+        pub const CREATE: &str = "patients.privacy_requests.create";
+        /// Answer a patient's privacy request.
+        ///
+        /// Close a request as done or refused. A refusal states its reason —
+        /// an erasure refused because the law requires the medical record to
+        /// be kept, for example.
+        pub const DECIDE: &str = "patients.privacy_requests.decide";
+    }
+
+    pub mod acquisition {
+        /// Correct where a patient came from.
+        ///
+        /// Set or change the campaign a registered patient is attributed to;
+        /// every change is audited.
+        pub const UPDATE: &str = "patients.acquisition.update";
+    }
+
     pub mod allergies {
         /// Mark a recorded allergy as wrong.
         ///
@@ -77,6 +119,47 @@ pub mod patients {
         pub const VIEW: &str = "patients.notes.view";
         pub const EDIT: &str = "patients.notes.edit";
     }
+}
+
+/// The case sheet: every clinician's dated, signed notes on a visit.
+pub mod clinical_notes {
+    /// Read a visit's notes.
+    /// Signed notes, and drafts as far as the hospital's draft setting allows.
+    pub const VIEW: &str = "clinical_notes.view";
+    /// Write your own notes.
+    /// Start a note or addendum and keep its draft; nurses write nursing
+    /// notes, doctors the physician notes.
+    pub const WRITE: &str = "clinical_notes.write";
+    /// Sign your own notes.
+    /// Signing stamps your name and time and locks the note after the
+    /// hospital's grace period; revising within it keeps the old version.
+    pub const SIGN: &str = "clinical_notes.sign";
+    /// Mark a note entered in error.
+    /// Your own notes, with a reason; the text stays, struck through.
+    pub const MARK_IN_ERROR: &str = "clinical_notes.mark_in_error";
+    /// Countersign a resident's note.
+    /// Notes signed by the doctors you supervise; return one with a comment
+    /// and it goes back to its author to revise.
+    pub const COSIGN: &str = "clinical_notes.cosign";
+    /// Print a visit's case-sheet notes.
+    /// Every signed note with its author, time and signature, as the paper
+    /// sheet reads; the print is filed to the visit's medical record.
+    pub const PRINT: &str = "clinical_notes.print";
+    /// Export a visit's notes as FHIR.
+    /// The signed notes as FHIR R4 Compositions, for another hospital, ABDM
+    /// or an integration; drafts are never exported.
+    pub const EXPORT: &str = "clinical_notes.export";
+}
+
+pub mod home_health {
+    /// View home care.
+    /// Home visits, home medication schedules, escalations, remote vitals,
+    /// care packages, hospice, advance directives and bereavement follow-up.
+    pub const LIST: &str = "home_health.list";
+    /// Run home care.
+    /// Schedule and document home visits, record home doses, raise and
+    /// close escalations, and keep hospice and advance-directive records.
+    pub const MANAGE: &str = "home_health.manage";
 }
 
 pub mod opd {
@@ -117,6 +200,13 @@ pub mod opd {
     pub mod referrals {
         pub const LIST: &str = "opd.referrals.list";
         pub const CREATE: &str = "opd.referrals.create";
+        /// Accept, decline or answer a referral.
+        /// Only referrals addressed to the caller, or to their department when
+        /// no doctor is named. Accepting puts the patient in the caller's queue.
+        pub const RESPOND: &str = "opd.referrals.respond";
+        /// Withdraw a referral you sent.
+        /// Only while it is still pending, and only the referring doctor.
+        pub const CANCEL: &str = "opd.referrals.cancel";
     }
 
     pub mod certificates {
@@ -167,6 +257,14 @@ pub mod lab {
         pub const LIST: &str = "lab.orders.list";
         pub const VIEW: &str = "lab.orders.view";
         pub const CREATE: &str = "lab.orders.create";
+        /// Register a walk-in lab order.
+        ///
+        /// For a patient who comes to the laboratory without a doctor's
+        /// order in this hospital — self-referred, or carrying an outside
+        /// prescription. Opens the lab visit, records who referred them
+        /// (a hospital doctor, an outside doctor, or self) and raises the
+        /// bill, in one step at the lab counter.
+        pub const DIRECT: &str = "lab.orders.direct";
     }
 
     /// The test catalogue: which tests exist, and what they mean.
@@ -237,6 +335,24 @@ pub mod lab {
     pub mod samples {
         pub const LIST: &str = "lab.samples.list";
         pub const MANAGE: &str = "lab.samples.manage";
+        /// Collect a sample for a lab order.
+        ///
+        /// Drawing blood is the phlebotomist's or the ward nurse's job, and it
+        /// was gated on `lab.results.create` — so the only way to let a nurse
+        /// record a draw was to let her type results in too. This is the
+        /// draw alone: positive patient identification and the tube's barcode,
+        /// nothing that touches a result.
+        pub const COLLECT: &str = "lab.samples.collect";
+    }
+
+    pub mod report_delivery {
+        /// Configure how lab reports reach patients.
+        ///
+        /// Turns SMS, WhatsApp and email delivery on or off and sets the
+        /// default channel for the whole hospital. It was gated on
+        /// `lab.orders.list`, so anyone who could see the order list could
+        /// start sending patients' reports over a new channel.
+        pub const MANAGE: &str = "lab.report_delivery.manage";
     }
 
     pub mod dispatch {
@@ -279,6 +395,24 @@ pub mod pharmacy {
 
     pub mod stock {
         pub const MANAGE: &str = "pharmacy.stock.manage";
+    }
+
+    pub mod deliveries {
+        /// View home deliveries.
+        ///
+        /// The deliveries list and each delivery's address, status and
+        /// payment. A runner sees the ones assigned to them.
+        pub const VIEW: &str = "pharmacy.deliveries.view";
+        /// Arrange home deliveries.
+        ///
+        /// Send an order out for delivery: address, runner or courier,
+        /// payment, dispatch — and record a failed attempt.
+        pub const ARRANGE: &str = "pharmacy.deliveries.arrange";
+        /// Complete deliveries at the door.
+        ///
+        /// Hand the medicines over against the patient's one-time code and
+        /// record cash collected on delivery.
+        pub const COMPLETE: &str = "pharmacy.deliveries.complete";
     }
 
     pub mod ndps {
@@ -331,13 +465,52 @@ pub mod pharmacy {
         pub const DESTROY: &str = "pharmacy.returns.destroy";
         pub const REJECT: &str = "pharmacy.returns.reject";
         pub const MANAGE: &str = "pharmacy.returns.manage";
+        /// Take a counter return after the return window.
+        ///
+        /// A sale older than the hospital's return window (15 days unless set)
+        /// is locked for return and refund. This takes it back anyway, with a
+        /// reason recorded against the credit note.
+        pub const OVERRIDE_WINDOW: &str = "pharmacy.returns.override_window";
+        /// Take back a controlled or Schedule X drug.
+        ///
+        /// NDPS and Schedule X medicines are not returnable at the counter.
+        /// The pharmacist-in-charge may accept one with a recorded reason.
+        pub const CONTROLLED: &str = "pharmacy.returns.controlled";
+    }
+
+    pub mod day_close {
+        /// See a counter's business day and Z-report.
+        ///
+        /// Totals by tender, counted against expected cash, for any counter
+        /// day, open or closed.
+        pub const VIEW: &str = "pharmacy.day_close.view";
+        /// Close a counter's business day.
+        ///
+        /// Count the cash, explain any variance and lock the day: no sale,
+        /// return or void is dated to it afterwards. Only a cashier who worked
+        /// that counter that day.
+        pub const CLOSE: &str = "pharmacy.day_close.close";
+        /// Reopen a closed counter day.
+        ///
+        /// Unlocks a closed day for correction, with a reason that is audited.
+        /// Also closes a counter day the closer did not work.
+        pub const REOPEN: &str = "pharmacy.day_close.reopen";
     }
 
     pub mod formulary {
+        /// Dispense a non-formulary medicine.
+        ///
+        /// Lets a pharmacist approve or dispense a medicine that is not on the
+        /// hospital formulary, with a recorded reason that is audited.
         pub const APPROVE: &str = "pharmacy.formulary.approve";
     }
 
     pub mod stewardship {
+        /// Dispense a Reserve antibiotic before approval.
+        ///
+        /// Lets a pharmacist approve or dispense an AWaRe Reserve antibiotic
+        /// whose stewardship request is not yet approved — e.g. a first dose in
+        /// sepsis — with a recorded reason that is audited.
         pub const APPROVE: &str = "pharmacy.stewardship.approve";
     }
 
@@ -355,6 +528,29 @@ pub mod pharmacy {
         pub const VIEW: &str = "pharmacy.pos.view";
         pub const CANCEL: &str = "pharmacy.pos.cancel";
         pub const RETURN: &str = "pharmacy.pos.return";
+        /// Approve a counter discount above the limit.
+        ///
+        /// A counter sale discounted beyond the hospital's configured limit
+        /// needs a reason and an approver who holds this. The approval is
+        /// recorded against the sale.
+        pub const DISCOUNT_APPROVE: &str = "pharmacy.pos.discount_approve";
+    }
+
+    pub mod patients {
+        /// Find a patient at the pharmacy counter.
+        ///
+        /// Name, UHID or phone to a patient's name, age and sex — enough to
+        /// link a counter sale to the right person and nothing more of the
+        /// record.
+        pub const SEARCH: &str = "pharmacy.patients.search";
+    }
+
+    pub mod bills {
+        /// Print a pharmacy GST bill.
+        ///
+        /// The tax invoice for a counter sale posted to a registered patient,
+        /// without access to the rest of billing.
+        pub const PRINT: &str = "pharmacy.bills.print";
     }
 
     pub mod pricing {
@@ -363,6 +559,11 @@ pub mod pharmacy {
 
     pub mod safety {
         pub const VIEW: &str = "pharmacy.safety.view";
+        /// Override a medication safety block.
+        ///
+        /// Lets a pharmacist proceed past a documented drug allergy, a serious
+        /// drug-drug interaction or another medication safety block, with a
+        /// recorded clinical reason that is audited.
         pub const OVERRIDE: &str = "pharmacy.safety.override";
     }
 
@@ -384,6 +585,15 @@ pub mod billing {
         pub const MANAGE: &str = "billing.catalog.manage";
     }
 
+    pub mod exchange_rates {
+        /// Set currency exchange rates.
+        ///
+        /// A rate decides what a foreign-currency patient is billed in rupees,
+        /// so setting one is tariff work, kept apart from reading reports.
+        /// Reading the rates only needs `billing.invoices.list`.
+        pub const MANAGE: &str = "billing.exchange_rates.manage";
+    }
+
     pub mod payments {
         pub const CREATE: &str = "billing.payments.create";
         pub const VOID: &str = "billing.payments.void";
@@ -399,6 +609,15 @@ pub mod billing {
         pub const CREATE: &str = "billing.advances.create";
         pub const ADJUST: &str = "billing.advances.adjust";
         pub const REFUND: &str = "billing.advances.refund";
+    }
+
+    pub mod payer_split {
+        /// Split a bill between insurer and patient.
+        ///
+        /// Assign each bill line to the insurer, scheme or corporate, or to
+        /// the patient, overriding the automatic non-payables list; and
+        /// write the insurer's share onto the claim as the amount claimed.
+        pub const MANAGE: &str = "billing.payer_split.manage";
     }
 
     pub mod corporate {
@@ -644,6 +863,16 @@ pub mod ot {
     pub mod consumables {
         pub const MANAGE: &str = "ot.consumables.manage";
     }
+
+    pub mod consent {
+        /// Certify emergency implied consent for surgery.
+        ///
+        /// For an emergency booking only, when the patient cannot consent and no
+        /// relative can be reached in time. Two different doctors must each
+        /// certify, in their own session after re-entering their password, with
+        /// a reason. Recorded, audited, and printed on the operation notes.
+        pub const EMERGENCY_OVERRIDE: &str = "ot.consent.emergency_override";
+    }
 }
 
 pub mod radiology {
@@ -661,6 +890,16 @@ pub mod radiology {
 
     pub mod modalities {
         pub const MANAGE: &str = "radiology.modalities.manage";
+    }
+
+    /// The exams each modality performs ("CT Brain Plain", "USG Abdomen").
+    pub mod exams {
+        /// Edit the radiology exam catalogue.
+        ///
+        /// Which exams each modality performs, their body part, contrast
+        /// and the charge code they are billed under. Master data, held by
+        /// the radiology department rather than by everyone who orders.
+        pub const MANAGE: &str = "radiology.exams.manage";
     }
 }
 
@@ -804,6 +1043,35 @@ pub mod camp {
     }
 }
 
+pub mod forms {
+    pub mod templates {
+        /// See the hospital's forms.
+        ///
+        /// The list of forms the hospital has built or customised, with each
+        /// one's drafts and published versions.
+        pub const LIST: &str = "forms.templates.list";
+        /// Build and edit form drafts.
+        ///
+        /// Create a form, change its draft, and retire it. A draft is never
+        /// what staff fill in; only a published version is.
+        pub const MANAGE: &str = "forms.templates.manage";
+        /// Publish a form version.
+        ///
+        /// Makes the current draft the version staff fill in from now on. A
+        /// published version never changes, so every record keeps the exact
+        /// questions it was answered against.
+        pub const PUBLISH: &str = "forms.templates.publish";
+    }
+
+    pub mod definitions {
+        /// Load the live version of a form.
+        ///
+        /// Needed by anyone who fills in a configurable form, such as a
+        /// procedure consent. It reveals the questions, never any answers.
+        pub const READ: &str = "forms.definitions.read";
+    }
+}
+
 pub mod consent {
     pub mod templates {
         pub const LIST: &str = "consent.templates.list";
@@ -829,6 +1097,12 @@ pub mod blood_bank {
     pub mod donors {
         pub const LIST: &str = "blood_bank.donors.list";
         pub const CREATE: &str = "blood_bank.donors.create";
+        /// Defer or reinstate a blood donor.
+        ///
+        /// Sets a temporary deferral with an end date, a permanent one, or
+        /// lifts it, always with a reason and an audit row. A donor deferred
+        /// for a reactive TTI result cannot be reinstated here.
+        pub const DEFER: &str = "blood_bank.donors.defer";
     }
 
     pub mod inventory {
@@ -844,6 +1118,26 @@ pub mod blood_bank {
     pub mod transfusion {
         pub const LIST: &str = "blood_bank.transfusion.list";
         pub const CREATE: &str = "blood_bank.transfusion.create";
+        /// Release uncrossmatched O-negative in an emergency.
+        ///
+        /// Issues a red-cell unit with no compatible crossmatch for the patient,
+        /// which every other issue is refused. Only an O-negative unit, only with
+        /// a written reason, and every use is written to the audit log.
+        pub const EMERGENCY_RELEASE: &str = "blood_bank.transfusion.emergency_release";
+    }
+
+    pub mod tti {
+        /// View donor TTI screening results.
+        ///
+        /// The per-marker HIV, HBsAg, HCV, syphilis and malaria results of a
+        /// donation. A donor's infection status, so not part of inventory read.
+        pub const VIEW: &str = "blood_bank.tti.view";
+        /// Record donor TTI screening results.
+        ///
+        /// Enters the per-marker screening result for a donation. A reactive
+        /// result quarantines the donation's units and defers the donor, and
+        /// cannot later be changed.
+        pub const RECORD: &str = "blood_bank.tti.record";
     }
 }
 
@@ -947,6 +1241,13 @@ pub mod cssd {
     pub mod sterilization {
         pub const LIST: &str = "cssd.sterilization.list";
         pub const CREATE: &str = "cssd.sterilization.create";
+        /// Recall a sterilisation load or an issued pack.
+        ///
+        /// Recalling a load bars every pack of it from issue and flags every
+        /// pack already issued from it so it can be fetched back from the ward
+        /// or theatre — the response to a failed biological indicator. A single
+        /// issued pack can be recalled too. Always with a reason; audited.
+        pub const RECALL: &str = "cssd.sterilization.recall";
     }
 
     pub mod issuance {
@@ -989,6 +1290,13 @@ pub mod emergency {
         pub const UPDATE: &str = "emergency.mlc.update";
         pub const PRINT: &str = "emergency.mlc.print";
         pub const REPRINT: &str = "emergency.mlc.reprint";
+        /// Amend a certified or closed MLC.
+        ///
+        /// Changes what a medico-legal case records after the opinion is
+        /// given, while it is in court, or once it is closed. MLC records are
+        /// legal evidence: every amendment needs a written reason and is
+        /// written to the audit trail with the old and new values.
+        pub const AMEND: &str = "emergency.mlc.amend";
     }
 
     pub mod mlc_injuries {
@@ -1064,6 +1372,16 @@ pub mod housekeeping {
         pub const MANAGE: &str = "housekeeping.cleaning.manage";
     }
 
+    pub mod tasks {
+        /// Start and complete your own cleaning tasks.
+        ///
+        /// The housekeeper's right. Starting an unassigned task claims it;
+        /// completing needs the task to be assigned to you. Verifying,
+        /// rejecting and reassigning stay with `housekeeping.cleaning.manage`,
+        /// which before this was the only way to mark any task done.
+        pub const PERFORM: &str = "housekeeping.tasks.perform";
+    }
+
     pub mod turnaround {
         pub const LIST: &str = "housekeeping.turnaround.list";
         pub const MANAGE: &str = "housekeeping.turnaround.manage";
@@ -1117,7 +1435,7 @@ pub mod hr {
             ///
             /// Each facility's location and fence radius, and whether a punch
             /// from outside is flagged for HR or refused. Decides whether a
-            /// nurse can start her shift, so it is held apart from marking
+            /// nurse can start their shift, so it is held apart from marking
             /// attendance.
             pub const MANAGE: &str = "hr.attendance.geofence.manage";
         }
@@ -1127,6 +1445,12 @@ pub mod hr {
         pub const LIST: &str = "hr.leave.list";
         pub const CREATE: &str = "hr.leave.create";
         pub const APPROVE: &str = "hr.leave.approve";
+        /// File and view leave for any employee.
+        ///
+        /// HR's reach. Without it a caller files leave only for themselves and
+        /// sees only their own leave and, as a department head, their
+        /// department's. Nobody approves their own leave, with or without it.
+        pub const MANAGE: &str = "hr.leave.manage";
     }
 
     pub mod roster {
@@ -1338,6 +1662,12 @@ pub mod marketing {
         pub const VIEW: &str = "marketing.campaigns.view";
         /// Create and edit campaigns.
         pub const MANAGE: &str = "marketing.campaigns.manage";
+        /// Pick a campaign when registering.
+        ///
+        /// The active campaigns' names and codes only — enough for the desk
+        /// to record where a new patient heard of the hospital, without
+        /// spend or results.
+        pub const LOOKUP: &str = "marketing.campaigns.lookup";
     }
 
     pub mod consent {
@@ -1493,6 +1823,20 @@ pub mod front_office {
     pub mod passes {
         pub const LIST: &str = "front_office.passes.list";
         pub const MANAGE: &str = "front_office.passes.manage";
+        /// Check a visitor pass at the gate.
+        ///
+        /// Scan a pass's QR to see whether it is valid now, who it was issued
+        /// to and which ward it opens. Read-only: it cannot issue or revoke.
+        pub const VERIFY: &str = "front_office.passes.verify";
+    }
+
+    pub mod visitor_logs {
+        /// Record a visitor entering or leaving.
+        ///
+        /// The gate guard's right: check a valid pass in and out. Issuing and
+        /// revoking passes stay with `front_office.passes.manage`, which until
+        /// this was the only way to log a visitor's entry at all.
+        pub const RECORD: &str = "front_office.visitor_logs.record";
     }
 
     pub mod queue {
@@ -1568,6 +1912,11 @@ pub mod mrd {
         pub const LIST: &str = "mrd.records.list";
         pub const CREATE: &str = "mrd.records.create";
         pub const MANAGE: &str = "mrd.records.manage";
+        /// Open every patient's medical record.
+        /// For medical records staff, who file, issue and complete every
+        /// chart — not only those of patients in their care. Each record
+        /// opened this way is written to the patient's access log.
+        pub const VIEW_ALL: &str = "mrd.records.view_all";
     }
 
     pub mod births {
@@ -1590,11 +1939,6 @@ pub mod mrd {
 
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
-    }
-
-    pub mod forms {
-        pub const VIEW: &str = "mrd.forms.view";
-        pub const MANAGE: &str = "mrd.forms.manage";
     }
 }
 
@@ -1623,6 +1967,13 @@ pub mod facilities {
         pub const LIST: &str = "facilities.work_orders.list";
         pub const CREATE: &str = "facilities.work_orders.create";
         pub const MANAGE: &str = "facilities.work_orders.manage";
+        /// Work on and complete work orders assigned to you.
+        ///
+        /// The technician's right: move your own work order to in progress,
+        /// on hold or completed and record findings, actions and costs.
+        /// Assigning, reassigning, choosing a vendor and cancelling stay with
+        /// `facilities.work_orders.manage`.
+        pub const PERFORM: &str = "facilities.work_orders.perform";
     }
 
     pub mod compliance {
@@ -1652,9 +2003,35 @@ pub mod security {
         pub const UPDATE: &str = "security.incidents.update";
     }
 
+    pub mod breach {
+        /// Assess breaches and record regulatory notices.
+        ///
+        /// Marks an incident as CERT-In reportable or as a DPDP personal-data
+        /// breach, sets when it was noticed (which starts the 6-hour CERT-In
+        /// and 72-hour Board clocks), and records the CERT-In report, the
+        /// Board intimation and detailed report, and the notice to affected
+        /// Data Principals. The incident response plan gives these to the
+        /// DPO / incident commander, so no built-in role holds it.
+        pub const MANAGE: &str = "security.breach.manage";
+    }
+
     pub mod patient_safety {
         pub const LIST: &str = "security.patient_safety.list";
         pub const MANAGE: &str = "security.patient_safety.manage";
+        /// Verify a mother–baby ID band match.
+        ///
+        /// Scanning both bands before a baby is handed to its mother, taken
+        /// out of the nursery or discharged. A mismatch is refused, raised as
+        /// a tag alert and audited. Held by nurses and security, who do the
+        /// handover, without the right to create or retire tags.
+        pub const VERIFY_MATCH: &str = "security.patient_safety.verify_match";
+        /// Report an infant or wander tag event.
+        ///
+        /// A tag leaving its zone, a cut or tampered band. An infant tag
+        /// leaving its zone or tampered with raises Code Pink at once. Used
+        /// by the tag reader's machine identity and by staff who find a cut
+        /// band.
+        pub const REPORT_EVENT: &str = "security.patient_safety.report_event";
     }
 
     pub mod debriefs {
@@ -1929,6 +2306,13 @@ pub mod specialty {
             pub const LIST: &str = "specialty.ophthalmology.exams.list";
             pub const CREATE: &str = "specialty.ophthalmology.exams.create";
             pub const UPDATE: &str = "specialty.ophthalmology.exams.update";
+            /// Sign a spectacle prescription.
+            ///
+            /// Completes the eye exam under the signer's name and registration
+            /// number and locks its refraction; only a signed exam prints as a
+            /// spectacle prescription without the DRAFT mark. Recording the
+            /// workup does not need it.
+            pub const SIGN: &str = "specialty.ophthalmology.exams.sign";
         }
     }
 
@@ -1941,6 +2325,26 @@ pub mod specialty {
         pub mod chart {
             pub const LIST: &str = "specialty.dental.chart.list";
             pub const CREATE: &str = "specialty.dental.chart.create";
+            /// Correct or remove a tooth finding.
+            ///
+            /// A removed finding is kept (soft delete) with who removed it.
+            pub const UPDATE: &str = "specialty.dental.chart.update";
+        }
+        pub mod treatment {
+            /// See a dental treatment plan.
+            ///
+            /// The procedures planned, done and cancelled, tooth by tooth,
+            /// with their prices.
+            pub const LIST: &str = "specialty.dental.treatment.list";
+            /// Plan or cancel dental procedures.
+            ///
+            /// Adds procedures to a patient's dental plan with their price,
+            /// or cancels one that has not been done.
+            pub const MANAGE: &str = "specialty.dental.treatment.manage";
+            /// Mark a dental procedure done.
+            ///
+            /// Records who did it and when, and charges it to the visit's bill.
+            pub const COMPLETE: &str = "specialty.dental.treatment.complete";
         }
     }
 
@@ -1960,6 +2364,13 @@ pub mod specialty {
         pub mod dialysis {
             pub const LIST: &str = "specialty.other.dialysis.list";
             pub const MANAGE: &str = "specialty.other.dialysis.manage";
+            /// Set up dialysis machines and dialyzer reuse.
+            ///
+            /// The unit's machines, the serology each is dedicated to, which
+            /// are under maintenance, and how many times a dialyzer may be
+            /// reused here. Booking shifts and reprocessing dialyzers need only
+            /// the manage permission.
+            pub const CONFIGURE: &str = "specialty.other.dialysis.configure";
         }
     }
 }
@@ -2008,6 +2419,42 @@ pub mod insurance {
 
     pub mod dashboard {
         pub const VIEW: &str = "insurance.dashboard.view";
+    }
+
+    /// NHCX — the National Health Claims Exchange.
+    pub mod nhcx {
+        /// Send claims to NHCX.
+        ///
+        /// Submit a claim or pre-authorisation, or check coverage
+        /// eligibility, with a payer through NHCX.
+        pub const SUBMIT: &str = "insurance.nhcx.submit";
+        /// See NHCX exchanges.
+        ///
+        /// What was sent to NHCX for a claim, whether this hospital is set
+        /// up for NHCX, and every response the payers sent back.
+        pub const VIEW: &str = "insurance.nhcx.view";
+        /// Set up the NHCX connection.
+        ///
+        /// The NHCX participant code, gateway keys and certificates, and
+        /// whether the hospital talks to the sandbox or production.
+        pub const CONFIGURE: &str = "insurance.nhcx.configure";
+        /// Answer payer queries on NHCX.
+        ///
+        /// Reply to a payer's request for more information on a
+        /// pre-authorisation or claim, with text and supporting documents,
+        /// sent back through NHCX.
+        pub const RESPOND: &str = "insurance.nhcx.respond";
+        /// Cancel or reprocess NHCX claims.
+        ///
+        /// Ask a payer through NHCX to cancel a claim, or to reprocess one
+        /// after its deductions or rejection have been answered.
+        pub const CANCEL: &str = "insurance.nhcx.cancel";
+        /// See and post NHCX payments.
+        ///
+        /// The payment notices payers send through NHCX — amount, UTR and
+        /// TDS against each claim — and posting an unmatched one to its
+        /// claim.
+        pub const PAYMENTS: &str = "insurance.nhcx.payments";
     }
 }
 
@@ -2109,6 +2556,32 @@ pub mod terminology {
     /// provisional diagnosis at registration or a camp desk — not access to
     /// any patient's record.
     pub const SEARCH: &str = "terminology.search";
+
+    /// The locally loaded SNOMED CT release store.
+    ///
+    /// SNOMED content is shared reference data under the deployment's
+    /// affiliate licence, so loading a release is separate from reading one,
+    /// and reading one is separate from counting a hospital's records by it.
+    pub mod snomed {
+        /// Load SNOMED CT releases.
+        ///
+        /// Upload or import an RF2 release package and watch its progress.
+        /// The release replaces terminology every user of the deployment
+        /// sees, so no built-in role holds it.
+        pub const MANAGE: &str = "terminology.snomed.manage";
+        /// Search and browse SNOMED CT concepts.
+        ///
+        /// Find a concept by any of its terms, see its parents and children,
+        /// and run bounded hierarchy queries. Results are capped so the
+        /// licensed content cannot be extracted in bulk.
+        pub const VIEW: &str = "terminology.snomed.view";
+        /// Count records by SNOMED CT hierarchy.
+        ///
+        /// See how many of the hospital's coded diagnoses fall under a
+        /// concept or any of its descendants, and the roll-up by top-level
+        /// category.
+        pub const ANALYTICS: &str = "terminology.snomed.analytics";
+    }
 }
 
 pub mod ckb {
@@ -2133,6 +2606,36 @@ pub mod vpn {
 }
 
 pub mod admin {
+    /// Requests for temporary extra permissions, raised from the
+    /// access-denied screen or the Access requests page.
+    ///
+    /// These used to be guarded by `security.access.*` — the physical-security
+    /// codes for door zones and access cards — so every security guard could
+    /// see and approve anyone's permission requests.
+    pub mod access_requests {
+        /// See every access request in the hospital.
+        ///
+        /// Without it you see only your own requests.
+        pub const LIST: &str = "admin.access_requests.list";
+        /// Approve, reject or revoke access requests.
+        ///
+        /// Grants temporary permissions to another person; a request for an
+        /// elevated permission still needs an administrator. Approvers are
+        /// notified of each new request.
+        pub const REVIEW: &str = "admin.access_requests.review";
+    }
+
+    /// Setting a hospital up from a spreadsheet.
+    pub mod workbook {
+        /// Set up the hospital from a spreadsheet.
+        ///
+        /// Download the onboarding workbook — blank or filled with what the
+        /// hospital already has — and upload it back to add or update
+        /// departments, wards, beds and staff in one checked, all-or-nothing
+        /// change. New staff are emailed how to set their password.
+        pub const IMPORT: &str = "admin.workbook.import";
+    }
+
     pub mod users {
         pub const LIST: &str = "admin.users.list";
         pub const VIEW: &str = "admin.users.view";
@@ -2171,6 +2674,25 @@ pub mod admin {
         /// Reading what a key actually did — a forensic surface, so it is
         /// grantable to an auditor who cannot mint or revoke anything.
         pub const VIEW_USAGE: &str = "admin.api_keys.view_usage";
+        /// Read the API description.
+        ///
+        /// The OpenAPI document: every endpoint, method and the permission
+        /// it needs. Grant it to an integration's key so its developers can
+        /// generate a client.
+        pub const DOCS: &str = "admin.api_keys.docs";
+    }
+
+    pub mod webhooks {
+        /// See webhook subscriptions and their deliveries.
+        ///
+        /// Where the hospital's events are sent, which events, and whether
+        /// each delivery landed.
+        pub const LIST: &str = "admin.webhooks.list";
+        /// Create, change and switch off webhooks.
+        ///
+        /// Decides which outside systems are told about events and where they
+        /// are sent, and issues the signing secret.
+        pub const MANAGE: &str = "admin.webhooks.manage";
     }
 
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
@@ -2380,6 +2902,13 @@ pub mod doctor {
         /// (NABH audit view) — broader than the prescriber's own queue.
         pub const VERBAL_REGISTER: &str = "doctor.signoffs.verbal_register";
     }
+    pub mod refill_requests {
+        /// Decide patient refill requests.
+        ///
+        /// Approve or decline a refill a patient asked for on a prescription
+        /// this doctor wrote; approving sends it to the pharmacy.
+        pub const DECIDE: &str = "doctor.refill_requests.decide";
+    }
 }
 
 /// Patient-side packages (subscribing + consuming).
@@ -2414,6 +2943,16 @@ pub mod documents {
     pub mod printers {
         pub const LIST: &str = "documents.printers.list";
         pub const MANAGE: &str = "documents.printers.manage";
+    }
+
+    pub mod print_jobs {
+        /// Deliver print jobs to printers.
+        ///
+        /// Lets a site bridge take queued print jobs — the document already
+        /// rendered for its printer as PDF, ZPL or ESC/POS, which carries
+        /// patient details — send them to the printer and report the result.
+        /// Grant it to the bridge's API key, not to people.
+        pub const DELIVER: &str = "documents.print_jobs.deliver";
     }
 }
 
@@ -2513,6 +3052,20 @@ pub mod retrospective {
 }
 
 pub mod audit {
+    /// The register of who processes patient data for the hospital.
+    pub mod processors {
+        /// See the data processors register.
+        ///
+        /// Every outside service that handles patient data — hosting, SMS,
+        /// payments, AI — with what it receives, where it keeps it, and the
+        /// agreement that binds it (DPDP Act s.8(2), s.16).
+        pub const LIST: &str = "audit.processors.list";
+        /// Add and update data processors.
+        ///
+        /// Record a processor and its agreement, and retire one the hospital
+        /// stops using.
+        pub const MANAGE: &str = "audit.processors.manage";
+    }
     pub const VIEW: &str = "audit.log.view";
     pub const EXPORT: &str = "audit.log.export";
     pub const ACCESS_VIEW: &str = "audit.access.view";
@@ -2572,6 +3125,16 @@ pub mod devices {
         pub const RETRY: &str = "devices.messages.retry";
     }
 
+    pub mod orders {
+        /// Send lab orders to an analyzer.
+        ///
+        /// Lets a lab bridge read collected samples — barcode, test, and the
+        /// patient's name, birth date and sex — to load them onto its
+        /// analyzer's worklist, and record that it did. Grant it to the
+        /// bridge's API key, not to people.
+        pub const SEND: &str = "devices.orders.send";
+    }
+
     pub mod agents {
         pub const LIST: &str = "devices.agents.list";
         pub const MANAGE: &str = "devices.agents.manage";
@@ -2594,6 +3157,26 @@ pub mod devices {
         /// right means a leaked appliance token enumerates the whole
         /// estate. This is the one thing an appliance needs.
         pub const ROSTER_READ: &str = "devices.pairing.roster.read";
+    }
+}
+
+pub mod qa {
+    pub mod test_cases {
+        /// Record test results.
+        ///
+        /// Shows the test-case panel and saves Pass, Fail or Blocked for the
+        /// signed-in role's cases in the open test cycle. Given to the
+        /// `test_<role>` accounts per user by scripts/create_test_accounts.py,
+        /// never to a built-in role: real staff never see the panel.
+        pub const RECORD: &str = "qa.test_cases.record";
+    }
+
+    pub mod test_cycles {
+        /// Run test cycles.
+        ///
+        /// Open and close a test cycle, and see every role's progress and
+        /// every failure across the hospital's testers.
+        pub const MANAGE: &str = "qa.test_cycles.manage";
     }
 }
 
@@ -2838,6 +3421,21 @@ pub mod pharmacy_finance {
 /// access, because the codes never reached the catalogue the admin UI renders.
 /// The frontend guarded on the same literal, so the control was hidden too.
 pub mod abdm {
+    /// Connecting this hospital to ABDM.
+    pub mod settings {
+        /// Set up the ABDM connection.
+        /// Enter the ABDM client ID and secret and switch between sandbox and production.
+        pub const MANAGE: &str = "abdm.settings.manage";
+    }
+    pub mod relay {
+        /// Pull and acknowledge ABDM gateway callbacks.
+        ///
+        /// For the hospital's on-premises server, which collects the ABDM
+        /// gateway's callbacks for its own facility and marks each one
+        /// received. Callbacks carry patient health data, so only this
+        /// hospital's own, never another's.
+        pub const PULL: &str = "abdm.relay.pull";
+    }
     pub mod abha {
         /// View a patient's ABHA health ID.
         pub const VIEW: &str = "abdm.abha.view";
@@ -2851,5 +3449,98 @@ pub mod abdm {
         ///
         /// A facility-level administrative act, not a clinical one.
         pub const REGISTER: &str = "abdm.hfr.register";
+    }
+    /// Health records this hospital shares through ABDM as a Health
+    /// Information Provider: care contexts, their links to ABHAs, the
+    /// consents patients granted and the transfers made under them.
+    pub mod records {
+        /// View records shared through ABDM.
+        ///
+        /// Which of a patient's records are linked to their ABHA, why one is
+        /// not, the consents received and every transfer made, and the
+        /// hospital's monthly DHIS counts.
+        pub const VIEW: &str = "abdm.records.view";
+        /// Link or retry linking records to ABHA.
+        ///
+        /// Send a patient's finalised records to ABDM again after a failure,
+        /// or link one that was captured before the ABHA was verified.
+        pub const MANAGE: &str = "abdm.records.manage";
+    }
+    /// Records this hospital receives through ABDM as a Health Information
+    /// User: consent requests to see a patient's records held by other
+    /// facilities, and the copies those facilities send.
+    pub mod consent {
+        /// Request a patient's records from other hospitals.
+        ///
+        /// Ask, through ABDM, for the patient's consent to see their records
+        /// held elsewhere: purpose, record types, dates and how long the copy
+        /// may be kept. The request is made in the requester's name and HPR ID.
+        pub const REQUEST: &str = "abdm.consent.request";
+        /// View records received from other hospitals.
+        ///
+        /// The consent requests raised for a patient and the records other
+        /// facilities sent under them, until the consent is revoked or expires.
+        pub const VIEW: &str = "abdm.consent.view";
+    }
+    /// ABDM Scan & Share: patients scan a counter's QR with their ABHA app
+    /// and share their profile instead of queueing to register.
+    pub mod scanshare {
+        /// Work the Scan & Share registration queue.
+        ///
+        /// See the ABHA profiles patients shared at the registration counters
+        /// today, with their token numbers; open the matched patient, register
+        /// a new one from the profile, or dismiss a share.
+        pub const VIEW: &str = "abdm.scanshare.view";
+        /// Print the counters' Scan & Share QR codes.
+        ///
+        /// The QR poster for each registration counter, naming this
+        /// hospital's HFR facility ID and the counter.
+        pub const MANAGE: &str = "abdm.scanshare.manage";
+    }
+    pub mod hpr {
+        /// Record and verify doctors' HPR IDs.
+        ///
+        /// The Healthcare Professionals Registry ID each doctor signs FHIR
+        /// records under, checked against the national registry, and the
+        /// coverage report of active doctors still missing one.
+        pub const MANAGE: &str = "abdm.hpr.manage";
+    }
+    pub mod dashboard {
+        /// View the ABDM management dashboard.
+        ///
+        /// The month's OPD visits with a verified ABHA, KYC, ABHAs created
+        /// here, records linked against the DHIS threshold and the estimated
+        /// incentive, consents, Scan & Share, HPR and HFR coverage, and the
+        /// records that failed to link with their reasons. Counts only, plus
+        /// the names on failed links.
+        pub const VIEW: &str = "abdm.dashboard.view";
+    }
+}
+
+/// UHI (Unified Health Interface): patient apps find and book this hospital's
+/// teleconsultations, ambulances and blood availability through the NHA
+/// gateway, with this hospital as the provider (HSPA).
+pub mod uhi {
+    /// Set up UHI.
+    ///
+    /// The subscriber ID and key the hospital is registered under, its
+    /// signing key pair, the services it offers and the campus it offers
+    /// them from.
+    pub const CONFIGURE: &str = "uhi.configure";
+    /// Requests that arrived from patient apps through UHI.
+    pub mod requests {
+        /// View UHI requests.
+        ///
+        /// Teleconsultations booked, and ambulance and blood requests made,
+        /// from patient apps — with the patient's name, phone and ABHA
+        /// address as the app sent them.
+        pub const VIEW: &str = "uhi.requests.view";
+        /// Accept or decline UHI requests.
+        ///
+        /// Tell the patient's app whether the hospital can send the
+        /// ambulance or has the blood. Accepting an ambulance request also
+        /// needs ambulance trip creation, accepting a blood request blood
+        /// inventory management.
+        pub const RESPOND: &str = "uhi.requests.respond";
     }
 }

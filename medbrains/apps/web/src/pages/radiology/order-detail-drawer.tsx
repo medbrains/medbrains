@@ -8,9 +8,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, useClinicalEmit } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Badge, Button } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
+import { OrderImages } from "./OrderImages";
+import { OrderFormFNotice } from "./order-form-f-notice";
 import { colorToBadgeTone, printRadiologyReportPacket, statusColors } from "./shared";
 
 export function OrderDetailDrawer({
@@ -113,6 +116,8 @@ export function OrderDetailDrawer({
             <Text fw={600}>Priority:</Text>
             <Badge tone={colorToBadgeTone(statusColor(order.priority))}>{order.priority}</Badge>
           </Group>
+          <OrderFormFNotice orderId={order.id} />
+          <OrderImages order={order} />
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
           {order.clinical_indication && (
             <Text size="sm">Indication: {order.clinical_indication}</Text>
@@ -201,6 +206,14 @@ export function OrderDetailDrawer({
                     >
                       Print report
                     </Button>
+                  )}
+                  {order.status === "verified" && (
+                    <PrintDocumentMenu
+                      idKind="radiology_order"
+                      recordId={order.id}
+                      exclude={["radiology-report"]}
+                      label="Also print"
+                    />
                   )}
                 </Stack>
               ) : canReport && ["completed", "in_progress"].includes(order.status) ? (

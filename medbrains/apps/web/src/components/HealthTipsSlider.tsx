@@ -89,18 +89,27 @@ export function HealthTipsSlider() {
       onMouseLeave={() => !reduced && setPlaying(true)}
     >
       <Box key={index} className={classes.slide} aria-live="polite">
-        <Text className={classes.eyebrow}>Health tip</Text>
-        <Text className={classes.title}>{tip.title}</Text>
-        <Text className={classes.body}>{tip.body}</Text>
-        <Text className={classes.source}>Source: {tip.source}</Text>
+        <Text className={classes.eyebrow} c="var(--mb-stage-accent)">
+          Health tip
+        </Text>
+        <Text className={classes.title} c="var(--mb-stage-text)">
+          {tip.title}
+        </Text>
+        <Text className={classes.body} c="var(--mb-stage-text-muted)">
+          {tip.body}
+        </Text>
+        <Text className={classes.source} c="var(--mb-stage-text-muted)">
+          Source: {tip.source}
+        </Text>
       </Box>
 
       <Group justify="space-between" align="center" mt="md">
         <Group gap={6}>
           {!reduced && (
             <ActionIcon
+              className={classes.control}
               variant="subtle"
-              color="gray"
+              color="var(--mb-stage-text-muted)"
               aria-label={playing ? "Pause health tips" : "Play health tips"}
               onClick={() => setPlaying((p) => !p)}
             >
@@ -123,16 +132,18 @@ export function HealthTipsSlider() {
         </Group>
         <Group gap={4}>
           <ActionIcon
+            className={classes.control}
             variant="subtle"
-            color="gray"
+            color="var(--mb-stage-text-muted)"
             aria-label="Previous tip"
             onClick={() => go(index - 1)}
           >
             <IconChevronLeft size={18} />
           </ActionIcon>
           <ActionIcon
+            className={classes.control}
             variant="subtle"
-            color="gray"
+            color="var(--mb-stage-text-muted)"
             aria-label="Next tip"
             onClick={() => go(index + 1)}
           >

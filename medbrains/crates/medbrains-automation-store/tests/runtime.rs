@@ -52,7 +52,7 @@ async fn two_tenants(pool: &PgPool) -> (Uuid, Uuid) {
         "INSERT INTO tenants (code, name, hospital_type)
          VALUES ('RLS-PROBE', 'Isolation probe',
                  (SELECT hospital_type FROM tenants WHERE code <> 'RLS-PROBE' LIMIT 1))
-         ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+         ON CONFLICT (code) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, is_active = tenants.is_active OR tenants.deleted_at IS NOT NULL, name = EXCLUDED.name
          RETURNING id",
     )
     .fetch_one(pool)

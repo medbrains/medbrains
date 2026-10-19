@@ -39,6 +39,10 @@ pub(super) struct Kpi {
     pub(super) clock: bool,
     /// How the daily series is made from the query's rows.
     pub(super) shape: Shape,
+    /// Whether a reader may narrow it to one department: the query takes
+    /// `$5`, a department id or null. Only a daily, clocked KPI — `$5`
+    /// follows `$3` and `$4`.
+    pub(super) departmental: bool,
     /// `(day date, value float8)` rows for days `$1..=$2`, or for a rate or a
     /// mean `(day date, numerator float8, denominator float8)`.
     pub(super) sql: &'static str,
@@ -62,12 +66,30 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: true,
             clock: true,
             shape: Shape::Daily,
+            departmental: true,
             sql: "SELECT encounter_date AS day, COUNT(*)::float8 AS value \
                   FROM encounters \
                   WHERE encounter_type = 'opd' AND deleted_at IS NULL \
                     AND encounter_date BETWEEN $1 AND $2 \
                     AND ($4::time IS NULL OR timezone($3, created_at)::time <= $4) \
+                    AND ($5::uuid IS NULL OR department_id = $5) \
                   GROUP BY encounter_date",
+        },
+        // New patients registered, by the hospital's clock: a morning is set
+        // against earlier mornings. A merged duplicate is not a new patient.
+        "patient_registrations" => Kpi {
+            unit: "patients",
+            better: Better::Neutral,
+            zero_fill: true,
+            clock: true,
+            shape: Shape::Daily,
+            departmental: false,
+            sql: "SELECT timezone($3, created_at)::date AS day, COUNT(*)::float8 AS value \
+                  FROM patients \
+                  WHERE deleted_at IS NULL AND NOT COALESCE(is_merged, false) \
+                    AND timezone($3, created_at)::date BETWEEN $1 AND $2 \
+                    AND ($4::time IS NULL OR timezone($3, created_at)::time <= $4) \
+                  GROUP BY 1",
         },
         "opd_wait_minutes" => Kpi {
             unit: "min",
@@ -75,6 +97,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM called_at - created_at)) / 60.0)::float8 \
@@ -91,6 +114,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM completed_at - called_at)) / 60.0)::float8 \
@@ -109,6 +133,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: false,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT appointment_date AS day, \
                     (100.0 * COUNT(*) FILTER (WHERE status::text = 'no_show') \
                       / NULLIF(COUNT(*) FILTER (WHERE status::text IN \
@@ -124,6 +149,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: false,
             shape: Shape::Rate,
+            departmental: false,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
                    SELECT 1 FROM diagnoses d WHERE d.encounter_id = e.id \
@@ -140,6 +166,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: false,
             shape: Shape::Rate,
+            departmental: false,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE EXISTS ( \
                    SELECT 1 FROM consultations c WHERE c.encounter_id = e.id \
@@ -159,6 +186,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: concat!(
                 "SELECT e.encounter_date, \
                  COUNT(*) FILTER (WHERE e.status::text <> 'completed')::float8, COUNT(*)::float8",
@@ -176,6 +204,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: concat!(
                 "SELECT e.encounter_date, COUNT(*) FILTER (WHERE NOT EXISTS ( \
                    SELECT 1 FROM invoices i WHERE i.encounter_id = e.id \
@@ -191,6 +220,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT timezone($3, i.issued_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM i.issued_at - e.created_at)) / 3600.0)::float8 \
@@ -207,6 +237,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT timezone($3, verified_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM verified_at - collected_at)) / 60.0)::float8 \
@@ -224,6 +255,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: "SELECT timezone($3, verified_at)::date, \
                     COUNT(*) FILTER (WHERE verified_at - collected_at \
                       <= make_interval(mins => expected_tat_minutes))::float8, COUNT(*)::float8 \
@@ -239,6 +271,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT timezone($3, vacated_at)::date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM ready_at - vacated_at)) / 60.0)::float8 \
@@ -254,6 +287,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT token_date AS day, \
                     (percentile_cont(0.5) WITHIN GROUP \
                       (ORDER BY EXTRACT(EPOCH FROM called_at - created_at)) / 60.0)::float8 \
@@ -272,6 +306,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Daily,
+            departmental: false,
             sql: "SELECT d::date AS day, \
                     (100.0 * COUNT(a.id) / NULLIF((SELECT COUNT(*) FROM ward_bed_mappings \
                       WHERE is_active AND deleted_at IS NULL), 0))::float8 \
@@ -288,6 +323,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Mean,
+            departmental: false,
             sql: "SELECT timezone($3, discharged_at)::date, \
                     SUM(EXTRACT(EPOCH FROM discharged_at - admitted_at) / 86400.0)::float8, \
                     COUNT(*)::float8 \
@@ -302,6 +338,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: "SELECT timezone($3, discharged_at)::date, \
                     COUNT(*) FILTER (WHERE discharge_type::text IN ('deceased', 'death') \
                                         OR status::text = 'deceased')::float8, \
@@ -318,6 +355,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: "SELECT timezone($3, a.admitted_at)::date, \
                     COUNT(*) FILTER (WHERE EXISTS ( \
                       SELECT 1 FROM admissions p \
@@ -338,6 +376,7 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
             zero_fill: false,
             clock: true,
             shape: Shape::Rate,
+            departmental: false,
             sql: "SELECT timezone($3, discharged_at)::date, \
                     COUNT(*) FILTER (WHERE discharge_type::text IN ('lama', 'dama', 'absconded') \
                                         OR status::text = 'absconded')::float8, \
@@ -355,8 +394,9 @@ pub(super) fn kpi(code: &str) -> Option<Kpi> {
 mod tests {
     use super::{Shape, kpi};
 
-    const CODES: [&str; 18] = [
+    const CODES: [&str; 19] = [
         "opd_visits",
+        "patient_registrations",
         "opd_wait_minutes",
         "opd_consult_minutes",
         "appointment_no_show_pct",
@@ -390,6 +430,11 @@ mod tests {
                 k.sql.contains("$4"),
                 k.clock && k.shape == Shape::Daily,
                 "{code}: $4 is the clock cut-off, daily KPIs only"
+            );
+            assert_eq!(k.sql.contains("$5"), k.departmental, "{code}: $5 is the department");
+            assert!(
+                !k.departmental || (k.clock && k.shape == Shape::Daily),
+                "{code}: a department filter needs $3 and $4 bound before it"
             );
         }
     }

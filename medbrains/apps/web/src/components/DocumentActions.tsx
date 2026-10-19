@@ -11,6 +11,8 @@ interface DocumentActionsProps {
   sourceId: string;
   size?: "xs" | "sm";
   disabled?: boolean;
+  /** Button text when a screen offers more than one document. */
+  label?: string;
 }
 
 /**
@@ -23,9 +25,17 @@ export function DocumentActions({
   sourceId,
   size = "xs",
   disabled,
+  label = "PDF",
 }: DocumentActionsProps) {
   const renderMutation = useMutation({
     mutationFn: () => api.renderDocument({ template_code: templateCode, source_id: sourceId }),
+    // A document that could not be made must say so, not do nothing.
+    onError: (error: Error) =>
+      notifications.show({
+        title: "Document not generated",
+        message: error.message,
+        color: "danger",
+      }),
   });
 
   const generateAndOpen = async () => {
@@ -36,12 +46,21 @@ export function DocumentActions({
 
   const queuePrint = async () => {
     const result = await renderMutation.mutateAsync();
-    await api.queueDocumentPrint(result.document_output_id, { copies: 1 });
-    notifications.show({
-      title: "Queued for printing",
-      message: "The document was handed to the print queue.",
-      color: "success",
-    });
+    try {
+      const job = await api.queueDocumentPrint(result.document_output_id, { copies: 1 });
+      notifications.show({
+        title: "Sent to the printer",
+        message: `Queued on ${job.printer_name}.`,
+        color: "success",
+      });
+    } catch (error) {
+      // No printer for this document must say so, not do nothing.
+      notifications.show({
+        title: "Not sent to a printer",
+        message: (error as Error).message,
+        color: "danger",
+      });
+    }
   };
 
   return (
@@ -54,14 +73,14 @@ export function DocumentActions({
           loading={renderMutation.isPending}
           disabled={disabled}
         >
-          PDF
+          {label}
         </Button>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item
           leftSection={<IconDownload size={14} />}
           onClick={() => {
-            void generateAndOpen();
+            void generateAndOpen().catch(() => undefined);
           }}
         >
           Generate & open PDF
@@ -69,7 +88,7 @@ export function DocumentActions({
         <Menu.Item
           leftSection={<IconPrinter size={14} />}
           onClick={() => {
-            void queuePrint();
+            void queuePrint().catch(() => undefined);
           }}
         >
           Send to print queue

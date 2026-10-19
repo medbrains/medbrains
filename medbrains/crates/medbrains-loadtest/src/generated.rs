@@ -1082,11 +1082,6 @@ async fn t_post_api_billing_erp_export_29a4c9(user: &mut GooseUser) -> Transacti
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_post_api_billing_copay_calculate_e95c1c(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/billing/copay/calculate").await;
-    crate::json_post(user, &path, &serde_json::json!({})).await
-}
-
 async fn t_get_api_billing_concessions_6811f2(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/billing/concessions").await;
     let _ = crate::json_get(user, &path).await?;
@@ -2507,13 +2502,6 @@ async fn t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb(
     let path =
         crate::resolve_path(user, "/api/ipd/admissions/{id}/discharge-summary/finalize").await;
     crate::json_post(user, &path, &serde_json::json!({})).await
-}
-
-async fn t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/ipd/admissions/{id}/progress-notes/{note_id}").await;
-    crate::json_put(user, &path, &serde_json::json!({})).await
 }
 
 async fn t_get_api_ipd_admissions_id_mar_246d69(user: &mut GooseUser) -> TransactionResult {
@@ -4912,14 +4900,6 @@ async fn t_get_api_print_data_treatment_chart_admission_id_9bec36(
     Ok(())
 }
 
-async fn t_get_api_print_data_patient_education_material_id_eafb5f(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/patient-education/{material_id}").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
 async fn t_get_api_print_data_infant_wristband_newborn_id_b64b02(
     user: &mut GooseUser,
 ) -> TransactionResult {
@@ -4932,12 +4912,6 @@ async fn t_get_api_print_data_estimate_invoice_id_df3464(
     user: &mut GooseUser,
 ) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/print-data/estimate/{invoice_id}").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_get_api_print_data_tds_certificate_id_100c08(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/print-data/tds-certificate/{id}").await;
     let _ = crate::json_get(user, &path).await?;
     Ok(())
 }
@@ -6341,7 +6315,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_post_api_billing_gst_returns_id_file_91de0a))
         .register_transaction(transaction!(t_get_api_billing_reports_financial_mis_5e2959))
         .register_transaction(transaction!(t_post_api_billing_erp_export_29a4c9))
-        .register_transaction(transaction!(t_post_api_billing_copay_calculate_e95c1c))
         .register_transaction(transaction!(t_get_api_billing_concessions_6811f2))
         .register_transaction(transaction!(
             t_get_api_billing_concessions_auto_rules_7a6d10
@@ -6677,9 +6650,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         ))
         .register_transaction(transaction!(
             t_post_api_ipd_admissions_id_discharge_summary_finalize_74e7fb
-        ))
-        .register_transaction(transaction!(
-            t_put_api_ipd_admissions_id_progress_notes_note_id_0beeab
         ))
         .register_transaction(transaction!(t_get_api_ipd_admissions_id_mar_246d69))
         .register_transaction(transaction!(t_put_api_ipd_admissions_id_mar_mar_id_287d43))
@@ -7284,15 +7254,11 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
             t_get_api_print_data_treatment_chart_admission_id_9bec36
         ))
         .register_transaction(transaction!(
-            t_get_api_print_data_patient_education_material_id_eafb5f
-        ))
-        .register_transaction(transaction!(
             t_get_api_print_data_infant_wristband_newborn_id_b64b02
         ))
         .register_transaction(transaction!(
             t_get_api_print_data_estimate_invoice_id_df3464
         ))
-        .register_transaction(transaction!(t_get_api_print_data_tds_certificate_id_100c08))
         .register_transaction(transaction!(
             t_get_api_print_data_opd_bill_invoice_id_998cc3
         ))

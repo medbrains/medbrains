@@ -59,6 +59,19 @@ pub struct Diagnosis {
     pub snomed_code: Option<String>,
     pub snomed_display: Option<String>,
     pub created_at: DateTime<Utc>,
+    /// Who made the diagnosis; empty for diagnoses from before it was kept.
+    #[sqlx(default)]
+    pub recorded_by: Option<Uuid>,
+    /// Who last changed it, and when.
+    #[sqlx(default)]
+    pub updated_by: Option<Uuid>,
+    #[sqlx(default)]
+    pub updated_at: Option<DateTime<Utc>>,
+    /// Names for the screen, sent by the list.
+    #[sqlx(default)]
+    pub recorded_by_name: Option<String>,
+    #[sqlx(default)]
+    pub updated_by_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -108,6 +121,10 @@ pub struct Prescription {
     pub read_back_confirmed: bool,
     pub countersign_due_at: Option<DateTime<Utc>>,
     pub is_signed: bool,
+    pub repeats_allowed: i32,
+    pub repeat_interval_days: Option<i32>,
+    pub repeats_used: i32,
+    pub valid_until: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -333,6 +350,9 @@ pub struct ProcedureConsent {
     pub withdrawal_reason: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub body: serde_json::Value,
+    /// The hospital's published consent form this was taken on; none means
+    /// the built-in form.
+    pub form_version_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -72,8 +72,7 @@ use medbrains_core::ipd::{
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
     IpdMedicationAdministration, IpdNoDuesCertificate, IpdNursingAssessment, IpdProgressNote,
     IpdTransferLog, IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift,
-    NursingTask, ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward,
-    WardBedMapping,
+    NursingTask, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
@@ -92,6 +91,8 @@ use medbrains_server_core::middleware::authorization::{
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
+mod nursing_safety;
+
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
 // ══════════════════════════════════════════════════════════
@@ -104,6 +105,8 @@ pub struct ListAdmissionsQuery {
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
     pub patient_id: Option<Uuid>,
+    /// IP number or UHID, partial match.
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,6 +142,10 @@ pub struct AdmissionRow {
     /// free-text UUID field wearing a disguise. The wards join was already
     /// here; only the projection was missing.
     pub ward_id: Option<Uuid>,
+    /// IP number.
+    pub admission_number: Option<String>,
+    pub is_fall_risk: bool,
+    pub is_pressure_injury_risk: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -377,26 +384,6 @@ pub struct UpdateNursingTaskRequest {
 
 // ── Progress Notes ─────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-pub struct CreateProgressNoteRequest {
-    pub note_type: String,
-    pub note_date: NaiveDate,
-    pub subjective: Option<String>,
-    pub objective: Option<String>,
-    pub assessment: Option<String>,
-    pub plan: Option<String>,
-    pub is_addendum: Option<bool>,
-    pub parent_note_id: Option<Uuid>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateProgressNoteRequest {
-    pub subjective: Option<String>,
-    pub objective: Option<String>,
-    pub assessment: Option<String>,
-    pub plan: Option<String>,
-}
-
 // ── Assessments ────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -429,6 +416,8 @@ pub struct UpdateMarRequest {
     pub hold_reason: Option<String>,
     pub refused_reason: Option<String>,
     pub missed_reason: Option<String>,
+    /// Why an as-needed (PRN / SOS) dose was given. Required for one.
+    pub prn_reason: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -1194,6 +1183,8 @@ fn filter_ipd_mlc_case_response(
         row.cause_of_death = row.cause_of_death.map(|value| mask_free_text(&value));
     }
 
+    // The examination record, redacted as the emergency screens redact it.
+    row.redact_record_fields(restricted);
     row
 }
 
@@ -1326,7 +1317,7 @@ pub async fn list_admissions(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["a.tenant_id = $1".to_owned()];
+    let mut conditions = vec!["a.tenant_id = $1".to_owned(), "a.deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -1380,12 +1371,28 @@ pub async fn list_admissions(
         });
         bind_idx += 1;
     }
+    if let Some(term) = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        conditions.push(format!(
+            "(a.admission_number ILIKE ${bind_idx} OR p.uhid ILIKE ${bind_idx})"
+        ));
+        binds.push(Bind {
+            uuid_val: None,
+            string_val: Some(format!("%{term}%")),
+        });
+        bind_idx += 1;
+    }
 
     let where_clause = conditions.join(" AND ");
 
     let count_sql = format!(
         "SELECT COUNT(*) FROM admissions a \
-         JOIN encounters e ON e.id = a.encounter_id \
+         JOIN encounters e ON e.id = a.encounter_id AND e.deleted_at IS NULL \
+         JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL \
          WHERE {where_clause}"
     );
     // The ReBAC scope is the first condition after the tenant ($2), so its
@@ -1410,10 +1417,11 @@ pub async fn list_admissions(
                a.admitting_doctor, a.status, a.admitted_at, a.discharged_at, \
                CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
                p.uhid, \
-               w.name AS ward_name, a.ward_id \
+               w.name AS ward_name, a.ward_id, a.admission_number, \
+               a.is_fall_risk, a.is_pressure_injury_risk \
          FROM admissions a \
-         JOIN encounters e ON e.id = a.encounter_id \
-         JOIN patients p ON p.id = a.patient_id \
+         JOIN encounters e ON e.id = a.encounter_id AND e.deleted_at IS NULL \
+         JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL \
          LEFT JOIN wards w ON w.id = a.ward_id \
          WHERE {where_clause} \
          ORDER BY a.admitted_at DESC \
@@ -2368,7 +2376,7 @@ pub async fn list_nursing_tasks(
 
     let tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
@@ -2554,7 +2562,7 @@ pub async fn list_progress_notes(
 
     let notes = sqlx::query_as::<_, IpdProgressNote>(
         "SELECT * FROM ipd_progress_notes \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY note_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -2565,185 +2573,6 @@ pub async fn list_progress_notes(
     tx.commit().await?;
 
     Ok(Json(notes))
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/ipd/admissions/{id}/progress-notes
-// ══════════════════════════════════════════════════════════
-
-pub async fn create_progress_note(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<CreateProgressNoteRequest>,
-) -> Result<Json<IpdProgressNote>, AppError> {
-    require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
-
-    // The route names an admission; holding the module permission is not the
-    // same as being on this patient's care team. Without this, any holder of
-    // the code could read or write any admission in the tenant — RLS scopes
-    // by tenant only.
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let admission =
-        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
-            .bind(id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(|| AppError::NotFound)?;
-
-    if body.note_type.trim() == "doctor_round" && admission.status != AdmissionStatus::Admitted {
-        return Err(AppError::BadRequest(
-            "Doctor rounds can only be recorded for active admissions".to_owned(),
-        ));
-    }
-
-    let note = sqlx::query_as::<_, IpdProgressNote>(
-        "INSERT INTO ipd_progress_notes \
-           (tenant_id, admission_id, note_type, author_id, note_date, \
-            subjective, objective, assessment, plan, is_addendum, parent_note_id) \
-         VALUES ($1, $2, $3::progress_note_type, $4, $5, $6, $7, $8, $9, $10, $11) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(id)
-    .bind(&body.note_type)
-    .bind(claims.sub)
-    .bind(body.note_date)
-    .bind(&body.subjective)
-    .bind(&body.objective)
-    .bind(&body.assessment)
-    .bind(&body.plan)
-    .bind(body.is_addendum.unwrap_or(false))
-    .bind(body.parent_note_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    if note.note_type == ProgressNoteType::DoctorRound {
-        best_effort_auto_bill_doctor_round_in_tx(&mut tx, &claims, &admission, &note).await?;
-    }
-
-    tx.commit().await?;
-
-    Ok(Json(note))
-}
-
-async fn best_effort_auto_bill_doctor_round_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    admission: &Admission,
-    note: &IpdProgressNote,
-) -> Result<(), AppError> {
-    sqlx::query("SAVEPOINT ipd_doctor_round_auto_bill")
-        .execute(&mut **tx)
-        .await?;
-
-    match auto_bill_doctor_round_in_tx(tx, claims, admission, note).await {
-        Ok(()) => {
-            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-        }
-        Err(error) => {
-            sqlx::query("ROLLBACK TO SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
-                .execute(&mut **tx)
-                .await?;
-            tracing::warn!(
-                error = %error,
-                admission_id = %admission.id,
-                note_id = %note.id,
-                "IPD doctor-round auto-billing failed; continuing with progress-note creation"
-            );
-        }
-    }
-
-    Ok(())
-}
-
-async fn auto_bill_doctor_round_in_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
-    admission: &Admission,
-    note: &IpdProgressNote,
-) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(
-        tx,
-        &claims.tenant_id,
-        "ipd_doctor_round",
-    )
-    .await?
-    {
-        return Ok(());
-    }
-
-    medbrains_server_services::billing::auto_charge(
-        tx,
-        &claims.tenant_id,
-        medbrains_server_services::billing::AutoChargeInput {
-            patient_id: admission.patient_id,
-            encounter_id: Some(admission.encounter_id),
-            charge_code: "CON_SPECIALIST".to_owned(),
-            source: "ipd".to_owned(),
-            source_id: note.id,
-            quantity: 1,
-            description_override: Some(format!("IPD doctor round - {}", note.note_date)),
-            unit_price_override: None,
-            tax_percent_override: None,
-        },
-    )
-    .await?;
-
-    Ok(())
-}
-
-// ══════════════════════════════════════════════════════════
-//  PUT /api/ipd/admissions/{id}/progress-notes/{note_id}
-// ══════════════════════════════════════════════════════════
-
-pub async fn update_progress_note(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((id, note_id)): Path<(Uuid, Uuid)>,
-    Json(body): Json<UpdateProgressNoteRequest>,
-) -> Result<Json<IpdProgressNote>, AppError> {
-    require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let note = sqlx::query_as::<_, IpdProgressNote>(
-        "UPDATE ipd_progress_notes SET \
-           subjective = COALESCE($4, subjective), \
-           objective = COALESCE($5, objective), \
-           assessment = COALESCE($6, assessment), \
-           plan = COALESCE($7, plan) \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
-         RETURNING *",
-    )
-    .bind(note_id)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.subjective)
-    .bind(&body.objective)
-    .bind(&body.assessment)
-    .bind(&body.plan)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
-
-    tx.commit().await?;
-
-    Ok(Json(note))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2769,7 +2598,7 @@ pub async fn list_assessments(
 
     let rows = sqlx::query_as::<_, IpdClinicalAssessment>(
         "SELECT * FROM ipd_clinical_assessments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -2825,6 +2654,16 @@ pub async fn create_assessment(
     .fetch_one(&mut *tx)
     .await?;
 
+    nursing_safety::apply_risk_score_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        id,
+        claims.sub,
+        &body.assessment_type,
+        body.score_value,
+    )
+    .await?;
+
     if body.assessment_type == "braden_scale" {
         medbrains_nabh::mirror_pressure_ulcer_from_ipd_assessment(
             &mut tx,
@@ -2843,11 +2682,21 @@ pub async fn create_assessment(
 //  GET /api/ipd/admissions/{id}/mar
 // ══════════════════════════════════════════════════════════
 
+/// A MAR row as the admission's chart lists it: the dose plus whether it is
+/// chemotherapy, so a bedside client can say so before the nurse scans.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MarListRow {
+    #[sqlx(flatten)]
+    #[serde(flatten)]
+    pub dose: IpdMedicationAdministration,
+    pub is_cytotoxic: bool,
+}
+
 pub async fn list_mar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<IpdMedicationAdministration>>, AppError> {
+) -> Result<Json<Vec<MarListRow>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
 
     // The route names an admission; holding the module permission is not the
@@ -2860,15 +2709,17 @@ pub async fn list_mar(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
-        "SELECT * FROM ipd_medication_administration \
-         WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY scheduled_at ASC LIMIT 5000",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let sql = format!(
+        "SELECT m.*, {} AS is_cytotoxic FROM ipd_medication_administration m \
+         WHERE m.admission_id = $1 AND m.tenant_id = $2 AND m.deleted_at IS NULL \
+         ORDER BY m.scheduled_at ASC LIMIT 5000",
+        nursing_safety::IS_CHEMO_DOSE_SQL
+    );
+    let rows = sqlx::query_as::<_, MarListRow>(&sql)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
 
@@ -2964,6 +2815,7 @@ async fn administer_mar_dose_in_tx(
             "This dose is already recorded as administered and cannot be changed.".to_owned(),
         ));
     }
+    nursing_safety::require_prn_reason(&existing, body)?;
 
     match status {
         MarStatus::Given => {
@@ -3051,6 +2903,7 @@ async fn administer_mar_dose_in_tx(
            refused_reason = COALESCE($9, refused_reason), \
            missed_reason = COALESCE($10, missed_reason), \
            notes = COALESCE($11, notes), \
+           prn_reason = COALESCE($12, prn_reason), \
            updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING *",
@@ -3067,6 +2920,7 @@ async fn administer_mar_dose_in_tx(
     .bind(&body.refused_reason)
     .bind(&body.missed_reason)
     .bind(&body.notes)
+    .bind(body.prn_reason.as_deref().map(str::trim))
     .fetch_one(&mut **tx)
     .await?;
 
@@ -3109,22 +2963,7 @@ pub async fn update_mar(
     medbrains_authz_gate::require_admission_access(&state, &claims, id).await?;
     require_mar_status_permission(&claims, &body.status)?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = administer_mar_dose_in_tx(
-        &mut tx,
-        claims.tenant_id,
-        claims.sub,
-        mar_id,
-        Some(id),
-        &body,
-    )
-    .await?;
-
-    tx.commit().await?;
-
+    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, Some(id), &body).await?;
     Ok(Json(row))
 }
 
@@ -3155,6 +2994,8 @@ pub struct MarDueRow {
     pub scheduled_at: chrono::DateTime<Utc>,
     pub status: MarStatus,
     pub is_high_alert: bool,
+    /// Chemotherapy — only a certified nurse may give it.
+    pub is_cytotoxic: bool,
     pub batch_number: Option<String>,
     pub batch_expiry: Option<NaiveDate>,
 }
@@ -3184,26 +3025,30 @@ pub async fn list_mar_due_now(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, MarDueRow>(
+    let sql = format!(
         "SELECT m.id, m.admission_id, a.patient_id, \
                 (p.first_name || ' ' || p.last_name) AS patient_name, a.bed_id, \
                 m.drug_name, m.dose, m.route, m.frequency, m.scheduled_at, m.status, \
-                m.is_high_alert, m.batch_number, m.batch_expiry \
+                m.is_high_alert, {} AS is_cytotoxic, m.batch_number, m.batch_expiry \
          FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
+              AND a.deleted_at IS NULL \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = m.tenant_id \
-         WHERE m.tenant_id = $1 AND m.status = 'scheduled'::mar_status \
+              AND p.deleted_at IS NULL \
+         WHERE m.tenant_id = $1 AND m.status = 'scheduled'::mar_status AND m.deleted_at IS NULL \
            AND m.scheduled_at <= now() + make_interval(mins => $2::int) \
            AND ($3::uuid IS NULL OR a.ward_id = $3) \
            AND ($4::uuid IS NULL OR a.patient_id = $4) \
          ORDER BY m.scheduled_at ASC LIMIT 500",
-    )
-    .bind(claims.tenant_id)
-    .bind(i32::try_from(window_min).unwrap_or(60))
-    .bind(params.ward_id)
-    .bind(params.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
+        nursing_safety::IS_CHEMO_DOSE_SQL
+    );
+    let rows = sqlx::query_as::<_, MarDueRow>(&sql)
+        .bind(claims.tenant_id)
+        .bind(i32::try_from(window_min).unwrap_or(60))
+        .bind(params.ward_id)
+        .bind(params.patient_id)
+        .fetch_all(&mut *tx)
+        .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -3232,7 +3077,8 @@ pub async fn list_mar_for_patient(
     let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT m.* FROM ipd_medication_administration m \
          JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
-         WHERE m.tenant_id = $1 AND a.patient_id = $2 \
+              AND a.deleted_at IS NULL \
+         WHERE m.tenant_id = $1 AND a.patient_id = $2 AND m.deleted_at IS NULL \
          ORDER BY m.scheduled_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
@@ -3272,14 +3118,7 @@ pub async fn update_mar_round(
     )
     .await?;
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let row = administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, None, &body)
-        .await?;
-
-    tx.commit().await?;
+    let row = nursing_safety::administer_mar_dose(&state, &claims, mar_id, None, &body).await?;
     Ok(Json(row))
 }
 
@@ -3498,7 +3337,7 @@ pub async fn list_intake_output(
 
     let rows = sqlx::query_as::<_, IpdIntakeOutput>(
         "SELECT * FROM ipd_intake_output \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -3665,7 +3504,7 @@ pub async fn list_infusions(
 
     let rows = sqlx::query_as::<_, IvFluidOrder>(
         "SELECT * FROM iv_fluid_orders \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 500",
     )
     .bind(id)
@@ -3891,7 +3730,7 @@ pub async fn list_nursing_assessments(
 
     let rows = sqlx::query_as::<_, IpdNursingAssessment>(
         "SELECT * FROM ipd_nursing_assessments \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -4041,7 +3880,7 @@ pub async fn list_care_plans(
 
     let rows = sqlx::query_as::<_, IpdCarePlan>(
         "SELECT * FROM ipd_care_plans \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY initiated_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -4177,7 +4016,7 @@ pub async fn list_handovers(
 
     let rows = sqlx::query_as::<_, IpdHandoverReport>(
         "SELECT * FROM ipd_handover_reports \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY handover_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
@@ -4300,7 +4139,7 @@ pub async fn list_discharge_checklist(
 
     let rows = sqlx::query_as::<_, IpdDischargeChecklist>(
         "SELECT * FROM ipd_discharge_checklists \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY sort_order ASC LIMIT 5000",
     )
     .bind(id)
@@ -5486,7 +5325,9 @@ pub async fn finalize_discharge_summary(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("Discharge summary is already finalized".to_owned()));
+        return Err(AppError::BadRequest(
+            "Discharge summary is already finalized".to_owned(),
+        ));
     };
 
     #[derive(sqlx::FromRow)]
@@ -6087,7 +5928,7 @@ pub async fn list_ip_types(
 
     let rows = sqlx::query_as::<_, IpTypeConfiguration>(
         "SELECT * FROM ip_type_configurations \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY ip_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
@@ -6231,7 +6072,7 @@ pub async fn list_admission_checklist(
 
     let rows = sqlx::query_as::<_, AdmissionChecklist>(
         "SELECT * FROM admission_checklists \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY sort_order, created_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -6358,7 +6199,7 @@ pub async fn list_bed_reservations(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1".to_owned(), "deleted_at IS NULL".to_owned()];
     let mut idx = 2u32;
 
     if params.status.is_some() {
@@ -6490,7 +6331,7 @@ pub async fn list_bed_reservations_for_bed(
 
     let rows = sqlx::query_as::<_, BedReservation>(
         "SELECT * FROM bed_reservations \
-         WHERE bed_id = $1 AND tenant_id = $2 \
+         WHERE bed_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
            AND status IN ('active', 'confirmed') \
          ORDER BY reserved_from LIMIT 5000",
     )
@@ -6521,7 +6362,7 @@ pub async fn list_bed_turnaround(
     let rows = if let (Some(from), Some(to)) = (params.from, params.to) {
         sqlx::query_as::<_, BedTurnaroundLog>(
             "SELECT * FROM bed_turnaround_log \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
                AND vacated_at >= $2::date::timestamptz \
                AND vacated_at < ($3::date + 1)::timestamptz \
              ORDER BY vacated_at DESC LIMIT 5000",
@@ -6534,7 +6375,7 @@ pub async fn list_bed_turnaround(
     } else {
         sqlx::query_as::<_, BedTurnaroundLog>(
             "SELECT * FROM bed_turnaround_log \
-             WHERE tenant_id = $1 \
+             WHERE tenant_id = $1 AND deleted_at IS NULL \
              ORDER BY vacated_at DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
@@ -6640,7 +6481,7 @@ pub async fn list_clinical_docs(
     let rows = if let Some(ref doc_type) = params.doc_type {
         sqlx::query_as::<_, IpdClinicalDocumentation>(
             "SELECT * FROM ipd_clinical_documentations \
-             WHERE admission_id = $1 AND tenant_id = $2 \
+             WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
                AND doc_type = $3::ipd_clinical_doc_type \
              ORDER BY recorded_at DESC LIMIT 5000",
         )
@@ -6652,7 +6493,7 @@ pub async fn list_clinical_docs(
     } else {
         sqlx::query_as::<_, IpdClinicalDocumentation>(
             "SELECT * FROM ipd_clinical_documentations \
-             WHERE admission_id = $1 AND tenant_id = $2 \
+             WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
              ORDER BY recorded_at DESC LIMIT 5000",
         )
         .bind(admission_id)
@@ -6802,7 +6643,9 @@ pub async fn resolve_clinical_doc(
         if !exists {
             return Err(AppError::NotFound);
         }
-        return Err(AppError::BadRequest("Document is already resolved".to_owned()));
+        return Err(AppError::BadRequest(
+            "Document is already resolved".to_owned(),
+        ));
     };
 
     tx.commit().await?;
@@ -6829,10 +6672,11 @@ pub async fn list_restraint_checks(
 
     let rows = sqlx::query_as::<_, RestraintMonitoringLog>(
         "SELECT * FROM restraint_monitoring_logs \
-         WHERE clinical_doc_id = $1 AND tenant_id = $2 \
+         WHERE clinical_doc_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
            AND EXISTS ( \
              SELECT 1 FROM ipd_clinical_documentations d \
              WHERE d.id = $1 AND d.tenant_id = $2 AND d.admission_id = $3 \
+               AND d.deleted_at IS NULL \
            ) \
          ORDER BY check_time DESC LIMIT 5000",
     )
@@ -6916,7 +6760,7 @@ pub async fn list_transfers(
 
     let rows = sqlx::query_as::<_, IpdTransferLog>(
         "SELECT * FROM ipd_transfer_logs \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY transferred_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -7204,7 +7048,7 @@ pub async fn list_birth_records(
 
     let rows = sqlx::query_as::<_, IpdBirthRecord>(
         "SELECT * FROM ipd_birth_records \
-         WHERE admission_id = $1 AND tenant_id = $2 \
+         WHERE admission_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY date_of_birth, time_of_birth LIMIT 5000",
     )
     .bind(admission_id)
@@ -7387,7 +7231,7 @@ pub async fn initiate_discharge_tat(
         "INSERT INTO ipd_discharge_tat_log \
            (tenant_id, admission_id, discharge_initiated_at) \
          VALUES ($1, $2, NOW()) \
-         ON CONFLICT (admission_id) DO UPDATE SET \
+         ON CONFLICT (admission_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            discharge_initiated_at = COALESCE(ipd_discharge_tat_log.discharge_initiated_at, NOW()) \
          RETURNING *",
     )
@@ -7561,12 +7405,14 @@ pub async fn list_available_beds(
          LEFT JOIN locations parent_l ON parent_l.id = l.parent_id AND parent_l.tenant_id = bs.tenant_id \
          LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = bs.tenant_id \
          WHERE bs.tenant_id = $1 \
+           AND bs.deleted_at IS NULL AND l.deleted_at IS NULL \
            AND bs.admission_id IS NULL \
            AND bs.status = 'vacant_clean'::bed_status \
            AND ($2::uuid IS NULL OR bs.ward_id = $2) \
            AND NOT EXISTS ( \
              SELECT 1 FROM bed_reservations br \
              WHERE br.bed_id = bs.location_id AND br.tenant_id = bs.tenant_id \
+               AND br.deleted_at IS NULL \
                AND br.status IN ('active', 'confirmed') \
                AND br.reserved_until > NOW() \
            ) \
@@ -8075,6 +7921,7 @@ pub async fn get_admission_print_data(
         encounter_id: Uuid,
         patient_name: String,
         uhid: String,
+        admission_number: Option<String>,
         age: Option<i32>,
         gender: Option<String>,
         admission_date: chrono::DateTime<Utc>,
@@ -8092,6 +7939,7 @@ pub async fn get_admission_print_data(
            a.encounter_id, \
            p.first_name || ' ' || p.last_name AS patient_name, \
            p.uhid, \
+           a.admission_number, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age, \
            p.gender::text AS gender, \
            a.admitted_at AS admission_date, \
@@ -8193,6 +8041,7 @@ pub async fn get_admission_print_data(
     let print_data = AdmissionPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
+        admission_number: row.admission_number,
         age: row.age,
         gender: row.gender,
         admission_date: row.admission_date,
@@ -8739,11 +8588,7 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route(
             "/api/ipd/admissions/{id}/progress-notes",
-            get(list_progress_notes).post(create_progress_note),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/progress-notes/{note_id}",
-            put(update_progress_note),
+            get(list_progress_notes),
         )
         .route(
             "/api/ipd/admissions/{id}/assessments",

@@ -1,7 +1,7 @@
 // Lab LabCatalogTab — split from lab.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, TagsInput, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { LabCatalogFormInput } from "@medbrains/schemas";
 import { labCatalogFormSchema } from "@medbrains/schemas";
@@ -47,6 +47,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
     critical_low: "",
     critical_high: "",
     delta_check_percent: "",
+    synonyms: [],
   };
   const {
     control,
@@ -111,6 +112,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       critical_low: row.critical_low ?? "",
       critical_high: row.critical_high ?? "",
       delta_check_percent: row.delta_check_percent ?? "",
+      synonyms: row.synonyms ?? [],
     });
     formHandlers.open();
   };
@@ -133,6 +135,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       critical_low: labOptionalNumber(values.critical_low),
       critical_high: labOptionalNumber(values.critical_high),
       delta_check_percent: labOptionalNumber(values.delta_check_percent),
+      synonyms: values.synonyms,
     });
   };
 
@@ -337,6 +340,21 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
           </Group>
+          <Controller
+            control={control}
+            name="synonyms"
+            render={({ field }) => (
+              <TagsInput
+                label="Short names"
+                description="What people type when ordering — LFT, RFT, hemogram. Press Enter after each."
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.synonyms?.message}
+                maxTags={20}
+                clearable
+              />
+            )}
+          />
           <Group grow>
             <TextInput
               label={t("label.loincCode")}

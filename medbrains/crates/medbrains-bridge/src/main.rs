@@ -1,8 +1,11 @@
+mod astm;
 mod buffer;
 mod config;
 mod heartbeat;
 mod hl7_listener;
 mod ingest;
+mod orders;
+mod printer;
 mod transport;
 
 use anyhow::Result;
@@ -80,6 +83,43 @@ async fn main() -> Result<()> {
             {
                 tracing::error!(error = %e, "HL7 listener failed");
             }
+        });
+    }
+
+    // ASTM analyzers (Sysmex-class), if configured
+    if let Some(addr) = cfg.astm_listen.clone() {
+        let (astm_db, astm_client, astm_cfg) = (db.clone(), client.clone(), cfg.clone());
+        tokio::spawn(async move {
+            if let Err(e) = astm::listen(&addr, astm_db, &astm_client, &astm_cfg).await {
+                tracing::error!(error = %e, "ASTM listener failed");
+            }
+        });
+    }
+
+    // Orders out to the analyzer, if configured
+    if let (Some(secs), Some(device)) = (cfg.order_poll_secs, cfg.device_instance_id.clone()) {
+        let (order_client, order_cfg) = (client.clone(), cfg.clone());
+        tokio::spawn(async move {
+            orders::poll_loop(
+                &order_client,
+                &order_cfg,
+                &device,
+                std::time::Duration::from_secs(secs.max(5)),
+            )
+            .await;
+        });
+    }
+
+    // Print jobs out to printers, if configured
+    if let Some(secs) = cfg.print_poll_secs {
+        let (print_client, print_cfg) = (client.clone(), cfg.clone());
+        tokio::spawn(async move {
+            printer::poll_loop(
+                &print_client,
+                &print_cfg,
+                std::time::Duration::from_secs(secs.max(2)),
+            )
+            .await;
         });
     }
 

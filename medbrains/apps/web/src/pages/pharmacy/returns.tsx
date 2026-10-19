@@ -118,6 +118,8 @@ export function PharmacyReturnsTab({
         <PharmacyPatientCell
           patientId={row.patient_id}
           canViewPatientRecord={canViewPatientRecord}
+          name={row.patient_name}
+          uhid={row.patient_uhid}
         />
       ),
     },

@@ -122,11 +122,12 @@ function ReviewPanel({ scan, canFile }: { scan: CaseSheetScan; canFile: boolean 
               <TextInput
                 label={f.field}
                 value={f.value}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextValue = e.currentTarget.value;
                   setFields((prev) =>
-                    prev.map((p, j) => (j === i ? { ...p, value: e.currentTarget.value } : p)),
-                  )
-                }
+                    prev.map((p, j) => (j === i ? { ...p, value: nextValue } : p)),
+                  );
+                }}
                 disabled={!editable}
                 style={{ flex: 1 }}
               />

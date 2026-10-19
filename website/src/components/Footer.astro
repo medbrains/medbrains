@@ -1,0 +1,54 @@
+---
+import { SITE, SOCIAL, WHATSAPP } from "../consts";
+import { MODULE_PAGES } from "../data/modules";
+
+const links = [
+  { href: `https://wa.me/${WHATSAPP.number}`, label: "WhatsApp" },
+  { href: SOCIAL.instagram, label: "Instagram" },
+  { href: SOCIAL.facebook, label: "Facebook" },
+  { href: SOCIAL.linkedin, label: "LinkedIn" },
+].filter((l) => l.href);
+---
+
+<footer class="footer">
+  <div class="wrap cols">
+    <div>
+      <a class="brand" href="/"><img src="/logo/medbrains-mark.svg" alt="" width="32" height="32" />{SITE.brand}</a>
+      <p>{SITE.tagline}</p>
+      <a class="mail" href={`mailto:${SITE.email}`}>{SITE.email}</a>
+    </div>
+    <nav aria-label="Product">
+      <p>Product</p>
+      <a href="/#journey">How it works</a>
+      <a href="/#modules">Modules</a>
+      <a href="/#apps">Apps</a>
+      <a href="/#trust">Compliance</a>
+      <a href="/blog">Health blog</a>
+    </nav>
+    <nav aria-label="Solutions">
+      <p>Solutions</p>
+      {MODULE_PAGES.map((m) => <a href={`/${m.slug}`}>{m.eyebrow}</a>)}
+    </nav>
+    <nav aria-label="Social">
+      <p>Follow</p>
+      {links.map((l) => <a href={l.href} target="_blank" rel="noopener">{l.label}</a>)}
+    </nav>
+  </div>
+  <div class="wrap legal">© {new Date().getFullYear()} {SITE.brand}. Made in India for Indian hospitals.</div>
+</footer>
+
+<style lang="scss">
+  @use "../styles/mixins" as *;
+
+  .footer { background: var(--night); color: var(--night-text); padding: 72px 0 32px; }
+  .cols { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; }
+  .brand { display: inline-flex; gap: 10px; align-items: center; color: #fff; text-decoration: none; font: 900 1.2rem var(--display); }
+  .cols > div p { max-width: 36ch; }
+  .mail { color: #fff; font-weight: 600; }
+  nav { display: grid; gap: 10px; align-content: start; }
+  nav p { margin: 0 0 4px; font: 600 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--pulse); }
+  nav a { text-decoration: none; }
+  nav a:hover { color: #fff; }
+  .legal { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--night-line); font-size: .85rem; }
+  @include below(md) { .cols { grid-template-columns: 1fr 1fr; } .cols > div { grid-column: 1 / -1; } }
+</style>

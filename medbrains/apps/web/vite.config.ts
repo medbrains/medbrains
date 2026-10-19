@@ -1,4 +1,4 @@
-import { defineConfig, type PluginOption } from "vite";
+import { defineConfig, type PluginOption, type PreviewServer, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { compression } from "vite-plugin-compression2";
 import wasm from "vite-plugin-wasm";
@@ -50,6 +50,73 @@ function anatomyOnlyWhenSameOrigin(): PluginOption {
   };
 }
 
+/** The marketing site's build (Astro, `website/` at the repo root). */
+const WEBSITE_DIST = path.resolve(__dirname, "../../../website/dist");
+const WEBSITE_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+};
+
+/** The website file a request names, or null when it is the app's. */
+function websiteFile(url: string | undefined): string | null {
+  const pathname = decodeURIComponent((url ?? "/").split("?")[0] ?? "/");
+  const file =
+    pathname === "/"
+      ? path.join(WEBSITE_DIST, "index.html")
+      : pathname.startsWith("/_astro/")
+        ? path.join(WEBSITE_DIST, pathname)
+        : path.join(WEBSITE_DIST, pathname, "index.html");
+  const inside = path.resolve(file).startsWith(WEBSITE_DIST + path.sep);
+  return inside && fs.existsSync(file) && fs.statSync(file).isFile() ? file : null;
+}
+
+/**
+ * www.medbrains.in is the landing page, so the app shows that same page at
+ * its own root instead of keeping a second copy that drifts. The build
+ * copies the website in beside the SPA, its index as home.html (index.html
+ * stays the SPA shell deep links fall back to; the server answers / with
+ * home.html). Dev and preview answer the website's paths the same way.
+ */
+function websiteAtRoot(): PluginOption {
+  let isBuild = false;
+  const serveWebsite = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use((req, res, next) => {
+      const file = websiteFile(req.url);
+      if (!file) return next();
+      res.setHeader("Content-Type", WEBSITE_TYPES[path.extname(file)] ?? "application/octet-stream");
+      fs.createReadStream(file).pipe(res);
+    });
+  };
+  return {
+    name: "website-at-root",
+    configResolved(config) {
+      isBuild = config.command === "build";
+    },
+    configureServer: serveWebsite,
+    configurePreviewServer: serveWebsite,
+    closeBundle() {
+      const home = path.join(WEBSITE_DIST, "index.html");
+      if (!isBuild || !fs.existsSync(home)) return;
+      const outDir = path.resolve(__dirname, "dist");
+      // ponytail: the app's own file wins any name clash (logo/, favicon).
+      // The blog editor (admin/) loads its script from a CDN the app's CSP
+      // refuses, so it lives on www only.
+      const admin = path.join(WEBSITE_DIST, "admin");
+      fs.cpSync(WEBSITE_DIST, outDir, {
+        recursive: true,
+        force: false,
+        filter: (src) => src !== home && src !== admin,
+      });
+      fs.copyFileSync(home, path.join(outDir, "home.html"));
+    },
+  };
+}
+
 export default defineConfig(async ({ command }) => {
   const isBuild = command === "build";
   const plugins: PluginOption[] = [
@@ -57,6 +124,7 @@ export default defineConfig(async ({ command }) => {
     wasm(),
     keepSourceMapsPrivate(),
     anatomyOnlyWhenSameOrigin(),
+    websiteAtRoot(),
     // Precompress hashed, immutable build assets once (brotli-max + gzip).
     // The server serves these directly (ServeDir precompressed_*), so the
     // bundle ships at max ratio with zero per-request CPU. Originals are kept
@@ -214,6 +282,8 @@ export default defineConfig(async ({ command }) => {
         // The boards' live queue and alert sockets. Without this a board on
         // the dev server connected to nothing: calls arrived only through
         // polling and nothing was ever announced.
+        // The user guide's dev server (apps/docs, `pnpm --filter @medbrains/docs dev`).
+        "/help": { target: "http://localhost:3010", changeOrigin: true },
         "/ws": {
           target: "ws://localhost:3000",
           ws: true,

@@ -3,7 +3,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Drawer, Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import type { PharmacyRxReviewFormInput } from "@medbrains/schemas";
 import { pharmacyRxReviewFormSchema } from "@medbrains/schemas";
 import type { PharmacyRxReviewItemInput, RxQueueRow } from "@medbrains/types";
@@ -15,6 +15,7 @@ import {
   IconEye,
   IconPill,
   IconPrescription,
+  IconSearch,
   IconShieldCheck,
   IconX,
 } from "@tabler/icons-react";
@@ -25,7 +26,8 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, FormModal, OperationalSignal } from "@/components";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { SafetyFindingsPanel, useSafetyGate } from "@/components/Pharmacy/SafetyFindingsPanel";
+import { Alert, Badge, Button, IconButton, Input, toast } from "@/components/ui";
 import { optionalFormText } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { RxBillingEstimate } from "./rx-billing-estimate";
@@ -48,9 +50,13 @@ import {
   rxStatusLabel,
   rxStatusShape,
   rxStatusTone,
+  rxUnmappedLines,
 } from "./shared";
 
 type PharmacyRxReviewAction = PharmacyRxReviewFormInput["action"];
+
+/** Rows the queue endpoint returns at most (`list_rx_queue`'s LIMIT). */
+const RX_QUEUE_LIMIT = 50;
 
 export function RxQueueTab({
   canReview,
@@ -67,6 +73,7 @@ export function RxQueueTab({
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [reviewOpened, { open: openReview, close: closeReview }] = useDisclosure(false);
+  const [safetyReason, setSafetyReason] = useState("");
   const patientIdFilter = searchParams.get("patient_id")?.trim() || null;
   const rxQueueIdFilter = searchParams.get("rx_queue_id")?.trim() || null;
   const selectedId = localSelectedId ?? rxQueueIdFilter;
@@ -120,12 +127,17 @@ export function RxQueueTab({
     setSearchParams(next, { replace: true });
   }
 
+  // Searched on the server: the list holds the first RX_QUEUE_LIMIT, and a
+  // prescription past them has to be findable.
+  const [search, setSearch] = useState("");
+  const [debouncedSearch] = useDebouncedValue(search.trim(), 300);
   const params =
-    filterStatus || patientIdFilter || rxQueueIdFilter
+    filterStatus || patientIdFilter || rxQueueIdFilter || debouncedSearch
       ? {
           ...(filterStatus ? { status: filterStatus } : {}),
           ...(patientIdFilter ? { patient_id: patientIdFilter } : {}),
           ...(rxQueueIdFilter ? { rx_queue_id: rxQueueIdFilter } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
         }
       : undefined;
   const {
@@ -145,12 +157,14 @@ export function RxQueueTab({
       notes?: string;
       rejection_reason?: string;
       items?: PharmacyRxReviewItemInput[];
+      safety_override_reason?: string;
     }) =>
       pharmacyService.reviewPrescription(data.id, {
         action: data.action,
         notes: data.notes,
         rejection_reason: data.rejection_reason,
         items: data.items,
+        safety_override_reason: data.safety_override_reason,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
@@ -160,6 +174,7 @@ export function RxQueueTab({
       closeReview();
       setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
+      setSafetyReason("");
       toast.success(
         reviewAction === "approved"
           ? t("notify.pharmacyOrderAndBillingIndentCreated")
@@ -169,7 +184,11 @@ export function RxQueueTab({
     },
   });
 
-  const { data: reviewDetail, isLoading: reviewDetailLoading } = useQuery({
+  const {
+    data: reviewDetail,
+    isLoading: reviewDetailLoading,
+    isError: reviewDetailFailed,
+  } = useQuery({
     queryKey: ["pharmacy-rx-detail", selectedId],
     queryFn: () => {
       if (!selectedId) throw new Error(t("rxQueue.noPrescriptionSelected"));
@@ -177,11 +196,19 @@ export function RxQueueTab({
     },
     enabled: reviewOpened && reviewAction === "approved" && Boolean(selectedId),
   });
+  // Approval is held by the server's medication safety check; the modal shows
+  // what it found and takes an override reason only from those who may give one.
+  const safety = useSafetyGate(reviewDetail?.safety?.findings, {
+    loading: reviewDetailLoading,
+    failed: reviewDetailFailed,
+    reason: safetyReason,
+  });
 
   function closeReviewModal() {
     closeReview();
     setActiveRxQueueId(null);
     resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
+    setSafetyReason("");
   }
 
   function handleOpenReview(id: string, action: PharmacyRxReviewAction) {
@@ -214,6 +241,8 @@ export function RxQueueTab({
       rejection_reason:
         values.action === "rejected" ? optionalFormText(values.rejection_reason) : undefined,
       items: itemsForApproval,
+      safety_override_reason:
+        values.action === "approved" && safety.needsReason ? safetyReason.trim() : undefined,
     });
   }
 
@@ -231,6 +260,8 @@ export function RxQueueTab({
         <PharmacyPatientCell
           patientId={row.patient_id}
           canViewPatientRecord={canViewPatientRecord}
+          name={row.patient_name}
+          uhid={row.patient_uhid}
         />
       ),
     },
@@ -246,13 +277,20 @@ export function RxQueueTab({
       key: "source",
       label: t("rxQueue.columns.source"),
       render: (row: RxQueueRow) => (
-        <OperationalSignal
-          icon={IconPrescription}
-          label={rxSourceLabel(t, row.source)}
-          shape={rxSourceShape(row.source)}
-          size="xs"
-          tone={rxSourceTone(row.source)}
-        />
+        <Group gap={6} wrap="nowrap">
+          <OperationalSignal
+            icon={IconPrescription}
+            label={rxSourceLabel(t, row.source)}
+            shape={rxSourceShape(row.source)}
+            size="xs"
+            tone={rxSourceTone(row.source)}
+          />
+          {row.repeat_index !== null && (
+            <Badge tone="info" size="xs">
+              Refill {row.repeat_index}
+            </Badge>
+          )}
+        </Group>
       ),
     },
     {
@@ -374,6 +412,11 @@ export function RxQueueTab({
     },
   ];
 
+  // Billing cannot be raised for a line no product stands behind; say so
+  // before the pharmacist presses Approve, not after.
+  const unmappedLines =
+    reviewAction === "approved" ? rxUnmappedLines(reviewDetail?.items ?? [], reviewItems) : [];
+
   const needsPriceOverrideReason =
     reviewAction === "approved" &&
     rxHasPriceOverride(reviewDetail?.items ?? [], reviewItems) &&
@@ -430,13 +473,24 @@ export function RxQueueTab({
           treat it as everything having been reviewed.
         </Alert>
       )}
+      <Input
+        aria-label={t("rxQueue.searchLabel")}
+        placeholder={t("rxQueue.searchPlaceholder")}
+        leftSection={<IconSearch size={14} />}
+        value={search}
+        onChange={(e) => setSearch(e.currentTarget.value)}
+        maw={360}
+      />
+      {queue.length >= RX_QUEUE_LIMIT && (
+        <Text size="sm" c="dimmed">
+          {t("rxQueue.partialList", { count: RX_QUEUE_LIMIT })}
+        </Text>
+      )}
       <DataTable
         columns={columns}
         data={queue}
         loading={isLoading}
         rowKey={(row) => row.id}
-        searchable
-        searchPlaceholder={t("rxQueue.searchPlaceholder", "Search patient or doctor")}
         exportable
         exportFileName="pharmacy-rx-queue"
       />
@@ -484,7 +538,12 @@ export function RxQueueTab({
               : "success"
         }
         submitting={reviewMutation.isPending}
-        submitDisabled={needsPriceOverrideReason || Boolean(reviewErrors.items?.message)}
+        submitDisabled={
+          needsPriceOverrideReason ||
+          unmappedLines.length > 0 ||
+          (reviewAction === "approved" && !safety.canProceed) ||
+          Boolean(reviewErrors.items?.message)
+        }
       >
         <Controller
           control={reviewControl}
@@ -518,6 +577,13 @@ export function RxQueueTab({
           />
         )}
         {reviewAction === "approved" && (
+          <SafetyFindingsPanel
+            state={safety}
+            reason={safetyReason}
+            onReasonChange={setSafetyReason}
+          />
+        )}
+        {reviewAction === "approved" && (
           <RxBillingEstimate
             items={applyRxReviewItems(reviewDetail?.items ?? [], reviewItems)}
             loading={reviewDetailLoading}
@@ -529,6 +595,13 @@ export function RxQueueTab({
             }
             onReviewItemsChange={setReviewItems}
           />
+        )}
+        {unmappedLines.length > 0 && (
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
+            {unmappedLines.length === 1
+              ? t("rxReviewModal.unmappedOne", { drug: unmappedLines[0]?.drug_name })
+              : t("rxReviewModal.unmappedMany", { count: unmappedLines.length })}
+          </Alert>
         )}
         {needsPriceOverrideReason && (
           <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>

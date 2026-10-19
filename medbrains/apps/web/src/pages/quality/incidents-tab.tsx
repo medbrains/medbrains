@@ -35,6 +35,7 @@ import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 import { capaStatusColors, incidentStatusColors, statusColorTone } from "./shared";
@@ -220,6 +221,11 @@ export function IncidentsTab() {
               <IconEye size={16} />
             </IconButton>
           </Tooltip>
+          <PrintDocumentIconMenu
+            idKind="incident"
+            recordId={i.id}
+            recordLabel={i.incident_number}
+          />
         </Group>
       ),
     },
@@ -380,6 +386,7 @@ export function IncidentsTab() {
           />
           <Switch
             label="Report Anonymously"
+            description="Your name is not stored with this report — not on the register, the NABH registers or the audit trail."
             checked={form.is_anonymous ?? false}
             onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })}
           />
@@ -510,15 +517,22 @@ export function IncidentsTab() {
                         </Table.Td>
                         <Table.Td>{new Date(c.due_date).toLocaleDateString()}</Table.Td>
                         <Table.Td>
-                          <Tooltip label="View Effectiveness">
-                            <IconButton
-                              tone="primary"
-                              onClick={() => setSelectedCapa(c)}
-                              aria-label="View Effectiveness"
-                            >
-                              <IconEye size={16} />
-                            </IconButton>
-                          </Tooltip>
+                          <Group gap="xs" wrap="nowrap">
+                            <Tooltip label="View Effectiveness">
+                              <IconButton
+                                tone="primary"
+                                onClick={() => setSelectedCapa(c)}
+                                aria-label="View Effectiveness"
+                              >
+                                <IconEye size={16} />
+                              </IconButton>
+                            </Tooltip>
+                            <PrintDocumentIconMenu
+                              idKind="capa"
+                              recordId={c.id}
+                              recordLabel={c.capa_number}
+                            />
+                          </Group>
                         </Table.Td>
                       </Table.Tr>
                     );

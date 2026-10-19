@@ -1,0 +1,124 @@
+# Security scanning. Moved from medbrains/.github/workflows/, where GitHub never
+# read it (only the repo-root .github/ is live), so none of this had ever run.
+#
+# Paths: the repo root is MedBrains/; the code lives in medbrains/. `defaults.run`
+# does not apply to `with:` inputs, so those stay root-relative.
+#
+# Non-blocking jobs carry their reason. Flip them as the reason is fixed — the
+# same convention as ci.yml.
+
+name: Security
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # Weekly, Sunday 00:00 UTC — new advisories land against unchanged code.
+    - cron: "0 0 * * 0"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-audit:
+    name: Cargo audit (RustSec advisories)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Cargo.lock is git-ignored (medbrains/.gitignore), so resolve one here.
+      # This audits what a fresh build would pull today, not what prod pinned.
+      - run: cargo generate-lockfile
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
+
+  cargo-deny:
+    name: "Cargo deny (TODO: deny.toml uses pre-0.14 keys)"
+    runs-on: ubuntu-latest
+    # medbrains/deny.toml still has `vulnerability`, `notice`, `unlicensed`,
+    # which current cargo-deny rejects. Measured, not enforced, until migrated.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: medbrains/Cargo.toml
+          log-level: warn
+          command: check
+          arguments: --all-features
+
+  pnpm-audit:
+    name: "pnpm audit (high+)"
+    runs-on: ubuntu-latest
+    # Was continue-on-error at the old location; kept until a baseline run is seen.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          cache: pnpm
+          cache-dependency-path: medbrains/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
+
+  secrets-scan:
+    name: Secrets scan (TruffleHog, verified only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Base/head are derived from the event by the action. Passing
+      # base=default branch on a push to master made base == head and failed.
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # JS/TS needs no build; autobuild would try the whole monorepo.
+          build-mode: none
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

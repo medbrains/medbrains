@@ -4698,7 +4698,8 @@ pub async fn list_camps(
 
     let rows = sqlx::query_as::<_, Camp>(
         "SELECT * FROM camps \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL \
+         AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::text IS NULL OR camp_type::text = $2) \
          ORDER BY scheduled_date DESC LIMIT 200",
     )
@@ -5677,7 +5678,7 @@ pub async fn upsert_remote_setup(
           $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, COALESCE($26, 'draft'), \
           CASE WHEN COALESCE($26, 'draft') IN ('ready', 'closed') THEN $27::uuid ELSE NULL END, \
           CASE WHEN COALESCE($26, 'draft') IN ('ready', 'closed') THEN now() ELSE NULL END) \
-         ON CONFLICT (tenant_id, camp_id) DO UPDATE SET \
+         ON CONFLICT (tenant_id, camp_id) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
           village_name = COALESCE(EXCLUDED.village_name, camp_remote_setups.village_name), \
           block_name = COALESCE(EXCLUDED.block_name, camp_remote_setups.block_name), \
           district_name = COALESCE(EXCLUDED.district_name, camp_remote_setups.district_name), \
@@ -6010,7 +6011,7 @@ pub async fn list_camp_referrals(
 
     let rows = sqlx::query_as::<_, CampReferral>(
         "SELECT * FROM camp_referrals \
-         WHERE tenant_id = $1 AND camp_id = $2 \
+         WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -6462,7 +6463,7 @@ pub async fn list_staff_options(
          FROM employees e \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          LEFT JOIN designations des ON des.id = e.designation_id AND des.tenant_id = e.tenant_id \
-         WHERE e.tenant_id = $1 \
+         WHERE e.tenant_id = $1 AND e.deleted_at IS NULL \
            AND e.status = 'active'::employee_status \
            AND ($2::uuid IS NULL OR e.department_id = $2) \
            AND ( \
@@ -6953,7 +6954,7 @@ pub async fn list_registrations(
 
     let (where_clause, binds, _next_idx) = build_registration_filter(&params);
     let sql = format!(
-        "SELECT * FROM camp_registrations WHERE {where_clause} \
+        "SELECT * FROM camp_registrations WHERE deleted_at IS NULL AND {where_clause} \
          ORDER BY created_at DESC LIMIT 500"
     );
     let mut query = sqlx::query_as::<_, CampRegistration>(&sql).bind(claims.tenant_id);
@@ -7393,7 +7394,8 @@ pub async fn list_screenings(
     let rows = sqlx::query_as::<_, CampScreening>(
         "SELECT s.* FROM camp_screenings s \
          JOIN camp_registrations r ON r.id = s.registration_id \
-         WHERE ($1::uuid IS NULL OR r.camp_id = $1) \
+         WHERE s.deleted_at IS NULL AND r.deleted_at IS NULL \
+         AND ($1::uuid IS NULL OR r.camp_id = $1) \
          AND ($2::uuid IS NULL OR s.registration_id = $2) \
          ORDER BY s.created_at DESC LIMIT 500",
     )
@@ -7624,7 +7626,8 @@ pub async fn list_lab_samples(
     let rows = sqlx::query_as::<_, CampLabSample>(
         "SELECT ls.* FROM camp_lab_samples ls \
          JOIN camp_registrations r ON r.id = ls.registration_id \
-         WHERE ($1::uuid IS NULL OR r.camp_id = $1) \
+         WHERE ls.deleted_at IS NULL AND r.deleted_at IS NULL \
+         AND ($1::uuid IS NULL OR r.camp_id = $1) \
          AND ($2::uuid IS NULL OR ls.registration_id = $2) \
          ORDER BY ls.created_at DESC LIMIT 500",
     )
@@ -7763,7 +7766,8 @@ pub async fn list_billing(
     let rows = sqlx::query_as::<_, CampBillingRecord>(
         "SELECT b.* FROM camp_billing_records b \
          JOIN camp_registrations r ON r.id = b.registration_id \
-         WHERE ($1::uuid IS NULL OR r.camp_id = $1) \
+         WHERE b.deleted_at IS NULL AND r.deleted_at IS NULL \
+         AND ($1::uuid IS NULL OR r.camp_id = $1) \
          AND ($2::uuid IS NULL OR b.registration_id = $2) \
          ORDER BY b.created_at DESC LIMIT 500",
     )
@@ -8087,6 +8091,7 @@ pub async fn list_followups(
         "SELECT f.* FROM camp_followups f \
          JOIN camp_registrations r ON r.id = f.registration_id \
          WHERE f.tenant_id = $4 AND r.tenant_id = $4 \
+         AND f.deleted_at IS NULL AND r.deleted_at IS NULL \
          AND ($1::uuid IS NULL OR r.camp_id = $1) \
          AND ($2::uuid IS NULL OR f.registration_id = $2) \
          AND ($3::text IS NULL OR f.status::text = $3) \

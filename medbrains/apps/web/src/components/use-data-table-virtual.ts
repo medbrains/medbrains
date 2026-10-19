@@ -1,7 +1,16 @@
-import { type UIEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type UIEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type DataTableVirtualWindow,
   resolveDataTableVirtualWindow,
+  resolveMeasuredRowHeight,
 } from "./data-table-virtualization";
 
 interface UseDataTableVirtualInput<T> {
@@ -26,13 +35,31 @@ interface UseDataTableVirtualResult<T> {
 export function useDataTableVirtual<T>({
   data,
   enabled,
-  rowHeight,
+  rowHeight: estimatedRowHeight,
   overscan,
 }: UseDataTableVirtualInput<T>): UseDataTableVirtualResult<T> {
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const pendingScrollPositionRef = useRef({ scrollTop: 0, viewportHeight: 0 });
   const [viewport, setViewport] = useState({ scrollTop: 0, viewportHeight: 0 });
+  const [measuredRowHeight, setMeasuredRowHeight] = useState(estimatedRowHeight);
+  const rowHeight = Math.max(estimatedRowHeight, measuredRowHeight);
+
+  // Rows taller than the estimate (wrapped cells) must widen the window's
+  // arithmetic, or a row scrolled into view lands outside the window. The
+  // rows keep the estimate as their CSS height: feeding the measured height
+  // back into it would grow each row by its border on every pass.
+  useLayoutEffect(() => {
+    const node = tableWrapperRef.current;
+    if (!enabled || !node) {
+      return;
+    }
+    const heights = Array.from(
+      node.querySelectorAll<HTMLElement>("tbody > tr[aria-rowindex]"),
+      (row) => row.getBoundingClientRect().height,
+    );
+    setMeasuredRowHeight((current) => resolveMeasuredRowHeight(current, heights));
+  });
 
   const commitViewport = useCallback((next: typeof viewport) => {
     setViewport((current) =>

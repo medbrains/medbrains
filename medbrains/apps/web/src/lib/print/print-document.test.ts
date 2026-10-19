@@ -123,12 +123,12 @@ describe("the generated registry", () => {
   it("offers no document whose handler queries a table that does not exist", async () => {
     const { ALL_PRINT_DOCUMENTS } =
       await vi.importActual<typeof import("./print-registry")>("./print-registry");
-    // Culture sensitivity is the sentinel: it reads antibiotic_sensitivities
+    // Culture sensitivity is the sentinel: it read antibiotic_sensitivities
     // and culture_results, neither of which any migration creates, and it was
-    // offered on the lab order print menu until the generator checked.
+    // offered on the lab order print menu until the generator checked. (The
+    // RCA template was the other; it now reads quality_incidents and prints.)
     const keys = ALL_PRINT_DOCUMENTS.map((d) => d.key);
     expect(keys).not.toContain("culture-sensitivity");
-    expect(keys).not.toContain("rca-template");
   });
 
   /**

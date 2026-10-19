@@ -63,6 +63,11 @@ export const marketingCampaignSchema = z.object({
    */
   target_areas: z.array(z.string().trim().min(1)),
   medium: z.string().trim().max(80),
+  code: z
+    .string()
+    .trim()
+    .max(24)
+    .regex(/^[A-Za-z0-9_-]*$/, "Letters, numbers, - and _ only"),
 });
 
 export type MarketingCampaignFormInput = z.infer<typeof marketingCampaignSchema>;

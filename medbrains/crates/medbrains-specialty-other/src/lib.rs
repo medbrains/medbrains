@@ -4,7 +4,11 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
+pub mod dialysis_dialyzers;
+pub mod dialysis_machines;
+pub mod dialysis_rules;
+
+use axum::routing::{get, post, put};
 use medbrains_core::permissions;
 use medbrains_core::specialty::other::{
     CancerStaging, ChemoProtocol, DialysisSession, RadiationSession, SpecialtyRecord,
@@ -218,6 +222,11 @@ pub struct CreateDialysisRequest {
     pub duration_minutes: Option<i32>,
     pub heparin_dose: Option<String>,
     pub notes: Option<String>,
+    /// The patient's dialyzer: its use is counted, and refused when shared,
+    /// discarded or at its limit.
+    pub dialyzer_id: Option<Uuid>,
+    /// The booked shift this session runs in; it names the machine.
+    pub slot_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -308,7 +317,7 @@ pub async fn list_rehab_plans(
 
     let rows = sqlx::query_as::<_, RehabPlan>(
         "SELECT * FROM rehab_plans \
-         WHERE ($1::text IS NULL OR discipline::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR discipline::text = $1) \
          AND ($2::text IS NULL OR status = $2) \
          AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
          ORDER BY created_at DESC LIMIT 200",
@@ -386,7 +395,7 @@ pub async fn list_rehab_sessions(
         .await?;
 
     let rows = sqlx::query_as::<_, RehabSession>(
-        "SELECT * FROM rehab_sessions WHERE plan_id = $1 ORDER BY session_number LIMIT 5000",
+        "SELECT * FROM rehab_sessions WHERE deleted_at IS NULL AND plan_id = $1 ORDER BY session_number LIMIT 5000",
     )
     .bind(plan_id)
     .fetch_all(&mut *tx)
@@ -469,7 +478,7 @@ pub async fn list_audiology_tests(
 
     let rows = sqlx::query_as::<_, AudiologyTest>(
         "SELECT * FROM audiology_tests \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY test_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -548,7 +557,7 @@ pub async fn list_psychometric_tests(
 
     let rows = sqlx::query_as::<_, PsychometricTest>(
         "SELECT * FROM psychometric_tests \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY test_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -624,7 +633,7 @@ pub async fn list_dnr_orders(
 
     let rows = sqlx::query_as::<_, DnrOrder>(
         "SELECT * FROM dnr_orders \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY created_at DESC LIMIT 200",
     )
@@ -769,7 +778,7 @@ pub async fn list_pain_assessments(
 
     let rows = sqlx::query_as::<_, PainAssessment>(
         "SELECT * FROM pain_assessments \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY assessed_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -854,7 +863,7 @@ pub async fn list_mortuary_records(
 
     let rows = sqlx::query_as::<_, MortuaryRecord>(
         "SELECT * FROM mortuary_records \
-         WHERE ($1::text IS NULL OR status::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR status::text = $1) \
          AND ($2::bool IS NULL OR is_mlc = $2) \
          ORDER BY created_at DESC LIMIT 200",
     )
@@ -1012,7 +1021,7 @@ pub async fn list_nuclear_sources(
         .await?;
 
     let rows = sqlx::query_as::<_, NuclearMedSource>(
-        "SELECT * FROM nuclear_med_sources ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM nuclear_med_sources WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1086,7 +1095,7 @@ pub async fn list_nuclear_administrations(
 
     let rows = sqlx::query_as::<_, NuclearMedAdministration>(
         "SELECT * FROM nuclear_med_administrations \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY administered_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1192,7 +1201,7 @@ pub async fn list_specialty_templates(
 
     let rows = sqlx::query_as::<_, SpecialtyTemplate>(
         "SELECT * FROM specialty_templates \
-         WHERE ($1::text IS NULL OR specialty = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR specialty = $1) \
          ORDER BY specialty, template_name LIMIT 5000",
     )
     .bind(&params.specialty)
@@ -1264,7 +1273,7 @@ pub async fn list_specialty_records(
 
     let rows = sqlx::query_as::<_, SpecialtyRecord>(
         "SELECT * FROM specialty_records \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY recorded_at DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1342,7 +1351,7 @@ pub async fn list_dialysis_sessions(
 
     let rows = sqlx::query_as::<_, DialysisSession>(
         "SELECT * FROM dialysis_sessions \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY session_date DESC LIMIT 200",
     )
     .bind(permitted_patients.as_deref())
@@ -1374,16 +1383,25 @@ pub async fn create_dialysis_session(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let taken = dialysis_dialyzers::take_for_session(
+        &mut tx,
+        claims.tenant_id,
+        body.patient_id,
+        body.dialyzer_id,
+        body.slot_id,
+    )
+    .await?;
     let row = sqlx::query_as::<_, DialysisSession>(
         "INSERT INTO dialysis_sessions \
          (tenant_id, patient_id, machine_number, access_type, dialyzer_type, \
-          pre_weight_kg, uf_goal_ml, duration_minutes, heparin_dose, performed_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+          pre_weight_kg, uf_goal_ml, duration_minutes, heparin_dose, performed_by, notes, \
+          machine_id, dialyzer_id, slot_id, dialyzer_use) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.patient_id)
-    .bind(&body.machine_number)
+    .bind(taken.machine_code.as_ref().or(body.machine_number.as_ref()))
     .bind(&body.access_type)
     .bind(&body.dialyzer_type)
     .bind(body.pre_weight_kg)
@@ -1392,6 +1410,10 @@ pub async fn create_dialysis_session(
     .bind(&body.heparin_dose)
     .bind(claims.sub)
     .bind(&body.notes)
+    .bind(taken.machine_id)
+    .bind(body.dialyzer_id)
+    .bind(body.slot_id)
+    .bind(taken.dialyzer_use)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1503,7 +1525,7 @@ pub async fn list_chemo_protocols(
 
     let rows = sqlx::query_as::<_, ChemoProtocol>(
         "SELECT * FROM chemo_protocols \
-         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         WHERE deleted_at IS NULL AND ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          AND ($2::text IS NULL OR status = $2) \
          ORDER BY cycle_date DESC LIMIT 200",
     )
@@ -2078,6 +2100,31 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/specialty/dialysis/sessions/{id}",
             put(update_dialysis_session),
+        )
+        .route(
+            "/api/specialty/dialysis/machines",
+            get(dialysis_machines::list_machines).post(dialysis_machines::save_machine),
+        )
+        .route(
+            "/api/specialty/dialysis/reuse-policy",
+            get(dialysis_machines::get_reuse_policy).put(dialysis_machines::set_reuse_policy),
+        )
+        .route(
+            "/api/specialty/dialysis/slots",
+            get(dialysis_machines::list_slots).post(dialysis_machines::book_slot),
+        )
+        .route("/api/specialty/dialysis/slots/{id}/cancel", post(dialysis_machines::cancel_slot))
+        .route(
+            "/api/specialty/dialysis/dialyzers",
+            get(dialysis_dialyzers::list_dialyzers).post(dialysis_dialyzers::issue_dialyzer),
+        )
+        .route(
+            "/api/specialty/dialysis/dialyzers/{id}/reprocess",
+            post(dialysis_dialyzers::reprocess_dialyzer),
+        )
+        .route(
+            "/api/specialty/dialysis/dialyzers/{id}/discard",
+            post(dialysis_dialyzers::discard_dialyzer),
         )
         .route(
             "/api/specialty/chemo/protocols",

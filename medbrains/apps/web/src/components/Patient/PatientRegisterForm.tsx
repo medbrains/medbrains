@@ -33,11 +33,14 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCalendarMonth } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { AbhaCreateDrawer } from "@/components/abha/AbhaCreateDrawer";
+import type { AbhaVerified } from "@/components/abha/AbhaVerifiedStep";
+import { AbhaVerifyDrawer } from "@/components/abha/AbhaVerifyDrawer";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
 import {
@@ -49,6 +52,7 @@ import {
   formatPhoneWithCountryCode,
   stripPhoneCountryCode,
 } from "@/components/inputs";
+import { toast } from "@/components/ui";
 import {
   bloodGroupOptions,
   campReferenceLabel,
@@ -64,14 +68,20 @@ import {
   registrationTypeOptions,
   trimOrUndefined,
 } from "@/forms/patientRegistration.form";
+import { abhaService } from "@/services/abha.service";
 import { lookupsService } from "@/services/lookups.service";
 import { patientsService } from "@/services/patients.service";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 import { AbhaLinkPanel } from "./AbhaLinkPanel";
+import { CampaignSelect } from "./CampaignSelect";
+import { DpdpRegistrationSection } from "./DpdpRegistrationSection";
+import { DPDP_NOTICE_VERSION } from "./dpdp-notice";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
   mode?: "create" | "edit";
+  /** Set when editing: a verified ABHA is linked to this patient straight away. */
+  patientId?: string;
   submitLabel?: string;
   onSubmit: (
     req: CreatePatientRequest,
@@ -79,6 +89,8 @@ interface PatientRegisterFormProps {
   ) => void | Promise<void>;
   onCancel: () => void;
   initialValues?: PatientRegistrationInitialValues;
+  /** An ABHA the server already verified for this registration (Scan & Share). */
+  initialAbhaVerificationId?: string;
 }
 
 function splitDrugAllergyTags(value: string | undefined): string[] {
@@ -282,10 +294,12 @@ export interface PatientRegistrationLinkedServicesOptions {
 export function PatientRegisterForm({
   isSubmitting,
   mode = "create",
+  patientId,
   submitLabel,
   onSubmit,
   onCancel,
   initialValues,
+  initialAbhaVerificationId,
 }: PatientRegisterFormProps) {
   const { t } = useTranslation("patients");
   const isEdit = mode === "edit";
@@ -301,6 +315,7 @@ export function PatientRegisterForm({
   // the patient was registered, the queue step failed into a warning, and the
   // patient simply was not in the queue. Every time, because it is the default.
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const canVerifyAbha = useHasPermission(P.ABDM.ABHA.MANAGE);
   const {
     register,
     control,
@@ -313,6 +328,10 @@ export function PatientRegisterForm({
     formState: { errors },
   } = useForm<PatientRegistrationFormInput>({
     resolver: zodResolver(patientRegistrationFormSchema),
+    // Checked as a field changes, so a message clears the moment its field is
+    // put right rather than at the next press of Next. Not "onTouched": the
+    // pickers do not report a blur, so they would never be re-checked.
+    mode: "onChange",
     defaultValues: {
       // No default: an untouched field recorded every patient as "unknown".
       gender: initialValues?.gender ?? "",
@@ -354,6 +373,12 @@ export function PatientRegisterForm({
       camp_name: initialValues?.camp_name,
       initial_diagnosis_text: initialValues?.initial_diagnosis_text,
       icd11_code: initialValues?.icd11_code,
+      abha_number: initialValues?.abha_number,
+      abha_address: initialValues?.abha_address,
+      line1: initialValues?.line1,
+      district: initialValues?.district,
+      state: initialValues?.state,
+      postal_code: initialValues?.postal_code,
       allergy_status: initialValues?.allergy_status ?? "not_asked_yet",
       known_allergies: initialValues?.known_allergies,
       drug_allergies: initialValues?.drug_allergies,
@@ -369,6 +394,14 @@ export function PatientRegisterForm({
     },
   });
   const [activeStep, setActiveStep] = useState(0);
+  const [abhaDrawerOpen, setAbhaDrawerOpen] = useState(false);
+  const [abhaCreateOpen, setAbhaCreateOpen] = useState(false);
+  /** The ABHA verified against ABDM; a later edit of the number unverifies it. */
+  const [verifiedAbha, setVerifiedAbha] = useState<{ id: string; digits: string } | null>(() =>
+    initialAbhaVerificationId && initialValues?.abha_number
+      ? { id: initialAbhaVerificationId, digits: initialValues.abha_number.replace(/\D/g, "") }
+      : null,
+  );
   const [stepError, setStepError] = useState<string | null>(null);
   const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
   const [dobEstimated, setDobEstimated] = useState(Boolean(initialValues?.is_dob_estimated));
@@ -464,12 +497,13 @@ export function PatientRegisterForm({
     }
     return [...options].sort();
   }, [camps]);
+  // Names, not ids: the referrer is free text. Two doctors can share a name,
+  // and a duplicate option crashes the picker — so each name once.
   const referredByNameOptions = useMemo(
     () =>
-      doctors
-        .filter((doctor) => doctor.is_active)
-        .map((doctor) => doctor.full_name)
-        .sort(),
+      [
+        ...new Set(doctors.filter((doctor) => doctor.is_active).map((doctor) => doctor.full_name)),
+      ].sort(),
     [doctors],
   );
   const referredByFacilityOptions = useMemo(() => {
@@ -567,7 +601,49 @@ export function PatientRegisterForm({
   const createOpdVisit = watch("create_opd_visit");
   const abhaNumber = watch("abha_number");
   const abhaAddress = watch("abha_address");
-  const abhaLinkStatus = abhaNumber?.trim() || abhaAddress?.trim() ? "ready" : "manual";
+  const abhaDigits = (abhaNumber ?? "").replace(/\D/g, "");
+  const abhaVerificationId =
+    verifiedAbha && verifiedAbha.digits === abhaDigits ? verifiedAbha.id : undefined;
+  const abhaLinkStatus = abhaVerificationId
+    ? "verified"
+    : abhaNumber?.trim() || abhaAddress?.trim()
+      ? "ready"
+      : "manual";
+  const applyVerifiedAbha = ({ verificationId, profile, apply }: AbhaVerified) => {
+    const opts = { shouldDirty: true, shouldValidate: true } as const;
+    setValue("abha_number", profile.abha_number, opts);
+    setValue("abha_address", profile.abha_address ?? "", opts);
+    if (apply.includes("name")) {
+      if (profile.first_name) setValue("first_name", profile.first_name, opts);
+      setValue("middle_name", profile.middle_name ?? "", opts);
+      if (profile.last_name) setValue("last_name", profile.last_name, opts);
+    }
+    if (apply.includes("date_of_birth") && profile.date_of_birth) {
+      setValue("date_of_birth", new Date(profile.date_of_birth), opts);
+    }
+    if (apply.includes("gender") && profile.gender) {
+      setValue("gender", toGenderFormValue(profile.gender), opts);
+    }
+    setVerifiedAbha({ id: verificationId, digits: profile.abha_number.replace(/\D/g, "") });
+    setAbhaDrawerOpen(false);
+    setAbhaCreateOpen(false);
+  };
+  const queryClient = useQueryClient();
+  // Editing an existing patient: the link is saved now, server-side, rather
+  // than riding on a form the user may never save.
+  const linkAbha = useMutation({
+    mutationFn: (verified: AbhaVerified) =>
+      abhaService.link(verified.verificationId, {
+        patient_id: patientId ?? "",
+        apply: verified.apply,
+      }),
+    onSuccess: (_, verified) => {
+      applyVerifiedAbha(verified);
+      void queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
+      toast.success("The ABHA is linked and verified", { title: "ABHA linked" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not link the ABHA" }),
+  });
   const tenantCountryPhoneCode = tenant?.phone_code
     ? tenant.phone_code
     : geoCountries.find((country) => country.id === tenant?.country_id)?.phone_code;
@@ -673,6 +749,7 @@ export function PatientRegisterForm({
       financial_class: values.financial_class,
       abha_number: trimOrUndefined(values.abha_number),
       abha_address: trimOrUndefined(values.abha_address),
+      abha_verification_id: abhaVerificationId,
       aadhaar_number: trimOrUndefined(values.aadhaar_number),
       referred_by_name: trimOrUndefined(values.referred_by_name),
       referred_by_phone: trimOrUndefined(values.referred_by_phone),
@@ -684,6 +761,7 @@ export function PatientRegisterForm({
       clinical_unit: trimOrUndefined(values.clinical_unit),
       camp_id: trimOrUndefined(values.camp_id),
       camp_name: trimOrUndefined(values.camp_name),
+      campaign_id: values.campaign_id || undefined,
       initial_diagnosis_text: trimOrUndefined(values.initial_diagnosis_text),
       icd11_code: trimOrUndefined(values.icd11_code),
       icd11_display: selectedIcd11?.display,
@@ -699,6 +777,15 @@ export function PatientRegisterForm({
         whatsapp_opt_in: values.whatsapp_opt_in ?? false,
         email_opt_in: values.email_opt_in ?? false,
       },
+      // Recorded only when the notice was actually shown.
+      privacy: values.privacy_notice_given
+        ? {
+            notice_version: DPDP_NOTICE_VERSION,
+            notice_language: values.privacy_language ?? "en",
+            purposes: values.privacy_purposes ?? [],
+            guardian_name: values.privacy_guardian?.trim() || undefined,
+          }
+        : undefined,
       address: Object.keys(address).length > 0 ? address : null,
       attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
     };
@@ -1177,10 +1264,26 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 1 && (
+          <FormSection num="02" name="Privacy notice and consent">
+            <FormRow label="DPDP Act 2023">
+              <DpdpRegistrationSection control={control} />
+            </FormRow>
+          </FormSection>
+        )}
+
+        {activeStep === 1 && (
           <FormSection num="03" name={t("registrationForm.section.digitalIdentity")}>
             <FormRow label={t("registrationForm.row.abha")}>
               <AbhaLinkPanel
                 status={abhaLinkStatus}
+                onVerify={canVerifyAbha ? () => setAbhaDrawerOpen(true) : undefined}
+                onCreate={canVerifyAbha ? () => setAbhaCreateOpen(true) : undefined}
+                onPrintCard={
+                  abhaVerificationId
+                    ? () =>
+                        window.open(abhaService.cardUrl(abhaVerificationId), "_blank", "noopener")
+                    : undefined
+                }
                 numberField={
                   <TextInput
                     aria-label={t("registrationForm.aria.abhaNumber")}
@@ -1254,6 +1357,13 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
               </Grid>
+              <Controller
+                control={control}
+                name="campaign_id"
+                render={({ field }) => (
+                  <CampaignSelect value={field.value} onChange={field.onChange} />
+                )}
+              />
             </FormRow>
             <FormRow label={t("registrationForm.row.campReference")}>
               <Grid>
@@ -1995,6 +2105,35 @@ export function PatientRegisterForm({
             consultantName={optionLabel(consultantOptions, watch("consultant_id"))}
           />
         )}
+        <AbhaVerifyDrawer
+          opened={abhaDrawerOpen}
+          onClose={() => setAbhaDrawerOpen(false)}
+          ours={{
+            first_name: watch("first_name"),
+            middle_name: watch("middle_name"),
+            last_name: watch("last_name"),
+            date_of_birth: dateOfBirthValue ? isoDay(dateOfBirthValue) : null,
+            gender: watch("gender"),
+          }}
+          confirmLabel={patientId ? "Link to this patient" : "Use for this registration"}
+          confirming={linkAbha.isPending}
+          onConfirm={patientId ? (v) => linkAbha.mutate(v) : applyVerifiedAbha}
+        />
+        <AbhaCreateDrawer
+          opened={abhaCreateOpen}
+          onClose={() => setAbhaCreateOpen(false)}
+          mobile={watch("phone")}
+          ours={{
+            first_name: watch("first_name"),
+            middle_name: watch("middle_name"),
+            last_name: watch("last_name"),
+            date_of_birth: dateOfBirthValue ? isoDay(dateOfBirthValue) : null,
+            gender: watch("gender"),
+          }}
+          confirmLabel={patientId ? "Link to this patient" : "Use for this registration"}
+          confirming={linkAbha.isPending}
+          onConfirm={patientId ? (v) => linkAbha.mutate(v) : applyVerifiedAbha}
+        />
       </ClinicalForm>
 
       <Box
@@ -2005,7 +2144,9 @@ export function PatientRegisterForm({
           left: "var(--app-shell-navbar-width, 0px)",
           right: 0,
           zIndex: 190,
-          padding: "12px 24px",
+          // The right side stays clear of the assistant's button (60px at a
+          // 16px margin), which sits over this pinned bar's last step.
+          padding: "12px 96px 12px 24px",
           background: "var(--mb-bg-content, var(--mantine-color-body))",
           borderTop: "1px solid var(--mb-border-subtle)",
           boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.08)",

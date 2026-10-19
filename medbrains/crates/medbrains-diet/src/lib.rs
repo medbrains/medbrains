@@ -190,7 +190,7 @@ pub async fn list_templates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows =
-        sqlx::query_as::<_, DietTemplate>("SELECT * FROM diet_templates ORDER BY name LIMIT 5000")
+        sqlx::query_as::<_, DietTemplate>("SELECT * FROM diet_templates WHERE deleted_at IS NULL ORDER BY name LIMIT 5000")
             .fetch_all(&mut *tx)
             .await?;
 
@@ -301,7 +301,7 @@ pub async fn list_diet_orders(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, DietOrder>(
-        "SELECT * FROM diet_orders ORDER BY created_at DESC LIMIT 200",
+        "SELECT * FROM diet_orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -465,7 +465,7 @@ pub async fn list_menus(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, KitchenMenu>(
-        "SELECT * FROM kitchen_menus ORDER BY week_number, name LIMIT 5000",
+        "SELECT * FROM kitchen_menus WHERE deleted_at IS NULL ORDER BY week_number, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -517,7 +517,7 @@ pub async fn list_menu_items(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, KitchenMenuItem>(
-        "SELECT * FROM kitchen_menu_items WHERE menu_id = $1 ORDER BY day_of_week, meal_type LIMIT 5000",
+        "SELECT * FROM kitchen_menu_items WHERE menu_id = $1 AND deleted_at IS NULL ORDER BY day_of_week, meal_type LIMIT 5000",
     )
     .bind(menu_id)
     .fetch_all(&mut *tx)
@@ -581,7 +581,7 @@ pub async fn list_meal_preps(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, MealPreparation>(
-        "SELECT * FROM meal_preparations ORDER BY meal_date DESC, meal_type LIMIT 200",
+        "SELECT * FROM meal_preparations WHERE deleted_at IS NULL ORDER BY meal_date DESC, meal_type LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -698,7 +698,7 @@ pub async fn list_meal_counts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, MealCount>(
-        "SELECT * FROM meal_counts ORDER BY count_date DESC, ward LIMIT 200",
+        "SELECT * FROM meal_counts WHERE deleted_at IS NULL ORDER BY count_date DESC, ward LIMIT 200",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -723,7 +723,7 @@ pub async fn create_meal_count(
         "INSERT INTO meal_counts (tenant_id, count_date, meal_type, ward, total_beds, occupied, npo_count, regular_count, special_count, notes)
          VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3::meal_type, $4, $5, $6, COALESCE($7, 0), COALESCE($8, 0), COALESCE($9, 0), $10)
          ON CONFLICT (tenant_id, count_date, meal_type, ward) DO UPDATE SET
-            total_beds = EXCLUDED.total_beds,
+            deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, total_beds = EXCLUDED.total_beds,
             occupied = EXCLUDED.occupied,
             npo_count = EXCLUDED.npo_count,
             regular_count = EXCLUDED.regular_count,
@@ -764,7 +764,7 @@ pub async fn list_inventory(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, KitchenInventory>(
-        "SELECT * FROM kitchen_inventory ORDER BY item_name LIMIT 5000",
+        "SELECT * FROM kitchen_inventory WHERE deleted_at IS NULL ORDER BY item_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -864,7 +864,7 @@ pub async fn list_audits(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, KitchenAudit>(
-        "SELECT * FROM kitchen_audits ORDER BY audit_date DESC LIMIT 100",
+        "SELECT * FROM kitchen_audits WHERE deleted_at IS NULL ORDER BY audit_date DESC LIMIT 100",
     )
     .fetch_all(&mut *tx)
     .await?;

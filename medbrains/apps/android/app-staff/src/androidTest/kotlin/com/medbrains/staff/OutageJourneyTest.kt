@@ -40,9 +40,9 @@ class OutageJourneyTest {
         val nurse = api.provision("nurse")
         try {
             launch(Api.BACKEND).use {
-                compose.waitUntil(10_000) { has("username") || has("module-home-nurse") || compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account")).fetchSemanticsNodes().isNotEmpty() }
+                compose.waitUntil(10_000) { has("username") || has("hospitalCode") || has("module-home-nurse") || compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account")).fetchSemanticsNodes().isNotEmpty() }
                 if (!has("module-home-nurse")) {
-                    if (!has("username")) { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account"))[0].performClick(); compose.onAllNodes(hasText("Sign out"))[0].performClick(); compose.waitUntil(10_000) { has("username") } }
+                    with(Session) { compose.ensureSignedOut() }
                     compose.onNodeWithTag("username").performTextInput(nurse.username)
                     compose.onNodeWithTag("password").performTextInput(nurse.password)
                     compose.onNodeWithTag("signIn").performClick()
@@ -65,9 +65,9 @@ class OutageJourneyTest {
         val desk = api.provision("receptionist")
         try {
             launch(Api.BACKEND).use {
-                compose.waitUntil(10_000) { has("username") || has("module-home-reception") || compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account")).fetchSemanticsNodes().isNotEmpty() }
+                compose.waitUntil(10_000) { has("username") || has("hospitalCode") || has("module-home-reception") || compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account")).fetchSemanticsNodes().isNotEmpty() }
                 if (!has("module-home-reception")) {
-                    if (!has("username")) { compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Account"))[0].performClick(); compose.onAllNodes(hasText("Sign out"))[0].performClick(); compose.waitUntil(10_000) { has("username") } }
+                    with(Session) { compose.ensureSignedOut() }
                     compose.onNodeWithTag("username").performTextInput(desk.username)
                     compose.onNodeWithTag("password").performTextInput(desk.password)
                     compose.onNodeWithTag("signIn").performClick()

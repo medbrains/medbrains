@@ -1,4 +1,5 @@
 import { Tabs } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -17,6 +18,7 @@ import { PatientSafetyTab } from "./security/patient-safety-tab";
 
 export function SecurityPage() {
   useRequirePermission(P.SECURITY.ACCESS_LIST);
+  const canListIncidents = useHasPermission(P.SECURITY.INCIDENTS_LIST);
 
   return (
     <div>
@@ -32,9 +34,11 @@ export function SecurityPage() {
           <Tabs.Tab value="cctv" leftSection={<IconVideo size={16} />}>
             CCTV
           </Tabs.Tab>
-          <Tabs.Tab value="incidents" leftSection={<IconAlertTriangle size={16} />}>
-            Incidents
-          </Tabs.Tab>
+          {canListIncidents && (
+            <Tabs.Tab value="incidents" leftSection={<IconAlertTriangle size={16} />}>
+              Incidents
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="patient-safety" leftSection={<IconBabyCarriage size={16} />}>
             Patient Safety
           </Tabs.Tab>
@@ -49,9 +53,11 @@ export function SecurityPage() {
         <Tabs.Panel value="cctv" pt="md">
           <CctvTab />
         </Tabs.Panel>
-        <Tabs.Panel value="incidents" pt="md">
-          <IncidentsTab />
-        </Tabs.Panel>
+        {canListIncidents && (
+          <Tabs.Panel value="incidents" pt="md">
+            <IncidentsTab />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="patient-safety" pt="md">
           <PatientSafetyTab />
         </Tabs.Panel>

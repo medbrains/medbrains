@@ -1,6 +1,6 @@
 import { Button, Combobox, InputBase, Modal, Stack, Text, useCombobox } from "@mantine/core";
 import { IconPlus, IconSearch } from "@tabler/icons-react";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { useState } from "react";
 
 interface CreateFormContext<T> {
@@ -30,12 +30,19 @@ interface SearchOrCreateProps<T> {
   leftSection?: ReactNode;
   emptyLabel: string;
   typeToSearchLabel?: string;
+  /** True while a search is debouncing or in flight — never reads as "none found". */
+  loading?: boolean;
+  /** The lookup failed. Shown instead of the empty label: a fault is not "no results". */
+  fetchError?: string | null;
   canCreate?: boolean;
   createButtonLabel?: string;
   createModalTitle?: string;
   createModalSize?: string;
   createButtonIcon?: ReactNode;
   renderCreateForm?: (context: CreateFormContext<T>) => ReactNode;
+  /** Empty the box after each pick — a counter adding line after line. */
+  clearOnSelect?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
 }
 
 export function SearchOrCreate<T>({
@@ -58,13 +65,17 @@ export function SearchOrCreate<T>({
   error,
   leftSection = <IconSearch size={14} />,
   emptyLabel,
-  typeToSearchLabel = "Type at least 2 characters...",
+  typeToSearchLabel,
+  loading = false,
+  fetchError = null,
   canCreate = false,
   createButtonLabel = "Create new",
   createModalTitle = "Create new",
   createModalSize = "lg",
   createButtonIcon = <IconPlus size={14} />,
   renderCreateForm,
+  clearOnSelect = false,
+  inputRef,
 }: SearchOrCreateProps<T>) {
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
   const [displayValue, setDisplayValue] = useState("");
@@ -76,7 +87,7 @@ export function SearchOrCreate<T>({
 
   const selectItem = (item: T) => {
     onSelect(item);
-    const display = getItemDisplay(item);
+    const display = clearOnSelect ? "" : getItemDisplay(item);
     setDisplayValue(display);
     onSearchChange(display);
     combobox.closeDropdown();
@@ -102,6 +113,7 @@ export function SearchOrCreate<T>({
       >
         <Combobox.Target>
           <InputBase
+            ref={inputRef}
             label={label}
             placeholder={placeholder}
             required={required}
@@ -138,12 +150,20 @@ export function SearchOrCreate<T>({
         </Combobox.Target>
         <Combobox.Dropdown>
           <Combobox.Options mah={280} style={{ overflowY: "auto" }}>
-            {items.length > 0 ? (
+            {fetchError ? (
+              <Combobox.Empty>
+                <Text size="sm" c="danger" role="alert">
+                  {fetchError}
+                </Text>
+              </Combobox.Empty>
+            ) : items.length > 0 ? (
               items.map((item) => (
                 <Combobox.Option key={getItemValue(item)} value={getItemValue(item)}>
                   {renderItem(item)}
                 </Combobox.Option>
               ))
+            ) : loading && searchText.length >= minSearchLength ? (
+              <Combobox.Empty>Searching…</Combobox.Empty>
             ) : searchText.length >= minSearchLength ? (
               <Combobox.Empty>
                 <Stack gap={8} p="xs">
@@ -167,9 +187,30 @@ export function SearchOrCreate<T>({
                 </Stack>
               </Combobox.Empty>
             ) : (
-              <Combobox.Empty>{typeToSearchLabel}</Combobox.Empty>
+              <Combobox.Empty>
+                {typeToSearchLabel ?? `Type at least ${minSearchLength} characters…`}
+              </Combobox.Empty>
             )}
           </Combobox.Options>
+          {/* A name that partly matches someone else is still a new person:
+              offer creating whenever there are results, not only when none. */}
+          {canShowCreate && items.length > 0 && searchText.length >= minSearchLength && (
+            <Combobox.Footer>
+              <Button
+                size="xs"
+                variant="light"
+                fullWidth
+                leftSection={createButtonIcon}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  combobox.closeDropdown();
+                  setCreateOpen(true);
+                }}
+              >
+                {createButtonLabel}
+              </Button>
+            </Combobox.Footer>
+          )}
         </Combobox.Dropdown>
       </Combobox>
 

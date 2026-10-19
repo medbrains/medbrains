@@ -6,6 +6,7 @@ import {
   Card,
   Group,
   Modal,
+  SegmentedControl,
   Select,
   Stack,
   Text,
@@ -19,7 +20,6 @@ import {
   type OpdMedicalCertificateFormInput,
   opdFeedbackFormSchema,
   opdMedicalCertificateFormSchema,
-  opdProcedureConsentFormSchema,
   opdProcedureOrderFormSchema,
   opdReminderFormSchema,
 } from "@medbrains/schemas";
@@ -53,6 +53,7 @@ import {
   IconCertificate,
   IconCheck,
   IconClock,
+  IconEye,
   IconFileCheck,
   IconFlask,
   IconMedicalCross,
@@ -68,21 +69,19 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
-  DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
   DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
   DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
   DEFAULT_OPD_REMINDER_FORM_VALUES,
   OPD_CERTIFICATE_TYPE_OPTIONS,
-  OPD_CONSENT_TYPE_OPTIONS,
   OPD_PROCEDURE_PRIORITY_OPTIONS,
   OPD_RATING_OPTIONS,
   OPD_REMINDER_PRIORITY_OPTIONS,
   OPD_REMINDER_TYPE_OPTIONS,
-  toCreateConsentRequest,
   toCreateFeedbackRequest,
   toCreateMedicalCertificateRequest,
   toCreateProcedureOrderRequest,
@@ -92,6 +91,9 @@ import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+import { ConsentAnswersModal } from "./ConsentAnswersModal";
+import { NewConsentModal } from "./NewConsentModal";
+import { ReferralActions } from "./referral-actions";
 
 const NO_DUPES: DuplicateOrderInfo[] = [];
 
@@ -1074,11 +1076,16 @@ export function ReferralsTab({
   const queryClient = useQueryClient();
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [toDeptId, setToDeptId] = useState<string | null>(null);
+  const [toDoctorId, setToDoctorId] = useState("");
   const [urgency, setUrgency] = useState<string | null>("routine");
   const [reason, setReason] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
 
-  const { data: referrals = [], isLoading } = useQuery({
+  const {
+    data: referrals = [],
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["patient-referrals", patientId],
     queryFn: () => opdService.listPatientReferrals(patientId),
   });
@@ -1104,6 +1111,7 @@ export function ReferralsTab({
       toast.success("Patient referred successfully", { title: "Referral created" });
       closeCreate();
       setToDeptId(null);
+      setToDoctorId("");
       setUrgency("routine");
       setReason("");
       setClinicalNotes("");
@@ -1119,6 +1127,7 @@ export function ReferralsTab({
       patient_id: patientId,
       encounter_id: encounterId,
       to_department_id: toDeptId,
+      to_doctor_id: toDoctorId || undefined,
       urgency: toReferralUrgency(urgency),
       reason: reason.trim(),
       clinical_notes: clinicalNotes.trim() || undefined,
@@ -1130,6 +1139,15 @@ export function ReferralsTab({
       <Text size="sm" c="dimmed">
         Loading referrals...
       </Text>
+    );
+  }
+  // An unanswered list is not an empty one: "No referrals" here would tell a
+  // doctor the patient was never referred.
+  if (isError) {
+    return (
+      <Alert tone="danger" title="Referrals could not be loaded">
+        <Text size="sm">Reload the page; if it keeps failing, tell IT.</Text>
+      </Alert>
     );
   }
 
@@ -1193,6 +1211,7 @@ export function ReferralsTab({
               <Text size="xs">{ref.response_notes}</Text>
             </Alert>
           )}
+          <ReferralActions referral={ref} />
         </Card>
       ))}
 
@@ -1210,12 +1229,25 @@ export function ReferralsTab({
             placeholder="Select department"
             data={deptOptions}
             value={toDeptId}
-            onChange={setToDeptId}
+            onChange={(id) => {
+              setToDeptId(id);
+              setToDoctorId("");
+            }}
             searchable
             required
           />
+          <DoctorSearchSelect
+            label="Refer to doctor"
+            placeholder={toDeptId ? "Any doctor in this department" : "Choose a department first"}
+            value={toDoctorId}
+            onChange={setToDoctorId}
+            departmentIds={toDeptId ? [toDeptId] : undefined}
+            disabled={!toDeptId}
+            clearable
+          />
           <Select
             label="Urgency"
+            allowDeselect={false}
             data={[
               { value: "routine", label: "Routine" },
               { value: "urgent", label: "Urgent" },
@@ -1288,7 +1320,7 @@ export function RemindersTab({
   });
   const reminderValues = watch();
 
-  const { data: reminders = [] } = useQuery<PatientReminder[]>({
+  const { data: reminders = [], isError: remindersFailed } = useQuery<PatientReminder[]>({
     queryKey: ["reminders", patientId],
     queryFn: () => opdService.listReminders({ patient_id: patientId }),
   });
@@ -1356,7 +1388,11 @@ export function RemindersTab({
         </Group>
       )}
 
-      {reminders.length === 0 ? (
+      {remindersFailed ? (
+        <Alert tone="danger" title="Reminders could not be loaded">
+          Reload the page; if it keeps failing, tell IT.
+        </Alert>
+      ) : reminders.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No reminders yet.
         </Text>
@@ -1714,18 +1750,7 @@ export function ConsentsTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(opdProcedureConsentFormSchema),
-    defaultValues: DEFAULT_OPD_CONSENT_FORM_VALUES,
-    mode: "onTouched",
-  });
-  const procedureName = watch("procedure_name");
+  const [viewing, setViewing] = useState<ProcedureConsent | null>(null);
 
   const { data: consents = [] } = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
@@ -1738,10 +1763,9 @@ export function ConsentsTab({
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       toast.success(variables.procedure_name, { title: "Consent created" });
       formHandlers.close();
-      reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
     },
-    onError: () => {
-      toast.error("Failed to create consent", { title: "Error" });
+    onError: (error: Error) => {
+      toast.error(error.message, { title: "Consent not created" });
     },
   });
 
@@ -1762,15 +1786,6 @@ export function ConsentsTab({
       toast.success("Consent has been signed", { title: "Consent signed" });
     },
   });
-
-  const handleCreate = handleSubmit((values) => {
-    createMutation.mutate(toCreateConsentRequest(values, patientId, encounterId));
-  });
-
-  const closeForm = () => {
-    formHandlers.close();
-    reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
-  };
 
   const consentStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
@@ -1826,6 +1841,15 @@ export function ConsentsTab({
                 <Table.Td>{c.consented_by_name ?? "—"}</Table.Td>
                 <Table.Td>{new Date(c.created_at).toLocaleDateString()}</Table.Td>
                 <Table.Td>
+                  <Tooltip label="View answers">
+                    <IconButton
+                      size="sm"
+                      onClick={() => setViewing(c)}
+                      aria-label={`View consent for ${c.procedure_name}`}
+                    >
+                      <IconEye size={14} />
+                    </IconButton>
+                  </Tooltip>
                   {c.status === "pending" && canSignConsent && (
                     <Tooltip label="Sign Consent">
                       <IconButton
@@ -1845,87 +1869,15 @@ export function ConsentsTab({
         </Table>
       )}
 
-      <Modal opened={formOpened} onClose={closeForm} title="New Procedure Consent" size="lg">
-        <Stack gap="sm">
-          <Controller
-            control={control}
-            name="procedure_name"
-            render={({ field }) => (
-              <TextInput
-                label="Procedure Name"
-                error={errors.procedure_name?.message}
-                required
-                {...field}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="consent_type"
-            render={({ field }) => (
-              <Select
-                label="Consent Type"
-                data={OPD_CONSENT_TYPE_OPTIONS}
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.consent_type?.message}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="risks_explained"
-            render={({ field }) => (
-              <Textarea label="Risks Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Controller
-            control={control}
-            name="alternatives_explained"
-            render={({ field }) => (
-              <Textarea label="Alternatives Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Controller
-            control={control}
-            name="benefits_explained"
-            render={({ field }) => (
-              <Textarea label="Benefits Explained" autosize minRows={2} {...field} />
-            )}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="consented_by_name"
-              render={({ field }) => <TextInput label="Consented By (Name)" {...field} />}
-            />
-            <Controller
-              control={control}
-              name="consented_by_relation"
-              render={({ field }) => <TextInput label="Relation to Patient" {...field} />}
-            />
-          </Group>
-          <Controller
-            control={control}
-            name="witness_name"
-            render={({ field }) => <TextInput label="Witness Name" {...field} />}
-          />
-          <Group justify="flex-end">
-            <Button tone="ghost" onClick={closeForm}>
-              Cancel
-            </Button>
-            <Button
-              tone="primary"
-              onClick={handleCreate}
-              loading={createMutation.isPending}
-              disabled={!procedureName.trim()}
-              leftSection={<IconFileCheck size={14} />}
-            >
-              Create Consent
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+      <NewConsentModal
+        opened={formOpened}
+        patientId={patientId}
+        encounterId={encounterId}
+        saving={createMutation.isPending}
+        onClose={formHandlers.close}
+        onCreate={(request) => createMutation.mutate(request)}
+      />
+      <ConsentAnswersModal consent={viewing} onClose={() => setViewing(null)} />
     </Stack>
   );
 }
@@ -2260,13 +2212,21 @@ export function PreAuthTab({
 
 // ── Referral Tracking Sub-View ─────────────────────────
 
+type ReferralScope = "for_me" | "sent" | "all";
+
 export function ReferralTrackingTab() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  // A doctor opens this to see what is waiting for them, so that is the view.
+  const [scope, setScope] = useState<ReferralScope>("for_me");
 
   const { data: referrals = [], isLoading } = useQuery({
-    queryKey: ["opd-referral-tracking", filterStatus],
+    queryKey: ["opd-referral-tracking", filterStatus, scope],
     queryFn: () =>
-      opdService.opdReferralTracking(filterStatus ? { status: filterStatus } : undefined),
+      opdService.opdReferralTracking({
+        status: filterStatus ?? undefined,
+        addressed_to_me: scope === "for_me",
+        sent_by_me: scope === "sent",
+      }),
   });
 
   const refStatusColors: Record<string, BadgeTone> = {
@@ -2323,6 +2283,24 @@ export function ReferralTrackingTab() {
       render: (row: ReferralWithNames) => <Badge>{row.urgency}</Badge>,
     },
     {
+      key: "doctors",
+      label: "Doctors",
+      render: (row: ReferralWithNames) => (
+        <Text size="sm">
+          {row.from_doctor_name ?? "—"} → {row.to_doctor_name ?? "Any doctor"}
+        </Text>
+      ),
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: ReferralWithNames) => (
+        <Text size="sm" lineClamp={2}>
+          {row.reason}
+        </Text>
+      ),
+    },
+    {
       key: "responded_at",
       label: "Responded",
       render: (row: ReferralWithNames) => (
@@ -2331,11 +2309,26 @@ export function ReferralTrackingTab() {
         </Text>
       ),
     },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: ReferralWithNames) => <ReferralActions referral={row} />,
+    },
   ] satisfies Column<ReferralWithNames>[];
 
   return (
     <Stack>
       <Group mb="md">
+        <SegmentedControl
+          aria-label="Which referrals"
+          value={scope}
+          onChange={(value) => setScope(value as ReferralScope)}
+          data={[
+            { value: "for_me", label: "For me" },
+            { value: "sent", label: "Sent by me" },
+            { value: "all", label: "All" },
+          ]}
+        />
         <Select
           placeholder="Filter by status"
           data={[

@@ -4,6 +4,14 @@ use tracing::{error, info};
 use crate::buffer::MessageBuffer;
 use crate::config::BridgeConfig;
 
+/// Attach the bridge's API key, when configured.
+pub fn authed(request: reqwest::RequestBuilder, cfg: &BridgeConfig) -> reqwest::RequestBuilder {
+    match cfg.api_key.as_deref() {
+        Some(key) => request.bearer_auth(key),
+        None => request,
+    }
+}
+
 /// Deliver a message directly to MedBrains API.
 pub async fn deliver(
     client: &reqwest::Client,
@@ -25,7 +33,7 @@ pub async fn deliver(
         "processing_duration_ms": processing_duration_ms,
     });
 
-    let resp = client.post(&url).json(&body).send().await?;
+    let resp = authed(client.post(&url), cfg).json(&body).send().await?;
 
     if resp.status().is_success() {
         Ok(())

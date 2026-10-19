@@ -28,6 +28,9 @@ export const marketingService = {
     api.marketingSendPolicy(...args),
   updateSendPolicy: (...args: Parameters<typeof api.updateMarketingSendPolicy>) =>
     api.updateMarketingSendPolicy(...args),
+  webForm: (...args: Parameters<typeof api.marketingWebForm>) => api.marketingWebForm(...args),
+  updateWebForm: (...args: Parameters<typeof api.updateMarketingWebForm>) =>
+    api.updateMarketingWebForm(...args),
   listRunMessages: (...args: Parameters<typeof api.listMarketingRunMessages>) =>
     api.listMarketingRunMessages(...args),
   linkCampAttendees: (...args: Parameters<typeof api.linkCampAttendees>) =>

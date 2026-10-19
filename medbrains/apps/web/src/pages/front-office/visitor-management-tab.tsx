@@ -15,11 +15,20 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { VisitorLog, VisitorPass, VisitorRegistration } from "@medbrains/types";
-import { IconCheck, IconClock, IconPlus, IconQrcode, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconClock,
+  IconPlus,
+  IconPrinter,
+  IconQrcode,
+  IconX,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
+import { VisitorPassPrintModal } from "@/components/FrontOffice/VisitorPassPrintModal";
+import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
 import { Button, IconButton } from "@/components/ui";
 import type {
   FrontOfficeVisitorFormInput,
@@ -46,14 +55,18 @@ const passStatusColors: Record<string, string> = {
 export function VisitorManagementTab({
   canCreate,
   canManagePasses,
+  canRecordVisits,
 }: {
   canCreate: boolean;
   canManagePasses: boolean;
+  /** Check a pass in/out: `front_office.passes.manage` or the guard's `front_office.visitor_logs.record`. */
+  canRecordVisits: boolean;
 }) {
   const qc = useQueryClient();
   const [visitorDrawer, visitorDrawerHandlers] = useDisclosure(false);
   const [passDrawer, passDrawerHandlers] = useDisclosure(false);
   const [selectedRegistration, setSelectedRegistration] = useState<string | null>(null);
+  const [printPassId, setPrintPassId] = useState<string | null>(null);
 
   const visitorForm = useForm<FrontOfficeVisitorFormInput>({
     resolver: zodResolver(frontOfficeVisitorFormSchema),
@@ -121,6 +134,8 @@ export function VisitorManagementTab({
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked in", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Not checked in", message: e.message, color: "danger" }),
   });
 
   const checkOut = useMutation({
@@ -129,6 +144,8 @@ export function VisitorManagementTab({
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked out", color: "primary" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Not checked out", message: e.message, color: "danger" }),
   });
 
   const visitorColumns = [
@@ -197,7 +214,12 @@ export function VisitorManagementTab({
       label: "",
       render: (r: VisitorPass) => (
         <Group gap="xs">
-          {r.status === "active" && canManagePasses && (
+          <Tooltip label="Print pass">
+            <IconButton onClick={() => setPrintPassId(r.id)} aria-label="Print pass">
+              <IconPrinter size={16} />
+            </IconButton>
+          </Tooltip>
+          {r.status === "active" && canRecordVisits && (
             <>
               <Tooltip label="Check In">
                 <IconButton
@@ -217,6 +239,10 @@ export function VisitorManagementTab({
                   <IconClock size={16} />
                 </IconButton>
               </Tooltip>
+            </>
+          )}
+          {r.status === "active" && canManagePasses && (
+            <>
               <Tooltip label="Revoke">
                 <IconButton
                   tone="danger"
@@ -235,20 +261,24 @@ export function VisitorManagementTab({
 
   return (
     <Stack gap="lg">
+      <VisitorPassPrintModal passId={printPassId} onClose={() => setPrintPassId(null)} />
       {/* Visitors */}
       <div>
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Visitor Registrations</Text>
-          {canCreate && (
-            <Button
-              tone="primary"
-              size="xs"
-              leftSection={<IconPlus size={14} />}
-              onClick={visitorDrawerHandlers.open}
-            >
-              Register Visitor
-            </Button>
-          )}
+          <Group gap="xs">
+            <PrintRegisterButton documentKey="visitor-register" period="date" />
+            {canCreate && (
+              <Button
+                tone="primary"
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={visitorDrawerHandlers.open}
+              >
+                Register Visitor
+              </Button>
+            )}
+          </Group>
         </Group>
         <DataTable
           columns={visitorColumns}

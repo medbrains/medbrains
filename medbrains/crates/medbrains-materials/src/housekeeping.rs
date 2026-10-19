@@ -11,7 +11,6 @@
 //! **What retires this:** the turnaround record growing anything clinical.
 //! Today it is a time, a room and a state.
 
-
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -27,7 +26,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -234,7 +235,7 @@ pub async fn list_cleaning_schedules(
 
     let rows = if let Some(area_type) = params.area_type {
         sqlx::query_as::<_, CleaningSchedule>(
-            "SELECT * FROM cleaning_schedules WHERE area_type::text = $1 \
+            "SELECT * FROM cleaning_schedules WHERE area_type::text = $1 AND deleted_at IS NULL \
              ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(area_type)
@@ -242,7 +243,7 @@ pub async fn list_cleaning_schedules(
         .await?
     } else {
         sqlx::query_as::<_, CleaningSchedule>(
-            "SELECT * FROM cleaning_schedules ORDER BY created_at DESC LIMIT 5000",
+            "SELECT * FROM cleaning_schedules WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -337,15 +338,23 @@ pub async fn list_cleaning_tasks(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CleaningTask>(
-        "SELECT * FROM cleaning_tasks \
-         WHERE ($1::text IS NULL OR task_date::text = $1) \
-           AND ($2::text IS NULL OR status::text = $2) \
-           AND ($3::text IS NULL OR area_type::text = $3) \
-         ORDER BY task_date DESC, created_at DESC LIMIT 5000",
+        "SELECT t.*, COALESCE( \
+           NULLIF(TRIM(CONCAT(e.first_name, ' ', e.last_name)), ''), u.full_name \
+         ) AS assigned_to_name, \
+         (t.assigned_to = $4::text OR e.user_id = $4) IS TRUE AS assigned_to_me \
+         FROM cleaning_tasks t \
+         LEFT JOIN employees e ON e.id::text = t.assigned_to AND e.tenant_id = t.tenant_id \
+         LEFT JOIN users u ON u.id::text = t.assigned_to AND u.tenant_id = t.tenant_id \
+         WHERE t.deleted_at IS NULL \
+           AND ($1::text IS NULL OR t.task_date::text = $1) \
+           AND ($2::text IS NULL OR t.status::text = $2) \
+           AND ($3::text IS NULL OR t.area_type::text = $3) \
+         ORDER BY t.task_date DESC, t.created_at DESC LIMIT 5000",
     )
     .bind(&params.date)
     .bind(&params.status)
     .bind(&params.area_type)
+    .bind(claims.sub)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -386,33 +395,92 @@ pub async fn create_cleaning_task(
     Ok(Json(row))
 }
 
+/// Moves a cleaning task along. A supervisor (`housekeeping.cleaning.manage`)
+/// sets any status. A housekeeper (`housekeeping.tasks.perform`) may start a
+/// task that is unassigned — claiming it — or assigned to them, and complete
+/// only a task assigned to them.
 pub async fn update_task_status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateTaskStatusRequest>,
 ) -> Result<Json<CleaningTask>, AppError> {
-    require_permission(&claims, permissions::housekeeping::cleaning::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::housekeeping::cleaning::MANAGE,
+            permissions::housekeeping::tasks::PERFORM,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    if !holds(&claims, permissions::housekeeping::cleaning::MANAGE) {
+        require_own_task(&mut tx, &claims, id, &body.status).await?;
+    }
 
     let now = chrono::Utc::now();
     let row = sqlx::query_as::<_, CleaningTask>(
         "UPDATE cleaning_tasks SET \
          status = $2::cleaning_task_status, \
+         assigned_to = CASE WHEN COALESCE(assigned_to, '') = '' AND $2 = 'in_progress' \
+                            THEN $4 ELSE assigned_to END, \
          started_at = CASE WHEN $2 = 'in_progress' THEN $3 ELSE started_at END, \
          completed_at = CASE WHEN $2 = 'completed' THEN $3 ELSE completed_at END \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND deleted_at IS NULL RETURNING *",
     )
     .bind(id)
     .bind(&body.status)
     .bind(now)
+    .bind(claims.sub.to_string())
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+fn holds(claims: &Claims, permission: &str) -> bool {
+    is_bypass_role(claims) || claims.permissions.iter().any(|p| p == permission)
+}
+
+/// A housekeeper's limits: start or complete only, and only their own task
+/// (an unassigned one may be started, which claims it). `assigned_to` holds
+/// the assignee's employee id or user id.
+async fn require_own_task(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    id: Uuid,
+    status: &str,
+) -> Result<(), AppError> {
+    if !matches!(status, "in_progress" | "completed") {
+        return Err(AppError::ForbiddenReason(
+            "You can start or complete a task. Ask your supervisor to change it to anything else."
+                .into(),
+        ));
+    }
+    let allowed: bool = sqlx::query_scalar(
+        "SELECT CASE WHEN COALESCE(t.assigned_to, '') = '' THEN $3 = 'in_progress' \
+                ELSE t.assigned_to = $2::text OR t.assigned_to IN ( \
+                  SELECT e.id::text FROM employees e \
+                  WHERE e.user_id = $2 AND e.deleted_at IS NULL) END \
+         FROM cleaning_tasks t WHERE t.id = $1 AND t.deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(status)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::ForbiddenReason(
+            "This task is not assigned to you. Start it first if it is unassigned, or ask your supervisor to reassign it."
+                .into(),
+        ))
+    }
 }
 
 pub async fn verify_task(
@@ -458,7 +526,8 @@ pub async fn list_turnarounds(
 
     let rows = sqlx::query_as::<_, RoomTurnaround>(
         "SELECT * FROM room_turnarounds \
-         WHERE ($1::date IS NULL OR discharge_at::date >= $1::date) \
+         WHERE deleted_at IS NULL \
+           AND ($1::date IS NULL OR discharge_at::date >= $1::date) \
            AND ($2::date IS NULL OR discharge_at::date <= $2::date) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -554,7 +623,7 @@ pub async fn list_pest_control_schedules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlSchedule>(
-        "SELECT * FROM pest_control_schedules ORDER BY next_due ASC NULLS LAST LIMIT 5000",
+        "SELECT * FROM pest_control_schedules WHERE deleted_at IS NULL ORDER BY next_due ASC NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -645,7 +714,7 @@ pub async fn list_pest_control_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlLog>(
-        "SELECT * FROM pest_control_logs ORDER BY treatment_date DESC LIMIT 5000",
+        "SELECT * FROM pest_control_logs WHERE deleted_at IS NULL ORDER BY treatment_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -705,7 +774,8 @@ pub async fn list_linen_items(
 
     let rows = sqlx::query_as::<_, LinenItem>(
         "SELECT * FROM linen_items \
-         WHERE ($1::text IS NULL OR current_status::text = $1) \
+         WHERE deleted_at IS NULL \
+           AND ($1::text IS NULL OR current_status::text = $1) \
            AND ($2::text IS NULL OR item_type = $2) \
          ORDER BY created_at DESC LIMIT 5000",
     )
@@ -794,7 +864,7 @@ pub async fn list_linen_movements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenMovement>(
-        "SELECT * FROM linen_movements ORDER BY movement_date DESC LIMIT 5000",
+        "SELECT * FROM linen_movements WHERE deleted_at IS NULL ORDER BY movement_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -853,7 +923,7 @@ pub async fn list_laundry_batches(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LaundryBatch>(
-        "SELECT * FROM laundry_batches ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM laundry_batches WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -940,7 +1010,7 @@ pub async fn list_par_levels(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenParLevel>(
-        "SELECT * FROM linen_par_levels ORDER BY item_type, ward_id LIMIT 5000",
+        "SELECT * FROM linen_par_levels WHERE deleted_at IS NULL ORDER BY item_type, ward_id LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -963,7 +1033,7 @@ pub async fn upsert_par_level(
         "INSERT INTO linen_par_levels \
          (tenant_id, ward_id, item_type, par_level, current_stock, reorder_level) \
          VALUES ($1, $2, $3, $4, COALESCE($5, 0), COALESCE($6, 0)) \
-         ON CONFLICT (tenant_id, ward_id, item_type) DO UPDATE SET \
+         ON CONFLICT (tenant_id, ward_id, item_type) DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, \
            par_level = EXCLUDED.par_level, \
            current_stock = EXCLUDED.current_stock, \
            reorder_level = EXCLUDED.reorder_level \
@@ -996,7 +1066,7 @@ pub async fn list_condemnations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenCondemnation>(
-        "SELECT * FROM linen_condemnations ORDER BY condemned_date DESC LIMIT 5000",
+        "SELECT * FROM linen_condemnations WHERE deleted_at IS NULL ORDER BY condemned_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

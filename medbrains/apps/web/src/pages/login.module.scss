@@ -1,166 +1,54 @@
 // Login — public auth surface using the shared app design tokens.
 
 .wrapper {
+  // One centred composition on the brand stage, like www.medbrains.in: the
+  // story on the left, the sign-in card on the right, both vertically centred.
+  --login-gutter: max(48px, calc((100vw - 1200px) / 2));
   min-height: 100vh;
-  display: flex;
-  background: var(--mb-bg-content);
-  color: var(--mb-text-primary);
-}
-
-.manifesto {
-  flex: 1;
-  background: var(--mb-sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 64px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  align-items: center;
+  gap: 96px;
+  padding: 48px var(--login-gutter);
   position: relative;
-  overflow: hidden;
-  border-right: 1px solid var(--mb-border-subtle);
+  background: var(--mb-stage-bg);
+  color: var(--mb-text-primary);
 
+  // The brand line along the top of the page.
   &::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
+    inset: 0 0 auto;
+    height: 3px;
     background: var(--mb-accent-gradient);
   }
 
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: var(--mb-signature-spectrum-soft);
-    opacity: 0.9;
-    pointer-events: none;
+  @media (max-width: 1100px) {
+    gap: 48px;
   }
 
   @media (max-width: 900px) {
-    display: none;
+    grid-template-columns: minmax(0, 420px);
+    justify-content: center;
+    padding: 24px 16px;
   }
-}
-
-.manifestoEcg {
-  position: absolute;
-  bottom: 80px;
-  left: 0;
-  width: 100%;
-  height: 40px;
-  opacity: 0.14;
-  z-index: 1;
-}
-
-.manifestoLogo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 48px;
-  position: relative;
-  z-index: 2;
-}
-
-.manifestoLogoText {
-  color: var(--mb-text-primary);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: var(--mb-letter-spacing);
-}
-
-.manifestoTitle {
-  font-family: var(--font-display);
-  font-size: 36px;
-  font-weight: var(--mb-font-weight-heading);
-  line-height: 1.15;
-  color: var(--mb-text-heading);
-  letter-spacing: var(--mb-letter-spacing);
-  margin-bottom: 24px;
-  position: relative;
-  z-index: 2;
-
-  em {
-    font-style: normal;
-    color: var(--fc-copper);
-  }
-}
-
-.manifestoBody {
-  font-size: 15px;
-  line-height: 1.7;
-  color: var(--mb-text-secondary);
-  max-width: 400px;
-  position: relative;
-  z-index: 2;
-}
-
-.manifestoStats {
-  display: flex;
-  gap: 32px;
-  margin-top: 40px;
-  padding-top: 32px;
-  border-top: 1px solid var(--mb-border-subtle);
-  position: relative;
-  z-index: 2;
-}
-
-.manifestoStat {
-  display: flex;
-  flex-direction: column;
-}
-
-.manifestoStatValue {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: var(--mb-font-weight-heading);
-  color: var(--mb-text-primary);
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-.manifestoStatLabel {
-  font-size: 11px;
-  font-weight: var(--mb-font-weight-label);
-  color: var(--mb-text-muted);
-  text-transform: uppercase;
-  letter-spacing: var(--mb-letter-spacing);
-  font-family: var(--font-mono);
-  margin-top: 4px;
 }
 
 .formSide {
-  flex: 1;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 48px;
-  max-width: 560px;
-  background: var(--mb-bg-content);
-
-  @media (max-width: 900px) {
-    max-width: 100%;
-    padding: 24px;
-  }
 }
 
 .container {
   width: 100%;
-  max-width: 400px;
-  position: relative;
-  padding: 28px;
-  border: 1px solid var(--mb-border);
-  border-radius: 0; // Carbon: sharp corners
+  padding: 32px;
+  border: 1px solid var(--mb-stage-line);
+  border-radius: 12px;
   background: var(--mb-card-bg);
-  box-shadow: var(--mb-shadow-soft);
+  box-shadow: var(--mb-stage-shadow);
 
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 18px;
-    right: 18px;
-    height: 3px;
-    border-radius: 9999px;
-    background: var(--mb-selected-edge);
+  [data-mantine-color-scheme="dark"] & {
+    background: var(--mb-stage-card);
   }
 }
 
@@ -277,4 +165,9 @@
   color: var(--mb-text-muted);
   margin-top: 12px;
   font-family: var(--font-mono);
+}
+
+.title {
+  letter-spacing: 0.08em;
+  margin: 0;
 }

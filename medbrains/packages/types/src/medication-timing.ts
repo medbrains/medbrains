@@ -1,5 +1,5 @@
 // Medication timing (structured administration instructions) types — split from index.ts, barrel-re-exported.
-import type { DiagnosisCodingSystem, PharmacyRxStatus, Prescription } from "./index";
+import type { DiagnosisCodingSystem, Gender, PharmacyRxStatus, Prescription } from "./index";
 
 // ── Medication Timing (structured instructions) ──────────────
 export type FoodTiming = "before_food" | "with_food" | "after_food" | "empty_stomach" | "any";
@@ -59,11 +59,33 @@ export interface CreatePrescriptionRequest {
   duplicate_override_reason?: string;
   /** Reason for prescribing when the prescriber's medical registration has expired — required in that case. */
   credential_override_reason?: string;
+  /** Refills the doctor authorises without a new visit (0-12); never on a controlled drug. */
+  repeats_allowed?: number;
+  /** Days between refills; required with refills. */
+  repeat_interval_days?: number;
+  /** Last day the prescription may be dispensed or refilled (YYYY-MM-DD). */
+  valid_until?: string;
+  /** Indication for an AWaRe Reserve antibiotic — raises a stewardship request. */
+  stewardship_indication?: string;
+  /** Reason for prescribing a non-formulary medicine. */
+  non_formulary_reason?: string;
+}
+
+/** A stewardship request that still counts for prescribing: pending or approved, unexpired. */
+export interface LiveStewardshipRequest {
+  id: string;
+  antibiotic_name: string;
+  request_status: "pending" | "approved";
+  auto_stop_date: string | null;
 }
 
 export interface UpdatePrescriptionRequest {
   notes?: string;
   items: PrescriptionItemInput[];
+  /** As on create: indication for a Reserve antibiotic without a stewardship request. */
+  stewardship_indication?: string;
+  /** As on create: reason for a non-formulary medicine. */
+  non_formulary_reason?: string;
 }
 
 export interface PrescriptionWithItems {
@@ -198,6 +220,47 @@ export interface ReferralWithNames {
   response_notes: string | null;
   responded_at: string | null;
   created_at: string;
+  /** The caller may accept, decline or answer it. */
+  addressed_to_me: boolean;
+  /** The caller sent it, and may withdraw it while pending. */
+  sent_by_me: boolean;
+}
+
+export interface DeclineReferralRequest {
+  reason: string;
+}
+
+export interface CompleteReferralRequest {
+  opinion: string;
+  /** Send the patient back to the referring doctor (default true). */
+  return_to_referrer?: boolean;
+}
+
+export interface Referral {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  from_department_id: string;
+  to_department_id: string;
+  from_doctor_id: string | null;
+  to_doctor_id: string | null;
+  urgency: ReferralUrgency;
+  status: ReferralStatus;
+  reason: string;
+  clinical_notes: string | null;
+  response_notes: string | null;
+  responded_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A referral after a step, and the queue place that step made, if any. */
+export interface ReferralStep {
+  referral: Referral;
+  queue_id: string | null;
+  token_number: string | null;
 }
 
 export interface CreateReferralRequest {
@@ -423,6 +486,8 @@ export interface ProcedureConsent {
   withdrawal_reason: string | null;
   expires_at: string | null;
   body: Record<string, unknown>;
+  /** The hospital's published consent form version; null = the built-in form. */
+  form_version_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -441,6 +506,11 @@ export interface CreateConsentRequest {
   consented_by_relation?: string;
   witness_name?: string;
   witness_designation?: string;
+  /** The OT booking a surgical/anaesthesia consent is taken for. */
+  ot_booking_id?: string;
+  /** Answers to the consent form, checked against `form_version_id`. */
+  answers?: Record<string, string | number | boolean | string[]>;
+  form_version_id?: string;
 }
 
 export interface RevokeProcedureConsentRequest {
@@ -472,6 +542,10 @@ export interface PatientDiagnosisRow {
   encounter_date: string;
   doctor_name: string | null;
   created_at: string;
+  /** Who made the diagnosis; null for diagnoses from before it was kept. */
+  recorded_by_name?: string | null;
+  updated_by_name?: string | null;
+  updated_at?: string | null;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1153,6 +1227,23 @@ export interface InsuranceClaim {
   nhcx_recipient_code: string | null;
   nhcx_response_payload: unknown | null;
   nhcx_response_at: string | null;
+  nhcx_workflow_id: string | null;
+  /** `queued` → `sent` | `send_failed`, then the payer's `x-hcx-status`. */
+  nhcx_status: string | null;
+  /** Why the gateway refused the message, when it did. */
+  nhcx_disposition: string | null;
+  /** The payer's FHIR outcome: `complete`, `partial`, `error` or `queued`. */
+  nhcx_outcome: string | null;
+  nhcx_submitted_at: string | null;
+  admission_id: string | null;
+  insurance_id: string | null;
+  claim_amount: string | null;
+  /** The claimed invoice's total. */
+  total_bill_amount: string;
+  /** Bill total less the approved amount — what the payer will not pay. */
+  deductions: string;
+  /** Bill total less the payer's share less what the patient already paid. */
+  patient_payable: string;
   created_at: string;
   updated_at: string;
 }
@@ -1273,6 +1364,28 @@ export interface AdjustAdvanceRequest {
   invoice_id: string;
   amount: number;
   notes?: string;
+}
+
+/** The discharge bill checklist for an admission (#292). Money arrives as decimal strings. */
+export interface FinalBillChecklist {
+  admission_id: string;
+  patient_id: string;
+  invoice: {
+    id: string;
+    invoice_number: string;
+    status: string;
+    total_amount: string | number;
+    paid_amount: string | number;
+  } | null;
+  departments: { department: string; amount: string | number; lines: number }[];
+  unbilled_orders: { module: string; order_id: string; name: string }[];
+  pending_returns: number;
+  pending_concessions: number;
+  interim_outstanding: string | number;
+  advance_balance: string | number;
+  advances: { id: string; advance_number: string; balance: string | number }[];
+  net_payable: string | number;
+  blockers: string[];
 }
 
 export interface RefundAdvanceRequest {
@@ -2023,12 +2136,24 @@ export interface LabTestCatalog {
   fasting_required: boolean;
   /** null means unspecified, not zero. */
   fasting_hours: number | null;
+  /** Short names searched by ("LFT", "hemogram"). */
+  synonyms: string[];
   created_at: string;
   updated_at: string;
 }
 
+/** Who a worklist row is about, masked per the reader's field access. */
+export interface PatientIdentity {
+  id: string;
+  uhid: string;
+  full_name: string;
+  gender: Gender;
+}
+
 export interface LabOrderListResponse {
   orders: LabOrder[];
+  /** The patients on this page of orders. */
+  patients: PatientIdentity[];
   total: number;
   page: number;
   per_page: number;
@@ -2036,6 +2161,8 @@ export interface LabOrderListResponse {
 
 export interface CollectSampleRequest {
   patient_identifier: string;
+  /** The label on the tube — what every analyzer match keys on. */
+  sample_barcode?: string;
 }
 
 export interface CreateLabOrderRequest {
@@ -2096,6 +2223,7 @@ export interface CreateLabCatalogRequest {
   container?: string;
   fasting_required?: boolean;
   fasting_hours?: number;
+  synonyms?: string[];
 }
 
 export interface UpdateLabCatalogRequest {
@@ -2120,6 +2248,7 @@ export interface UpdateLabCatalogRequest {
   container?: string;
   fasting_required?: boolean;
   fasting_hours?: number;
+  synonyms?: string[];
 }
 
 // Lab Panels / Profiles
@@ -2991,8 +3120,65 @@ export interface RadiologyModality {
   name: string;
   description: string | null;
   is_active: boolean;
+  /** An ultrasound on a pregnant woman needs a PC-PNDT Form F. */
+  is_ultrasound: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type RadiologyContrast = "none" | "with" | "without" | "with_and_without";
+
+/** One orderable imaging exam ("CT Brain Plain") under one modality. */
+export interface RadiologyExam {
+  id: string;
+  tenant_id: string;
+  modality_id: string;
+  code: string;
+  name: string;
+  body_part: string | null;
+  body_part_code: string | null;
+  laterality_required: boolean;
+  contrast: RadiologyContrast;
+  synonyms: string[];
+  /** charge_master code; null means billing uses RAD-<modality code>. */
+  charge_code: string | null;
+  preparation: string | null;
+  is_active: boolean;
+  /** A scan of a pregnancy: ordering it opens a PC-PNDT Form F. */
+  pcpndt_applicable: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RadiologyExamListItem extends RadiologyExam {
+  modality_code: string;
+  modality_name: string;
+  /** Price of billing_code in the charge master; null when unpriced. */
+  price: string | null;
+  /** The charge code billing uses for this exam. */
+  billing_code: string;
+}
+
+export interface RadiologyExamInput {
+  modality_id?: string;
+  code?: string;
+  name?: string;
+  body_part?: string;
+  body_part_code?: string;
+  laterality_required?: boolean;
+  contrast?: RadiologyContrast;
+  synonyms?: string[];
+  charge_code?: string;
+  preparation?: string;
+  is_active?: boolean;
+  pcpndt_applicable?: boolean;
+}
+
+export interface RadiologyExamListParams {
+  modality_id?: string;
+  search?: string;
+  limit?: number;
+  include_inactive?: boolean;
 }
 
 export interface RadiologyOrder {
@@ -3013,10 +3199,17 @@ export interface RadiologyOrder {
   notes: string | null;
   contrast_required: boolean;
   pregnancy_checked: boolean;
+  /** She is pregnant: an ultrasound then needs a PC-PNDT Form F. */
+  patient_pregnant: boolean;
   allergy_flagged: boolean;
   cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
+  exam_id?: string | null;
+  /** Written into every image; links the study back to this order. */
+  accession_number: string;
+  /** The study the PACS holds for this order, once it has arrived. */
+  pacs_study_uid?: string | null;
 }
 
 export interface RadiologyReport {
@@ -3075,7 +3268,11 @@ export interface CreateRadiologyOrderRequest {
   notes?: string;
   contrast_required?: boolean;
   pregnancy_checked?: boolean;
+  /** She is pregnant: an ultrasound then opens a PC-PNDT Form F. */
+  patient_pregnant?: boolean;
   allergy_flagged?: boolean;
+  /** Catalogue exam; must belong to modality_id. */
+  exam_id?: string;
 }
 
 export interface RadiologyOrderDetailResponse {
@@ -3116,12 +3313,14 @@ export interface CreateModalityRequest {
   code: string;
   name: string;
   description?: string;
+  is_ultrasound?: boolean;
 }
 
 export interface UpdateModalityRequest {
   name?: string;
   description?: string;
   is_active?: boolean;
+  is_ultrasound?: boolean;
 }
 
 export interface RecordDoseRequest {
@@ -3181,9 +3380,16 @@ export interface PharmacyCatalog {
   black_box_warning: string | null;
   /** GTIN/EAN-13 or other pack barcode. Batch and expiry live on the batch. */
   barcode: string | null;
+  /** Who may let a refill through on the patient's request. */
+  refill_policy: RefillPolicy;
+  /** Needs refrigeration: delivered only by the hospital's runner, never by courier. */
+  needs_cold_chain: boolean;
   created_at: string;
   updated_at: string;
 }
+
+/** Who may let a refill through on the patient's request; controlled drugs never. */
+export type RefillPolicy = "pharmacy" | "doctor_approval" | "never";
 
 /** A stock row with its batch facts aggregated server-side.
  *
@@ -3198,9 +3404,6 @@ export interface StockListItem extends PharmacyCatalog {
 export interface ComplianceSettings {
   enforce_drug_scheduling: boolean;
   enforce_ndps_tracking: boolean;
-  enforce_formulary: boolean;
-  enforce_drug_interactions: boolean;
-  enforce_antibiotic_stewardship: boolean;
   enforce_lasa_warnings: boolean;
   enforce_max_dose_check: boolean;
   enforce_batch_tracking: boolean;
@@ -3228,7 +3431,8 @@ export interface PharmacyOrder {
   id: string;
   tenant_id: string;
   prescription_id: string | null;
-  patient_id: string;
+  /** Null for a walk-in counter sale. */
+  patient_id: string | null;
   encounter_id: string | null;
   ordered_by: string;
   status: PharmacyOrderStatus;
@@ -3243,6 +3447,9 @@ export interface PharmacyOrder {
   dispensed_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Sent by the list endpoints only, so identity shows without a per-row fetch. */
+  patient_name?: string;
+  patient_uhid?: string;
 }
 
 export interface PharmacyOrderItem {
@@ -3280,9 +3487,24 @@ export interface RepeatEligibility {
   repeats_allowed: number;
   repeats_used: number;
   remaining: number;
+  repeat_interval_days: number | null;
+  valid_until: string | null;
   last_dispense_at: string | null;
   next_eligible_at: string | null;
   is_eligible_now: boolean;
+  /** Why a refill can't be issued now, in words for the counter. */
+  reason: string | null;
+}
+
+export interface RepeatRow {
+  id: string;
+  prescription_id: string;
+  pharmacy_order_id: string | null;
+  rx_queue_id: string | null;
+  repeat_index: number;
+  dispensed_at: string;
+  dispensed_by: string;
+  notes: string | null;
 }
 
 export interface PharmacySubstitution {
@@ -3384,6 +3606,8 @@ export interface CreatePharmacyCatalogRequest {
   storage_conditions?: string;
   black_box_warning?: string;
   barcode?: string;
+  refill_policy?: RefillPolicy;
+  needs_cold_chain?: boolean;
 }
 
 export interface UpdatePharmacyCatalogRequest {
@@ -3412,6 +3636,8 @@ export interface UpdatePharmacyCatalogRequest {
   storage_conditions?: string;
   black_box_warning?: string;
   barcode?: string;
+  refill_policy?: RefillPolicy;
+  needs_cold_chain?: boolean;
 }
 
 export interface CreateStockTransactionRequest {
@@ -3431,6 +3657,35 @@ export interface LabReferralDoctor {
   hospital_name: string | null;
   commission_pct: number | null;
   is_active: boolean;
+  registration_no: string | null;
+}
+
+/** Who sent a walk-in patient to the lab. */
+export type DirectLabReferral =
+  | { kind: "internal"; doctor_id: string }
+  | {
+      kind: "external";
+      referral_doctor_id?: string;
+      name?: string;
+      registration_no?: string;
+      phone?: string;
+    }
+  | { kind: "self" };
+
+export interface CreateDirectLabOrderRequest {
+  patient_id: string;
+  test_ids: string[];
+  priority?: LabPriority;
+  clinical_history?: string;
+  referral: DirectLabReferral;
+}
+
+export interface DirectLabOrderResponse {
+  encounter_id: string;
+  orders: LabOrder[];
+  /** Draft invoice the tests were charged to. */
+  invoice_id: string | null;
+  total: string;
 }
 
 /** One settled or pending commission period. */

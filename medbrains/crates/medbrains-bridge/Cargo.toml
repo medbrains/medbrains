@@ -36,6 +36,9 @@ hex = "0.4"
 # SQLite buffer
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# Print payloads arrive base64-encoded
+base64 = "0.22"
+
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 

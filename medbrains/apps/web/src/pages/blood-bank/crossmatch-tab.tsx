@@ -4,12 +4,13 @@ import { Drawer, Group, NumberInput, Select, Stack, Textarea } from "@mantine/co
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateCrossmatchRequestBody, CrossmatchRequest } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { BLOOD_GROUP_OPTIONS, bloodGroupLabel, P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, StatusDot } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Badge, Button, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -41,7 +42,7 @@ function CreateCrossmatchForm({
       <Select
         label="Blood Group"
         required
-        data={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]}
+        data={BLOOD_GROUP_OPTIONS}
         value={bloodGroup}
         onChange={setBloodGroup}
       />
@@ -127,7 +128,9 @@ export function CrossmatchTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (r: CrossmatchRequest) => <Badge tone="danger">{r.blood_group}</Badge>,
+      render: (r: CrossmatchRequest) => (
+        <Badge tone="danger">{bloodGroupLabel(r.blood_group)}</Badge>
+      ),
     },
     {
       key: "component_type" as const,
@@ -152,53 +155,54 @@ export function CrossmatchTab() {
       label: "Requested",
       render: (r: CrossmatchRequest) => new Date(r.created_at).toLocaleDateString(),
     },
-    ...(canCreate
-      ? [
-          {
-            key: "id" as const,
-            label: "Actions",
-            render: (r: CrossmatchRequest) => (
-              <Group gap={4}>
-                {r.status === "requested" && (
-                  <Button
-                    tone="secondary"
-                    size="compact-xs"
-                    onClick={() => updateMut.mutate({ id: r.id, status: "testing" })}
-                  >
-                    Start Testing
-                  </Button>
-                )}
-                {r.status === "testing" && (
-                  <>
-                    <Button
-                      tone="secondary"
-                      size="compact-xs"
-                      onClick={() =>
-                        updateMut.mutate({ id: r.id, status: "compatible", result: "compatible" })
-                      }
-                    >
-                      Compatible
-                    </Button>
-                    <Button
-                      tone="subtle-danger"
-                      size="compact-xs"
-                      onClick={() =>
-                        updateMut.mutate({
-                          id: r.id,
-                          status: "incompatible",
-                          result: "incompatible",
-                        })
-                      }
-                    >
-                      Incompatible
-                    </Button>
-                  </>
-                )}
-              </Group>
-            ),
-          },
-        ]
-      : []),
+    {
+      key: "id" as const,
+      label: "Actions",
+      render: (r: CrossmatchRequest) => (
+        <Group gap={4}>
+          {canCreate && r.status === "requested" && (
+            <Button
+              tone="secondary"
+              size="compact-xs"
+              onClick={() => updateMut.mutate({ id: r.id, status: "testing" })}
+            >
+              Start Testing
+            </Button>
+          )}
+          {canCreate && r.status === "testing" && (
+            <>
+              <Button
+                tone="secondary"
+                size="compact-xs"
+                onClick={() =>
+                  updateMut.mutate({ id: r.id, status: "compatible", result: "compatible" })
+                }
+              >
+                Compatible
+              </Button>
+              <Button
+                tone="subtle-danger"
+                size="compact-xs"
+                onClick={() =>
+                  updateMut.mutate({
+                    id: r.id,
+                    status: "incompatible",
+                    result: "incompatible",
+                  })
+                }
+              >
+                Incompatible
+              </Button>
+            </>
+          )}
+          <PrintDocumentIconMenu
+            idKind="crossmatch_request"
+            recordId={r.id}
+            recordLabel={`crossmatch request ${bloodGroupLabel(r.blood_group)} ${r.component_type}`}
+          />
+        </Group>
+      ),
+    },
   ];
 
   return (

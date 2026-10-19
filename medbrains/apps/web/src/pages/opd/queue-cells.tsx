@@ -83,9 +83,34 @@ export function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
   );
 }
 
+/** Why a colleague's row is in this queue, in the words a doctor reads. */
+const ROW_KIND_LABEL: Record<Exclude<QueueEntry["kind"], "primary">, string> = {
+  cross_consult: "Opinion requested",
+  returned: "Back with opinion",
+};
+
 export function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
   const { t } = useTranslation("opd");
   const visitType = row.visit_type ?? (row.appointment_id ? "booked" : "walk_in");
+  if (row.kind !== "primary") {
+    return (
+      <Stack gap={2}>
+        <OperationalSignal
+          label={ROW_KIND_LABEL[row.kind]}
+          shape="diamond"
+          size="xs"
+          tone="active"
+        />
+        {row.kind === "cross_consult" && (
+          <Text size="xs" c="dimmed" lineClamp={2}>
+            {[row.referral_from_doctor && `Dr. ${row.referral_from_doctor}`, row.referral_reason]
+              .filter(Boolean)
+              .join(": ")}
+          </Text>
+        )}
+      </Stack>
+    );
+  }
   return (
     <Stack gap={2}>
       <OperationalSignal

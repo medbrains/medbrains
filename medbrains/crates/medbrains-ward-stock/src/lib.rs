@@ -44,7 +44,7 @@ pub async fn list_ward_stock(
                 COALESCE(s.quantity, 0) AS \"on_hand!\", \
                 GREATEST(p.par_qty - COALESCE(s.quantity, 0), 0) AS \"gap!\" \
          FROM ward_par_levels p \
-         JOIN pharmacy_catalog c ON c.id = p.catalog_item_id \
+         JOIN pharmacy_catalog c ON c.id = p.catalog_item_id AND c.deleted_at IS NULL \
          LEFT JOIN ward_stock s ON s.tenant_id = p.tenant_id \
               AND s.department_id = p.department_id AND s.catalog_item_id = p.catalog_item_id \
          WHERE p.tenant_id = $1 AND p.department_id = $2 ORDER BY c.name LIMIT 5000",

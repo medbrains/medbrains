@@ -113,7 +113,7 @@ pub async fn list_concessions(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
-    let mut where_clauses = vec!["tenant_id = $1".to_owned()];
+    let mut where_clauses = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx = 2u32;
 
     if params.status.is_some() {
@@ -184,8 +184,7 @@ pub async fn create_concession(
     // Financial, so the direct grant rather than the clinical check — treating
     // somebody does not entitle you to their bill. The id is caller-supplied,
     // which is weaker than a path id but still refuses an unreachable patient.
-    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
-        .await?;
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -539,7 +538,7 @@ pub async fn update_auto_concession_rules(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'billing', 'auto_concession_rules', $2) \
          ON CONFLICT (tenant_id, category, key) \
-         DO UPDATE SET value = EXCLUDED.value",
+         DO UPDATE SET deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, value = EXCLUDED.value",
     )
     .bind(claims.tenant_id)
     .bind(&body.rules)

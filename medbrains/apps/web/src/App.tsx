@@ -17,7 +17,6 @@ function ScrollToTop() {
   return null;
 }
 
-const LandingPage = lazy(() => import("./pages/landing").then((m) => ({ default: m.LandingPage })));
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
 const TermsPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.TermsPage })));
 const PrivacyPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.PrivacyPage })));
@@ -41,6 +40,9 @@ const QueueStatusPage = lazy(() =>
 );
 const VerifyPrescriptionPage = lazy(() =>
   import("./pages/verify-prescription").then((m) => ({ default: m.VerifyPrescriptionPage })),
+);
+const VerifyBillPage = lazy(() =>
+  import("./pages/verify-bill").then((m) => ({ default: m.VerifyBillPage })),
 );
 const KioskSelfCheckinPage = lazy(() =>
   import("./pages/kiosk/self-checkin").then((m) => ({ default: m.KioskSelfCheckinPage })),
@@ -150,6 +152,9 @@ const FulfilmentQueuePage = lazy(() =>
 const VerifyPackPage = lazy(() =>
   import("./pages/pharmacy/verify-view").then((m) => ({ default: m.VerifyPackPage })),
 );
+const DeliveriesPage = lazy(() =>
+  import("./pages/pharmacy/deliveries").then((m) => ({ default: m.DeliveriesPage })),
+);
 const DispatchPage = lazy(() =>
   import("./pages/pharmacy/dispatch-view").then((m) => ({ default: m.DispatchPage })),
 );
@@ -215,6 +220,9 @@ const HospitalGroupsPage = lazy(() =>
 );
 const InterHospitalStockPage = lazy(() =>
   import("./pages/inter-hospital-stock").then((m) => ({ default: m.InterHospitalStockPage })),
+);
+const UhiRequestsPage = lazy(() =>
+  import("./pages/uhi-requests").then((m) => ({ default: m.UhiRequestsPage })),
 );
 const HomeHealthcarePage = lazy(() =>
   import("./pages/home-healthcare").then((m) => ({ default: m.HomeHealthcarePage })),
@@ -393,6 +401,9 @@ const OtherSpecialtiesPage = lazy(() =>
 );
 const NabhIndicatorsPage = lazy(() => import("./pages/admin/nabh-indicators"));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
+const TestCyclesPage = lazy(() =>
+  import("./pages/admin/test-cycles").then((m) => ({ default: m.TestCyclesPage })),
+);
 const ApiKeysPage = lazy(() =>
   import("./pages/admin/api-keys").then((m) => ({ default: m.ApiKeysPage })),
 );
@@ -427,6 +438,12 @@ const DocumentTemplatesPage = lazy(() =>
 const IntegrationHubPage = lazy(() =>
   import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })),
 );
+const WebhooksPage = lazy(() =>
+  import("./pages/admin/webhooks").then((m) => ({ default: m.WebhooksPage })),
+);
+const FormTemplatesPage = lazy(() =>
+  import("./pages/admin/forms").then((m) => ({ default: m.FormTemplatesPage })),
+);
 const TvDisplaysPage = lazy(() =>
   import("./pages/tv-displays").then((m) => ({ default: m.TvDisplaysPage })),
 );
@@ -441,6 +458,12 @@ const AnalyticsPage = lazy(() =>
 );
 const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
+const AbdmDashboardPage = lazy(() =>
+  import("./pages/abdm/dashboard").then((m) => ({ default: m.AbdmDashboardPage })),
+);
+const SnomedPage = lazy(() =>
+  import("./pages/terminology/snomed").then((m) => ({ default: m.SnomedPage })),
+);
 const DocumentsPage = lazy(() =>
   import("./pages/documents").then((m) => ({ default: m.DocumentsPage })),
 );
@@ -454,6 +477,17 @@ const PairedDevicesPage = lazy(() =>
   import("./pages/admin/paired-devices").then((m) => ({ default: m.PairedDevicesPage })),
 );
 
+const OnboardingWorkbookPage = lazy(() =>
+  import("./pages/admin/workbook").then((m) => ({ default: m.OnboardingWorkbookPage })),
+);
+const TrialPage = lazy(() => import("./pages/trial/index").then((m) => ({ default: m.TrialPage })));
+const AccessDeniedPage = lazy(() =>
+  import("./pages/errors/access-denied").then((m) => ({ default: m.AccessDeniedPage })),
+);
+const NotFoundPage = lazy(() =>
+  import("./pages/errors/not-found").then((m) => ({ default: m.NotFoundPage })),
+);
+
 export function App() {
   return (
     <BrowserRouter>
@@ -463,14 +497,19 @@ export function App() {
         <Suspense fallback={<PageSkeleton />}>
           <Routes>
             {/* Public */}
-            <Route path="/" element={<LandingPage />} />
+            {/* A page load of / is the website (served as home.html); reaching /
+                inside the app means sign-in, which sends a signed-in user on. */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            {/* A hospital starts its own trial — only the trial server takes it. */}
+            <Route path="/trial" element={<TrialPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />
+            <Route path="/verify/bill" element={<VerifyBillPage />} />
             {/* Scanned off the kiosk slip — the patient has no login. */}
             <Route path="/queue/:token" element={<QueueStatusPage />} />
             {/* Public self-service booking — off unless the tenant enables it. */}
@@ -510,6 +549,9 @@ export function App() {
               }
             >
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="forbidden" element={<AccessDeniedPage />} />
+              {/* Inside the shell, after every real route: an unknown address. */}
+              <Route path="*" element={<NotFoundPage />} />
               <Route path="setup" element={<SetupCenterPage />} />
               <Route path="setup/deployment" element={<DeploymentCostPage />} />
               <Route path="setup/infrastructure" element={<InfrastructurePage />} />
@@ -548,6 +590,7 @@ export function App() {
               <Route path="pharmacy/fulfilment" element={<FulfilmentQueuePage />} />
               <Route path="pharmacy/fulfilment/:orderId" element={<VerifyPackPage />} />
               <Route path="pharmacy/dispatch" element={<DispatchPage />} />
+              <Route path="pharmacy/deliveries" element={<DeliveriesPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />
@@ -609,6 +652,8 @@ export function App() {
               <Route path="reports" element={<ReportsPage />} />
               <Route path="reports/nabh" element={<NabhIndicatorsPage />} />
               <Route path="audit" element={<AuditPage />} />
+              <Route path="terminology/snomed" element={<SnomedPage />} />
+              <Route path="abdm/dashboard" element={<AbdmDashboardPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
               <Route path="order-sets" element={<OrderSetsPage />} />
               <Route path="chronic-care" element={<ChronicCarePage />} />
@@ -648,6 +693,7 @@ export function App() {
               <Route path="inter-hospital-transfers" element={<InterHospitalTransfersPage />} />
               <Route path="hospital-groups" element={<HospitalGroupsPage />} />
               <Route path="inter-hospital-stock" element={<InterHospitalStockPage />} />
+              <Route path="uhi-requests" element={<UhiRequestsPage />} />
               <Route path="home-healthcare" element={<HomeHealthcarePage />} />
               <Route path="home-visits" element={<HomeVisitsPage />} />
               <Route path="clinical-trials" element={<ClinicalTrialsPage />} />
@@ -662,17 +708,21 @@ export function App() {
                 <Route path="doctors" element={<AdminDoctorsPage />} />
                 <Route path="nabh-indicators" element={<NabhIndicatorsPage />} />
                 <Route path="api-keys" element={<ApiKeysPage />} />
+                <Route path="test-cycles" element={<TestCyclesPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="sso" element={<SsoSettingsPage />} />
                 <Route path="access-requests" element={<AccessRequestsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="workbook" element={<OnboardingWorkbookPage />} />
                 <Route path="document-templates" element={<DocumentTemplatesPage />} />
                 <Route
                   path="device-integrations"
                   element={<Navigate to="/admin/settings#device-integrations" replace />}
                 />
                 <Route path="integration-hub" element={<IntegrationHubPage />} />
+                <Route path="forms" element={<FormTemplatesPage />} />
+                <Route path="webhooks" element={<WebhooksPage />} />
                 <Route
                   path="integration-builder"
                   element={<Navigate to="/admin/integration-hub" replace />}

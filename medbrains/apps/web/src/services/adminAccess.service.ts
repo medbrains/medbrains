@@ -36,6 +36,8 @@ export const adminAccessService = {
   createUser: (data: CreateSetupUserInput) => api.createSetupUser(data),
   updateUser: (id: string, data: UpdateSetupUserInput) => api.updateSetupUser(id, data),
   deleteUser: (id: string) => api.deleteSetupUser(id),
+  setUserSupervisor: (id: string, supervisorId: string | null) =>
+    api.setUserSupervisor(id, supervisorId),
   resetUserPassword: (id: string, newPassword?: string) =>
     api.resetSetupUserPassword(id, newPassword ? { new_password: newPassword } : {}),
   bulkCreateUsers: (data: BulkCreateUsersRequest) => api.bulkCreateUsers(data),

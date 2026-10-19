@@ -54,6 +54,13 @@ struct DepartmentRow: Decodable, Hashable, Identifiable, Sendable {
 }
 
 /// A camp a registration can name.
+/// A campaign the desk can say a patient came through.
+struct CampaignOption: Decodable, Hashable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let channel: String?
+}
+
 struct CampSummary: Decodable, Hashable, Identifiable, Sendable {
     let id: String
     let name: String
@@ -83,6 +90,20 @@ struct DoctorRow: Decodable, Hashable, Identifiable, Sendable {
     let id: String
     let fullName: String
     let specialization: String?
+}
+
+/// A returning patient's last OPD visit. An id is nil when that doctor or
+/// department no longer takes patients: named, not offered.
+struct LastVisit: Decodable, Sendable {
+    let encounterDate: String
+    let doctorId: String?
+    let doctorName: String?
+    let departmentId: String?
+    let departmentName: String?
+
+    var summary: String {
+        ([encounterDate] + [doctorName, departmentName].compactMap { $0 }).joined(separator: " · ")
+    }
 }
 
 struct StartVisitBody: Encodable {
@@ -120,6 +141,8 @@ struct ReceptionApi: Sendable {
     func departments() async throws -> [DepartmentRow] { try await client.request(.get, "/api/setup/departments") }
     func doctors() async throws -> [DoctorRow] { try await client.request(.get, "/api/setup/doctors") }
     func camps() async throws -> [CampSummary] { try await client.request(.get, "/api/camp/camps") }
+    func campaigns() async throws -> [CampaignOption] { try await client.request(.get, "/api/marketing/campaigns/lookup") }
     func linkToCamp(_ body: CampRegistrationLink) async throws -> CampRegistered { try await client.request(.post, CampEndpoint.registrations, body: body) }
+    func lastVisit(_ patientId: String) async throws -> LastVisit? { try await client.request(.get, "/api/opd/patients/\(patientId)/last-visit") }
     func startVisit(_ body: StartVisitBody) async throws -> VisitStarted { try await client.request(.post, "/api/opd/encounters", body: body) }
 }

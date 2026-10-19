@@ -24,6 +24,16 @@ export const radiologyService = {
     api.getRadiologyPrintData(...args),
   createRadiologyModality: (...args: Parameters<typeof api.createRadiologyModality>) =>
     api.createRadiologyModality(...args),
+  listRadiologyExams: (...args: Parameters<typeof api.listRadiologyExams>) =>
+    api.listRadiologyExams(...args),
+  createRadiologyExam: (...args: Parameters<typeof api.createRadiologyExam>) =>
+    api.createRadiologyExam(...args),
+  updateRadiologyExam: (...args: Parameters<typeof api.updateRadiologyExam>) =>
+    api.updateRadiologyExam(...args),
+  deleteRadiologyExam: (...args: Parameters<typeof api.deleteRadiologyExam>) =>
+    api.deleteRadiologyExam(...args),
+  updateRadiologyModality: (...args: Parameters<typeof api.updateRadiologyModality>) =>
+    api.updateRadiologyModality(...args),
   deleteRadiologyModality: (...args: Parameters<typeof api.deleteRadiologyModality>) =>
     api.deleteRadiologyModality(...args),
   listRadiologyAppointments: (...args: Parameters<typeof api.listRadiologyAppointments>) =>
@@ -34,6 +44,8 @@ export const radiologyService = {
     api.listRadiologyDicomStudies(...args),
   getRadiologyPacsConfig: (...args: Parameters<typeof api.getRadiologyPacsConfig>) =>
     api.getRadiologyPacsConfig(...args),
+  updateRadiologyPacsConfig: (...args: Parameters<typeof api.updateRadiologyPacsConfig>) =>
+    api.updateRadiologyPacsConfig(...args),
   getRadiologyTat: (...args: Parameters<typeof api.getRadiologyTat>) =>
     api.getRadiologyTat(...args),
 };

@@ -100,7 +100,7 @@ export function AccessRequestsPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
 
   const qc = useQueryClient();
-  const canManage = useHasPermission(P.SECURITY.ACCESS_MANAGE);
+  const canManage = useHasPermission(P.ADMIN.ACCESS_REQUESTS_REVIEW);
   const [status, setStatus] = useState("pending");
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [reviewTarget, setReviewTarget] = useState<{

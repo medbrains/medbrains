@@ -187,7 +187,7 @@
   "directory.column.nextActions": "Next Actions",
   "directory.column.payment": "Payment",
   "directory.commandTitle": "Patient directory",
-  "directory.empty.registerDescription": "Register your first patient to get started",
+  "directory.empty.scopeDescription": "Patients appear here when you register them, or when they are seen by you or in your department.",
   "directory.empty.searchDescription": "Try adjusting your search terms",
   "directory.empty.title": "No patients found",
   "directory.loadingRecords": "Loading records",

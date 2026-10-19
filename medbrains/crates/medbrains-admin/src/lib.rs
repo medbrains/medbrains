@@ -1,7 +1,10 @@
 //! Admin/multi-tenant leaf crate: hospital groups (multi_hospital), system-state
 //! + DB-topology admin, blog, news feed. Mounted via router().
 
-use axum::{Router, routing::{delete, get, post}};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use medbrains_server_core::state::AppState;
 
 pub mod admin_db_topology;
@@ -9,9 +12,14 @@ pub mod admin_system_state;
 pub mod blog;
 pub mod multi_hospital;
 pub mod news_feed;
+pub mod qa_tests;
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/api/qa/cycle", get(qa_tests::open_cycle))
+        .route("/api/qa/cycles", get(qa_tests::list_cycles).post(qa_tests::create_cycle))
+        .route("/api/qa/cycles/{id}/close", put(qa_tests::close_cycle))
+        .route("/api/qa/results", get(qa_tests::list_results).put(qa_tests::record_result))
         .route(
             "/api/multi-hospital/groups",
             get(multi_hospital::list_groups).post(multi_hospital::create_group),

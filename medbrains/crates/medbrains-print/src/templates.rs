@@ -3,6 +3,7 @@
 //! render harness. Live data binding lives in the server's context
 //! builders — field names here match the `*PrintData` structs verbatim.
 
+use crate::case_sheet::{CASE_SHEET_HTML, CASE_SHEET_SAMPLE};
 use crate::paper::{MarginsMm, Paper};
 
 #[derive(Debug)]
@@ -69,6 +70,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         margins: A4_MARGINS,
         html: DISCHARGE_HTML,
         sample_context: DISCHARGE_SAMPLE,
+    },
+    SystemTemplate {
+        code: "clinical_notes",
+        title: "Case Sheet — Clinical Notes",
+        module_code: "clinical_notes",
+        source_table: "encounters",
+        number_prefix: "CS-NOTES",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: CASE_SHEET_HTML,
+        sample_context: CASE_SHEET_SAMPLE,
     },
     SystemTemplate {
         code: "er_discharge_summary",
@@ -156,6 +168,39 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: QUEUE_TOKEN_SLIP_SAMPLE,
     },
     SystemTemplate {
+        code: "payer_split_insurer",
+        title: "Bill to Insurer / TPA",
+        module_code: "billing",
+        source_table: "invoices",
+        number_prefix: "TPA-BILL",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: PAYER_SPLIT_INSURER_HTML,
+        sample_context: PAYER_SPLIT_SAMPLE,
+    },
+    SystemTemplate {
+        code: "payer_split_patient",
+        title: "Patient Share of Bill",
+        module_code: "billing",
+        source_table: "invoices",
+        number_prefix: "PT-SHARE",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: PAYER_SPLIT_PATIENT_HTML,
+        sample_context: PAYER_SPLIT_SAMPLE,
+    },
+    SystemTemplate {
+        code: "spectacle_prescription",
+        title: "Spectacle Prescription",
+        module_code: "ophthalmology",
+        source_table: "ophtho_exams",
+        number_prefix: "EYE-RX",
+        paper: Paper::A5,
+        margins: A4_MARGINS,
+        html: SPECTACLE_RX_HTML,
+        sample_context: SPECTACLE_RX_SAMPLE,
+    },
+    SystemTemplate {
         code: "insurance_cashless_claim",
         title: "Cashless Claim Summary",
         module_code: "insurance",
@@ -173,68 +218,235 @@ pub fn find_template(code: &str) -> Option<&'static SystemTemplate> {
     SYSTEM_TEMPLATES.iter().find(|t| t.code == code)
 }
 
+// ── Payer split ─────────────────────────────────────────────
+
+/// The patient and bill header both split documents share.
+macro_rules! payer_split_head {
+    () => {
+        r#"<table style="margin-bottom:8px;"><tr>
+  <td><div><strong>{{ split.patient_name }}</strong> <span class="mono">({{ split.uhid }})</span></div>
+      <div class="muted">Bill {{ split.invoice_number }} · {{ split.date }}</div></td>
+  <td class="right">{% if split.payer_name %}<div><strong>{{ split.payer_name }}</strong></div>{% endif %}</td>
+</tr></table>"#
+    };
+}
+
+const PAYER_SPLIT_INSURER_HTML: &str = concat!(
+    r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">BILL TO INSURER / TPA</h2>
+"#,
+    payer_split_head!(),
+    r#"
+<table>
+  <thead><tr><th>#</th><th>Item</th><th class="right">Amount</th></tr></thead>
+  <tbody>{% for l in split.lines %}<tr><td>{{ loop.index }}</td><td>{{ l.description }}</td><td class="right mono">{{ l.total }}</td></tr>{% endfor %}</tbody>
+</table>
+<table style="margin-top:8px;width:50%;margin-left:auto;">
+  <tr><td>Payable items</td><td class="right mono">{{ split.gross }}</td></tr>
+  <tr><td>Less co-pay</td><td class="right mono">{{ split.copay }}</td></tr>
+  <tr><td>Less deductible</td><td class="right mono">{{ split.deductible }}</td></tr>
+  <tr><td><strong>Amount claimed</strong></td><td class="right mono"><strong>{{ split.net }}</strong></td></tr>
+</table>
+{% endblock content %}"#
+);
+
+const PAYER_SPLIT_PATIENT_HTML: &str = concat!(
+    r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">PATIENT SHARE OF BILL</h2>
+"#,
+    payer_split_head!(),
+    r#"
+<table>
+  <thead><tr><th>#</th><th>Item not covered</th><th>Why</th><th class="right">Amount</th></tr></thead>
+  <tbody>{% for l in split.lines %}<tr><td>{{ loop.index }}</td><td>{{ l.description }}</td><td class="muted">{{ l.reason }}</td><td class="right mono">{{ l.total }}</td></tr>{% endfor %}</tbody>
+</table>
+<table style="margin-top:8px;width:50%;margin-left:auto;">
+  <tr><td>Items not covered</td><td class="right mono">{{ split.patient_lines }}</td></tr>
+  <tr><td>Co-pay</td><td class="right mono">{{ split.copay }}</td></tr>
+  <tr><td>Deductible</td><td class="right mono">{{ split.deductible }}</td></tr>
+  <tr><td><strong>You pay</strong></td><td class="right mono"><strong>{{ split.patient_total }}</strong></td></tr>
+</table>
+{% endblock content %}"#
+);
+
+const PAYER_SPLIT_SAMPLE: &str = r#"{
+  "split": {
+    "invoice_number": "INV-2026-001234", "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "date": "17 Oct 2026", "payer_name": "Star Health · TPA Medi Assist",
+    "lines": [
+      {"description": "Room rent — semi-private (3 days)", "total": "6000.00", "reason": "Covered"},
+      {"description": "Admission kit", "total": "500.00", "reason": "IRDAI List I — non-medical item"}
+    ],
+    "gross": "6400.00", "copay": "640.00", "deductible": "1000.00", "net": "4760.00",
+    "patient_lines": "500.00", "patient_total": "2140.00"
+  },
+  "document_number": "TPA-BILL-20261017-0001"
+}"#;
+
+// ── Ophthalmology ───────────────────────────────────────────
+
+const SPECTACLE_RX_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">SPECTACLE PRESCRIPTION</h2>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>{{ rx.patient_name }}</strong> <span class="mono">({{ rx.uhid }})</span></div>
+    <div class="muted">{{ rx.age | default(value="") }} {{ rx.gender | default(value="") }}</div>
+  </td>
+  <td class="right"><div>{{ rx.date }}</div></td>
+</tr></table>
+{% if rx.no_glasses %}
+<p><strong>No glasses needed.</strong></p>
+{% else %}
+<table>
+  <thead><tr><th>Eye</th><th></th><th>Sphere</th><th>Cylinder</th><th>Axis</th><th>Vision</th></tr></thead>
+  <tbody>
+  {% for e in rx.eyes %}
+    <tr><td rowspan="{% if e.near %}2{% else %}1{% endif %}"><strong>{{ e.label }}</strong></td>
+      <td>Distance</td><td class="mono">{{ e.distance.sphere }}</td><td class="mono">{{ e.distance.cylinder }}</td>
+      <td class="mono">{{ e.distance.axis }}</td><td>{{ e.distance.va }}</td></tr>
+    {% if e.near %}<tr><td>Near (add {{ e.near.add }})</td><td class="mono">{{ e.near.sphere }}</td>
+      <td class="mono">{{ e.near.cylinder }}</td><td class="mono">{{ e.near.axis }}</td><td>{{ e.near.va }}</td></tr>{% endif %}
+  {% endfor %}
+  </tbody>
+</table>
+<p style="margin-top:6px;">
+  {% if rx.pd_mm %}<strong>PD:</strong> {{ rx.pd_mm }} mm &nbsp; {% endif %}
+  {% if rx.lens_type %}<strong>Lens:</strong> {{ rx.lens_type }}{% endif %}
+</p>
+{% if rx.lens_advice %}<p><strong>Advice:</strong> {{ rx.lens_advice }}</p>{% endif %}
+{% endif %}
+{% if rx.diagnosis %}<p><strong>Diagnosis:</strong> {{ rx.diagnosis }}</p>{% endif %}
+{% if rx.review %}<p><strong>Review:</strong> after {{ rx.review }}</p>{% endif %}
+{% if rx.signed %}
+<div class="signature-block">
+  <div><strong>{{ rx.signed.name }}</strong>{% if rx.signed.qualification %}, {{ rx.signed.qualification }}{% endif %}</div>
+  {% if rx.signed.registration %}<div>Reg. No. {{ rx.signed.registration }}</div>{% endif %}
+  <div class="muted small">Signed {{ rx.signed.at }}</div>
+</div>
+{% endif %}
+{% endblock content %}"#;
+
+const SPECTACLE_RX_SAMPLE: &str = r#"{
+  "rx": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "age": "46y", "gender": "female",
+    "date": "17 Oct 2026",
+    "eyes": [
+      {"label": "Right (OD)", "distance": {"sphere": "−1.25", "cylinder": "−0.50", "axis": "180°", "va": "6/6"},
+       "near": {"sphere": "+0.75", "cylinder": "−0.50", "axis": "180°", "va": "N6", "add": "+2.00"}},
+      {"label": "Left (OS)", "distance": {"sphere": "−1.50", "cylinder": "", "axis": "", "va": "6/6"}, "near": null}
+    ],
+    "pd_mm": "63", "lens_type": "progressive", "no_glasses": false,
+    "lens_advice": "Anti-reflective coating", "diagnosis": "Myopia with presbyopia", "review": "12 months",
+    "signed": {"name": "Dr. S. Ravi", "qualification": "MBBS, MS (Ophth)", "registration": "TNMC 54321", "at": "17 Oct 2026 10:15 UTC"}
+  },
+  "document_number": "EYE-RX-20261017-0001"
+}"#;
+
 // ── Billing ─────────────────────────────────────────────────
 
 const INVOICE_GST_HTML: &str = r#"{% extends "base.html" %}
 {% block content %}
-<h2 class="brand" style="margin-bottom:2px;">TAX INVOICE</h2>
+<h2 class="brand" style="margin-bottom:2px;">{% if invoice.is_pharmacy %}PHARMACY BILL — {% endif %}TAX INVOICE</h2>
 <table style="margin-bottom:8px;"><tr>
   <td>
     <div><strong>Invoice:</strong> <span class="mono">{{ invoice.invoice_number }}</span></div>
     <div><strong>Date:</strong> {{ invoice.date }}</div>
     {% if invoice.hospital_gstin %}<div><strong>GSTIN:</strong> <span class="mono">{{ invoice.hospital_gstin }}</span></div>{% endif %}
+    {% if invoice.drug_licence %}<div><strong>Drug licence:</strong> <span class="mono">{{ invoice.drug_licence }}</span></div>{% endif %}
   </td>
   <td class="right">
     <div><strong>Patient:</strong> {{ invoice.patient_name }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ invoice.uhid }}</span></div>
+    {% if invoice.patient_phone %}<div class="muted">{{ invoice.patient_phone }}</div>{% endif %}
+    {% if invoice.patient_address %}<div class="muted">{{ invoice.patient_address }}</div>{% endif %}
   </td>
 </tr></table>
+{% if invoice.is_pharmacy and invoice.prescriber_name %}
+<div class="small" style="margin-bottom:6px;"><strong>Prescribed by:</strong> {{ invoice.prescriber_name }}{% if invoice.prescriber_registration %} · Reg. No. <span class="mono">{{ invoice.prescriber_registration }}</span>{% endif %}</div>
+{% endif %}
 <table>
   <thead><tr>
-    <th>#</th><th>Description</th><th>HSN/SAC</th>
+    <th>#</th><th>Description</th><th>HSN</th>
+    {% if invoice.is_pharmacy %}<th>Batch</th><th>Exp.</th><th class="right">MRP</th>{% endif %}
     <th class="right">Qty</th><th class="right">Rate</th>
-    <th class="right">GST %</th><th class="right">Amount</th>
+    {% if invoice.is_pharmacy %}<th class="right">Disc.</th><th class="right">CGST</th><th class="right">SGST</th>{% else %}<th class="right">GST %</th>{% endif %}
+    <th class="right">Amount</th>
   </tr></thead>
   <tbody>
   {% for item in invoice.items %}
     <tr>
       <td>{{ loop.index }}</td>
-      <td>{{ item.description }}</td>
+      <td>{{ item.description }}{% if item.schedule %} <strong>[Sch {{ item.schedule }}]</strong>{% endif %}
+        {% if item.generic_name or item.manufacturer %}<div class="muted small">{% if item.generic_name %}{{ item.generic_name }}{% endif %}{% if item.generic_name and item.manufacturer %} · {% endif %}{% if item.manufacturer %}{{ item.manufacturer }}{% endif %}</div>{% endif %}</td>
       <td class="mono">{{ item.hsn_code | default(value="9993") }}</td>
+      {% if invoice.is_pharmacy %}<td class="mono">{{ item.batch_number | default(value="—") }}</td><td class="mono">{{ item.expiry | default(value="—") }}</td><td class="right">{{ item.mrp | default(value="—") }}</td>{% endif %}
       <td class="right">{{ item.quantity }}</td>
       <td class="right">{{ item.unit_price }}</td>
-      <td class="right">{{ item.tax_percent }}</td>
+      {% if invoice.is_pharmacy %}<td class="right">{{ item.discount_amount }}</td><td class="right">{{ item.cgst_amount }}</td><td class="right">{{ item.sgst_amount }}</td>{% else %}<td class="right">{{ item.tax_percent }}</td>{% endif %}
       <td class="right">{{ item.total_price }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-<table style="margin-top:8px;"><tr><td></td><td style="width:38%;">
+<table style="margin-top:8px;"><tr>
+  <td style="vertical-align:top;">
+    {% if invoice.upi_qr_svg %}<div style="display:inline-block;text-align:center;margin-right:12px;"><div style="width:90px;">{{ invoice.upi_qr_svg | safe }}</div><div class="small">Scan to pay ₹{{ invoice.balance_due }} by UPI</div></div>{% endif %}
+    {% if invoice.verify_qr_svg %}<div style="display:inline-block;text-align:center;"><div style="width:70px;">{{ invoice.verify_qr_svg | safe }}</div><div class="small muted">Scan to verify this bill</div></div>{% endif %}
+  </td>
+  <td style="width:40%;">
   <table>
+    {% if invoice.mrp_total %}<tr><td>MRP total</td><td class="right">{{ invoice.mrp_total }}</td></tr>{% endif %}
     <tr><td>Subtotal</td><td class="right">{{ invoice.subtotal }}</td></tr>
-    <tr><td>GST</td><td class="right">{{ invoice.tax_amount }}</td></tr>
+    {% if invoice.is_pharmacy %}<tr><td>CGST</td><td class="right">{{ invoice.cgst_total }}</td></tr><tr><td>SGST</td><td class="right">{{ invoice.sgst_total }}</td></tr>
+    {% else %}<tr><td>GST</td><td class="right">{{ invoice.tax_amount }}</td></tr>{% endif %}
     <tr><td><strong>Total</strong></td><td class="right"><strong>{{ invoice.total_amount }}</strong></td></tr>
+    <tr><td>Paid</td><td class="right">{{ invoice.paid_amount }}</td></tr>
+    <tr><td><strong>Balance due</strong></td><td class="right"><strong>{{ invoice.balance_due }}</strong></td></tr>
+    {% if invoice.savings %}<tr><td colspan="2" class="right"><strong>You saved ₹{{ invoice.savings }}</strong> on MRP</td></tr>{% endif %}
   </table>
-</td></tr></table>
+  </td>
+</tr></table>
+{% if invoice.is_pharmacy %}
+<div class="small" style="margin-top:8px;">
+  {% if invoice.rx_valid_until %}<div>Prescription valid until {{ invoice.rx_valid_until }}{% if invoice.refills_left is number %} · Refills left: {{ invoice.refills_left }}{% endif %}</div>{% endif %}
+  {% for s in invoice.schedules %}
+    {% if s == "H" %}<div><strong>Schedule H:</strong> to be sold by retail on the prescription of a Registered Medical Practitioner only.</div>{% endif %}
+    {% if s == "H1" %}<div><strong>Schedule H1:</strong> it is dangerous to take this preparation except in accordance with medical advice. Not to be sold by retail without the prescription of a Registered Medical Practitioner. Prescriber and patient details are recorded.</div>{% endif %}
+    {% if s == "X" %}<div><strong>Schedule X:</strong> sold only against a prescription retained by the pharmacy; prescriber and patient details are recorded.</div>{% endif %}
+  {% endfor %}
+  <div>Check batch and expiry before use. Keep medicines out of the reach of children.</div>
+  {% if invoice.pharmacist_name %}<div style="margin-top:12px;">Dispensed by {{ invoice.pharmacist_name }}{% if invoice.pharmacist_registration %} · Pharmacist Reg. No. <span class="mono">{{ invoice.pharmacist_registration }}</span>{% endif %}</div>{% endif %}
+</div>
+{% endif %}
 <p class="muted small" style="margin-top:10px;">
-  Healthcare services are exempt under GST Notification 12/2017 where applicable.
-  This is a system-generated invoice.
+  {% if not invoice.is_pharmacy %}Healthcare services are exempt under GST Notification 12/2017 where applicable. {% endif %}This is a system-generated invoice.
 </p>
 {% endblock content %}"#;
 
 const INVOICE_GST_SAMPLE: &str = r#"{
   "invoice": {
-    "invoice_number": "INV-000123", "date": "2026-06-12",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
-    "hospital_gstin": "33AAAAA0000A1Z5",
-    "subtotal": "1,500.00", "tax_amount": "0.00", "total_amount": "1,500.00",
+    "invoice_number": "INV-000124", "date": "12-Oct-2026",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "patient_phone": "98450 12345",
+    "patient_address": "12 Main Rd, Karaikudi, 630001",
+    "hospital_gstin": "33AAAAA0000A1Z5", "drug_licence": "TN-20B-1234 / TN-21B-1235",
+    "is_pharmacy": true,
+    "prescriber_name": "Dr. A. Kapoor", "prescriber_registration": "TNMC 45678",
+    "pharmacist_name": "S. Priya", "pharmacist_registration": "TNPC 9911",
+    "subtotal": "367.00", "tax_amount": "44.04", "cgst_total": "22.02", "sgst_total": "22.02",
+    "total_amount": "411.04", "paid_amount": "0.00", "balance_due": "411.04",
+    "mrp_total": "480.00", "savings": "68.96",
+    "rx_valid_until": "11-Apr-2027", "refills_left": 2, "schedules": ["H"],
+    "upi_qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>",
+    "verify_qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>",
     "items": [
-      {"description": "OPD Consultation — General Medicine", "hsn_code": "9993", "quantity": 1, "unit_price": "500.00", "tax_percent": "0", "total_price": "500.00"},
-      {"description": "Complete Blood Count", "hsn_code": "9993", "quantity": 1, "unit_price": "350.00", "tax_percent": "0", "total_price": "350.00"},
-      {"description": "Room charges (1 day)", "hsn_code": "9993", "quantity": 1, "unit_price": "650.00", "tax_percent": "0", "total_price": "650.00"}
+      {"description": "Telmisartan 40 mg tablet", "generic_name": "Telmisartan", "schedule": "H", "manufacturer": "Glenmark", "hsn_code": "3004", "batch_number": "TL2291", "expiry": "08/27", "mrp": "240.00", "quantity": 30, "unit_price": "6.80", "discount_amount": "36.00", "cgst_amount": "12.24", "sgst_amount": "12.24", "tax_percent": "12", "total_price": "228.48"},
+      {"description": "Atorvastatin 10 mg tablet", "generic_name": "Atorvastatin", "schedule": "H", "manufacturer": "Cipla", "hsn_code": "3004", "batch_number": "AT0915", "expiry": "03/27", "mrp": "240.00", "quantity": 30, "unit_price": "5.43", "discount_amount": "36.00", "cgst_amount": "9.78", "sgst_amount": "9.78", "tax_percent": "12", "total_price": "182.56"}
     ]
   },
-  "document_number": "BIL-GST-20260612-0001"
+  "document_number": "BIL-GST-20261012-0001"
 }"#;
 
 const RECEIPT_HTML: &str = r#"{% extends "base.html" %}
@@ -325,7 +537,7 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
     <td class="right">{{ discharge.age | default(value="") }} {{ discharge.gender }}</td>
   </tr>
   <tr>
-    <td><strong>Admitted:</strong> {{ discharge.admission_date }}</td>
+    <td><strong>Admitted:</strong> {{ discharge.admission_date }}{% if discharge.admission_number %} · <strong>IP no.</strong> <span class="mono">{{ discharge.admission_number }}</span>{% endif %}</td>
     <td class="right"><strong>Discharged:</strong> {{ discharge.discharge_date | default(value="—") }}</td>
   </tr>
   <tr>
@@ -343,12 +555,20 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
 <h3 class="brand" style="margin-top:8px;">Course in Hospital & Summary</h3>
 <p style="white-space:pre-wrap;">{{ discharge.discharge_summary }}</p>
 {% endif %}
+{% if discharge.final_diagnosis %}<p><strong>Final diagnosis:</strong> {{ discharge.final_diagnosis }}</p>{% endif %}
+{% if discharge.course_in_hospital %}<p style="white-space:pre-wrap;"><strong>Course in hospital:</strong> {{ discharge.course_in_hospital }}</p>{% endif %}
+{% if discharge.procedures_performed %}<p><strong>Procedures performed:</strong> {{ discharge.procedures_performed }}</p>{% endif %}
+{% if discharge.treatment_given %}<p style="white-space:pre-wrap;"><strong>Treatment given:</strong> {{ discharge.treatment_given }}</p>{% endif %}
+{% if discharge.investigation_summary %}<p style="white-space:pre-wrap;"><strong>Investigations:</strong> {{ discharge.investigation_summary }}</p>{% endif %}
+{% if discharge.condition_at_discharge %}<p><strong>Condition at discharge:</strong> {{ discharge.condition_at_discharge }}</p>{% endif %}
+{% if discharge.follow_up_instructions %}<p style="white-space:pre-wrap;"><strong>Follow-up:</strong> {{ discharge.follow_up_instructions }}</p>{% endif %}
 {% endblock content %}"#;
 
 const DISCHARGE_SAMPLE: &str = r#"{
   "discharge": {
     "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
     "age": "42y", "gender": "F",
+    "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
     "department": "General Medicine", "doctor_name": "Dr. S. Ravi",
     "bed_number": "GW-12", "ward_name": "General Ward A",
@@ -427,6 +647,7 @@ const IPD_CONSOLIDATED_BILL_HTML: &str = r#"{% extends "base.html" %}
   <td class="right">
     <div><strong>Patient:</strong> {{ bill.patient_name }}{% if bill.age %} · {{ bill.age }}{% endif %} · {{ bill.gender }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ bill.uhid }}</span></div>
+    {% if bill.admission_number %}<div><strong>IP no.:</strong> <span class="mono">{{ bill.admission_number }}</span></div>{% endif %}
     {% if bill.ward_name %}<div><strong>Ward/Bed:</strong> {{ bill.ward_name }}{% if bill.bed_number %} / {{ bill.bed_number }}{% endif %}</div>{% endif %}
   </td>
 </tr></table>
@@ -498,6 +719,7 @@ const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
   <td>
     <div><strong>Patient:</strong> {{ cert.patient_name }}{% if cert.age %} · {{ cert.age }}{% endif %} · {{ cert.gender }}</div>
     <div><strong>UHID:</strong> <span class="mono">{{ cert.uhid }}</span></div>
+    {% if cert.admission_number %}<div><strong>IP no.:</strong> <span class="mono">{{ cert.admission_number }}</span></div>{% endif %}
     {% if cert.ward_name %}<div><strong>Ward/Bed:</strong> {{ cert.ward_name }}{% if cert.bed_number %} / {{ cert.bed_number }}{% endif %}</div>{% endif %}
   </td>
   <td class="right">
@@ -529,7 +751,7 @@ const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
 
 const NO_DUES_SAMPLE: &str = r#"{
   "cert": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "ward_name": "General Ward A", "bed_number": "GW-12",
@@ -544,7 +766,7 @@ const NO_DUES_SAMPLE: &str = r#"{
 const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
   "bill": {
     "invoice_number": "IP/3F2A9B1C", "invoice_date": "12-Jun-2026",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "bed_number": "GW-12", "ward_name": "General Ward A",
@@ -614,7 +836,7 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
     {% if lab.nabl_certificate_number %}
     <td class="accred" rowspan="2">Reg. No. {{ lab.nabl_certificate_number }}</td>
     {% endif %}
-    <td class="accred">{{ lab.department | default(value="Laboratory") }}</td>
+    <td class="accred">{% if lab.department %}{{ lab.department }}{% else %}Laboratory{% endif %}</td>
   </tr>
   <tr><td class="accred">Report: {{ lab.report_date }}</td></tr>
 </table>
@@ -686,7 +908,9 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
   <tbody>
   {% set_global current_section = "" %}
   {% for r in lab.parameters %}
-    {% set sec = r.section | default(value="Investigations") %}
+    {# `default` only fills a missing key; a test with no department sends
+       null, and `upper` on null fails the whole report. #}
+    {% if r.section %}{% set sec = r.section %}{% else %}{% set sec = "Investigations" %}{% endif %}
     {% if sec != current_section %}
       <tr class="section"><td colspan="5">{{ sec | upper }}</td></tr>
       {% set_global current_section = sec %}
@@ -904,7 +1128,7 @@ const WRISTBAND_HTML: &str = r#"{% extends "base.html" %}
   <div class="who">
     <div class="name">{{ band.patient_name }}</div>
     <div><span class="mono">{{ band.uhid }}</span> · {{ band.age | default(value="") }} {{ band.gender }}{% if band.blood_group %} · <strong>{{ band.blood_group }}</strong>{% endif %}</div>
-    <div class="muted">Adm {{ band.admission_date }}{% if band.ward_name %} · {{ band.ward_name }}{% endif %}{% if band.bed_number %} · {{ band.bed_number }}{% endif %}</div>
+    <div class="muted">{% if band.admission_number %}<span class="mono">{{ band.admission_number }}</span> · {% endif %}Adm {{ band.admission_date }}{% if band.ward_name %} · {{ band.ward_name }}{% endif %}{% if band.bed_number %} · {{ band.bed_number }}{% endif %}</div>
     {% if band.allergies and band.allergies | length > 0 %}<div class="alert">⚠ {{ band.allergies | join(sep=", ") }}</div>{% endif %}
   </div>
   <div class="barcode">{{ band.barcode_svg | safe }}</div>
@@ -917,6 +1141,7 @@ const WRISTBAND_SAMPLE: &str = r#"{
   "band": {
     "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
     "age": "42y", "gender": "F", "blood_group": "B+",
+    "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "ward_name": "GW-A", "bed_number": "12",
     "allergies": ["Penicillin"],
     "barcode_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'><rect width='100' height='20' fill='#eee'/></svg>",
@@ -937,6 +1162,7 @@ const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
   <tr><td><strong>Insurer</strong></td><td>{{ claim.insurance_company }}</td>
       <td class="right"><strong>Policy</strong></td><td class="right mono">{{ claim.policy_number }}</td></tr>
   {% if claim.tpa_name %}<tr><td><strong>TPA</strong></td><td colspan="3">{{ claim.tpa_name }}</td></tr>{% endif %}
+  {% if claim.admission_number %}<tr><td><strong>IP No.</strong></td><td colspan="3" class="mono">{{ claim.admission_number }}</td></tr>{% endif %}
   <tr><td><strong>Admitted</strong></td><td>{{ claim.admission_date }}</td>
       <td class="right"><strong>Discharged</strong></td><td class="right">{{ claim.discharge_date | default(value="—") }}</td></tr>
   {% if claim.treating_doctor %}<tr><td><strong>Treating Doctor</strong></td><td colspan="3">{{ claim.treating_doctor }}</td></tr>{% endif %}
@@ -956,7 +1182,7 @@ const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
 const CASHLESS_CLAIM_SAMPLE: &str = r#"{
   "claim": {
     "claim_number": "CLM-2026-04471", "claim_date": "2026-06-12",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
     "policy_number": "POL-88412290", "insurance_company": "Star Health Insurance",
     "tpa_name": "MediAssist TPA", "claim_status": "approved",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",

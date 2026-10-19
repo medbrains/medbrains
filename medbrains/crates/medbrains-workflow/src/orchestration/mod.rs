@@ -12,5 +12,7 @@ pub mod connectors;
 pub mod default_pipelines;
 pub mod jobs;
 pub mod lifecycle;
+pub mod notice_pipelines;
 pub mod registry;
 pub mod scheduler;
+pub mod webhook_fanout;

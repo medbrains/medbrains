@@ -36,7 +36,9 @@ pub(crate) async fn login_tenant(
         return Ok(None);
     };
     Ok(sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM tenants WHERE lower(custom_domain) = $1 AND is_active = true",
+        // Only a domain the hospital has proved it controls routes sign-in.
+        "SELECT id FROM tenants WHERE lower(custom_domain) = $1 AND is_active = true \
+           AND custom_domain_verified_at IS NOT NULL",
     )
     .bind(host)
     .fetch_optional(db)

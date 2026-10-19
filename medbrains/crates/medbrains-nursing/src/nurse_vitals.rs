@@ -120,7 +120,7 @@ pub async fn list_vitals_for_encounter(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Vital>(
-        "SELECT * FROM vitals WHERE tenant_id = $1 AND encounter_id = $2 \
+        "SELECT * FROM vitals WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -203,7 +203,7 @@ pub async fn list_vitals_schedules(
     let due_only = q.due_only.unwrap_or(false);
     let rows = sqlx::query_as::<_, VitalsSchedule>(
         "SELECT * FROM vitals_capture_schedules \
-         WHERE tenant_id = $1 \
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
            AND ended_at IS NULL \
            AND ($2::uuid IS NULL OR encounter_id = $2) \
            AND ($3::bool = false OR next_due_at <= now() + interval '15 minutes') \
@@ -320,7 +320,7 @@ pub async fn list_io_for_encounter(
 
     let rows = sqlx::query_as::<_, IoEntry>(
         "SELECT * FROM intake_output_entries \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
@@ -466,7 +466,7 @@ pub async fn list_pain_for_encounter(
 
     let rows = sqlx::query_as::<_, PainEntry>(
         "SELECT * FROM pain_score_entries \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
@@ -544,7 +544,7 @@ pub async fn list_fall_risk_for_encounter(
 
     let rows = sqlx::query_as::<_, FallRiskRow>(
         "SELECT * FROM fall_risk_assessments \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
+         WHERE tenant_id = $1 AND encounter_id = $2 AND deleted_at IS NULL \
          ORDER BY recorded_at DESC LIMIT 50",
     )
     .bind(claims.tenant_id)

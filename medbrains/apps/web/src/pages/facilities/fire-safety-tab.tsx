@@ -1,23 +1,11 @@
 // IPD FireSafetyTab — split from facilities.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
+import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  CreateFmsFireDrillRequest,
   CreateFmsFireEquipmentRequest,
-  FmsFireDrill,
   FmsFireEquipment,
   FmsFireInspection,
   FmsFireNoc,
@@ -28,8 +16,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { printColumn } from "@/components/Print/printColumn";
 import { Badge, Button } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
+import { FireDrillsSection } from "./fire-drills-section";
 
 const FIRE_EQUIPMENT_TYPES = [
   { value: "extinguisher_abc", label: "ABC Extinguisher" },
@@ -44,18 +34,9 @@ const FIRE_EQUIPMENT_TYPES = [
   { value: "emergency_light", label: "Emergency Light" },
 ];
 
-const DRILL_TYPES = [
-  { value: "fire", label: "Fire" },
-  { value: "code_red", label: "Code Red" },
-  { value: "evacuation", label: "Evacuation" },
-  { value: "chemical_spill", label: "Chemical Spill" },
-  { value: "bomb_threat", label: "Bomb Threat" },
-];
-
 export function FireSafetyTab() {
   const canManage = useHasPermission(P.FACILITIES.FIRE_MANAGE);
   const [equipOpen, { open: openEquip, close: closeEquip }] = useDisclosure(false);
-  const [drillOpen, { open: openDrill, close: closeDrill }] = useDisclosure(false);
   const qc = useQueryClient();
 
   const equipment = useQuery({
@@ -66,10 +47,6 @@ export function FireSafetyTab() {
     queryKey: ["fms-fire-inspections"],
     queryFn: () => facilitiesService.listFmsFireInspections(),
   });
-  const drills = useQuery({
-    queryKey: ["fms-fire-drills"],
-    queryFn: () => facilitiesService.listFmsFireDrills(),
-  });
   const nocs = useQuery({
     queryKey: ["fms-fire-noc"],
     queryFn: () => facilitiesService.listFmsFireNoc(),
@@ -79,10 +56,6 @@ export function FireSafetyTab() {
     name: "",
     equipment_type: "extinguisher_abc",
   });
-  const [drillForm, setDrillForm] = useState<CreateFmsFireDrillRequest>({
-    drill_type: "fire",
-    drill_date: new Date().toISOString().slice(0, 10),
-  });
 
   const createEquip = useMutation({
     mutationFn: () => facilitiesService.createFmsFireEquipment(equipForm),
@@ -90,14 +63,6 @@ export function FireSafetyTab() {
       void qc.invalidateQueries({ queryKey: ["fms-fire-equipment"] });
       closeEquip();
       notifications.show({ title: "Success", message: "Equipment added" });
-    },
-  });
-  const createDrill = useMutation({
-    mutationFn: () => facilitiesService.createFmsFireDrill(drillForm),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["fms-fire-drills"] });
-      closeDrill();
-      notifications.show({ title: "Success", message: "Drill recorded" });
     },
   });
 
@@ -171,42 +136,7 @@ export function FireSafetyTab() {
       label: "Next Due",
       render: (r) => <Text size="sm">{r.next_inspection_date ?? "—"}</Text>,
     },
-  ];
-
-  const drillCols: Column<FmsFireDrill>[] = [
-    {
-      key: "drill_type",
-      label: "Type",
-      render: (r) => <Badge tone="danger">{r.drill_type.replace(/_/g, " ")}</Badge>,
-    },
-    { key: "drill_date", label: "Date", render: (r) => <Text size="sm">{r.drill_date}</Text> },
-    {
-      key: "duration_minutes",
-      label: "Duration (min)",
-      render: (r) => <Text size="sm">{r.duration_minutes ?? "—"}</Text>,
-    },
-    {
-      key: "participants_count",
-      label: "Participants",
-      render: (r) => <Text size="sm">{r.participants_count ?? "—"}</Text>,
-    },
-    {
-      key: "evacuation_time_seconds",
-      label: "Evac Time (s)",
-      render: (r) => <Text size="sm">{r.evacuation_time_seconds ?? "—"}</Text>,
-    },
-    {
-      key: "next_drill_due",
-      label: "Next Due",
-      render: (r) => (
-        <Text
-          size="sm"
-          c={r.next_drill_due && new Date(r.next_drill_due) < new Date() ? "danger" : undefined}
-        >
-          {r.next_drill_due ?? "—"}
-        </Text>
-      ),
-    },
+    printColumn<FmsFireInspection>("fire_inspection", { label: (r) => r.inspection_date }),
   ];
 
   const nocCols: Column<FmsFireNoc>[] = [
@@ -271,22 +201,7 @@ export function FireSafetyTab() {
         rowKey={(r) => r.id}
       />
 
-      <Group justify="space-between" mt="lg">
-        <Text fw={600} size="lg">
-          Mock Drills
-        </Text>
-        {canManage && (
-          <Button tone="subtle-danger" leftSection={<IconPlus size={16} />} onClick={openDrill}>
-            Record Drill
-          </Button>
-        )}
-      </Group>
-      <DataTable
-        columns={drillCols}
-        data={drills.data ?? []}
-        loading={drills.isLoading}
-        rowKey={(r) => r.id}
-      />
+      <FireDrillsSection canManage={canManage} />
 
       <Text fw={600} size="lg" mt="lg">
         Fire NOC
@@ -352,94 +267,6 @@ export function FireSafetyTab() {
             tone="primary"
             onClick={() => createEquip.mutate()}
             loading={createEquip.isPending}
-          >
-            Save
-          </Button>
-        </Stack>
-      </Drawer>
-
-      <Drawer
-        opened={drillOpen}
-        onClose={closeDrill}
-        title="Record Fire Drill"
-        position="right"
-        size="xl"
-      >
-        <Stack>
-          <Select
-            label="Type"
-            data={DRILL_TYPES}
-            value={drillForm.drill_type}
-            onChange={(v) =>
-              setDrillForm({
-                ...drillForm,
-                drill_type: v as CreateFmsFireDrillRequest["drill_type"],
-              })
-            }
-          />
-          <DateInput
-            label="Drill Date"
-            value={drillForm.drill_date ? new Date(drillForm.drill_date) : null}
-            onChange={(v) =>
-              setDrillForm({
-                ...drillForm,
-                drill_date: v ? new Date(v).toISOString().slice(0, 10) : "",
-              })
-            }
-          />
-          <NumberInput
-            label="Duration (minutes)"
-            value={drillForm.duration_minutes ?? ""}
-            onChange={(v) =>
-              setDrillForm({
-                ...drillForm,
-                duration_minutes: typeof v === "number" ? v : undefined,
-              })
-            }
-          />
-          <NumberInput
-            label="Participants"
-            value={drillForm.participants_count ?? ""}
-            onChange={(v) =>
-              setDrillForm({
-                ...drillForm,
-                participants_count: typeof v === "number" ? v : undefined,
-              })
-            }
-          />
-          <NumberInput
-            label="Evacuation Time (seconds)"
-            value={drillForm.evacuation_time_seconds ?? ""}
-            onChange={(v) =>
-              setDrillForm({
-                ...drillForm,
-                evacuation_time_seconds: typeof v === "number" ? v : undefined,
-              })
-            }
-          />
-          <Textarea
-            label="Scenario"
-            value={drillForm.scenario_description ?? ""}
-            onChange={(e) =>
-              setDrillForm({ ...drillForm, scenario_description: e.currentTarget.value })
-            }
-          />
-          <Textarea
-            label="Findings"
-            value={drillForm.findings ?? ""}
-            onChange={(e) => setDrillForm({ ...drillForm, findings: e.currentTarget.value })}
-          />
-          <Textarea
-            label="Improvement Actions"
-            value={drillForm.improvement_actions ?? ""}
-            onChange={(e) =>
-              setDrillForm({ ...drillForm, improvement_actions: e.currentTarget.value })
-            }
-          />
-          <Button
-            tone="primary"
-            onClick={() => createDrill.mutate()}
-            loading={createDrill.isPending}
           >
             Save
           </Button>

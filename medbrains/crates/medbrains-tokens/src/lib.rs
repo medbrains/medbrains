@@ -958,6 +958,8 @@ pub async fn list_worklist(
     Extension(claims): Extension<Claims>,
     Query(query): Query<BoardQuery>,
 ) -> Result<Json<Vec<WorklistToken>>, AppError> {
+    // allow-soft-deleted: joined only for names; a record made for a since-retired
+    // patient, nurse or encounter still names them.
     require_queue_worklist(&claims, &query.module)?;
     check_view(query.view.as_deref())?;
 
@@ -1266,7 +1268,7 @@ fn allowed_from(to: &str) -> &'static [&'static str] {
 /// stored, came back on the board, and the console renders
 /// `TOKEN_PRIORITY_LABEL[p] ?? p` -- so a clinician would read a raw database
 /// value off a badge. It sorted harmlessly, and displayed as nonsense.
-const VALID_TOKEN_PRIORITIES: [&str; 9] = [
+const VALID_TOKEN_PRIORITIES: [&str; 10] = [
     "stat",
     "urgent",
     "emergency_referral",
@@ -1274,6 +1276,7 @@ const VALID_TOKEN_PRIORITIES: [&str; 9] = [
     "disabled",
     "pregnant",
     "carried_over",
+    "returned",
     "vip",
     "normal",
 ];

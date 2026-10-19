@@ -3,6 +3,7 @@ import {
   IconAppWindow,
   IconBabyCarriage,
   IconBed,
+  IconBinaryTree,
   IconBoxSeam,
   IconBrain,
   IconBuildingFactory2,
@@ -22,6 +23,7 @@ import {
   IconEye,
   IconFileAnalytics,
   IconFileCertificate,
+  IconFileSpreadsheet,
   IconFileText,
   IconFileTypePdf,
   IconFirstAidKit,
@@ -67,6 +69,7 @@ import {
   IconStretching2,
   IconToolsKitchen2,
   IconTruck,
+  IconTruckDelivery,
   IconUrgent,
   IconUserCog,
   IconUserSearch,
@@ -80,6 +83,8 @@ import {
 import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { createElement } from "react";
+import { MRD_PAGE_PERMISSIONS } from "@/pages/mrd-access";
+import { REPORT_READERS } from "@/pages/reports/report-readers";
 
 // ── Types ──
 
@@ -136,6 +141,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconChecklist,
   IconForms,
   IconHandGrab,
+  IconTruckDelivery,
   IconHeartRateMonitor,
   IconLayoutDashboard,
   IconPackage,
@@ -150,6 +156,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconScissors,
   IconSettings,
   IconShieldCheck,
+  IconFileSpreadsheet,
   IconShieldLock,
   IconSignature,
   IconSpray,
@@ -183,6 +190,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconCalendarStats,
   IconHistory,
   IconFileAnalytics,
+  IconBinaryTree,
   IconDental,
   IconVideo,
 };
@@ -221,6 +229,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/pharmacy/finance": { abbr: "PhF", color: "#343a3f" },
   "/pharmacy/fulfilment": { abbr: "Pck", color: "#8a3ffc" },
   "/pharmacy/dispatch": { abbr: "Col", color: "#0e6027" },
+  "/pharmacy/deliveries": { abbr: "Del", color: "#005d5d" },
   "/blood-bank": { abbr: "BB", color: "#9f1853" },
   "/ipd": { abbr: "IPD", color: "#0f62fe" },
   "/care-view": { abbr: "CV", color: "#007d79" },
@@ -279,6 +288,9 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/admin/settings": { abbr: "Cfg", color: "#0e6027" },
   "/admin/document-templates": { abbr: "DT", color: "#d02670" },
   "/admin/integration-hub": { abbr: "IH", color: "#343a3f" },
+  "/admin/forms": { abbr: "Frm", color: "#6929c4" },
+  "/admin/api-keys": { abbr: "Key", color: "#343a3f" },
+  "/admin/webhooks": { abbr: "WH", color: "#343a3f" },
   "/admin/doctor-schedules": { abbr: "DS", color: "#0f62fe" },
   "/admin/documents": { abbr: "Dcs", color: "#007d79" },
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
@@ -308,6 +320,7 @@ export function matchModuleBadge(pathname: string): ModuleBadge | undefined {
 
 const SETTINGS_NAV_PERMISSIONS = [
   "admin.settings.general.manage",
+  "terminology.snomed.manage",
   "admin.settings.facilities.list",
   "admin.settings.locations.list",
   "admin.settings.departments.list",
@@ -362,7 +375,7 @@ const ADMIN_NAV_PERMISSIONS = [
   "admin.users.list",
   "admin.doctors.list",
   "admin.roles.list",
-  "security.access.list",
+  "admin.access_requests.list",
   "quality.indicators.list",
   ...SETTINGS_NAV_PERMISSIONS,
   "integration.list",
@@ -535,13 +548,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "homeHealthcare",
         path: "/home-healthcare",
         icon: "IconHeartHandshake",
-        requiredPermission: "ipd.mar.list",
+        requiredPermission: "home_health.list",
       },
       {
         i18nKey: "homeVisits",
         path: "/home-visits",
         icon: "IconMapPin",
-        requiredPermission: "ipd.mar.list",
+        requiredPermission: "home_health.list",
       },
     ],
   },
@@ -628,6 +641,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "pharmacy.fulfilment.pack",
           "pharmacy.fulfilment.verify",
         ],
+        moduleCode: "pharmacy",
+      },
+      {
+        i18nKey: "pharmacyDeliveries",
+        path: "/pharmacy/deliveries",
+        icon: "IconTruckDelivery",
+        requiredPermission: "pharmacy.deliveries.view",
         moduleCode: "pharmacy",
       },
       {
@@ -952,6 +972,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "front_office.visitors.manage",
           "front_office.passes.list",
           "front_office.passes.manage",
+          "front_office.passes.verify",
           "front_office.queue.list",
           "front_office.queue.manage",
           "front_office.enquiry.list",
@@ -1056,7 +1077,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "mrd",
         path: "/mrd",
         icon: "IconFileCertificate",
-        requiredPermission: "mrd.records.list",
+        requiredPermissions: MRD_PAGE_PERMISSIONS,
       },
       {
         i18nKey: "clinicalKb",
@@ -1092,6 +1113,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/inter-hospital-stock",
         icon: "IconPackage",
         requiredPermission: "ipd.transfers.create",
+      },
+      {
+        i18nKey: "uhiRequests",
+        path: "/uhi-requests",
+        icon: "IconDeviceMobileMessage",
+        requiredPermission: "uhi.requests.view",
       },
     ],
   },
@@ -1159,6 +1186,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "regulatory.dashboard.view",
       },
       {
+        i18nKey: "abdmDashboard",
+        path: "/abdm/dashboard",
+        icon: "IconIdBadge2",
+        requiredPermission: "abdm.dashboard.view",
+      },
+      {
         i18nKey: "analytics",
         path: "/analytics",
         icon: "IconChartBar",
@@ -1168,13 +1201,20 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "reports",
         path: "/reports",
         icon: "IconReport",
-        requiredPermission: "analytics.view",
+        requiredPermissions: REPORT_READERS,
       },
       {
         i18nKey: "audit",
         path: "/audit",
         icon: "IconFileAnalytics",
         requiredPermission: "audit.log.view",
+      },
+      {
+        i18nKey: "snomed",
+        path: "/terminology/snomed",
+        icon: "IconBinaryTree",
+        requiredPermission: "terminology.snomed.view",
+        requiredPermissions: ["terminology.snomed.analytics"],
       },
       {
         i18nKey: "utilizationReview",
@@ -1329,7 +1369,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "accessRequests",
             path: "/admin/access-requests",
             icon: "IconShieldLock",
-            requiredPermission: "security.access.list",
+            requiredPermission: "admin.access_requests.list",
           },
           {
             i18nKey: "nabhIndicators",
@@ -1342,6 +1382,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/setup",
             icon: "IconListDetails",
             requiredPermission: "admin.settings.general.manage",
+          },
+          {
+            i18nKey: "onboardingWorkbook",
+            path: "/admin/workbook",
+            icon: "IconFileSpreadsheet",
+            requiredPermission: "admin.workbook.import",
           },
           {
             i18nKey: "settings",
@@ -1361,6 +1407,30 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/integration-hub",
             icon: "IconPlug",
             requiredPermission: "integration.list",
+          },
+          {
+            i18nKey: "formTemplates",
+            path: "/admin/forms",
+            icon: "IconForms",
+            requiredPermission: "forms.templates.list",
+          },
+          {
+            i18nKey: "testCycles",
+            path: "/admin/test-cycles",
+            icon: "IconChecklist",
+            requiredPermission: "qa.test_cycles.manage",
+          },
+          {
+            i18nKey: "apiKeys",
+            path: "/admin/api-keys",
+            icon: "IconPlug",
+            requiredPermission: "admin.api_keys.list",
+          },
+          {
+            i18nKey: "webhooks",
+            path: "/admin/webhooks",
+            icon: "IconPlug",
+            requiredPermission: "admin.webhooks.list",
           },
           {
             i18nKey: "doctorSchedules",

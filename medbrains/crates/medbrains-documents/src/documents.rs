@@ -286,7 +286,7 @@ pub async fn list_templates(
 
     let rows = sqlx::query_as::<_, DocumentTemplate>(
         "SELECT * FROM document_templates \
-         WHERE ($1::text IS NULL OR category::text = $1) \
+         WHERE deleted_at IS NULL AND ($1::text IS NULL OR category::text = $1) \
          AND ($2::text IS NULL OR module_code = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
          ORDER BY category, name \
@@ -522,7 +522,7 @@ pub async fn list_template_versions(
 
     let rows = sqlx::query_as::<_, DocumentTemplateVersion>(
         "SELECT * FROM document_template_versions \
-         WHERE template_id = $1 \
+         WHERE deleted_at IS NULL AND template_id = $1 \
          ORDER BY version_number DESC \
          LIMIT 100",
     )
@@ -819,7 +819,7 @@ pub async fn list_outputs(
 
     let rows = sqlx::query_as::<_, DocumentOutput>(
         "SELECT * FROM document_outputs \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE deleted_at IS NULL AND ($1::uuid IS NULL OR patient_id = $1) \
          AND ($2::text IS NULL OR module_code = $2) \
          AND ($3::text IS NULL OR category::text = $3) \
          AND ($4::text IS NULL OR status::text = $4) \
@@ -947,7 +947,7 @@ pub async fn list_patient_outputs(
 
     let rows = sqlx::query_as::<_, DocumentOutput>(
         "SELECT * FROM document_outputs \
-         WHERE patient_id = $1 \
+         WHERE deleted_at IS NULL AND patient_id = $1 \
          ORDER BY created_at DESC \
          LIMIT 500",
     )
@@ -1139,7 +1139,7 @@ pub async fn list_review_schedule(
     let rows = if params.overdue.unwrap_or(false) {
         sqlx::query_as::<_, DocumentFormReviewSchedule>(
             "SELECT * FROM document_form_review_schedule \
-             WHERE next_review_due IS NOT NULL \
+             WHERE deleted_at IS NULL AND next_review_due IS NOT NULL \
              AND next_review_due <= CURRENT_DATE \
              ORDER BY next_review_due ASC \
              LIMIT 200",
@@ -1148,7 +1148,7 @@ pub async fn list_review_schedule(
         .await?
     } else {
         sqlx::query_as::<_, DocumentFormReviewSchedule>(
-            "SELECT * FROM document_form_review_schedule \
+            "SELECT * FROM document_form_review_schedule WHERE deleted_at IS NULL \
              ORDER BY next_review_due ASC NULLS LAST \
              LIMIT 200",
         )
@@ -1250,14 +1250,46 @@ pub async fn list_printers(
         "SELECT id, tenant_id, name, printer_type, connection_type, connection_string, \
          department_id, default_format, capabilities, is_active, created_at, updated_at \
          FROM printer_configs \
-         WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name LIMIT 5000",
+         WHERE tenant_id = $1 AND deleted_at IS NULL \
+         ORDER BY is_active DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPrinterActive {
+    pub is_active: bool,
+}
+
+/// `PUT /api/documents/printers/{id}/active` — retire a printer (it stops
+/// receiving jobs) or bring it back.
+pub async fn set_printer_active(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetPrinterActive>,
+) -> Result<Json<PrinterConfig>, AppError> {
+    require_permission(&claims, permissions::documents::printers::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, PrinterConfig>(
+        "UPDATE printer_configs SET is_active = $3, updated_at = now() \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+         RETURNING id, tenant_id, name, printer_type, connection_type, connection_string, \
+         department_id, default_format, capabilities, is_active, created_at, updated_at",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.is_active)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 pub async fn create_printer(
@@ -1312,11 +1344,12 @@ pub async fn list_print_jobs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, PrintJob>(
-        "SELECT id, tenant_id, document_output_id, printer_id, status, copies, priority, \
-         department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at \
-         FROM print_jobs \
-         WHERE tenant_id = $1 \
-         ORDER BY created_at DESC \
+        "SELECT j.id, j.tenant_id, j.document_output_id, j.printer_id, j.status, j.copies, j.priority, \
+         j.department_id, j.submitted_by, j.started_at, j.completed_at, j.error_message, j.created_at, \
+         j.updated_at, d.title AS document_title, d.document_number \
+         FROM print_jobs j LEFT JOIN document_outputs d ON d.id = j.document_output_id \
+         WHERE j.deleted_at IS NULL AND j.tenant_id = $1 \
+         ORDER BY j.created_at DESC \
          LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -1347,8 +1380,10 @@ pub async fn update_print_job(
         "UPDATE print_jobs SET \
          status = $3::print_job_status, \
          error_message = $4, \
-         started_at = CASE WHEN $3 = 'printing' THEN COALESCE(started_at, now()) ELSE started_at END, \
-         completed_at = CASE WHEN $3 IN ('completed', 'failed', 'cancelled') THEN now() ELSE completed_at END \
+         started_at = CASE WHEN $3 = 'printing' THEN COALESCE(started_at, now()) \
+                           WHEN $3 = 'queued' THEN NULL ELSE started_at END, \
+         completed_at = CASE WHEN $3 IN ('completed', 'failed', 'cancelled') THEN now() \
+                             WHEN $3 = 'queued' THEN NULL ELSE completed_at END \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING id, tenant_id, document_output_id, printer_id, status, copies, priority, \
          department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at",

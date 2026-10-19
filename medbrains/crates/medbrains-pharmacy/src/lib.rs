@@ -41,6 +41,10 @@ use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
 mod expired;
+pub mod pos_counter;
+pub mod pos_returns;
+mod return_rules;
+pub mod rx_safety;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -234,6 +238,19 @@ pub struct CreateCatalogRequest {
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
     pub barcode: Option<String>,
+    pub refill_policy: Option<String>,
+    pub needs_cold_chain: Option<bool>,
+}
+
+/// Refuse a refill policy the catalogue doesn't know, rather than letting the
+/// database's check answer 500.
+fn check_refill_policy(policy: Option<&str>) -> Result<(), AppError> {
+    match policy {
+        None | Some("pharmacy" | "doctor_approval" | "never") => Ok(()),
+        Some(other) => Err(AppError::BadRequest(format!(
+            "Unknown refill policy \"{other}\": use pharmacy, doctor_approval or never"
+        ))),
+    }
 }
 
 /// An empty barcode box means "not recorded", not an empty string — otherwise
@@ -269,6 +286,8 @@ pub struct UpdateCatalogRequest {
     pub batch_tracking_required: Option<bool>,
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
+    pub refill_policy: Option<String>,
+    pub needs_cold_chain: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -318,14 +337,6 @@ fn medication_safety_override_reason(body: &CreateOrderRequest) -> Option<&str> 
         .or(body.allergy_override_reason.as_deref())
         .map(str::trim)
         .filter(|reason| !reason.is_empty())
-}
-
-fn can_override_medication_safety(claims: &Claims) -> bool {
-    is_bypass_role(claims)
-        || claims
-            .permissions
-            .iter()
-            .any(|p| p == permissions::pharmacy::safety::OVERRIDE)
 }
 
 fn can_view_patient_identity(claims: &Claims) -> bool {
@@ -1144,6 +1155,17 @@ fn estimate_rx_dispense_quantity(dosage: &str, frequency: &str, duration: &str) 
     estimated.ceil().clamp(1.0, 9_999.0) as i32
 }
 
+/// The safety gate's view of order lines.
+fn rx_lines_of(items: &[PharmacyOrderItem]) -> Vec<rx_safety::RxLine> {
+    items
+        .iter()
+        .map(|i| rx_safety::RxLine {
+            drug_name: i.drug_name.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect()
+}
+
 pub fn medication_safety_warning_is_overrideable(code: &str) -> bool {
     !matches!(code, "INSUFFICIENT_STOCK")
 }
@@ -1437,6 +1459,30 @@ pub async fn evaluate_medication_safety_in_tx(
         }
     }
 
+    // Interactions with what the patient is already on, plus Reserve and
+    // formulary status — the pharmacy gate's own checks (`rx_safety`), so one
+    // definition answers both. Allergy is checked above. All advisory here:
+    // ordering does not release medicine, and every release path holds these
+    // under their own override permissions (`rx_safety::gate_release_in_tx`).
+    let lines: Vec<rx_safety::RxLine> = items
+        .iter()
+        .map(|i| rx_safety::RxLine {
+            drug_name: i.drug_name.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect();
+    let gate_findings =
+        rx_safety::check_rx_lines_in_tx(tx, *tenant_id, Some(*patient_id), &lines, None).await?;
+    warnings.extend(
+        gate_findings
+            .into_iter()
+            .filter(|finding| finding.code != rx_safety::ALLERGY)
+            .map(|finding| MedicationSafetyWarning {
+                severity: MedicationSafetySeverity::Warn,
+                ..finding
+            }),
+    );
+
     Ok(warnings)
 }
 
@@ -1498,6 +1544,8 @@ pub struct ValidationResult {
     pub warnings: Vec<String>,
     pub blocks: Vec<String>,
     pub interactions: Vec<serde_json::Value>,
+    /// The medication safety findings the dispense gate will ask about.
+    pub findings: Vec<MedicationSafetyWarning>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1510,6 +1558,10 @@ pub struct OtcSaleRequest {
     pub store_location_id: Option<Uuid>,
     /// Pharmacist's reason for selling despite a documented drug allergy.
     pub allergy_override_reason: Option<String>,
+    /// Pharmacist's clinical reason for releasing medicine past a blocking
+    /// medication safety finding (`rx_safety`); needs that finding's override
+    /// permission.
+    pub safety_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1521,6 +1573,10 @@ pub struct DischargeMedsRequest {
     pub notes: Option<String>,
     /// Pharmacist's reason for dispensing despite a documented drug allergy.
     pub allergy_override_reason: Option<String>,
+    /// Pharmacist's clinical reason for releasing medicine past a blocking
+    /// medication safety finding (`rx_safety`); needs that finding's override
+    /// permission.
+    pub safety_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1540,6 +1596,11 @@ pub struct DispenseOrderRequest {
     /// outstanding balance. Credit patients, schemes and staff dispensing are all
     /// legitimate — they are just not silent.
     pub unpaid_override_reason: Option<String>,
+    /// Pharmacist's clinical reason for dispensing past a blocking medication
+    /// safety finding — a serious drug-drug interaction, a Reserve antibiotic
+    /// without an approved stewardship request, or a non-formulary medicine.
+    /// Each kind needs its own override permission (`rx_safety`).
+    pub safety_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1724,7 +1785,7 @@ pub async fn list_orders(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
@@ -1792,9 +1853,15 @@ pub async fn list_orders(
         Some("total_price") => format!("total_price {sort_dir}"),
         _ => format!("created_at {sort_dir}"),
     };
+    // The page is chosen first, then named: the filters stay on the order's
+    // own columns, and only the page's patients are looked up.
     let data_sql = format!(
-        "SELECT * FROM pharmacy_orders WHERE {where_clause} \
-         ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}",
+        "SELECT o.*, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+                p.uhid AS patient_uhid \
+           FROM (SELECT * FROM pharmacy_orders WHERE {where_clause} \
+                  ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}) o \
+           LEFT JOIN patients p ON p.id = o.patient_id AND p.tenant_id = o.tenant_id \
+          ORDER BY o.{order_by}",
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, PharmacyOrder>(&data_sql).bind(claims.tenant_id);
@@ -1935,39 +2002,34 @@ pub async fn create_order_in_tx(
                 "Medication safety override reason must be at least 5 characters".to_owned(),
             ));
         }
-        if !can_override_medication_safety(claims) {
+        if blocking_warnings
+            .iter()
+            .any(|warning| !rx_safety::can_override(claims, &warning.code))
+        {
             return Err(AppError::Forbidden);
         }
     }
 
     let dispensing_type = body.dispensing_type.as_deref().unwrap_or("prescription");
 
-    let order = sqlx::query_as!(
-        PharmacyOrder,
-        r#"
-        INSERT INTO pharmacy_orders
-          (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,
-           status, notes, dispensing_type, discharge_summary_id, billing_package_id,
-           store_location_id)
-        VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)
-        RETURNING id, tenant_id, prescription_id, patient_id AS "patient_id!",
-                  encounter_id, ordered_by, status, notes,
-                  dispensing_type AS "dispensing_type: _",
-                  discharge_summary_id, billing_package_id, store_location_id,
-                  interaction_check_result, dispensed_by, dispensed_at,
-                  created_at, updated_at
-        "#,
-        claims.tenant_id,
-        body.prescription_id,
-        body.patient_id,
-        body.encounter_id,
-        claims.sub,
-        body.notes.as_deref(),
-        dispensing_type,
-        body.discharge_summary_id,
-        body.billing_package_id,
-        body.store_location_id
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "INSERT INTO pharmacy_orders
+           (tenant_id, prescription_id, patient_id, encounter_id, ordered_by,
+            status, notes, dispensing_type, discharge_summary_id, billing_package_id,
+            store_location_id)
+         VALUES ($1, $2, $3, $4, $5, 'ordered', $6, $7::text::pharmacy_dispensing_type, $8, $9, $10)
+         RETURNING *",
     )
+    .bind(claims.tenant_id)
+    .bind(body.prescription_id)
+    .bind(body.patient_id)
+    .bind(body.encounter_id)
+    .bind(claims.sub)
+    .bind(body.notes.as_deref())
+    .bind(dispensing_type)
+    .bind(body.discharge_summary_id)
+    .bind(body.billing_package_id)
+    .bind(body.store_location_id)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -2059,7 +2121,10 @@ pub async fn create_order_in_tx(
     // Auto-issue a pharmacy token (per store counter when known).
     // Join the visit this patient is already in, so the number on their
     // slip carries through to this counter too.
-    let visit_id = medbrains_tokens::current_visit(tx, order.patient_id).await?;
+    let visit_id = match order.patient_id {
+        Some(patient_id) => medbrains_tokens::current_visit(tx, patient_id).await?,
+        None => None,
+    };
     medbrains_tokens::issue_token_in_tx(
         tx,
         claims.tenant_id,
@@ -2074,7 +2139,7 @@ pub async fn create_order_in_tx(
             scope_id: order.store_location_id,
             scope_label: None,
             priority: "normal",
-            patient_id: Some(order.patient_id),
+            patient_id: order.patient_id,
             patient_name: None,
             entity_type: Some("pharmacy_order"),
             entity_id: Some(order.id),
@@ -2170,6 +2235,29 @@ async fn decrement_catalog_stock_for_dispense_in_tx(
             reorder_level,
         )
         .await?;
+        // The email to the pharmacists goes through the default pipeline, so a
+        // hospital can switch it off in the Integration Hub. Keyed by day: a
+        // drug that crosses twice in one day is one message, not two.
+        let event = ClinicalEventEnvelope::new(
+            *tenant_id,
+            ClinicalEventName::PharmacyStockLow,
+            catalog_id,
+            Uuid::nil(),
+            serde_json::json!({
+                "catalog_item_id": catalog_id,
+                "drug_name": drug_name,
+                "on_hand": new_stock,
+                "reorder_level": reorder_level,
+            }),
+        );
+        let mut row = medbrains_workflow::events::clinical_event_outbox_row(&event)?;
+        row.idempotency_key = Some(format!(
+            "pharmacy.stock.low:{catalog_id}:{}",
+            event.occurred_at.date_naive()
+        ));
+        medbrains_outbox::queue_in_tx(tx, row)
+            .await
+            .map_err(|e| AppError::Internal(format!("low-stock event: {e}")))?;
     }
 
     Ok(())
@@ -2290,6 +2378,10 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
     order: &PharmacyOrder,
     items: &[PharmacyOrderItem],
 ) -> Result<PharmacyBillingIndentResult, AppError> {
+    // A walk-in order has nobody to bill; its sale is paid at the counter.
+    let Some(patient_id) = order.patient_id else {
+        return Ok(PharmacyBillingIndentResult::default());
+    };
     if !medbrains_server_services::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy")
         .await?
     {
@@ -2335,7 +2427,7 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
             tx,
             tenant_id,
             medbrains_server_services::billing::AutoChargeInput {
-                patient_id: order.patient_id,
+                patient_id,
                 encounter_id: order.encounter_id,
                 charge_code: code,
                 source: "pharmacy".to_owned(),
@@ -2818,6 +2910,10 @@ pub async fn dispense_order(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Only prescription orders wait here, and a prescription names a patient.
+    let patient_id = order
+        .patient_id
+        .ok_or_else(|| AppError::Conflict("This order has no patient to dispense to".to_owned()))?;
 
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
@@ -2833,13 +2929,8 @@ pub async fn dispense_order(
     // Warn & require an acknowledged reason (logged); never a silent pass,
     // never a hard block (prior tolerance / desensitisation / no alternative).
     let dispense_drug_names: Vec<String> = items.iter().map(|i| i.drug_name.clone()).collect();
-    let allergy_conflicts = drug_allergy_conflicts(
-        &mut tx,
-        claims.tenant_id,
-        order.patient_id,
-        &dispense_drug_names,
-    )
-    .await?;
+    let allergy_conflicts =
+        drug_allergy_conflicts(&mut tx, claims.tenant_id, patient_id, &dispense_drug_names).await?;
     if !allergy_conflicts.is_empty() {
         let reason = body
             .allergy_override_reason
@@ -2859,7 +2950,7 @@ pub async fn dispense_order(
                     &allergy_conflicts,
                     &AllergyOverrideLog {
                         tenant_id: claims.tenant_id,
-                        patient_id: order.patient_id,
+                        patient_id,
                         overridden_by: claims.sub,
                         reason,
                         context: "dispensing",
@@ -2870,6 +2961,26 @@ pub async fn dispense_order(
             }
         }
     }
+
+    // Medication safety gate — interactions with the patient's other medicines,
+    // Reserve antibiotics without an approved stewardship request, and
+    // non-formulary medicines. Allergy has its own gate above. Whatever was
+    // already overridden for this order, at review or when it was raised, is
+    // not asked again; anything that has changed since is.
+    let safety_lines = rx_lines_of(&items);
+    rx_safety::gate_release_in_tx(
+        &state,
+        &mut tx,
+        &claims,
+        &rx_safety::Release {
+            patient_id: Some(patient_id),
+            encounter_id: order.encounter_id,
+            order_id: Some(order.id),
+            lines: &safety_lines,
+            override_reason: body.safety_override_reason.as_deref(),
+        },
+    )
+    .await?;
 
     // NDPS soft-gate — a controlled substance requires a witness (dual-lock) to
     // dispense. If none is supplied, a non-blank override reason is required and logged.
@@ -2904,7 +3015,7 @@ pub async fn dispense_order(
                 tracing::warn!(
                     tenant_id = %claims.tenant_id,
                     order_id = %order.id,
-                    patient_id = %order.patient_id,
+                    %patient_id,
                     dispensed_by = %claims.sub,
                     reason,
                     "NDPS controlled dispense without a witness — override reason logged"
@@ -2969,7 +3080,7 @@ pub async fn dispense_order(
             tracing::warn!(
                 tenant_id = %claims.tenant_id,
                 order_id = %order.id,
-                patient_id = %order.patient_id,
+                %patient_id,
                 dispensed_by = %claims.sub,
                 %outstanding,
                 reason,
@@ -3146,7 +3257,7 @@ pub async fn dispense_order(
                 .bind(catalog_id)
                 .bind(dispense_qty)
                 .bind(i32::try_from(new_balance).unwrap_or(0))
-                .bind(order.patient_id)
+                .bind(patient_id)
                 .bind(order.prescription_id)
                 .bind(claims.sub)
                 .bind(body.witnessed_by)
@@ -3235,7 +3346,7 @@ pub async fn dispense_order(
         claims.sub,
         serde_json::json!({
             "order_id": order.id,
-            "patient_id": order.patient_id,
+            "patient_id": patient_id,
             "encounter_id": order.encounter_id,
             "admission_id": admission_id,
             "items": billed_items.iter().map(|item| {
@@ -3248,7 +3359,7 @@ pub async fn dispense_order(
             }).collect::<Vec<_>>(),
         }),
     )
-    .with_patient(order.patient_id);
+    .with_patient(patient_id);
     if let Some(encounter_id) = order.encounter_id {
         event = event.with_encounter(encounter_id);
     }
@@ -3280,7 +3391,7 @@ pub async fn dispense_order(
         "pharmacy.order.dispensed",
         serde_json::json!({
             "order_id": order.id,
-            "patient_id": order.patient_id,
+            "patient_id": patient_id,
             "encounter_id": order.encounter_id,
             "admission_id": admission_id,
             "items_count": items.len(),
@@ -3471,8 +3582,10 @@ pub async fn cancel_order(
                 "admission_id": admission_id,
             }),
         )
-        .with_source_module(ClinicalEventSourceModule::Pharmacy)
-        .with_patient(o.patient_id);
+        .with_source_module(ClinicalEventSourceModule::Pharmacy);
+        if let Some(patient_id) = o.patient_id {
+            event = event.with_patient(patient_id);
+        }
         if let Some(encounter_id) = o.encounter_id {
             event = event.with_encounter(encounter_id);
         }
@@ -3570,13 +3683,8 @@ pub async fn validate_order(
                     }
                 }
 
-                // Formulary check
-                if drug.formulary_status == "non_formulary" {
-                    blocks.push(format!(
-                        "{}: Non-formulary drug — approval required",
-                        drug.name
-                    ));
-                } else if drug.formulary_status == "restricted" {
+                // Non-formulary is a blocking finding from `rx_safety` below.
+                if drug.formulary_status == "restricted" {
                     warnings.push(format!("{}: Restricted formulary drug", drug.name));
                 }
 
@@ -3588,14 +3696,6 @@ pub async fn validate_order(
                         drug.lasa_group
                             .as_deref()
                             .map_or_else(String::new, |g| format!(" (group: {g})"))
-                    ));
-                }
-
-                // AWaRe category check
-                if drug.aware_category.as_deref() == Some("reserve") {
-                    warnings.push(format!(
-                        "{}: Reserve-tier antibiotic — stewardship approval needed",
-                        drug.name
                     ));
                 }
 
@@ -3618,12 +3718,43 @@ pub async fn validate_order(
         }
     }
 
+    // What the dispense gate will ask, so the screen can show it beforehand.
+    // Allergy is shown and gated separately.
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM pharmacy_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let lines = rx_lines_of(&items);
+    let mut findings = rx_safety::check_rx_lines_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        Some(patient_id),
+        &lines,
+        Some(id),
+    )
+    .await?;
+    findings.retain(|f| f.code != rx_safety::ALLERGY);
+    let findings =
+        rx_safety::drop_already_overridden_in_tx(&mut tx, claims.tenant_id, id, findings).await?;
+    let interactions = findings
+        .iter()
+        .filter(|f| f.code == rx_safety::INTERACTION)
+        .map(|f| f.detail.clone())
+        .collect();
+
     tx.commit().await?;
     Ok(Json(ValidationResult {
-        valid: blocks.is_empty(),
+        valid: blocks.is_empty()
+            && findings
+                .iter()
+                .all(|f| f.severity != MedicationSafetySeverity::Block),
         warnings,
         blocks,
-        interactions: Vec::new(),
+        interactions,
+        findings,
     }))
 }
 
@@ -3799,6 +3930,29 @@ pub async fn create_otc_sale(
     .fetch_one(&mut *tx)
     .await?;
 
+    // The medication safety gate every release goes through (`rx_safety`).
+    let release_lines: Vec<rx_safety::RxLine> = body
+        .items
+        .iter()
+        .map(|i| rx_safety::RxLine {
+            drug_name: i.drug_name.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect();
+    rx_safety::gate_release_in_tx(
+        &state,
+        &mut tx,
+        &claims,
+        &rx_safety::Release {
+            patient_id,
+            encounter_id: None,
+            order_id: Some(order.id),
+            lines: &release_lines,
+            override_reason: body.safety_override_reason.as_deref(),
+        },
+    )
+    .await?;
+
     if let (Some(pid), Some(reason)) = (patient_id, allergy_reason) {
         if !allergy_conflicts.is_empty() {
             log_allergy_overrides(
@@ -3902,6 +4056,29 @@ pub async fn create_discharge_dispensing(
     .bind(&body.notes)
     .bind(body.discharge_summary_id)
     .fetch_one(&mut *tx)
+    .await?;
+
+    // The medication safety gate every release goes through (`rx_safety`).
+    let release_lines: Vec<rx_safety::RxLine> = body
+        .items
+        .iter()
+        .map(|i| rx_safety::RxLine {
+            drug_name: i.drug_name.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect();
+    rx_safety::gate_release_in_tx(
+        &state,
+        &mut tx,
+        &claims,
+        &rx_safety::Release {
+            patient_id: Some(body.patient_id),
+            encounter_id: body.encounter_id,
+            order_id: Some(order.id),
+            lines: &release_lines,
+            override_reason: body.safety_override_reason.as_deref(),
+        },
+    )
     .await?;
 
     // Discharge (to-take-out) meds are a real dispensing event and must not bypass the allergy
@@ -4029,7 +4206,7 @@ pub async fn list_catalog(
 
     let rows = sqlx::query_as::<_, PharmacyCatalog>(
         "SELECT * FROM pharmacy_catalog
-         WHERE tenant_id = $1
+         WHERE tenant_id = $1 AND deleted_at IS NULL
            AND ($2::text IS NULL OR name ILIKE $2 OR generic_name ILIKE $2 OR code ILIKE $2)
            AND ($3::text IS NULL OR category = $3)
            AND ($4::text IS NULL OR formulary_status::text = $4)
@@ -4067,6 +4244,7 @@ pub async fn create_catalog_entry(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_catalog_price_write(Some(body.base_price), &restricted_fields, true)?;
+    check_refill_policy(body.refill_policy.as_deref())?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
     let stock = body.current_stock.unwrap_or(0);
@@ -4087,10 +4265,11 @@ pub async fn create_catalog_entry(
           drug_schedule, is_controlled, inn_name, atc_code, rxnorm_code, \
           snomed_code, formulary_status, aware_category, is_lasa, lasa_group, \
           max_dose_per_day, batch_tracking_required, storage_conditions, \
-          black_box_warning, barcode) \
+          black_box_warning, barcode, refill_policy, needs_cold_chain) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
                  $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, \
-                 $22, $23, $24, $25, $26) \
+                 $22, $23, $24, $25, $26, COALESCE($27, 'doctor_approval'), \
+                 COALESCE($28, false)) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -4119,6 +4298,8 @@ pub async fn create_catalog_entry(
     .bind(&body.storage_conditions)
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
+    .bind(&body.refill_policy)
+    .bind(body.needs_cold_chain)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4138,6 +4319,7 @@ pub async fn update_catalog_entry(
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_catalog_price_write(body.base_price, &restricted_fields, false)?;
+    check_refill_policy(body.refill_policy.as_deref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4169,6 +4351,8 @@ pub async fn update_catalog_entry(
          storage_conditions = COALESCE($24, storage_conditions), \
          black_box_warning = COALESCE($25, black_box_warning), \
          barcode = COALESCE($26, barcode), \
+         refill_policy = COALESCE($27, refill_policy), \
+         needs_cold_chain = COALESCE($28, needs_cold_chain), \
          updated_at = now() \
          WHERE id = $10 AND tenant_id = $11 \
          RETURNING *",
@@ -4199,6 +4383,8 @@ pub async fn update_catalog_entry(
     .bind(&body.storage_conditions)
     .bind(&body.black_box_warning)
     .bind(trimmed_barcode(body.barcode.as_deref()))
+    .bind(&body.refill_policy)
+    .bind(body.needs_cold_chain)
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -4384,7 +4570,7 @@ pub async fn list_ndps_entries(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     if params.catalog_item_id.is_some() {
@@ -4651,7 +4837,7 @@ pub async fn list_batches(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut conditions = vec!["tenant_id = $1 AND deleted_at IS NULL".to_owned()];
     let mut bind_idx: usize = 2;
 
     if params.catalog_item_id.is_some() {
@@ -5045,7 +5231,7 @@ pub async fn list_store_assignments(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreAssignment>(
-        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5315,7 +5501,7 @@ pub async fn list_transfers(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL AND status = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -5324,7 +5510,7 @@ pub async fn list_transfers(
     } else {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+             WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -5505,7 +5691,11 @@ pub async fn list_returns(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyReturn>(
-        "SELECT * FROM pharmacy_returns WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 200",
+        "SELECT r.*, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+                p.uhid AS patient_uhid \
+           FROM pharmacy_returns r \
+           LEFT JOIN patients p ON p.id = r.patient_id AND p.tenant_id = r.tenant_id \
+          WHERE r.tenant_id = $1 AND r.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -6007,7 +6197,8 @@ pub async fn check_drug_interactions(
          JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
           AND oi.removed_at IS NULL \
          LEFT JOIN pharmacy_catalog nc ON nc.id = $3 AND nc.tenant_id = $2 \
-         LEFT JOIN drug_interactions di ON di.tenant_id = o.tenant_id AND di.is_active = true AND \
+         LEFT JOIN drug_interactions di ON di.tenant_id = o.tenant_id AND di.is_active = true \
+           AND di.deleted_at IS NULL AND \
            ((lower(di.drug_a_name) = lower(oi.drug_name) AND lower(di.drug_b_name) = lower(nc.name)) OR \
             (lower(di.drug_b_name) = lower(oi.drug_name) AND lower(di.drug_a_name) = lower(nc.name))) \
          WHERE o.patient_id = $1 AND o.tenant_id = $2 \
@@ -6195,8 +6386,9 @@ pub async fn list_rx_queue(
     let mut conditions = vec!["pr.tenant_id = $1".to_owned()];
     let mut data_sql = "SELECT pr.id, pr.prescription_id, pr.patient_id,
                 p.first_name || ' ' || p.last_name AS patient_name,
+                p.uhid AS patient_uhid,
                 u.full_name AS doctor_name,
-                pr.source, pr.status, pr.priority, pr.received_at,
+                pr.source, pr.status, pr.priority, pr.received_at, pr.repeat_index,
                 (SELECT COUNT(*) FROM patient_allergies pa
                  WHERE pa.patient_id = pr.patient_id AND pa.is_active = true
                    AND pa.allergy_type = 'drug') AS allergy_count
@@ -6217,6 +6409,23 @@ pub async fn list_rx_queue(
     }
     if params.rx_queue_id.is_some() {
         conditions.push(format!("pr.id = ${bind_idx}"));
+    }
+    let search = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| format!("%{s}%"));
+    if search.is_some() {
+        let status_bound = params.rx_queue_id.is_none() || params.status.is_some();
+        let idx = 2
+            + usize::from(status_bound)
+            + usize::from(params.patient_id.is_some())
+            + usize::from(params.rx_queue_id.is_some());
+        conditions.push(format!(
+            "((p.first_name || ' ' || p.last_name) ILIKE ${idx} \
+              OR p.uhid ILIKE ${idx} OR u.full_name ILIKE ${idx})"
+        ));
     }
 
     data_sql.push_str(" WHERE ");
@@ -6239,6 +6448,9 @@ pub async fn list_rx_queue(
     }
     if let Some(rx_queue_id) = params.rx_queue_id {
         query = query.bind(rx_queue_id);
+    }
+    if let Some(term) = &search {
+        query = query.bind(term);
     }
 
     let mut rows = query.fetch_all(&mut *tx).await?;
@@ -6346,6 +6558,25 @@ pub async fn get_rx_detail(
     .fetch_all(&mut *tx)
     .await?;
 
+    // The checks the review will enforce, run now so the pharmacist sees them
+    // before choosing. A failure here fails the screen: an unchecked
+    // prescription must not read as a clean one.
+    let safety_lines: Vec<rx_safety::RxLine> = item_rows
+        .iter()
+        .map(|item| rx_safety::RxLine {
+            drug_name: item.drug_name.clone(),
+            catalog_item_id: item.catalog_item_id,
+        })
+        .collect();
+    let safety_findings = rx_safety::check_rx_lines_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        Some(rx.patient_id),
+        &safety_lines,
+        None,
+    )
+    .await?;
+
     let items = item_rows
         .into_iter()
         .map(|item| {
@@ -6391,11 +6622,24 @@ pub async fn get_rx_detail(
     .fetch_one(&mut *tx)
     .await?;
 
+    // What the doctor wrote about refills and expiry, for the review.
+    let terms = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT json_build_object('valid_until', valid_until, 'repeats_allowed', repeats_allowed, \
+                'repeat_interval_days', repeat_interval_days, 'repeats_used', repeats_used) \
+           FROM prescriptions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(rx.prescription_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(json!({
         "prescription": rx,
         "items": items,
         "allergies": allergies,
+        "terms": terms,
+        "safety": { "findings": safety_findings },
     })))
 }
 
@@ -6423,6 +6667,95 @@ pub async fn review_prescription(
         }
     };
 
+    // Past its valid-until date a prescription is not dispensed: the patient
+    // needs a new one. Hold and reject stay open, to say so.
+    if new_status == "approved" {
+        let expired: Option<NaiveDate> = sqlx::query_scalar(
+            "SELECT p.valid_until FROM pharmacy_prescriptions q \
+               JOIN prescriptions p ON p.id = q.prescription_id AND p.tenant_id = q.tenant_id \
+              WHERE q.id = $1 AND q.tenant_id = $2 AND p.valid_until < CURRENT_DATE",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+        if let Some(until) = expired {
+            return Err(AppError::Conflict(format!(
+                "This prescription expired on {}. The patient needs a new one.",
+                until.format("%d %b %Y")
+            )));
+        }
+    }
+
+    let current = sqlx::query_as::<_, PharmacyPrescriptionRx>(
+        "SELECT * FROM pharmacy_prescriptions \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let items = sqlx::query_as::<_, PrescriptionItemRow>(
+        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
+         FROM prescription_items \
+         WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
+    )
+    .bind(current.prescription_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    let reviewed_items = body.items.as_deref().unwrap_or_default();
+
+    // The allergy and interaction checks this review records as done are run
+    // here, on the medicines as the pharmacist has mapped them — together with
+    // the stewardship and formulary checks. Approval stops on a blocking
+    // finding unless a holder of its override permission gives a reason.
+    let safety_lines: Vec<rx_safety::RxLine> = items
+        .iter()
+        .map(|item| rx_safety::RxLine {
+            drug_name: item.drug_name.clone(),
+            catalog_item_id: reviewed_items
+                .iter()
+                .find(|review_item| review_item.prescription_item_id == item.id)
+                .and_then(|review_item| review_item.catalog_item_id)
+                .or(item.catalog_item_id),
+        })
+        .collect();
+    let safety_findings = rx_safety::check_rx_lines_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        Some(current.patient_id),
+        &safety_lines,
+        None,
+    )
+    .await?;
+    let safety_subject = rx_safety::Subject {
+        patient_id: current.patient_id,
+        encounter_id: Some(current.encounter_id),
+        record_id: Some(current.id),
+    };
+    let safety_reason = if new_status == "approved" {
+        rx_safety::enforce(
+            &state,
+            &claims,
+            &safety_subject,
+            &safety_findings,
+            body.safety_override_reason.as_deref(),
+        )
+        .await?
+    } else {
+        None
+    };
+    let check_result = json!({
+        "checked_at": chrono::Utc::now(),
+        "checked_by": claims.sub,
+        "findings": safety_findings,
+        "override_reason": safety_reason,
+    });
+
     let rx = sqlx::query_as::<_, PharmacyPrescriptionRx>(
         "UPDATE pharmacy_prescriptions SET
             status = $2::pharmacy_rx_status,
@@ -6431,7 +6764,8 @@ pub async fn review_prescription(
             review_notes = $4,
             rejection_reason = $5,
             allergy_check_done = true,
-            interaction_check_done = true
+            interaction_check_done = true,
+            interaction_check_result = $7
          WHERE id = $1 AND tenant_id = $6 RETURNING *",
     )
     .bind(id)
@@ -6440,6 +6774,7 @@ pub async fn review_prescription(
     .bind(&body.notes)
     .bind(&body.rejection_reason)
     .bind(claims.tenant_id)
+    .bind(&check_result)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -6451,19 +6786,6 @@ pub async fn review_prescription(
 
     // On approval: auto-create pharmacy order from prescription items
     if new_status == "approved" {
-        // Get prescription items
-        let items = sqlx::query_as::<_, PrescriptionItemRow>(
-            "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
-             FROM prescription_items \
-             WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
-        )
-        .bind(rx.prescription_id)
-        .bind(claims.tenant_id)
-        .fetch_all(&mut *tx)
-        .await?;
-
-        let reviewed_items = body.items.as_deref().unwrap_or_default();
-
         // Create pharmacy order and billing indent; dispense remains a
         // separate stock-control step after billing is visible.
         let order = sqlx::query_as::<_, PharmacyOrder>(
@@ -6481,6 +6803,20 @@ pub async fn review_prescription(
         .bind(rx.id)
         .bind(&body.notes)
         .fetch_one(&mut *tx)
+        .await?;
+
+        // Filed against the order, so dispensing it does not ask again for
+        // what was answered here.
+        rx_safety::record_in_tx(
+            &mut tx,
+            &claims,
+            &rx_safety::Subject {
+                record_id: Some(order.id),
+                ..safety_subject
+            },
+            &safety_findings,
+            safety_reason,
+        )
         .await?;
 
         // Create order items from prescription items
@@ -6884,12 +7220,17 @@ pub async fn create_pos_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePosSaleRequest>,
-) -> Result<Json<PharmacyPosSale>, AppError> {
+) -> Result<(axum::http::HeaderMap, Json<PharmacyPosSale>), AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
     // As with OTC — a counter sale may have no patient. Named, it lands on
-    // that patient's record.
+    // that patient's record. The counter's patient search grants exactly this:
+    // finding someone to put a sale on, not reading their chart.
     if let Some(patient_id) = body.patient_id {
-        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+        let counter_link =
+            require_permission(&claims, permissions::pharmacy::patients::SEARCH).is_ok();
+        if !counter_link {
+            medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+        }
     }
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_pos_sale_field_access(&body, &restricted_fields)?;
@@ -6962,31 +7303,131 @@ pub async fn create_pos_sale(
             .unwrap_or("0000")
     );
 
-    // Calculate totals
-    let mut subtotal = Decimal::ZERO;
-    let mut gst_total = Decimal::ZERO;
+    // Price every line on the server: MRP of the batch FEFO will issue, GST
+    // and HSN from the catalogue. The browser's numbers are a request, not a
+    // price — it may sell below MRP (a discount), never above it.
+    let prices = pos_counter::line_prices_in_tx(&mut tx, claims.tenant_id, &catalog_ids).await?;
+    let mut lines = Vec::with_capacity(body.items.len());
     for item in &body.items {
-        let line = Decimal::from(item.quantity) * item.selling_price;
-        let gst = line * item.gst_rate / Decimal::from(100);
-        subtotal += line;
-        gst_total += gst;
-    }
-    let discount = body.discount_amount.unwrap_or(Decimal::ZERO);
-    let total = subtotal - discount + gst_total;
-    if body.amount_received.unwrap_or(total) < total {
-        return Err(AppError::BadRequest(
-            "Amount received cannot be less than pharmacy sale total".to_owned(),
-        ));
-    }
-    let payment_mode = body.payment_mode.as_deref().unwrap_or("cash");
-    if payment_mode == "mixed" {
-        return Err(AppError::BadRequest(
-            "Mixed pharmacy tender requires split payment lines before posting to common billing"
-                .to_owned(),
-        ));
+        if item.quantity <= 0 {
+            return Err(AppError::BadRequest(
+                "POS quantity must be greater than zero".to_owned(),
+            ));
+        }
+        let known = item.catalog_item_id.and_then(|id| prices.get(&id));
+        let mrp = known.and_then(|p| p.mrp).unwrap_or(item.mrp);
+        let price = if mrp > Decimal::ZERO {
+            item.selling_price.min(mrp)
+        } else {
+            item.selling_price
+        };
+        if price <= Decimal::ZERO {
+            return Err(AppError::BadRequest(format!(
+                "{} has no selling price; enter the MRP from the strip",
+                item.drug_name
+            )));
+        }
+        lines.push(PricedPosLine {
+            item,
+            mrp: mrp.max(price),
+            price,
+            gst_rate: known.map_or(item.gst_rate, |p| p.gst_rate),
+            hsn_code: known
+                .and_then(|p| p.hsn_code.clone())
+                .or_else(|| item.hsn_code.clone()),
+        });
     }
 
-    // Create pharmacy order for stock tracking
+    // MRP is inclusive of GST (Legal Metrology (Packaged Commodities) Rules,
+    // r.2(m)): a strip never costs more than its MRP. GST is the part of each
+    // line's price that is tax, on the value after discount (CGST Act s.15(3)).
+    let hundred = Decimal::from(100);
+    let discount_percent = body
+        .discount_percent
+        .unwrap_or(Decimal::ZERO)
+        .clamp(Decimal::ZERO, hundred);
+    let keep = Decimal::ONE - discount_percent / hundred;
+    let mut gross = Decimal::ZERO;
+    let mut mrp_value = Decimal::ZERO;
+    let mut gst_total = Decimal::ZERO;
+    for line in &lines {
+        let qty = Decimal::from(line.item.quantity);
+        let inclusive = qty * line.price * keep;
+        gross += qty * line.price;
+        mrp_value += qty * line.mrp;
+        gst_total += inclusive * line.gst_rate / (hundred + line.gst_rate);
+    }
+    let net = gross * keep;
+    let total = pos_counter::round_up_to_paisa(net);
+    let discount = (gross - net).round_dp(2);
+    let gst_total = gst_total.round_dp(2);
+    // Stored so that subtotal - discount + GST is the total, as billing reads it.
+    let subtotal = total + discount - gst_total;
+
+    // Off MRP across the bill: price cuts and the bill discount together.
+    let off_mrp_percent = if mrp_value > Decimal::ZERO {
+        ((mrp_value - net) * hundred / mrp_value).round_dp(2)
+    } else {
+        Decimal::ZERO
+    };
+    let discount_limit =
+        pos_counter::discount_limit_percent_in_tx(&mut tx, claims.tenant_id).await?;
+    let discount_reason = pos_counter::require_discount_approval(
+        &claims,
+        off_mrp_percent,
+        discount_limit,
+        body.discount_reason.as_deref(),
+    )?;
+
+    // How it was paid: split tenders, or the single tender older callers send.
+    let tender_inputs = body.payments.clone().unwrap_or_else(|| {
+        vec![pos_counter::PosTenderInput {
+            mode: body
+                .payment_mode
+                .clone()
+                .unwrap_or_else(|| "cash".to_owned()),
+            amount: body.amount_received.unwrap_or(total),
+            reference: body.payment_reference.clone(),
+        }]
+    });
+    let settlement = pos_counter::settle(total, &tender_inputs)?;
+    // Every counter sale is rung on a drawer: it fixes the counter, the
+    // business day and where the cash went.
+    // Cash goes into a drawer; a sale rung on one counts to its counter and day.
+    let shift = pos_counter::open_shift_in_tx(&mut tx, claims.tenant_id, claims.sub).await?;
+    let takes_cash = settlement
+        .tenders
+        .iter()
+        .any(|t| t.mode == pos_counter::TenderMode::Cash);
+    if takes_cash && shift.is_none() {
+        return Err(AppError::Conflict(
+            "Open your cash drawer before taking cash".to_owned(),
+        ));
+    }
+    let counter_warning = match &shift {
+        Some(shift) => {
+            pos_counter::require_counter_day_open_in_tx(&mut tx, claims.tenant_id, shift, true)
+                .await?
+        }
+        None => None,
+    };
+    if settlement.credit > Decimal::ZERO {
+        pos_counter::require_credit_room_in_tx(
+            &mut tx,
+            claims.tenant_id,
+            body.patient_id,
+            settlement.credit,
+        )
+        .await?;
+    }
+    let payment_reference = settlement
+        .tenders
+        .iter()
+        .filter_map(|t| t.reference.as_deref())
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    // Create pharmacy order for stock tracking.
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders
          (tenant_id, patient_id, ordered_by, status, notes,
@@ -7000,6 +7441,29 @@ pub async fn create_pos_sale(
     .bind(&body.notes)
     .bind(body.store_location_id)
     .fetch_one(&mut *tx)
+    .await?;
+
+    // The medication safety gate every release goes through (`rx_safety`).
+    let release_lines: Vec<rx_safety::RxLine> = body
+        .items
+        .iter()
+        .map(|i| rx_safety::RxLine {
+            drug_name: i.drug_name.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect();
+    rx_safety::gate_release_in_tx(
+        &state,
+        &mut tx,
+        &claims,
+        &rx_safety::Release {
+            patient_id: body.patient_id,
+            encounter_id: None,
+            order_id: Some(order.id),
+            lines: &release_lines,
+            override_reason: body.safety_override_reason.as_deref(),
+        },
+    )
     .await?;
 
     if let (Some(pid), Some(reason)) = (body.patient_id, allergy_reason) {
@@ -7026,9 +7490,11 @@ pub async fn create_pos_sale(
          (tenant_id, sale_number, pharmacy_order_id, patient_id, patient_name, patient_phone,
           subtotal, discount_amount, discount_percent, gst_amount, total_amount,
           payment_mode, payment_reference, amount_received, change_due,
-          receipt_number, pricing_tier, sold_by, store_location_id)
+          receipt_number, pricing_tier, sold_by, store_location_id,
+          cash_drawer_id, business_date)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                 $12::pharmacy_payment_mode, $13, $14, $15, $16, $17, $18, $19)
+                 $12, $13, $14, $15, $16, $17, $18, $19, $20,
+                 COALESCE($21, tenant_local_date($1, now())))
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -7039,33 +7505,30 @@ pub async fn create_pos_sale(
     .bind(&body.patient_phone)
     .bind(subtotal)
     .bind(discount)
-    .bind(body.discount_percent)
+    .bind((discount_percent > Decimal::ZERO).then_some(discount_percent))
     .bind(gst_total)
     .bind(total)
-    .bind(payment_mode)
-    .bind(&body.payment_reference)
-    .bind(body.amount_received.unwrap_or(total))
-    .bind(body.amount_received.map_or(Decimal::ZERO, |r| r - total))
+    .bind(&settlement.mode)
+    .bind((!payment_reference.is_empty()).then_some(&payment_reference))
+    .bind(settlement.amount_received)
+    .bind(settlement.change_due)
     .bind(&sale_num)
     .bind(body.pricing_tier.as_deref().unwrap_or("mrp"))
     .bind(claims.sub)
     .bind(body.store_location_id)
+    .bind(shift.as_ref().map(|s| s.id))
+    .bind(shift.as_ref().map(|s| s.business_date))
     .fetch_one(&mut *tx)
     .await?;
 
     // Create sale items + order items + deduct stock
     let mut billing_lines = Vec::with_capacity(body.items.len());
-    for item in &body.items {
-        if item.quantity <= 0 {
-            return Err(AppError::BadRequest(
-                "POS quantity must be greater than zero".to_owned(),
-            ));
-        }
-
-        let line_gst =
-            Decimal::from(item.quantity) * item.selling_price * item.gst_rate / Decimal::from(100);
-        let half_gst = line_gst / Decimal::from(2);
-        let line_total = Decimal::from(item.quantity) * item.selling_price + line_gst;
+    for line in &lines {
+        let item = line.item;
+        let inclusive = Decimal::from(item.quantity) * line.price * keep;
+        let line_gst = inclusive * line.gst_rate / (hundred + line.gst_rate);
+        let half_gst = (line_gst / Decimal::from(2)).round_dp(2);
+        let line_total = inclusive.round_dp(2);
 
         let batch_trace = if let Some(catalog_id) = item.catalog_item_id {
             let stock = fetch_pharmacy_stock_gate_in_tx(
@@ -7158,7 +7621,7 @@ pub async fn create_pos_sale(
         .bind(item.catalog_item_id)
         .bind(&item.drug_name)
         .bind(item.quantity)
-        .bind(item.selling_price)
+        .bind(line.price)
         .bind(line_total)
         .bind(batch_id)
         .bind(&batch_number)
@@ -7181,11 +7644,11 @@ pub async fn create_pos_sale(
         .bind(&item.drug_name)
         .bind(batch_id)
         .bind(&batch_number)
-        .bind(&item.hsn_code)
+        .bind(&line.hsn_code)
         .bind(item.quantity)
-        .bind(item.mrp)
-        .bind(item.selling_price)
-        .bind(item.gst_rate)
+        .bind(line.mrp)
+        .bind(line.price)
+        .bind(line.gst_rate)
         .bind(half_gst)
         .bind(half_gst)
         .bind(line_total)
@@ -7199,11 +7662,63 @@ pub async fn create_pos_sale(
             batch_id,
             batch_number,
             expiry_date: batch_trace.as_ref().map(|trace| trace.expiry_date),
-            hsn_code: item.hsn_code.clone(),
+            hsn_code: line.hsn_code.clone(),
             quantity: item.quantity,
-            selling_price: item.selling_price,
-            gst_rate: item.gst_rate,
+            selling_price: line.price,
+            gst_rate: line.gst_rate,
+            line_total,
+            half_gst,
         });
+    }
+
+    // One row per tender, each on the drawer it was taken at.
+    for tender in &settlement.tenders {
+        let is_card = tender.mode == pos_counter::TenderMode::Card;
+        let is_upi = tender.mode == pos_counter::TenderMode::Upi;
+        sqlx::query(
+            "INSERT INTO pharmacy_payment_transactions \
+             (tenant_id, pos_sale_id, payment_mode, amount, reference_number, \
+              card_approval_code, upi_transaction_id, shift_id, created_by) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        )
+        .bind(claims.tenant_id)
+        .bind(sale.id)
+        .bind(tender.mode.as_str())
+        .bind(tender.amount)
+        .bind(&tender.reference)
+        .bind(if is_card {
+            tender.reference.as_deref()
+        } else {
+            None
+        })
+        .bind(if is_upi {
+            tender.reference.as_deref()
+        } else {
+            None
+        })
+        // Every tender carries its drawer: the Z-report counts by it.
+        .bind(shift.as_ref().map(|s| s.id.to_string()))
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    if let Some(reason) = discount_reason {
+        sqlx::query(
+            "INSERT INTO pharmacy_pos_discount_approvals \
+             (tenant_id, pos_sale_id, discount_percent, discount_amount, limit_percent, \
+              reason, approved_by) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(claims.tenant_id)
+        .bind(sale.id)
+        .bind(off_mrp_percent.min(hundred))
+        .bind((mrp_value - net).round_dp(2))
+        .bind(discount_limit)
+        .bind(reason)
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
     }
 
     let billing_invoice_id = mirror_patient_pos_sale_to_billing_in_tx(
@@ -7213,6 +7728,7 @@ pub async fn create_pos_sale(
         &sale,
         &order,
         &billing_lines,
+        &settlement,
     )
     .await?;
 
@@ -7232,10 +7748,15 @@ pub async fn create_pos_sale(
     if let Some(order_id) = sale.pharmacy_order_id {
         hand_order_to_pharmacy(&state, &claims, order_id).await?;
     }
-    Ok(Json(filter_pharmacy_pos_sale_response(
-        sale,
-        &restricted_fields,
-    )))
+    // The cashier sees why the counter needs closing; the sale still goes.
+    let mut headers = axum::http::HeaderMap::new();
+    if let Some(value) = counter_warning.and_then(|w| axum::http::HeaderValue::from_str(&w).ok()) {
+        headers.insert("x-counter-warning", value);
+    }
+    Ok((
+        headers,
+        Json(filter_pharmacy_pos_sale_response(sale, &restricted_fields)),
+    ))
 }
 
 /// GET /api/pharmacy/pos/sales
@@ -7260,7 +7781,7 @@ pub async fn list_pos_sales(
 
     let rows = sqlx::query_as::<_, PharmacyPosSale>(
         "SELECT * FROM pharmacy_pos_sales
-         WHERE tenant_id = $1
+         WHERE tenant_id = $1 AND deleted_at IS NULL
            AND ($2::text IS NULL OR payment_mode::text = $2)
            AND created_at >= COALESCE($3::date, CURRENT_DATE)::timestamptz
          ORDER BY created_at DESC LIMIT 100",
@@ -7299,7 +7820,7 @@ pub async fn list_pos_sale_items(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyPosSaleItem>(
-        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 \
+        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at, drug_name LIMIT 5000",
     )
     .bind(id)
@@ -7347,301 +7868,6 @@ pub async fn pos_day_summary(
         summary,
         &restricted_fields,
     )))
-}
-
-/// PUT /api/pharmacy/pos/sales/{id}/cancel — Full cancel POS sale, restore stock
-pub async fn cancel_pos_sale(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<CancelPosSaleRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::pos::CANCEL)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    // Get the POS sale
-    let sale = sqlx::query_as::<_, PharmacyPosSale>(
-        "SELECT * FROM pharmacy_pos_sales WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let sale_status = sale.status.as_deref().unwrap_or("completed");
-    if matches!(sale_status, "cancelled" | "refunded") {
-        return Err(AppError::Conflict(
-            "POS sale is already cancelled or refunded".to_owned(),
-        ));
-    }
-    let already_refunded = sale.refund_amount.unwrap_or(Decimal::ZERO);
-    let remaining_refund = if sale.total_amount > already_refunded {
-        sale.total_amount - already_refunded
-    } else {
-        Decimal::ZERO
-    };
-
-    // Get sale items
-    let items = sqlx::query_as::<_, PharmacyPosSaleItem>(
-        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    // Restore stock for each item
-    for item in &items {
-        let remaining_qty = item.quantity - item.cancelled_qty.unwrap_or(0);
-        if remaining_qty <= 0 {
-            continue;
-        }
-        if let Some(catalog_id) = item.catalog_item_id {
-            sqlx::query(
-                "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
-                 WHERE id = $2 AND tenant_id = $3",
-            )
-            .bind(remaining_qty)
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-
-            // Restore batch stock if tracked
-            if let Some(batch_id) = item.batch_id {
-                sqlx::query(
-                    "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
-                     quantity_dispensed = quantity_dispensed - $1 WHERE id = $2",
-                )
-                .bind(remaining_qty)
-                .bind(batch_id)
-                .execute(&mut *tx)
-                .await?;
-            }
-
-            // Create reverse stock transaction
-            sqlx::query(
-                "INSERT INTO pharmacy_stock_transactions \
-                 (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, created_by) \
-                 VALUES ($1, $2, 'return', $3, $4, $5)",
-            )
-            .bind(claims.tenant_id)
-            .bind(catalog_id)
-            .bind(remaining_qty)
-            .bind(id)
-            .bind(claims.sub)
-            .execute(&mut *tx)
-            .await?;
-        }
-    }
-
-    // Mark all items as cancelled
-    sqlx::query(
-        "UPDATE pharmacy_pos_sale_items SET is_cancelled = true, cancelled_qty = quantity \
-         WHERE pos_sale_id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
-
-    // Mark sale as cancelled
-    sqlx::query(
-        "UPDATE pharmacy_pos_sales SET status = 'cancelled', cancelled_at = now(), \
-         cancelled_by = $3, cancel_reason = $4, refund_amount = total_amount \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(claims.sub)
-    .bind(&body.reason)
-    .execute(&mut *tx)
-    .await?;
-
-    // Create refund payment transaction for the not-yet-refunded amount.
-    if remaining_refund > Decimal::ZERO {
-        sqlx::query(
-            "INSERT INTO pharmacy_payment_transactions \
-             (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
-             VALUES ($1, $2, 'cash', -$3::numeric, $4, $5)",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .bind(remaining_refund)
-        .bind(format!(
-            "REFUND-{}",
-            sale.receipt_number.as_deref().unwrap_or("N/A")
-        ))
-        .bind(claims.sub)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-    Ok(Json(
-        json!({ "status": "cancelled", "refund_amount": remaining_refund.to_string() }),
-    ))
-}
-
-/// PUT /api/pharmacy/pos/sales/{id}/return-items — Partial return: cancel specific items
-#[derive(Debug, Deserialize)]
-pub struct ReturnPosItemsRequest {
-    pub items: Vec<ReturnPosItem>,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ReturnPosItem {
-    pub item_id: Uuid,
-    pub return_qty: i32,
-    pub reason: Option<String>,
-}
-
-pub async fn return_pos_items(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<ReturnPosItemsRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::pos::RETURN)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
-        .await?;
-
-    let sale = sqlx::query_as::<_, PharmacyPosSale>(
-        "SELECT * FROM pharmacy_pos_sales WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    let sale_status = sale.status.as_deref().unwrap_or("completed");
-    if matches!(sale_status, "cancelled" | "refunded") {
-        return Err(AppError::Conflict(
-            "POS sale is already cancelled or refunded".to_owned(),
-        ));
-    }
-
-    let mut total_refund = Decimal::ZERO;
-
-    for ret_item in &body.items {
-        // Get the sale item
-        let item = sqlx::query_as::<_, PharmacyPosSaleItem>(
-            "SELECT * FROM pharmacy_pos_sale_items \
-             WHERE id = $1 AND pos_sale_id = $2 AND tenant_id = $3",
-        )
-        .bind(ret_item.item_id)
-        .bind(id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
-
-        let remaining_qty = item.quantity - item.cancelled_qty.unwrap_or(0);
-        let return_qty = ret_item.return_qty.min(remaining_qty);
-        if return_qty <= 0 {
-            continue;
-        }
-
-        let refund_amount = item.selling_price * Decimal::from(return_qty);
-        total_refund += refund_amount;
-
-        // Mark item as partially/fully cancelled
-        let is_full = return_qty >= remaining_qty;
-        sqlx::query(
-            "UPDATE pharmacy_pos_sale_items SET \
-             is_cancelled = $3, cancelled_qty = COALESCE(cancelled_qty, 0) + $4, \
-             cancel_reason = $5 \
-             WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(ret_item.item_id)
-        .bind(claims.tenant_id)
-        .bind(is_full)
-        .bind(return_qty)
-        .bind(ret_item.reason.as_deref().or(body.reason.as_deref()))
-        .execute(&mut *tx)
-        .await?;
-
-        // Restore stock
-        if let Some(catalog_id) = item.catalog_item_id {
-            sqlx::query(
-                "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
-                 WHERE id = $2 AND tenant_id = $3",
-            )
-            .bind(return_qty)
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-
-            if let Some(batch_id) = item.batch_id {
-                sqlx::query(
-                    "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
-                     quantity_dispensed = quantity_dispensed - $1 WHERE id = $2",
-                )
-                .bind(return_qty)
-                .bind(batch_id)
-                .execute(&mut *tx)
-                .await?;
-            }
-
-            // Reverse stock transaction
-            sqlx::query(
-                "INSERT INTO pharmacy_stock_transactions \
-                 (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, created_by) \
-                 VALUES ($1, $2, 'return', $3, $4, $5)",
-            )
-            .bind(claims.tenant_id)
-            .bind(catalog_id)
-            .bind(return_qty)
-            .bind(id)
-            .bind(claims.sub)
-            .execute(&mut *tx)
-            .await?;
-        }
-    }
-
-    // Update sale status + refund amount
-    sqlx::query(
-        "UPDATE pharmacy_pos_sales SET \
-         status = CASE \
-           WHEN (SELECT COUNT(*) FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND NOT COALESCE(is_cancelled, false)) = 0 \
-           THEN 'cancelled' ELSE 'partially_cancelled' END, \
-         refund_amount = COALESCE(refund_amount, 0) + $3 \
-         WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(total_refund)
-    .execute(&mut *tx)
-    .await?;
-
-    // Create refund payment
-    if total_refund > Decimal::ZERO {
-        sqlx::query(
-            "INSERT INTO pharmacy_payment_transactions \
-             (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
-             VALUES ($1, $2, 'cash', -$3::numeric, $4, $5)",
-        )
-        .bind(claims.tenant_id)
-        .bind(id)
-        .bind(total_refund)
-        .bind(format!("PARTIAL-REFUND-{id}"))
-        .bind(claims.sub)
-        .execute(&mut *tx)
-        .await?;
-    }
-
-    tx.commit().await?;
-    Ok(Json(json!({
-        "status": "partial_return",
-        "items_returned": body.items.len(),
-        "refund_amount": total_refund.to_string(),
-    })))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -7736,7 +7962,7 @@ pub async fn upsert_pricing_tier(
          (tenant_id, catalog_item_id, tier_name, price, effective_from, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (tenant_id, catalog_item_id, tier_name, effective_from) DO UPDATE SET
-           price = EXCLUDED.price
+           deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, price = EXCLUDED.price
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -7978,6 +8204,9 @@ pub struct RxQueueQuery {
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
     pub rx_queue_id: Option<Uuid>,
+    /// Patient name, UHID or prescriber — searched on the server, so a
+    /// prescription past the first page can still be found.
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -7986,6 +8215,10 @@ pub struct ReviewPrescriptionRequest {
     pub notes: Option<String>,
     pub rejection_reason: Option<String>,
     pub items: Option<Vec<ReviewPrescriptionItemInput>>,
+    /// Clinical reason for approving past a blocking medication safety finding
+    /// (`rx_safety`); only honoured from a holder of that finding's override
+    /// permission.
+    pub safety_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -8015,8 +8248,11 @@ pub struct CreatePosSaleRequest {
     pub patient_name: Option<String>,
     pub patient_phone: Option<String>,
     pub items: Vec<PosSaleItemInput>,
-    pub discount_amount: Option<Decimal>,
     pub discount_percent: Option<Decimal>,
+    /// Why, when the discount off MRP is over the hospital's limit.
+    pub discount_reason: Option<String>,
+    /// Split tender. Absent, `payment_mode` + `amount_received` is one tender.
+    pub payments: Option<Vec<pos_counter::PosTenderInput>>,
     pub payment_mode: Option<String>,
     pub payment_reference: Option<String>,
     pub amount_received: Option<Decimal>,
@@ -8025,6 +8261,10 @@ pub struct CreatePosSaleRequest {
     pub store_location_id: Option<Uuid>,
     /// Pharmacist's reason for selling despite a documented drug allergy.
     pub allergy_override_reason: Option<String>,
+    /// Pharmacist's clinical reason for releasing medicine past a blocking
+    /// medication safety finding (`rx_safety`); needs that finding's override
+    /// permission.
+    pub safety_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -8040,6 +8280,15 @@ pub struct PosSaleItemInput {
     pub gst_rate: Decimal,
 }
 
+/// A basket line with the price the server settled on.
+struct PricedPosLine<'a> {
+    item: &'a PosSaleItemInput,
+    mrp: Decimal,
+    price: Decimal,
+    gst_rate: Decimal,
+    hsn_code: Option<String>,
+}
+
 struct PosSaleBillingLine {
     source_id: Uuid,
     catalog_item_id: Option<Uuid>,
@@ -8051,28 +8300,14 @@ struct PosSaleBillingLine {
     quantity: i32,
     selling_price: Decimal,
     gst_rate: Decimal,
+    line_total: Decimal,
+    half_gst: Decimal,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct PosSalesQuery {
     pub payment_mode: Option<String>,
     pub date: Option<NaiveDate>,
-}
-
-fn billing_payment_mode_for_pharmacy(
-    payment_mode: &PharmacyPaymentMode,
-) -> Result<&'static str, AppError> {
-    match payment_mode {
-        PharmacyPaymentMode::Cash => Ok("cash"),
-        PharmacyPaymentMode::Card => Ok("card"),
-        PharmacyPaymentMode::Upi => Ok("upi"),
-        PharmacyPaymentMode::Insurance => Ok("insurance"),
-        PharmacyPaymentMode::Credit => Ok("credit"),
-        PharmacyPaymentMode::Mixed => Err(AppError::BadRequest(
-            "Mixed pharmacy tender requires split payment lines before posting to common billing"
-                .to_owned(),
-        )),
-    }
 }
 
 async fn mirror_patient_pos_sale_to_billing_in_tx(
@@ -8082,6 +8317,7 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
     sale: &PharmacyPosSale,
     order: &PharmacyOrder,
     items: &[PosSaleBillingLine],
+    settlement: &pos_counter::Settlement,
 ) -> Result<Option<Uuid>, AppError> {
     let Some(patient_id) = sale.patient_id else {
         return Ok(None);
@@ -8092,7 +8328,6 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         id: Uuid,
     }
 
-    let payment_mode = billing_payment_mode_for_pharmacy(&sale.payment_mode)?;
     let invoice_number =
         medbrains_server_services::billing::generate_invoice_number(tx, &tenant_id).await?;
     let admission_id = medbrains_server_services::billing::admission_id_for_encounter_in_tx(
@@ -8106,7 +8341,7 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
          (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, issued_at, \
           created_by) \
-         VALUES ($1, $2, $3, $4, $5, 'paid'::invoice_status, $6, $7, $8, $9, $9, $10, now(), $11) \
+         VALUES ($1, $2, $3, $4, $5, $12::invoice_status, $6, $7, $8, $9, $13, $10, now(), $11) \
          RETURNING *",
     )
     .bind(tenant_id)
@@ -8120,15 +8355,19 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
     .bind(sale.total_amount)
     .bind(format!("Pharmacy POS sale {}", sale.sale_number))
     .bind(sold_by)
+    // Credit leaves a balance on the patient's account for billing to collect.
+    .bind(if settlement.credit == Decimal::ZERO {
+        "paid"
+    } else if settlement.paid > Decimal::ZERO {
+        "partially_paid"
+    } else {
+        "issued"
+    })
+    .bind(settlement.paid)
     .fetch_one(&mut **tx)
     .await?;
 
     for line in items {
-        let line_gst =
-            Decimal::from(line.quantity) * line.selling_price * line.gst_rate / Decimal::from(100);
-        let half_gst = line_gst / Decimal::from(2);
-        let line_total = Decimal::from(line.quantity) * line.selling_price + line_gst;
-
         sqlx::query(
             "INSERT INTO invoice_items \
              (tenant_id, invoice_id, charge_code, description, source, source_id, quantity, \
@@ -8150,8 +8389,8 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         .bind(line.quantity)
         .bind(line.selling_price)
         .bind(line.gst_rate)
-        .bind(line_total)
-        .bind(half_gst)
+        .bind(line.line_total)
+        .bind(line.half_gst)
         .bind(&line.hsn_code)
         .bind(order.id)
         .bind(line.batch_id)
@@ -8161,23 +8400,28 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         .await?;
     }
 
-    sqlx::query(
-        "INSERT INTO payments \
-         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
-         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now())",
-    )
-    .bind(tenant_id)
-    .bind(invoice.id)
-    .bind(sale.total_amount)
-    .bind(payment_mode)
-    .bind(&sale.payment_reference)
-    .bind(sold_by)
-    .bind(format!(
-        "Posted from pharmacy POS sale {}; pharmacy cash drawer remains the operational source",
-        sale.sale_number
-    ))
-    .execute(&mut **tx)
-    .await?;
+    for tender in &settlement.tenders {
+        if tender.mode == pos_counter::TenderMode::Credit {
+            continue;
+        }
+        sqlx::query(
+            "INSERT INTO payments \
+             (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
+             VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now())",
+        )
+        .bind(tenant_id)
+        .bind(invoice.id)
+        .bind(tender.amount)
+        .bind(tender.mode.as_str())
+        .bind(&tender.reference)
+        .bind(sold_by)
+        .bind(format!(
+            "Posted from pharmacy POS sale {}; pharmacy cash drawer remains the operational source",
+            sale.sale_number
+        ))
+        .execute(&mut **tx)
+        .await?;
+    }
 
     sqlx::query(
         "UPDATE pharmacy_pos_sales \
@@ -8191,11 +8435,6 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
     .await?;
 
     Ok(Some(invoice.id))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CancelPosSaleRequest {
-    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -8346,13 +8585,37 @@ pub fn router() -> axum::Router<AppState> {
             get(list_pos_sales).post(create_pos_sale),
         )
         .route(
+            "/api/pharmacy/pos/sales/{id}",
+            get(pos_counter::get_pos_sale),
+        )
+        .route(
+            "/api/pharmacy/pos/sales/{id}/returnable",
+            get(pos_returns::get_returnable),
+        )
+        .route(
+            "/api/pharmacy/pos/receipt-lookup",
+            get(pos_returns::lookup_receipt),
+        )
+        .route(
+            "/api/pharmacy/pos/credit-notes/{id}",
+            get(pos_returns::get_counter_credit_note),
+        )
+        .route("/api/pharmacy/pos/prices", get(pos_counter::pos_prices))
+        .route(
+            "/api/pharmacy/patients/search",
+            get(pos_counter::search_counter_patients),
+        )
+        .route(
             "/api/pharmacy/pos/sales/{id}/items",
             get(list_pos_sale_items),
         )
-        .route("/api/pharmacy/pos/sales/{id}/cancel", put(cancel_pos_sale))
+        .route(
+            "/api/pharmacy/pos/sales/{id}/cancel",
+            put(pos_returns::cancel_pos_sale),
+        )
         .route(
             "/api/pharmacy/pos/sales/{id}/return-items",
-            put(return_pos_items),
+            put(pos_returns::return_pos_items),
         )
         .route("/api/pharmacy/pos/day-summary", get(pos_day_summary))
         .route("/api/pharmacy/pricing/resolve", post(resolve_drug_price))

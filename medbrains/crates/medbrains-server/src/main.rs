@@ -162,6 +162,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    // After migrations, so table ownership is visible on a fresh database.
+    warn_if_request_role_skips_rls(&db_pool).await;
+
     // A second pool for the background workers.
     //
     // They are the one part of the server with no request to take a tenant
@@ -505,10 +508,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Serve build-time precompressed bundles (.br/.gz emitted by Vite) when the
     // client accepts them — max ratio computed once, zero per-request CPU. Falls
     // back to the original (which the global CompressionLayer compresses live).
+    // `fallback`, not `not_found_service`: a deep link (/dashboard) is the
+    // app, and the app is a 200. not_found_service served index.html with the
+    // miss's 404, which monitors and crawlers read as a broken page.
     let spa_fallback = tower_http::services::ServeDir::new(&static_dir)
         .precompressed_br()
         .precompressed_gzip()
-        .not_found_service(tower_http::services::ServeFile::new(format!(
+        .fallback(tower_http::services::ServeFile::new(format!(
             "{static_dir}/index.html"
         )));
     // Same directory, mounted separately so the immutable header lands on the
@@ -531,8 +537,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // agent simulations.
     let scheduler_state = state.clone();
 
+    // www.medbrains.in is the landing page: the web build copies it in as
+    // home.html and it answers `/`. Every other path still falls back to the
+    // SPA shell. A dist built without the website keeps `/` on the SPA.
+    let home_page = format!("{static_dir}/home.html");
+    let router = routes::build_router(state);
+    let router = if std::path::Path::new(&home_page).is_file() {
+        router.route_service("/", tower_http::services::ServeFile::new(home_page))
+    } else {
+        router
+    };
+
     // Build router with all routes + static file fallback
-    let app: Router = routes::build_router(state)
+    let app: Router = router
         .nest_service("/assets", assets_service)
         .fallback_service(spa_fallback)
         // Dev-only (opt-in via MEDBRAINS_LOG_PAYLOAD_SIZES): logs the
@@ -640,6 +657,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // to the doctor's supervisor after the tenant's ack window.
     medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
     medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
+    // CERT-In 6 h / DPDP Board 72 h breach reports overdue — notify once.
+    medbrains_server::services::breach_deadline_escalation::spawn(worker_pool.clone());
+    medbrains_server::services::access_alert_scan::spawn(worker_pool.clone());
+    medbrains_server::services::prescription_expiry::spawn(worker_pool.clone());
+    medbrains_server::services::pacs_sync::spawn(worker_pool.clone());
     medbrains_server::services::marketing_message_status::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
@@ -650,6 +672,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // nurse, then the supervisor. The board already coloured it; nobody was
     // told (NABH CL-3).
     medbrains_server::services::nurse_call_escalation::spawn(worker_pool.clone());
+
+    // Restraint observations — a restrained patient missing the 30-minute
+    // check reaches the on-call nurse and whoever started the restraint
+    // (MHCA 2017 s.97).
+    medbrains_server::services::restraint_observation_escalation::spawn(worker_pool.clone());
+
+    // Calibration lock — equipment past its calibration date is locked and
+    // taken out of service, so an analyser cannot report on an expired one.
+    medbrains_server::services::calibration_lock::spawn(worker_pool.clone());
 
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
@@ -670,6 +701,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("shutdown complete — all in-flight requests drained");
     Ok(())
+}
+
+/// Row level security is the boundary between hospitals, and Postgres skips it
+/// for a superuser, a `BYPASSRLS` role, and the owner of a table. The request
+/// pool must be none of those (`medbrains_app`, migration 0981).
+///
+/// Logged, not fatal: installs that predate the role split connect as the
+/// owner, and refusing to boot would turn a missing safeguard into an outage.
+/// The switch is in `docs/ops/DB-ROLES.md`.
+async fn warn_if_request_role_skips_rls(pool: &sqlx::PgPool) {
+    let row = sqlx::query_as::<_, (String, bool, bool, bool)>(
+        "SELECT current_user::text, r.rolsuper, r.rolbypassrls, \
+                EXISTS (SELECT 1 FROM pg_tables t \
+                        WHERE t.schemaname = 'public' AND t.tableowner = current_user) \
+         FROM pg_roles r WHERE r.rolname = current_user",
+    )
+    .fetch_one(pool)
+    .await;
+    match row {
+        Ok((role, superuser, bypassrls, owns_tables)) if superuser || bypassrls || owns_tables => {
+            tracing::error!(
+                role = %role,
+                superuser,
+                bypassrls,
+                owns_tables,
+                "DATABASE_URL connects as a role that row level security does not apply to — \
+                 tenant isolation rests on every query's own WHERE clause. Point DATABASE_URL \
+                 at medbrains_app (see docs/ops/DB-ROLES.md)."
+            );
+        }
+        Ok((role, ..)) => {
+            tracing::info!(role = %role, "request pool is subject to row level security");
+        }
+        Err(e) => tracing::error!(
+            error = %e,
+            "could not check whether the request pool's role is subject to row level security"
+        ),
+    }
 }
 
 async fn shutdown_signal() {
@@ -705,8 +774,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, cashfree, email_stub, google_meet, hl7_stub, pinelabs, pipeline_fallback,
-        razorpay, razorpayx, teams, tpa_stub, twilio, whatsapp, zoom,
+        cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback, razorpay,
+        razorpayx, teams, twilio, whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
@@ -737,6 +806,10 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
     registry.register(twilio::SmsSendHandler::new("sms.password_reset_otp"));
     registry.register(twilio::SmsSendHandler::new("sms.public_booking_otp"));
+    // A patient's portal sign-in code. Unregistered, it fell to the pipeline
+    // fallback, which marked it sent without texting anyone.
+    registry.register(twilio::SmsSendHandler::new("sms.patient_portal_otp"));
+    registry.register(twilio::SmsSendHandler::new("sms.pharmacy_delivery_code"));
     // SMS counterparts for WhatsApp fallback targets that had none.
     registry.register(twilio::SmsSendHandler::new("sms.lab_report_ready"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_link"));
@@ -744,6 +817,24 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // from the start, but with no handler it fell to the user-pipeline
     // fallback and was never sent.
     registry.register(twilio::SmsSendHandler::new("sms.token_called"));
+    // Notices from medbrains-workflow::orchestration::notice_pipelines.
+    registry.register(twilio::SmsSendHandler::new("sms.radiology_report_ready"));
+    registry.register(twilio::SmsSendHandler::new("sms.claim_approved"));
+    registry.register(twilio::SmsSendHandler::new("sms.prescription_expiring"));
+    registry.register(email_stub::SmtpSendHandler::new("email.radiology_report"));
+    registry.register(email_stub::SmtpSendHandler::new("email.low_stock"));
+    registry.register(email_stub::SmtpSendHandler::new("email.incident_escalation"));
+    registry.register(whatsapp::WhatsAppSendHandler::new(
+        "whatsapp.radiology_report_ready",
+    ));
+    // The statutory MLC police intimation and the Code Yellow page
+    // (medbrains-emergency::alerts). Unregistered, the fallback would mark
+    // them sent without sending anything.
+    registry.register(twilio::SmsSendHandler::new("sms.mlc_police_intimation"));
+    registry.register(twilio::SmsSendHandler::new("sms.mass_casualty_alert"));
+    registry.register(email_stub::SmtpSendHandler::new(
+        "email.mlc_police_intimation",
+    ));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
@@ -759,6 +850,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(email_stub::SmtpSendHandler::new("email.dunning_notice"));
     registry.register(email_stub::SmtpSendHandler::new("email.verify_email"));
     registry.register(email_stub::SmtpSendHandler::new("email.invite"));
+    registry.register(email_stub::SmtpSendHandler::new("email.welcome"));
     registry.register(email_stub::SmtpSendHandler::new("email.test"));
 
     // WhatsApp — Meta Cloud API (falls back to stub if creds unset).
@@ -781,12 +873,21 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(whatsapp::WhatsAppSendHandler::new(
         "whatsapp.vaccination_reminder",
     ));
-    registry.register(abdm_stub::VerifyAbhaHandler);
-    registry.register(abdm_stub::HieBundlePushHandler);
-    registry.register(tpa_stub::PreauthSubmitHandler);
-    registry.register(tpa_stub::ClaimSubmitHandler);
-    registry.register(tpa_stub::CoverageEligibilityHandler);
+    // ABDM HIP: link a newly captured care context; the OTP for a PHR app's link.
+    registry.register(routes::abdm::hip::outbox::LinkCareContextHandler);
+    registry.register(twilio::SmsSendHandler::new("sms.abdm_link_otp"));
+    // UHI: the signed on_* answers to patient apps.
+    registry.register(routes::uhi::outbox::UhiCallbackHandler);
+    // NHCX claims exchange — eligibility, pre-auth, claim and payer-query
+    // answers, JWE to the payer.
+    for operation in medbrains_core::nhcx::OPERATIONS {
+        registry.register(nhcx::NhcxHandler::new(operation));
+    }
     registry.register(hl7_stub::CriticalValueHandler);
+    // Outbound webhooks to subscribed partners (#224).
+    registry.register(medbrains_outbox::handlers::webhook::WebhookDeliverHandler);
+    // Radiology orders onto the PACS modality worklist (#226).
+    registry.register(medbrains_outbox::handlers::pacs_worklist::WorklistCreateHandler);
 
     // Fallback: route any unregistered event_type to user-defined pipelines.
     let dispatcher = Arc::new(EventsPipelineDispatcher);
@@ -929,6 +1030,16 @@ mod tests {
         let registry = super::build_outbox_registry();
         let handler = registry.lookup("sms.token_called");
         assert_eq!(handler.map(|h| h.event_type()), Some("sms.token_called"));
+    }
+
+    /// A portal sign-in code and a delivery code are texted, not swallowed
+    /// by the fallback.
+    #[test]
+    fn patient_codes_have_a_sender() {
+        let registry = super::build_outbox_registry();
+        for event in ["sms.patient_portal_otp", "sms.pharmacy_delivery_code"] {
+            assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
+        }
     }
 }
 

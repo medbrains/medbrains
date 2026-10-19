@@ -10,7 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError, middleware::auth::Claims, middleware::authorization::{is_bypass_role, require_permission},
     state::AppState,
 };
 
@@ -143,6 +143,19 @@ async fn compute_pending_signoffs(
         p.clinical += c;
         p.total += c;
     }
+
+    // Refill requests waiting for this doctor.
+    let refills: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM prescription_refill_requests \
+         WHERE tenant_id = $1 AND doctor_id = $2 AND status = 'with_doctor' \
+           AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+    p.clinical += refills;
+    p.total += refills;
 
     Ok(p)
 }
@@ -350,6 +363,45 @@ pub async fn list_my_pending_signoffs(
     .await
     {
         entries.extend(rows);
+    }
+
+    // Refills patients asked for on this doctor's prescriptions. A decision,
+    // not a signature; listed only for a doctor who may make it.
+    let may_decide = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|p| p == permissions::doctor::refill_requests::DECIDE);
+    if may_decide {
+        entries.extend(
+            sqlx::query_as::<_, PendingSignoffEntry>(
+                "SELECT 'refill_request' AS record_type, r.id AS record_id, \
+                        r.created_at, 'clinical' AS legal_class, r.patient_id, \
+                        CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
+                        pat.uhid, \
+                        COALESCE((SELECT string_agg(i.drug_name, ', ' ORDER BY i.created_at) \
+                                    FROM prescription_items i \
+                                   WHERE i.tenant_id = r.tenant_id AND i.prescription_id = r.prescription_id \
+                                     AND i.item_status = 'active'), 'Prescription') AS summary, \
+                        COALESCE(NULLIF(r.patient_note, ''), 'Asked from the patient portal') AS context, \
+                        CASE WHEN p.repeats_used >= p.repeats_allowed THEN 'Refills used up' \
+                             WHEN p.valid_until < CURRENT_DATE THEN 'Prescription expired' \
+                             ELSE NULL END AS risk_label, \
+                        NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, \
+                        NULL::boolean AS transcribed \
+                   FROM prescription_refill_requests r \
+                   JOIN prescriptions p ON p.id = r.prescription_id AND p.tenant_id = r.tenant_id \
+                   JOIN patients pat ON pat.id = r.patient_id AND pat.tenant_id = r.tenant_id \
+                  WHERE r.tenant_id = $1 AND r.doctor_id = $2 AND r.status = 'with_doctor' \
+                    AND r.deleted_at IS NULL \
+                  ORDER BY r.created_at \
+                  LIMIT 200",
+            )
+            .bind(claims.tenant_id)
+            .bind(claims.sub)
+            .fetch_all(&mut *tx)
+            .await?,
+        );
     }
 
     tx.commit().await?;

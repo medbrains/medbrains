@@ -48,6 +48,8 @@ pub enum ClinicalEventName {
     OpdFollowupScheduled,
     #[serde(rename = "opd.prescription.updated")]
     OpdPrescriptionUpdated,
+    #[serde(rename = "opd.prescription.expiring")]
+    OpdPrescriptionExpiring,
     #[serde(rename = "opd.certificate.created")]
     OpdCertificateCreated,
     #[serde(rename = "opd.consent.signed")]
@@ -84,6 +86,8 @@ pub enum ClinicalEventName {
     BillingInvoiceFinalized,
     #[serde(rename = "billing.payment.received")]
     BillingPaymentReceived,
+    #[serde(rename = "billing.claim.approved")]
+    BillingClaimApproved,
     #[serde(rename = "pharmacy.order.dispensed")]
     PharmacyOrderDispensed,
     #[serde(rename = "pharmacy.prescription.reviewed")]
@@ -92,6 +96,8 @@ pub enum ClinicalEventName {
     PharmacyStockMovementCreated,
     #[serde(rename = "pharmacy.ndps.movement.created")]
     PharmacyNdpsMovementCreated,
+    #[serde(rename = "pharmacy.stock.low")]
+    PharmacyStockLow,
     #[serde(rename = "indent.requisition.submitted")]
     IndentRequisitionSubmitted,
     #[serde(rename = "indent.requisition.approved")]
@@ -150,6 +156,7 @@ impl ClinicalEventName {
             Self::OpdEncounterCompleted => "opd.encounter.completed",
             Self::OpdFollowupScheduled => "opd.followup.scheduled",
             Self::OpdPrescriptionUpdated => "opd.prescription.updated",
+            Self::OpdPrescriptionExpiring => "opd.prescription.expiring",
             Self::OpdCertificateCreated => "opd.certificate.created",
             Self::OpdConsentSigned => "opd.consent.signed",
             Self::CampStarted => "camp.started",
@@ -168,10 +175,12 @@ impl ClinicalEventName {
             Self::BillingInvoiceCreated => "billing.invoice.created",
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
+            Self::BillingClaimApproved => "billing.claim.approved",
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
             Self::PharmacyPrescriptionReviewed => "pharmacy.prescription.reviewed",
             Self::PharmacyStockMovementCreated => "pharmacy.stock.movement.created",
             Self::PharmacyNdpsMovementCreated => "pharmacy.ndps.movement.created",
+            Self::PharmacyStockLow => "pharmacy.stock.low",
             Self::IndentRequisitionSubmitted => "indent.requisition.submitted",
             Self::IndentRequisitionApproved => "indent.requisition.approved",
             Self::IndentRequisitionIssued => "indent.requisition.issued",
@@ -210,6 +219,7 @@ impl ClinicalEventName {
             | Self::OpdEncounterCompleted
             | Self::OpdFollowupScheduled
             | Self::OpdPrescriptionUpdated
+            | Self::OpdPrescriptionExpiring
             | Self::OpdCertificateCreated
             | Self::OpdConsentSigned => ClinicalEventSourceModule::Opd,
             Self::CampStarted | Self::CampRegistrationCreated | Self::CampScreeningCompleted => {
@@ -229,11 +239,13 @@ impl ClinicalEventName {
             | Self::RadiologyReportVerified => ClinicalEventSourceModule::Radiology,
             Self::BillingInvoiceCreated
             | Self::BillingInvoiceFinalized
-            | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
+            | Self::BillingPaymentReceived
+            | Self::BillingClaimApproved => ClinicalEventSourceModule::Billing,
             Self::PharmacyOrderDispensed
             | Self::PharmacyPrescriptionReviewed
             | Self::PharmacyStockMovementCreated
-            | Self::PharmacyNdpsMovementCreated => ClinicalEventSourceModule::Pharmacy,
+            | Self::PharmacyNdpsMovementCreated
+            | Self::PharmacyStockLow => ClinicalEventSourceModule::Pharmacy,
             Self::IndentRequisitionSubmitted
             | Self::IndentRequisitionApproved
             | Self::IndentRequisitionIssued => ClinicalEventSourceModule::Indent,
@@ -279,6 +291,7 @@ impl ClinicalEventName {
             Self::OpdEncounterCompleted => &["encounter_id", "patient_id"],
             Self::OpdFollowupScheduled => &["appointment_id", "patient_id"],
             Self::OpdPrescriptionUpdated => &["prescription_id", "encounter_id", "patient_id"],
+            Self::OpdPrescriptionExpiring => &["prescription_id", "patient_id", "valid_until"],
             Self::OpdCertificateCreated => &["certificate_id", "patient_id"],
             Self::OpdConsentSigned => &["consent_id", "patient_id"],
             Self::CampStarted => &["camp_id"],
@@ -296,6 +309,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceCreated => &["invoice_id", "patient_id", "total_amount"],
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
+            Self::BillingClaimApproved => &["claim_id", "patient_id"],
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
             Self::PharmacyPrescriptionReviewed => &[
                 "rx_queue_id",
@@ -307,6 +321,7 @@ impl ClinicalEventName {
             ],
             Self::PharmacyStockMovementCreated => &["transaction_type", "quantity"],
             Self::PharmacyNdpsMovementCreated => &["entry_id", "catalog_item_id", "action"],
+            Self::PharmacyStockLow => &["catalog_item_id", "on_hand", "reorder_level"],
             Self::IndentRequisitionSubmitted => &[
                 "requisition_id",
                 "department_id",
@@ -390,6 +405,7 @@ impl FromStr for ClinicalEventName {
             "opd.encounter.completed" => Ok(Self::OpdEncounterCompleted),
             "opd.followup.scheduled" => Ok(Self::OpdFollowupScheduled),
             "opd.prescription.updated" => Ok(Self::OpdPrescriptionUpdated),
+            "opd.prescription.expiring" => Ok(Self::OpdPrescriptionExpiring),
             "opd.certificate.created" => Ok(Self::OpdCertificateCreated),
             "opd.consent.signed" => Ok(Self::OpdConsentSigned),
             "camp.started" => Ok(Self::CampStarted),
@@ -407,10 +423,12 @@ impl FromStr for ClinicalEventName {
             "billing.invoice.created" => Ok(Self::BillingInvoiceCreated),
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
+            "billing.claim.approved" => Ok(Self::BillingClaimApproved),
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
             "pharmacy.prescription.reviewed" => Ok(Self::PharmacyPrescriptionReviewed),
             "pharmacy.stock.movement.created" => Ok(Self::PharmacyStockMovementCreated),
             "pharmacy.ndps.movement.created" => Ok(Self::PharmacyNdpsMovementCreated),
+            "pharmacy.stock.low" => Ok(Self::PharmacyStockLow),
             "indent.requisition.submitted" => Ok(Self::IndentRequisitionSubmitted),
             "indent.requisition.approved" => Ok(Self::IndentRequisitionApproved),
             "indent.requisition.issued" => Ok(Self::IndentRequisitionIssued),
