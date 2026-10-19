@@ -13,19 +13,14 @@ use uuid::Uuid;
 
 use super::linking::{load_patient, request_link};
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    routes::abdm::abha::abdm_configured, state::AppState,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::require_permission,
+    routes::abdm::{abha::abdm_configured, dhis},
+    state::AppState,
 };
 
 const NOT_SET_UP: &str = "ABDM is not set up for this hospital";
-/// DHIS pays only once a month's eligible transactions pass this many.
-const DHIS_THRESHOLD: i64 = 100;
-const DHIS_RATE_CATEGORY_1: i64 = 10;
-const DHIS_RATE_CATEGORY_2: i64 = 5;
-/// DHIS pays an HIU per granted consent that brought records from another
-/// facility. Every request here is patient-granted through the consent
-/// manager, so none is an auto-consent.
-const DHIS_RATE_HIU_CONSENT: i64 = 10;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AbdmCareContext {
@@ -211,7 +206,7 @@ pub struct AbdmSharingFailure {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize)]
 pub struct AbdmSharingCounts {
     pub linked_category_1: i64,
     pub linked_category_2: i64,
@@ -223,6 +218,14 @@ pub struct AbdmSharingCounts {
     pub transfers: i64,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct StatusCounts {
+    linking: i64,
+    failed: i64,
+    not_linked: i64,
+    transfers: i64,
+}
+
 /// This hospital as an HIU, for the month.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct AbdmHiuCounts {
@@ -230,7 +233,9 @@ pub struct AbdmHiuCounts {
     pub granted: i64,
     pub denied: i64,
     pub records_received: i64,
-    /// Granted consents that brought records from another facility.
+    /// Granted consents that brought records from another facility, as DHIS
+    /// counts them (`dhis`).
+    #[sqlx(skip)]
     pub dhis_eligible_consents: i64,
 }
 
@@ -253,47 +258,45 @@ const HIU_COUNTS_SQL: &str = "WITH asked AS ( \
         WHERE r.tenant_id = $1 AND r.deleted_at IS NULL \
           AND date_trunc('month', timezone('Asia/Kolkata', r.requested_at))::date = $2), \
      received AS ( \
-       SELECT x.consent_artefact_id, x.source_hip_id, a.hiu_id FROM abdm_received_records x \
-         JOIN abdm_consent_artefacts a ON a.id = x.consent_artefact_id \
+       SELECT x.id FROM abdm_received_records x \
         WHERE x.tenant_id = $1 AND x.deleted_at IS NULL \
           AND date_trunc('month', timezone('Asia/Kolkata', x.received_at))::date = $2) \
      SELECT (SELECT count(*) FROM asked) AS requests, \
             (SELECT count(*) FROM asked WHERE EXISTS (SELECT 1 FROM abdm_consent_artefacts a \
                 WHERE a.tenant_id = $1 AND a.consent_request_id = asked.id)) AS granted, \
             (SELECT count(*) FROM asked WHERE status = 'denied') AS denied, \
-            (SELECT count(*) FROM received) AS records_received, \
-            (SELECT count(DISTINCT consent_artefact_id) FROM received \
-                WHERE source_hip_id IS DISTINCT FROM hiu_id) AS dhis_eligible_consents";
+            (SELECT count(*) FROM received) AS records_received";
 
-/// Counts for the month. "Eligible" applies DHIS's rules: KYC-verified ABHAs
-/// only, one link per ABHA per day (a category-1 record wins the day), at
-/// most five per ABHA per month.
-const COUNTS_SQL: &str = "WITH linked AS ( \
-       SELECT cc.dhis_category, regexp_replace(l.abha_number, '\\D', '', 'g') AS abha, \
-              timezone('Asia/Kolkata', cc.linked_at)::date AS day, l.kyc_verified \
-         FROM abdm_care_contexts cc \
-         JOIN patient_abha_links l ON l.tenant_id = cc.tenant_id AND l.patient_id = cc.patient_id \
-              AND l.verified_at IS NOT NULL AND l.deleted_at IS NULL \
-        WHERE cc.tenant_id = $1 AND cc.link_status = 'linked' AND cc.dhis_month = $2 \
-          AND cc.deleted_at IS NULL), \
-     per_day AS (SELECT abha, day, min(dhis_category) AS cat FROM linked WHERE kyc_verified \
-                  GROUP BY abha, day), \
-     ranked AS (SELECT cat, row_number() OVER (PARTITION BY abha ORDER BY cat, day) AS rn FROM per_day) \
-     SELECT (SELECT count(*) FROM linked WHERE dhis_category = 1) AS linked_category_1, \
-            (SELECT count(*) FROM linked WHERE dhis_category = 2) AS linked_category_2, \
-            (SELECT count(*) FROM ranked WHERE rn <= 5 AND cat = 1) AS eligible_category_1, \
-            (SELECT count(*) FROM ranked WHERE rn <= 5 AND cat = 2) AS eligible_category_2, \
-            (SELECT count(*) FROM abdm_care_contexts WHERE tenant_id = $1 AND link_status = 'linking' \
-                AND deleted_at IS NULL) AS linking, \
-            (SELECT count(*) FROM abdm_care_contexts WHERE tenant_id = $1 AND link_status = 'failed' \
-                AND deleted_at IS NULL) AS failed, \
-            (SELECT count(*) FROM abdm_care_contexts WHERE tenant_id = $1 AND link_status = 'not_linked' \
-                AND deleted_at IS NULL) AS not_linked, \
-            (SELECT count(*) FROM abdm_health_transfers WHERE tenant_id = $1 AND status = 'transferred' \
-                AND deleted_at IS NULL \
-                AND date_trunc('month', timezone('Asia/Kolkata', transferred_at))::date = $2) AS transfers";
+/// Where the month's care contexts stand; links and DHIS are `dhis::months`.
+const STATUS_SQL: &str = "SELECT \
+       count(*) FILTER (WHERE link_status = 'linking') AS linking, \
+       count(*) FILTER (WHERE link_status = 'failed') AS failed, \
+       count(*) FILTER (WHERE link_status = 'not_linked') AS not_linked, \
+       (SELECT count(*) FROM abdm_health_transfers WHERE tenant_id = $1 AND status = 'transferred' \
+           AND deleted_at IS NULL \
+           AND date_trunc('month', timezone('Asia/Kolkata', transferred_at))::date = $2) AS transfers \
+     FROM abdm_care_contexts WHERE tenant_id = $1 AND deleted_at IS NULL";
 
-fn month_start(month: Option<&str>) -> Result<NaiveDate, AppError> {
+/// Records that failed to link, newest first — every one, not the month's:
+/// a failure stays open until it is retried.
+pub(crate) async fn open_failures(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<Vec<AbdmSharingFailure>, sqlx::Error> {
+    sqlx::query_as::<_, AbdmSharingFailure>(
+        "SELECT cc.id, cc.patient_id, p.uhid, btrim(p.first_name || ' ' || p.last_name) AS patient_name, \
+                cc.display, cc.link_status, cc.last_error, cc.updated_at \
+           FROM abdm_care_contexts cc JOIN patients p ON p.id = cc.patient_id \
+          WHERE cc.tenant_id = $1 AND cc.deleted_at IS NULL \
+            AND (cc.link_status = 'failed' OR (cc.link_status = 'not_linked' AND cc.last_error IS NOT NULL)) \
+          ORDER BY cc.updated_at DESC LIMIT 50",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await
+}
+
+pub(crate) fn month_start(month: Option<&str>) -> Result<NaiveDate, AppError> {
     match month {
         Some(m) => NaiveDate::parse_from_str(&format!("{m}-01"), "%Y-%m-%d")
             .map_err(|_| AppError::BadRequest("month must be YYYY-MM".to_owned())),
@@ -320,39 +323,42 @@ pub async fn sharing_summary(
     let configured = abdm_configured(&state, claims.tenant_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let counts = sqlx::query_as::<_, AbdmSharingCounts>(COUNTS_SQL)
+    let status = sqlx::query_as::<_, StatusCounts>(STATUS_SQL)
         .bind(claims.tenant_id)
         .bind(month)
         .fetch_one(&mut *tx)
         .await?;
-    let failures = sqlx::query_as::<_, AbdmSharingFailure>(
-        "SELECT cc.id, cc.patient_id, p.uhid, btrim(p.first_name || ' ' || p.last_name) AS patient_name, \
-                cc.display, cc.link_status, cc.last_error, cc.updated_at \
-           FROM abdm_care_contexts cc JOIN patients p ON p.id = cc.patient_id \
-          WHERE cc.tenant_id = $1 AND cc.deleted_at IS NULL \
-            AND (cc.link_status = 'failed' OR (cc.link_status = 'not_linked' AND cc.last_error IS NOT NULL)) \
-          ORDER BY cc.updated_at DESC LIMIT 50",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    let hiu = sqlx::query_as::<_, AbdmHiuCounts>(HIU_COUNTS_SQL)
+    let failures = open_failures(&mut tx, claims.tenant_id).await?;
+    let mut hiu = sqlx::query_as::<_, AbdmHiuCounts>(HIU_COUNTS_SQL)
         .bind(claims.tenant_id)
         .bind(month)
         .fetch_one(&mut *tx)
         .await?;
+    let dhis = dhis::months(&mut tx, claims.tenant_id, month, month)
+        .await?
+        .pop()
+        .ok_or_else(|| AppError::Internal("no DHIS row for the month".to_owned()))?;
     tx.commit().await?;
-    let eligible = counts.eligible_category_1 + counts.eligible_category_2;
+    let estimate = dhis.estimate();
+    hiu.dhis_eligible_consents = dhis.hiu_eligible_consents;
     Ok(Json(AbdmSharingSummary {
         month,
         configured,
-        dhis_threshold: DHIS_THRESHOLD,
-        threshold_met: eligible > DHIS_THRESHOLD,
-        estimated_incentive_inr: counts.eligible_category_1 * DHIS_RATE_CATEGORY_1
-            + counts.eligible_category_2 * DHIS_RATE_CATEGORY_2,
-        counts,
+        dhis_threshold: estimate.threshold,
+        threshold_met: estimate.threshold_met,
+        estimated_incentive_inr: estimate.hip_inr,
+        counts: AbdmSharingCounts {
+            linked_category_1: dhis.linked_category_1,
+            linked_category_2: dhis.linked_category_2,
+            eligible_category_1: dhis.eligible_category_1,
+            eligible_category_2: dhis.eligible_category_2,
+            linking: status.linking,
+            failed: status.failed,
+            not_linked: status.not_linked,
+            transfers: status.transfers,
+        },
         failures,
-        hiu_estimated_incentive_inr: hiu.dhis_eligible_consents * DHIS_RATE_HIU_CONSENT,
+        hiu_estimated_incentive_inr: estimate.hiu_inr,
         hiu,
     }))
 }

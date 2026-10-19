@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 798;
+pub const PERMISSION_COUNT: usize = 799;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -3494,5 +3494,15 @@ pub mod abdm {
         /// records under, checked against the national registry, and the
         /// coverage report of active doctors still missing one.
         pub const MANAGE: &str = "abdm.hpr.manage";
+    }
+    pub mod dashboard {
+        /// View the ABDM management dashboard.
+        ///
+        /// The month's OPD visits with a verified ABHA, KYC, ABHAs created
+        /// here, records linked against the DHIS threshold and the estimated
+        /// incentive, consents, Scan & Share, HPR and HFR coverage, and the
+        /// records that failed to link with their reasons. Counts only, plus
+        /// the names on failed links.
+        pub const VIEW: &str = "abdm.dashboard.view";
     }
 }

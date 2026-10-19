@@ -129,18 +129,27 @@ pub async fn list_facilities(
     let registry_configured = registry_configured(&state, &claims.tenant_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let facilities = facilities(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(FacilityHfrList {
+        registry_configured,
+        facilities,
+    }))
+}
+
+/// Every live campus with its HFR state and DHIS eligibility.
+pub(crate) async fn facilities(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<Vec<FacilityHfr>, sqlx::Error> {
     let rows = sqlx::query_as::<_, FacilityHfr>(&format!(
         "SELECT {FACILITY_COLUMNS} FROM facilities \
          WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY code LIMIT 500"
     ))
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
     .await?;
-    tx.commit().await?;
-    Ok(Json(FacilityHfrList {
-        registry_configured,
-        facilities: rows.into_iter().map(FacilityHfr::with_dhis).collect(),
-    }))
+    Ok(rows.into_iter().map(FacilityHfr::with_dhis).collect())
 }
 
 /// `PUT /api/abdm/hfr/facilities/{id}` — link (or unlink) an existing HFR ID.

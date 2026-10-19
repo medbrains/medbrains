@@ -14,6 +14,7 @@ import type {
   OnboardingUser,
 } from "./onboarding-store";
 
+export * from "./abdm-dashboard";
 export * from "./abdm-hip";
 export * from "./abdm-hiu";
 export * from "./abdm-integration";

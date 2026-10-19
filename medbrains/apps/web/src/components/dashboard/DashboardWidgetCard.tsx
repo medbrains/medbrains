@@ -7,6 +7,7 @@ import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { NotesBoardWidget } from "@/components/notes/NotesBoardWidget";
 import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
+import { AbdmDashboardWidget } from "./AbdmDashboardWidget";
 import { KpiCompareMenu } from "./KpiCompareMenu";
 import { KpiDepartmentMenu } from "./KpiDepartmentMenu";
 import { compareKpi, formatKpi, isKpiReading, type KpiBaseline } from "./kpi-reading";
@@ -357,6 +358,17 @@ function WidgetBody({
     return (
       <WidgetShell widget={widget}>
         <NotesBoardWidget />
+      </WidgetShell>
+    );
+  }
+
+  if (
+    widget.widget_type === "module_embed" &&
+    field(widget.config, "module") === "abdm_dashboard"
+  ) {
+    return (
+      <WidgetShell widget={widget}>
+        <AbdmDashboardWidget />
       </WidgetShell>
     );
   }

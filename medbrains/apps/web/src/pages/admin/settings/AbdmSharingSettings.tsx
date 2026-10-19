@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { AbdmStat } from "@/components/Patient/abdm/AbdmStat";
 import { LINK_STATUS } from "@/components/Patient/abdm/abdmStatus";
 import { Alert, Badge, Button, Card, SegmentedControl, Table, toast } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
@@ -14,24 +15,6 @@ function monthKey(offset: number): string {
   d.setDate(1);
   d.setMonth(d.getMonth() - offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
-  return (
-    <Card>
-      <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
-        {label}
-      </Text>
-      <Text size="xl" fw={600}>
-        {value}
-      </Text>
-      {hint && (
-        <Text size="xs" c="dimmed">
-          {hint}
-        </Text>
-      )}
-    </Card>
-  );
 }
 
 /**
@@ -89,43 +72,43 @@ export function AbdmSharingSettings() {
         </Alert>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-        <Stat
+        <AbdmStat
           label="Linked · category 1"
           value={c.linked_category_1}
           hint="Lab reports, discharge summaries"
         />
-        <Stat
+        <AbdmStat
           label="Linked · category 2"
           value={c.linked_category_2}
           hint="Consultations, prescriptions"
         />
-        <Stat
+        <AbdmStat
           label="Counted for DHIS"
           value={eligible}
           hint={`KYC-verified ABHAs, 1 a day and 5 a month each; pays above ${data.dhis_threshold}`}
         />
-        <Stat
+        <AbdmStat
           label="Estimated incentive"
           value={`₹${data.estimated_incentive_inr.toLocaleString("en-IN")}`}
           hint={data.threshold_met ? "Threshold passed" : "Paid only once the threshold is passed"}
         />
-        <Stat label="Failed" value={c.failed} />
-        <Stat label="Waiting for ABDM" value={c.linking} />
-        <Stat label="Not linked" value={c.not_linked} />
-        <Stat label="Records sent under consent" value={c.transfers} />
+        <AbdmStat label="Failed" value={c.failed} />
+        <AbdmStat label="Waiting for ABDM" value={c.linking} />
+        <AbdmStat label="Not linked" value={c.not_linked} />
+        <AbdmStat label="Records sent under consent" value={c.transfers} />
       </SimpleGrid>
       <Text fw={600}>Records received from other hospitals</Text>
       <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-        <Stat label="Requests" value={data.hiu.requests} hint="Raised by doctors this month" />
-        <Stat
+        <AbdmStat label="Requests" value={data.hiu.requests} hint="Raised by doctors this month" />
+        <AbdmStat
           label="Granted"
           value={
             data.hiu.requests ? `${Math.round((data.hiu.granted / data.hiu.requests) * 100)}%` : "—"
           }
           hint={`${data.hiu.granted} granted, ${data.hiu.denied} denied`}
         />
-        <Stat label="Records received" value={data.hiu.records_received} />
-        <Stat
+        <AbdmStat label="Records received" value={data.hiu.records_received} />
+        <AbdmStat
           label="Estimated HIU incentive"
           value={`₹${data.hiu_estimated_incentive_inr.toLocaleString("en-IN")}`}
           hint={`${data.hiu.dhis_eligible_consents} consents brought records from another facility`}

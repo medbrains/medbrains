@@ -437,6 +437,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/abdm/sharing/summary",
             get(abdm::hip::records::sharing_summary),
         )
+        .route("/api/abdm/dashboard", get(abdm::dashboard::dashboard))
         .route(
             "/api/abdm/scan-share/counters",
             get(abdm::scan_share::counters),
