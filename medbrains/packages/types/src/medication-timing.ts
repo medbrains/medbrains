@@ -3388,6 +3388,8 @@ export interface PharmacyCatalog {
   refill_policy: RefillPolicy;
   /** Needs refrigeration: delivered only by the hospital's runner, never by courier. */
   needs_cold_chain: boolean;
+  /** Patients may order it from the online storefront. */
+  sold_online: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3438,7 +3440,8 @@ export interface PharmacyOrder {
   /** Null for a walk-in counter sale. */
   patient_id: string | null;
   encounter_id: string | null;
-  ordered_by: string;
+  /** Null for an order a patient placed online. */
+  ordered_by: string | null;
   status: PharmacyOrderStatus;
   notes: string | null;
   // Phase 2 fields

@@ -148,6 +148,36 @@ pub async fn request_portal_otp(
         return Ok(ack);
     }
 
+    issue_code(&mut tx, tenant_id, phone).await?;
+
+    tx.commit().await?;
+    Ok(ack)
+}
+
+/// Codes a mobile may be sent in `CODE_WINDOW_MINUTES`: each one is an SMS.
+const CODES_PER_WINDOW: i64 = 3;
+const CODE_WINDOW_MINUTES: i32 = 15;
+
+/// Send a sign-in code to `phone`, retiring any earlier one. Quietly sends
+/// nothing once the mobile has had its share of codes for the window.
+pub(crate) async fn issue_code(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    phone: &str,
+) -> Result<(), AppError> {
+    let recent: i64 = sqlx::query_scalar( // allow-raw-sql: dynamic patient portal queries
+        "SELECT COUNT(*) FROM patient_portal_otps \
+          WHERE tenant_id = $1 AND phone = $2 \
+            AND created_at > now() - make_interval(mins => $3)",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .bind(CODE_WINDOW_MINUTES)
+    .fetch_one(&mut **tx)
+    .await?;
+    if recent >= CODES_PER_WINDOW {
+        return Ok(());
+    }
     let mut buf = [0u8; 4];
     getrandom::fill(&mut buf)
         .map_err(|e| AppError::Internal(format!("otp generation failed: {e}")))?;
@@ -160,7 +190,7 @@ pub async fn request_portal_otp(
     )
     .bind(tenant_id)
     .bind(phone)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     sqlx::query( // allow-raw-sql: dynamic patient portal queries
@@ -171,11 +201,11 @@ pub async fn request_portal_otp(
     .bind(phone)
     .bind(hash_otp(&otp))
     .bind(OTP_TTL_MINUTES)
-    .execute(&mut *tx)
+    .execute(&mut **tx)
     .await?;
 
     medbrains_outbox::queue::queue_in_tx(
-        &mut tx,
+        tx,
         medbrains_outbox::queue::OutboxRow {
             tenant_id,
             aggregate_type: "patient_portal",
@@ -193,9 +223,81 @@ pub async fn request_portal_otp(
     )
     .await
     .map_err(|e| AppError::Internal(format!("failed to queue portal OTP: {e}")))?;
+    Ok(())
+}
 
-    tx.commit().await?;
-    Ok(ack)
+/// Check a sign-in code for `phone`. Right: the code's id, to spend once the
+/// sign-in succeeds. Wrong, expired or guessed at too often: none — and a
+/// wrong guess is counted.
+pub(crate) async fn check_code(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    phone: &str,
+    code: &str,
+) -> Result<Option<Uuid>, AppError> {
+    let row: Option<(Uuid, String, i32)> = sqlx::query_as( // allow-raw-sql: dynamic patient portal queries
+        "SELECT id, otp_hash, attempts FROM patient_portal_otps \
+         WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL AND expires_at > now() \
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((otp_id, otp_hash, attempts)) = row else {
+        return Ok(None);
+    };
+    if attempts >= MAX_OTP_ATTEMPTS {
+        // Burn it. A code that has been guessed at five times is not a secret.
+        spend_code(tx, otp_id).await?;
+        return Ok(None);
+    }
+    if hash_otp(code.trim()) != otp_hash {
+        sqlx::query("UPDATE patient_portal_otps SET attempts = attempts + 1 WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
+            .bind(otp_id)
+            .execute(&mut **tx)
+            .await?;
+        return Ok(None);
+    }
+    Ok(Some(otp_id))
+}
+
+pub(crate) async fn spend_code(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    otp_id: Uuid,
+) -> Result<(), AppError> {
+    sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
+        .bind(otp_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// A patient's portal token.
+pub(crate) fn issue_session(
+    state: &AppState,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<PortalSession, AppError> {
+    let exp = usize::try_from(
+        (chrono::Utc::now() + chrono::Duration::hours(PORTAL_SESSION_HOURS)).timestamp(),
+    )
+    .map_err(|_| AppError::Internal("clock out of range".to_owned()))?;
+    let claims = PatientClaims {
+        sub: patient_id,
+        pid: patient_id,
+        tenant_id,
+        exp,
+    };
+    let header = jsonwebtoken::Header::new(Algorithm::EdDSA);
+    let token = jsonwebtoken::encode(&header, &claims, &state.jwt_encoding_key)
+        .map_err(|e| AppError::Internal(format!("token issue failed: {e}")))?;
+    Ok(PortalSession {
+        token,
+        patient_id,
+        tenant_id,
+        expires_in_hours: PORTAL_SESSION_HOURS,
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -203,6 +305,19 @@ pub struct PortalVerifyRequest {
     pub tenant_code: String,
     pub phone: String,
     pub code: String,
+    /// Which of the people sharing this mobile is signing in, once asked.
+    pub patient_id: Option<Uuid>,
+}
+
+/// A sign-in's answer: the session, or — when a family shares the mobile —
+/// who to choose between, asked again with the same code and a `patient_id`.
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum PortalVerifyResponse {
+    Session(PortalSession),
+    Choose {
+        choose: Vec<medbrains_server_services::pharmacy_customer::Person>,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -220,7 +335,7 @@ pub struct PortalSession {
 pub async fn verify_portal_otp(
     State(state): State<AppState>,
     Json(body): Json<PortalVerifyRequest>,
-) -> Result<Json<PortalSession>, AppError> {
+) -> Result<Json<PortalVerifyResponse>, AppError> {
     let phone = body.phone.trim();
     let denied = || AppError::Unauthorized;
 
@@ -235,75 +350,32 @@ pub async fn verify_portal_otp(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
-    let row: Option<(Uuid, String, i32)> = sqlx::query_as( // allow-raw-sql: dynamic patient portal queries
-        "SELECT id, otp_hash, attempts FROM patient_portal_otps \
-         WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL AND expires_at > now() \
-         ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+    let Some(otp_id) = check_code(&mut tx, tenant_id, phone, &body.code).await? else {
+        tx.commit().await?;
+        return Err(denied());
+    };
+
+    // A family often shares one mobile: never pick one of them silently.
+    let people = medbrains_server_services::pharmacy_customer::people_with_phone(
+        &mut tx, tenant_id, phone,
     )
-    .bind(tenant_id)
-    .bind(phone)
-    .fetch_optional(&mut *tx)
     .await?;
-
-    let Some((otp_id, otp_hash, attempts)) = row else {
-        tx.commit().await?;
-        return Err(denied());
+    let patient_id = match (people.as_slice(), body.patient_id) {
+        ([], _) => None,
+        ([only], None) => Some(only.id),
+        (_, Some(id)) => people.iter().find(|p| p.id == id).map(|p| p.id),
+        (_, None) => {
+            tx.commit().await?;
+            return Ok(Json(PortalVerifyResponse::Choose { choose: people }));
+        }
     };
+    let patient_id = patient_id.ok_or_else(denied)?;
 
-    if attempts >= MAX_OTP_ATTEMPTS {
-        // Burn it. A code that has been guessed at five times is not a secret.
-        sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
-            .bind(otp_id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        return Err(denied());
-    }
-
-    if hash_otp(body.code.trim()) != otp_hash {
-        sqlx::query("UPDATE patient_portal_otps SET attempts = attempts + 1 WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
-            .bind(otp_id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        return Err(denied());
-    }
-
-    let patient_id: Uuid =
-        sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1") // allow-raw-sql: dynamic patient portal queries
-            .bind(tenant_id)
-            .bind(phone)
-            .fetch_optional(&mut *tx)
-            .await?
-            .ok_or_else(denied)?;
-
-    sqlx::query("UPDATE patient_portal_otps SET used_at = now() WHERE id = $1") // allow-raw-sql: dynamic patient portal queries
-        .bind(otp_id)
-        .execute(&mut *tx)
-        .await?;
+    spend_code(&mut tx, otp_id).await?;
     tx.commit().await?;
-
-    let exp = usize::try_from(
-        (chrono::Utc::now() + chrono::Duration::hours(PORTAL_SESSION_HOURS)).timestamp(),
-    )
-    .map_err(|_| AppError::Internal("clock out of range".to_owned()))?;
-
-    let claims = PatientClaims {
-        sub: patient_id,
-        pid: patient_id,
-        tenant_id,
-        exp,
-    };
-    let header = jsonwebtoken::Header::new(Algorithm::EdDSA);
-    let token = jsonwebtoken::encode(&header, &claims, &state.jwt_encoding_key)
-        .map_err(|e| AppError::Internal(format!("token issue failed: {e}")))?;
-
-    Ok(Json(PortalSession {
-        token,
-        patient_id,
-        tenant_id,
-        expires_in_hours: PORTAL_SESSION_HOURS,
-    }))
+    Ok(Json(PortalVerifyResponse::Session(issue_session(
+        &state, tenant_id, patient_id,
+    )?)))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

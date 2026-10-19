@@ -9,3 +9,5 @@ pub mod billing;
 pub mod llm;
 pub mod mrd_lock;
 pub mod patient_identity;
+pub mod patient_match;
+pub mod pharmacy_customer;
