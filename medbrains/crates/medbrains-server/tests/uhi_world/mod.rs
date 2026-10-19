@@ -241,13 +241,13 @@ pub async fn world() -> World {
     let saved = put(save(true)).await.expect("save");
     assert_eq!(
         saved.status(),
-        reqwest::StatusCode::BAD_REQUEST,
+        StatusCode::BAD_REQUEST,
         "no switching on without a key"
     );
     let saved = put(save(false)).await.expect("save");
     assert_eq!(
         saved.status(),
-        reqwest::StatusCode::OK,
+        StatusCode::OK,
         "{}",
         saved.text().await.unwrap_or_default()
     );
@@ -274,7 +274,12 @@ pub async fn world() -> World {
         format!("https://hospital.test/api/uhi/hspa/{subscriber}")
     );
     let on = put(save(true)).await.expect("switch on");
-    assert_eq!(on.status(), reqwest::StatusCode::OK);
+    assert_eq!(
+        on.status(),
+        StatusCode::OK,
+        "{}",
+        on.text().await.unwrap_or_default()
+    );
     World {
         app,
         csrf,
@@ -298,7 +303,7 @@ pub async fn doctor(w: &World) -> (Uuid, String) {
          VALUES ($1, $2, 'Teleconsultation', 'clinical') RETURNING id",
     )
     .bind(w.tenant)
-    .bind(format!("UHI-{tag}"))
+    .bind(format!("UHI-{}", tag.to_uppercase()))
     .fetch_one(&w.app.db)
     .await
     .expect("department");
@@ -309,7 +314,15 @@ pub async fn doctor(w: &World) -> (Uuid, String) {
     .bind(w.tenant)
     .bind(staff.user_id)
     .bind(&name)
-    .bind(format!("71-{tag}"))
+    .bind({
+        let n = Uuid::new_v4().as_u128() % 1_000_000_000_000;
+        format!(
+            "71-{:04}-{:04}-{:04}",
+            n / 100_000_000,
+            n / 10_000 % 10_000,
+            n % 10_000
+        )
+    })
     .execute(&w.app.db)
     .await
     .expect("profile");

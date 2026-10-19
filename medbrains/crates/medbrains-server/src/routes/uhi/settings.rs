@@ -256,15 +256,17 @@ pub async fn save_settings(
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty());
+    // The proposed row is CHECKed before ON CONFLICT resolves, and a new row
+    // has no key yet, so it goes in inactive; only the update sets the flag.
     sqlx::query(
         "INSERT INTO uhi_subscriptions (tenant_id, environment, subscriber_id, unique_key_id, \
             services, facility_id, city_code, is_active, updated_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, $9) \
          ON CONFLICT (tenant_id) WHERE deleted_at IS NULL DO UPDATE SET \
             environment = EXCLUDED.environment, subscriber_id = EXCLUDED.subscriber_id, \
             unique_key_id = EXCLUDED.unique_key_id, services = EXCLUDED.services, \
             facility_id = EXCLUDED.facility_id, city_code = EXCLUDED.city_code, \
-            is_active = EXCLUDED.is_active, updated_by = EXCLUDED.updated_by",
+            is_active = $8, updated_by = EXCLUDED.updated_by",
     )
     .bind(claims.tenant_id)
     .bind(&body.environment)

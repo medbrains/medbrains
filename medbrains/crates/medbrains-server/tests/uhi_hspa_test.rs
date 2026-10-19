@@ -267,7 +267,7 @@ async fn an_ambulance_request_waits_for_dispatch_and_the_answer_reaches_the_app(
     let twice = accept(&dispatcher.client, &dispatcher.csrf)
         .await
         .expect("again");
-    assert_eq!(twice.status(), reqwest::StatusCode::CONFLICT);
+    assert_eq!(twice.status(), StatusCode::CONFLICT);
 }
 
 /// Given released, in-date blood units, When a patient app searches the
@@ -353,7 +353,7 @@ async fn the_uhi_screens_need_their_permissions() {
                 .await
                 .expect("list")
         ),
-        reqwest::StatusCode::OK
+        StatusCode::OK
     );
     assert_eq!(
         status(
@@ -364,7 +364,7 @@ async fn the_uhi_screens_need_their_permissions() {
                 .await
                 .expect("accept")
         ),
-        reqwest::StatusCode::FORBIDDEN
+        StatusCode::FORBIDDEN
     );
     assert_eq!(
         status(
@@ -374,7 +374,7 @@ async fn the_uhi_screens_need_their_permissions() {
                 .await
                 .expect("settings")
         ),
-        reqwest::StatusCode::FORBIDDEN
+        StatusCode::FORBIDDEN
     );
 
     let bank = common::provision_staff(&w.app, &w.csrf, "blood_bank_tech", &[]).await;
@@ -387,7 +387,7 @@ async fn the_uhi_screens_need_their_permissions() {
                 .await
                 .expect("accept")
         ),
-        reqwest::StatusCode::FORBIDDEN,
+        StatusCode::FORBIDDEN,
         "accepting an ambulance needs ambulance.trips.create"
     );
 
@@ -400,7 +400,7 @@ async fn the_uhi_screens_need_their_permissions() {
                 .await
                 .expect("list")
         ),
-        reqwest::StatusCode::FORBIDDEN
+        StatusCode::FORBIDDEN
     );
     let pending: String = sqlx::query_scalar("SELECT state FROM uhi_transactions WHERE id = $1")
         .bind(request)
