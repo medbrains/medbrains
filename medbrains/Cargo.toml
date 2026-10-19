@@ -104,6 +104,7 @@ members = [
     "crates/medbrains-app-manifest",
     "crates/medbrains-invitations",
     "crates/medbrains-news",
+    "crates/medbrains-notes",
     "crates/medbrains-vte",
     "crates/medbrains-pharmacy-cash-drawer",
     "crates/medbrains-device-pairing",

@@ -130,6 +130,7 @@ function PatientEditPageInner() {
         onCancel={() => navigate(`/patients/${patientId}`)}
         isSubmitting={updateMutation.isPending}
         mode="edit"
+        patientId={patientId}
         submitLabel={t("actions.save")}
         initialValues={{
           prefix: patient.prefix ?? undefined,

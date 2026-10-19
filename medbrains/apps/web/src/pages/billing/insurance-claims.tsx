@@ -109,12 +109,6 @@ export function InsuranceClaimsTab({
     queryFn: () => billingService.listInsuranceClaims(),
   });
 
-  const { data: nhcxCallbacks = [] } = useQuery({
-    queryKey: ["nhcx-callbacks", detailClaim?.id],
-    queryFn: () => billingService.listNhcxCallbacks({ matched_id: detailClaim?.id }),
-    enabled: !!detailClaim,
-  });
-
   const createMutation = useMutation({
     mutationFn: (data: CreateInsuranceClaimRequest) => billingService.createInsuranceClaim(data),
     onSuccess: () => {
@@ -521,7 +515,6 @@ export function InsuranceClaimsTab({
 
       <ClaimDetailDrawer
         claim={detailClaim}
-        callbacks={nhcxCallbacks}
         onClose={() => setDetailClaim(null)}
         onNhcxAction={(c, mode) => {
           setDetailClaim(null);
@@ -536,9 +529,6 @@ export function InsuranceClaimsTab({
         onClose={() => setNhcxAction(null)}
       />
 
-      <Text fw={600} mt="lg">
-        NHCX
-      </Text>
       <NhcxPayerDirectory />
 
       <Text fw={600} mt="lg">

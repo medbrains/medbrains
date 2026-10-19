@@ -202,6 +202,8 @@ export interface DoctorProfile {
   photo_url: string | null;
   languages_spoken: string[];
   is_active: boolean;
+  hpr_id: string | null;
+  hpr_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }

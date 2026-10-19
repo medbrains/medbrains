@@ -82,6 +82,7 @@ medbrains-clinical-notes = { path = "../medbrains-clinical-notes" }
 medbrains-app-manifest = { path = "../medbrains-app-manifest" }
 medbrains-invitations = { path = "../medbrains-invitations" }
 medbrains-news = { path = "../medbrains-news" }
+medbrains-notes = { path = "../medbrains-notes" }
 medbrains-marketing = { path = "../medbrains-marketing" }
 medbrains-vte = { path = "../medbrains-vte" }
 medbrains-pharmacy-cash-drawer = { path = "../medbrains-pharmacy-cash-drawer" }
@@ -187,6 +188,8 @@ reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-tungstenite = "0.27"
 zip = { workspace = true }
+# The ABDM and NHCX mocks in tests decrypt what the server encrypts for them.
+openssl = { version = "0.10", features = ["vendored"] }
 
 [features]
 # Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).

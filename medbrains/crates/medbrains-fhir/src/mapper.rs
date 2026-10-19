@@ -18,6 +18,10 @@ use uuid::Uuid;
 
 // FHIR system URIs for common identifier vocabularies.
 pub const ABHA_SYSTEM: &str = "https://healthid.ndhm.gov.in";
+/// HPR ID on a Practitioner — NRCeS ABDM FHIR profile examples.
+pub const HPR_SYSTEM: &str = "https://doctor.ndhm.gov.in";
+/// HFR ID on an Organization — NRCeS ABDM FHIR profile examples.
+pub const HFR_SYSTEM: &str = "https://facility.ndhm.gov.in";
 pub const UHID_SYSTEM: &str = "https://medbrains.health/uhid";
 pub const LOINC_SYSTEM: &str = "http://loinc.org";
 pub const SNOMED_SYSTEM: &str = "http://snomed.info/sct";
@@ -132,6 +136,10 @@ pub struct EncounterView {
     pub patient_display: Option<String>,
     pub doctor_id: Option<Uuid>,
     pub doctor_display: Option<String>,
+    /// The doctor's HPR ID, when recorded.
+    pub doctor_hpr_id: Option<String>,
+    /// The campus that provided the care, with its HFR ID when recorded.
+    pub facility: Option<(Uuid, Option<String>)>,
     pub encounter_type: String,
     pub status: String,
     pub started_at: DateTime<Utc>,
@@ -156,7 +164,8 @@ pub fn encounter_to_fhir(e: &EncounterView) -> Encounter {
                         "primary performer",
                     )],
                     individual: Reference::to("Practitioner", did)
-                        .with_display(e.doctor_display.clone().unwrap_or_default()),
+                        .with_display(e.doctor_display.clone().unwrap_or_default())
+                        .with_identifier(HPR_SYSTEM, e.doctor_hpr_id.as_deref()),
                 }]
             })
             .unwrap_or_default(),
@@ -165,7 +174,13 @@ pub fn encounter_to_fhir(e: &EncounterView) -> Encounter {
             end: e.ended_at.map(|t| t.to_rfc3339()),
         }),
         reason_code: Vec::new(),
-        service_provider: Vec::new(),
+        service_provider: e
+            .facility
+            .iter()
+            .map(|(id, hfr)| {
+                Reference::to("Organization", *id).with_identifier(HFR_SYSTEM, hfr.as_deref())
+            })
+            .collect(),
     }
 }
 
@@ -280,8 +295,7 @@ pub fn observation_to_fhir(o: &ObservationView) -> Observation {
 // ── NHCX cashless claim mappers ─────────────────────────────────────────────
 // FHIR system URIs used by the Claim/Coverage resources (per the NHCX FHIR profile
 // + HL7 base terminologies).
-pub const PROCESS_PRIORITY_SYSTEM: &str =
-    "http://terminology.hl7.org/CodeSystem/processpriority";
+pub const PROCESS_PRIORITY_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/processpriority";
 pub const POLICY_SYSTEM: &str = "https://medbrains.health/insurance-policy";
 pub const CLAIM_ID_SYSTEM: &str = "https://medbrains.health/insurance-claim";
 pub const CHARGE_SYSTEM: &str = "https://medbrains.health/charge-code";
@@ -395,6 +409,7 @@ pub fn claim_to_fhir(c: &ClaimView) -> Claim {
     let insurer = c.insurer_id.map_or_else(
         || Reference {
             reference: "Organization/insurer".to_owned(),
+            identifier: None,
             display: Some(c.insurer_name.clone()),
         },
         |id| Reference::to("Organization", id).with_display(c.insurer_name.clone()),

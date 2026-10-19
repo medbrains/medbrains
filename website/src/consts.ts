@@ -30,7 +30,7 @@ export const SOCIAL = {
   linkedin: env.PUBLIC_LINKEDIN ?? "",
 };
 
-// Contact form -> Formspree (no backend). Create a form at https://formspree.io,
-// then set PUBLIC_FORMSPREE_ID to the form id (last path segment of the endpoint).
-// Unset, the form sends the request on WhatsApp instead.
-export const FORMSPREE_ID = env.PUBLIC_FORMSPREE_ID ?? "";
+// The demo form files a lead in MedBrains' own Marketing → Enquiries, under this
+// hospital code (the server must also list the site in CORS_ORIGIN and have
+// "Accept enquiries from our website" switched on). Unset, it opens WhatsApp.
+export const ENQUIRY_TENANT = env.PUBLIC_ENQUIRY_TENANT ?? "";

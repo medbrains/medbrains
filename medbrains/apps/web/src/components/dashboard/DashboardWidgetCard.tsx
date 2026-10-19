@@ -5,6 +5,7 @@ import { IconArrowsMaximize } from "@tabler/icons-react";
 import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
+import { NotesBoardWidget } from "@/components/notes/NotesBoardWidget";
 import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
 import { KpiCompareMenu } from "./KpiCompareMenu";
 import { KpiDepartmentMenu } from "./KpiDepartmentMenu";
@@ -352,7 +353,15 @@ function WidgetBody({
     );
   }
 
-  // module_embed / form_embed / custom_html — not yet rendered inline.
+  if (widget.widget_type === "module_embed" && field(widget.config, "module") === "notes_board") {
+    return (
+      <WidgetShell widget={widget}>
+        <NotesBoardWidget />
+      </WidgetShell>
+    );
+  }
+
+  // Other module_embed / form_embed / custom_html — not yet rendered inline.
   return (
     <WidgetShell widget={widget}>
       <EmptyBody label="Not available here" />

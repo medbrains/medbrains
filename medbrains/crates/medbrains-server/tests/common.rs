@@ -132,9 +132,40 @@ impl TestApp {
     }
 }
 
+/// Secrets a test sets for its own server — a mock's base URL, a token —
+/// without touching the process env other tests share. Any key it does not
+/// hold falls back to `EnvSecretResolver`, as `spawn_app` always did.
+#[derive(Debug, Default, Clone)]
+pub struct TestSecrets(pub std::collections::HashMap<String, String>);
+
+impl TestSecrets {
+    pub fn with(mut self, key: &str, value: impl Into<String>) -> Self {
+        self.0.insert(key.to_owned(), value.into());
+        self
+    }
+}
+
+#[async_trait::async_trait]
+impl medbrains_core::secrets::SecretResolver for TestSecrets {
+    async fn get(&self, key: &str) -> Result<String, medbrains_core::secrets::SecretError> {
+        match self.0.get(key) {
+            Some(value) => Ok(value.clone()),
+            None => {
+                let env = medbrains_core::secrets::EnvSecretResolver::new();
+                medbrains_core::secrets::SecretResolver::get(&env, key).await
+            }
+        }
+    }
+}
+
 /// Spawn a test server on a random port.
 /// Uses the dev database (DATABASE_URL from .env or env var).
 pub async fn spawn_app() -> TestApp {
+    spawn_app_with_secrets(TestSecrets::default()).await
+}
+
+/// `spawn_app`, with `secrets` answering the server's secret lookups first.
+pub async fn spawn_app_with_secrets(secrets: TestSecrets) -> TestApp {
     // Load .env
     let _ = dotenvy::dotenv();
 
@@ -186,8 +217,7 @@ pub async fn spawn_app() -> TestApp {
     let authz: Arc<dyn medbrains_authz::AuthzBackend> =
         Arc::new(medbrains_authz::backend_pg::PgAuthzBackend::new(db.clone()));
 
-    let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
-        Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+    let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> = Arc::new(secrets);
 
     let state = AppState {
         db: db.clone(),
@@ -230,4 +260,73 @@ pub async fn spawn_app() -> TestApp {
         .expect("client");
 
     TestApp { addr, client, db }
+}
+
+/// A signed-in user of `role`, with its own cookie jar.
+#[derive(Debug)]
+pub struct Staff {
+    pub client: Client,
+    pub csrf: String,
+    pub user_id: uuid::Uuid,
+}
+
+/// Provision a user of `role` through the admin API (the way a hospital
+/// would), subtract `denied` from the role's permissions, and sign them in.
+pub async fn provision_staff(
+    app: &TestApp,
+    admin_csrf: &str,
+    role: &str,
+    denied: &[&str],
+) -> Staff {
+    let tag = &uuid::Uuid::new_v4().simple().to_string()[..10];
+    let (username, password) = (format!("t{role}_{tag}"), format!("Staff#{tag}Aa9"));
+    let resp = app
+        .client
+        .post(app.url("/api/setup/users"))
+        .header("x-csrf-token", admin_csrf)
+        .json(&serde_json::json!({
+            "username": username,
+            "email": format!("{username}@example.test"),
+            "password": password,
+            "full_name": format!("Test {role}"),
+            "role": role,
+        }))
+        .send()
+        .await
+        .expect("provision");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "{}",
+        resp.text().await.unwrap_or_default()
+    );
+    let user_id: uuid::Uuid = sqlx::query_scalar(
+        "UPDATE users SET access_matrix = jsonb_build_object('extra', '[]'::jsonb, 'denied', $2::jsonb), \
+                perm_version = perm_version + 1 \
+          WHERE username = $1 RETURNING id",
+    )
+    .bind(&username)
+    .bind(serde_json::json!(denied))
+    .fetch_one(&app.db)
+    .await
+    .expect("user");
+    let client = Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    let login: serde_json::Value = client
+        .post(app.url("/api/auth/login"))
+        .json(&serde_json::json!({ "username": username, "password": password }))
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("login json");
+    let csrf = login["csrf_token"].as_str().unwrap_or_default().to_owned();
+    Staff {
+        client,
+        csrf,
+        user_id,
+    }
 }

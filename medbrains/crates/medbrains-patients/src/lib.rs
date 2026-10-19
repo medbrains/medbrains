@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod abha_link;
 pub mod acquisition;
+mod identifier_key;
 pub mod contact_consent;
 pub mod dpdp_consent;
 pub mod privacy_requests;
@@ -384,6 +386,9 @@ pub struct CreatePatientRequest {
     // ── Digital identity / clinical intake context ──
     pub abha_number: Option<String>,
     pub abha_address: Option<String>,
+    /// The desk's "Verify ABHA" record. With it the link is saved as verified;
+    /// without it a typed ABHA number stays unverified.
+    pub abha_verification_id: Option<Uuid>,
     pub aadhaar_number: Option<String>,
     pub referred_by_name: Option<String>,
     pub referred_by_phone: Option<String>,
@@ -965,6 +970,7 @@ async fn persist_registration_identifiers(
     abha_number: Option<&str>,
     abha_address: Option<&str>,
     aadhaar_digits: Option<&str>,
+    aadhaar_fingerprint: Option<&str>,
 ) -> Result<(), AppError> {
     if let Some(number) = abha_number {
         sqlx::query(
@@ -1010,9 +1016,8 @@ async fn persist_registration_identifiers(
         .await?;
     }
 
-    if let Some(digits) = aadhaar_digits {
+    if let (Some(digits), Some(hash)) = (aadhaar_digits, aadhaar_fingerprint) {
         let masked = masked_aadhaar(digits);
-        let hash = sha256_hex(&format!("{tenant_id}:aadhaar:{digits}"));
         sqlx::query(
             "INSERT INTO patient_identifiers \
              (tenant_id, patient_id, id_type, id_number, id_number_hash, issuing_authority, is_verified, is_primary) \
@@ -1420,6 +1425,15 @@ pub async fn create_patient(
         .as_deref()
         .and_then(normalize_aadhaar_number);
     let abha_number = body.abha_number.as_deref().and_then(normalize_abha_number);
+    let aadhaar_fingerprint = match aadhaar_digits.as_deref() {
+        Some(digits) => Some(identifier_key::keyed_fingerprint(
+            &identifier_key::identifier_key(&state).await,
+            claims.tenant_id,
+            "aadhaar",
+            digits,
+        )),
+        None => None,
+    };
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -1537,8 +1551,23 @@ pub async fn create_patient(
         abha_number.as_deref(),
         body.abha_address.as_deref(),
         aadhaar_digits.as_deref(),
+        aadhaar_fingerprint.as_deref(),
     )
     .await?;
+    if let Some(verification_id) = body.abha_verification_id {
+        abha_link::link_verified_abha(
+            &mut tx,
+            abha_link::AbhaLinkRequest {
+                tenant_id: claims.tenant_id,
+                user_id: claims.sub,
+                patient_id: patient.id,
+                verification_id,
+                expected_abha: abha_number.as_deref(),
+                apply: &[],
+            },
+        )
+        .await?;
+    }
     contact_consent::record_at_registration(
         &mut tx,
         (claims.tenant_id, patient.id, claims.sub),

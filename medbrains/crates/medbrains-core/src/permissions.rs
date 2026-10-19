@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 782;
+pub const PERMISSION_COUNT: usize = 789;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -27,6 +27,20 @@ pub const fn all_codes() -> Vec<&'static str> {
 
 pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
+}
+
+/// Sticky notes: a person's own notes, shared to department boards or colleagues.
+///
+/// Notes are for the ward's logistics — rotas, reminders, a broken monitor —
+/// never for patient information, which belongs in the chart where it is
+/// audited and consented.
+pub mod notes {
+    /// Keep notes and share them.
+    /// Write your own notes and share them to department boards or with colleagues.
+    pub const USE: &str = "notes.use";
+    /// Take notes off a department board.
+    /// Remove a note from the board of a department you belong to, whoever wrote it.
+    pub const MODERATE: &str = "notes.moderate";
 }
 
 /// Workflow automation.
@@ -2396,6 +2410,25 @@ pub mod insurance {
     pub mod dashboard {
         pub const VIEW: &str = "insurance.dashboard.view";
     }
+
+    /// NHCX — the National Health Claims Exchange.
+    pub mod nhcx {
+        /// Send claims to NHCX.
+        ///
+        /// Submit a claim or pre-authorisation, or check coverage
+        /// eligibility, with a payer through NHCX.
+        pub const SUBMIT: &str = "insurance.nhcx.submit";
+        /// See NHCX exchanges.
+        ///
+        /// What was sent to NHCX for a claim, whether this hospital is set
+        /// up for NHCX, and every response the payers sent back.
+        pub const VIEW: &str = "insurance.nhcx.view";
+        /// Set up the NHCX connection.
+        ///
+        /// The NHCX participant code, gateway keys and certificates, and
+        /// whether the hospital talks to the sandbox or production.
+        pub const CONFIGURE: &str = "insurance.nhcx.configure";
+    }
 }
 
 pub mod regulatory {
@@ -3361,6 +3394,12 @@ pub mod pharmacy_finance {
 /// access, because the codes never reached the catalogue the admin UI renders.
 /// The frontend guarded on the same literal, so the control was hidden too.
 pub mod abdm {
+    /// Connecting this hospital to ABDM.
+    pub mod settings {
+        /// Set up the ABDM connection.
+        /// Enter the ABDM client ID and secret and switch between sandbox and production.
+        pub const MANAGE: &str = "abdm.settings.manage";
+    }
     pub mod relay {
         /// Pull and acknowledge ABDM gateway callbacks.
         ///
@@ -3383,5 +3422,13 @@ pub mod abdm {
         ///
         /// A facility-level administrative act, not a clinical one.
         pub const REGISTER: &str = "abdm.hfr.register";
+    }
+    pub mod hpr {
+        /// Record and verify doctors' HPR IDs.
+        ///
+        /// The Healthcare Professionals Registry ID each doctor signs FHIR
+        /// records under, checked against the national registry, and the
+        /// coverage report of active doctors still missing one.
+        pub const MANAGE: &str = "abdm.hpr.manage";
     }
 }

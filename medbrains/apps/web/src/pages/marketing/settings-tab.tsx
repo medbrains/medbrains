@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Alert, Button, Card, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
 import { SuppressionList } from "./suppression-list";
+import { WebFormCard } from "./web-form-card";
 
 /**
  * How often the hospital is willing to message somebody, and when it will not.
@@ -63,6 +64,7 @@ export function MarketingSettingsTab() {
 
   return (
     <Stack>
+      <WebFormCard />
       <Card>
         <Stack gap="md">
           <Stack gap={2}>

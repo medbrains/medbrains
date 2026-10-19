@@ -188,6 +188,20 @@ const CATALOG: &[WidgetSpec] = &[
         category: "IPD",
         perm: "ipd.admissions.list",
     },
+    WidgetSpec {
+        code: "notes_board",
+        name: "Team notes",
+        description: "Pinned notes on your departments' boards and notes shared with you",
+        wtype: "module_embed",
+        icon: "IconNote",
+        color: "yellow",
+        config: r#"{"module": "notes_board"}"#,
+        data_source: r#"{"type": "static"}"#,
+        width: 4,
+        height: 4,
+        category: "Team",
+        perm: "notes.use",
+    },
 ];
 
 /// The management KPIs (`medbrains-dashboard::management_kpis`), each a stat

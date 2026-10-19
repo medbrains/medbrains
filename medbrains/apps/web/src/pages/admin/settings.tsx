@@ -186,6 +186,11 @@ const SETTINGS_NAV_META: Record<
     description: "SNOMED CT releases, import progress and licence notice",
     kind: "master",
   },
+  nhcx: {
+    group: "Interoperability",
+    description: "NHCX claims exchange: participant code, gateway keys, certificates",
+    kind: "configuration",
+  },
   "device-integrations": {
     group: "Interoperability",
     description: "PACS, lab analyzer, biometric, and print agents",
