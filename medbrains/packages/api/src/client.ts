@@ -1433,10 +1433,12 @@ import type {
   NewsFeedListItem,
   NhcxClaimTaskRequest,
   NhcxConnectionTest,
+  NhcxDocumentPick,
   NhcxEligibilityCheck,
   NhcxParticipant,
   NhcxPayerQuery,
   NhcxPayment,
+  NhcxPreparedClaimDocuments,
   NhcxQueuedResponse,
   NhcxSearchRequest,
   NhcxSettingsView,
@@ -5312,7 +5314,10 @@ export const api = {
     }),
 
   /** Submit a claim/pre-auth to NHCX — assembles the FHIR Bundle + queues the exchange. */
-  submitClaimToNhcx: (id: string, data: { recipient_code: string; use?: string }) =>
+  submitClaimToNhcx: (
+    id: string,
+    data: { recipient_code: string; use?: string; documents?: NhcxDocumentPick[] },
+  ) =>
     request<NhcxQueuedResponse>(`/billing/insurance-claims/${id}/submit-to-nhcx`, {
       method: "POST",
       body: JSON.stringify(data),
@@ -5320,6 +5325,12 @@ export const api = {
 
   /** A claim's NHCX state: the final claim's lines, the payer's adjudication, the Tasks asked. */
   getClaimNhcx: (id: string) => request<ClaimNhcxView>(`/billing/insurance-claims/${id}/nhcx`),
+
+  /** Render the final claim's documents — summary, bill, lab reports — for the desk to choose. */
+  prepareClaimNhcxDocuments: (id: string) =>
+    request<NhcxPreparedClaimDocuments>(`/billing/insurance-claims/${id}/nhcx/documents`, {
+      method: "POST",
+    }),
 
   /** Ask the payer where the claim stands (`hcx/status`). */
   checkClaimNhcxStatus: (id: string) =>

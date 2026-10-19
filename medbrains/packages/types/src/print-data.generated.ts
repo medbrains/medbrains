@@ -242,6 +242,15 @@ export interface DischargeSummaryPrintData {
   discharge_type: string | null;
   discharge_summary: string | null;
   diagnosis: string | null;
+  /** The structured discharge summary, when one was written. */
+  final_diagnosis: string | null;
+  course_in_hospital: string | null;
+  treatment_given: string | null;
+  /** Procedures performed, joined into one line. */
+  procedures_performed: string | null;
+  investigation_summary: string | null;
+  condition_at_discharge: string | null;
+  follow_up_instructions: string | null;
   /**
    * Digital signatures stamped onto the PDF. Empty array = unsigned
    * (template should render "DRAFT — UNSIGNED" watermark).

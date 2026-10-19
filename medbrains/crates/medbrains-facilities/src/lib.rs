@@ -8,6 +8,8 @@ pub mod facilities;
 pub mod icu;
 pub mod insurance;
 mod nhcx_bundle;
+pub mod nhcx_claim_documents;
+mod nhcx_claim_picks;
 pub mod nhcx_claim_view;
 mod nhcx_common;
 pub mod nhcx_eligibility;
@@ -240,6 +242,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/billing/insurance-claims/{id}/nhcx",
             get(nhcx_claim_view::get_claim_nhcx),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx/documents",
+            post(nhcx_claim_documents::prepare_claim_documents),
         )
         .route(
             "/api/billing/insurance-claims/{id}/nhcx/status",

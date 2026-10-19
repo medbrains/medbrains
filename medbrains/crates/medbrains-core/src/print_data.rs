@@ -255,6 +255,15 @@ pub struct DischargeSummaryPrintData {
     pub discharge_type: Option<String>,
     pub discharge_summary: Option<String>,
     pub diagnosis: Option<String>,
+    /// The structured discharge summary, when one was written.
+    pub final_diagnosis: Option<String>,
+    pub course_in_hospital: Option<String>,
+    pub treatment_given: Option<String>,
+    /// Procedures performed, joined into one line.
+    pub procedures_performed: Option<String>,
+    pub investigation_summary: Option<String>,
+    pub condition_at_discharge: Option<String>,
+    pub follow_up_instructions: Option<String>,
     /// Digital signatures stamped onto the PDF. Empty array = unsigned
     /// (template should render "DRAFT — UNSIGNED" watermark).
     #[serde(default)]
