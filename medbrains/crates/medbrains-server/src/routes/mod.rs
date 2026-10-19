@@ -174,6 +174,8 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — sequences
         // Setup — services
         .merge(medbrains_catalog_import::router())
+        // SNOMED CT store: releases, search, hierarchy, ECL, analytics
+        .merge(medbrains_terminology::router())
         .merge(medbrains_infra_settings::router())
         .merge(medbrains_mail_provisioning::router())
         // Setup — bed types

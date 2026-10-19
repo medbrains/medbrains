@@ -164,5 +164,6 @@
   "settings.oauthIntegrations": "Connected Accounts",
   "settings": {
     "tokens": "Tokens"
-  }
+  },
+  "settings.snomed": "SNOMED CT"
 }

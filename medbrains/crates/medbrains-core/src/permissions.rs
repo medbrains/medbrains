@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 786;
+pub const PERMISSION_COUNT: usize = 789;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -2529,6 +2529,32 @@ pub mod terminology {
     /// provisional diagnosis at registration or a camp desk — not access to
     /// any patient's record.
     pub const SEARCH: &str = "terminology.search";
+
+    /// The locally loaded SNOMED CT release store.
+    ///
+    /// SNOMED content is shared reference data under the deployment's
+    /// affiliate licence, so loading a release is separate from reading one,
+    /// and reading one is separate from counting a hospital's records by it.
+    pub mod snomed {
+        /// Load SNOMED CT releases.
+        ///
+        /// Upload or import an RF2 release package and watch its progress.
+        /// The release replaces terminology every user of the deployment
+        /// sees, so no built-in role holds it.
+        pub const MANAGE: &str = "terminology.snomed.manage";
+        /// Search and browse SNOMED CT concepts.
+        ///
+        /// Find a concept by any of its terms, see its parents and children,
+        /// and run bounded hierarchy queries. Results are capped so the
+        /// licensed content cannot be extracted in bulk.
+        pub const VIEW: &str = "terminology.snomed.view";
+        /// Count records by SNOMED CT hierarchy.
+        ///
+        /// See how many of the hospital's coded diagnoses fall under a
+        /// concept or any of its descendants, and the roll-up by top-level
+        /// category.
+        pub const ANALYTICS: &str = "terminology.snomed.analytics";
+    }
 }
 
 pub mod ckb {
