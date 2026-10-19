@@ -24,6 +24,7 @@ use uuid::Uuid;
 
 use crate::common;
 
+pub mod claim_seed;
 pub mod seed;
 
 pub struct KeyPair {
@@ -176,11 +177,24 @@ impl Nhcx {
     /// The payer answers through the gateway: `answer` encrypted to the
     /// hospital, with a valid gateway JWT.
     pub async fn callback(&self, path: &str, correlation_id: &str, answer: &Value) -> StatusCode {
+        self.callback_with(path, correlation_id, Uuid::new_v4(), answer)
+            .await
+    }
+
+    /// As [`Self::callback`], with the payer's api call id — a retried
+    /// delivery repeats it.
+    pub async fn callback_with(
+        &self,
+        path: &str,
+        correlation_id: &str,
+        api_call_id: Uuid,
+        answer: &Value,
+    ) -> StatusCode {
         let mut routing = Map::new();
         routing.insert("x-hcx-sender_code".into(), json!(self.payer_code));
         routing.insert("x-hcx-recipient_code".into(), json!(self.hospital_code));
         routing.insert("x-hcx-correlation_id".into(), json!(correlation_id));
-        routing.insert("x-hcx-api_call_id".into(), json!(Uuid::new_v4()));
+        routing.insert("x-hcx-api_call_id".into(), json!(api_call_id));
         routing.insert("x-hcx-status".into(), json!("response.complete"));
         let reply =
             medbrains_crypto::jwe::encrypt_hcx(answer, &routing, self.hospital_cert.as_bytes())

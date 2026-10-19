@@ -55,12 +55,17 @@ pub(crate) struct DocumentRef {
     pub(crate) file_path: Option<String>,
     pub(crate) mime_type: Option<String>,
     pub(crate) created_at: chrono::DateTime<Utc>,
+    /// The content itself (base64), for a document the hospital renders
+    /// rather than stores — the discharge summary.
+    #[sqlx(default)]
+    pub(crate) data: Option<String>,
 }
 
 /// One billed or estimated line.
 pub(crate) struct ItemLine {
     pub(crate) code: Option<String>,
     pub(crate) description: String,
+    pub(crate) quantity: Option<i32>,
     pub(crate) unit_price: Option<Decimal>,
     pub(crate) net: Option<Decimal>,
 }
@@ -74,6 +79,14 @@ pub(crate) struct ClaimContent<'a> {
     pub(crate) items: &'a [ItemLine],
     pub(crate) diagnoses: &'a [DiagnosisLine],
     pub(crate) documents: &'a [DocumentRef],
+    /// The payer's authorisation number for this stay, quoted on a claim.
+    pub(crate) pre_auth_ref: Option<&'a str>,
+    /// What the claim asks for, when it is not the sum of its lines (the
+    /// patient's share and discounts already taken off).
+    pub(crate) total: Option<Decimal>,
+    /// Free-text supporting information (the bill's split, for the payer's
+    /// adjudicator), sent as `claiminformationcategory#info`.
+    pub(crate) notes: &'a [String],
 }
 
 fn fresh() -> (Uuid, String) {
@@ -238,7 +251,16 @@ fn attachment(doc: &DocumentRef) -> Value {
         "contentType": doc.mime_type,
         "title": doc.file_name.as_deref().unwrap_or(&doc.document_type),
         "url": url,
+        "data": doc.data,
         "creation": doc.created_at.to_rfc3339(),
+    })
+}
+
+fn supporting_note(seq: usize, note: &str) -> Value {
+    json!({
+        "sequence": seq,
+        "category": { "coding": [{ "system": CLAIM_INFO_CATEGORY_SYSTEM, "code": "info" }] },
+        "valueString": note,
     })
 }
 
@@ -263,12 +285,28 @@ pub(crate) fn claim_bundle(parties: &Parties<'_>, c: &ClaimContent<'_>) -> Value
             json!({
                 "sequence": i + 1,
                 "productOrService": { "coding": l.code.iter().map(|code| json!({ "code": code })).collect::<Vec<_>>(), "text": l.description },
+                "quantity": l.quantity.map(|q| json!({ "value": q })),
                 "unitPrice": money(l.unit_price),
                 "net": money(l.net),
             })
         })
         .collect();
-    let total: Decimal = c.items.iter().filter_map(|l| l.net).sum();
+    let total = c
+        .total
+        .unwrap_or_else(|| c.items.iter().filter_map(|l| l.net).sum());
+    let mut supporting: Vec<Value> = c
+        .documents
+        .iter()
+        .enumerate()
+        .map(|(i, d)| supporting_info(i + 1, d))
+        .collect();
+    let first_note = supporting.len() + 1;
+    supporting.extend(
+        c.notes
+            .iter()
+            .enumerate()
+            .map(|(i, n)| supporting_note(first_note + i, n)),
+    );
     let care_provider = if parties.doctor.is_some() {
         &urns.practitioner.1
     } else {
@@ -292,8 +330,11 @@ pub(crate) fn claim_bundle(parties: &Parties<'_>, c: &ClaimContent<'_>) -> Value
             "role": { "coding": [{ "system": SNOMED_SYSTEM, "code": SNOMED_HEALTHCARE_PROFESSIONAL_CODE, "display": "Healthcare professional (occupation)" }] }
         }],
         "diagnosis": c.diagnoses.iter().enumerate().map(|(i, d)| diagnosis(i + 1, d)).collect::<Vec<_>>(),
-        "supportingInfo": c.documents.iter().enumerate().map(|(i, d)| supporting_info(i + 1, d)).collect::<Vec<_>>(),
-        "insurance": [{ "sequence": 1, "focal": true, "coverage": { "reference": urns.coverage.1 } }],
+        "supportingInfo": supporting,
+        "insurance": [{
+            "sequence": 1, "focal": true, "coverage": { "reference": urns.coverage.1 },
+            "preAuthRef": c.pre_auth_ref.map(|r| vec![r]),
+        }],
         "item": items,
         "total": money(Some(total)),
     }});

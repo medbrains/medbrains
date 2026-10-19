@@ -116,6 +116,7 @@ async fn build(
             .service_description
             .clone()
             .unwrap_or_else(|| pa.service_type.clone()),
+        quantity: Some(1),
         unit_price: pa.estimated_cost,
         net: pa.estimated_cost,
     }];
@@ -133,6 +134,9 @@ async fn build(
         items: &items,
         diagnoses: &diagnoses,
         documents: &documents,
+        pre_auth_ref: None,
+        total: None,
+        notes: &[],
     };
     Ok(nhcx_bundle::claim_bundle(&parties, &content))
 }

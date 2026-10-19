@@ -8,13 +8,17 @@ pub mod facilities;
 pub mod icu;
 pub mod insurance;
 mod nhcx_bundle;
+pub mod nhcx_claim_view;
 mod nhcx_common;
 pub mod nhcx_eligibility;
+mod nhcx_final_claim;
 pub mod nhcx_participants;
 pub mod nhcx_preauth;
 pub mod nhcx_queries;
 pub mod nhcx_sla;
 pub mod nhcx_submit;
+mod nhcx_task_bundle;
+pub mod nhcx_tasks;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -233,6 +237,28 @@ pub fn router() -> Router<AppState> {
             post(nhcx_queries::answer_payer_query),
         )
         .route("/api/insurance/nhcx/sla", get(nhcx_sla::list_nhcx_sla))
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx",
+            get(nhcx_claim_view::get_claim_nhcx),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx/status",
+            post(nhcx_tasks::claim_status),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx/cancel",
+            post(nhcx_tasks::cancel_claim),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/nhcx/reprocess",
+            post(nhcx_tasks::reprocess_claim),
+        )
+        .route(
+            "/api/insurance/prior-auths/{id}/nhcx/status",
+            post(nhcx_tasks::preauth_status),
+        )
+        .route("/api/insurance/nhcx/search", post(nhcx_tasks::search_claims))
+        .route("/api/insurance/nhcx/searches", get(nhcx_claim_view::list_searches))
         .route(
             "/api/nhcx/participants",
             get(nhcx_participants::list_nhcx_participants)

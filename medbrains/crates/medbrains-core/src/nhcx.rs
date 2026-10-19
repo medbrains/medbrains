@@ -68,7 +68,32 @@ pub enum NhcxOperation {
     Claim,
     /// The hospital's answer to a payer's `communication/request`.
     Communication,
+    /// A Task asking where a claim or pre-authorisation stands.
+    Status,
+    /// A Task asking the payer for its claims in a date range.
+    Search,
+    /// A Task asking the payer to cancel a claim.
+    Cancel,
+    /// A Task asking the payer to reprocess a claim.
+    Reprocess,
+    /// The hospital's acknowledgement of a payer's payment notice.
+    PaymentAck,
 }
+
+// Paths below `/hcx/v1`. VERIFIED against the NHCX sandbox: the first three.
+// INFERRED from HCX protocol v0.7.1 (`hcx/status`, `hcx/search`,
+// `paymentnotice/on_request`, `communication/on_request`) and, for cancel and
+// reprocess, from the NRCeS IG's Task bundles, which name no API — each is
+// its own constant so a sandbox run that disagrees changes one line.
+pub const PATH_ELIGIBILITY: &str = "/hcx/v1/coverageeligibility/check";
+pub const PATH_PREAUTH: &str = "/hcx/v1/preauth/submit";
+pub const PATH_CLAIM: &str = "/hcx/v1/claim/submit";
+pub const PATH_COMMUNICATION: &str = "/hcx/v1/communication/on_request";
+pub const PATH_STATUS: &str = "/hcx/v1/hcx/status";
+pub const PATH_SEARCH: &str = "/hcx/v1/hcx/search";
+pub const PATH_CANCEL: &str = "/hcx/v1/claim/cancel";
+pub const PATH_REPROCESS: &str = "/hcx/v1/claim/reprocess";
+pub const PATH_PAYMENT_ACK: &str = "/hcx/v1/paymentnotice/on_request";
 
 impl NhcxOperation {
     /// Outbox `event_type` that carries this operation.
@@ -79,6 +104,11 @@ impl NhcxOperation {
             Self::Preauth => "nhcx.preauth_submit",
             Self::Claim => "nhcx.claim_submit",
             Self::Communication => "nhcx.communication",
+            Self::Status => "nhcx.status",
+            Self::Search => "nhcx.search",
+            Self::Cancel => "nhcx.cancel",
+            Self::Reprocess => "nhcx.reprocess",
+            Self::PaymentAck => "nhcx.payment_ack",
         }
     }
 
@@ -86,23 +116,30 @@ impl NhcxOperation {
     #[must_use]
     pub const fn path(self) -> &'static str {
         match self {
-            Self::CoverageEligibility => "/hcx/v1/coverageeligibility/check",
-            Self::Preauth => "/hcx/v1/preauth/submit",
-            Self::Claim => "/hcx/v1/claim/submit",
-            // HCX protocol v0.7.1 pairs `communication/request` (payer →
-            // provider) with `communication/on_request` (provider's reply).
-            // Not yet exercised against the NHCX sandbox.
-            Self::Communication => "/hcx/v1/communication/on_request",
+            Self::CoverageEligibility => PATH_ELIGIBILITY,
+            Self::Preauth => PATH_PREAUTH,
+            Self::Claim => PATH_CLAIM,
+            Self::Communication => PATH_COMMUNICATION,
+            Self::Status => PATH_STATUS,
+            Self::Search => PATH_SEARCH,
+            Self::Cancel => PATH_CANCEL,
+            Self::Reprocess => PATH_REPROCESS,
+            Self::PaymentAck => PATH_PAYMENT_ACK,
         }
     }
 }
 
 /// Every operation the outbox sends — one handler each.
-pub const OPERATIONS: [NhcxOperation; 4] = [
+pub const OPERATIONS: [NhcxOperation; 9] = [
     NhcxOperation::CoverageEligibility,
     NhcxOperation::Preauth,
     NhcxOperation::Claim,
     NhcxOperation::Communication,
+    NhcxOperation::Status,
+    NhcxOperation::Search,
+    NhcxOperation::Cancel,
+    NhcxOperation::Reprocess,
+    NhcxOperation::PaymentAck,
 ];
 
 /// The record an outbound NHCX message belongs to — where the outbox marks
@@ -115,6 +152,10 @@ pub enum NhcxRecord {
     PriorAuth,
     Verification,
     PayerQuery,
+    /// A status, search, cancel or reprocess Task.
+    Task,
+    /// The acknowledgement of a payer's payment notice.
+    PaymentNotice,
 }
 
 impl NhcxRecord {
@@ -127,6 +168,8 @@ impl NhcxRecord {
             Self::PriorAuth => "prior_auth_requests",
             Self::Verification => "insurance_verifications",
             Self::PayerQuery => "nhcx_payer_queries",
+            Self::Task => "nhcx_tasks",
+            Self::PaymentNotice => "nhcx_payment_notices",
         }
     }
 }
@@ -220,6 +263,30 @@ pub const COVERAGE_ELIGIBILITY_BUNDLE_PROFILE: &str =
 /// (NRCeS lists no bundle profile for it, so the resource is the payload).
 pub const COMMUNICATION_PROFILE: &str =
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/Communication";
+/// NHCX `TaskBundle` profile — status, search, cancel, reprocess and the
+/// payment-notice exchange.
+pub const TASK_BUNDLE_PROFILE: &str =
+    "https://nrces.in/ndhm/fhir/r4/StructureDefinition/TaskBundle";
+/// HL7 financial task codes (`status`, `cancel`, `reprocess`, `poll`).
+pub const FINANCIAL_TASK_CODE_SYSTEM: &str =
+    "http://terminology.hl7.org/CodeSystem/financialtaskcode";
+/// NRCeS task codes (`nullify`, `deliver`, `search`).
+pub const NDHM_TASK_CODE_SYSTEM: &str = "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-codes";
+/// NRCeS Task.input types (`claimNumber`, `fromDate`, `toDate`, …).
+pub const NDHM_TASK_INPUT_TYPE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-input-type-code";
+/// NRCeS Task.output types (`status`, `include`).
+pub const NDHM_TASK_OUTPUT_TYPE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-output-type";
+/// NRCeS Task.output values (`paymentack`).
+pub const NDHM_TASK_OUTPUT_VALUE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-task-output-value";
+/// NRCeS Task.reasonCode (`claimrejected`).
+pub const NDHM_REASON_CODE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-reason-code";
+/// NRCeS PaymentReconciliation.detail types (`approvedAmount`, `tds`).
+pub const NDHM_PAYMENT_TYPE_SYSTEM: &str =
+    "https://nrces.in/ndhm/fhir/r4/CodeSystem/ndhm-payment-type";
 /// ICD-11 MMS code system (the WHO release URI).
 pub const ICD11_SYSTEM: &str = "http://id.who.int/icd/release/11/mms";
 /// HL7 example benefit categories — the services an eligibility check asks about.

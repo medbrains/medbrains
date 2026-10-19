@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 794;
+pub const PERMISSION_COUNT: usize = 796;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -2434,6 +2434,17 @@ pub mod insurance {
         /// pre-authorisation or claim, with text and supporting documents,
         /// sent back through NHCX.
         pub const RESPOND: &str = "insurance.nhcx.respond";
+        /// Cancel or reprocess NHCX claims.
+        ///
+        /// Ask a payer through NHCX to cancel a claim, or to reprocess one
+        /// after its deductions or rejection have been answered.
+        pub const CANCEL: &str = "insurance.nhcx.cancel";
+        /// See and post NHCX payments.
+        ///
+        /// The payment notices payers send through NHCX — amount, UTR and
+        /// TDS against each claim — and posting an unmatched one to its
+        /// claim.
+        pub const PAYMENTS: &str = "insurance.nhcx.payments";
     }
 }
 
