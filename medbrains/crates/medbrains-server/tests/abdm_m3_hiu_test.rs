@@ -52,7 +52,8 @@ async fn a_consent_request_carries_purpose_types_and_requester() {
             .is_some_and(|t| t.ends_with('Z'))
     );
 
-    let body = json!({ "consentRequest": { "id": "cr-1" },
+    let consent_request_id = format!("cr-{}", Uuid::new_v4());
+    let body = json!({ "consentRequest": { "id": consent_request_id },
                        "response": { "requestId": header(&init, "request-id") } });
     let status = hiu_callback(&w, paths::CB_HIU_CONSENT_ON_INIT, &w.gateway_key, body).await;
     assert_eq!(status, StatusCode::ACCEPTED);
