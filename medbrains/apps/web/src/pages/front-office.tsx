@@ -4,6 +4,7 @@ import { PatientFlowHub } from "./front-office/patient-flow-hub";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
 import { QueueDashboardTab } from "./front-office/queue-dashboard-tab";
 import { QueueMetricsTab } from "./front-office/queue-metrics-tab";
+import { ScanShareTab } from "./front-office/scan-share-tab";
 import {
   BILLING_BOARD,
   EMERGENCY_BOARD,
@@ -25,6 +26,7 @@ import {
   IconDoorEnter,
   IconGauge,
   IconPhone,
+  IconQrcode,
   IconScan,
   IconSettings,
   IconUserPlus,
@@ -44,6 +46,7 @@ import {
 
 const FRONT_OFFICE_TAB_VALUES = [
   "patient-flow",
+  "scan-share",
   "queue",
   "token-boards",
   "visitors",
@@ -72,6 +75,7 @@ const FRONT_OFFICE_PAGE_PERMISSIONS: readonly string[] = [
   P.OPD.VISIT_CREATE,
   P.EMERGENCY.VISITS_CREATE,
   P.BILLING.INVOICES_CREATE,
+  P.ABDM.SCANSHARE.VIEW,
 ];
 
 interface FrontOfficeTabConfig {
@@ -98,6 +102,7 @@ export function FrontOfficePage() {
   const canRecordVisitLogs = useHasPermission(P.FRONT_OFFICE.VISITOR_LOGS_RECORD);
   const canVerifyPasses = useHasPermission(P.FRONT_OFFICE.PASSES_VERIFY);
   const canViewQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
+  const canViewScanShare = useHasPermission(P.ABDM.SCANSHARE.VIEW);
   const canManageQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
   const canViewEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_LIST);
   const canCreateEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_CREATE);
@@ -151,6 +156,13 @@ export function FrontOfficePage() {
       value: "patient-flow",
       label: "Patient Flow",
       icon: <IconUserPlus size={16} />,
+    });
+  }
+  if (canViewScanShare) {
+    visibleTabs.push({
+      value: "scan-share",
+      label: "Scan & Share",
+      icon: <IconQrcode size={16} />,
     });
   }
   if (canViewQueue) {
@@ -266,6 +278,11 @@ export function FrontOfficePage() {
               canViewIpd={canViewIpd}
               canCreateIpdAdmission={canCreateIpdAdmission}
             />
+          </Tabs.Panel>
+        )}
+        {canViewScanShare && (
+          <Tabs.Panel value="scan-share" pt="md">
+            <ScanShareTab />
           </Tabs.Panel>
         )}
         {canViewQueue && (

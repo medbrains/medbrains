@@ -740,6 +740,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // were consts inside the route file, so nobody could hold them.
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // Scan & Share: the desk receives ABHA profiles shared at its counters.
+            permissions::abdm::scanshare::VIEW,
         ],
     },
     BuiltInRole {
@@ -1691,6 +1693,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // Scan & Share: the desk receives ABHA profiles shared at its counters.
+            permissions::abdm::scanshare::VIEW,
             // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
             // Granted on the operator's decision, 2026-08-18.
             permissions::communications::alerts::CREATE,
