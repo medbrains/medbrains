@@ -17201,6 +17201,20 @@ export const api = {
     request<{ id: string }>(`/notes/${id}/shares`, { method: "PUT", body: JSON.stringify(data) }),
   removeStickyNoteShare: (shareId: string) =>
     request<void>(`/notes/shares/${shareId}`, { method: "DELETE" }),
+  pinNotificationToNotes: (notificationId: string) =>
+    request<{ id: string }>(`/notes/from-notification/${notificationId}`, { method: "POST" }),
+  getStickyNotePreferences: () =>
+    request<import("@medbrains/types").StickyNotePreferences>("/notes/preferences"),
+  setStickyNotePreferences: (kinds: string[]) =>
+    request<import("@medbrains/types").StickyNotePreferences>("/notes/preferences", {
+      method: "PUT",
+      body: JSON.stringify({ kinds }),
+    }),
+  setStickyNoteAutoResolve: (id: string, autoResolve: boolean) =>
+    request<{ id: string }>(`/notes/${id}/auto-resolve`, {
+      method: "PUT",
+      body: JSON.stringify({ auto_resolve: autoResolve }),
+    }),
   listStickyNoteRecipients: (q: string) =>
     request<import("@medbrains/types").NoteRecipients>(
       `/notes/recipients?q=${encodeURIComponent(q)}`,
