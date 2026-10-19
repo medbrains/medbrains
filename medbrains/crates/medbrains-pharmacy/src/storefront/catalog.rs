@@ -324,7 +324,7 @@ pub async fn item_page(
         .filter(|i| i.id == id)
         .ok_or(AppError::NotFound)?;
     let mut substitutes: Vec<StoreItem> = items.collect();
-    substitutes.sort_by(|a, b| a.price.cmp(&b.price));
+    substitutes.sort_by_key(|s| s.price);
     Ok(ItemPage { item, substitutes })
 }
 

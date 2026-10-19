@@ -124,17 +124,20 @@ pub struct About {
     pub return_window_days: i64,
 }
 
+/// Hospital name, then address, drug licence, GSTIN, pharmacist and registration.
+type AboutRow = (
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
 /// The footer, read in one query beside the settings.
 pub async fn about(tx: &mut Transaction<'_, Postgres>, tenant_id: Uuid) -> Result<About, AppError> {
     let settings = load(tx, tenant_id).await?;
-    let (name, address, licence, gstin, pharmacist, registration): (
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    ) = sqlx::query_as(
+    let (name, address, licence, gstin, pharmacist, registration): AboutRow = sqlx::query_as(
         "SELECT t.name, \
                 (SELECT NULLIF(value #>> '{}', '') FROM tenant_settings WHERE tenant_id = t.id \
                     AND category = 'billing' AND key = 'bill_address' AND deleted_at IS NULL), \

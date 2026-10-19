@@ -92,6 +92,9 @@ const WAITING_STORE_ORDERS: &str = "SELECT s.id, s.pharmacy_order_id, \
                        AND d.deleted_at IS NULL) \
   ORDER BY s.created_at LIMIT $3";
 
+/// Builds the delivery source from the waiting row's id.
+type SourceOf = fn(Uuid) -> Source;
+
 /// A payment landed on `invoice_id`: open each pay-now delivery whose order
 /// is now paid for. Called by every gateway path that records a payment.
 pub async fn release_paid(
@@ -99,7 +102,7 @@ pub async fn release_paid(
     tenant_id: Uuid,
     invoice_id: Uuid,
 ) -> Result<(), AppError> {
-    let sources: [(&str, fn(Uuid) -> Source); 2] = [
+    let sources: [(&str, SourceOf); 2] = [
         (WAITING_REFILLS, Source::Refill),
         (WAITING_STORE_ORDERS, Source::Store),
     ];

@@ -217,7 +217,7 @@ async fn a_counter_h1_sale_names_the_patient_or_is_refused() {
     let sale = |extra: serde_json::Value| {
         let mut body = json!({ "items": [{ "catalog_item_id": h1, "drug_name": "Counterzolam",
                                "quantity": 1, "gst_rate": 5, "mrp": 12, "selling_price": 10 }],
-                               "payment_mode": "cash" });
+                               "payment_mode": "upi", "payment_reference": "UPI-TEST-1" });
         if let (Some(b), Some(e)) = (body.as_object_mut(), extra.as_object()) {
             b.extend(e.clone());
         }

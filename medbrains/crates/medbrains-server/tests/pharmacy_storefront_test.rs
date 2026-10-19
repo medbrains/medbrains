@@ -21,14 +21,16 @@ async fn a_guest_browses_without_counts_but_cannot_order() {
     let app = common::spawn_app().await;
     let setup = setup(&app).await;
     open_store(&app, &setup).await;
-    let item = listed(&app, &setup, "Guestamol 500", None, false).await;
+    // A name of its own, so a database kept from an earlier run can't answer first.
+    let name = format!("Guestamol {}", &Uuid::new_v4().simple().to_string()[..8]);
+    let item = listed(&app, &setup, &name, None, false).await;
     let code = &setup.tenant_code;
 
     let (status, found) = call(
         &app,
         None,
         "GET",
-        &format!("/api/store/{code}/items?q=guestamol"),
+        &format!("/api/store/{code}/items?q={}", name.replace(' ', "%20")),
         None,
     )
     .await;

@@ -3432,6 +3432,9 @@ pub async fn dispense_order(
 // fails the gate. Caller already holds an open transaction so the
 // rollback is automatic on error.
 
+/// Prescription, encounter, ordering user, and whether a pharmacist verified an upload.
+type ComplianceOrderRow = (Option<Uuid>, Option<Uuid>, Option<Uuid>, bool);
+
 async fn enforce_schedule_compliance(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -3440,7 +3443,7 @@ async fn enforce_schedule_compliance(
 ) -> Result<(), AppError> {
     // An online order whose uploaded prescription a pharmacist verified is
     // prescription-backed too.
-    let order: Option<(Option<Uuid>, Option<Uuid>, Option<Uuid>, bool)> = sqlx::query_as(
+    let order: Option<ComplianceOrderRow> = sqlx::query_as(
         "SELECT o.prescription_id, o.encounter_id, o.ordered_by, \
                 EXISTS (SELECT 1 FROM pharmacy_store_orders s \
                          WHERE s.tenant_id = o.tenant_id AND s.pharmacy_order_id = o.id \

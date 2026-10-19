@@ -190,10 +190,11 @@ pub async fn create(
         CUSTOMER_PAD,
     )
     .await?;
-    let gender = match details.gender.as_deref() {
-        Some(g @ ("male" | "female" | "other")) => g,
-        _ => "unknown",
-    };
+    let gender = details
+        .gender
+        .as_deref()
+        .filter(|g| matches!(*g, "male" | "female" | "other"))
+        .unwrap_or("unknown");
     Ok(sqlx::query_scalar(
         "INSERT INTO patients \
            (tenant_id, uhid, first_name, last_name, date_of_birth, gender, phone, address, \
