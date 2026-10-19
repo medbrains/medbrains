@@ -44,7 +44,7 @@ export interface AbdmConnectionTest {
 }
 
 /** How the desk finds the person's ABHA. */
-export type AbhaVerifyMethod = "abha_number" | "mobile";
+export type AbhaVerifyMethod = "abha_number" | "mobile" | "abha_address";
 /** Where ABDM sends the OTP for an ABHA-number lookup. */
 export type AbhaOtpVia = "aadhaar" | "abdm";
 
@@ -110,6 +110,11 @@ export interface AbhaVerificationStep {
   already_linked: AbhaLinkedPatient | null;
   /** ABHA addresses ABDM suggests, when creating an ABHA. */
   suggestions: string[];
+}
+
+/** ABDM's reply to an ABHA mobile or email change — where the OTP or link went. */
+export interface AbhaAccountChange {
+  message: string | null;
 }
 
 /** Demographics staff may take from ABHA onto an existing patient. */
