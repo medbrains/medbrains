@@ -455,6 +455,9 @@ const AnalyticsPage = lazy(() =>
 );
 const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
+const AbdmDashboardPage = lazy(() =>
+  import("./pages/abdm/dashboard").then((m) => ({ default: m.AbdmDashboardPage })),
+);
 const SnomedPage = lazy(() =>
   import("./pages/terminology/snomed").then((m) => ({ default: m.SnomedPage })),
 );
@@ -647,6 +650,7 @@ export function App() {
               <Route path="reports/nabh" element={<NabhIndicatorsPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="terminology/snomed" element={<SnomedPage />} />
+              <Route path="abdm/dashboard" element={<AbdmDashboardPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
               <Route path="order-sets" element={<OrderSetsPage />} />
               <Route path="chronic-care" element={<ChronicCarePage />} />

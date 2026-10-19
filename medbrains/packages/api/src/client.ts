@@ -4,6 +4,7 @@ import type {
   AbdmConnectionTest,
   AbdmConsentPrintData,
   AbdmConsentRequest,
+  AbdmDashboard,
   AbdmHiuPatientView,
   AbdmPatientRecords,
   AbdmProfileShare,
@@ -17016,6 +17017,8 @@ export const api = {
     request<AbdmSharingSummary>(
       `/abdm/sharing/summary${month ? `?month=${encodeURIComponent(month)}` : ""}`,
     ),
+  getAbdmDashboard: (month?: string) =>
+    request<AbdmDashboard>(`/abdm/dashboard${month ? `?month=${encodeURIComponent(month)}` : ""}`),
   getAbdmScanShareCounters: () => request<AbdmScanShareCounters>("/abdm/scan-share/counters"),
   listAbdmScanShares: () => request<AbdmProfileShare[]>("/abdm/scan-share/queue"),
   createAbdmScanShareVerification: (id: string) =>

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1087 permissions, one per constant in the Rust source. */
+/** 1088 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -6613,6 +6613,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "The Healthcare Professionals Registry ID each doctor signs FHIR records under, checked against the national registry, and the coverage report of active doctors still missing one.",
     module: "abdm",
   },
+  {
+    code: "abdm.dashboard.view",
+    label: "View the ABDM management dashboard",
+    description: "The month's OPD visits with a verified ABHA, KYC, ABHAs created here, records linked against the DHIS threshold and the estimated incentive, consents, Scan & Share, HPR and HFR coverage, and the records that failed to link with their reasons. Counts only, plus the names on failed links.",
+    module: "abdm",
+  },
 ];
 
 /**
@@ -6633,6 +6639,10 @@ export const P = {
     },
     CONSENT_REQUEST: "abdm.consent.request",
     CONSENT_VIEW: "abdm.consent.view",
+    DASHBOARD: {
+      VIEW: "abdm.dashboard.view",
+    },
+    DASHBOARD_VIEW: "abdm.dashboard.view",
     HFR: {
       REGISTER: "abdm.hfr.register",
       VIEW: "abdm.hfr.view",
@@ -10926,6 +10936,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   quality_officer: {
     label: "Quality Officer",
     permissions: [
+      P.ABDM.DASHBOARD.VIEW,
       P.ADMIN.SETTINGS.READ,
       P.ANALYTICS.MANAGEMENT.VIEW,
       P.DASHBOARD.VIEW,
@@ -11045,6 +11056,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ABDM.DASHBOARD.VIEW,
       P.ABDM.RECORDS.MANAGE,
       P.ABDM.RECORDS.VIEW,
       P.ADMIN.SETTINGS.READ,

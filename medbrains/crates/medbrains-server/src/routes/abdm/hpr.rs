@@ -53,6 +53,20 @@ pub struct SetHprRequest {
     pub hpr_id: Option<String>,
 }
 
+/// Active doctors, those with an HPR ID, and those verified against HPR.
+pub(crate) async fn counts(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<(i64, i64, i64), sqlx::Error> {
+    sqlx::query_as(
+        "SELECT count(*), count(hpr_id), count(hpr_verified_at) FROM doctor_profiles \
+         WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await
+}
+
 /// `GET /api/abdm/hpr/coverage` — how many active doctors carry an HPR ID.
 pub async fn coverage(
     State(state): State<AppState>,
@@ -62,13 +76,7 @@ pub async fn coverage(
     let registry_configured = registry_configured(&state, &claims.tenant_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let (active, with_id, verified): (i64, i64, i64) = sqlx::query_as(
-        "SELECT count(*), count(hpr_id), count(hpr_verified_at) FROM doctor_profiles \
-         WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL",
-    )
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let (active, with_id, verified) = counts(&mut tx, claims.tenant_id).await?;
     let missing = sqlx::query_as::<_, DoctorHpr>(&format!(
         "SELECT {DOCTOR_COLUMNS} FROM doctor_profiles \
          WHERE tenant_id = $1 AND is_active AND deleted_at IS NULL AND hpr_id IS NULL \
