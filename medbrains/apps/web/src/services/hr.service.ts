@@ -8,6 +8,10 @@ export const hrService = {
   pauseShift: (...args: Parameters<typeof api.pauseShift>) => api.pauseShift(...args),
   resumeShift: (...args: Parameters<typeof api.resumeShift>) => api.resumeShift(...args),
   endShift: (...args: Parameters<typeof api.endShift>) => api.endShift(...args),
+  getGeofenceSettings: () => api.getGeofenceSettings(),
+  setGeofenceMode: (...args: Parameters<typeof api.setGeofenceMode>) =>
+    api.setGeofenceMode(...args),
+  setCampusFence: (...args: Parameters<typeof api.setCampusFence>) => api.setCampusFence(...args),
   acknowledgeFatigue: (...args: Parameters<typeof api.acknowledgeFatigue>) =>
     api.acknowledgeFatigue(...args),
   importAebasPeriodSummary: (...args: Parameters<typeof api.importAebasPeriodSummary>) =>

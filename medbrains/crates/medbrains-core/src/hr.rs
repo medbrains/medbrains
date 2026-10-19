@@ -244,6 +244,13 @@ pub struct AttendanceRecord {
     pub fatigue_ack_at: Option<DateTime<Utc>>,
     pub fatigue_ack_reason: Option<String>,
     pub fatigue_flags: Option<Vec<String>>,
+    /// Where a self-service punch was made and how it stood against the
+    /// nearest campus fence: `{lat, lng, accuracy_m, distance_m, inside,
+    /// place, facility_id, facility_name, flagged}`.
+    pub check_in_location: Option<serde_json::Value>,
+    pub check_out_location: Option<serde_json::Value>,
+    /// Either punch was outside, uncertain or without a location (derived).
+    pub geofence_flagged: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
