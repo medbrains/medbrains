@@ -1,7 +1,7 @@
 import { Box, Card, Group, Badge as MantineBadge, Stack, Text } from "@mantine/core";
 import type { Note, NoteSectionPatch } from "@medbrains/types";
 import type { ReactNode } from "react";
-import { Badge, Button, RichTextEditor } from "@/components/ui";
+import { AiLabel, Badge, Button, RichTextEditor } from "@/components/ui";
 import { NoteDraftEditor } from "./NoteDraftEditor";
 import { STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
 
@@ -99,9 +99,18 @@ function Sections({ note }: { note: Note }) {
     <Stack gap={6}>
       {written.map((s) => (
         <Box key={s.code}>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-            {s.title}
-          </Text>
+          <Group gap="xs">
+            <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+              {s.title}
+            </Text>
+            {s.ai_assisted && (
+              <AiLabel
+                size="xs"
+                text="assisted"
+                aria-label={`${s.title} includes accepted AI text`}
+              />
+            )}
+          </Group>
           {s.lines.map((line) => (
             <Text key={line} size="sm">
               {line}

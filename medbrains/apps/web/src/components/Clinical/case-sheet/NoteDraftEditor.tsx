@@ -3,8 +3,9 @@ import { useDebouncedCallback, useWindowEvent } from "@mantine/hooks";
 import type { NoteSection, NoteSectionPatch } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck, IconLoader2 } from "@tabler/icons-react";
 import { useRef, useState } from "react";
-import { Button, RichTextEditor } from "@/components/ui";
+import { AiLabel, Button, RichTextEditor } from "@/components/ui";
 import styles from "../soap-notes.module.scss";
+import { AiDraftInsert } from "./AiDraftInsert";
 import { STRUCTURED_SECTIONS, summariseSection } from "./section-summary";
 
 /** Quiet time after the last keystroke before the draft is saved. */
@@ -44,6 +45,9 @@ export function NoteDraftEditor({
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const inFlight = useRef<Promise<boolean>>(Promise.resolve(true));
   const [signing, setSigning] = useState(false);
+  // Sections holding accepted AI text not yet confirmed saved: every save
+  // until then carries the acceptance, so a retry cannot drop it.
+  const aiAccepted = useRef(new Set<string>());
 
   function save(next: NoteSection[]): Promise<boolean> {
     inFlight.current = persist(next);
@@ -60,9 +64,15 @@ export function NoteDraftEditor({
     try {
       // Only the text sections are typed here; the structured ones belong to
       // their tabs and are left as the server has them.
+      const accepted = new Set(aiAccepted.current);
       await onSave(
-        next.filter((s) => !STRUCTURED_SECTIONS[s.code]).map(({ code, text }) => ({ code, text })),
+        next
+          .filter((s) => !STRUCTURED_SECTIONS[s.code])
+          .map(({ code, text }) =>
+            accepted.has(code) ? { code, text, ai_accepted: true } : { code, text },
+          ),
       );
+      for (const code of accepted) aiAccepted.current.delete(code);
       setState({ kind: "saved", at: new Date() });
       return true;
     } catch (error) {
@@ -102,6 +112,17 @@ export function NoteDraftEditor({
     scheduleSave(next);
   }
 
+  // The author accepted an AI draft: append it, mark the section, save now.
+  function acceptAiDraft(code: string, html: string) {
+    scheduleSave.cancel();
+    aiAccepted.current.add(code);
+    const next = sections.map((s) =>
+      s.code === code ? { ...s, text: `${s.text}${html}`, ai_assisted: true } : s,
+    );
+    setSections(next);
+    void save(next);
+  }
+
   return (
     <Stack gap="sm">
       <Group justify="flex-end">
@@ -130,9 +151,22 @@ export function NoteDraftEditor({
         }
         return (
           <Box key={section.code} className={styles.soapSection}>
-            <Text size="sm" fw={600} mb={6}>
-              {section.title}
-            </Text>
+            <Group gap="xs" mb={6}>
+              <Text size="sm" fw={600}>
+                {section.title}
+              </Text>
+              {section.ai_assisted && (
+                <AiLabel
+                  size="xs"
+                  text="assisted"
+                  aria-label={`${section.title} includes accepted AI text`}
+                />
+              )}
+              <AiDraftInsert
+                sectionTitle={section.title}
+                onAccept={(html) => acceptAiDraft(section.code, html)}
+              />
+            </Group>
             <RichTextEditor
               ariaLabel={section.title}
               value={section.text}

@@ -1,7 +1,10 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { type ReactNode, useMemo } from "react";
-import { Button } from "@/components/ui";
+import { AiLabel, Button, toast } from "@/components/ui";
 import styles from "./ai-chat-panel.module.scss";
+import { useAiAssistantStore } from "./assistant-store";
 import { Conversation } from "./Conversation";
 import { CrabLottie } from "./CrabLottie";
 import { CrabMascot } from "./CrabMascot";
@@ -10,6 +13,14 @@ import { PromptInput } from "./PromptInput";
 import { MockTransport } from "./transport/mock";
 import type { ChatContext, ChatTransport } from "./transport/types";
 import { type UseAiChat, useAiChat } from "./useAiChat";
+
+/** What the label's popover says wherever the assistant appears. */
+const AI_EXPLAINER = {
+  title: "AI assistant",
+  description:
+    "Answers are drafted by AI from records you are allowed to see, and can be wrong. Check " +
+    "them. Nothing goes into a patient record unless you accept it on the case sheet.",
+};
 
 const DEFAULT_FOLLOW_UPS = [
   "Flag any critical values",
@@ -51,6 +62,14 @@ export function AiChatPanel({
   const activeTransport = useMemo(() => transport ?? new MockTransport(), [transport]);
   const internal = useAiChat({ transport: activeTransport, context });
   const { messages, status, send, stop } = controller ?? internal;
+  const canWriteNotes = useHasPermission(P.CLINICAL_NOTES.WRITE);
+  const offerDraft = useAiAssistantStore((s) => s.offerDraft);
+  const offerToNote = (text: string) => {
+    offerDraft(text);
+    toast.info("Open the case sheet and choose Insert AI draft on a section to review it.", {
+      title: "Ready to use in a note",
+    });
+  };
   const streaming = status === "streaming";
   const stickToken = `${messages.map((m) => m.content.length).join(",")}:${status}`;
   const lastMessage = messages.at(-1);
@@ -68,9 +87,12 @@ export function AiChatPanel({
           <CrabMascot size={30} pose={streaming ? "think" : "greet"} animate={streaming} />
         </Box>
         <div>
-          <Text fw={600} size="sm">
-            {title}
-          </Text>
+          <Group gap={6} wrap="nowrap">
+            <Text fw={600} size="sm">
+              {title}
+            </Text>
+            <AiLabel size="xs" explainer={AI_EXPLAINER} />
+          </Group>
           <Text size="xs" className={styles.online}>
             online
           </Text>
@@ -113,6 +135,13 @@ export function AiChatPanel({
             message={message}
             active={i === messages.length - 1 && !streaming}
             onToolAction={(text, opts) => void send(text, opts)}
+            actions={
+              canWriteNotes && message.role === "assistant" && message.status === "complete" ? (
+                <Button tone="tertiary" size="xs" onClick={() => offerToNote(message.content)}>
+                  Use in note
+                </Button>
+              ) : undefined
+            }
           />
         ))}
       </Conversation>

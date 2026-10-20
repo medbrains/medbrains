@@ -42,12 +42,19 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CRATES = os.path.join(ROOT, "crates")
 
 COLLAPSE = re.compile(r"unwrap_or\(false\)|unwrap_or_default\(\)|\.is_ok\(\)|\.is_err\(\)")
+# Collapses that throw the error away without picking a bool. They count only
+# straight after an `.await` — the query's own result — since `.ok()` on a
+# date parse near an authz call is nothing to do with it.
+DISCARD = re.compile(r"unwrap_or\(None\)|\.ok\(\)")
 # An authz call within the preceding few lines — the call chains over several
 # lines, so a single-line match misses most of them (it missed 20 of 31 once).
 AUTHZ_CALL = re.compile(
     r"\.authz\b|\.check\(&authz_ctx|list_accessible|bulk_check|"
     r"require_patient_access|require_patient_viewer|"
-    r"require_encounter_access|require_admission_access"
+    r"require_encounter_access|require_admission_access|"
+    # Module licensing (#4891): `.unwrap_or(None)` on the module_config read
+    # once turned a database outage into "every module is licensed".
+    r"FROM module_config|module_entitlement|require_module_enabled"
 )
 LOOKBACK = 8
 
@@ -81,7 +88,9 @@ def offenders() -> list[tuple[str, int, str]]:
             except OSError:
                 continue
             for i, line in enumerate(lines):
-                if not COLLAPSE.search(line):
+                prev = lines[i - 1] if i else ""
+                discards = DISCARD.search(line) and (".await" in line or prev.rstrip().endswith(".await"))
+                if not (COLLAPSE.search(line) or discards):
                     continue
                 # The collapse must be on the authz call's own chain. Without
                 # this, an unrelated `body.is_primary.unwrap_or(false)` later in

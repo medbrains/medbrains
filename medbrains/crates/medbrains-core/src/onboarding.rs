@@ -54,6 +54,19 @@ pub enum ModuleStatus {
     ComingSoon,
 }
 
+/// Licensed add-ons: sold apart from the edition, so they are off until an
+/// operator sets `enabled`. An absent row or `available` refuses them; for the
+/// edition's own modules an absent row still means on.
+///
+/// Listed explicitly — a code missing here is treated as core (absent = on).
+pub const ADD_ON_MODULES: &[&str] = &["companion"];
+
+/// Whether `code` is a licensed add-on (see [`ADD_ON_MODULES`]).
+#[must_use]
+pub fn is_add_on_module(code: &str) -> bool {
+    ADD_ON_MODULES.contains(&code)
+}
+
 /// Custom role with JSONB permissions.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct CustomRole {
