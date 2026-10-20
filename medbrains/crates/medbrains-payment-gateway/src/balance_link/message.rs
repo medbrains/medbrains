@@ -100,7 +100,9 @@ pub async fn recipient(
     .await?
     .ok_or(AppError::NotFound)?;
     let to = phone.as_deref().and_then(e164).ok_or_else(|| {
-        AppError::BadRequest("The patient has no mobile number on file — copy the link instead".to_owned())
+        AppError::BadRequest(
+            "The patient has no mobile number on file — copy the link instead".to_owned(),
+        )
     })?;
     if channel == Channel::Whatsapp && whatsapp_ok != Some(true) {
         return Err(AppError::BadRequest(
@@ -149,7 +151,10 @@ pub async fn queue(
 ) -> Result<(), AppError> {
     let body = sms_body(m);
     let (event_type, payload) = match channel {
-        Channel::Sms => (SMS_EVENT, json!({ "to": to, "body": body, "link_id": m.link_id })),
+        Channel::Sms => (
+            SMS_EVENT,
+            json!({ "to": to, "body": body, "link_id": m.link_id }),
+        ),
         Channel::Whatsapp => (
             WHATSAPP_EVENT,
             json!({
@@ -199,6 +204,12 @@ mod tests {
         assert!(body.contains("https://rzp.io/i/abc"), "{body}");
         assert!(body.contains("Rs 1500.50"), "{body}");
         assert!(body.contains("part"), "{body}");
-        assert!(!sms_body(&LinkMessage { partial: false, ..m }).contains("part"));
+        assert!(
+            !sms_body(&LinkMessage {
+                partial: false,
+                ..m
+            })
+            .contains("part")
+        );
     }
 }

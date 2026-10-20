@@ -13,12 +13,14 @@
 //!   the bills no longer owe goes to finance as an exception — `refund_due`
 //!   when they were already settled.
 //!
-//! Provider calls go through `payment_link.rs` (`request_link_on`,
-//! `cancel_link`) only; the provider trait (#4884) replaces those two.
+//! Links are made by the counter's (or hospital's) online provider through
+//! the `OnlineProvider` trait (#4884) — any provider whose capabilities
+//! include `payment_links`; others answer 422.
 
 pub mod issue;
 pub mod message;
 pub mod parts;
+pub mod provider;
 pub mod refresh;
 pub mod routes;
 pub mod settings;
@@ -120,7 +122,11 @@ pub async fn bills_due(
 ///
 /// # Errors
 /// A database fault.
-pub async fn close_parent(tx: &mut Tx<'_>, txn_id: Option<Uuid>, how: &str) -> Result<(), sqlx::Error> {
+pub async fn close_parent(
+    tx: &mut Tx<'_>,
+    txn_id: Option<Uuid>,
+    how: &str,
+) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE payment_gateway_transactions SET status = 'expired', \
                 notes = notes || jsonb_build_object('link_closed', $2::text) \

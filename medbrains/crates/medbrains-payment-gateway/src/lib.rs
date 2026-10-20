@@ -1,11 +1,15 @@
 pub mod balance_link;
+pub mod checkout;
+pub mod online;
 pub mod payment_link;
 pub mod pos;
 pub mod razorpay;
+pub mod refund;
 pub mod settle;
 pub mod terminals;
 pub mod upi_qr;
 
+pub use online::webhook::{cashfree_webhook, payu_webhook, phonepe_webhook, razorpay_webhook};
 pub use settle::{CAPTURE_EVENTS, GatewayPosting, record_invoice_payment};
 
 use axum::{
@@ -13,14 +17,10 @@ use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
 };
-use hmac::{Hmac, Mac};
-use medbrains_core::payment::{
-    CreateOrderResponse, PaymentGatewayTransaction, VerifyPaymentRequest,
-};
+use medbrains_core::payment::PaymentGatewayTransaction;
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
 use uuid::Uuid;
 
 use axum::routing::{get, post, put};
@@ -29,30 +29,9 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
-type HmacSha256 = Hmac<Sha256>;
-
 // ══════════════════════════════════════════════════════════
 //  Config helpers
 // ══════════════════════════════════════════════════════════
-
-/// Razorpay's key ID and secret when Razorpay is the hospital's active
-/// online provider and is configured — what a hosted payment link needs.
-/// `None` when the hospital takes no online payment this way.
-///
-/// # Errors
-/// A database fault, or a stored config that does not parse.
-pub async fn razorpay_link_credentials(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    secrets: &dyn medbrains_core::secrets::SecretResolver,
-    tenant_id: &Uuid,
-) -> Result<Option<(String, String)>, AppError> {
-    if resolve_active_provider(tx, tenant_id).await? != "razorpay" {
-        return Ok(None);
-    }
-    Ok(razorpay::credentials(tx, secrets, tenant_id)
-        .await?
-        .map(|c| (c.key_id, c.key_secret)))
-}
 
 /// The hospital's Razorpay keys, or a clear 503 when it has none.
 async fn require_razorpay(
@@ -98,21 +77,6 @@ async fn get_upi_vpa(
 //  Request / Response types
 // ══════════════════════════════════════════════════════════
 
-#[derive(Debug, Deserialize)]
-pub struct CreateOrderRequest {
-    pub invoice_id: Option<Uuid>,
-    pub pos_sale_id: Option<Uuid>,
-    pub amount: Decimal,
-    pub currency: Option<String>,
-    pub receipt: Option<String>,
-    /// Phone number for UPI collect (PhonePe, etc.)
-    pub phone: Option<String>,
-    /// VPA for UPI collect (PhonePe, etc.)
-    pub vpa: Option<String>,
-    /// Callback URL for payment status updates (PhonePe, etc.)
-    pub callback_url: Option<String>,
-}
-
 #[derive(Debug, Serialize)]
 pub struct PaymentStatusResponse {
     pub transaction: PaymentGatewayTransaction,
@@ -124,44 +88,32 @@ pub struct GenerateUpiQrRequest {
     pub invoice_id: Option<Uuid>,
     pub pos_sale_id: Option<Uuid>,
     pub description: Option<String>,
-    /// A QR the patient pays now, at the counter: made by Razorpay for this
-    /// amount and confirmed by it. Without it (a printed bill) the QR is the
-    /// hospital's own UPI ID, which lasts as long as the paper does.
+    /// A QR the patient pays now, at the counter: made by the counter's
+    /// online provider for this amount and confirmed by it. Without it (a
+    /// printed bill) the QR is the hospital's own UPI ID, which lasts as long
+    /// as the paper does.
     pub live: Option<bool>,
+    /// The counter, whose provider may differ from the hospital's.
+    pub station_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UpiQrResponse {
-    /// `razorpay` — Razorpay made it and confirms the payment itself;
-    /// `upi_id` — the hospital's UPI ID, confirmed by the UTR the patient shows.
-    pub source: &'static str,
+    /// The provider's code (`razorpay`, `cashfree`…) — it made the QR and
+    /// confirms the payment itself; `upi_id` — the hospital's UPI ID,
+    /// confirmed by the UTR the patient shows.
+    pub source: String,
     pub upi_uri: Option<String>,
     pub vpa: Option<String>,
     pub amount: Decimal,
     pub transaction_ref: String,
-    /// The payment row a Razorpay QR settles, to watch.
+    /// The payment row a provider's QR settles, to watch.
     pub transaction_id: Option<Uuid>,
     pub image_url: Option<String>,
-    /// When a Razorpay QR stops taking payment (Unix seconds).
+    /// When a provider's QR stops taking payment (Unix seconds).
     pub close_by: Option<i64>,
     /// Why a live QR was asked for but the hospital's UPI ID QR is shown.
     pub fallback_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InitiateRefundRequest {
-    /// The online payment to refund, by its gateway row…
-    pub transaction_id: Option<Uuid>,
-    /// …or by the bill's payment row it posted as (the invoice screen's view).
-    pub payment_id: Option<Uuid>,
-    pub amount: Option<Decimal>,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct RefundResponse {
-    pub transaction: PaymentGatewayTransaction,
-    pub refund_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -206,21 +158,17 @@ pub async fn razorpay_status(
 }
 
 // ══════════════════════════════════════════════════════════
-//  Multi-provider seam (additive — Razorpay logic unchanged)
+//  Provider list (online checkout + the card machines' TSPs)
 // ══════════════════════════════════════════════════════════
 
-/// Known payment providers and the methods each can settle. `has_adapter`
-/// marks whether a worker adapter exists yet — only adapter-backed providers
-/// may be selected as `active_provider` so `create_order` never queues an
-/// event the outbox worker cannot handle.
+/// Every provider a hospital may name, online or at a card machine, and the
+/// methods each settles. Which of them MedBrains takes online payments
+/// through is [`online::PROVIDERS`]; their capabilities are
+/// `GET /api/payments/capabilities`.
 struct ProviderSpec {
     code: &'static str,
     label: &'static str,
     methods: &'static [&'static str],
-    has_adapter: bool,
-    /// Outbox event that pushes a UPI collect request to the patient's UPI ID.
-    /// `None` when the adapter can only create an order the patient opens.
-    upi_collect_event: Option<&'static str>,
 }
 
 const KNOWN_PROVIDERS: &[ProviderSpec] = &[
@@ -228,78 +176,56 @@ const KNOWN_PROVIDERS: &[ProviderSpec] = &[
         code: "razorpay",
         label: "Razorpay",
         methods: &["card", "upi", "upi_qr", "netbanking", "wallet"],
-        upi_collect_event: None,
-        has_adapter: true,
     },
     ProviderSpec {
         code: "cashfree",
         label: "Cashfree",
         methods: &["card", "upi", "upi_qr", "netbanking"],
-        upi_collect_event: None,
-        has_adapter: true,
     },
     ProviderSpec {
         code: "paytm",
         label: "Paytm",
         methods: &["card", "upi", "wallet"],
-        upi_collect_event: None,
-        has_adapter: false,
     },
     ProviderSpec {
         code: "pinelabs",
         label: "Pine Labs (POS/TSP)",
         methods: &["card", "upi_qr"],
-        upi_collect_event: None,
-        has_adapter: false,
     },
     ProviderSpec {
         code: "mswipe",
         label: "Mswipe (POS/TSP)",
         methods: &["card", "upi_qr"],
-        upi_collect_event: None,
-        has_adapter: false,
     },
     ProviderSpec {
         code: "worldline",
         label: "Worldline (POS/TSP)",
         methods: &["card", "upi_qr"],
-        upi_collect_event: None,
-        has_adapter: false,
     },
     ProviderSpec {
         code: "phonepe",
         label: "PhonePe",
-        methods: &["card", "upi", "upi_qr", "netbanking"],
-        upi_collect_event: Some("payment.phonepe.create_order"),
-        has_adapter: true,
+        methods: &["card", "upi", "netbanking"],
     },
     ProviderSpec {
         code: "payu",
         label: "PayU",
         methods: &["card", "netbanking", "upi", "wallet"],
-        upi_collect_event: None,
-        has_adapter: true,
     },
     ProviderSpec {
         code: "ccavenue",
         label: "CCAvenue",
         methods: &["card", "netbanking", "wallet", "emi"],
-        upi_collect_event: None,
-        has_adapter: true,
     },
     ProviderSpec {
         code: "razorpayx",
         label: "RazorpayX (bank virtual account)",
         methods: &["virtual_account", "upi", "netbanking"],
-        upi_collect_event: None,
-        has_adapter: true,
     },
     ProviderSpec {
         code: "icici",
         label: "ICICI Corporate API (bank virtual account)",
         methods: &["virtual_account", "upi", "netbanking"],
-        upi_collect_event: None,
-        has_adapter: false,
     },
 ];
 
@@ -349,40 +275,17 @@ pub(crate) async fn require_invoice_billing(
     }
 }
 
-/// Resolve the tenant's active payment provider. Defaults to `razorpay` for
-/// back-compat (existing tenants only ever had `razorpay_config`).
-async fn resolve_active_provider(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<String, AppError> {
-    let row = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'active_provider' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let provider = row
-        .and_then(|v| v.as_str().map(ToOwned::to_owned))
-        .filter(|p| provider_spec(p).is_some())
-        .unwrap_or_else(|| "razorpay".to_owned());
-    Ok(provider)
-}
-
 #[derive(Debug, Serialize)]
 struct PaymentProviderInfo {
     provider: String,
     label: String,
     configured: bool,
     active: bool,
+    /// MedBrains takes online payments through it.
     has_adapter: bool,
     mode: Option<String>,
     webhook_configured: bool,
     methods: Vec<String>,
-    /// Can send a UPI collect request to the patient's UPI ID.
-    supports_upi_collect: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -391,93 +294,51 @@ pub struct PaymentProvidersResponse {
     providers: Vec<PaymentProviderInfo>,
 }
 
-/// Read a generic `<provider>_config` blob and report configured / mode /
-/// webhook without binding to a specific provider's typed struct.
-async fn peek_provider_config(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-    provider: &str,
-) -> Result<(bool, Option<String>, bool), AppError> {
-    let key = format!("{provider}_config");
-    let row = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = $2 \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .bind(&key)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    let Some(cfg) = row else {
-        return Ok((false, None, false));
-    };
-    // A provider is "configured" once it has a credential id (key_id / app_id).
-    let configured = cfg
-        .get("key_id")
-        .and_then(serde_json::Value::as_str)
-        .is_some()
-        || cfg
-            .get("app_id")
-            .and_then(serde_json::Value::as_str)
-            .is_some();
-    let mode = cfg
-        .get("mode")
-        .and_then(serde_json::Value::as_str)
-        .map(ToOwned::to_owned);
-    let webhook_configured = cfg
-        .get("webhook_secret")
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|s| !s.is_empty());
-    Ok((configured, mode, webhook_configured))
-}
-
-/// GET /api/payments/providers — list every known provider with its
-/// configured/active/mode state so admin + the payment modal can show what's
-/// live and which are in sandbox.
+/// GET /api/payments/providers — every known provider with its
+/// configured/active/mode state (the card-machine screen names its TSP
+/// from it).
 pub async fn list_payment_providers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PaymentProvidersResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
-
+    let secrets = state.secret_resolver.as_ref();
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let active = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
-
+    let (active, _) = online::choose::active_code(&mut tx, claims.tenant_id, None).await?;
     let mut providers = Vec::with_capacity(KNOWN_PROVIDERS.len());
     for spec in KNOWN_PROVIDERS {
-        // Razorpay keeps its typed resolver (incl. env fallback + key-id mode
-        // detection); other providers use the generic peek.
-        let (configured, mode, webhook_configured) = if spec.code == "razorpay" {
-            match razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id)
-                .await?
-            {
-                Some(c) => (
-                    true,
-                    Some(razorpay_mode(&c.key_id).to_owned()),
-                    c.webhook_secret.is_some(),
-                ),
-                None => (false, None, false),
-            }
-        } else {
-            peek_provider_config(&mut tx, &claims.tenant_id, spec.code).await?
+        let adapter = online::provider_for(spec.code);
+        let keys = match adapter {
+            Some(p) => online::keys::keys_for(&mut tx, secrets, &claims.tenant_id, p).await?,
+            None => None,
         };
-
+        let webhook_configured = keys.as_ref().is_some_and(|k| {
+            [
+                "webhook_secret",
+                "webhook_password",
+                "client_secret",
+                "salt",
+            ]
+            .iter()
+            .any(|f| k.get(f).is_some())
+        });
         providers.push(PaymentProviderInfo {
             provider: spec.code.to_owned(),
             label: spec.label.to_owned(),
-            configured,
+            configured: adapter
+                .zip(keys.as_ref())
+                .is_some_and(|(p, k)| k.missing(p).is_empty()),
             active: spec.code == active,
-            has_adapter: spec.has_adapter,
-            mode,
+            has_adapter: adapter.is_some(),
+            mode: keys
+                .as_ref()
+                .and_then(|k| k.get("mode"))
+                .map(ToOwned::to_owned),
             webhook_configured,
             methods: spec.methods.iter().map(|m| (*m).to_owned()).collect(),
-            supports_upi_collect: spec.upi_collect_event.is_some(),
         });
     }
-
     tx.commit().await?;
     Ok(Json(PaymentProvidersResponse {
         active_provider: active,
@@ -494,285 +355,6 @@ pub(crate) fn validate_terminal_provider(provider: &str) -> Result<(), AppError>
             "Unknown payment provider '{provider}'"
         )))
     }
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/payments/create-order
-// ══════════════════════════════════════════════════════════
-
-pub async fn create_order(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateOrderRequest>,
-) -> Result<Json<CreateOrderResponse>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-    require_invoice_billing(&state, &claims, body.invoice_id).await?;
-
-    if body.invoice_id.is_none() && body.pos_sale_id.is_none() {
-        return Err(AppError::BadRequest(
-            "either invoice_id or pos_sale_id is required".to_owned(),
-        ));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Which provider settles this tenant's online orders. Only adapter-backed
-    // providers may be selected so we never queue an unhandlable event.
-    let provider = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
-    if !provider_spec(&provider).is_some_and(|s| s.has_adapter) {
-        return Err(AppError::ServiceUnavailable(format!(
-            "Payment provider '{provider}' has no gateway adapter yet"
-        )));
-    }
-
-    // PhonePe takes an online payment as a UPI request pushed to the patient's
-    // UPI ID; without one it would queue a request that reaches nobody.
-    if provider == "phonepe" && !body.vpa.as_deref().is_some_and(|v| v.trim().contains('@')) {
-        return Err(AppError::Conflict(
-            "PhonePe needs the patient's UPI ID (name@bank) to send the payment request. \
-             Enter it under \"Send UPI request\", or use the UPI QR instead."
-                .to_owned(),
-        ));
-    }
-
-    let currency = body.currency.as_deref().unwrap_or("INR");
-
-    // Convert amount to paise (smallest unit)
-    let amount_paise = amount_to_paise(body.amount)?;
-
-    // Insert the txn (status='pending_gateway') under the active provider.
-    // Razorpay's order is then made in this request (checkout needs its id
-    // now); the other providers' adapters run in the outbox worker and the
-    // client polls /status. idempotency_key = txn UUID (also the gateway
-    // receipt) so neither path can make a second order for one row.
-    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "INSERT INTO payment_gateway_transactions \
-         (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
-          amount, currency, status, created_by, idempotency_key) \
-         VALUES ($1, $2, $3, $4, '', $5, $6, 'pending_gateway', $7, $8) \
-         RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
-    )
-    .bind(claims.tenant_id)
-    .bind(body.invoice_id)
-    .bind(body.pos_sale_id)
-    .bind(&provider)
-    .bind(body.amount)
-    .bind(currency)
-    .bind(claims.sub)
-    .bind(Uuid::new_v4().to_string()) // placeholder, overwritten below
-    .fetch_one(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        // allow-raw-sql: backfill idempotency_key with txn.id
-        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
-    )
-    .bind(txn.id)
-    .execute(&mut *tx)
-    .await?;
-
-    let mut razorpay_keys = None;
-    let key_id = if provider == "cashfree" {
-        let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "cashfree").await?;
-        let api_base = if mode.as_deref() == Some("live") {
-            "https://api.cashfree.com/pg"
-        } else {
-            "https://sandbox.cashfree.com/pg"
-        };
-        medbrains_outbox::queue_in_tx(
-            &mut tx,
-            medbrains_outbox::OutboxRow {
-                tenant_id: claims.tenant_id,
-                aggregate_type: "payment_gateway_transaction",
-                aggregate_id: Some(txn.id),
-                event_type: "payment.cashfree.create_order",
-                payload: serde_json::json!({
-                    "internal_payment_id": txn.id,
-                    "amount_paise": amount_paise,
-                    "currency": currency,
-                    "api_base": api_base,
-                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-                }),
-                idempotency_key: Some(txn.id.to_string()),
-            },
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-        String::new()
-    } else if provider == "phonepe" {
-        let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "phonepe").await?;
-        let api_base = if mode.as_deref() == Some("live") {
-            "https://api.phonepe.com/apis/pg"
-        } else {
-            "https://api-preprod.phonepe.com/apis/pg"
-        };
-        medbrains_outbox::queue_in_tx(
-            &mut tx,
-            medbrains_outbox::OutboxRow {
-                tenant_id: claims.tenant_id,
-                aggregate_type: "payment_gateway_transaction",
-                aggregate_id: Some(txn.id),
-                event_type: "payment.phonepe.create_order",
-                payload: serde_json::json!({
-                    "internal_payment_id": txn.id,
-                    "amount_paise": amount_paise,
-                    "phone": body.phone.as_deref().unwrap_or(""),
-                    "vpa": body.vpa.as_deref().unwrap_or(""),
-                    "callback_url": body.callback_url.as_deref().unwrap_or(""),
-                    "api_base": api_base,
-                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-                }),
-                idempotency_key: Some(txn.id.to_string()),
-            },
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-        String::new()
-    } else if provider == "payu" {
-        let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "payu").await?;
-        let api_base = if mode.as_deref() == Some("live") {
-            "https://secure.payu.in"
-        } else {
-            "https://sandbox.payu.in"
-        };
-        medbrains_outbox::queue_in_tx(
-            &mut tx,
-            medbrains_outbox::OutboxRow {
-                tenant_id: claims.tenant_id,
-                aggregate_type: "payment_gateway_transaction",
-                aggregate_id: Some(txn.id),
-                event_type: "payment.payu.create_order",
-                payload: serde_json::json!({
-                    "internal_payment_id": txn.id,
-                    "amount": body.amount.to_string(),
-                    "product_info": body.receipt.as_deref().unwrap_or("MedBrains Payment"),
-                    "first_name": "Patient",
-                    "email": "patient@medbrains.local",
-                    "phone": body.phone.as_deref().unwrap_or(""),
-                    "surl": body.callback_url.as_deref().unwrap_or(""),
-                    "furl": body.callback_url.as_deref().unwrap_or(""),
-                    "api_base": api_base,
-                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-                }),
-                idempotency_key: Some(txn.id.to_string()),
-            },
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-        String::new()
-    } else if provider == "ccavenue" {
-        let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "ccavenue").await?;
-        let api_base = if mode.as_deref() == Some("live") {
-            "https://www.ccavenue.com"
-        } else {
-            "https://test.ccavenue.com"
-        };
-        medbrains_outbox::queue_in_tx(
-            &mut tx,
-            medbrains_outbox::OutboxRow {
-                tenant_id: claims.tenant_id,
-                aggregate_type: "payment_gateway_transaction",
-                aggregate_id: Some(txn.id),
-                event_type: "payment.ccavenue.create_order",
-                payload: serde_json::json!({
-                    "internal_payment_id": txn.id,
-                    "amount": body.amount.to_string(),
-                    "currency": currency,
-                    "redirect_url": body.callback_url.as_deref().unwrap_or(""),
-                    "cancel_url": body.callback_url.as_deref().unwrap_or(""),
-                    "api_base": api_base,
-                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-                }),
-                idempotency_key: Some(txn.id.to_string()),
-            },
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-        String::new()
-    } else {
-        let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
-        let key_id = keys.key_id.clone(); // safe to return — Razorpay key_id is public-side
-        razorpay_keys = Some(keys);
-        key_id
-    };
-
-    tx.commit().await?;
-
-    let (order_id, status) = match razorpay_keys {
-        Some(keys) => {
-            let id = create_razorpay_order(&state, &keys, &txn, amount_paise, currency).await?;
-            (id, "created")
-        }
-        None => (String::new(), "pending_gateway"),
-    };
-
-    Ok(Json(CreateOrderResponse {
-        transaction_id: txn.id,
-        order_id,
-        amount: body.amount,
-        currency: currency.to_owned(),
-        key_id,
-        status: status.to_owned(),
-    }))
-}
-
-/// Razorpay's order for a payment row, made in the request rather than by
-/// the outbox: checkout cannot open without its id, and one call here is
-/// simpler and faster than a queued job and a polling loop. The receipt is
-/// the row's id, so the order and the row name each other. The row is
-/// committed before the call (no transaction is held open across it) and
-/// records the answer either way: `created` with the order id, or `failed`
-/// with Razorpay's reason — the cashier is told, never left waiting.
-async fn create_razorpay_order(
-    state: &AppState,
-    keys: &razorpay::Credentials,
-    txn: &PaymentGatewayTransaction,
-    amount_paise: i64,
-    currency: &str,
-) -> Result<String, AppError> {
-    let body = serde_json::json!({
-        "amount": amount_paise,
-        "currency": currency,
-        "receipt": txn.id.to_string(),
-        "notes": { "tenant_id": txn.tenant_id, "internal_payment_id": txn.id },
-    });
-    let answer = razorpay::call(state.secret_resolver.as_ref(), keys, "/orders", Some(&body)).await;
-    let made = match &answer {
-        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned),
-        _ => None,
-    };
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &txn.tenant_id).await?;
-    let Some(order_id) = made else {
-        let why = match answer {
-            razorpay::Answer::Refused(w) => format!("Razorpay refused the order: {w}"),
-            razorpay::Answer::Unreachable(w) => w,
-            razorpay::Answer::Ok(_) => "Razorpay's answer named no order".to_owned(),
-        };
-        sqlx::query(
-            "UPDATE payment_gateway_transactions SET status = 'failed', \
-             error_description = $2, updated_at = now() WHERE id = $1",
-        )
-        .bind(txn.id)
-        .bind(&why)
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        return Err(AppError::ServiceUnavailable(format!(
-            "{why}. Online payment is not available right now; take the payment another way."
-        )));
-    };
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET status = 'created', \
-         gateway_order_id = $2, updated_at = now() WHERE id = $1",
-    )
-    .bind(txn.id)
-    .bind(&order_id)
-    .execute(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    Ok(order_id)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -961,251 +543,6 @@ pub async fn razorpayx_webhook(
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/payments/verify
-// ══════════════════════════════════════════════════════════
-
-/// The checkout's word that the patient paid. The signature proves the
-/// browser did not invent the ids; the amount and method come from Razorpay
-/// itself, never from the browser. Settled through the same path as the
-/// webhook, so whichever arrives first posts and the other posts nothing.
-pub async fn verify_payment(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<VerifyPaymentRequest>,
-) -> Result<Json<PaymentGatewayTransaction>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
-    let message = format!("{}|{}", body.razorpay_order_id, body.razorpay_payment_id);
-    if !razorpay::signature_matches(
-        &keys.key_secret,
-        message.as_bytes(),
-        &body.razorpay_signature,
-    ) {
-        return Err(AppError::BadRequest(
-            "payment signature verification failed".to_owned(),
-        ));
-    }
-    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions \
-         WHERE gateway_order_id = $1 AND tenant_id = $2",
-    )
-    .bind(&body.razorpay_order_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-    tx.commit().await?;
-
-    let payment = fetch_razorpay_payment(&state, &keys, &body).await?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    if payment["status"].as_str() != Some("captured") {
-        // Authorised but not yet captured: `payment.captured` settles it.
-        sqlx::query(
-            "UPDATE payment_gateway_transactions SET status = 'authorized', \
-             gateway_payment_id = $2, updated_at = now() \
-             WHERE id = $1 AND status IN ('pending_gateway', 'created')",
-        )
-        .bind(txn.id)
-        .bind(&body.razorpay_payment_id)
-        .execute(&mut *tx)
-        .await?;
-        let current = settle::lock_txn(&mut tx, txn.id).await?;
-        tx.commit().await?;
-        return Ok(Json(current));
-    }
-    let received = payment["amount"]
-        .as_i64()
-        .map_or(settle::Received::AsRequested, |p| {
-            settle::Received::Exactly(settle::rupees(p))
-        });
-    let settled = settle::settle_capture(
-        &mut tx,
-        txn.id,
-        &settle::Capture {
-            provider: "razorpay",
-            payment_id: &body.razorpay_payment_id,
-            method: payment["method"].as_str(),
-            received,
-            signature: Some(&body.razorpay_signature),
-            payload: None,
-        },
-    )
-    .await?;
-    let current = match settled {
-        settle::Settled::Now(t) => *t,
-        settle::Settled::Already => settle::lock_txn(&mut tx, txn.id).await?,
-    };
-    tx.commit().await?;
-
-    let _ = medbrains_workflow::events::emit_event(
-        &state.db,
-        claims.tenant_id,
-        claims.sub,
-        "payment.gateway.captured",
-        serde_json::json!({
-            "transaction_id": current.id,
-            "gateway_payment_id": body.razorpay_payment_id,
-            "amount": current.amount,
-        }),
-    )
-    .await;
-
-    Ok(Json(current))
-}
-
-/// Razorpay's own record of a payment the checkout reported, which must be
-/// a payment of the order it named.
-async fn fetch_razorpay_payment(
-    state: &AppState,
-    keys: &razorpay::Credentials,
-    body: &VerifyPaymentRequest,
-) -> Result<serde_json::Value, AppError> {
-    let path = format!(
-        "/payments/{}",
-        urlencoding::encode(&body.razorpay_payment_id)
-    );
-    let payment = match razorpay::call(state.secret_resolver.as_ref(), keys, &path, None).await {
-        razorpay::Answer::Ok(v) => v,
-        razorpay::Answer::Refused(w) => {
-            return Err(AppError::BadRequest(format!(
-                "Razorpay does not know this payment: {w}"
-            )));
-        }
-        razorpay::Answer::Unreachable(w) => {
-            return Err(AppError::ServiceUnavailable(format!(
-                "{w}. The payment posts when Razorpay's notice arrives; \
-                 check the bill before collecting again."
-            )));
-        }
-    };
-    if payment["order_id"].as_str() != Some(body.razorpay_order_id.as_str()) {
-        return Err(AppError::BadRequest(
-            "That payment is not for this order".to_owned(),
-        ));
-    }
-    Ok(payment)
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/webhooks/razorpay  (PUBLIC — no auth)
-// ══════════════════════════════════════════════════════════
-
-pub async fn razorpay_webhook(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: String,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let signature = headers
-        .get("X-Razorpay-Signature")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Signature header".to_owned()))?;
-
-    // Sprint A.7 — idempotency by `x-razorpay-event-id` header (NOT body
-    // field; Razorpay sends the canonical event id in the header).
-    // Multiple deliveries of the same event share this id; we dedup at
-    // INSERT time via the `(provider, event_id)` PK on processed_webhooks.
-    let event_id = headers
-        .get("X-Razorpay-Event-Id")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Event-Id header".to_owned()))?
-        .to_owned();
-
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
-
-    // A payment link is filed under its own ID (`plink_…`); its payment
-    // carries an order Razorpay made for it, which nothing here knows.
-    // A counter QR is filed under its own ID (`qr_…`) the same way.
-    let order_id = payload["payload"]["payment_link"]["entity"]["id"]
-        .as_str()
-        .or_else(|| payload["payload"]["qr_code"]["entity"]["id"].as_str())
-        .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
-        .or_else(|| payload["payload"]["payment"]["entity"]["order_id"].as_str());
-
-    let Some(order_id) = order_id else {
-        tracing::warn!("webhook missing order_id in payload");
-        log_webhook_exception(&state.db, "razorpay", None, "unknown_order", &payload).await?;
-        return Ok(Json(serde_json::json!({ "status": "ignored" })));
-    };
-
-    // allow-raw-sql: webhook entry, tenant context not yet resolved
-    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
-    )
-    .bind(order_id)
-    .fetch_optional(&state.db)
-    .await?;
-
-    let Some(txn_row) = txn_row else {
-        tracing::warn!(order_id, "webhook for unknown order");
-        log_webhook_exception(
-            &state.db,
-            "razorpay",
-            Some(order_id),
-            "unknown_order",
-            &payload,
-        )
-        .await?;
-        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
-    };
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
-
-    verify_webhook_signature(&mut tx, &state, &txn_row, &body, signature).await?;
-
-    // Idempotency guard. INSERT ... ON CONFLICT DO NOTHING RETURNING.
-    // If we get zero rows back, this event_id was already processed →
-    // 200-OK no-op so Razorpay stops retrying.
-    let inserted: Option<(String,)> = sqlx::query_as(
-        // allow-raw-sql: webhook idempotency PK insert
-        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
-         VALUES ('razorpay', $1, $2, $3) \
-         ON CONFLICT (provider, event_id) DO NOTHING \
-         RETURNING event_id",
-    )
-    .bind(&event_id)
-    .bind(txn_row.tenant_id)
-    .bind(&payload)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if inserted.is_none() {
-        tx.commit().await?;
-        tracing::info!(event_id, "razorpay webhook duplicate — skipping");
-        return Ok(Json(
-            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
-        ));
-    }
-
-    let event = payload["event"].as_str().unwrap_or("");
-    // A balance link (#4871) takes its parts, expiry and cancellation itself.
-    if let Some(done) = balance_link::parts::on_webhook(&mut tx, &txn_row, event, &payload).await? {
-        tx.commit().await?;
-        return Ok(Json(serde_json::json!({ "status": done })));
-    }
-    match event {
-        "payment.captured" | "order.paid" | "payment_link.paid" | "qr_code.credited" => {
-            handle_webhook_captured(&mut tx, &txn_row, &payload).await?;
-        }
-        "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, &payload).await?,
-        "refund.created" | "refund.processed" => {
-            handle_webhook_refund(&mut tx, &txn_row, &payload).await?;
-        }
-        "refund.failed" => handle_refund_failed(&mut tx, &txn_row, &payload).await?,
-        _ => tracing::info!(event, "unhandled razorpay webhook event"),
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "status": "ok" })))
-}
-
 async fn verify_webhook_signature(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     state: &AppState,
@@ -1223,152 +560,13 @@ async fn verify_webhook_signature(
     Ok(())
 }
 
-async fn handle_webhook_captured(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    txn_row: &PaymentGatewayTransaction,
-    payload: &serde_json::Value,
-) -> Result<(), AppError> {
-    let payment = &payload["payload"]["payment"]["entity"];
-    let received = payment["amount"]
-        .as_i64()
-        .map_or(settle::Received::AsRequested, |p| {
-            settle::Received::Exactly(settle::rupees(p))
-        });
-    settle::settle_capture(
-        tx,
-        txn_row.id,
-        &settle::Capture {
-            provider: "razorpay",
-            payment_id: payment["id"].as_str().unwrap_or(""),
-            method: payment["method"].as_str(),
-            received,
-            signature: None,
-            payload: Some(payload),
-        },
-    )
-    .await?;
-    Ok(())
-}
-
-async fn handle_webhook_failed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    txn_row: &PaymentGatewayTransaction,
-    payload: &serde_json::Value,
-) -> Result<(), AppError> {
-    let payment = &payload["payload"]["payment"]["entity"];
-    // A failed attempt never undoes a later attempt that succeeded.
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET \
-         status = 'failed', error_code = $1, error_description = $2, \
-         webhook_payload = $3, updated_at = now() \
-         WHERE id = $4 AND status NOT IN ('captured', 'refunded')",
-    )
-    .bind(payment["error_code"].as_str())
-    .bind(payment["error_description"].as_str())
-    .bind(payload)
-    .bind(txn_row.id)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
-/// A refund Razorpay made — from our refund screen (already taken into the
-/// books; this is a no-op) or from its dashboard (taken in now).
-async fn handle_webhook_refund(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    txn_row: &PaymentGatewayTransaction,
-    payload: &serde_json::Value,
-) -> Result<(), AppError> {
-    let refund = &payload["payload"]["refund"]["entity"];
-    let (Some(refund_id), Some(paise)) = (refund["id"].as_str(), refund["amount"].as_i64()) else {
-        tracing::warn!("razorpay refund webhook without an id or amount");
-        return Ok(());
-    };
-    let txn = settle::lock_txn(tx, txn_row.id).await?;
-    settle::settle_refund(
-        tx,
-        &txn,
-        &settle::RefundMade {
-            refund_id,
-            amount: settle::rupees(paise),
-            reason: refund["notes"]["reason"]
-                .as_str()
-                .unwrap_or("Refunded through Razorpay"),
-            refunded_by: None,
-            payload: Some(payload),
-        },
-    )
-    .await?;
-    Ok(())
-}
-
-/// A refund Razorpay could not make: the bill already shows it returned, so
-/// finance has to put it right.
-async fn handle_refund_failed(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    txn_row: &PaymentGatewayTransaction,
-    payload: &serde_json::Value,
-) -> Result<(), AppError> {
-    let refund = &payload["payload"]["refund"]["entity"];
-    let refund_id = refund["id"].as_str().unwrap_or("");
-    let Some(invoice_id) = txn_row.invoice_id else {
-        return Ok(());
-    };
-    let posting = GatewayPosting {
-        tenant_id: txn_row.tenant_id,
-        invoice_id,
-        provider: "razorpay",
-        order_ref: refund_id,
-        amount: settle::rupees(refund["amount"].as_i64().unwrap_or(0)),
-        method: txn_row.payment_method.as_deref(),
-        reference: refund_id,
-        payload: Some(payload),
-    };
-    settle::park(
-        tx,
-        &posting,
-        "refund_failed",
-        "Razorpay could not make this refund",
-    )
-    .await
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/webhooks/cashfree  (PUBLIC — no auth)
-// ══════════════════════════════════════════════════════════
-
-/// Read the Cashfree signing secret for webhook verification: prefer an
-/// explicit `webhook_secret`, else the client secret (`key_secret` /
-/// `client_secret`) as Cashfree signs with the secret key.
-async fn get_cashfree_signing_secret(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<String, AppError> {
-    let cfg = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'cashfree_config' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| AppError::ServiceUnavailable("Cashfree is not configured".to_owned()))?;
-
-    ["webhook_secret", "key_secret", "client_secret"]
-        .iter()
-        .find_map(|k| cfg.get(*k).and_then(serde_json::Value::as_str))
-        .filter(|s| !s.is_empty())
-        .map(ToOwned::to_owned)
-        .ok_or_else(|| AppError::ServiceUnavailable("Cashfree signing secret missing".to_owned()))
-}
-
 // ══════════════════════════════════════════════════════════
 //  Reverse-reconciliation exceptions (unmatched inbound credits)
 // ══════════════════════════════════════════════════════════
 
 /// Park an inbound webhook that couldn't be settled (unknown order / amount
 /// mismatch / bad signature) for human review — never silently dropped.
-async fn log_webhook_exception(
+pub(crate) async fn log_webhook_exception(
     pool: &sqlx::PgPool,
     provider: &str,
     order_ref: Option<&str>,
@@ -1523,361 +721,6 @@ pub async fn payment_recon_summary(
         by_status,
         open_exceptions,
     }))
-}
-
-/// Reverse reconciliation for Cashfree: the inbound webhook (the money already
-/// moved) is matched back to the originating txn by `order_id` (= our txn id),
-/// signature-verified, deduped, then posted to the invoice. Mirrors the
-/// Razorpay webhook; the Razorpay path is untouched.
-pub async fn cashfree_webhook(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: String,
-) -> Result<Json<serde_json::Value>, AppError> {
-    use base64::Engine;
-
-    let signature = headers
-        .get("x-webhook-signature")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::BadRequest("missing x-webhook-signature header".to_owned()))?;
-    let timestamp = headers
-        .get("x-webhook-timestamp")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::BadRequest("missing x-webhook-timestamp header".to_owned()))?;
-
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
-
-    // Cashfree: data.order.order_id is the order_id we set (= our txn id).
-    let Some(order_id) = payload["data"]["order"]["order_id"].as_str() else {
-        tracing::warn!("cashfree webhook missing order_id");
-        return Ok(Json(serde_json::json!({ "status": "ignored" })));
-    };
-
-    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        // allow-raw-sql: webhook entry, tenant context not yet resolved
-        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
-    )
-    .bind(order_id)
-    .fetch_optional(&state.db)
-    .await?;
-
-    let Some(txn_row) = txn_row else {
-        tracing::warn!(order_id, "cashfree webhook for unknown order");
-        log_webhook_exception(
-            &state.db,
-            "cashfree",
-            Some(order_id),
-            "unknown_order",
-            &payload,
-        )
-        .await?;
-        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
-    };
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
-
-    // Verify signature: base64(HMAC-SHA256(timestamp + rawBody, secret)).
-    let secret = get_cashfree_signing_secret(&mut tx, &txn_row.tenant_id).await?;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
-    mac.update(timestamp.as_bytes());
-    mac.update(body.as_bytes());
-    let given = base64::engine::general_purpose::STANDARD
-        .decode(signature.trim())
-        .unwrap_or_default();
-    if mac.verify_slice(&given).is_err() {
-        return Err(AppError::BadRequest(
-            "cashfree webhook signature verification failed".to_owned(),
-        ));
-    }
-
-    // cf_payment_id may be a string or a number in Cashfree payloads.
-    let cf_payment_id = payload["data"]["payment"]["cf_payment_id"]
-        .as_str()
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            payload["data"]["payment"]["cf_payment_id"]
-                .as_i64()
-                .map(|n| n.to_string())
-        });
-
-    // Idempotency: dedupe by cf_payment_id (fallback order_id + type).
-    let event_kind = payload["type"].as_str().unwrap_or("");
-    let event_id = cf_payment_id
-        .clone()
-        .unwrap_or_else(|| format!("{order_id}:{event_kind}"));
-
-    let inserted: Option<(String,)> = sqlx::query_as(
-        // allow-raw-sql: webhook idempotency PK insert
-        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
-         VALUES ('cashfree', $1, $2, $3) \
-         ON CONFLICT (provider, event_id) DO NOTHING \
-         RETURNING event_id",
-    )
-    .bind(&event_id)
-    .bind(txn_row.tenant_id)
-    .bind(&payload)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if inserted.is_none() {
-        tx.commit().await?;
-        return Ok(Json(
-            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
-        ));
-    }
-
-    match event_kind {
-        "PAYMENT_SUCCESS_WEBHOOK" => {
-            let payment_id = cf_payment_id.as_deref().unwrap_or("");
-            let method = payload["data"]["payment"]["payment_group"].as_str();
-            settle::settle_capture(
-                &mut tx,
-                txn_row.id,
-                &settle::Capture {
-                    provider: "cashfree",
-                    payment_id,
-                    method,
-                    received: settle::Received::AsRequested,
-                    signature: None,
-                    payload: Some(&payload),
-                },
-            )
-            .await?;
-        }
-        "PAYMENT_FAILED_WEBHOOK" => {
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 status = 'failed', webhook_payload = $1, updated_at = now() \
-                 WHERE gateway_order_id = $2 AND tenant_id = $3",
-            )
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-        }
-        other => tracing::info!(event = other, "unhandled cashfree webhook event"),
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "status": "ok" })))
-}
-
-/// PhonePe webhook handler. PhonePe sends payment status updates to this
-/// endpoint. The X-VERIFY header contains a SHA256 hash for verification.
-pub async fn phonepe_webhook(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    body: String,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let _x_verify = headers
-        .get("X-VERIFY")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::BadRequest("missing X-VERIFY header".to_owned()))?;
-
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
-
-    // PhonePe response format: { "success": true, "code": "PAYMENT_SUCCESS", "data": { ... } }
-    let response_code = payload["code"].as_str().unwrap_or("");
-    let merchant_txn_id = payload["data"]["merchantTransactionId"]
-        .as_str()
-        .or_else(|| payload["transactionId"].as_str());
-
-    let Some(order_id) = merchant_txn_id else {
-        tracing::warn!("phonepe webhook missing merchantTransactionId");
-        return Ok(Json(serde_json::json!({ "status": "ignored" })));
-    };
-
-    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
-    )
-    .bind(order_id)
-    .fetch_optional(&state.db)
-    .await?;
-
-    let Some(txn_row) = txn_row else {
-        tracing::warn!(order_id, "phonepe webhook for unknown order");
-        log_webhook_exception(
-            &state.db,
-            "phonepe",
-            Some(order_id),
-            "unknown_order",
-            &payload,
-        )
-        .await?;
-        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
-    };
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
-
-    // PhonePe signature verification: SHA256(base64(responseBody) + "/pg/v1/status" + salt)
-    // For webhook callbacks, the verification uses the response body directly.
-    // In production, verify with the PhonePe webhook secret from tenant settings.
-    let event_id = format!("phonepe:{order_id}:{response_code}");
-
-    let inserted: Option<(String,)> = sqlx::query_as(
-        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
-         VALUES ('phonepe', $1, $2, $3) \
-         ON CONFLICT (provider, event_id) DO NOTHING \
-         RETURNING event_id",
-    )
-    .bind(&event_id)
-    .bind(txn_row.tenant_id)
-    .bind(&payload)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if inserted.is_none() {
-        tx.commit().await?;
-        return Ok(Json(
-            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
-        ));
-    }
-
-    match response_code {
-        "PAYMENT_SUCCESS" | "SUCCESS" => {
-            let payment_id = payload["data"]["paymentDetails"]["transactionId"]
-                .as_str()
-                .unwrap_or("");
-            let method = payload["data"]["paymentDetails"]["paymentInstrument"]["type"]
-                .as_str()
-                .unwrap_or("upi");
-            settle::settle_capture(
-                &mut tx,
-                txn_row.id,
-                &settle::Capture {
-                    provider: "phonepe",
-                    payment_id,
-                    method: Some(method),
-                    received: settle::Received::AsRequested,
-                    signature: None,
-                    payload: Some(&payload),
-                },
-            )
-            .await?;
-        }
-        "PAYMENT_FAILED" | "FAILED" => {
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 status = 'failed', webhook_payload = $1, updated_at = now() \
-                 WHERE gateway_order_id = $2 AND tenant_id = $3",
-            )
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-        }
-        other => tracing::info!(event = other, "unhandled phonepe webhook event"),
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "status": "ok" })))
-}
-
-/// PayU webhook handler. PayU sends POST to surl/furl with payment status.
-/// The hash field is verified using HMAC-SHA512.
-pub async fn payu_webhook(
-    State(state): State<AppState>,
-    _headers: HeaderMap,
-    body: String,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
-
-    let order_id = payload["txnid"]
-        .as_str()
-        .ok_or_else(|| AppError::BadRequest("missing txnid in webhook".to_owned()))?;
-
-    let status = payload["status"].as_str().unwrap_or("");
-    let payu_payment_id = payload["payuMoneyId"].as_str().unwrap_or("");
-
-    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
-    )
-    .bind(order_id)
-    .fetch_optional(&state.db)
-    .await?;
-
-    let Some(txn_row) = txn_row else {
-        tracing::warn!(order_id, "payu webhook for unknown order");
-        log_webhook_exception(&state.db, "payu", Some(order_id), "unknown_order", &payload).await?;
-        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
-    };
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
-
-    // Idempotency: dedupe by payu_payment_id + status.
-    let event_id = if payu_payment_id.is_empty() {
-        format!("{order_id}:{status}")
-    } else {
-        format!("{payu_payment_id}:{status}")
-    };
-
-    let inserted: Option<(String,)> = sqlx::query_as(
-        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
-         VALUES ('payu', $1, $2, $3) \
-         ON CONFLICT (provider, event_id) DO NOTHING \
-         RETURNING event_id",
-    )
-    .bind(&event_id)
-    .bind(txn_row.tenant_id)
-    .bind(&payload)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if inserted.is_none() {
-        tx.commit().await?;
-        return Ok(Json(
-            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
-        ));
-    }
-
-    match status {
-        "success" => {
-            let method = payload["cardnum"]
-                .as_str()
-                .map(|_| "card")
-                .or_else(|| payload["netbanking_brand"].as_str().map(|_| "netbanking"))
-                .unwrap_or("upi");
-
-            settle::settle_capture(
-                &mut tx,
-                txn_row.id,
-                &settle::Capture {
-                    provider: "payu",
-                    payment_id: payu_payment_id,
-                    method: Some(method),
-                    received: settle::Received::AsRequested,
-                    signature: None,
-                    payload: Some(&payload),
-                },
-            )
-            .await?;
-        }
-        "failed" | "bounce" => {
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 status = 'failed', webhook_payload = $1, updated_at = now() \
-                 WHERE gateway_order_id = $2 AND tenant_id = $3",
-            )
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-        }
-        other => tracing::info!(event = other, "unhandled payu webhook status"),
-    }
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 /// CCAvenue webhook handler. CCAvenue sends encrypted response to the response URL.
@@ -2087,45 +930,56 @@ pub async fn generate_upi_qr(
     let amount_paise = amount_to_paise(body.amount)?;
     let description = body.description.as_deref().unwrap_or("Hospital Payment");
 
+    let secrets = state.secret_resolver.as_ref();
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let vpa = get_upi_vpa(&mut tx, &claims.tenant_id).await?;
     let live = body.live.unwrap_or(false);
-    let keys = if live && resolve_active_provider(&mut tx, &claims.tenant_id).await? == "razorpay" {
-        razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id).await?
+    let chosen = if live {
+        Some(
+            online::choose::require(
+                &mut tx,
+                secrets,
+                claims.tenant_id,
+                body.station_id,
+                "dynamic_qr",
+            )
+            .await,
+        )
     } else {
         None
     };
     tx.commit().await?;
 
     let mut fallback_reason = None;
-    if live {
-        let made = match &keys {
-            Some(keys) => {
-                upi_qr::make_live_qr(
-                    &state.db,
-                    state.secret_resolver.as_ref(),
-                    keys,
-                    &upi_qr::QrFor {
-                        tenant_id: claims.tenant_id,
-                        user_id: claims.sub,
-                        invoice_id: body.invoice_id,
-                        pos_sale_id: body.pos_sale_id,
-                        amount: body.amount,
-                        amount_paise,
-                        description,
-                    },
-                )
-                .await?
+    if let Some(chosen) = chosen {
+        let made = match chosen {
+            Ok(c) => {
+                let q = upi_qr::QrFor {
+                    tenant_id: claims.tenant_id,
+                    user_id: claims.sub,
+                    invoice_id: body.invoice_id,
+                    pos_sale_id: body.pos_sale_id,
+                    amount: body.amount,
+                    amount_paise,
+                    description,
+                };
+                match upi_qr::make_live_qr(&state.db, &c, &q).await? {
+                    upi_qr::Made::Live(qr) => Ok((c.provider.code(), qr)),
+                    upi_qr::Made::Unavailable(why) => Err(why),
+                }
             }
-            None => upi_qr::Made::Unavailable(
-                "Razorpay is not set up for online payment at this hospital".to_owned(),
-            ),
+            Err(online::OnlineError::Unsupported { provider, .. }) => Err(format!(
+                "{} makes no UPI QR codes through MedBrains",
+                online::provider_for(provider).map_or(provider, |p| p.label())
+            )),
+            Err(online::OnlineError::App(e)) => Err(e.to_string()),
+            Err(online::OnlineError::Unavailable { detail, .. }) => Err(detail),
         };
         match made {
-            upi_qr::Made::Live(qr) => {
+            Ok((source, qr)) => {
                 return Ok(Json(UpiQrResponse {
-                    source: "razorpay",
+                    source: source.to_owned(),
                     upi_uri: None,
                     vpa: None,
                     amount: body.amount,
@@ -2136,7 +990,7 @@ pub async fn generate_upi_qr(
                     fallback_reason: None,
                 }));
             }
-            upi_qr::Made::Unavailable(why) => fallback_reason = Some(why),
+            Err(why) => fallback_reason = Some(why),
         }
     }
 
@@ -2195,7 +1049,7 @@ async fn static_upi_qr(
     .await?;
     tx.commit().await?;
     Ok(UpiQrResponse {
-        source: "upi_id",
+        source: "upi_id".to_owned(),
         upi_uri: Some(upi_uri),
         vpa: Some(vpa),
         amount: body.amount,
@@ -2205,127 +1059,6 @@ async fn static_upi_qr(
         close_by: None,
         fallback_reason,
     })
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/payments/upi-collect
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct UpiCollectRequest {
-    pub invoice_id: Option<Uuid>,
-    pub pos_sale_id: Option<Uuid>,
-    pub amount: Decimal,
-    pub phone: String,
-    pub vpa: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct UpiCollectResponse {
-    pub transaction_id: Uuid,
-    pub status: String,
-    pub message: String,
-}
-
-/// POST /api/payments/upi-collect — initiate a UPI collect request to the
-/// patient's phone via the active provider (PhonePe, PayU, etc.).
-/// The patient receives a UPI collect notification on their phone.
-pub async fn upi_collect(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<UpiCollectRequest>,
-) -> Result<Json<UpiCollectResponse>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-    require_invoice_billing(&state, &claims, body.invoice_id).await?;
-
-    let vpa = body
-        .vpa
-        .as_deref()
-        .map(str::trim)
-        .filter(|v| v.contains('@'))
-        .ok_or_else(|| {
-            AppError::BadRequest(
-                "Enter the patient's UPI ID (name@bank) to send a request".to_owned(),
-            )
-        })?
-        .to_owned();
-    let amount_paise = amount_to_paise(body.amount)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let provider = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
-    let spec = provider_spec(&provider)
-        .filter(|s| s.has_adapter)
-        .ok_or_else(|| {
-            AppError::ServiceUnavailable(format!(
-                "Payment provider '{provider}' has no gateway adapter yet"
-            ))
-        })?;
-    // Only an adapter that pushes a collect to the patient's UPI ID may claim
-    // to have sent one; the others only create an order nobody is told about.
-    let event_type = spec.upi_collect_event.ok_or_else(|| {
-        AppError::Conflict(format!(
-            "{} cannot send a UPI request to the patient's phone. Use the UPI QR \
-             or Pay Online instead.",
-            spec.label
-        ))
-    })?;
-
-    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "INSERT INTO payment_gateway_transactions \
-         (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
-          amount, currency, status, upi_vpa, created_by, idempotency_key) \
-         VALUES ($1, $2, $3, $4, '', $5, 'INR', 'pending_gateway', $6, $7, $8) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.invoice_id)
-    .bind(body.pos_sale_id)
-    .bind(&provider)
-    .bind(body.amount)
-    .bind(&vpa)
-    .bind(claims.sub)
-    .bind(Uuid::new_v4().to_string())
-    .fetch_one(&mut *tx)
-    .await?;
-
-    sqlx::query("UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1")
-        .bind(txn.id)
-        .execute(&mut *tx)
-        .await?;
-
-    medbrains_outbox::queue_in_tx(
-        &mut tx,
-        medbrains_outbox::OutboxRow {
-            tenant_id: claims.tenant_id,
-            aggregate_type: "payment_gateway_transaction",
-            aggregate_id: Some(txn.id),
-            event_type,
-            payload: serde_json::json!({
-                "internal_payment_id": txn.id,
-                "amount_paise": amount_paise,
-                "phone": body.phone,
-                "vpa": vpa,
-                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-            }),
-            idempotency_key: Some(txn.id.to_string()),
-        },
-    )
-    .await
-    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-
-    tx.commit().await?;
-
-    Ok(Json(UpiCollectResponse {
-        transaction_id: txn.id,
-        status: "collect_queued".to_owned(),
-        message: format!(
-            "{} will send a UPI request to {vpa}; it appears on the patient's phone \
-             within a minute",
-            spec.label
-        ),
-    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2401,176 +1134,6 @@ pub async fn upi_deep_link(
     }))
 }
 
-// ══════════════════════════════════════════════════════════
-//  POST /api/payments/refund
-// ══════════════════════════════════════════════════════════
-
-/// Refund an online payment back to the card / UPI / bank it came from,
-/// and take it off the bill.
-///
-/// Called on Razorpay in the request: the cashier needs the answer now.
-/// Exactly-once holds on both sides. Razorpay's refund `receipt` must be
-/// unique and a duplicate is rejected, so it is the idempotency key: it is
-/// derived from this refund's intent ([`refund_receipt`]), and a retry after
-/// a timeout — Razorpay refunded but the answer was lost — is refused by
-/// Razorpay instead of refunding twice. Here, the payment row is locked for
-/// the whole call, the refundable remainder is checked under that lock, and
-/// the refund id is taken into the books once (`settle_refund`) — the
-/// `refund.created` webhook for the same refund then finds it known and does
-/// nothing. When Razorpay does not answer, nothing is posted here; if it did
-/// refund, its webhook posts it.
-pub async fn initiate_refund(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<InitiateRefundRequest>,
-) -> Result<Json<RefundResponse>, AppError> {
-    require_permission(&claims, permissions::billing::payments::VOID)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let txn_id = match (body.transaction_id, body.payment_id) {
-        (Some(id), _) => id,
-        (None, Some(payment_id)) => sqlx::query_scalar::<_, Uuid>(
-            "SELECT t.id FROM payment_gateway_transactions t \
-             JOIN payments p ON p.reference_number = t.gateway_payment_id \
-                            AND p.invoice_id = t.invoice_id \
-             WHERE p.id = $1 AND p.tenant_id = $2 LIMIT 1",
-        )
-        .bind(payment_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?,
-        (None, None) => {
-            return Err(AppError::BadRequest(
-                "Name the payment to refund".to_owned(),
-            ));
-        }
-    };
-    let txn = settle::lock_txn(&mut tx, txn_id).await?;
-    if txn.tenant_id != claims.tenant_id {
-        return Err(AppError::NotFound);
-    }
-    require_invoice_billing(&state, &claims, txn.invoice_id).await?;
-    if txn.status != "captured" {
-        return Err(AppError::BadRequest(
-            "Only a captured payment with money left on it can be refunded".to_owned(),
-        ));
-    }
-    let Some(gateway_payment_id) = txn.gateway_payment_id.clone() else {
-        return Err(AppError::BadRequest(
-            "no gateway payment id for this transaction".to_owned(),
-        ));
-    };
-    let refundable = txn.amount - txn.refund_amount.unwrap_or_default();
-    let refund_amount = body.amount.unwrap_or(refundable);
-    if refund_amount > refundable {
-        return Err(AppError::BadRequest(format!(
-            "Refund exceeds the {refundable} left on this payment"
-        )));
-    }
-    let refund_paise = amount_to_paise(refund_amount)?;
-    let reason = body
-        .reason
-        .as_deref()
-        .map(str::trim)
-        .filter(|r| !r.is_empty())
-        .unwrap_or("Refund to the patient");
-
-    let refund_id = match txn.terminal_id {
-        // A card sale goes back through the machine's provider, never Razorpay.
-        Some(terminal_id) => {
-            pos::undo::refund_on_machine(&state, &txn, terminal_id, refund_paise).await?
-        }
-        None => {
-            refund_through_razorpay(
-                &mut tx,
-                &state,
-                &txn,
-                &gateway_payment_id,
-                refund_paise,
-                reason,
-            )
-            .await?
-        }
-    };
-
-    settle::settle_refund(
-        &mut tx,
-        &txn,
-        &settle::RefundMade {
-            refund_id: &refund_id,
-            amount: refund_amount,
-            reason,
-            refunded_by: Some(claims.sub),
-            payload: None,
-        },
-    )
-    .await?;
-    let updated = settle::lock_txn(&mut tx, txn.id).await?;
-    tx.commit().await?;
-
-    Ok(Json(RefundResponse {
-        transaction: updated,
-        refund_id,
-    }))
-}
-
-/// The refund's Razorpay `receipt`: the same for the same intent — this
-/// payment, this much already refunded, this amount — so a retry carries the
-/// receipt Razorpay already holds and is rejected, not refunded again. Once a
-/// refund is taken into the books the refunded total moves, and the next
-/// refund gets a new receipt. ≤ 40 characters, Razorpay's limit.
-pub fn refund_receipt(txn_id: Uuid, refunded_paise: i64, amount_paise: i64) -> String {
-    let intent = format!("refund:{refunded_paise}:{amount_paise}");
-    format!("rf_{}", Uuid::new_v5(&txn_id, intent.as_bytes()).simple())
-}
-
-/// Refund an online payment through Razorpay; its refund id.
-async fn refund_through_razorpay(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    state: &AppState,
-    txn: &PaymentGatewayTransaction,
-    gateway_payment_id: &str,
-    refund_paise: i64,
-    reason: &str,
-) -> Result<String, AppError> {
-    let keys = require_razorpay(tx, state, &txn.tenant_id).await?;
-    let refunded = {
-        use rust_decimal::prelude::ToPrimitive;
-        (txn.refund_amount.unwrap_or_default() * Decimal::ONE_HUNDRED)
-            .round()
-            .to_i64()
-            .unwrap_or_default()
-    };
-    let rz_body = serde_json::json!({
-        "amount": refund_paise,
-        "receipt": refund_receipt(txn.id, refunded, refund_paise),
-        "notes": { "reason": reason, "internal_payment_id": txn.id },
-    });
-    let path = format!(
-        "/payments/{}/refund",
-        urlencoding::encode(gateway_payment_id)
-    );
-    // ponytail: the row lock is held across this call (≤ CALL_TIMEOUT); it only
-    // blocks other settles/refunds of this one payment.
-    let answer = razorpay::call(state.secret_resolver.as_ref(), &keys, &path, Some(&rz_body)).await;
-    match answer {
-        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned).ok_or_else(|| {
-            AppError::ServiceUnavailable(
-                "Razorpay's answer named no refund; check the payment in Razorpay".to_owned(),
-            )
-        }),
-        razorpay::Answer::Refused(w) => Err(AppError::BadRequest(format!(
-            "Razorpay refused the refund: {w}"
-        ))),
-        razorpay::Answer::Unreachable(w) => Err(AppError::ServiceUnavailable(format!(
-            "{w}. If Razorpay made the refund it will show on the bill when its notice arrives."
-        ))),
-    }
-}
-
 /// Minimal URL encoding for UPI URI parameters.
 fn urlencoded(s: &str) -> String {
     s.replace(' ', "%20")
@@ -2589,7 +1152,7 @@ fn mask_key_id(key_id: &str) -> String {
 /// Payment gateway (orders, POS, refunds, exceptions, provider webhooks) authed routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/payments/create-order", post(create_order))
+        .route("/api/payments/create-order", post(checkout::create_order))
         .route("/api/payments/pos-sale", post(pos::start::start_sale))
         .route("/api/payments/pos-sale/{id}", get(pos::sale::sale_status))
         .route(
@@ -2628,12 +1191,11 @@ pub fn router() -> axum::Router<AppState> {
             "/api/payments/virtual-account",
             post(create_virtual_account),
         )
-        .route("/api/payments/verify", post(verify_payment))
+        .route("/api/payments/verify", post(checkout::verify_payment))
         .route("/api/payments/{id}/status", get(get_payment_status))
         .route("/api/payments/upi-qr", post(generate_upi_qr))
-        .route("/api/payments/upi-collect", post(upi_collect))
         .route("/api/payments/upi-deep-link", post(upi_deep_link))
-        .route("/api/payments/refund", post(initiate_refund))
+        .route("/api/payments/refund", post(refund::initiate_refund))
         .route("/api/payments/razorpay/status", get(razorpay_status))
         .route(
             "/api/payments/links",
@@ -2649,6 +1211,26 @@ pub fn router() -> axum::Router<AppState> {
             post(balance_link::routes::cancel_balance_link),
         )
         .route("/api/payments/providers", get(list_payment_providers))
+        .route(
+            "/api/payments/capabilities",
+            get(online::choose::get_capabilities),
+        )
+        .route(
+            "/api/payments/online-settings",
+            get(online::settings::get_online_settings).put(online::settings::put_online_settings),
+        )
+        .route(
+            "/api/payments/online-settings/keys/{provider}",
+            put(online::settings::put_provider_keys),
+        )
+        .route(
+            "/api/payments/online-settings/stations/{id}",
+            put(online::settings::put_station_provider),
+        )
+        .route(
+            "/api/payments/online-settings/test/{provider}",
+            post(online::settings::test_provider),
+        )
         .route(
             "/api/payments/terminals",
             get(terminals::list_payment_terminals).post(terminals::create_payment_terminal),
@@ -2679,21 +1261,7 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod paise_tests {
-    use super::{Decimal, KNOWN_PROVIDERS, Uuid, amount_to_paise, refund_receipt};
-
-    #[test]
-    fn a_refund_retry_carries_the_same_receipt_and_the_next_refund_a_new_one() {
-        let txn = Uuid::new_v4();
-        let first = refund_receipt(txn, 0, 30_000);
-        assert_eq!(first, refund_receipt(txn, 0, 30_000), "a retry repeats it");
-        assert_ne!(
-            first,
-            refund_receipt(txn, 30_000, 30_000),
-            "the next refund"
-        );
-        assert_ne!(first, refund_receipt(Uuid::new_v4(), 0, 30_000));
-        assert!(first.len() <= 40, "{first}");
-    }
+    use super::{Decimal, amount_to_paise};
 
     #[test]
     fn whole_paise_convert_and_fractions_of_a_paisa_are_refused() {
@@ -2702,15 +1270,5 @@ mod paise_tests {
         assert!(amount_to_paise(Decimal::new(12_345, 3)).is_err());
         assert!(amount_to_paise(Decimal::ZERO).is_err());
         assert!(amount_to_paise(Decimal::new(-100, 2)).is_err());
-    }
-
-    #[test]
-    fn only_an_adapter_that_pushes_a_collect_claims_to_send_one() {
-        let collecting: Vec<&str> = KNOWN_PROVIDERS
-            .iter()
-            .filter(|p| p.upi_collect_event.is_some())
-            .map(|p| p.code)
-            .collect();
-        assert_eq!(collecting, ["phonepe"]);
     }
 }

@@ -1,3 +1,4 @@
+import type { PaymentCapabilities } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   buildCollectRequest,
@@ -95,11 +96,22 @@ describe("a split", () => {
   });
 });
 
+const CAPS: PaymentCapabilities = {
+  checkout: true,
+  dynamic_qr: true,
+  payment_links: true,
+  partial_refund: true,
+  multiple_refunds: true,
+  payouts: false,
+  upi_collect: false,
+  emi: true,
+};
+
 const DESK: TileContext = {
   isSale: false,
   cashAllowed: true,
   canUseGateway: false,
-  providerCheckout: true,
+  capabilities: CAPS,
   billCount: 1,
   hasDraft: false,
   canApplyDeposit: false,
@@ -112,21 +124,33 @@ describe("which ways of paying a desk is offered", () => {
   const shown = (c: TileContext) => usableTiles(c).map((t) => t.tile);
 
   it("a lab desk without the gateway takes cash, card slips and UPI by UTR — never online", () => {
-    expect(shown(DESK)).toEqual(["cash", "card", "upi", "link"]);
+    expect(shown(DESK)).toEqual(["cash", "card", "upi"]);
     expect(usableTiles(DESK).find((t) => t.tile === "upi")?.hint).toBe("Enter the UTR");
   });
 
   it("online checkout pays exactly one bill, with the gateway and a provider that checks out", () => {
-    expect(shown({ ...DESK, canUseGateway: true })).toContain("online");
-    expect(shown({ ...DESK, canUseGateway: true, billCount: 2 })).not.toContain("online");
-    expect(shown({ ...DESK, canUseGateway: true, providerCheckout: false })).not.toContain(
+    const gateway = { ...DESK, canUseGateway: true };
+    expect(shown(gateway)).toContain("online");
+    expect(shown({ ...gateway, billCount: 2 })).not.toContain("online");
+    expect(shown({ ...gateway, capabilities: { ...CAPS, checkout: false } })).not.toContain(
       "online",
     );
+    expect(shown({ ...gateway, capabilities: null })).not.toContain("online");
   });
 
-  it("the payment link shows but cannot be picked until its endpoint exists", () => {
-    const link = usableTiles(DESK).find((t) => t.tile === "link");
+  it("the UPI QR confirms itself only where the provider makes dynamic QRs", () => {
+    const hint = (c: TileContext) => usableTiles(c).find((t) => t.tile === "upi")?.hint;
+    expect(hint({ ...DESK, canUseGateway: true })).toBe("Confirms itself");
+    const noQr = { ...DESK, canUseGateway: true, capabilities: { ...CAPS, dynamic_qr: false } };
+    expect(hint(noQr)).toBe("Enter the UTR");
+  });
+
+  it("the payment link shows only where the provider makes links, and waits for its endpoint", () => {
+    const gateway = { ...DESK, canUseGateway: true };
+    const link = usableTiles(gateway).find((t) => t.tile === "link");
     expect(link).toMatchObject({ disabled: true, hint: "Coming soon (#4871)" });
+    const noLinks = { ...gateway, capabilities: { ...CAPS, payment_links: false } };
+    expect(shown(noLinks)).not.toContain("link");
   });
 
   it("a deposit is offered with a balance, and refused on draft bills", () => {
@@ -145,7 +169,7 @@ describe("which ways of paying a desk is offered", () => {
 
   it("starts on the tile last used at this counter", () => {
     expect(startTile(usableTiles(DESK), "upi")).toBe("upi");
-    expect(startTile(usableTiles(DESK), "link")).toBe("cash");
+    expect(startTile(usableTiles({ ...DESK, canUseGateway: true }), "link")).toBe("cash");
   });
 });
 

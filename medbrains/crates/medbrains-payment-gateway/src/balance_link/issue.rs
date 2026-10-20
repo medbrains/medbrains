@@ -8,30 +8,25 @@
 //! 4. under the patient's lock, close those links and open the new one;
 //! 5. ask the provider for it, file its URL and queue the message.
 
-use std::{sync::Arc, time::Duration};
-
 use chrono::{DateTime, Utc};
 use medbrains_outbox::handler::{HandlerCtx, HandlerError};
-use medbrains_server_core::{error::AppError, state::AppState};
+use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
-use serde_json::json;
 use uuid::Uuid;
 
 use super::message::{self, Channel, LinkMessage};
+use super::provider::{begin, cancel_at};
 use super::settings::{self, LinkSettings};
 use super::{LIVE_SQL, PaymentLinkView, close_parent, view};
-use crate::payment_link::{
-    Link, LinkRequest, LinkTerms, cancel_link, record_link, request_link_on,
-};
+use crate::online::choose::require;
+use crate::online::{Chosen, OnlineError};
+use crate::payment_link::{Link, LinkRequest, LinkTerms, record_link, request_link_on};
 
 type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
-type Keys = (String, String);
 
 /// Inferred: long enough for a provider round trip, short enough that a link
 /// abandoned by a crashed request does not block the bill for long.
 const PENDING_GRACE_SECS: i64 = 120;
-/// Inferred, as checkout's: a cashier is not left watching a spinner.
-const PROVIDER_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// What to make a link for. The caller has checked who may.
 #[derive(Debug, Clone)]
@@ -48,11 +43,14 @@ pub struct LinkSpec {
     pub channel: Channel,
     /// The link this one takes over from, when it is a replacement.
     pub replaces: Option<Uuid>,
+    /// The counter asking: its own provider, if it has one.
+    pub station_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct Live {
     id: Uuid,
+    provider: String,
     provider_link_id: Option<String>,
     invoice_ids: Vec<Uuid>,
     amount: Decimal,
@@ -66,39 +64,8 @@ struct Plan {
     settings: LinkSettings,
     amount: Decimal,
     to: Option<String>,
-    keys: Keys,
+    chosen: Chosen,
     live: Vec<Live>,
-}
-
-/// A provider context for a request (the outbox worker builds its own).
-// ponytail: the link client takes an outbox context; #4884's provider trait
-// takes this place.
-#[must_use]
-pub fn ctx_for(state: &AppState, tenant_id: Uuid, actor: Option<Uuid>) -> HandlerCtx {
-    HandlerCtx {
-        pool: state.db.clone(),
-        tenant_id,
-        event_id: Uuid::new_v4(),
-        event_type: "payment.balance_link.issue".to_owned(),
-        actor_user_id: actor,
-        attempts: 0,
-        secret_resolver: Arc::clone(&state.secret_resolver),
-        http_client: reqwest::Client::builder()
-            .timeout(PROVIDER_TIMEOUT)
-            .build()
-            .unwrap_or_default(),
-        object_store: Arc::clone(&state.documents_store),
-    }
-}
-
-pub(super) async fn begin(ctx: &HandlerCtx) -> Result<Tx<'static>, AppError> {
-    let mut tx = ctx.pool.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &ctx.tenant_id).await?;
-    Ok(tx)
-}
-
-pub(super) fn provider_fault(e: &HandlerError) -> AppError {
-    AppError::ServiceUnavailable(format!("The payment provider could not be reached: {e}"))
 }
 
 /// Make a link for `spec`, or send the live one again; see the module docs.
@@ -106,17 +73,16 @@ pub(super) fn provider_fault(e: &HandlerError) -> AppError {
 /// # Errors
 /// The bills, amount or channel refused; online payment not set up; the
 /// provider unreachable or refusing; a database fault.
-pub async fn issue(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<PaymentLinkView, AppError> {
+/// A provider without links answers 422 (`unsupported_capability`).
+pub async fn issue(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<PaymentLinkView, OnlineError> {
     let plan = plan(ctx, spec).await?;
     if let Some(same) = reusable(&plan, spec) {
-        return resend(ctx, spec, plan.to.as_deref(), same.id).await;
+        return Ok(resend(ctx, spec, plan.to.as_deref(), same.id).await?);
     }
     for old in &plan.live {
         if let Some(link_id) = &old.provider_link_id {
             // Cancelled now or already closed: either way it takes no more money.
-            cancel_link(ctx, plan.keys.clone(), link_id)
-                .await
-                .map_err(|e| provider_fault(&e))?;
+            cancel_at(ctx, &old.provider, link_id).await?;
         }
     }
     let (link_id, txn_id, expires_at) = open(ctx, spec, &plan).await?;
@@ -126,11 +92,9 @@ pub async fn issue(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<PaymentLinkView,
         description: "Hospital bill balance".to_owned(),
         expire_by: Some(expires_at.timestamp()),
         contact: plan.to.clone(),
-        notes: json!({ "tenant_id": spec.tenant_id.to_string(),
-                       "payment_link_id": link_id.to_string() }),
     };
-    let made = request_link_on(ctx, plan.keys.clone(), &req, terms(&plan)).await;
-    finish(ctx, spec, &plan, (link_id, txn_id), made).await
+    let made = request_link_on(ctx, &plan.chosen, &req, terms(&plan)).await;
+    Ok(finish(ctx, spec, &plan, (link_id, txn_id), made).await?)
 }
 
 fn terms(plan: &Plan) -> LinkTerms {
@@ -166,7 +130,7 @@ struct Bill {
     balance: Decimal,
 }
 
-async fn plan(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<Plan, AppError> {
+async fn plan(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<Plan, OnlineError> {
     let mut tx = begin(ctx).await?;
     let settings = settings::load(&mut tx, spec.tenant_id).await?;
     let bills = sqlx::query_as::<_, Bill>(
@@ -179,43 +143,49 @@ async fn plan(ctx: &HandlerCtx, spec: &LinkSpec) -> Result<Plan, AppError> {
     .fetch_all(&mut *tx)
     .await?;
     if bills.is_empty() || bills.len() != spec.invoice_ids.len() {
-        return Err(AppError::BadRequest("Pick the patient's own open bills".to_owned()));
+        return Err(AppError::BadRequest("Pick the patient's own open bills".to_owned()).into());
     }
     if bills.iter().any(|b| b.status == "draft") {
         return Err(AppError::BadRequest(
             "Issue the bills before sending a link — a draft can still change".to_owned(),
-        ));
+        )
+        .into());
     }
-    if bills
-        .iter()
-        .any(|b| !matches!(b.status.as_str(), "issued" | "partially_paid") || b.balance <= Decimal::ZERO)
-    {
-        return Err(AppError::BadRequest("Nothing is due on one of these bills".to_owned()));
+    if bills.iter().any(|b| {
+        !matches!(b.status.as_str(), "issued" | "partially_paid") || b.balance <= Decimal::ZERO
+    }) {
+        return Err(AppError::BadRequest("Nothing is due on one of these bills".to_owned()).into());
     }
     let due: Decimal = bills.iter().map(|b| b.balance).sum();
     let amount = spec.amount.map_or(due, |a| a.round_dp(2));
     check_amount(amount, due, settings.min_part())?;
     let to = message::recipient(&mut tx, spec.tenant_id, spec.patient_id, spec.channel).await?;
-    let keys = crate::razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &spec.tenant_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::ServiceUnavailable(
-                "Online payment is not set up at this hospital, so no link can be made".to_owned(),
-            )
-        })?;
+    // The counter's provider, if it has links; else 422 naming the provider.
+    let chosen = require(
+        &mut tx,
+        ctx.secret_resolver.as_ref(),
+        spec.tenant_id,
+        spec.station_id,
+        "payment_links",
+    )
+    .await?;
     let live = live_on(&mut tx, spec.tenant_id, &spec.invoice_ids).await?;
     tx.commit().await?;
     let grace = Utc::now() - chrono::Duration::seconds(PENDING_GRACE_SECS);
-    if live.iter().any(|l| l.status == "pending" && l.created_at > grace) {
+    if live
+        .iter()
+        .any(|l| l.status == "pending" && l.created_at > grace)
+    {
         return Err(AppError::Conflict(
             "A link for these bills is being made — try again in a moment".to_owned(),
-        ));
+        )
+        .into());
     }
     Ok(Plan {
         settings,
         amount,
         to,
-        keys,
+        chosen,
         live,
     })
 }
@@ -234,9 +204,13 @@ fn check_amount(amount: Decimal, due: Decimal, min: Decimal) -> Result<(), AppEr
     Ok(())
 }
 
-async fn live_on(tx: &mut Tx<'_>, tenant_id: Uuid, invoice_ids: &[Uuid]) -> Result<Vec<Live>, AppError> {
+async fn live_on(
+    tx: &mut Tx<'_>,
+    tenant_id: Uuid,
+    invoice_ids: &[Uuid],
+) -> Result<Vec<Live>, AppError> {
     Ok(sqlx::query_as::<_, Live>(&format!(
-        "SELECT id, provider_link_id, invoice_ids, amount, amount_paid, expires_at, status, \
+        "SELECT id, provider, provider_link_id, invoice_ids, amount, amount_paid, expires_at, status, \
                 created_at \
            FROM payment_links WHERE tenant_id = $1 AND invoice_ids && $2 \
             AND status IN {LIVE_SQL} AND deleted_at IS NULL"
@@ -296,7 +270,10 @@ async fn open(
         .execute(&mut *tx)
         .await?;
     let now_live = live_on(&mut tx, spec.tenant_id, &spec.invoice_ids).await?;
-    if now_live.iter().any(|l| !plan.live.iter().any(|p| p.id == l.id)) {
+    if now_live
+        .iter()
+        .any(|l| !plan.live.iter().any(|p| p.id == l.id))
+    {
         return Err(AppError::Conflict(
             "Another link was just made for these bills — refresh and try again".to_owned(),
         ));
@@ -318,12 +295,13 @@ async fn open(
     let txn_id: Uuid = sqlx::query_scalar(
         "INSERT INTO payment_gateway_transactions \
            (tenant_id, gateway, gateway_order_id, amount, currency, status, created_by, notes) \
-         VALUES ($1, 'razorpay', '', $2, 'INR', 'pending_gateway', $3, \
+         VALUES ($1, $4, '', $2, 'INR', 'pending_gateway', $3, \
                  jsonb_build_object('purpose', 'balance_link')) RETURNING id",
     )
     .bind(spec.tenant_id)
     .bind(plan.amount)
     .bind(spec.actor)
+    .bind(plan.chosen.provider.code())
     .fetch_one(&mut *tx)
     .await?;
     sqlx::query("UPDATE payment_gateway_transactions SET idempotency_key = id::text WHERE id = $1")
@@ -335,7 +313,7 @@ async fn open(
         "INSERT INTO payment_links (tenant_id, patient_id, invoice_ids, scope, lane, amount, \
                 accept_partial, min_part_amount, status, provider, expires_at, channel, \
                 payment_transaction_id, replaces_id, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', 'razorpay', \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $14, \
                  now() + make_interval(days => $9), $10, $11, $12, $13) \
          RETURNING id, expires_at",
     )
@@ -352,6 +330,7 @@ async fn open(
     .bind(txn_id)
     .bind(spec.replaces.or_else(|| old.first().copied()))
     .bind(spec.actor)
+    .bind(plan.chosen.provider.code())
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -374,7 +353,14 @@ async fn finish(
             return failed(tx, (link_id, txn_id), why).await;
         }
     };
-    record_link(&mut tx, txn_id, &provider_id, &url).await?;
+    record_link(
+        &mut tx,
+        txn_id,
+        plan.chosen.provider.code(),
+        &provider_id,
+        &url,
+    )
+    .await?;
     let sends = plan.to.is_some();
     sqlx::query(
         "UPDATE payment_links SET status = 'created', provider_link_id = $2, short_url = $3, \
@@ -421,7 +407,9 @@ async fn failed(
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
-    Err(AppError::ServiceUnavailable(format!("No link was made: {why}")))
+    Err(AppError::ServiceUnavailable(format!(
+        "No link was made: {why}"
+    )))
 }
 
 #[cfg(test)]

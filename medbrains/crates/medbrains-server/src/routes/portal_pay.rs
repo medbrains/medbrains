@@ -9,9 +9,11 @@ use axum::{
 };
 use medbrains_payment_gateway::balance_link::{
     PaymentLinkView,
-    issue::{LinkSpec, ctx_for, issue},
+    issue::{LinkSpec, issue},
     message::Channel,
+    provider::ctx_for,
 };
+use medbrains_payment_gateway::online::OnlineError;
 use medbrains_server_core::{error::AppError, state::AppState};
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -31,7 +33,7 @@ pub async fn portal_pay_bill(
     Extension(claims): Extension<PatientClaims>,
     Path(invoice_id): Path<Uuid>,
     Json(body): Json<PortalPayRequest>,
-) -> Result<Json<PaymentLinkView>, AppError> {
+) -> Result<Json<PaymentLinkView>, OnlineError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // The patient's own bill, or nothing: another patient's bill is a 404.
@@ -56,6 +58,9 @@ pub async fn portal_pay_bill(
         amount: body.amount,
         channel: Channel::Portal,
         replaces: None,
+        station_id: None,
     };
-    Ok(Json(issue(&ctx_for(&state, claims.tenant_id, None), &spec).await?))
+    Ok(Json(
+        issue(&ctx_for(&state, claims.tenant_id, None), &spec).await?,
+    ))
 }

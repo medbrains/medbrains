@@ -27,10 +27,11 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::issue::{LinkSpec, begin, ctx_for, issue, provider_fault};
+use super::issue::{LinkSpec, issue};
 use super::message::Channel;
+use super::provider::{begin, cancel_at, ctx_for};
 use super::{LIVE_SQL, PaymentLinkView, VIEW_SELECT, bills_due, close_parent, view};
-use crate::payment_link::cancel_link;
+use crate::online::OnlineError;
 
 /// A patient has this many links listed at most, newest first.
 const MAX_LISTED: i64 = 50;
@@ -50,11 +51,16 @@ pub struct CreateLinkRequest {
     pub amount: Option<Decimal>,
     /// `sms` | `whatsapp` | `copy`.
     pub channel: String,
+    /// The counter sending it: its own provider, if it has one.
+    #[serde(default)]
+    pub station_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ResendLinkRequest {
     pub channel: String,
+    #[serde(default)]
+    pub station_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,7 +75,11 @@ fn require_read(claims: &Claims) -> Result<(), AppError> {
     require_any_permission(claims, &allowed)
 }
 
-async fn require_write(state: &AppState, claims: &Claims, patient_id: Uuid) -> Result<(), AppError> {
+async fn require_write(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
     require_any_permission(claims, &ANY_COLLECT)?;
     medbrains_billing::require_amount_write(state, claims).await?;
     medbrains_authz_gate::require_patient_billing_access(state, claims, patient_id).await
@@ -92,7 +102,9 @@ async fn collectable(
         return Err(AppError::Forbidden);
     }
     if scoped.is_empty() {
-        return Err(AppError::BadRequest("Nothing is due on these bills".to_owned()));
+        return Err(AppError::BadRequest(
+            "Nothing is due on these bills".to_owned(),
+        ));
     }
     Ok(scoped.into_iter().map(|b| b.invoice_id).collect())
 }
@@ -101,22 +113,31 @@ pub async fn create_link(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateLinkRequest>,
-) -> Result<Json<PaymentLinkView>, AppError> {
+) -> Result<Json<PaymentLinkView>, OnlineError> {
     let channel = Channel::for_desk(&body.channel)?;
     let lane = body.lane.as_deref().filter(|l| is_lane(l));
     if body.scope != "all" && !(body.scope == "department" && lane.is_some()) {
         return Err(AppError::BadRequest(
             "Send a link for one department's lane or for all dues".to_owned(),
-        ));
+        )
+        .into());
     }
     require_write(&state, &claims, body.patient_id).await?;
-    let ids = collectable(&state, &claims, body.patient_id, |b| match &body.invoice_ids {
-        Some(ids) => ids.contains(&b.invoice_id),
-        None => body.scope == "all" || b.lanes.iter().any(|l| Some(l.as_str()) == lane),
+    let ids = collectable(&state, &claims, body.patient_id, |b| {
+        match &body.invoice_ids {
+            Some(ids) => ids.contains(&b.invoice_id),
+            None => body.scope == "all" || b.lanes.iter().any(|l| Some(l.as_str()) == lane),
+        }
     })
     .await?;
-    if body.invoice_ids.as_ref().is_some_and(|asked| asked.len() != ids.len()) {
-        return Err(AppError::BadRequest("A bill named is not open for this patient".to_owned()));
+    if body
+        .invoice_ids
+        .as_ref()
+        .is_some_and(|asked| asked.len() != ids.len())
+    {
+        return Err(
+            AppError::BadRequest("A bill named is not open for this patient".to_owned()).into(),
+        );
     }
     let spec = LinkSpec {
         tenant_id: claims.tenant_id,
@@ -128,8 +149,11 @@ pub async fn create_link(
         amount: body.amount,
         channel,
         replaces: None,
+        station_id: body.station_id,
     };
-    Ok(Json(issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?))
+    Ok(Json(
+        issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?,
+    ))
 }
 
 async fn scrubbed(
@@ -217,7 +241,7 @@ pub async fn resend_link(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<ResendLinkRequest>,
-) -> Result<Json<PaymentLinkView>, AppError> {
+) -> Result<Json<PaymentLinkView>, OnlineError> {
     require_any_permission(&claims, &ANY_COLLECT)?;
     let channel = Channel::for_desk(&body.channel)?;
     let link = load(&state, &claims, id).await?;
@@ -241,8 +265,11 @@ pub async fn resend_link(
         amount: (outstanding > Decimal::ZERO && outstanding <= due).then_some(outstanding),
         channel,
         replaces: None,
+        station_id: body.station_id,
     };
-    Ok(Json(issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?))
+    Ok(Json(
+        issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?,
+    ))
 }
 
 /// Stop a link at the provider, then here. Only a link the provider has
@@ -265,16 +292,9 @@ pub async fn cancel_balance_link(
             .bind(id)
             .fetch_one(&mut *tx)
             .await?;
-    let keys = crate::razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &claims.tenant_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::ServiceUnavailable("Online payment is not set up at this hospital".to_owned())
-        })?;
     tx.commit().await?;
     if let Some(provider_id) = provider_id {
-        cancel_link(&ctx, keys, &provider_id)
-            .await
-            .map_err(|e| provider_fault(&e))?;
+        cancel_at(&ctx, &link.provider, &provider_id).await?;
     }
     let mut tx = begin(&ctx).await?;
     let parent: Option<Option<Uuid>> = sqlx::query_scalar(&format!(

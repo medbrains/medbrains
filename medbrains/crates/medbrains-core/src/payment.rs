@@ -2,10 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// The outbox event that makes a Razorpay payment link for a payment row
-/// needing nothing more (a home delivery); handled by
-/// `medbrains_payment_gateway::payment_link::PaymentLinkHandler`.
-pub const RAZORPAY_LINK_EVENT: &str = "payment.razorpay.create_link";
+/// The outbox event that makes a payment link — through the hospital's
+/// online provider — for a payment row needing nothing more (a home
+/// delivery); handled by `medbrains_payment_gateway::payment_link::PaymentLinkHandler`.
+/// The name predates other providers and is kept: queued rows carry it.
+pub const PAYMENT_LINK_EVENT: &str = "payment.razorpay.create_link";
 
 /// Payment gateway transaction record — maps to `payment_gateway_transactions` table.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -97,12 +98,26 @@ pub struct CreateOrderResponse {
     /// "`pending_gateway`" | "created" | "captured" | "failed"
     #[serde(default)]
     pub status: String,
+    /// The provider that made the order (`razorpay`, `cashfree`…).
+    #[serde(default)]
+    pub provider: String,
+    /// How the browser pays it: `{ kind: razorpay_js | cashfree_js |
+    /// redirect | form_post, … }`.
+    #[serde(default)]
+    pub checkout: Option<serde_json::Value>,
 }
 
-/// Frontend request to verify a completed payment.
-#[derive(Debug, Clone, Deserialize)]
+/// The browser's word that a checkout finished, to be checked with the
+/// provider: Razorpay's signed handler result (its `razorpay_*` names are
+/// accepted), or just the payment row for a provider whose result is unsigned.
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct VerifyPaymentRequest {
-    pub razorpay_order_id: String,
-    pub razorpay_payment_id: String,
-    pub razorpay_signature: String,
+    #[serde(default)]
+    pub transaction_id: Option<Uuid>,
+    #[serde(default, alias = "razorpay_order_id")]
+    pub order_id: Option<String>,
+    #[serde(default, alias = "razorpay_payment_id")]
+    pub payment_id: Option<String>,
+    #[serde(default, alias = "razorpay_signature")]
+    pub signature: Option<String>,
 }

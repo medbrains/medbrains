@@ -13,10 +13,11 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use super::issue::{LinkSpec, begin, issue};
+use super::issue::{LinkSpec, issue};
 use super::message::Channel;
+use super::provider::{begin, cancel_at};
 use super::{LIVE_SQL, REFRESH_EVENT, bills_due, close_parent};
-use crate::payment_link::cancel_link;
+use crate::online::OnlineError;
 
 #[derive(Debug, sqlx::FromRow)]
 struct Stale {
@@ -28,6 +29,7 @@ struct Stale {
     amount_paid: Decimal,
     status: String,
     end_reason: Option<String>,
+    provider: String,
     provider_link_id: Option<String>,
     payment_transaction_id: Option<Uuid>,
     channel: String,
@@ -39,11 +41,16 @@ fn transient(e: impl std::fmt::Display) -> HandlerError {
     HandlerError::Transient(e.to_string())
 }
 
-/// An outage is retried; a refusal (consent withdrawn, no phone) is an answer.
-fn handler_error(e: AppError) -> HandlerError {
+/// An outage is retried; a refusal (consent withdrawn, no phone, a provider
+/// without links) is an answer.
+fn handler_error(e: OnlineError) -> HandlerError {
     match e {
-        AppError::ServiceUnavailable(why) => HandlerError::Transient(why),
-        other => HandlerError::Permanent(other.to_string()),
+        OnlineError::App(AppError::ServiceUnavailable(why)) => HandlerError::Transient(why),
+        OnlineError::Unavailable { detail, .. } => HandlerError::Transient(detail),
+        OnlineError::App(other) => HandlerError::Permanent(other.to_string()),
+        OnlineError::Unsupported { provider, .. } => {
+            HandlerError::Permanent(format!("{provider} makes no payment links"))
+        }
     }
 }
 
@@ -85,7 +92,7 @@ async fn read(ctx: &HandlerCtx, id: Uuid) -> Result<(Option<Stale>, Decimal), Ap
     let mut tx = begin(ctx).await?;
     let link = sqlx::query_as::<_, Stale>(
         "SELECT l.patient_id, l.invoice_ids, l.scope, l.lane, l.amount, l.amount_paid, l.status, \
-                l.end_reason, l.provider_link_id, l.payment_transaction_id, l.channel, \
+                l.end_reason, l.provider, l.provider_link_id, l.payment_transaction_id, l.channel, \
                 l.created_by, \
                 EXISTS (SELECT 1 FROM payment_links r WHERE r.replaces_id = l.id) AS replaced \
            FROM payment_links l WHERE l.tenant_id = $1 AND l.id = $2 AND l.deleted_at IS NULL",
@@ -104,18 +111,26 @@ async fn read(ctx: &HandlerCtx, id: Uuid) -> Result<(Option<Stale>, Decimal), Ap
 
 /// Cancel at the provider, then close it here: `settled` when nothing is
 /// owed, `balance_changed` when a replacement follows.
-async fn cancel(ctx: &HandlerCtx, id: Uuid, link: &Stale, due: Decimal) -> Result<(), HandlerError> {
+async fn cancel(
+    ctx: &HandlerCtx,
+    id: Uuid,
+    link: &Stale,
+    due: Decimal,
+) -> Result<(), HandlerError> {
     if let Some(provider_id) = &link.provider_link_id {
-        let mut tx = begin(ctx).await.map_err(transient)?;
-        let keys = crate::razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &ctx.tenant_id)
-            .await
-            .map_err(transient)?
-            .ok_or_else(|| transient("online payment is not set up; the link cannot be cancelled"))?;
-        tx.commit().await.map_err(transient)?;
         // Cancelled now or already closed: either way it takes no more money.
-        cancel_link(ctx, keys, provider_id).await?;
+        cancel_at(ctx, &link.provider, provider_id)
+            .await
+            .map_err(|e| match e {
+                AppError::ServiceUnavailable(w) => HandlerError::Transient(w),
+                other => HandlerError::Permanent(other.to_string()),
+            })?;
     }
-    let why = if due <= Decimal::ZERO { "settled" } else { "balance_changed" };
+    let why = if due <= Decimal::ZERO {
+        "settled"
+    } else {
+        "balance_changed"
+    };
     let mut tx = begin(ctx).await.map_err(transient)?;
     sqlx::query(&format!(
         "UPDATE payment_links SET status = 'cancelled', end_reason = $2 \
@@ -155,6 +170,7 @@ async fn replace(ctx: &HandlerCtx, id: Uuid, link: &Stale) -> Result<Value, Hand
         amount: None,
         channel: Channel::stored(&link.channel),
         replaces: Some(id),
+        station_id: None,
     };
     let made = issue(ctx, &spec).await.map_err(handler_error)?;
     Ok(json!({ "link_id": id, "replaced_by": made.id }))

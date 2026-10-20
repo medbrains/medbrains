@@ -30,7 +30,7 @@ export function qrClosed(closeBy: number | null, now: number): boolean {
 }
 
 /**
- * A Razorpay UPI QR for exactly what is due. Razorpay tells the server when
+ * A provider's UPI QR for exactly what is due. The provider tells the server when
  * it is paid; this watches the payment row and finishes on its own — nobody
  * types a UTR.
  */
@@ -112,7 +112,7 @@ export function LiveUpiQrPanel({
         </Alert>
       ) : (
         <Text size="sm" c="dimmed" ta="center" data-testid="text-qr-waiting">
-          Any UPI app can pay it. The bill updates by itself when Razorpay confirms the payment
+          Any UPI app can pay it. The bill updates by itself when the provider confirms the payment
           {closesAt ? ` — the QR closes at ${closesAt}.` : "."}
         </Text>
       )}

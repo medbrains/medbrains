@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{LIVE_SQL, close_parent};
+use crate::online::{ProviderEvent, Via};
 use crate::settle::{self, Capture, GatewayPosting, Received, Settled};
 use medbrains_billing::collect::allocate::allocate;
 
@@ -26,6 +27,7 @@ struct LinkRow {
     id: Uuid,
     tenant_id: Uuid,
     invoice_ids: Vec<Uuid>,
+    provider: String,
     provider_link_id: Option<String>,
     payment_transaction_id: Option<Uuid>,
 }
@@ -35,24 +37,33 @@ struct Part<'a> {
     payment_id: &'a str,
     amount: Decimal,
     method: Option<&'a str>,
-    /// The provider's order behind the link, which its other webhooks name.
+    /// The provider's own order for this payment (a Cashfree link's
+    /// `CFPay_…`, which its refunds go to), else `link/payment`.
     order_ref: String,
 }
 
-/// Handle a Razorpay webhook if it is about a balance link. `None` when the
-/// payment row is not one of ours (a booking's or a delivery's link), so the
-/// caller handles it as before.
+/// Settle a verified provider notice if it is about a balance link. `false`
+/// when the payment row is not one of ours (a booking's or a delivery's
+/// link) or the notice is not about a part or the link's end, so the caller
+/// handles it as before.
 ///
 /// # Errors
 /// A database fault.
-pub async fn on_webhook(
+pub async fn on_event(
     tx: &mut Tx<'_>,
     txn: &PaymentGatewayTransaction,
-    event: &str,
+    event: &ProviderEvent,
     payload: &Value,
-) -> Result<Option<&'static str>, AppError> {
+) -> Result<bool, AppError> {
+    let wanted = matches!(
+        event,
+        ProviderEvent::Captured { via: Via::Link, .. } | ProviderEvent::LinkClosed { .. }
+    );
+    if !wanted {
+        return Ok(false);
+    }
     let link = sqlx::query_as::<_, LinkRow>(
-        "SELECT id, tenant_id, invoice_ids, provider_link_id, payment_transaction_id \
+        "SELECT id, tenant_id, invoice_ids, provider, provider_link_id, payment_transaction_id \
            FROM payment_links WHERE tenant_id = $1 AND payment_transaction_id = $2 FOR UPDATE",
     )
     .bind(txn.tenant_id)
@@ -60,18 +71,41 @@ pub async fn on_webhook(
     .fetch_optional(&mut **tx)
     .await?;
     let Some(link) = link else {
-        return Ok(None);
+        return Ok(false);
     };
-    Ok(Some(match event {
-        "payment_link.paid" | "payment_link.partially_paid" => take_part(tx, &link, payload).await?,
-        "payment_link.expired" => close(tx, &link, "expired").await?,
-        "payment_link.cancelled" => close(tx, &link, "cancelled").await?,
-        _ => "ignored",
-    }))
+    match event {
+        ProviderEvent::Captured {
+            payment_id,
+            amount_paise,
+            method,
+            lookup,
+            ..
+        } => {
+            let Some(amount) = amount_paise.filter(|p| *p > 0).map(settle::rupees) else {
+                tracing::warn!(link = %link.id, "a link payment without an amount");
+                return Ok(true);
+            };
+            let plink = link.provider_link_id.as_deref().unwrap_or_default();
+            let part = Part {
+                payment_id,
+                amount,
+                method: method.as_deref(),
+                order_ref: lookup
+                    .clone()
+                    .unwrap_or_else(|| format!("{plink}/{payment_id}")),
+            };
+            take_part(tx, &link, &part, payload).await?;
+        }
+        ProviderEvent::LinkClosed { expired } => {
+            close(tx, &link, if *expired { "expired" } else { "cancelled" }).await?;
+        }
+        _ => {}
+    }
+    Ok(true)
 }
 
 /// The provider closed the link: it takes no more money.
-async fn close(tx: &mut Tx<'_>, link: &LinkRow, status: &str) -> Result<&'static str, AppError> {
+async fn close(tx: &mut Tx<'_>, link: &LinkRow, status: &str) -> Result<(), AppError> {
     sqlx::query(&format!(
         "UPDATE payment_links SET status = $2, end_reason = COALESCE(end_reason, $2) \
           WHERE id = $1 AND status IN {LIVE_SQL}"
@@ -81,29 +115,15 @@ async fn close(tx: &mut Tx<'_>, link: &LinkRow, status: &str) -> Result<&'static
     .execute(&mut **tx)
     .await?;
     close_parent(tx, link.payment_transaction_id, status).await?;
-    Ok("closed")
+    Ok(())
 }
 
-fn part_of<'a>(link: &LinkRow, payload: &'a Value) -> Option<Part<'a>> {
-    let payment = &payload["payload"]["payment"]["entity"];
-    let plink = link.provider_link_id.as_deref().unwrap_or_default();
-    let payment_id = payment["id"].as_str()?;
-    Some(Part {
-        payment_id,
-        amount: settle::rupees(payment["amount"].as_i64().filter(|p| *p > 0)?),
-        method: payment["method"].as_str(),
-        order_ref: payment["order_id"]
-            .as_str()
-            .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
-            .map_or_else(|| format!("{plink}/{payment_id}"), str::to_owned),
-    })
-}
-
-async fn take_part(tx: &mut Tx<'_>, link: &LinkRow, payload: &Value) -> Result<&'static str, AppError> {
-    let Some(part) = part_of(link, payload) else {
-        tracing::warn!(link = %link.id, "payment link webhook without a payment");
-        return Ok("ignored");
-    };
+async fn take_part(
+    tx: &mut Tx<'_>,
+    link: &LinkRow,
+    part: &Part<'_>,
+    payload: &Value,
+) -> Result<(), AppError> {
     let first: Option<Uuid> = sqlx::query_scalar(
         "INSERT INTO payment_link_parts (tenant_id, link_id, provider_payment_id, amount, method) \
          VALUES ($1, $2, $3, $4, $5) \
@@ -118,7 +138,7 @@ async fn take_part(tx: &mut Tx<'_>, link: &LinkRow, payload: &Value) -> Result<&
     .fetch_optional(&mut **tx)
     .await?;
     let Some(part_id) = first else {
-        return Ok("duplicate");
+        return Ok(()); // this payment was taken already
     };
     // The link is counted first, so the balance trigger never sees the bills
     // paid down while the link still asks for the old amount.
@@ -133,7 +153,7 @@ async fn take_part(tx: &mut Tx<'_>, link: &LinkRow, payload: &Value) -> Result<&
     .bind(part.amount)
     .execute(&mut **tx)
     .await?;
-    let (posted, parked) = post_part(tx, link, &part, payload).await?;
+    let (posted, parked) = post_part(tx, link, part, payload).await?;
     sqlx::query("UPDATE payment_link_parts SET posted = $2, parked = $3 WHERE id = $1")
         .bind(part_id)
         .bind(posted)
@@ -147,7 +167,7 @@ async fn take_part(tx: &mut Tx<'_>, link: &LinkRow, payload: &Value) -> Result<&
     if paid {
         close_parent(tx, link.payment_transaction_id, "paid").await?;
     }
-    Ok("posted")
+    Ok(())
 }
 
 #[derive(sqlx::FromRow)]
@@ -189,14 +209,20 @@ async fn post_part(
     let excess = part.amount - fill;
     if excess > Decimal::ZERO {
         let (reason, why) = if owed <= Decimal::ZERO {
-            ("refund_due", "Paid by link after the bills were settled — refund the patient".to_owned())
+            (
+                "refund_due",
+                "Paid by link after the bills were settled — refund the patient".to_owned(),
+            )
         } else {
-            ("over_capture", format!("Paid {} by link; the bills owed only {owed}", part.amount))
+            (
+                "over_capture",
+                format!("Paid {} by link; the bills owed only {owed}", part.amount),
+            )
         };
         let parking = GatewayPosting {
             tenant_id: link.tenant_id,
             invoice_id: link.invoice_ids.first().copied().unwrap_or_default(),
-            provider: "razorpay",
+            provider: &link.provider,
             order_ref: link.provider_link_id.as_deref().unwrap_or_default(),
             amount: excess,
             method: part.method,
@@ -221,7 +247,7 @@ async fn post_slice(
         "INSERT INTO payment_gateway_transactions \
            (tenant_id, invoice_id, gateway, gateway_order_id, amount, currency, status, \
             idempotency_key, notes) \
-         VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created', $5, $6) RETURNING id",
+         VALUES ($1, $2, $7, $3, $4, 'INR', 'created', $5, $6) RETURNING id",
     )
     .bind(link.tenant_id)
     .bind(invoice_id)
@@ -229,13 +255,14 @@ async fn post_slice(
     .bind(amount)
     .bind(format!("plink:{}:{n}", part.payment_id))
     .bind(json!({ "payment_link_id": link.id }))
+    .bind(&link.provider)
     .fetch_one(&mut **tx)
     .await?;
     let settled = settle::settle_capture(
         tx,
         txn_id,
         &Capture {
-            provider: "razorpay",
+            provider: &link.provider,
             payment_id: part.payment_id,
             method: part.method,
             received: Received::Exactly(amount),

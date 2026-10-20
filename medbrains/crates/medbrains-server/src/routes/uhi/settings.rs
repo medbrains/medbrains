@@ -159,10 +159,10 @@ async fn view(state: &AppState, tenant_id: Uuid) -> Result<UhiSettingsView, AppE
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
     let sub = load(&mut tx, tenant_id).await?;
     let (doctors_with_hpr, fees) = fee_sources(&mut tx, tenant_id).await?;
-    let online_payment = medbrains_payment_gateway::razorpay_link_credentials(
+    let online_payment = medbrains_payment_gateway::payment_link::link_provider(
         &mut tx,
         state.secret_resolver.as_ref(),
-        &tenant_id,
+        tenant_id,
     )
     .await?
     .is_some();

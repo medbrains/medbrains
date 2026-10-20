@@ -13,6 +13,7 @@ medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-pharmacy-delivery = { path = "../medbrains-pharmacy-delivery" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-billing = { path = "../medbrains-billing" }
+medbrains-doctor-payouts = { path = "../medbrains-doctor-payouts" }
 async-trait = { workspace = true }
 axum = { workspace = true }
 serde = { workspace = true }
