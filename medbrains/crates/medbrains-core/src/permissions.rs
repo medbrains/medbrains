@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 837;
+pub const PERMISSION_COUNT: usize = 838;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -674,6 +674,16 @@ pub mod billing {
         /// Collect every department's dues at this desk — the central
         /// cashier's grant. Without it a desk collects only its own lanes.
         pub const CROSS: &str = "billing.collect.cross";
+    }
+
+    /// The customer display at a billing or pharmacy counter (#4883).
+    pub mod counter_display {
+        /// Show payments on the customer display.
+        /// Mirror the collection in progress on the screen paired to your
+        /// counter: the patient's first name and initial, department totals,
+        /// the UPI QR and the result. Also shows whether that screen is
+        /// connected.
+        pub const PUBLISH: &str = "billing.counter_display.publish";
     }
 
     pub mod bill_groups {

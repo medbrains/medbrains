@@ -710,6 +710,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Desk collection (#4885): the front desk takes registration,
             // OPD, emergency and admission money, not other desks'.
             permissions::billing::collect::REGISTRATION,
+            permissions::billing::counter_display::PUBLISH,
             permissions::billing::collect::OPD,
             permissions::billing::collect::EMERGENCY,
             permissions::billing::collect::IPD,
@@ -761,6 +762,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
             permissions::billing::collect::LAB,
+            permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -824,6 +826,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
             permissions::billing::collect::PHARMACY,
+            permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::ARRANGE,
@@ -953,6 +956,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::RECONCILE,
             // The central cashier collects every department's dues (#4885).
             permissions::billing::collect::CROSS,
+            permissions::billing::counter_display::PUBLISH,
             permissions::billing::bill_groups::MANAGE,
             permissions::billing::refunds::CREATE,
             permissions::billing::terminals::MANAGE,
@@ -1600,6 +1604,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Modality acquisition, study upload, technologist worklist",
         permissions: &[
             permissions::billing::collect::RADIOLOGY,
+            permissions::billing::counter_display::PUBLISH,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -1712,6 +1717,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
             permissions::billing::collect::REGISTRATION,
+            permissions::billing::counter_display::PUBLISH,
             permissions::billing::collect::OPD,
             permissions::billing::collect::IPD,
             permissions::front_office::passes::VERIFY,
