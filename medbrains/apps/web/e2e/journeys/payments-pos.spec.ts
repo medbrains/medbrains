@@ -147,11 +147,14 @@ test("an offline machine is refused up front and the cashier takes cash instead"
     const card = await collectByCard(page, invoiceId);
     const panel = card.getByTestId("card-terminal-panel");
     const counter = panel.getByRole("combobox", { name: "Your counter" });
-    if (await counter.count()) {
+    const offline = panel.getByText(`${machine.label} is offline`);
+    // The machines load first: either the counter picker or (one counter) the machine's state appears.
+    await expect(counter.or(offline)).toBeVisible();
+    if (await counter.isVisible()) {
       await counter.click();
       await page.getByRole("option", { name: machine.stationName, exact: true }).click();
     }
-    await expect(panel.getByText(`${machine.label} is offline`)).toBeVisible();
+    await expect(offline).toBeVisible();
     await expect(panel.getByRole("button", { name: /^Send / })).toHaveCount(0);
     await expectScreenAccessible(page, "invoice detail");
     await panel.getByRole("button", { name: "Take it another way" }).click();
@@ -193,7 +196,10 @@ test("at the pharmacy counter part goes on the card machine and the rest is cash
     await addByKeyboard(page, drug);
     const dialog = await setThreeAndOpenPayment(page, drug);
 
-    await dialog.getByRole("radio", { name: "Card" }).check({ force: true });
+    // The tender is a segmented control: its radio is hidden, so press the label a person sees.
+    const cardTender = dialog.getByRole("radio", { name: "Card" });
+    await dialog.locator(`label[for="${await cardTender.getAttribute("id")}"]`).click();
+    await expect(cardTender).toBeChecked();
     const amountOnCard = dialog.getByRole("textbox", { name: "Amount on card" });
     await amountOnCard.fill("20");
     const panel = await sendToMachine(page, dialog, machine, "₹20.00");
