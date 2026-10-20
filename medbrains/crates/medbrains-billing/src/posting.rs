@@ -137,6 +137,8 @@ pub async fn post_payment(
     .bind(p.tenant_id)
     .execute(&mut **tx)
     .await?;
+    // Doctors paid on collection earn their share of what came in.
+    medbrains_doctor_payouts::accrual::sync_after_money(tx, p.tenant_id, p.invoice_id).await?;
     Ok(Posted::Done(payment))
 }
 
@@ -256,6 +258,8 @@ pub async fn post_refund(tx: &mut Tx<'_>, r: &PostRefund<'_>) -> Result<Posted<R
     .bind(r.tenant_id)
     .execute(&mut **tx)
     .await?;
+    // A refund takes back the doctor's share of it: reversal rows, never edits.
+    medbrains_doctor_payouts::accrual::sync_after_money(tx, r.tenant_id, r.invoice_id).await?;
     Ok(Posted::Done(refund))
 }
 

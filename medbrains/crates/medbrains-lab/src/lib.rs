@@ -5772,12 +5772,14 @@ pub async fn list_referral_doctors(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
-    // The walk-in counter picks the outside doctor from this list too.
+    // The walk-in counter picks the outside doctor from this list too, and
+    // finance picks the referral partner a referral statement is for.
     require_any_permission(
         &claims,
         &[
             permissions::lab::b2b::LIST,
             permissions::lab::orders::DIRECT,
+            permissions::doctor_payouts::statements::PREPARE,
         ],
     )?;
     let mut tx = state.db.begin().await?;
@@ -5794,6 +5796,8 @@ pub async fn list_referral_doctors(
             Option<f64>,
             bool,
             Option<String>,
+            String,
+            Option<String>,
         ),
     >(
         // Tenant-scoped explicitly. These three carried no tenant predicate at
@@ -5803,7 +5807,7 @@ pub async fn list_referral_doctors(
         // `commission_pct` is NUMERIC; it is read as float8 because that is
         // what the tuple decodes — NUMERIC into f64 fails at runtime.
         "SELECT id, name, phone, specialization, hospital_name, \
-                commission_pct::float8, is_active, registration_no \
+                commission_pct::float8, is_active, registration_no, partner_kind, pan \
          FROM lab_referral_doctors WHERE tenant_id = $1 AND deleted_at IS NULL \
          ORDER BY name LIMIT 5000",
     )
@@ -5817,7 +5821,7 @@ pub async fn list_referral_doctors(
             serde_json::json!({
                 "id": r.0, "name": r.1, "phone": r.2, "specialization": r.3,
                 "hospital_name": r.4, "commission_pct": r.5, "is_active": r.6,
-                "registration_no": r.7
+                "registration_no": r.7, "partner_kind": r.8, "pan": r.9
             })
         })
         .collect();
@@ -5837,8 +5841,8 @@ pub async fn create_referral_doctor(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO lab_referral_doctors (tenant_id, name, phone, specialization, hospital_name, commission_pct) \
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO lab_referral_doctors (tenant_id, name, phone, specialization, hospital_name, commission_pct, \
+         partner_kind, pan) VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'organisation'), upper($8)) RETURNING id",
     )
     .bind(claims.tenant_id)
     .bind(body["name"].as_str().unwrap_or(""))
@@ -5846,6 +5850,8 @@ pub async fn create_referral_doctor(
     .bind(body["specialization"].as_str())
     .bind(body["hospital_name"].as_str())
     .bind(body["commission_pct"].as_f64())
+    .bind(body["partner_kind"].as_str())
+    .bind(body["pan"].as_str().filter(|p| !p.is_empty()))
     .fetch_one(&mut *tx).await?;
 
     tx.commit().await?;
@@ -5867,7 +5873,8 @@ pub async fn update_referral_doctor(
         "UPDATE lab_referral_doctors SET \
          name=COALESCE($2,name), phone=COALESCE($3,phone), \
          specialization=COALESCE($4,specialization), hospital_name=COALESCE($5,hospital_name), \
-         commission_pct=COALESCE($6,commission_pct), is_active=COALESCE($7,is_active) \
+         commission_pct=COALESCE($6,commission_pct), is_active=COALESCE($7,is_active), \
+         partner_kind=COALESCE($8,partner_kind), pan=COALESCE(upper($9),pan) \
          WHERE id=$1",
     )
     .bind(id)
@@ -5877,6 +5884,8 @@ pub async fn update_referral_doctor(
     .bind(body["hospital_name"].as_str())
     .bind(body["commission_pct"].as_f64())
     .bind(body["is_active"].as_bool())
+    .bind(body["partner_kind"].as_str())
+    .bind(body["pan"].as_str().filter(|p| !p.is_empty()))
     .execute(&mut *tx)
     .await?;
 
@@ -5929,31 +5938,41 @@ pub async fn list_referral_payouts(
     Ok(Json(result))
 }
 
-/// POST /api/lab/referral-payouts
+/// POST /api/lab/referral-payouts — a referral payout is a statement in the
+/// doctor payout engine: refused unless the hospital has switched referral
+/// payouts on (and, for an individual doctor, the separate switch), priced
+/// from the partner's billed referrals rather than a figure typed in, then
+/// approved, taxed and paid like any other statement.
 pub async fn create_referral_payout(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<CreateReferralPayoutRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::b2b::MANAGE)?;
+    require_permission(&claims, permissions::doctor_payouts::statements::PREPARE)?;
+    if body.period_end < body.period_start {
+        return Err(AppError::BadRequest("The period ends before it starts".to_owned()));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO lab_referral_payouts (tenant_id, referral_doctor_id, period_start, period_end, order_count, total_revenue, commission_amount) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-    )
-    .bind(claims.tenant_id)
-    .bind(body["referral_doctor_id"].as_str().and_then(|s| Uuid::parse_str(s).ok()))
-    .bind(body["period_start"].as_str().and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
-    .bind(body["period_end"].as_str().and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()))
-    .bind(body["order_count"].as_i64().unwrap_or(0) as i32)
-    .bind(body["total_revenue"].as_f64().unwrap_or(0.0))
-    .bind(body["commission_amount"].as_f64().unwrap_or(0.0))
-    .fetch_one(&mut *tx).await?;
-
+    let ask = medbrains_doctor_payouts::referral::ReferralAsk {
+        tenant_id: claims.tenant_id,
+        partner: body.referral_doctor_id,
+        from: body.period_start,
+        to: body.period_end,
+        actor: claims.sub,
+    };
+    let statement_id =
+        medbrains_doctor_payouts::referral::create_referral_statement(&mut tx, &ask).await?;
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"id": id, "status": "created"})))
+    Ok(Json(serde_json::json!({"statement_id": statement_id, "status": "created"})))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReferralPayoutRequest {
+    pub referral_doctor_id: Uuid,
+    pub period_start: NaiveDate,
+    pub period_end: NaiveDate,
 }
 
 /// GET /api/lab/b2b-credit-summary

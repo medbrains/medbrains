@@ -169,6 +169,12 @@ const RadiologyPage = lazy(() =>
   import("./pages/radiology").then((m) => ({ default: m.RadiologyPage })),
 );
 const BillingPage = lazy(() => import("./pages/billing").then((m) => ({ default: m.BillingPage })));
+const DoctorPayoutsPage = lazy(() =>
+  import("./pages/doctor-payouts").then((m) => ({ default: m.DoctorPayoutsPage })),
+);
+const MyEarningsPage = lazy(() =>
+  import("./pages/my-earnings").then((m) => ({ default: m.MyEarningsPage })),
+);
 const BillingCounterPage = lazy(() =>
   import("./pages/billing-counter").then((m) => ({ default: m.BillingCounterPage })),
 );
@@ -607,6 +613,8 @@ export function App() {
               <Route path="pharmacy/h1-register" element={<H1RegisterPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
+              <Route path="billing/doctor-payouts" element={<DoctorPayoutsPage />} />
+              <Route path="my-earnings" element={<MyEarningsPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />
               <Route path="billing/tpa-pipeline" element={<BillingTpaPipelinePage />} />
               <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />

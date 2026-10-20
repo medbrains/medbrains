@@ -89,6 +89,7 @@ members = [
     "crates/medbrains-auth",
     "crates/medbrains-payroll",
     "crates/medbrains-doctor-packages",
+    "crates/medbrains-doctor-payouts",
     "crates/medbrains-upload",
     "crates/medbrains-fhir-api",
     "crates/medbrains-case-sheet-scan",
