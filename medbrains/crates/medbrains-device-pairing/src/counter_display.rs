@@ -201,14 +201,12 @@ pub fn apply(state: &DisplayState, event: DisplayEvent) -> Result<Option<Display
     let same = state.session == Some(session);
     // A start for the session already showing only renames it (the drawer
     // learns the name after it opens); a start for a new one wipes the last.
-    let mut next = if same && state.phase == Phase::Paid {
-        // A paid visit is over: only clearing it, or the next patient, changes the screen.
-        if let DisplayEvent::Cleared { .. } = event {
-            state.clone()
-        } else {
-            return Ok(None);
-        }
-    } else if same {
+    // A paid visit is over: only clearing it, or the next patient, changes the
+    // screen. Anything else is still validated below, then dropped.
+    let settled = same
+        && state.phase == Phase::Paid
+        && !matches!(event, DisplayEvent::Cleared { .. });
+    let mut next = if same {
         state.clone()
     } else if let DisplayEvent::SessionStart { .. } = event {
         DisplayState::default()
@@ -295,7 +293,7 @@ pub fn apply(state: &DisplayState, event: DisplayEvent) -> Result<Option<Display
             }));
         }
     }
-    Ok(Some(next))
+    Ok((!settled).then_some(next))
 }
 
 /// What a display reading the snapshot `age` after its last change may see:
