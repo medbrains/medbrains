@@ -146,6 +146,9 @@ async fn card_machine_money_is_linked_not_posted_again() {
     let (_, sale) = pos_world::start(&w, terminal, Some(inv), 200).await;
     let sale_id = sale["transaction_id"].as_str().expect("sale").to_owned();
     pos_world::card_does(&w, &sale_id, json!({ "outcome": "approve" })).await;
+    // The counter's next look at the sale is what settles it (#4887).
+    let approved = pos_world::status(&w, &sale_id).await;
+    assert_eq!(approved["stage"], "approved", "{approved}");
     assert_eq!(w.payments(inv).await.len(), 1);
 
     let tenders = json!([{ "mode": "card", "gateway_transaction_id": sale_id },

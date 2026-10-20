@@ -101,6 +101,9 @@ fn idempotency_key(body: &CollectRequest, headers: &HeaderMap) -> Result<String,
     }
 }
 
+/// A spent key's collection: id, same request, total, station, shift.
+type SpentKey = (Uuid, bool, Decimal, Option<Uuid>, Option<Uuid>);
+
 /// A key already spent: its collection when the request is the same one.
 async fn replay(
     tx: &mut Tx<'_>,
@@ -108,7 +111,7 @@ async fn replay(
     key: &str,
     fingerprint: &str,
 ) -> Result<Option<Collected>, AppError> {
-    let row: Option<(Uuid, bool, Decimal, Option<Uuid>, Option<Uuid>)> = sqlx::query_as(
+    let row: Option<SpentKey> = sqlx::query_as(
         "SELECT id, request_hash = md5($3), total_amount, station_id, shift_id \
            FROM collections WHERE tenant_id = $1 AND idempotency_key = $2",
     )
