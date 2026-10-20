@@ -6,6 +6,7 @@
 //! keeping the dependency graph acyclic.
 
 pub mod billing;
+pub mod billing_lanes;
 pub mod llm;
 pub mod mrd_lock;
 pub mod patient_identity;

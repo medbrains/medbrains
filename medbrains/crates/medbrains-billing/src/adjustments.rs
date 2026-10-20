@@ -234,7 +234,9 @@ pub async fn create_refund(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateRefundRequest>,
 ) -> Result<Json<Refund>, AppError> {
-    require_permission(&claims, permissions::billing::payments::VOID)?;
+    // Refunding a bill is its own grant (#4885); `payments.void` stays for
+    // reversing a gateway payment.
+    require_permission(&claims, permissions::billing::refunds::CREATE)?;
     // invoice_id comes from the body and names an existing bill, so it
     // names a patient. Raising the original invoice is a front-desk act
     // against whoever presents; refunding a particular one is not.

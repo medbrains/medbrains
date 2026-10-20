@@ -42,6 +42,8 @@ export interface RazorpayMock {
   extraCaptured: number;
   /** Refuse every order, as Razorpay does for a bad key. */
   refuseOrders: boolean;
+  /** Counter UPI QR codes made, newest last: id and amount in paise. */
+  qrCodes: Array<{ id: string; amount: number }>;
 }
 
 const state: RazorpayMock = {
@@ -50,6 +52,7 @@ const state: RazorpayMock = {
   method: "card",
   extraCaptured: 0,
   refuseOrders: false,
+  qrCodes: [],
 };
 let server: Server | null = null;
 
@@ -77,6 +80,22 @@ async function answer(req: IncomingMessage): Promise<[number, unknown]> {
     const order = { id, amount: Number(body.amount), receipt: String(body.receipt) };
     state.orders.set(id, order);
     return [200, { ...order, status: "created" }];
+  }
+  if (req.method === "POST" && path === "/v1/payments/qr_codes") {
+    const body = await readJson(req);
+    const id = `qr_${randomUUID().replaceAll("-", "").slice(0, 14)}`;
+    state.qrCodes.push({ id, amount: Number(body.payment_amount) });
+    return [
+      200,
+      {
+        id,
+        entity: "qr_code",
+        status: "active",
+        image_url: `https://rzp.io/i/${id}`,
+        payment_amount: body.payment_amount,
+        close_by: body.close_by,
+      },
+    ];
   }
   const refund = path.match(/^\/v1\/payments\/([^/]+)\/refund$/);
   if (req.method === "POST" && refund?.[1]) {
@@ -106,6 +125,7 @@ async function answer(req: IncomingMessage): Promise<[number, unknown]> {
 
 /** The stand-in Razorpay API, started once per worker; reset for each test. */
 export async function razorpayMock(): Promise<RazorpayMock> {
+  state.qrCodes = [];
   state.method = "card";
   state.extraCaptured = 0;
   state.refuseOrders = false;
@@ -215,6 +235,24 @@ export function capturedEvent(opened: CheckoutOpened, method = "card"): unknown 
           order_id: opened.order_id,
           amount: opened.amount,
           method,
+          status: "captured",
+        },
+      },
+    },
+  };
+}
+
+/** Razorpay's `qr_code.credited`: the patient paid the counter QR by UPI. */
+export function qrCreditedEvent(qr: { id: string; amount: number }): unknown {
+  return {
+    event: "qr_code.credited",
+    payload: {
+      qr_code: { entity: { id: qr.id, entity: "qr_code" } },
+      payment: {
+        entity: {
+          id: `pay_${randomUUID().replaceAll("-", "").slice(0, 14)}`,
+          amount: qr.amount,
+          method: "upi",
           status: "captured",
         },
       },

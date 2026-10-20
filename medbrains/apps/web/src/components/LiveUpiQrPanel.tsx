@@ -6,6 +6,7 @@ import { Alert, Button, Image } from "@/components/ui";
 import { SETTLED_STATUSES } from "@/lib/razorpay-checkout";
 import { paymentsService } from "@/services/payments.service";
 import { isHeldForFinance } from "./OnlineCheckoutPanel";
+import { useFireOnce } from "./payments/useFireOnce";
 
 /** How often the counter asks whether the QR has been paid. */
 export const LIVE_QR_POLL_MS = 3_000;
@@ -41,11 +42,14 @@ export function LiveUpiQrPanel({
   now = nowSecs,
 }: LiveUpiQrPanelProps) {
   const transactionId = qr.transaction_id ?? "";
+  const fireOnce = useFireOnce();
   const status = useQuery({
     queryKey: ["payments", "status", transactionId],
     queryFn: async () => {
       const txn = (await paymentsService.getPaymentStatus(transactionId)).transaction;
-      if (txn.status === "captured" && !isHeldForFinance(txn)) onCaptured(txn);
+      if (txn.status === "captured" && !isHeldForFinance(txn)) {
+        fireOnce(txn.id, () => onCaptured(txn));
+      }
       return txn;
     },
     enabled: transactionId !== "",

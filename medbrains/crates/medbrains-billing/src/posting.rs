@@ -40,6 +40,11 @@ pub struct PostPayment<'a> {
     pub received_by: Option<Uuid>,
     pub counter_id: Option<&'a str>,
     pub shift: Option<&'a str>,
+    /// The patient payment act it is part of (#4885), and where and in which
+    /// shift it was taken.
+    pub collection_id: Option<Uuid>,
+    pub station_id: Option<Uuid>,
+    pub shift_id: Option<Uuid>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -99,8 +104,8 @@ pub async fn post_payment(
     let payment = sqlx::query_as::<_, Payment>(
         "INSERT INTO payments \
          (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, \
-          counter_id, shift, paid_at) \
-         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, $8, $9, now()) \
+          counter_id, shift, collection_id, station_id, shift_id, paid_at) \
+         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, $8, $9, $10, $11, $12, now()) \
          RETURNING *",
     )
     .bind(p.tenant_id)
@@ -112,6 +117,9 @@ pub async fn post_payment(
     .bind(p.notes)
     .bind(p.counter_id)
     .bind(p.shift)
+    .bind(p.collection_id)
+    .bind(p.station_id)
+    .bind(p.shift_id)
     .fetch_one(&mut **tx)
     .await?;
     sqlx::query(

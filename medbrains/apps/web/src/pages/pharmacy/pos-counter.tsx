@@ -18,7 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import type { PharmacyPosSaleFormInput } from "@medbrains/schemas";
 import { pharmacyPosSaleFormSchema } from "@medbrains/schemas";
 import { useFieldAccess, useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import type { PharmacyCatalog, PharmacyPosSale, PosTenderInput } from "@medbrains/types";
+import type { PharmacyCatalog, PharmacyPosSale } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconAlertTriangle, IconCash, IconReceipt, IconX } from "@tabler/icons-react";
@@ -33,6 +33,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
 import { isSafetyRefusal } from "@/components/Pharmacy/safetyGate";
 import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
+import { posTendersOf } from "@/components/payments/settlement";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   formIntegerOrFallback,
@@ -92,25 +93,6 @@ const SPLIT_MODES_PATIENT = ["card", "upi", "credit"] as const;
 const PERM_DISCOUNT_APPROVE = P.PHARMACY.POS_DISCOUNT_APPROVE;
 const PERM_COUNTER_PATIENT_SEARCH = P.PHARMACY.PATIENTS_SEARCH;
 const PERM_PHARMACY_BILL_PRINT = P.PHARMACY.BILLS_PRINT;
-
-function tenderOf(settlement: PaymentModalSettlement): PosTenderInput[] {
-  const parts: PosTenderInput[] = (settlement.parts ?? []).map((part) => ({
-    mode: part.mode,
-    amount: part.amount,
-    reference: part.reference,
-    gateway_transaction_id: part.gateway_transaction_id,
-  }));
-  if (settlement.amount > 0) {
-    parts.push({
-      mode: settlement.mode,
-      amount:
-        settlement.mode === "cash" ? (settlement.tendered ?? settlement.amount) : settlement.amount,
-      reference: settlement.reference_number,
-      gateway_transaction_id: settlement.gateway_transaction_id,
-    });
-  }
-  return parts;
-}
 
 export function PosCounterTab({
   canView,
@@ -418,7 +400,7 @@ export function PosCounterTab({
         selling_price: posSaleLinePrice(c),
         gst_rate: lineGstRate(c.catalog_item_id),
       })),
-      payments: tenderOf(settlement),
+      payments: posTendersOf(settlement),
       patient_name: canEditWalkInName ? optionalFormText(values.patient_name) : undefined,
       patient_phone: canEditWalkInPhone ? optionalFormText(values.patient_phone) : undefined,
       discount_percent: discountPercentValue || undefined,
