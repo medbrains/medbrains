@@ -147,7 +147,7 @@ pub struct PosTenderInput {
     /// The approved card-machine (or gateway) payment this tender is, so
     /// one approval pays for one sale only.
     #[serde(default)]
-    pub gateway_transaction_id: Option<uuid::Uuid>,
+    pub gateway_transaction_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,7 +197,7 @@ pub(crate) struct Tender {
     /// For cash, what the drawer keeps — the change has already gone back.
     pub amount: Decimal,
     pub reference: Option<String>,
-    pub gateway_transaction_id: Option<uuid::Uuid>,
+    pub gateway_transaction_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone)]
