@@ -3,7 +3,9 @@ package com.medbrains.staff
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import android.content.Intent
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -32,7 +34,9 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class AbdmDeskJourneyTest {
-    val compose = createAndroidComposeRule<MainActivity>()
+    // Launched by hand so the app talks to the same server as the test's API (`baseUrl`).
+    val compose = createEmptyComposeRule()
+    private var scenario: ActivityScenario<MainActivity>? = null
 
     @get:Rule
     val chain: RuleChain = RuleChain.outerRule(compose).around(Evidence { compose })
@@ -45,7 +49,11 @@ class AbdmDeskJourneyTest {
     private fun has(tag: String) = with(Session) { compose.has(tag) }
     private fun seesText(t: String) = compose.onAllNodes(hasText(t, substring = true)).fetchSemanticsNodes().isNotEmpty()
     private fun tap(tag: String) = compose.onNodeWithTag(tag).performScrollTo().performClick()
-    private fun back() = compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+    private fun back() { scenario?.onActivity { it.onBackPressedDispatcher.onBackPressed() } }
+    private fun launch() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java).putExtra("baseUrl", Api.BACKEND))
+    }
     private fun waitFor(tag: String, ms: Long = 10_000) = compose.waitUntil(ms) { has(tag) }
 
     /** A share row the lazy queue has not composed yet: scrolled to, then there. */
@@ -63,6 +71,7 @@ class AbdmDeskJourneyTest {
 
     @After
     fun tidy() {
+        scenario?.close()
         // Dealt with, so the next run's queue is only its own.
         shareIds.forEach { api.call("POST", "/api/abdm/scan-share/$it/dismiss") }
         api.retire(desk)
@@ -77,6 +86,7 @@ class AbdmDeskJourneyTest {
         assumeTrue("seed two shares first: scripts/seed_scan_share.sh", matched != null && fresh != null && matchedId != null && freshId != null)
         shareIds = listOf(matchedId!!, freshId!!)
         val who = api.provision("receptionist").also { desk = it }
+        launch()
         with(Session) { compose.signInAs(who.username, who.password, "module-home-reception") }
 
         // The queue: both shares, the matched one carrying its patient.
@@ -135,6 +145,7 @@ class AbdmDeskJourneyTest {
     @Test
     fun theQueueNeverBlanksAndTheAbhaSheetKeepsTheForm() {
         val who = api.provision("receptionist").also { desk = it }
+        launch()
         with(Session) { compose.signInAs(who.username, who.password, "module-home-reception") }
         // A hospital whose receptionist role predates `abdm.scanshare.view` has no
         // Scan & Share module: the gate, working. The form half still runs.
