@@ -123,8 +123,11 @@ test("a split at the cashier is one collection: a lost answer, retried, posts no
     `/api/billing/invoices/${invoiceId}/receipts`,
   );
   expect(receipts.map((r) => Number(r.amount))).toEqual([500]);
+  // The receipt prints after the bill is paid: its print data is fetched next.
+  await expect
+    .poll(async () => (await printed()).length, { message: "one receipt printed for the whole collection" })
+    .toBe(1);
   const sent = await printed();
-  expect(sent, "one receipt printed for the whole collection").toHaveLength(1);
   expect(sent[0]).toContain("500.00");
   expect(sent[0]).toMatch(/cash \+ upi|upi \+ cash/);
 
@@ -240,10 +243,15 @@ test("the billing token says where the patient is, never that they paid", async 
   await row.getByRole("button", { name: "Complete", exact: true }).click();
   await expect(page.getByText("Paid", { exact: true })).toHaveCount(0);
 
-  const board = await api<Array<{ id: string; status: string }>>(
-    hospital.admin,
-    "GET",
-    `/api/tokens/board?module=billing&scope=department&scope_id=${dept.id}&include_finished=true`,
-  );
-  expect(board.find((t) => t.id === token.id)?.status).toBe("completed");
+  // The click returns before the server has moved the token: wait for it.
+  await expect
+    .poll(async () => {
+      const board = await api<Array<{ id: string; status: string }>>(
+        hospital.admin,
+        "GET",
+        `/api/tokens/board?module=billing&scope=department&scope_id=${dept.id}&include_finished=true`,
+      );
+      return board.find((t) => t.id === token.id)?.status;
+    })
+    .toBe("completed");
 });
