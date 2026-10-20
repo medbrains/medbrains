@@ -59,7 +59,14 @@ pub fn d(v: &str) -> Decimal {
 }
 
 impl World {
-    pub async fn send(&self, client: &Client, csrf: &str, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
+    pub async fn send(
+        &self,
+        client: &Client,
+        csrf: &str,
+        method: &str,
+        path: &str,
+        body: Value,
+    ) -> (StatusCode, Value) {
         let url = self.app.url(path);
         let req = match method {
             "GET" => client.get(url),
@@ -67,14 +74,19 @@ impl World {
             "DELETE" => client.delete(url),
             _ => client.post(url).json(&body),
         };
-        let resp = req.header("x-csrf-token", csrf).send().await.expect("request");
+        let resp = req
+            .header("x-csrf-token", csrf)
+            .send()
+            .await
+            .expect("request");
         let status = resp.status();
         (status, resp.json().await.unwrap_or(Value::Null))
     }
 
     /// As the bootstrap admin (a bypass role).
     pub async fn call(&self, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
-        self.send(&self.app.client, &self.csrf, method, path, body).await
+        self.send(&self.app.client, &self.csrf, method, path, body)
+            .await
     }
 
     pub async fn ok(&self, method: &str, path: &str, body: Value) -> Value {
@@ -83,7 +95,13 @@ impl World {
         out
     }
 
-    pub async fn as_staff(&self, s: &Staff, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
+    pub async fn as_staff(
+        &self,
+        s: &Staff,
+        method: &str,
+        path: &str,
+        body: Value,
+    ) -> (StatusCode, Value) {
         self.send(&s.client, &s.csrf, method, path, body).await
     }
 
@@ -110,8 +128,12 @@ impl World {
             .await;
         let id: Uuid = id.as_str().expect("card id").parse().expect("uuid");
         for rule in rules {
-            self.ok("POST", &format!("/api/doctor-payouts/rate-cards/{id}/rules"), rule.clone())
-                .await;
+            self.ok(
+                "POST",
+                &format!("/api/doctor-payouts/rate-cards/{id}/rules"),
+                rule.clone(),
+            )
+            .await;
         }
         id
     }
@@ -129,7 +151,8 @@ impl World {
                 b.insert(k.clone(), v.clone());
             }
         }
-        self.ok("POST", "/api/doctor-payouts/agreements", body).await
+        self.ok("POST", "/api/doctor-payouts/agreements", body)
+            .await
     }
 
     pub async fn patient(&self) -> Uuid {
@@ -148,8 +171,18 @@ impl World {
     /// A draft bill for `patient` with these lines (each `{charge_code,
     /// unit_price, ...}`, `source` defaults to manual).
     pub async fn bill_for(&self, patient: Uuid, lines: &[Value]) -> Uuid {
-        let invoice = self.ok("POST", "/api/billing/invoices", json!({ "patient_id": patient })).await;
-        let id: Uuid = invoice["id"].as_str().expect("invoice id").parse().expect("uuid");
+        let invoice = self
+            .ok(
+                "POST",
+                "/api/billing/invoices",
+                json!({ "patient_id": patient }),
+            )
+            .await;
+        let id: Uuid = invoice["id"]
+            .as_str()
+            .expect("invoice id")
+            .parse()
+            .expect("uuid");
         for line in lines {
             let mut body = json!({ "description": "Service", "source": "manual", "quantity": 1,
                                    "tax_percent": 0 });
@@ -158,7 +191,8 @@ impl World {
                     b.insert(k.clone(), v.clone());
                 }
             }
-            self.ok("POST", &format!("/api/billing/invoices/{id}/items"), body).await;
+            self.ok("POST", &format!("/api/billing/invoices/{id}/items"), body)
+                .await;
         }
         id
     }
@@ -169,7 +203,12 @@ impl World {
     }
 
     pub async fn issue(&self, invoice: Uuid) {
-        self.ok("POST", &format!("/api/billing/invoices/{invoice}/issue"), json!({})).await;
+        self.ok(
+            "POST",
+            &format!("/api/billing/invoices/{invoice}/issue"),
+            json!({}),
+        )
+        .await;
     }
 
     pub async fn pay(&self, invoice: Uuid, amount: &str) -> Value {
@@ -230,7 +269,10 @@ impl World {
         .fetch_one(&self.app.db)
         .await
         .expect("user");
-        let client = Client::builder().cookie_store(true).build().expect("client");
+        let client = Client::builder()
+            .cookie_store(true)
+            .build()
+            .expect("client");
         let login: Value = client
             .post(self.app.url("/api/auth/login"))
             .json(&json!({ "username": username, "password": password }))
@@ -241,14 +283,21 @@ impl World {
             .await
             .expect("login json");
         let csrf = login["csrf_token"].as_str().unwrap_or_default().to_owned();
-        Staff { client, csrf, user_id }
+        Staff {
+            client,
+            csrf,
+            user_id,
+        }
     }
 
     /// A second approver, not the admin who prepared.
     pub async fn approver(&self) -> Staff {
         self.staff_with(
             "billing_clerk",
-            &["doctor_payouts.statements.approve", "doctor_payouts.payouts.execute"],
+            &[
+                "doctor_payouts.statements.approve",
+                "doctor_payouts.payouts.execute",
+            ],
         )
         .await
     }
@@ -262,4 +311,14 @@ pub fn fixed(code: &str, amount: &str) -> Value {
 pub fn percent(code: &str, pct: &str) -> Value {
     json!({ "rule_name": format!("{code} share"), "charge_code": code, "role": "primary",
             "calc_kind": "percent", "percentage": pct })
+}
+
+/// Record a manual cash payout of an approved statement.
+pub async fn pay_cash(w: &World, statement: &str) {
+    w.ok(
+        "POST",
+        "/api/doctor-payouts/payouts",
+        json!({ "statement_ids": [statement], "provider": "manual", "mode": "cash", "reference": "RCPT-1" }),
+    )
+    .await;
 }

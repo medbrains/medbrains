@@ -9,7 +9,9 @@ use axum::{
 use chrono::{DateTime, Days, NaiveDate, Utc};
 use medbrains_core::permissions::doctor_payouts::{agreements, rate_cards};
 use medbrains_server_core::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::{require_any_permission, require_permission},
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 use rust_decimal::Decimal;
