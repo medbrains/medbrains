@@ -1,15 +1,12 @@
 import { Group, Stack } from "@mantine/core";
+import { ApiError } from "@medbrains/api";
 import type { PaymentGatewayTransaction } from "@medbrains/types";
-import { IconCash, IconCreditCard, IconQrcode } from "@tabler/icons-react";
+import { IconCash, IconCreditCard, IconQrcode, IconRefresh } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Button, NumberField } from "@/components/ui";
-import {
-  loadRazorpayCheckout,
-  pollUntil,
-  type RazorpayCheckoutResponse,
-  SETTLED_STATUSES,
-} from "@/lib/razorpay-checkout";
+import { CheckoutClosed, checkoutOf, openCheckout, paysElsewhere } from "@/lib/online-checkout";
+import { pollUntil, SETTLED_STATUSES } from "@/lib/razorpay-checkout";
 import { paymentsService } from "@/services/payments.service";
 
 /** The modes a failed online payment can fall back to. */
@@ -23,6 +20,10 @@ interface OnlineCheckoutPanelProps {
   invoiceId?: string;
   posSaleId?: string;
   patientName?: string;
+  /** The counter collecting: its provider may differ from the hospital's. */
+  stationId?: string | null;
+  /** The provider's name, for the cashier. */
+  providerLabel?: string;
   disabled: boolean;
   /** Fallbacks this counter offers, in order. */
   fallbacks: readonly FallbackMode[];
@@ -30,49 +31,25 @@ interface OnlineCheckoutPanelProps {
   onUseOtherMode: (mode: FallbackMode) => void;
 }
 
-/** The patient closed checkout: nothing was charged. */
-class CheckoutClosed extends Error {}
-
 const FALLBACK_LABEL: Record<FallbackMode, string> = {
   upi_qr: "Use UPI QR instead",
   cash: "Take cash instead",
 };
+
+/** A patient paying on a hosted page in another tab gets about five minutes. */
+const ELSEWHERE_POLL = { maxAttempts: 40 } as const;
 
 /** The money is in, but could not be posted to the bill: finance has it. */
 export function isHeldForFinance(txn: PaymentGatewayTransaction): boolean {
   return txn.notes?.held_for_finance === true;
 }
 
-/** Open Razorpay's checkout and resolve with what it says the patient paid. */
-async function payInCheckout(options: {
-  keyId: string;
-  orderId: string;
-  amount: number;
-  currency: string;
-  patientName?: string;
-}): Promise<RazorpayCheckoutResponse> {
-  const Razorpay = await loadRazorpayCheckout();
-  return new Promise((resolve, reject) => {
-    const checkout = new Razorpay({
-      key: options.keyId,
-      order_id: options.orderId,
-      amount: Math.round(options.amount * 100),
-      currency: options.currency,
-      name: "MedBrains HMS",
-      description: options.patientName ? `Payment for ${options.patientName}` : "Hospital payment",
-      prefill: { name: options.patientName ?? "" },
-      handler: resolve,
-      modal: { ondismiss: () => reject(new CheckoutClosed("Checkout was closed")) },
-    });
-    checkout.open();
-  });
-}
-
 /** The row once it can no longer change on its own, or `null` if it did not settle in time. */
-function waitForSettled(transactionId: string) {
+function waitForSettled(transactionId: string, elsewhere: boolean) {
   return pollUntil(
     () => paymentsService.getPaymentStatus(transactionId).then((r) => r.transaction),
     (txn) => SETTLED_STATUSES.has(txn.status),
+    elsewhere ? ELSEWHERE_POLL : {},
   );
 }
 
@@ -84,55 +61,70 @@ export function onlineAmountError(value: number, due: number): string | null {
   return null;
 }
 
+/** The fallback a 503 offers, when the provider did not answer. */
+export function offeredFallback(error: unknown): { provider: string; label: string } | null {
+  if (!(error instanceof ApiError) || error.code !== "provider_unavailable") return null;
+  const offer = error.body.fallback as { provider?: unknown; label?: unknown } | null | undefined;
+  return typeof offer?.provider === "string" && typeof offer.label === "string"
+    ? { provider: offer.provider, label: offer.label }
+    : null;
+}
+
 async function collectOnline(
   props: OnlineCheckoutPanelProps,
   amount: number,
+  provider: string | undefined,
 ): Promise<PaymentGatewayTransaction> {
   const order = await paymentsService.createPaymentOrder({
     invoice_id: props.invoiceId,
     pos_sale_id: props.posSaleId,
     amount,
+    station_id: props.stationId ?? undefined,
+    provider,
+    callback_url: window.location.href,
   });
-  if (!order.order_id || !order.key_id) {
-    throw new Error("Online checkout here works with Razorpay, which is not the active provider.");
-  }
-  const paid = await payInCheckout({
-    keyId: order.key_id,
-    orderId: order.order_id,
+  const proof = await openCheckout(order, {
     amount: order.amount,
     currency: order.currency,
     patientName: props.patientName,
   });
-  const verified = await paymentsService.verifyPayment(paid).catch(() => null);
+  const verified = await paymentsService.verifyPayment(proof).catch(() => null);
   if (verified?.status === "captured") return verified;
-  const settled = await waitForSettled(order.transaction_id);
+  const checkout = checkoutOf(order);
+  const settled = await waitForSettled(
+    order.transaction_id,
+    Boolean(checkout && paysElsewhere(checkout)),
+  );
   if (settled?.status === "captured") return settled;
   if (settled?.status === "failed") {
     throw new Error(settled.error_description ?? "The payment failed.");
   }
   throw new Error(
-    "The payment was taken but Razorpay has not confirmed it yet. It posts to the bill on its own — check the bill before collecting again.",
+    "The payment was taken but the provider has not confirmed it yet. It posts to the bill on its own — check the bill before collecting again.",
   );
 }
 
-/** Online payment through Razorpay's checkout, with a clear way out when it fails. */
+/** Online payment through the counter's provider, with a clear way out when it fails. */
 export function OnlineCheckoutPanel(props: OnlineCheckoutPanelProps) {
   const { amount: due, formatAmount, disabled, fallbacks, onCaptured, onUseOtherMode } = props;
   const [amount, setAmount] = useState(due);
   const amountError = onlineAmountError(amount, due);
   const checkout = useMutation({
-    mutationFn: () => collectOnline(props, amount),
+    mutationFn: (provider: string | undefined) => collectOnline(props, amount, provider),
     onSuccess: (txn) => {
       if (!isHeldForFinance(txn)) onCaptured(txn);
     },
   });
   const held = checkout.isSuccess && isHeldForFinance(checkout.data);
   const closed = checkout.error instanceof CheckoutClosed;
+  // Offered by the server only when the provider did not answer; the cashier chooses it.
+  const backup = offeredFallback(checkout.error);
 
   return (
     <Stack gap="sm">
       <Alert tone="info" icon={<IconCreditCard size={16} />}>
-        Pay securely by UPI, card, net banking or wallet through Razorpay.
+        Pay securely by UPI, card, net banking or wallet
+        {props.providerLabel ? ` through ${props.providerLabel}` : ""}.
       </Alert>
       {held && (
         <Alert tone="warning" title="Payment received, not posted" data-testid="alert-online-held">
@@ -150,8 +142,19 @@ export function OnlineCheckoutPanel(props: OnlineCheckoutPanelProps) {
             {closed
               ? "Checkout was closed before paying. Nothing was charged."
               : checkout.error.message}
-            {fallbacks.length > 0 && (
+            {(fallbacks.length > 0 || backup) && (
               <Group gap="xs">
+                {backup && (
+                  <Button
+                    tone="primary"
+                    size="xs"
+                    data-testid="btn-use-fallback-provider"
+                    leftSection={<IconRefresh size={14} />}
+                    onClick={() => checkout.mutate(backup.provider)}
+                  >
+                    Try {backup.label} instead
+                  </Button>
+                )}
                 {fallbacks.map((mode) => (
                   <Button
                     key={mode}
@@ -192,7 +195,7 @@ export function OnlineCheckoutPanel(props: OnlineCheckoutPanelProps) {
         loading={checkout.isPending}
         disabled={disabled || held || amountError !== null}
         data-testid="btn-pay-online"
-        onClick={() => checkout.mutate()}
+        onClick={() => checkout.mutate(undefined)}
         leftSection={<IconCreditCard size={18} />}
       >
         {formatAmount ? `Pay ${formatAmount(amount)} Online` : "Pay Online"}

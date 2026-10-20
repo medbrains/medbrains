@@ -22,9 +22,16 @@ export const paymentsService = {
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   initiateRefund: (data: Parameters<typeof api.initiateRefund>[0]) => api.initiateRefund(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
-  requestUpiCollect: (data: Parameters<typeof api.requestUpiCollect>[0]) =>
-    api.requestUpiCollect(data),
   listPaymentProviders: () => api.listPaymentProviders(),
+  getPaymentCapabilities: (stationId: string | null) => api.getPaymentCapabilities(stationId),
+  getOnlineSettings: () => api.getOnlineSettings(),
+  updateOnlineSettings: (data: Parameters<typeof api.updateOnlineSettings>[0]) =>
+    api.updateOnlineSettings(data),
+  setProviderKeys: (provider: string, data: Parameters<typeof api.setProviderKeys>[1]) =>
+    api.setProviderKeys(provider, data),
+  setStationProvider: (id: string, paymentProvider: string | null) =>
+    api.setStationProvider(id, { payment_provider: paymentProvider }),
+  testPaymentProvider: (provider: string) => api.testPaymentProvider(provider),
   getReconSummary: () => api.getReconSummary(),
   listPaymentExceptions: (...args: Parameters<typeof api.listPaymentExceptions>) =>
     api.listPaymentExceptions(...args),

@@ -184,30 +184,25 @@ pub(super) async fn seed_default_dashboard(
         .execute(&mut *tx)
         .await?;
 
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM dashboards WHERE tenant_id = $1 AND code = 'default-main')",
+    // ON CONFLICT, not check-then-insert: concurrent seeds must not 23505.
+    // NOT EXISTS still counts soft-deleted rows, so a deleted dashboard stays deleted.
+    let inserted: Option<uuid::Uuid> = sqlx::query_scalar(
+        "INSERT INTO dashboards (tenant_id, code, name, description, is_default, role_codes, layout_config) \
+         SELECT $1, 'default-main', 'Hospital Overview', \
+         'Default dashboard for all staff — key metrics at a glance', \
+         true, '[]'::jsonb, \
+         '{\"columns\": 12, \"row_height\": 80, \"gap\": 16}'::jsonb \
+         WHERE NOT EXISTS (SELECT 1 FROM dashboards WHERE tenant_id = $1 AND code = 'default-main') \
+         ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING RETURNING id",
     )
     .bind(tenant_id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
-
-    if exists {
+    let Some(dashboard_id) = inserted else {
         tx.commit().await?;
         tracing::debug!("Default dashboard already exists, skipping");
         return Ok(());
-    }
-
-    let dashboard_id: uuid::Uuid = sqlx::query_scalar(
-        "INSERT INTO dashboards (tenant_id, code, name, description, is_default, role_codes, layout_config) \
-         VALUES ($1, 'default-main', 'Hospital Overview', \
-         'Default dashboard for all staff — key metrics at a glance', \
-         true, '[]'::jsonb, \
-         '{\"columns\": 12, \"row_height\": 80, \"gap\": 16}'::jsonb) \
-         RETURNING id",
-    )
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    };
 
     insert_widgets(&mut tx, dashboard_id).await?;
 

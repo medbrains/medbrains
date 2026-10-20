@@ -275,7 +275,21 @@ export interface CreatePaymentOrderRequest {
   amount: number;
   currency?: string;
   receipt?: string;
+  phone?: string;
+  /** The page the patient returns to after a hosted checkout. */
+  callback_url?: string;
+  /** The counter collecting; its provider may differ from the hospital's. */
+  station_id?: string;
+  /** The hospital's fallback provider, chosen after the first did not answer. */
+  provider?: string;
 }
+
+/** How the browser pays an order, in its provider's own way. */
+export type OnlineCheckout =
+  | { kind: "razorpay_js"; key_id: string; order_id: string }
+  | { kind: "cashfree_js"; session_id: string; mode: string }
+  | { kind: "redirect"; url: string }
+  | { kind: "form_post"; action: string; fields: Record<string, string> };
 
 export interface CreatePaymentOrderResponse {
   transaction_id: string;
@@ -284,12 +298,17 @@ export interface CreatePaymentOrderResponse {
   currency: string;
   key_id: string;
   status: string;
+  /** The provider that made the order. */
+  provider: string;
+  checkout: OnlineCheckout | null;
 }
 
+/** Razorpay's signed handler result, or just the row for an unsigned checkout. */
 export interface VerifyPaymentRequest {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
+  transaction_id?: string;
+  razorpay_order_id?: string;
+  razorpay_payment_id?: string;
+  razorpay_signature?: string;
 }
 
 export interface PaymentStatusResponse {
@@ -301,38 +320,24 @@ export interface GenerateUpiQrRequest {
   invoice_id?: string;
   pos_sale_id?: string;
   description?: string;
-  /** A QR paid now at the counter: made and confirmed by Razorpay. */
+  /** A QR paid now at the counter: made and confirmed by the counter's provider. */
   live?: boolean;
+  station_id?: string;
 }
 
 export interface UpiQrResponse {
-  /** `razorpay`: Razorpay confirms the payment. `upi_id`: the hospital's UPI ID, confirmed by UTR. */
-  source: "razorpay" | "upi_id";
+  /** A provider's code (it confirms the payment), or `upi_id`: the hospital's UPI ID, confirmed by UTR. */
+  source: string;
   upi_uri: string | null;
   vpa: string | null;
   amount: number;
   transaction_ref: string;
   transaction_id: string | null;
   image_url: string | null;
-  /** When a Razorpay QR closes (Unix seconds). */
+  /** When a provider's QR closes (Unix seconds). */
   close_by: number | null;
   /** Why a live QR was asked for but the UPI ID QR is shown. */
   fallback_reason: string | null;
-}
-
-export interface UpiCollectRequest {
-  amount: number;
-  phone: string;
-  /** The patient's UPI ID — the request is pushed to it. */
-  vpa: string;
-  invoice_id?: string;
-  pos_sale_id?: string;
-}
-
-export interface UpiCollectResponse {
-  transaction_id: string;
-  status: string;
-  message: string;
 }
 
 export interface UpiDeepLinkRequest {
@@ -380,8 +385,6 @@ export interface PaymentProviderInfo {
   mode?: string;
   webhook_configured: boolean;
   methods: string[];
-  /** Can push a UPI collect request to the patient's UPI ID. */
-  supports_upi_collect: boolean;
 }
 
 export interface PaymentProvidersResponse {

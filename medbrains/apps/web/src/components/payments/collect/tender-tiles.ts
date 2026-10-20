@@ -1,5 +1,7 @@
+import type { PaymentCapabilities } from "@medbrains/types";
+
 // The ways a desk can take money, and which of them this desk, this user and
-// this hospital's provider can use right now. Each keeps its number key, so
+// this counter's provider can use right now. Each keeps its number key, so
 // a cashier's fingers learn one layout even when a tile is missing.
 
 export type TenderTile = "cash" | "card" | "upi" | "link" | "online" | "advance" | "credit";
@@ -31,8 +33,8 @@ export interface TileContext {
   cashAllowed: boolean;
   /** May use the hospital's gateway: QR codes, online checkout. */
   canUseGateway: boolean;
-  /** The active provider takes online checkout here. */
-  providerCheckout: boolean;
+  /** What this counter's online provider can do; `null` when there is none (or it is unknown). */
+  capabilities: PaymentCapabilities | null;
   /** Bills in scope: online checkout pays exactly one. */
   billCount: number;
   /** Some bill in scope is still a draft (a deposit applies to issued bills only). */
@@ -50,12 +52,6 @@ export interface TileState {
   hint: string;
 }
 
-/**
- * Providers whose online checkout this drawer can open today.
- * ponytail: one entry until the provider trait's capability map (#4884) says which can.
- */
-export const CHECKOUT_PROVIDERS: ReadonlySet<string> = new Set(["razorpay"]);
-
 /** A bill-balance payment link has no endpoint yet: it shows, and says so. */
 export const LINK_PENDING = "Coming soon (#4871)";
 
@@ -64,13 +60,13 @@ export function usableTiles(c: TileContext): TileState[] {
   const tiles: TileState[] = [];
   if (c.cashAllowed) tiles.push({ tile: "cash", disabled: false, hint: "With change" });
   tiles.push({ tile: "card", disabled: false, hint: "Machine or slip" });
-  tiles.push({
-    tile: "upi",
-    disabled: false,
-    hint: c.canUseGateway ? "Confirms itself" : "Enter the UTR",
-  });
-  tiles.push({ tile: "link", disabled: true, hint: LINK_PENDING });
-  if (!c.isSale && c.canUseGateway && c.providerCheckout && c.billCount === 1) {
+  // The hospital's own UPI ID QR needs no provider; a provider's QR confirms itself.
+  const liveQr = c.canUseGateway && Boolean(c.capabilities?.dynamic_qr);
+  tiles.push({ tile: "upi", disabled: false, hint: liveQr ? "Confirms itself" : "Enter the UTR" });
+  if (c.canUseGateway && c.capabilities?.payment_links) {
+    tiles.push({ tile: "link", disabled: true, hint: LINK_PENDING });
+  }
+  if (!c.isSale && c.canUseGateway && c.capabilities?.checkout && c.billCount === 1) {
     tiles.push({ tile: "online", disabled: false, hint: "Checkout" });
   }
   if (!c.isSale && c.canApplyDeposit && c.depositBalance > 0) {
