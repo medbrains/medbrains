@@ -797,6 +797,11 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Razorpay orders and refunds are made in the request (see
     // medbrains_payment_gateway::create_order / initiate_refund), not here.
     registry.register(medbrains_payment_gateway::payment_link::PaymentLinkHandler);
+    // A balance link (#4871) the bill no longer owes: cancel it, send the new balance.
+    registry.register(medbrains_payment_gateway::balance_link::refresh::BalanceLinkRefreshHandler);
+    registry.register(twilio::SmsSendHandler::new(
+        medbrains_payment_gateway::balance_link::message::SMS_EVENT,
+    ));
     // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
     registry.register(cashfree::CashfreeCreateOrderHandler::new());
     registry.register(cashfree::CashfreeRefundHandler::new());

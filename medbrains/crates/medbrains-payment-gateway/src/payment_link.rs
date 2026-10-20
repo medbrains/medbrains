@@ -44,27 +44,69 @@ fn transient(e: impl std::fmt::Display) -> HandlerError {
     HandlerError::Transient(e.to_string())
 }
 
+/// How a link may be paid: whole, or in parts (#4871).
+#[derive(Debug, Clone, Copy)]
+pub struct LinkTerms {
+    /// The payer may pay part of the amount, several times over.
+    pub accept_partial: bool,
+    /// The least the first part may be, when parts are accepted.
+    pub min_part: Option<Decimal>,
+    /// The provider reminds the payer until the link is paid or expires.
+    pub remind: bool,
+}
+
+impl LinkTerms {
+    /// Paid in one go, no reminders — a booking or a delivery.
+    pub const WHOLE: Self = Self {
+        accept_partial: false,
+        min_part: None,
+        remind: false,
+    };
+}
+
+fn paise(amount: Decimal) -> Option<i64> {
+    (amount * Decimal::ONE_HUNDRED)
+        .round()
+        .to_i64()
+        .filter(|p| *p > 0)
+}
+
 /// Ask Razorpay for a link. Rate limits, outages and network faults are
 /// transient (the worker retries); any other refusal is an answer.
 pub async fn request_link(
     ctx: &HandlerCtx,
-    (key_id, key_secret): (String, String),
+    keys: (String, String),
     req: &LinkRequest,
 ) -> Result<Link, HandlerError> {
+    request_link_on(ctx, keys, req, LinkTerms::WHOLE).await
+}
+
+/// [`request_link`], on the given terms. `first_min_partial_amount` and
+/// `reminder_enable` per Razorpay's Payment Links API.
+pub async fn request_link_on(
+    ctx: &HandlerCtx,
+    (key_id, key_secret): (String, String),
+    req: &LinkRequest,
+    terms: LinkTerms,
+) -> Result<Link, HandlerError> {
     let base = crate::razorpay::api_base(ctx.secret_resolver.as_ref()).await;
-    let paise = (req.amount * Decimal::ONE_HUNDRED)
-        .round()
-        .to_i64()
-        .filter(|p| *p > 0)
+    let amount = paise(req.amount)
         .ok_or_else(|| HandlerError::Permanent(format!("no amount to pay: {}", req.amount)))?;
     let mut body = json!({
-        "amount": paise, "currency": "INR", "accept_partial": false,
+        "amount": amount, "currency": "INR", "accept_partial": terms.accept_partial,
         "reference_id": req.payment_transaction_id.to_string(),
         "description": req.description,
         // The payer sees the link in their app; Razorpay sends nothing of its own.
-        "notify": { "sms": false, "email": false }, "reminder_enable": false,
+        "notify": { "sms": false, "email": false }, "reminder_enable": terms.remind,
         "notes": req.notes,
     });
+    if let Some(min) = terms
+        .min_part
+        .filter(|_| terms.accept_partial)
+        .and_then(paise)
+    {
+        body["first_min_partial_amount"] = json!(min);
+    }
     if let Some(at) = req.expire_by {
         body["expire_by"] = json!(at);
     }
@@ -93,6 +135,51 @@ pub async fn request_link(
             _ => Link::Refused(format!("razorpay payment link refused: {status}")),
         },
     )
+}
+
+/// What cancelling a link came to.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Cancelled {
+    /// It can no longer be paid.
+    Done,
+    /// Razorpay would not: it is already paid, expired or cancelled — the
+    /// webhook for that says which. Either way it takes no more money.
+    AlreadyClosed(String),
+}
+
+/// Cancel a link (`POST /v1/payment_links/{id}/cancel`). An outage is
+/// transient: until Razorpay says so the link may still be paid.
+pub async fn cancel_link(
+    ctx: &HandlerCtx,
+    (key_id, key_secret): (String, String),
+    link_id: &str,
+) -> Result<Cancelled, HandlerError> {
+    let base = crate::razorpay::api_base(ctx.secret_resolver.as_ref()).await;
+    let response = ctx
+        .http_client
+        .post(format!("{base}/payment_links/{link_id}/cancel"))
+        .basic_auth(key_id, Some(key_secret))
+        .send()
+        .await
+        .map_err(transient)?;
+    let status = response.status();
+    if status.as_u16() == 429 || status.is_server_error() {
+        return Err(transient(format!("razorpay cancel link: {status}")));
+    }
+    if status.is_success() {
+        return Ok(Cancelled::Done);
+    }
+    // Keys refused: nothing is known about the link, so it is not closed.
+    if matches!(status.as_u16(), 401 | 403) {
+        return Err(HandlerError::Permanent(format!(
+            "razorpay refused the keys cancelling a link: {status}"
+        )));
+    }
+    let answer: Value = response.json().await.unwrap_or(Value::Null);
+    let why = answer["error"]["description"]
+        .as_str()
+        .map_or_else(|| status.to_string(), ToOwned::to_owned);
+    Ok(Cancelled::AlreadyClosed(why))
 }
 
 /// File a made link on its payment row.

@@ -1,3 +1,4 @@
+pub mod balance_link;
 pub mod payment_link;
 pub mod pos;
 pub mod razorpay;
@@ -1184,6 +1185,11 @@ pub async fn razorpay_webhook(
     }
 
     let event = payload["event"].as_str().unwrap_or("");
+    // A balance link (#4871) takes its parts, expiry and cancellation itself.
+    if let Some(done) = balance_link::parts::on_webhook(&mut tx, &txn_row, event, &payload).await? {
+        tx.commit().await?;
+        return Ok(Json(serde_json::json!({ "status": done })));
+    }
     match event {
         "payment.captured" | "order.paid" | "payment_link.paid" | "qr_code.credited" => {
             handle_webhook_captured(&mut tx, &txn_row, &payload).await?;
@@ -2629,6 +2635,19 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/payments/upi-deep-link", post(upi_deep_link))
         .route("/api/payments/refund", post(initiate_refund))
         .route("/api/payments/razorpay/status", get(razorpay_status))
+        .route(
+            "/api/payments/links",
+            get(balance_link::routes::list_links).post(balance_link::routes::create_link),
+        )
+        .route("/api/payments/links/{id}", get(balance_link::routes::get_link))
+        .route(
+            "/api/payments/links/{id}/resend",
+            post(balance_link::routes::resend_link),
+        )
+        .route(
+            "/api/payments/links/{id}/cancel",
+            post(balance_link::routes::cancel_balance_link),
+        )
         .route("/api/payments/providers", get(list_payment_providers))
         .route(
             "/api/payments/terminals",

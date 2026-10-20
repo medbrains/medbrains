@@ -132,34 +132,6 @@ async fn an_approved_claim_texts_the_patient_once() {
 }
 
 #[tokio::test]
-async fn a_payment_link_is_addressed_to_the_patient() {
-    let app = common::spawn_app().await;
-    let tenant = tenant(&app).await;
-    let patient = patient(&app, tenant).await;
-    let invoice = invoice(&app, tenant, patient).await;
-    let payload = json!({ "invoice_id": invoice });
-    let sent = deliver_twice(
-        &app,
-        tenant,
-        "billing.invoice.finalized",
-        &payload,
-        "whatsapp.payment_link",
-        &invoice.to_string(),
-    )
-    .await;
-    assert_eq!(sent.len(), 1);
-    assert_eq!(
-        sent[0]["to"],
-        json!(E164),
-        "no `to` dead-letters every link"
-    );
-    assert!(
-        sent[0]["sms_fallback_body"].is_string(),
-        "falls back to SMS without WhatsApp"
-    );
-}
-
-#[tokio::test]
 async fn a_verified_report_reaches_the_patient_only_when_the_hospital_dispatches_automatically() {
     let app = common::spawn_app().await;
     let tenant = tenant(&app).await;

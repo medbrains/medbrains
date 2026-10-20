@@ -95,11 +95,6 @@ pub const PIPELINES: &[Pipeline] = &[
         run: |p, t, v| Box::pin(on_lab_result_posted(p, t, v)),
     },
     Pipeline {
-        event: ClinicalEventName::BillingInvoiceFinalized,
-        description: "Payment link to the patient (WhatsApp) once the bill is issued",
-        run: |p, t, v| Box::pin(on_billing_invoice_finalized(p, t, v)),
-    },
-    Pipeline {
         event: ClinicalEventName::BillingPaymentReceived,
         description: "Receipt email to patient",
         run: |p, t, v| Box::pin(on_billing_payment_received(p, t, v)),
@@ -512,63 +507,12 @@ async fn on_lab_result_posted(
     Ok(())
 }
 
-// ── 4. Invoice issued → payment-link to patient ───────────────────
-
-/// A payment link goes out when the bill is issued, not when the draft is
-/// opened: a draft is created with a zero total and only gains lines as
-/// charges land. The finalised event carries no amount, and an amount in
-/// a payload would only ever be a copy — the invoice row is the fact.
-async fn on_billing_invoice_finalized(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    payload: &Value,
-) -> Result<(), sqlx::Error> {
-    let Some(inv) = uuid_from_payload(payload, "invoice_id") else {
-        return Ok(());
-    };
-    let mut tx = pool.begin().await?;
-
-    let row = sqlx::query!(
-        "SELECT patient_id, total_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
-        inv,
-        tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((patient_id, total)) = row.map(|r| (r.patient_id, r.total_amount)) else {
-        return Ok(());
-    };
-    if total <= rust_decimal::Decimal::ZERO {
-        return Ok(()); // Nothing to pay → no link.
-    }
-    // The WhatsApp handler refuses a row with no `to`; this one shipped
-    // without it, so every payment link dead-lettered.
-    let Some(to) = patient_phone(&mut tx, tenant_id, patient_id).await? else {
-        return Ok(());
-    };
-
-    let _ = enqueue(
-        &mut tx,
-        tenant_id,
-        "invoice",
-        Some(inv),
-        "whatsapp.payment_link",
-        json!({
-            "to": to,
-            "invoice_id": inv,
-            "patient_id": patient_id,
-            "amount": total.to_string(),
-            "template_name": "payment_link",
-            "language": "en",
-            "sms_fallback_body": format!("Your bill of Rs {total} is ready. Pay at the billing desk or in the patient portal."),
-        }),
-        Some(format!("paylink:{inv}")),
-    )
-    .await;
-
-    tx.commit().await?;
-    Ok(())
-}
+// ── 4. Payment links ───────────────────────────────────────────────
+//
+// An issued bill used to send `whatsapp.payment_link` here with no link in
+// it, to patients who had never agreed to WhatsApp. The message now goes out
+// with a link's real short URL, from the link itself, checked against the
+// patient's contact consent (`medbrains_payment_gateway::balance_link`, #4871).
 
 // ── 5. Payment received → email/whatsapp receipt ───────────────────
 
