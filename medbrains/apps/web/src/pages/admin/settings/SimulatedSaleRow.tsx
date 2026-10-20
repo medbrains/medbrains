@@ -12,6 +12,9 @@ const OUTCOMES: { outcome: SimulatedOutcome; label: string }[] = [
   { outcome: "decline", label: "Decline" },
   { outcome: "timeout", label: "Time out" },
   { outcome: "offline", label: "Go offline" },
+  { outcome: "upi", label: "Pay by UPI" },
+  { outcome: "refuse_cancel", label: "PIN entered (refuse cancel)" },
+  { outcome: "unknown", label: "Never answer" },
 ];
 
 export function SimulatedSaleRow({ sale }: { sale: SimulatedSale }) {

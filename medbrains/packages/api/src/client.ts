@@ -1844,6 +1844,7 @@ import type {
   ResolveCommComplaintRequest,
   ResolveExceptionRequest,
   ResolveIssueRequest,
+  ResolveSale,
   ResolveSecurityTagAlertRequest,
   RespondPriorAuthRequest,
   RespondToOfferRequest,
@@ -15966,6 +15967,17 @@ export const api = {
   getCardSale: (id: string) => request<PosSaleView>(`/payments/pos-sale/${id}`),
   cancelCardSale: (id: string) =>
     request<PosSaleView>(`/payments/pos-sale/${id}/cancel`, { method: "POST" }),
+  /** A bill's card sales with no definite outcome, asked of the machine once more. */
+  listUnresolvedCardSales: (invoiceId: string) =>
+    request<PosSaleView[]>(
+      `/payments/pos-sales/unresolved?${new URLSearchParams({ invoice_id: invoiceId })}`,
+    ),
+  /** A supervisor records what the machine's slip shows for a sale with no definite outcome. */
+  resolveCardSale: (id: string, data: ResolveSale) =>
+    request<PosSaleView>(`/payments/pos-sale/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   /** A site bridge's heartbeat for its card machines, and the jobs for them. */
   claimTerminalJobs: (data: {
     terminals: { terminal_id: string; online: boolean; error?: string | null }[];

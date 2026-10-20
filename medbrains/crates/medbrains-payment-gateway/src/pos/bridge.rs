@@ -43,7 +43,7 @@ impl PosProvider for Bridge {
     }
 
     /// Asked for on the row (`cancel_requested`); sent on the next claim.
-    async fn cancel(&self, _ctx: &Ctx<'_>, _reference: &str) -> Result<(), PosError> {
+    async fn cancel(&self, _ctx: &Ctx<'_>, _reference: &str, _paise: i64) -> Result<(), PosError> {
         Ok(())
     }
 
@@ -147,6 +147,9 @@ pub struct JobResult {
     pub approved_paise: Option<i64>,
     pub card_last4: Option<String>,
     pub auth_code: Option<String>,
+    pub rrn: Option<String>,
+    /// How it was paid (`card`, `upi`…), when the machine says.
+    pub method: Option<String>,
     pub message: Option<String>,
 }
 
@@ -169,6 +172,8 @@ pub fn read_result(job: Uuid, r: &JobResult) -> Result<SaleState, AppError> {
             approved_paise: r.approved_paise,
             card_last4: r.card_last4.clone(),
             auth_code: r.auth_code.clone(),
+            rrn: r.rrn.clone(),
+            method: r.method.clone(),
             payload: json!({ "reported_by": "bridge", "message": r.message }),
         }),
         "declined" => SaleState::Declined(words("Declined at the machine")),
@@ -204,7 +209,7 @@ pub async fn report_terminal_job(
     tx.commit().await?;
     ours.ok_or(AppError::NotFound)?;
     // A late approval still settles; nothing else reopens a closed sale.
-    let step: Step = next_step(Ok(answer), false);
+    let step: Step = next_step(Ok(answer), false, false);
     super::sale::apply(&state.db, claims.tenant_id, id, step).await?;
     Ok(Json(json!({ "status": "recorded" })))
 }

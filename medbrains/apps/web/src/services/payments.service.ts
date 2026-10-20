@@ -9,6 +9,9 @@ export const paymentsService = {
   posSale: (data: Parameters<typeof api.posSale>[0]) => api.posSale(data),
   getCardSale: (id: string) => api.getCardSale(id),
   cancelCardSale: (id: string) => api.cancelCardSale(id),
+  listUnresolvedCardSales: (invoiceId: string) => api.listUnresolvedCardSales(invoiceId),
+  resolveCardSale: (id: string, data: Parameters<typeof api.resolveCardSale>[1]) =>
+    api.resolveCardSale(id, data),
   listSimulatedSales: () => api.listSimulatedSales(),
   actOnSimulatedSale: (id: string, data: Parameters<typeof api.actOnSimulatedSale>[1]) =>
     api.actOnSimulatedSale(id, data),

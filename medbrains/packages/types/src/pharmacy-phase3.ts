@@ -490,11 +490,16 @@ export interface UpdateTeleStatusRequest {
   cancel_reason?: string;
 }
 
+/** What the patient may pay with at the machine, as the cashier chose. */
+export type PosTender = "card" | "upi" | "either";
+
 export interface PosSaleRequest {
   terminal_id: string;
   /** The bill; absent for a pharmacy counter sale not yet posted. */
   invoice_id?: string;
   amount: number;
+  /** Card, UPI on the machine, or either (the default). */
+  tender?: PosTender;
 }
 
 /** Where a card sale stands at the machine, as the counter shows it. */
@@ -502,6 +507,10 @@ export type PosSaleStage =
   | "sent"
   | "waiting"
   | "cancelling"
+  /** The machine refused the cancel (the PIN is in); the sale is still live. */
+  | "cancel_refused"
+  /** No definite answer in time; a supervisor checks the machine's slip. */
+  | "unknown"
   | "approved"
   | "declined"
   | "timed_out"
@@ -523,8 +532,22 @@ export interface PosSaleView {
   reference: string | null;
   card_last4: string | null;
   auth_code: string | null;
+  /** The bank's retrieval reference number, once approved. */
+  rrn: string | null;
+  /** The mode it posted as (card / upi), once approved. */
+  method: string | null;
   held_for_finance: boolean;
   created_at: string;
+}
+
+/** A supervisor's word on a card sale with no definite outcome. */
+export interface ResolveSale {
+  /** paid — the slip shows it approved; not_paid — it does not. */
+  outcome: "paid" | "not_paid";
+  rrn?: string;
+  approval_code?: string;
+  method?: "card" | "upi";
+  reason?: string;
 }
 
 export interface TerminalProviderChoice {
@@ -547,7 +570,15 @@ export interface SimulatedSale {
   created_at: string;
 }
 
-export type SimulatedOutcome = "approve" | "decline" | "timeout" | "offline" | "partial";
+export type SimulatedOutcome =
+  | "approve"
+  | "decline"
+  | "timeout"
+  | "offline"
+  | "partial"
+  | "upi"
+  | "refuse_cancel"
+  | "unknown";
 
 /** A card sale or cancel a site bridge takes for a machine on its PC. */
 export interface TerminalJob {
@@ -565,6 +596,9 @@ export interface TerminalJobResult {
   approved_paise?: number;
   card_last4?: string;
   auth_code?: string;
+  rrn?: string;
+  /** How it was paid (card / upi), when the machine says. */
+  method?: string;
   message?: string;
 }
 

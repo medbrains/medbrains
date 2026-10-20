@@ -2,14 +2,20 @@
 
 //! The world the card-machine tests (#4874) run in: a hospital with the
 //! card-machine simulator on, a counter with a machine, issued bills, and —
-//! for Pine Labs — a stand-in Plutus Cloud the server is pointed at through
-//! `PINELABS_API_BASE_OVERRIDE`. Only the provider's boundary is stood in.
+//! for Pine Labs and Razorpay POS — a stand-in Plutus Cloud and a stand-in
+//! Ezetap p2padapter the server is pointed at through their
+//! `*_API_BASE_OVERRIDE` secrets. Only the provider's boundary is stood in,
+//! answering in the shapes Pine Labs' spec and Odoo's shipping adapters use.
 
 use std::sync::{Arc, Mutex};
 
 use axum::http::StatusCode;
-use axum::{Json, Router, extract::State, routing::post};
-use medbrains_payment_gateway::pos::{pinelabs, simulator};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    routing::post,
+};
+use medbrains_payment_gateway::pos::{ezetap, pinelabs, simulator};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -103,6 +109,50 @@ pub async fn start(
     .await
 }
 
+/// Start a sale for a bill with the cashier's tender (card | upi | either).
+pub async fn start_as(
+    w: &World,
+    terminal: Uuid,
+    invoice: Uuid,
+    amount: i64,
+    tender: &str,
+) -> Value {
+    let (code, sale) = w
+        .call(
+            "POST",
+            "/api/payments/pos-sale",
+            json!({ "terminal_id": terminal, "invoice_id": invoice, "amount": amount,
+                    "tender": tender }),
+        )
+        .await;
+    assert_eq!(code, StatusCode::OK, "{sale}");
+    sale
+}
+
+/// A card machine of `provider` at a counter of its own; its id.
+pub async fn provider_machine(w: &World, provider: &str, serial: &str) -> Uuid {
+    let station = counter(w).await;
+    let t = machine(
+        w,
+        station,
+        json!({ "provider": provider, "terminal_code": serial }),
+    )
+    .await;
+    t["id"].as_str().expect("id").parse().expect("uuid")
+}
+
+/// The sale's age moved past the answer window, as if the machine never answered.
+pub async fn outlive_window(w: &World, sale: &str) {
+    sqlx::query(
+        "UPDATE payment_gateway_transactions SET created_at = now() - interval '7 minutes' \
+          WHERE id = $1::uuid",
+    )
+    .bind(sale)
+    .execute(&w.app.db)
+    .await
+    .expect("backdate");
+}
+
 pub async fn status(w: &World, sale: &str) -> Value {
     let (code, body) = w
         .call(
@@ -147,6 +197,42 @@ pub struct Plutus {
     pub status_polls: Mutex<u32>,
     /// Status answers, in order; the last repeats.
     pub answers: Mutex<Vec<Value>>,
+    pub cancels: Mutex<Vec<Value>>,
+    /// How `CancelTransactionForced` answers; accepted when unset.
+    pub cancel_answer: Mutex<Option<Value>>,
+}
+
+impl Plutus {
+    /// From the next poll on, status answers `answer`.
+    pub fn now_answers(&self, answer: Value) {
+        let polls = *self.status_polls.lock().expect("polls") as usize;
+        let mut answers = self.answers.lock().expect("answers");
+        answers.truncate(polls);
+        answers.resize(polls, json!({ "ResponseCode": 1001 }));
+        answers.push(answer);
+    }
+}
+
+/// Plutus's approval, with the spec's `TransactionData` tags.
+pub fn plutus_approval(mode: &str) -> Value {
+    json!({ "ResponseCode": 0, "ResponseMessage": "TXN APPROVED",
+            "PlutusTransactionReferenceID": 7_700_123, "TransactionData": [
+        { "Tag": "Card Number", "Value": "************9876" },
+        { "Tag": "ApprovalCode", "Value": "PL0042" },
+        { "Tag": "RRN", "Value": "429011223344" },
+        { "Tag": "PaymentMode", "Value": mode },
+        { "Tag": "AmountInPaisa", "Value": "42000" } ] })
+}
+
+async fn plutus_cancel(State(p): State<Arc<Plutus>>, Json(body): Json<Value>) -> Json<Value> {
+    p.cancels.lock().expect("cancels").push(body);
+    Json(
+        p.cancel_answer
+            .lock()
+            .expect("cancel answer")
+            .clone()
+            .unwrap_or_else(|| json!({ "ResponseCode": 0, "ResponseMessage": "APPROVED" })),
+    )
 }
 
 async fn upload(State(p): State<Arc<Plutus>>, Json(body): Json<Value>) -> Json<Value> {
@@ -172,10 +258,7 @@ pub async fn spawn_plutus(p: Arc<Plutus>) -> String {
     let app = Router::new()
         .route("/UploadBilledTransaction", post(upload))
         .route("/GetCloudBasedTxnStatus", post(txn_status))
-        .route(
-            "/CancelTransaction",
-            post(|| async { Json(json!({ "ResponseCode": 0 })) }),
-        )
+        .route("/CancelTransactionForced", post(plutus_cancel))
         .with_state(p);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -199,5 +282,91 @@ pub async fn pinelabs_world(plutus: Arc<Plutus>) -> World {
             format!("pl-{name}"),
         );
     }
+    world_with(secrets).await
+}
+
+// ── A stand-in Ezetap p2padapter (Razorpay POS) ───────────────────────────
+
+/// The path the stand-in serves, as Ezetap's own hosts do.
+pub const P2P_ADAPTER: &str = "/api/3.0/p2padapter";
+
+/// What the stand-in Ezetap was asked (path, body), and how it answers.
+#[derive(Default)]
+pub struct Ezetap {
+    pub calls: Mutex<Vec<(String, Value)>>,
+    /// How `pay` answers; a numeric `p2pRequestId` when unset (as Odoo's test).
+    pub pay_answer: Mutex<Option<Value>>,
+    /// Status answers, in order; the last repeats.
+    pub answers: Mutex<Vec<Value>>,
+}
+
+async fn ezetap_call(
+    State(e): State<Arc<Ezetap>>,
+    Path(endpoint): Path<String>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let polls = {
+        let mut calls = e.calls.lock().expect("calls");
+        calls.push((endpoint.clone(), body));
+        calls.iter().filter(|(p, _)| p == "status").count()
+    };
+    Json(match endpoint.as_str() {
+        "pay" => e
+            .pay_answer
+            .lock()
+            .expect("pay")
+            .clone()
+            .unwrap_or_else(|| json!({ "success": true, "p2pRequestId": 250_102 })),
+        "status" => {
+            let answers = e.answers.lock().expect("answers");
+            answers
+                .get((polls - 1).min(answers.len().saturating_sub(1)))
+                .cloned()
+                .unwrap_or_else(|| json!({ "success": true, "messageCode": "P2P_DEVICE_SENT" }))
+        }
+        "cancel" => json!({ "success": true }),
+        _ => json!({ "success": false, "errorMessage": "not found" }),
+    })
+}
+
+impl Ezetap {
+    /// (endpoint, body) of every call to `endpoint`.
+    pub fn asked(&self, endpoint: &str) -> Vec<Value> {
+        self.calls
+            .lock()
+            .expect("calls")
+            .iter()
+            .filter(|(p, _)| p == endpoint)
+            .map(|(_, b)| b.clone())
+            .collect()
+    }
+}
+
+/// A hospital whose Razorpay POS keys are set and whose Ezetap is the stand-in.
+pub async fn ezetap_world(e: Arc<Ezetap>) -> World {
+    let app = Router::new()
+        .route(&format!("{P2P_ADAPTER}/{{endpoint}}"), post(ezetap_call))
+        .with_state(e);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move { axum::serve(listener, app).await.ok() });
+    let first = common::spawn_app().await;
+    let tenant = admin_tenant(&first).await;
+    let env = std::env::var("MEDBRAINS_ENV").unwrap_or_else(|_| "dev".to_owned());
+    let secrets = common::TestSecrets::default()
+        .with(
+            ezetap::API_BASE_OVERRIDE,
+            format!("http://{addr}{P2P_ADAPTER}"),
+        )
+        .with(
+            &format!("medbrains/{env}/{tenant}/ezetap-app-key"),
+            "ez-app-key",
+        )
+        .with(
+            &format!("medbrains/{env}/{tenant}/ezetap-username"),
+            "1234500121",
+        );
     world_with(secrets).await
 }
