@@ -338,6 +338,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build shared state
     let state_secret_resolver = medbrains_server::secret_backend::build_secret_resolver().await;
 
+    // Both keys fall back to a development value that is in the source. In
+    // production that would key Aadhaar fingerprints and seal the ABDM client
+    // secret with a key anyone can read, so the server does not start.
+    if config.environment == "production" {
+        for key in ["MEDBRAINS_IDENTIFIER_HMAC_KEY", "MEDBRAINS_ABDM_SECRET_KEY"] {
+            if !state_secret_resolver.get(key).await.is_ok_and(|v| v.len() >= 32) {
+                return Err(format!(
+                    "{key} could not be read or is shorter than 32 characters and \
+                     MEDBRAINS_ENV=production — the development key would be used. \
+                     Set it: openssl rand -base64 48"
+                )
+                .into());
+            }
+        }
+    }
+
     let s3_client = S3PresignClient::from_config(&config).await.map(Arc::new);
 
     // Generated-document storage: MEDBRAINS_OBJECTS_HOT (deploy kit
