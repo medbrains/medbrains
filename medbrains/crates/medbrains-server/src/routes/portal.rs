@@ -567,32 +567,26 @@ pub struct PortalEntitlements {
 /// populations are mutually undecodable by design, and a staff-shaped check
 /// could not run here even if it were appropriate.
 ///
-/// # Why this fails CLOSED and `require_module_enabled` fails open
-///
-/// The staff gate treats an absent `module_config` row as *enabled*, so a
-/// transient fault can never black out a live clinical module. That is the
-/// right trade for a module a hospital already runs.
-///
-/// It is the wrong trade here. An unknown must not put a Health tab in front
-/// of a patient whose hospital never licensed the companion — a feature nobody
-/// agreed to sell is harder to withdraw than one that was briefly missing. So
-/// a missing row, an unreadable status and a database error all resolve to
-/// `false`, and `?` is deliberately not used on the read.
+/// The companion is a licensed add-on, so only an explicit `enabled` shows the
+/// Health tab — a missing row or `available` hides it. A database fault answers
+/// 503 rather than a confident `false` (#4891); both patient apps already hide
+/// the tab when this call fails, so the fault stays hidden *and* visible as one.
 #[tracing::instrument(skip_all)]
 pub async fn portal_entitlements(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
 ) -> Result<Json<PortalEntitlements>, AppError> {
-    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-    let status: Option<String> = sqlx::query_scalar( // allow-raw-sql: dynamic patient portal queries
-        "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'companion'",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *conn)
-    .await
-    .unwrap_or(None);
+    use medbrains_authz::decision::Outcome;
+    use medbrains_server_core::middleware::entitlement::module_entitlement;
 
-    Ok(Json(PortalEntitlements {
-        companion: status.as_deref() == Some("enabled"),
-    }))
+    let companion = match module_entitlement(&state.db, claims.tenant_id, "companion").await {
+        Outcome::Allow => true,
+        Outcome::Deny => false,
+        Outcome::Unknown => {
+            return Err(AppError::ServiceUnavailable(
+                "could not check what your hospital has switched on — try again".to_owned(),
+            ));
+        }
+    };
+    Ok(Json(PortalEntitlements { companion }))
 }

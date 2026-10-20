@@ -26,6 +26,8 @@ import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import classes from "./assistant.module.scss";
 
+// ai-label-exempt: renders AiChatPanel, which carries the label; titles are the user's own question.
+
 /** Download the current thread as a markdown transcript (programmatic, no UI markup). */
 function downloadTranscript(lines: string): void {
   const blob = new Blob([lines], { type: "text/markdown" });
@@ -78,7 +80,7 @@ export function AssistantPage() {
 
   const onDownload = () => {
     const md = controller.messages
-      .map((m) => `**${m.role === "user" ? "You" : "Assistant"}:** ${m.content}`)
+      .map((m) => `**${m.role === "user" ? "You" : "Assistant (AI-generated)"}:** ${m.content}`)
       .join("\n\n");
     downloadTranscript(md);
   };

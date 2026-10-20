@@ -22,6 +22,15 @@ pub struct Section {
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
+    /// The author accepted AI-drafted text into this section (#4895). Sticky:
+    /// later edits keep the mark, so the signed record says AI contributed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ai_assisted: bool,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)] // serde's skip_serializing_if passes a reference
+const fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// A change to one section of a draft: what is sent replaces, what is not
@@ -31,6 +40,9 @@ pub struct SectionPatch {
     pub code: String,
     pub text: Option<String>,
     pub data: Option<Value>,
+    /// This patch carries AI-drafted text the author explicitly accepted.
+    #[serde(default)]
+    pub ai_accepted: bool,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -128,6 +140,9 @@ pub fn apply_patches(base: &[Section], patches: &[SectionPatch]) -> Result<Vec<S
                 }
                 next.data = Some(data.clone());
             }
+            if patch.ai_accepted {
+                next.ai_assisted = true;
+            }
         }
         out.push(next);
     }
@@ -204,6 +219,7 @@ mod tests {
                 title: (*c).into(),
                 text: String::new(),
                 data: None,
+                ai_assisted: false,
             })
             .collect()
     }
@@ -213,6 +229,7 @@ mod tests {
             code: code.into(),
             text: text.map(Into::into),
             data,
+            ai_accepted: false,
         }
     }
 
@@ -228,6 +245,28 @@ mod tests {
     }
 
     #[test]
+    fn accepted_ai_text_marks_the_section_and_the_mark_stays() {
+        let mut accept = patch("plan", Some("Paracetamol 500 mg"), None);
+        accept.ai_accepted = true;
+        let once = apply_patches(&note(), &[accept]).expect("accepted");
+        assert!(once[2].ai_assisted);
+        assert!(!once[0].ai_assisted, "only the accepted section is marked");
+        let edited = apply_patches(&once, &[patch("plan", Some("Paracetamol 650 mg"), None)])
+            .expect("edited");
+        assert!(
+            edited[2].ai_assisted,
+            "a human edit does not erase the provenance"
+        );
+    }
+
+    #[test]
+    fn an_unmarked_section_serialises_as_before() {
+        // Signed notes hash their sections: the field must not appear when false.
+        let json = serde_json::to_value(&note()[0]).expect("json");
+        assert!(json.get("ai_assisted").is_none());
+    }
+
+    #[test]
     fn a_patch_for_a_section_the_note_lacks_is_refused() {
         assert!(apply_patches(&note(), &[patch("billing", Some("x"), None)]).is_err());
     }
@@ -240,6 +279,7 @@ mod tests {
             title: "Examination".into(),
             text: String::new(),
             data: None,
+            ai_assisted: false,
         });
         let good = json!({ "exam": { "musculoskeletal": "Antalgic gait",
             "findings": [{ "site": "Left knee", "laterality": "left", "finding": "Effusion" }] } });

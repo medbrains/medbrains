@@ -1,6 +1,7 @@
 import { Box, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
 import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { AiLabel } from "@/components/ui";
 import { CrabMascot } from "./CrabMascot";
 import styles from "./message.module.scss";
 import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
@@ -34,6 +35,9 @@ export function Message({ message, avatar, actions, onToolAction, active }: Mess
     >
       {!isUser && <MessageAvatar role={message.role} status={message.status} custom={avatar} />}
       <Stack gap={4} className={isUser ? styles.userStack : styles.assistantStack}>
+        {message.role === "assistant" && (
+          <AiLabel size="xs" text="generated" aria-label="AI-generated answer" />
+        )}
         <Box
           className={isUser ? styles.userBubble : styles.assistantBubble}
           data-status={message.status}
