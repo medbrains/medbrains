@@ -89,3 +89,38 @@ pub fn qr_credited(provider: &str, qr: &str, payment: &str, paise: i64) -> Value
         "qr_code": { "entity": { "id": qr } },
         "payment": { "entity": { "id": payment, "amount": paise, "method": "upi", "status": "captured" } } } })
 }
+
+/// One part of a link paid (#4871): `paid_so_far` paise including this one,
+/// `whole` when it completes the link.
+pub fn link_part(
+    provider: &str,
+    link: &str,
+    payment: &str,
+    paise: i64,
+    paid_so_far: i64,
+    whole: bool,
+) -> Value {
+    if provider == "cashfree" {
+        let status = if whole { "PAID" } else { "PARTIALLY_PAID" };
+        return json!({ "type": "PAYMENT_LINK_EVENT", "data": { "link_id": link, "link_status": status,
+            "link_amount_paid": rupees(paid_so_far),
+            "order": { "order_id": cashfree_link_order(link), "order_amount": rupees(paise),
+                       "transaction_id": payment, "transaction_status": "SUCCESS" } } });
+    }
+    let event = if whole {
+        "payment_link.paid"
+    } else {
+        "payment_link.partially_paid"
+    };
+    json!({ "event": event, "payload": {
+        "payment_link": { "entity": { "id": link, "amount_paid": paid_so_far } },
+        "payment": { "entity": { "id": payment, "amount": paise, "method": "upi", "status": "captured" } } } })
+}
+
+/// The provider says the link expired.
+pub fn link_expired(provider: &str, link: &str) -> Value {
+    if provider == "cashfree" {
+        return json!({ "type": "PAYMENT_LINK_EVENT", "data": { "link_id": link, "link_status": "EXPIRED" } });
+    }
+    json!({ "event": "payment_link.expired", "payload": { "payment_link": { "entity": { "id": link, "status": "expired" } } } })
+}

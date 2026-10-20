@@ -36,6 +36,10 @@ pub struct Stand {
     /// Providers answering 503 to new orders.
     pub down: Mutex<HashSet<String>>,
     sessions: Mutex<HashMap<String, String>>,
+    /// Each payment link asked for, as asked (#4871).
+    pub links: Mutex<Vec<Value>>,
+    /// Links cancelled, by their reference.
+    pub cancelled: Mutex<Vec<String>>,
 }
 
 impl Stand {
@@ -170,6 +174,7 @@ async fn rz_qr(State(s): State<Arc<Stand>>, Json(b): Json<Value>) -> Answer {
 }
 
 async fn rz_link(State(s): State<Arc<Stand>>, Json(b): Json<Value>) -> Answer {
+    s.links.lock().expect("links").push(b.clone());
     let id = format!("plink_{}", short());
     s.order(&id, b["amount"].as_i64().unwrap_or_default());
     (
@@ -246,6 +251,7 @@ async fn cf_session(State(s): State<Arc<Stand>>, Json(b): Json<Value>) -> Answer
 }
 
 async fn cf_link(State(s): State<Arc<Stand>>, Json(b): Json<Value>) -> Answer {
+    s.links.lock().expect("links").push(b.clone());
     let id = b["link_id"].as_str().unwrap_or_default().to_owned();
     s.order(&id, rupees(&b["link_amount"]));
     (
@@ -253,6 +259,23 @@ async fn cf_link(State(s): State<Arc<Stand>>, Json(b): Json<Value>) -> Answer {
         Json(
             json!({ "link_id": id, "cf_link_id": 1, "link_url": format!("https://payments-test.cashfree.com/links/{id}"), "link_status": "ACTIVE" }),
         ),
+    )
+}
+
+/// Razorpay `POST /payment_links/{id}/cancel` and Cashfree
+/// `POST /links/{id}/cancel`: a second cancel is a 400, as for a closed link.
+async fn link_cancel(State(s): State<Arc<Stand>>, Path(id): Path<String>) -> Answer {
+    let mut done = s.cancelled.lock().expect("cancelled");
+    if done.contains(&id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": "link is already cancelled" })),
+        );
+    }
+    done.push(id.clone());
+    (
+        StatusCode::OK,
+        Json(json!({ "id": id, "status": "cancelled" })),
     )
 }
 
@@ -364,6 +387,8 @@ pub async fn spawn(stand: Arc<Stand>) -> HashMap<&'static str, String> {
         .route("/razorpay/v1/payments/{id}/refund", post(rz_refund))
         .route("/razorpay/v1/payments/qr_codes", post(rz_qr))
         .route("/razorpay/v1/payment_links", post(rz_link))
+        .route("/razorpay/v1/payment_links/{id}/cancel", post(link_cancel))
+        .route("/cashfree/pg/links/{id}/cancel", post(link_cancel))
         .route("/cashfree/pg/orders", post(cf_order))
         .route("/cashfree/pg/orders/sessions", post(cf_session))
         .route("/cashfree/pg/orders/{id}/payments", get(cf_payments))
