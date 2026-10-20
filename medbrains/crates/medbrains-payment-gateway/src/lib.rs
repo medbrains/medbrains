@@ -2402,15 +2402,17 @@ pub async fn upi_deep_link(
 /// Refund an online payment back to the card / UPI / bank it came from,
 /// and take it off the bill.
 ///
-/// Called on Razorpay in the request, not through the outbox: the cashier
-/// needs the answer now, and Razorpay's refund call takes no idempotency key,
-/// so a worker retrying after a timeout could refund twice. Exactly-once is
-/// held here instead: the payment row is locked for the whole call, the
-/// refundable remainder is checked under that lock, and the refund id is
-/// taken into the books once (`settle_refund`) — the `refund.created`
-/// webhook for the same refund then finds it known and does nothing. When
-/// Razorpay does not answer, nothing is posted here; if it did refund, its
-/// webhook posts it.
+/// Called on Razorpay in the request: the cashier needs the answer now.
+/// Exactly-once holds on both sides. Razorpay's refund `receipt` must be
+/// unique and a duplicate is rejected, so it is the idempotency key: it is
+/// derived from this refund's intent ([`refund_receipt`]), and a retry after
+/// a timeout — Razorpay refunded but the answer was lost — is refused by
+/// Razorpay instead of refunding twice. Here, the payment row is locked for
+/// the whole call, the refundable remainder is checked under that lock, and
+/// the refund id is taken into the books once (`settle_refund`) — the
+/// `refund.created` webhook for the same refund then finds it known and does
+/// nothing. When Razorpay does not answer, nothing is posted here; if it did
+/// refund, its webhook posts it.
 pub async fn initiate_refund(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2476,8 +2478,15 @@ pub async fn initiate_refund(
             pos::undo::refund_on_machine(&state, &txn, terminal_id, refund_paise).await?
         }
         None => {
-            refund_through_razorpay(&mut tx, &state, &txn, &gateway_payment_id, refund_paise, reason)
-                .await?
+            refund_through_razorpay(
+                &mut tx,
+                &state,
+                &txn,
+                &gateway_payment_id,
+                refund_paise,
+                reason,
+            )
+            .await?
         }
     };
 
@@ -2502,6 +2511,16 @@ pub async fn initiate_refund(
     }))
 }
 
+/// The refund's Razorpay `receipt`: the same for the same intent — this
+/// payment, this much already refunded, this amount — so a retry carries the
+/// receipt Razorpay already holds and is rejected, not refunded again. Once a
+/// refund is taken into the books the refunded total moves, and the next
+/// refund gets a new receipt. ≤ 40 characters, Razorpay's limit.
+pub fn refund_receipt(txn_id: Uuid, refunded_paise: i64, amount_paise: i64) -> String {
+    let intent = format!("refund:{refunded_paise}:{amount_paise}");
+    format!("rf_{}", Uuid::new_v5(&txn_id, intent.as_bytes()).simple())
+}
+
 /// Refund an online payment through Razorpay; its refund id.
 async fn refund_through_razorpay(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -2512,9 +2531,16 @@ async fn refund_through_razorpay(
     reason: &str,
 ) -> Result<String, AppError> {
     let keys = require_razorpay(tx, state, &txn.tenant_id).await?;
+    let refunded = {
+        use rust_decimal::prelude::ToPrimitive;
+        (txn.refund_amount.unwrap_or_default() * Decimal::ONE_HUNDRED)
+            .round()
+            .to_i64()
+            .unwrap_or_default()
+    };
     let rz_body = serde_json::json!({
         "amount": refund_paise,
-        "receipt": format!("rf_{}", Uuid::new_v4().simple()),
+        "receipt": refund_receipt(txn.id, refunded, refund_paise),
         "notes": { "reason": reason, "internal_payment_id": txn.id },
     });
     let path = format!(
@@ -2558,9 +2584,20 @@ fn mask_key_id(key_id: &str) -> String {
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/payments/create-order", post(create_order))
-        .route("/api/payments/pos-sale", post(pos::sale::start_sale))
+        .route("/api/payments/pos-sale", post(pos::start::start_sale))
         .route("/api/payments/pos-sale/{id}", get(pos::sale::sale_status))
-        .route("/api/payments/pos-sale/{id}/cancel", post(pos::undo::cancel_sale))
+        .route(
+            "/api/payments/pos-sale/{id}/cancel",
+            post(pos::undo::cancel_sale),
+        )
+        .route(
+            "/api/payments/pos-sale/{id}/resolve",
+            post(pos::resolve::resolve_sale),
+        )
+        .route(
+            "/api/payments/pos-sales/unresolved",
+            get(pos::resolve::list_unresolved),
+        )
         .route(
             "/api/payments/terminal-jobs/claim",
             post(pos::bridge::claim_terminal_jobs),
@@ -2623,7 +2660,21 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod paise_tests {
-    use super::{Decimal, KNOWN_PROVIDERS, amount_to_paise};
+    use super::{Decimal, KNOWN_PROVIDERS, Uuid, amount_to_paise, refund_receipt};
+
+    #[test]
+    fn a_refund_retry_carries_the_same_receipt_and_the_next_refund_a_new_one() {
+        let txn = Uuid::new_v4();
+        let first = refund_receipt(txn, 0, 30_000);
+        assert_eq!(first, refund_receipt(txn, 0, 30_000), "a retry repeats it");
+        assert_ne!(
+            first,
+            refund_receipt(txn, 30_000, 30_000),
+            "the next refund"
+        );
+        assert_ne!(first, refund_receipt(Uuid::new_v4(), 0, 30_000));
+        assert!(first.len() <= 40, "{first}");
+    }
 
     #[test]
     fn whole_paise_convert_and_fractions_of_a_paisa_are_refused() {

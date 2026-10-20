@@ -250,7 +250,12 @@ export function PaymentTerminalModal({ terminal, providers, onClose }: PaymentTe
             control={control}
             name="terminal_code"
             render={({ field }) => (
-              <Input label="Device id" placeholder="Plutus IMEI / Ezetap device id" {...field} />
+              <Input
+                label="Device serial no."
+                description="Razorpay POS: the serial on the device; |ezetap_android is added for you"
+                placeholder="7000012300"
+                {...field}
+              />
             )}
           />
           <Controller

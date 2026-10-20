@@ -5,7 +5,7 @@
 //! `RAZORPAY_API_BASE_OVERRIDE`, a hospital whose Razorpay keys are set, and
 //! issued bills to pay.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -35,6 +35,10 @@ pub struct Razorpay {
     pub payments: Mutex<HashMap<String, Value>>,
     pub orders: Mutex<Vec<Value>>,
     pub refunds: Mutex<Vec<(String, Value)>>,
+    /// Refund receipts Razorpay has seen; it rejects a repeat.
+    pub refund_receipts: Mutex<HashSet<String>>,
+    /// Make the refund, then lose the answer (a gateway timeout).
+    pub lose_refund_answer: AtomicBool,
     pub refuse_orders: AtomicBool,
     pub qr_codes: Mutex<Vec<Value>>,
     /// Answer QR requests the way an account without QR Codes does.
@@ -76,16 +80,34 @@ async fn payment(
     }
 }
 
+/// Razorpay's refund: `receipt` must be unique, so a repeat is rejected
+/// (the wording of that rejection is not documented; inferred here).
 async fn refund(
     State(rz): State<Arc<Razorpay>>,
     Path(id): Path<String>,
     Json(body): Json<Value>,
-) -> Json<Value> {
-    let mut refunds = rz.refunds.lock().expect("refunds");
-    refunds.push((id.clone(), body.clone()));
-    Json(
-        json!({ "id": format!("rfnd_{}", &Uuid::new_v4().simple().to_string()[..14]), "payment_id": id,
-                 "amount": body["amount"], "status": "processed" }),
+) -> (StatusCode, Json<Value>) {
+    let receipt = body["receipt"].as_str().unwrap_or_default().to_owned();
+    if !receipt.is_empty() && !rz.refund_receipts.lock().expect("receipts").insert(receipt) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": { "code": "BAD_REQUEST_ERROR",
+                                    "description": "The receipt has already been used" } })),
+        );
+    }
+    rz.refunds
+        .lock()
+        .expect("refunds")
+        .push((id.clone(), body.clone()));
+    if rz.lose_refund_answer.load(Ordering::SeqCst) {
+        return (StatusCode::GATEWAY_TIMEOUT, Json(Value::Null));
+    }
+    (
+        StatusCode::OK,
+        Json(
+            json!({ "id": format!("rfnd_{}", &Uuid::new_v4().simple().to_string()[..14]),
+                    "payment_id": id, "amount": body["amount"], "status": "processed" }),
+        ),
     )
 }
 

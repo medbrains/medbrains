@@ -8,15 +8,21 @@ use medbrains_core::payment::PaymentGatewayTransaction;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::sale::{apply, begin, ctx, load_sale, require_collect, require_counter};
 use super::view::{PosSaleView, view};
-use super::{PosError, SaleState, Step, provider_for};
+use super::{PosError, SaleState, Step, cancelled, provider_for};
 use crate::terminals::load;
 
 /// `POST /api/payments/pos-sale/{id}/cancel` — stop the sale on the machine.
-/// If the card already went through, the sale is approved, not cancelled.
+///
+/// A sale is closed as cancelled only on the provider's word. If the card
+/// already went through, it is approved, not cancelled. If the provider will
+/// not cancel it (the PIN is in) or cannot be reached, the sale stays live:
+/// the screen says the machine is still taking the card and keeps watching,
+/// and an approval that follows posts once.
 pub async fn cancel_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -25,33 +31,27 @@ pub async fn cancel_sale(
     require_counter(&claims)?;
     let (txn, terminal) = load_sale(&state.db, claims.tenant_id, id).await?;
     require_collect(&state, &claims, txn.invoice_id).await?;
-    let cancelled = || Step::Fail {
-        code: "cancelled",
-        why: "Cancelled — no money was taken".to_owned(),
-    };
     match (txn.status.as_str(), terminal.connection.as_str()) {
         ("pending_gateway", _) => apply(&state.db, claims.tenant_id, id, cancelled()).await?,
         ("created", "bridge") => {
-            let mut tx = begin(&state.db, claims.tenant_id).await?;
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET notes = notes || '{\"cancel_requested\":true}' \
-                 WHERE id = $1 AND status = 'created'",
+            mark(
+                &state,
+                claims.tenant_id,
+                id,
+                json!({ "cancel_requested": true }),
             )
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-            tx.commit().await?;
+            .await?
         }
         ("created", _) => {
             let provider = provider_for(&terminal).ok_or_else(|| {
                 AppError::ServiceUnavailable(format!("No adapter for '{}'", terminal.provider))
             })?;
             let c = ctx(&state, claims.tenant_id, &terminal);
-            if let Err(e) = provider.cancel(&c, &txn.gateway_order_id).await {
-                return Err(AppError::Conflict(format!(
-                    "{}. Cancel it on the machine itself; this screen keeps watching.",
-                    e.words()
-                )));
+            let paise = crate::amount_to_paise(txn.amount)?;
+            if let Err(e) = provider.cancel(&c, &txn.gateway_order_id, paise).await {
+                let refused = json!({ "cancel_refused": true, "cancel_refusal": e.words() });
+                mark(&state, claims.tenant_id, id, refused).await?;
+                return view(&state.db, claims.tenant_id, id).await.map(Json);
             }
             let step = match provider.status(&c, &txn.gateway_order_id).await {
                 Ok(SaleState::Approved(a)) => Step::Settle(a),
@@ -59,13 +59,35 @@ pub async fn cancel_sale(
                     code: "declined",
                     why,
                 },
-                _ => cancelled(),
+                Ok(SaleState::Cancelled | SaleState::TimedOut) => cancelled(),
+                // Confirmed, but the status has not caught up: keep watching.
+                Ok(SaleState::Waiting) | Err(_) => {
+                    let confirmed = json!({ "cancel_requested": true, "cancel_confirmed": true,
+                                            "cancel_refused": false });
+                    mark(&state, claims.tenant_id, id, confirmed).await?;
+                    Step::Keep { waiting: false }
+                }
             };
             apply(&state.db, claims.tenant_id, id, step).await?;
         }
         _ => {}
     }
     view(&state.db, claims.tenant_id, id).await.map(Json)
+}
+
+/// Note what the cancel did on an open sale.
+async fn mark(state: &AppState, tenant_id: Uuid, id: Uuid, notes: Value) -> Result<(), AppError> {
+    let mut tx = begin(&state.db, tenant_id).await?;
+    sqlx::query(
+        "UPDATE payment_gateway_transactions SET notes = notes || $2 \
+         WHERE id = $1 AND status = 'created'",
+    )
+    .bind(id)
+    .bind(notes)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 /// Refund an approved card sale on the provider that took it; the refund id.

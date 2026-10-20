@@ -1,5 +1,5 @@
-//! A card sale at the counter: start it on the machine, follow it, cancel it,
-//! and apply whatever the machine said — once.
+//! A card sale at the counter: follow it on the machine and apply whatever
+//! the machine said — once. Starting one is [`super::start`].
 
 use axum::{
     Extension, Json,
@@ -14,20 +14,25 @@ use medbrains_server_core::middleware::authorization::{
     require_any_permission, require_permission,
 };
 use medbrains_server_core::state::AppState;
-use rust_decimal::Decimal;
-use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::view::{PosSaleView, view};
 use super::{
-    ANSWER_WITHIN_SECS, Ctx, NO_ANSWER, PosError, SaleAsk, SaleState, Step, next_step, provider_for,
+    ANSWER_WITHIN_SECS, Approval, Ctx, NO_ANSWER, PosError, SaleState, Step, Tender, UNKNOWN,
+    next_step, provider_for,
 };
+use crate::razorpay::mode_for_method;
 use crate::settle::{Capture, Received, lock_txn, rupees, settle_capture};
 use crate::terminals::{load, note_health};
 
-type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
-const OPEN: &str = "status IN ('pending_gateway', 'created')";
+pub(super) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+pub(super) const OPEN: &str = "status IN ('pending_gateway', 'created')";
+/// A sale a step may still change: open, or closed with no known outcome.
+pub(super) const LIVE: &str =
+    "(status IN ('pending_gateway', 'created') OR (status = 'failed' AND error_code = 'unknown'))";
+/// A bridge sale its bridge never took: it never reached a machine.
+const NEVER_TAKEN: &str = "The card machine's bridge never took the sale — nothing was charged";
 
 pub(super) async fn begin(db: &PgPool, tenant_id: Uuid) -> Result<Tx<'static>, AppError> {
     let mut tx = db.begin().await?;
@@ -84,6 +89,13 @@ pub(crate) async fn apply(
     step: Step,
 ) -> Result<(), AppError> {
     let mut tx = begin(db, tenant_id).await?;
+    apply_in(&mut tx, txn_id, step).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// [`apply`] inside the caller's transaction.
+pub(super) async fn apply_in(tx: &mut Tx<'_>, txn_id: Uuid, step: Step) -> Result<(), AppError> {
     match step {
         Step::Keep { waiting: false } => {}
         Step::Keep { waiting: true } => {
@@ -92,49 +104,61 @@ pub(crate) async fn apply(
                  notes = notes || '{{\"stage\":\"waiting\"}}' WHERE id = $1 AND {OPEN}"
             ))
             .bind(txn_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
         }
-        Step::Settle(a) => {
-            let txn = lock_txn(&mut tx, txn_id).await?;
-            let approved = a.approved_paise.map_or(txn.amount, rupees);
-            let received = if approved < txn.amount {
-                Received::Credited(approved)
-            } else {
-                Received::Exactly(approved)
-            };
-            let capture = Capture {
-                provider: &txn.gateway,
-                payment_id: &a.reference,
-                method: Some("card"),
-                received,
-                signature: None,
-                payload: Some(&a.payload),
-            };
-            if let crate::settle::Settled::Now(_) =
-                settle_capture(&mut tx, txn_id, &capture).await?
-            {
-                sqlx::query(
-                    "UPDATE payment_gateway_transactions SET card_last4 = $2, card_auth_code = $3, \
-                     notes = notes || jsonb_build_object('stage', 'approved', 'approved_amount', $4::text) \
-                     WHERE id = $1",
-                )
-                .bind(txn_id)
-                .bind(&a.card_last4)
-                .bind(&a.auth_code)
-                .bind(approved)
-                .execute(&mut *tx)
-                .await?;
-            }
-        }
-        Step::Fail { code, why } => close(&mut tx, txn_id, "failed", Some(code), &why).await?,
-        Step::Expire(why) => close(&mut tx, txn_id, "expired", None, &why).await?,
+        Step::Settle(a) => settle(tx, txn_id, &a).await?,
+        Step::Fail { code, why } => close(tx, txn_id, "failed", Some(code), &why).await?,
+        Step::Expire(why) => close(tx, txn_id, "expired", None, &why).await?,
+        Step::Unknown(why) => close(tx, txn_id, "failed", Some(UNKNOWN), &why).await?,
     }
-    tx.commit().await?;
     Ok(())
 }
 
-async fn close(
+/// The payment mode to post: what the provider says it was paid by (UPI on
+/// the machine is UPI, not card), else what the cashier asked for.
+fn method_of(a: &Approval, notes: &serde_json::Value) -> &'static str {
+    a.method
+        .as_deref()
+        .and_then(mode_for_method)
+        .unwrap_or_else(|| Tender::fallback_method(notes["tender"].as_str()))
+}
+
+async fn settle(tx: &mut Tx<'_>, txn_id: Uuid, a: &Approval) -> Result<(), AppError> {
+    let txn = lock_txn(tx, txn_id).await?;
+    let approved = a.approved_paise.map_or(txn.amount, rupees);
+    let received = if approved < txn.amount {
+        Received::Credited(approved)
+    } else {
+        Received::Exactly(approved)
+    };
+    let capture = Capture {
+        provider: &txn.gateway,
+        payment_id: &a.reference,
+        method: Some(method_of(a, &txn.notes)),
+        received,
+        signature: None,
+        payload: Some(&a.payload),
+    };
+    if let crate::settle::Settled::Now(_) = settle_capture(tx, txn_id, &capture).await? {
+        sqlx::query(
+            "UPDATE payment_gateway_transactions SET card_last4 = $2, card_auth_code = $3, \
+             notes = notes || jsonb_strip_nulls(jsonb_build_object('stage', 'approved', \
+                     'approved_amount', $4::text, 'rrn', $5::text)) \
+             WHERE id = $1",
+        )
+        .bind(txn_id)
+        .bind(&a.card_last4)
+        .bind(&a.auth_code)
+        .bind(approved)
+        .bind(&a.rrn)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
+
+pub(super) async fn close(
     tx: &mut Tx<'_>,
     txn_id: Uuid,
     status: &str,
@@ -143,7 +167,7 @@ async fn close(
 ) -> Result<(), AppError> {
     sqlx::query(&format!(
         "UPDATE payment_gateway_transactions SET status = $2, error_code = $3, \
-         error_description = $4, updated_at = now() WHERE id = $1 AND {OPEN}"
+         error_description = $4, updated_at = now() WHERE id = $1 AND {LIVE}"
     ))
     .bind(txn_id)
     .bind(status)
@@ -194,17 +218,33 @@ async fn note(
     Ok(())
 }
 
-/// Ask the machine where an open sale stands and apply the answer. A bridge
-/// sale is told its result by the bridge, so only its deadline is checked.
+/// Whether nobody knows yet how this sale ended.
+pub(super) fn is_unknown(txn: &PaymentGatewayTransaction) -> bool {
+    txn.status == "failed" && txn.error_code.as_deref() == Some(UNKNOWN)
+}
+
+/// Ask the machine where a sale stands and apply the answer. A bridge sale
+/// is told its result by the bridge, so only its deadline is checked. A sale
+/// with no known outcome is still asked, so a late approval posts — but only
+/// a definite answer changes it.
 pub(crate) async fn refresh(state: &AppState, tenant_id: Uuid, id: Uuid) -> Result<(), AppError> {
     let (txn, terminal) = load_sale(&state.db, tenant_id, id).await?;
-    if !matches!(txn.status.as_str(), "pending_gateway" | "created") {
+    let unknown = is_unknown(&txn);
+    if !unknown && !matches!(txn.status.as_str(), "pending_gateway" | "created") {
         return Ok(());
     }
     let overdue = (Utc::now() - txn.created_at).num_seconds() > ANSWER_WITHIN_SECS;
-    if terminal.connection == "bridge" || txn.status == "pending_gateway" {
-        if overdue {
-            apply(&state.db, tenant_id, id, Step::Expire(NO_ANSWER.to_owned())).await?;
+    // A bridge reports on its own; a sale the provider never named cannot be asked.
+    if terminal.connection == "bridge" || txn.gateway_order_id.is_empty() {
+        if overdue && !unknown {
+            // Untaken by its bridge, it never reached a machine; anything else might have.
+            let never_taken = terminal.connection == "bridge" && txn.status == "pending_gateway";
+            let step = if never_taken {
+                Step::Expire(NEVER_TAKEN.to_owned())
+            } else {
+                Step::Unknown(NO_ANSWER.to_owned())
+            };
+            apply(&state.db, tenant_id, id, step).await?;
         }
         return Ok(());
     }
@@ -212,206 +252,30 @@ pub(crate) async fn refresh(state: &AppState, tenant_id: Uuid, id: Uuid) -> Resu
         AppError::ServiceUnavailable(format!("No adapter for '{}'", terminal.provider))
     })?;
     let c = ctx(state, tenant_id, &terminal);
-    let mut answer = provider.status(&c, &txn.gateway_order_id).await;
-    if overdue && matches!(answer, Ok(SaleState::Waiting) | Err(PosError::Offline(_))) {
+    let reference = txn.gateway_order_id.as_str();
+    let mut answer = provider.status(&c, reference).await;
+    if unknown {
+        return match answer {
+            Ok(SaleState::Waiting) | Err(_) => Ok(()),
+            definite => apply(&state.db, tenant_id, id, next_step(definite, false, false)).await,
+        };
+    }
+    let mut cancel_confirmed = txn.notes["cancel_confirmed"] == serde_json::Value::Bool(true);
+    if overdue && !cancel_confirmed && matches!(answer, Ok(SaleState::Waiting) | Err(_)) {
         // Close it on the machine, then ask once more: an approval that
         // landed meanwhile must still post.
-        if let Err(e) = provider.cancel(&c, &txn.gateway_order_id).await {
-            tracing::warn!(txn = %id, error = %e.words(), "card machine did not take the cancel");
+        let paise = crate::amount_to_paise(txn.amount)?;
+        match provider.cancel(&c, reference, paise).await {
+            Ok(()) => cancel_confirmed = true,
+            Err(e) => {
+                tracing::warn!(txn = %id, error = %e.words(), "card machine did not take the cancel");
+            }
         }
-        answer = provider.status(&c, &txn.gateway_order_id).await;
+        answer = provider.status(&c, reference).await;
     }
     note(&state.db, tenant_id, &terminal, &answer).await?;
-    apply(&state.db, tenant_id, id, next_step(answer, overdue)).await
-}
-
-#[derive(Debug, Deserialize)]
-pub struct StartSale {
-    pub terminal_id: Uuid,
-    pub invoice_id: Option<Uuid>,
-    pub amount: Decimal,
-}
-
-fn usable(t: &PaymentTerminal) -> Result<(), AppError> {
-    if !t.is_active || t.retired_at.is_some() {
-        return Err(AppError::Conflict(format!(
-            "{} is not in use any more",
-            t.label
-        )));
-    }
-    if t.kind != "pos" {
-        return Err(AppError::BadRequest(format!(
-            "{} is not a card machine",
-            t.label
-        )));
-    }
-    if t.status == "offline" {
-        let why = t
-            .last_error
-            .as_deref()
-            .map(|e| format!(" ({e})"))
-            .unwrap_or_default();
-        return Err(AppError::Conflict(format!(
-            "{} is offline{why}. Take the payment another way, or check the machine and its cable.",
-            t.label
-        )));
-    }
-    Ok(())
-}
-
-async fn check_balance(
-    tx: &mut Tx<'_>,
-    tenant_id: Uuid,
-    invoice_id: Uuid,
-    amount: Decimal,
-) -> Result<(), AppError> {
-    let due: Option<Decimal> = sqlx::query_scalar(
-        "SELECT total_amount - paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    match due {
-        None => Err(AppError::NotFound),
-        Some(due) if amount > due => Err(AppError::BadRequest(format!(
-            "₹{amount} is more than the ₹{due} still due on this bill"
-        ))),
-        Some(_) => Ok(()),
-    }
-}
-
-/// Bring the terminal's earlier sales up to date first, so one the patient
-/// already finished, or that ran out of time, does not hold the machine.
-async fn settle_earlier(
-    state: &AppState,
-    tenant_id: Uuid,
-    terminal_id: Uuid,
-) -> Result<(), AppError> {
-    let mut tx = begin(&state.db, tenant_id).await?;
-    let open: Vec<Uuid> = sqlx::query_scalar(&format!(
-        "SELECT id FROM payment_gateway_transactions WHERE terminal_id = $1 AND {OPEN} LIMIT 5"
-    ))
-    .bind(terminal_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    tx.commit().await?;
-    for id in open {
-        refresh(state, tenant_id, id).await?;
-    }
-    Ok(())
-}
-
-/// The sale row; `None` when the machine already has an open one (a unique
-/// index allows one open sale per machine).
-async fn insert_sale(
-    tx: &mut Tx<'_>,
-    claims: &Claims,
-    t: &PaymentTerminal,
-    body: &StartSale,
-) -> Result<Option<Uuid>, AppError> {
-    Ok(sqlx::query_scalar(&format!(
-        "INSERT INTO payment_gateway_transactions \
-         (tenant_id, invoice_id, gateway, gateway_order_id, amount, currency, status, created_by, \
-          terminal_id, idempotency_key, notes) \
-         VALUES ($1, $2, $3, '', $4, 'INR', 'pending_gateway', $5, $6, gen_random_uuid()::text, \
-                 '{{\"stage\":\"sent\"}}') \
-         ON CONFLICT (terminal_id) WHERE terminal_id IS NOT NULL AND {OPEN} DO NOTHING RETURNING id"
-    ))
-    .bind(claims.tenant_id)
-    .bind(body.invoice_id)
-    .bind(&t.provider)
-    .bind(body.amount)
-    .bind(claims.sub)
-    .bind(t.id)
-    .fetch_optional(&mut **tx)
-    .await?)
-}
-
-/// Hand a cloud sale to its provider. Nothing is charged if this fails.
-async fn send(
-    state: &AppState,
-    tenant_id: Uuid,
-    t: &PaymentTerminal,
-    sale: SaleAsk,
-) -> Result<(), AppError> {
-    let provider = provider_for(t)
-        .ok_or_else(|| AppError::ServiceUnavailable(format!("No adapter for '{}'", t.provider)))?;
-    let started = provider.start(&ctx(state, tenant_id, t), sale).await;
-    let mut tx = begin(&state.db, tenant_id).await?;
-    let failed = match started {
-        Ok(reference) => {
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET status = 'created', gateway_order_id = $2, \
-                 notes = notes || '{\"stage\":\"waiting\"}' WHERE id = $1 AND status = 'pending_gateway'",
-            )
-            .bind(sale.txn_id)
-            .bind(reference)
-            .execute(&mut *tx)
-            .await?;
-            note_health(&mut tx, t.id, Ok(())).await?;
-            None
-        }
-        Err(e) => {
-            let code = if matches!(e, PosError::Offline(_)) {
-                "offline"
-            } else {
-                "refused"
-            };
-            if code == "offline" {
-                note_health(&mut tx, t.id, Err(e.words())).await?;
-            }
-            close(&mut tx, sale.txn_id, "failed", Some(code), &e.words()).await?;
-            Some(e.words())
-        }
-    };
-    tx.commit().await?;
-    match failed {
-        None => Ok(()),
-        Some(why) => Err(AppError::Conflict(format!(
-            "{why}. Nothing was charged — take the payment another way, or try again."
-        ))),
-    }
-}
-
-/// `POST /api/payments/pos-sale` — send the amount to the card machine at the
-/// counter. A bridge machine's sale waits for its bridge to take it.
-pub async fn start_sale(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<StartSale>,
-) -> Result<Json<PosSaleView>, AppError> {
-    require_collect(&state, &claims, body.invoice_id).await?;
-    let amount_paise = crate::amount_to_paise(body.amount)?;
-    settle_earlier(&state, claims.tenant_id, body.terminal_id).await?;
-    let mut tx = begin(&state.db, claims.tenant_id).await?;
-    let terminal = load(&mut tx, claims.tenant_id, body.terminal_id)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    usable(&terminal)?;
-    if let Some(invoice_id) = body.invoice_id {
-        check_balance(&mut tx, claims.tenant_id, invoice_id, body.amount).await?;
-    }
-    let Some(txn_id) = insert_sale(&mut tx, &claims, &terminal, &body).await? else {
-        return Err(AppError::Conflict(format!(
-            "{} is still busy with another payment. Finish or cancel that one first.",
-            terminal.label
-        )));
-    };
-    tx.commit().await?;
-    if terminal.connection != "bridge" {
-        send(
-            &state,
-            claims.tenant_id,
-            &terminal,
-            SaleAsk {
-                txn_id,
-                amount_paise,
-            },
-        )
-        .await?;
-    }
-    view(&state.db, claims.tenant_id, txn_id).await.map(Json)
+    let step = next_step(answer, overdue, cancel_confirmed);
+    apply(&state.db, tenant_id, id, step).await
 }
 
 /// `GET /api/payments/pos-sale/{id}` — where the sale stands; asks the

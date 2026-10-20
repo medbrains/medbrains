@@ -5,7 +5,9 @@
 //! is not `production`; the server also refuses to start with it on in
 //! production. A sale waits at the "machine" until someone plays the patient:
 //! the Payment terminals settings screen (or this API) says what the card
-//! did — approve, decline, time out, go offline, or approve part of it.
+//! did — approve, decline, time out, go offline, approve part of it, pay by
+//! UPI on the machine, refuse a cancel because the PIN is already in, or
+//! never give a definite answer before the window closes.
 
 use async_trait::async_trait;
 use axum::{
@@ -32,7 +34,20 @@ pub const ENV_FLAG: &str = "MEDBRAINS_POS_SIMULATOR";
 pub const UNPLUGGED: &str = "Unplugged (simulator)";
 /// The simulated card.
 const CARD_LAST4: &str = "4242";
-const OUTCOMES: &[&str] = &["approve", "decline", "timeout", "offline", "partial"];
+const OUTCOMES: &[&str] = &[
+    "approve",
+    "decline",
+    "timeout",
+    "offline",
+    "partial",
+    "upi",
+    "refuse_cancel",
+    "unknown",
+];
+/// Outcomes in which the machine is past the point a cancel can stop it.
+const UNCANCELLABLE: &[&str] = &["approve", "partial", "upi", "refuse_cancel", "unknown"];
+/// What the simulated machine says when a cancel comes too late — Plutus's words.
+pub const CANCEL_REFUSED: &str = "CANNOT CANCEL AS TRANSACTION IS IN PROGRESS (simulator)";
 
 /// Whether the simulator may run here.
 pub async fn enabled(secrets: &dyn SecretResolver) -> bool {
@@ -48,21 +63,22 @@ pub struct Simulator;
 
 /// What a person at the simulated machine did, kept on the sale row.
 pub fn read_outcome(reference: &str, sim: &Value) -> Result<SaleState, PosError> {
-    let approved = |paise: Option<i64>| {
+    let short = reference[..8.min(reference.len())].to_uppercase();
+    let approved = |paise: Option<i64>, upi: bool| {
         SaleState::Approved(Approval {
-            reference: format!(
-                "SIM-{}",
-                &reference[..8.min(reference.len())].to_uppercase()
-            ),
+            reference: format!("SIM-{short}"),
             approved_paise: paise,
-            card_last4: Some(CARD_LAST4.to_owned()),
+            card_last4: (!upi).then(|| CARD_LAST4.to_owned()),
             auth_code: Some("SIM0K1".to_owned()),
+            rrn: Some(format!("SIMRRN{short}")),
+            method: Some(if upi { "UPI" } else { "CARD" }.to_owned()),
             payload: sim.clone(),
         })
     };
     match sim["outcome"].as_str() {
-        Some("approve") => Ok(approved(None)),
-        Some("partial") => Ok(approved(sim["approved_paise"].as_i64())),
+        Some("approve") => Ok(approved(None, false)),
+        Some("upi") => Ok(approved(None, true)),
+        Some("partial") => Ok(approved(sim["approved_paise"].as_i64(), false)),
         Some("decline") => Ok(SaleState::Declined(
             "Declined by the bank (simulated)".to_owned(),
         )),
@@ -71,6 +87,7 @@ pub fn read_outcome(reference: &str, sim: &Value) -> Result<SaleState, PosError>
         Some("offline") => Err(PosError::Offline(
             "The simulated machine went offline".to_owned(),
         )),
+        // "refuse_cancel", "unknown" and nothing yet: still at the machine.
         _ => Ok(SaleState::Waiting),
     }
 }
@@ -112,21 +129,27 @@ impl PosProvider for Simulator {
         read_outcome(reference, &sim_of(ctx, reference).await?)
     }
 
-    async fn cancel(&self, ctx: &Ctx<'_>, reference: &str) -> Result<(), PosError> {
-        // Too late once the card went through; the status then says approved.
+    async fn cancel(&self, ctx: &Ctx<'_>, reference: &str, _paise: i64) -> Result<(), PosError> {
+        // Too late once the card went through or the PIN is in: refused, and
+        // the status then says what the machine did.
         let fault = |e: sqlx::Error| PosError::Offline(format!("simulator: {e}"));
         let mut tx = super::scoped(ctx.db, ctx.tenant_id).await?;
-        sqlx::query(
+        let done = sqlx::query(
             "UPDATE payment_gateway_transactions SET notes = notes || '{\"sim\":{\"outcome\":\"cancelled\"}}' \
              WHERE id::text = $1 AND tenant_id = $2 \
-               AND COALESCE(notes->'sim'->>'outcome', '') NOT IN ('approve', 'partial')",
+               AND NOT (COALESCE(notes->'sim'->>'outcome', '') = ANY($3))",
         )
         .bind(reference)
         .bind(ctx.tenant_id)
+        .bind(UNCANCELLABLE)
         .execute(&mut *tx)
         .await
-        .map_err(fault)?;
+        .map_err(fault)?
+        .rows_affected();
         tx.commit().await.map_err(fault)?;
+        if done == 0 {
+            return Err(PosError::Refused(CANCEL_REFUSED.to_owned()));
+        }
         Ok(())
     }
 
@@ -193,7 +216,7 @@ pub async fn list_simulated_sales(
 
 #[derive(Debug, Deserialize)]
 pub struct OutcomeRequest {
-    /// approve | decline | timeout | offline | partial
+    /// approve | decline | timeout | offline | partial | upi | refuse_cancel | unknown
     pub outcome: String,
     /// For `partial`: what the card covered, in rupees.
     pub approved_amount: Option<Decimal>,
@@ -225,8 +248,11 @@ pub async fn act_on_simulated_sale(
     };
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // "unknown": the machine never says, and the answer window has passed —
+    // the sale is moved back past it so the next poll finds it overdue.
     let done = sqlx::query(
         "UPDATE payment_gateway_transactions SET notes = notes || jsonb_build_object('sim', $3::jsonb), \
+                created_at = CASE WHEN $5 THEN now() - $6::bigint * interval '1 second' ELSE created_at END, \
                 updated_at = now() \
           WHERE id = $1 AND tenant_id = $2 AND gateway = $4 AND status IN ('pending_gateway', 'created')",
     )
@@ -234,6 +260,8 @@ pub async fn act_on_simulated_sale(
     .bind(claims.tenant_id)
     .bind(json!({ "outcome": outcome, "approved_paise": approved_paise }))
     .bind(PROVIDER)
+    .bind(outcome == "unknown")
+    .bind(super::ANSWER_WITHIN_SECS + 1)
     .execute(&mut *tx)
     .await?
     .rows_affected();
@@ -309,5 +337,13 @@ mod tests {
             read_outcome(r, &json!({ "outcome": "offline" })),
             Err(PosError::Offline(_))
         ));
+        assert!(matches!(read_outcome(r, &json!({ "outcome": "upi" })),
+            Ok(SaleState::Approved(a)) if a.method.as_deref() == Some("UPI") && a.card_last4.is_none()));
+        for still in ["refuse_cancel", "unknown"] {
+            assert_eq!(
+                read_outcome(r, &json!({ "outcome": still })),
+                Ok(SaleState::Waiting)
+            );
+        }
     }
 }
