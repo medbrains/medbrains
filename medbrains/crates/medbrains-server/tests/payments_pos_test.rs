@@ -271,7 +271,7 @@ async fn pine_labs_uploads_polls_and_posts_once() {
     let plutus = Arc::new(Plutus::default());
     *plutus.answers.lock().expect("answers") = vec![
         json!({ "ResponseCode": 1001, "ResponseMessage": "TXN UPLOADED" }),
-        json!({ "ResponseCode": 0, "ResponseMessage": "APPROVED", "TransactionData": [
+        json!({ "ResponseCode": 0, "ResponseMessage": "TXN APPROVED", "TransactionData": [
             { "Tag": "Card Number", "Value": "************9876" },
             { "Tag": "ApprovalCode", "Value": "PL0042" } ] }),
     ];

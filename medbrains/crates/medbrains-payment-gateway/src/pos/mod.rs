@@ -11,17 +11,22 @@
 //!
 //! Providers:
 //! * [`pinelabs`] — Pine Labs Plutus Cloud (push + poll).
-//! * [`ezetap`] — Razorpay POS (Ezetap push-to-pay), inferred.
+//! * [`ezetap`] — Razorpay POS (Ezetap push-to-pay).
 //! * [`bridge`] — a machine wired to a counter PC, driven by the site bridge.
 //! * [`simulator`] — a pretend machine, dev and test only.
 
 pub mod bridge;
 pub mod ezetap;
 pub mod pinelabs;
+pub mod resolve;
 pub mod sale;
 pub mod simulator;
+pub mod start;
+mod step;
 pub mod undo;
 pub mod view;
+
+pub use step::{NO_ANSWER, Step, UNKNOWN, cancelled, next_step};
 
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -35,7 +40,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -62,15 +67,45 @@ pub struct Ctx<'a> {
     pub terminal: &'a PaymentTerminal,
 }
 
+/// What the patient may pay with at the machine, as the cashier chose it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Tender {
+    Card,
+    /// UPI taken on the machine (its dynamic QR or collect request).
+    Upi,
+    /// Whichever the patient uses at the machine.
+    #[default]
+    Either,
+}
+
+impl Tender {
+    /// The word kept on the sale row.
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Card => "card",
+            Self::Upi => "upi",
+            Self::Either => "either",
+        }
+    }
+
+    /// The payment mode to post when the provider does not say how it was
+    /// paid: what the cashier asked for, card when they left it open.
+    pub fn fallback_method(word: Option<&str>) -> &'static str {
+        if word == Some("upi") { "upi" } else { "card" }
+    }
+}
+
 /// A sale to run on the machine.
 #[derive(Debug, Clone, Copy)]
 pub struct SaleAsk {
     pub txn_id: Uuid,
     pub amount_paise: i64,
+    pub tender: Tender,
 }
 
-/// The machine approved the card.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The machine approved the payment.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Approval {
     /// The provider's reference for the payment; filed on the bill.
     pub reference: String,
@@ -78,13 +113,18 @@ pub struct Approval {
     pub approved_paise: Option<i64>,
     pub card_last4: Option<String>,
     pub auth_code: Option<String>,
+    /// The bank's retrieval reference number — what settlement files match on.
+    pub rrn: Option<String>,
+    /// How it was paid, in the provider's word (`CARD`, `UPI`…), when it says.
+    pub method: Option<String>,
     pub payload: Value,
 }
 
 /// Where the sale stands at the machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SaleState {
-    /// Sent; the patient has not finished (or not started) at the machine.
+    /// Sent; the patient has not finished (or not started) at the machine —
+    /// or the provider said something that is not a definite outcome.
     Waiting,
     Approved(Approval),
     /// Declined, in the bank's or the machine's words.
@@ -119,7 +159,14 @@ pub trait PosProvider: Send + Sync {
     /// Send the sale to the machine; the provider's reference for it.
     async fn start(&self, ctx: &Ctx<'_>, sale: SaleAsk) -> Result<String, PosError>;
     async fn status(&self, ctx: &Ctx<'_>, reference: &str) -> Result<SaleState, PosError>;
-    async fn cancel(&self, ctx: &Ctx<'_>, reference: &str) -> Result<(), PosError>;
+    /// Stop the sale on the machine. `Ok` only when the provider confirmed
+    /// it; a machine that is still taking the card answers `Refused`.
+    async fn cancel(
+        &self,
+        ctx: &Ctx<'_>,
+        reference: &str,
+        amount_paise: i64,
+    ) -> Result<(), PosError>;
     /// Refund or void an approved sale; the provider's refund id.
     async fn refund(
         &self,
@@ -262,133 +309,4 @@ pub(crate) async fn post_json(url: &str, body: &Value) -> Result<Value, PosError
     }
     serde_json::from_str(&text)
         .map_err(|e| PosError::Offline(format!("The provider's answer was unreadable: {e}")))
-}
-
-/// What to do with a sale after hearing from (or not hearing from) the machine.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Step {
-    /// Still at the machine; `waiting` once the machine has it.
-    Keep {
-        waiting: bool,
-    },
-    Settle(Approval),
-    Fail {
-        code: &'static str,
-        why: String,
-    },
-    Expire(String),
-}
-
-pub const NO_ANSWER: &str = "No answer from the card machine in time. Check the machine's \
-                             last slip before trying again — if it shows approved, the payment \
-                             will still post when the machine reports it";
-
-/// The one state machine: an answer (or the lack of one) to a step.
-/// `overdue` is whether the sale has outlived [`ANSWER_WITHIN_SECS`].
-pub fn next_step(answer: Result<SaleState, PosError>, overdue: bool) -> Step {
-    match answer {
-        Ok(SaleState::Approved(a)) => Step::Settle(a),
-        Ok(SaleState::Declined(why)) => Step::Fail {
-            code: "declined",
-            why,
-        },
-        Ok(SaleState::Cancelled) => Step::Fail {
-            code: "cancelled",
-            why: "Cancelled — no money was taken".to_owned(),
-        },
-        Ok(SaleState::TimedOut) => Step::Expire(
-            "The machine timed out waiting for the card — no money was taken".to_owned(),
-        ),
-        Err(PosError::Refused(why)) => Step::Fail {
-            code: "refused",
-            why,
-        },
-        Ok(SaleState::Waiting) | Err(_) if overdue => Step::Expire(NO_ANSWER.to_owned()),
-        Ok(SaleState::Waiting) => Step::Keep { waiting: true },
-        // A blip reaching the provider: keep asking until the sale is overdue.
-        Err(_) => Step::Keep { waiting: false },
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Approval, PosError, SaleState, Step, next_step};
-
-    fn approval() -> Approval {
-        Approval {
-            reference: "PTR-1".to_owned(),
-            approved_paise: None,
-            card_last4: Some("4242".to_owned()),
-            auth_code: Some("A1".to_owned()),
-            payload: serde_json::Value::Null,
-        }
-    }
-
-    #[test]
-    fn an_approval_settles_even_when_it_comes_late() {
-        assert_eq!(
-            next_step(Ok(SaleState::Approved(approval())), false),
-            Step::Settle(approval())
-        );
-        assert_eq!(
-            next_step(Ok(SaleState::Approved(approval())), true),
-            Step::Settle(approval())
-        );
-    }
-
-    #[test]
-    fn a_decline_or_cancel_fails_with_its_reason_and_posts_nothing() {
-        let declined = next_step(Ok(SaleState::Declined("Insufficient funds".into())), false);
-        assert_eq!(
-            declined,
-            Step::Fail {
-                code: "declined",
-                why: "Insufficient funds".into()
-            }
-        );
-        assert!(matches!(
-            next_step(Ok(SaleState::Cancelled), false),
-            Step::Fail {
-                code: "cancelled",
-                ..
-            }
-        ));
-        assert!(matches!(
-            next_step(Ok(SaleState::TimedOut), false),
-            Step::Expire(_)
-        ));
-    }
-
-    #[test]
-    fn waiting_and_blips_keep_the_sale_open_until_it_is_overdue() {
-        assert_eq!(
-            next_step(Ok(SaleState::Waiting), false),
-            Step::Keep { waiting: true }
-        );
-        let blip = Err(PosError::Offline("timeout".into()));
-        assert_eq!(
-            next_step(blip.clone(), false),
-            Step::Keep { waiting: false }
-        );
-        assert_eq!(
-            next_step(blip, true),
-            Step::Expire(super::NO_ANSWER.to_owned())
-        );
-        assert_eq!(
-            next_step(Ok(SaleState::Waiting), true),
-            Step::Expire(super::NO_ANSWER.to_owned())
-        );
-    }
-
-    #[test]
-    fn a_refusal_fails_at_once() {
-        let refused = next_step(Err(PosError::Refused("Unknown device".into())), false);
-        assert_eq!(
-            refused,
-            Step::Fail {
-                code: "refused",
-                why: "Unknown device".into()
-            }
-        );
-    }
 }

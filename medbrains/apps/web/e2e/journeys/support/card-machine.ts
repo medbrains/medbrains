@@ -87,7 +87,7 @@ export async function saleAtMachine(admin: AuthContext, machine: Machine): Promi
 export async function cardDoes(
   admin: AuthContext,
   saleId: string,
-  outcome: "approve" | "decline" | "timeout",
+  outcome: "approve" | "decline" | "timeout" | "upi" | "refuse_cancel" | "unknown",
 ): Promise<void> {
   await api(admin, "POST", `/api/payments/simulator/sales/${saleId}`, { outcome });
 }
@@ -101,8 +101,14 @@ export async function savedSale(admin: AuthContext, saleId: string) {
   );
 }
 
-/** The cashier sends the amount to the machine at their counter. */
-export async function sendToMachine(page: Page, scope: Locator, machine: Machine, amount: string) {
+/** The cashier sends the amount to the machine at their counter, as `tender` when named. */
+export async function sendToMachine(
+  page: Page,
+  scope: Locator,
+  machine: Machine,
+  amount: string,
+  tender?: "Card" | "UPI on machine" | "Card or UPI",
+) {
   const panel = scope.getByTestId("card-terminal-panel");
   await expect(panel).toBeVisible();
   const counter = panel.getByRole("combobox", { name: "Your counter" });
@@ -111,6 +117,12 @@ export async function sendToMachine(page: Page, scope: Locator, machine: Machine
     await page.getByRole("option", { name: machine.stationName, exact: true }).click();
   }
   await expect(panel.getByTestId("terminal-status")).toBeVisible();
+  if (tender) {
+    // A segmented control: its radio is hidden, so press the label a person sees.
+    const radio = panel.getByRole("radio", { name: tender, exact: true });
+    await panel.locator(`label[for="${await radio.getAttribute("id")}"]`).click();
+    await expect(radio).toBeChecked();
+  }
   const send = panel.getByRole("button", { name: `Send ${amount} to ${machine.label}` });
   await send.click();
   return panel;

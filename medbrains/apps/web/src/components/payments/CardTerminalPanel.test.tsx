@@ -10,6 +10,8 @@ const service = vi.hoisted(() => ({
   posSale: vi.fn(),
   getCardSale: vi.fn(),
   cancelCardSale: vi.fn(),
+  resolveCardSale: vi.fn(),
+  listUnresolvedCardSales: vi.fn(),
 }));
 vi.mock("@/services/payments.service", () => ({ paymentsService: service }));
 
@@ -17,6 +19,7 @@ const held = vi.hoisted(() => new Set<string>(["billing.payments.create"]));
 vi.mock("@medbrains/stores", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@medbrains/stores")>()),
   useHasAnyPermission: (codes: string[]) => codes.some((c) => held.has(c)),
+  useHasPermission: (code: string) => held.has(code),
 }));
 
 vi.mock("@/lib/razorpay-checkout", async (importOriginal) => {
@@ -61,6 +64,8 @@ function sale(over: Partial<PosSaleView>): PosSaleView {
     reference: null,
     card_last4: null,
     auth_code: null,
+    rrn: null,
+    method: null,
     held_for_finance: false,
     created_at: "",
     ...over,
@@ -96,6 +101,15 @@ const send = async () =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  held.clear();
+  held.add("billing.payments.create");
+  service.listUnresolvedCardSales.mockResolvedValue([]);
+});
+
+const UNKNOWN = sale({
+  stage: "unknown",
+  is_final: false,
+  message: "Outcome unknown — check the machine slip",
 });
 
 describe("card sale steps", () => {
@@ -135,6 +149,24 @@ describe("CardSaleStatus", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a refused cancel live, offers the cancel again and never a retry", () => {
+    render(
+      <CardSaleStatus
+        sale={sale({
+          stage: "cancel_refused",
+          message: "Still on the machine — cancel refused",
+        })}
+        onCancel={vi.fn()}
+        onRetry={vi.fn()}
+        cancelling={false}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Still on the machine — cancel refused");
+    expect(screen.getByRole("button", { name: "Try the cancel again" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try the card again" })).toBeNull();
+    expect(screen.getByText(/A supervisor checks the machine's slip/)).toBeInTheDocument();
+  });
+
   it("names the card and the approval once approved", () => {
     render(
       <CardSaleStatus sale={APPROVED} onCancel={vi.fn()} onRetry={vi.fn()} cancelling={false} />,
@@ -156,7 +188,19 @@ describe("CardTerminalPanel", () => {
       terminal_id: "t1",
       invoice_id: "inv-1",
       amount: 500,
+      tender: "either",
     });
+  });
+
+  it("sends the mode the cashier picked — UPI on the machine", async () => {
+    service.listPaymentTerminals.mockResolvedValue([machine()]);
+    service.posSale.mockResolvedValue(APPROVED);
+    renderPanel();
+    await userEvent.click(await screen.findByText("UPI on machine"));
+    await send();
+    await waitFor(() =>
+      expect(service.posSale).toHaveBeenCalledWith(expect.objectContaining({ tender: "upi" })),
+    );
   });
 
   it("refuses an offline machine up front and offers another way", async () => {
@@ -194,5 +238,47 @@ describe("CardTerminalPanel", () => {
     service.listPaymentTerminals.mockRejectedValue(new Error("503"));
     renderPanel();
     expect(await screen.findByText("Card machines could not be loaded")).toBeInTheDocument();
+  });
+
+  it("lets a supervisor resolve an unknown outcome from the slip's RRN, and posts it once", async () => {
+    held.add("billing.payments.reconcile");
+    service.listPaymentTerminals.mockResolvedValue([machine()]);
+    const resolvedSale = { ...APPROVED, rrn: "429011223344" };
+    let resolved = false;
+    service.posSale.mockResolvedValue(UNKNOWN);
+    service.getCardSale.mockImplementation(async () => (resolved ? resolvedSale : UNKNOWN));
+    service.resolveCardSale.mockImplementation(async () => {
+      resolved = true;
+      return resolvedSale;
+    });
+    const { onApproved } = renderPanel();
+    await send();
+    expect(await screen.findByRole("status")).toHaveTextContent("Outcome unknown");
+    expect(screen.queryByRole("button", { name: "Try the card again" })).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Resolve from the slip" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Record as paid" }));
+    expect(await screen.findByText(/Type the RRN or the approval code/)).toBeInTheDocument();
+    expect(service.resolveCardSale).not.toHaveBeenCalled();
+    await userEvent.type(screen.getByLabelText(/^RRN/), "429011223344");
+    await userEvent.click(screen.getByRole("button", { name: "Record as paid" }));
+    await waitFor(() =>
+      expect(service.resolveCardSale).toHaveBeenCalledWith("txn-1", {
+        outcome: "paid",
+        rrn: "429011223344",
+        approval_code: undefined,
+        method: "card",
+      }),
+    );
+    await waitFor(() => expect(onApproved).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows the bill's unresolved card payment after a reload instead of charging again", async () => {
+    service.listPaymentTerminals.mockResolvedValue([machine()]);
+    service.listUnresolvedCardSales.mockResolvedValue([UNKNOWN]);
+    renderPanel();
+    expect(await screen.findByRole("status")).toHaveTextContent("Outcome unknown");
+    expect(screen.queryByRole("button", { name: /Send ₹/ })).toBeNull();
+    expect(screen.getByText(/Do not charge the card again/)).toBeInTheDocument();
+    expect(service.listUnresolvedCardSales).toHaveBeenCalledWith("inv-1");
   });
 });
