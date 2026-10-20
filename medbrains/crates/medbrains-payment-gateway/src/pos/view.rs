@@ -18,13 +18,18 @@ pub struct PosSaleView {
     pub amount: Decimal,
     /// What the card covered, once approved (less than `amount` when partial).
     pub approved_amount: Option<Decimal>,
-    /// sent | waiting | cancelling | approved | declined | timed_out | cancelled | failed | refunded
+    /// sent | waiting | cancelling | cancel_refused | unknown | approved | declined |
+    /// timed_out | cancelled | failed | refunded
     pub stage: &'static str,
     pub message: String,
     pub is_final: bool,
     pub reference: Option<String>,
     pub card_last4: Option<String>,
     pub auth_code: Option<String>,
+    /// The bank's retrieval reference number, once approved.
+    pub rrn: Option<String>,
+    /// The mode it posted as (`card`, `upi`), once approved.
+    pub method: Option<String>,
     /// Approved, but the bill could not take it; finance has it.
     pub held_for_finance: bool,
     pub created_at: DateTime<Utc>,
@@ -44,6 +49,7 @@ struct Row {
     gateway_payment_id: Option<String>,
     card_last4: Option<String>,
     card_auth_code: Option<String>,
+    payment_method: Option<String>,
     created_at: DateTime<Utc>,
 }
 
@@ -57,6 +63,10 @@ pub fn stage_of(
         ("captured", _) => ("approved", "Approved"),
         ("refunded", _) => ("refunded", "Refunded to the card"),
         ("expired", _) => ("timed_out", "Timed out — no money was taken"),
+        ("failed", Some(super::UNKNOWN)) => ("unknown", "Outcome unknown — check the machine slip"),
+        ("failed", Some(super::resolve::NOT_TAKEN)) => {
+            ("failed", "Checked on the machine — no money was taken")
+        }
         ("failed", Some("declined")) => ("declined", "Declined — no money was taken"),
         ("failed", Some("cancelled")) => ("cancelled", "Cancelled — no money was taken"),
         ("failed", Some("offline")) => (
@@ -66,6 +76,11 @@ pub fn stage_of(
         ("failed", _) => (
             "failed",
             "The card machine's provider refused it — nothing was charged",
+        ),
+        _ if notes["cancel_refused"] == Value::Bool(true) => (
+            "cancel_refused",
+            "Still on the machine — cancel refused. The patient may still finish paying; \
+             if they do, it posts here",
         ),
         _ if notes["cancel_requested"] == Value::Bool(true) => {
             ("cancelling", "Cancelling on the machine…")
@@ -85,7 +100,11 @@ fn message(
     approved: Option<Decimal>,
     held: bool,
 ) -> String {
-    let detail = row.error_description.as_deref().filter(|d| !d.is_empty());
+    let detail = row
+        .error_description
+        .as_deref()
+        .or_else(|| row.notes["cancel_refusal"].as_str())
+        .filter(|d| !d.is_empty());
     match stage {
         "approved" if held => {
             "Approved on the card, but the bill could not take it — finance has the payment"
@@ -97,9 +116,14 @@ fn message(
                 row.amount,
                 row.amount - a
             ),
+            _ if row.payment_method.as_deref() == Some("upi") => {
+                format!("Approved — ₹{} paid by UPI on the machine", row.amount)
+            }
             _ => format!("Approved — ₹{} paid by card", row.amount),
         },
-        "declined" | "failed" => detail.map_or_else(|| base.to_owned(), |d| format!("{base}. {d}")),
+        "declined" | "failed" | "unknown" | "cancel_refused" => {
+            detail.map_or_else(|| base.to_owned(), |d| format!("{base}. {d}"))
+        }
         "timed_out" => detail.unwrap_or(base).to_owned(),
         _ => base.to_owned(),
     }
@@ -112,7 +136,7 @@ pub async fn view(db: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<PosSaleView,
     let row = sqlx::query_as::<_, Row>(
         "SELECT g.id, g.terminal_id, t.label AS terminal_label, g.invoice_id, g.amount, g.status, \
                 g.error_code, g.error_description, g.notes, g.gateway_payment_id, g.card_last4, \
-                g.card_auth_code, g.created_at \
+                g.card_auth_code, g.payment_method, g.created_at \
            FROM payment_gateway_transactions g JOIN payment_terminals t ON t.id = g.terminal_id \
           WHERE g.id = $1 AND g.tenant_id = $2",
     )
@@ -137,10 +161,15 @@ pub async fn view(db: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<PosSaleView,
         amount: row.amount,
         approved_amount: if stage == "approved" { approved } else { None },
         stage,
-        is_final: !matches!(stage, "sent" | "waiting" | "cancelling"),
+        is_final: !matches!(
+            stage,
+            "sent" | "waiting" | "cancelling" | "cancel_refused" | "unknown"
+        ),
         reference: row.gateway_payment_id,
         card_last4: row.card_last4,
         auth_code: row.card_auth_code,
+        rrn: row.notes["rrn"].as_str().map(ToOwned::to_owned),
+        method: row.payment_method.filter(|_| stage == "approved"),
         held_for_finance: held,
         created_at: row.created_at,
     })
@@ -168,5 +197,19 @@ mod tests {
         assert_eq!(stage_of("failed", Some("cancelled"), &none).0, "cancelled");
         assert_eq!(stage_of("expired", None, &none).0, "timed_out");
         assert_eq!(stage_of("failed", Some("offline"), &none).0, "failed");
+        assert_eq!(stage_of("failed", Some("unknown"), &none).0, "unknown");
+        assert_eq!(
+            stage_of("created", None, &json!({ "cancel_refused": true })).0,
+            "cancel_refused"
+        );
+        assert_eq!(
+            stage_of(
+                "created",
+                None,
+                &json!({ "cancel_refused": false, "cancel_requested": true })
+            )
+            .0,
+            "cancelling"
+        );
     }
 }

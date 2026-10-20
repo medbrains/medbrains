@@ -8,6 +8,11 @@
  * back from the server: an approval posts exactly one card payment, anything
  * else posts nothing.
  *
+ * #4878: a cancel the machine refuses leaves the sale live (the approval
+ * that follows posts once); a sale the machine never answers goes to a
+ * supervisor, who resolves it from the slip's RRN; UPI taken on the machine
+ * posts as UPI.
+ *
  * Needs the server started with MEDBRAINS_POS_SIMULATOR=true; skipped
  * otherwise. Runs in Playwright UI mode as well as headless.
  */
@@ -229,5 +234,105 @@ test("at the pharmacy counter part goes on the card machine and the rest is cash
     );
     expect(Number(sale.total_amount)).toBe(36);
     expect(sale.payment_mode).toBe("mixed");
+  });
+});
+
+test("a cancel the machine refuses keeps the sale live; the approval that follows posts once", async ({ hospital }) => {
+  await withMachine(hospital, "billing_counter", async (machine) => {
+    const invoiceId = await issuedBill(hospital.admin, 400);
+    const { page } = await cashier(hospital);
+    const card = await collectByCard(page, invoiceId);
+    const panel = await sendToMachine(page, card, machine, "₹400.00");
+    const saleId = await saleAtMachine(hospital.admin, machine);
+    await cardDoes(hospital.admin, saleId, "refuse_cancel");
+    await expect(panel.getByRole("status")).toContainText("Waiting for the card");
+    const cancel = panel.getByRole("button", { name: "Cancel on machine" });
+    await expectUsable(cancel, "Cancel on machine");
+    await cancel.click();
+    await expect(panel.getByRole("status")).toContainText("Still on the machine — cancel refused");
+    await expect(panel.getByRole("button", { name: "Try the card again" })).toHaveCount(0);
+    await expectScreenAccessible(page, "invoice detail");
+    expect((await savedBill(hospital.admin, invoiceId)).payments, "nothing posts while still on the machine").toEqual([]);
+
+    await cardDoes(hospital.admin, saleId, "approve");
+    await expect.poll(async () => (await savedBill(hospital.admin, invoiceId)).status).toBe("paid");
+    const saved = await savedBill(hospital.admin, invoiceId);
+    expect(saved.payments).toEqual([expect.objectContaining({ amount: 400, mode: "card" })]);
+    expect((await savedSale(hospital.admin, saleId)).stage).toBe("approved");
+    await page.reload();
+    await expectBillOnScreen(page, saved);
+    expect((await savedBill(hospital.admin, invoiceId)).payments, "still one payment").toHaveLength(1);
+  });
+});
+
+test("a sale the machine never answers goes to a supervisor, who resolves it from the slip once", async ({ hospital }) => {
+  await withMachine(hospital, "billing_counter", async (machine) => {
+    const invoiceId = await issuedBill(hospital.admin, 650);
+    const { page } = await cashier(hospital, ["billing.payments.reconcile"]);
+    const card = await collectByCard(page, invoiceId);
+    const panel = await sendToMachine(page, card, machine, "₹650.00");
+    await cardDoes(hospital.admin, await saleAtMachine(hospital.admin, machine), "unknown");
+    await expect(panel.getByRole("status")).toContainText("Outcome unknown — check the machine slip");
+    await expect(panel.getByText(/Do not charge the card again/)).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Resolve from the slip" })).toHaveCount(0);
+    await expect(panel.getByRole("button", { name: /^Send / })).toHaveCount(0);
+    await expectScreenAccessible(page, "invoice detail");
+    expect((await savedBill(hospital.admin, invoiceId)).payments).toEqual([]);
+    const again = await asUser(page, "/api/payments/pos-sale", {
+      terminal_id: machine.terminalId,
+      invoice_id: invoiceId,
+      amount: 650,
+    });
+    expect(again.status(), "the bill is not charged again while the first is unknown").toBe(409);
+
+    const supervisor = await hospital.newStaff(
+      "billing_clerk",
+      `${freshPerson().firstName} Supervisor`,
+      undefined,
+      [await billingDepartment(hospital.admin)],
+    );
+    const desk = (await collectByCard(supervisor.page, invoiceId)).getByTestId("card-terminal-panel");
+    await expect(desk.getByRole("status")).toContainText("Outcome unknown");
+    const resolve = desk.getByRole("button", { name: "Resolve from the slip" });
+    await expectUsable(resolve, "Resolve from the slip");
+    await resolve.click();
+    const dialog = supervisor.page.getByRole("dialog", { name: "Resolve from the machine's slip" });
+    await dialog.getByRole("button", { name: "Record as paid" }).click();
+    await expect(dialog.getByText("Type the RRN or the approval code printed on the slip")).toBeVisible();
+    expect((await savedBill(hospital.admin, invoiceId)).payments, "no RRN, nothing posts").toEqual([]);
+    await dialog.getByRole("textbox", { name: "RRN" }).fill("429011223344");
+    await expectScreenAccessible(supervisor.page, "resolve card payment");
+    await dialog.getByRole("button", { name: "Record as paid" }).click();
+    await expect(dialog).toBeHidden();
+
+    await expect.poll(async () => (await savedBill(hospital.admin, invoiceId)).status).toBe("paid");
+    const saved = await savedBill(hospital.admin, invoiceId);
+    expect(saved.payments).toEqual([
+      expect.objectContaining({ amount: 650, mode: "card", reference: "429011223344" }),
+    ]);
+    await supervisor.page.reload();
+    await expectBillOnScreen(supervisor.page, saved);
+    expect((await savedBill(hospital.admin, invoiceId)).payments, "resolved once").toHaveLength(1);
+  });
+});
+
+test("UPI paid on the card machine posts as UPI, not card", async ({ hospital }) => {
+  await withMachine(hospital, "billing_counter", async (machine) => {
+    const invoiceId = await issuedBill(hospital.admin, 280);
+    const { page } = await cashier(hospital);
+    const card = await collectByCard(page, invoiceId);
+    await sendToMachine(page, card, machine, "₹280.00", "UPI on machine");
+    await expectScreenAccessible(page, "invoice detail");
+    const saleId = await saleAtMachine(hospital.admin, machine);
+    await cardDoes(hospital.admin, saleId, "upi");
+    await expect.poll(async () => (await savedBill(hospital.admin, invoiceId)).status).toBe("paid");
+    const saved = await savedBill(hospital.admin, invoiceId);
+    const sale = await savedSale(hospital.admin, saleId);
+    expect(saved.payments).toEqual([
+      expect.objectContaining({ amount: 280, mode: "upi", reference: sale.reference }),
+    ]);
+    await page.reload();
+    await expectBillOnScreen(page, saved);
+    expect((await savedBill(hospital.admin, invoiceId)).payments).toHaveLength(1);
   });
 });

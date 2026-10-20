@@ -3,7 +3,7 @@ import type { PosSaleView } from "@medbrains/types";
 import { IconCheck, IconCircleDashed, IconClock, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Alert, type AlertTone, Button } from "@/components/ui";
-import { canRetry, cardSaleSteps, type StepState } from "./cardSale";
+import { canRetry, cardSaleSteps, needsResolving, type StepState } from "./cardSale";
 
 interface CardSaleStatusProps {
   sale: PosSaleView;
@@ -11,6 +11,8 @@ interface CardSaleStatusProps {
   onRetry: () => void;
   /** Offered when the card did not go through. */
   onUseOtherMode?: () => void;
+  /** Offered to a supervisor (`billing.payments.reconcile`) when nobody knows the outcome. */
+  onResolve?: () => void;
   cancelling: boolean;
 }
 
@@ -30,6 +32,7 @@ const STEP_WORD: Record<StepState, string> = {
 
 function toneOf(sale: PosSaleView): AlertTone {
   if (sale.stage === "approved") return sale.held_for_finance ? "warning" : "success";
+  if (needsResolving(sale)) return "warning";
   if (sale.is_final) return "danger";
   return "info";
 }
@@ -40,9 +43,11 @@ export function CardSaleStatus({
   onCancel,
   onRetry,
   onUseOtherMode,
+  onResolve,
   cancelling,
 }: CardSaleStatusProps) {
   const steps = cardSaleSteps(sale.stage);
+  const unresolved = needsResolving(sale);
   return (
     <Stack gap="xs" data-testid="card-sale-status">
       <Group gap="md" component="ol" aria-label="Card payment progress" m={0} p={0}>
@@ -67,12 +72,23 @@ export function CardSaleStatus({
           {sale.message}
           {sale.stage === "approved" && sale.card_last4 ? ` · card ending ${sale.card_last4}` : ""}
           {sale.stage === "approved" && sale.auth_code ? ` · approval ${sale.auth_code}` : ""}
+          {sale.stage === "approved" && sale.rrn ? ` · RRN ${sale.rrn}` : ""}
         </Text>
+        {unresolved && !onResolve && (
+          <Text size="sm" mt={4}>
+            Do not charge the card again. A supervisor checks the machine's slip and resolves this.
+          </Text>
+        )}
       </Alert>
       <Group gap="xs">
-        {!sale.is_final && sale.stage !== "cancelling" && (
+        {!sale.is_final && sale.stage !== "cancelling" && sale.stage !== "unknown" && (
           <Button tone="danger-tertiary" size="xs" loading={cancelling} onClick={onCancel}>
-            Cancel on machine
+            {sale.stage === "cancel_refused" ? "Try the cancel again" : "Cancel on machine"}
+          </Button>
+        )}
+        {unresolved && onResolve && (
+          <Button tone="secondary" size="xs" onClick={onResolve}>
+            Resolve from the slip
           </Button>
         )}
         {canRetry(sale) && (
