@@ -2,6 +2,7 @@ import { Box, Stack, Text } from "@mantine/core";
 import { ApiError, api, clearNativeAuthTokens, setNativeAuthSession } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { CounterDisplay } from "@/components/counter-display/CounterDisplay";
 import { BOARDS } from "@/components/Devices/PendingScreensCard";
 import { ScreenPairing } from "@/components/Devices/ScreenPairing";
 import { TokenBoardLive } from "@/components/TokenBoardLive";
@@ -83,6 +84,9 @@ export function ScreenPage() {
   if (!token || refused) {
     return <ScreenPairing onPaired={pair} />;
   }
+
+  // A customer display belongs to a counter, not a department's queue.
+  if (board.data?.module === "counter_display") return <CounterDisplay token={token} />;
 
   const bound = board.data?.module && board.data.department_id ? board.data : null;
   const boardLabel = BOARDS.find((b) => b.value === bound?.module)?.label ?? bound?.module;

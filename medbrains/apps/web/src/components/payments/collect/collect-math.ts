@@ -1,6 +1,7 @@
 // The Collect drawer's arithmetic and the request it sends — pure, so the
 // money rules are tested without a screen.
 import type { BillingLaneName, CollectRequest, CollectTender, DueBill } from "@medbrains/types";
+import type { TenderTile } from "./tender-tiles";
 
 /** Where the drawer was opened from: which of the patient's bills it is about. */
 export interface CollectFocus {
@@ -103,4 +104,37 @@ export function buildCollectRequest(args: {
 /** What a collection left: everything paid, or some still due. */
 export function outcomeOf(due: number, collected: number): "paid" | "partial" {
   return toPaise(collected) >= toPaise(due) ? "paid" : "partial";
+}
+
+/** The way being typed in now, as a part — or nothing yet. */
+export function currentPart(
+  tile: TenderTile | null,
+  amount: number,
+  tendered: number | string,
+  reference: string,
+  isSale: boolean,
+): TenderPart | null {
+  if (amount <= 0) return null;
+  const ref = reference.trim();
+  const base = { id: "current", amount };
+  switch (tile) {
+    case "cash":
+      return { ...base, mode: "cash", tendered: Number(tendered) || amount, label: "Cash" };
+    case "card":
+      return ref ? { ...base, mode: "card", reference: ref, label: "Card (slip)" } : null;
+    case "upi":
+      return ref ? { ...base, mode: "upi", reference: ref, label: "UPI" } : null;
+    case "credit":
+      // A counter sale on the patient's account; a bill's credit is settled on the bill.
+      return isSale ? { ...base, mode: "credit", label: "On account" } : null;
+    default:
+      return null;
+  }
+}
+
+/** Change handed back on the cash parts. */
+export function cashChange(parts: TenderPart[]): number {
+  return parts
+    .filter((p) => p.mode === "cash")
+    .reduce((s, p) => s + changeDue(p.amount, p.tendered ?? p.amount), 0);
 }

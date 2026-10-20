@@ -63,6 +63,8 @@ pub async fn list_stations(
             permissions::front_office::queue::MANAGE,
             // Card machines are bound to the counter they sit at.
             permissions::billing::terminals::MANAGE,
+            // So are customer displays, paired to a counter (#4883).
+            permissions::devices::pairing::TOKEN_CREATE,
         ],
     )?;
     let mut tx = state.db.begin().await?;

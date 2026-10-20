@@ -23,4 +23,19 @@ export class DevicesAdmin {
     await expect(this.page.getByText(/Screen paired/)).toBeVisible();
     await expect(row).toHaveCount(0);
   }
+
+  /** Approve the screen showing this code as the customer display of a counter. */
+  async approveCounterDisplay(code: string, counter: string): Promise<void> {
+    const row = this.page.getByTestId(`row-screen-${code}`);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.getByRole("combobox", { name: "Board" }).click();
+    await this.page.getByRole("option", { name: "Customer display (counter)" }).click();
+    await row.getByTestId(`picker-screen-counter-${code}`).fill(counter);
+    await this.page.getByRole("option", { name: counter, exact: true }).click();
+    const approve = row.getByTestId(`btn-approve-screen-${code}`);
+    await expectUsable(approve, "Approve");
+    await approve.click();
+    await expect(this.page.getByText(/Screen paired/)).toBeVisible();
+    await expect(row).toHaveCount(0);
+  }
 }

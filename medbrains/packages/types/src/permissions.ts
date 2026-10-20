@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1126 permissions, one per constant in the Rust source. */
+/** 1127 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1065,6 +1065,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.collect.cross",
     label: "Collect any department's dues",
     description: "Collect every department's dues at this desk — the central cashier's grant. Without it a desk collects only its own lanes.",
+    module: "billing",
+  },
+  {
+    code: "billing.counter_display.publish",
+    label: "Show payments on the customer display",
+    description: "Mirror the collection in progress on the screen paired to your counter: the patient's first name and initial, department totals, the UPI QR and the result. Also shows whether that screen is connected.",
     module: "billing",
   },
   {
@@ -7324,6 +7330,10 @@ export const P = {
     CORPORATE_LIST: "billing.corporate.list",
     CORPORATE_UNENROLL: "billing.corporate.unenroll",
     CORPORATE_UPDATE: "billing.corporate.update",
+    COUNTER_DISPLAY: {
+      PUBLISH: "billing.counter_display.publish",
+    },
+    COUNTER_DISPLAY_PUBLISH: "billing.counter_display.publish",
     CREDIT: {
       APPLY: "billing.credit.apply",
       LIST: "billing.credit.list",
@@ -10787,6 +10797,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.COLLECT.IPD,
       P.BILLING.COLLECT.OPD,
       P.BILLING.COLLECT.REGISTRATION,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.BILLING.INVOICES.CANCEL,
       P.BILLING.INVOICES.CREATE,
       P.BILLING.INVOICES.LIST,
@@ -10863,6 +10874,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.LAB,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -10909,6 +10921,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.PHARMACY,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.CAMP.QUEUE.MANAGE,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
@@ -11023,6 +11036,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.CORPORATE.LIST,
       P.BILLING.CORPORATE.UNENROLL,
       P.BILLING.CORPORATE.UPDATE,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.BILLING.CREDIT.APPLY,
       P.BILLING.CREDIT.LIST,
       P.BILLING.CREDIT.MANAGE,
@@ -11587,6 +11601,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.BILLING.COLLECT.RADIOLOGY,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PATIENTS.FIND,
@@ -11672,6 +11687,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.COLLECT.IPD,
       P.BILLING.COLLECT.OPD,
       P.BILLING.COLLECT.REGISTRATION,
+      P.BILLING.COUNTER_DISPLAY.PUBLISH,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,
       P.COMMUNICATIONS.ALERTS.MANAGE,
