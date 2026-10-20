@@ -141,5 +141,7 @@
   "onboardingWorkbook": "Onboarding workbook",
   "testCycles": "Test cycles",
   "snomed": "SNOMED CT",
-  "abdmDashboard": "ABDM dashboard"
+  "abdmDashboard": "ABDM dashboard",
+  "doctorPayouts": "Doctor Payouts",
+  "myEarnings": "My Earnings"
 }

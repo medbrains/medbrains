@@ -955,6 +955,8 @@ export interface AddInvoiceItemRequest {
   unit_price: number;
   tax_percent?: number;
   ordering_doctor_id?: string;
+  /** The doctor credited for the service (doctor payouts). */
+  performing_doctor_id?: string;
   department_id?: string;
 }
 
@@ -3678,6 +3680,9 @@ export interface LabReferralDoctor {
   commission_pct: number | null;
   is_active: boolean;
   registration_no: string | null;
+  /** Organisations by default; an individual doctor needs its own switch. */
+  partner_kind: "organisation" | "individual";
+  pan: string | null;
 }
 
 /** Who sent a walk-in patient to the lab. */

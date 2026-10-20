@@ -32,13 +32,10 @@ use medbrains_core::it_security::{
     AccessAlert,
     AcknowledgeAlertRequest,
     ApproveDisposalRequest,
-    ApproveIncentiveRequest,
-    AssignIncentivePlanRequest,
     BackupHistory,
     BreakGlassEvent,
     BreakGlassEventSummary,
     BreakGlassQuery,
-    CalculateIncentiveRequest,
     CompleteTatRecordRequest,
     ComplianceRequirement,
     // Break-Glass
@@ -46,8 +43,6 @@ use medbrains_core::it_security::{
     CreateDataQualityRuleRequest,
     CreateDigestSubscriptionRequest,
     CreateDisposalRequest,
-    CreateIncentivePlanRequest,
-    CreateIncentiveRuleRequest,
     CreateMigrationRequest,
     CreateSensitivePatientRequest,
     CreateTatBenchmarkRequest,
@@ -61,18 +56,12 @@ use medbrains_core::it_security::{
     DataQualityRule,
     // Stock Disposal
     DisposalQuery,
-    DoctorIncentiveAssignment,
     EndBreakGlassRequest,
     EntityQualityStats,
     EodDigestHistory,
     // EOD Digest
     EodDigestSubscription,
     ExecuteDisposalRequest,
-    IncentiveCalculation,
-    // Incentives
-    IncentivePlan,
-    IncentivePlanRule,
-    MarkIncentivePaidRequest,
     // Data Migration
     MigrationQuery,
     // Onboarding
@@ -1820,303 +1809,6 @@ pub async fn list_backups(
     Ok(Json(rows))
 }
 
-// ══════════════════════════════════════════════════════════════
-// INCENTIVE CONFIGURATION
-// ══════════════════════════════════════════════════════════════
-
-/// List incentive plans
-pub async fn list_incentive_plans(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<IncentivePlan>>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, IncentivePlan>(
-        "SELECT * FROM incentive_plans WHERE deleted_at IS NULL ORDER BY effective_from DESC LIMIT 5000",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Create incentive plan
-pub async fn create_incentive_plan(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreateIncentivePlanRequest>,
-) -> Result<Json<IncentivePlan>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, IncentivePlan>(
-        "INSERT INTO incentive_plans (id, tenant_id, plan_name, plan_code, description,
-         effective_from, effective_to, calculation_basis, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.plan_name)
-    .bind(&body.plan_code)
-    .bind(&body.description)
-    .bind(body.effective_from)
-    .bind(body.effective_to)
-    .bind(&body.calculation_basis)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Get incentive plan rules
-pub async fn get_incentive_plan_rules(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<Vec<IncentivePlanRule>>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, IncentivePlanRule>(
-        "SELECT * FROM incentive_plan_rules WHERE plan_id = $1",
-    )
-    .bind(id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Add incentive rule
-pub async fn add_incentive_rule(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<CreateIncentiveRuleRequest>,
-) -> Result<Json<IncentivePlanRule>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rule_id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, IncentivePlanRule>(
-        "INSERT INTO incentive_plan_rules (id, plan_id, rule_name, service_type, department_id,
-         min_threshold, max_threshold, percentage, fixed_amount, multiplier)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         RETURNING *",
-    )
-    .bind(rule_id)
-    .bind(id)
-    .bind(&body.rule_name)
-    .bind(&body.service_type)
-    .bind(body.department_id)
-    .bind(body.min_threshold)
-    .bind(body.max_threshold)
-    .bind(body.percentage)
-    .bind(body.fixed_amount)
-    .bind(body.multiplier)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// List doctor incentive assignments
-pub async fn list_doctor_incentive_assignments(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<DoctorIncentiveAssignment>>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, DoctorIncentiveAssignment>(
-        "SELECT a.*, u.full_name AS doctor_name, p.plan_name
-         FROM doctor_incentive_assignments a
-         JOIN users u ON u.id = a.doctor_id
-         JOIN incentive_plans p ON p.id = a.plan_id
-         WHERE a.deleted_at IS NULL
-         ORDER BY a.effective_from DESC LIMIT 5000",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Assign incentive plan to doctor
-pub async fn assign_incentive_plan(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<AssignIncentivePlanRequest>,
-) -> Result<Json<DoctorIncentiveAssignment>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, DoctorIncentiveAssignment>(
-        "INSERT INTO doctor_incentive_assignments (id, tenant_id, doctor_id, plan_id,
-         effective_from, effective_to, custom_percentage)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *, NULL AS doctor_name, NULL AS plan_name",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(body.doctor_id)
-    .bind(body.plan_id)
-    .bind(body.effective_from)
-    .bind(body.effective_to)
-    .bind(body.custom_percentage)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// List incentive calculations
-pub async fn list_incentive_calculations(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<IncentiveCalculation>>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, IncentiveCalculation>(
-        "SELECT c.*, u.full_name AS doctor_name
-         FROM incentive_calculations c
-         JOIN users u ON u.id = c.doctor_id
-         WHERE c.deleted_at IS NULL
-         ORDER BY c.period_start DESC LIMIT 5000",
-    )
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// Calculate incentives
-pub async fn calculate_incentive(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CalculateIncentiveRequest>,
-) -> Result<Json<IncentiveCalculation>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Get assignment
-    let assignment = sqlx::query_as::<_, DoctorIncentiveAssignment>(
-        "SELECT a.*, NULL AS doctor_name, NULL AS plan_name
-         FROM doctor_incentive_assignments a
-         WHERE a.doctor_id = $1 AND a.is_active = true
-         AND a.effective_from <= $2 AND (a.effective_to IS NULL OR a.effective_to >= $3)
-         LIMIT 1",
-    )
-    .bind(body.doctor_id)
-    .bind(body.period_start)
-    .bind(body.period_end)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Placeholder calculation
-    let id = Uuid::new_v4();
-    let row = sqlx::query_as::<_, IncentiveCalculation>(
-        "INSERT INTO incentive_calculations (id, tenant_id, doctor_id, plan_id, period_start,
-         period_end, gross_revenue, eligible_revenue, incentive_amount, net_payable, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 0, 0, 0, 0, 'draft')
-         RETURNING *, NULL AS doctor_name",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(body.doctor_id)
-    .bind(assignment.plan_id)
-    .bind(body.period_start)
-    .bind(body.period_end)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Approve incentive calculation
-pub async fn approve_incentive(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(_body): Json<ApproveIncentiveRequest>,
-) -> Result<Json<IncentiveCalculation>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, IncentiveCalculation>(
-        "UPDATE incentive_calculations SET
-         status = 'approved', approved_by = $2, approved_at = now(), updated_at = now()
-         WHERE id = $1
-         RETURNING *, NULL AS doctor_name",
-    )
-    .bind(id)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-/// Mark incentive as paid
-pub async fn mark_incentive_paid(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<MarkIncentivePaidRequest>,
-) -> Result<Json<IncentiveCalculation>, AppError> {
-    require_permission(&claims, permissions::admin::INCENTIVE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, IncentiveCalculation>(
-        "UPDATE incentive_calculations SET
-         status = 'paid', paid_at = now(), payment_reference = $2, updated_at = now()
-         WHERE id = $1
-         RETURNING *, NULL AS doctor_name",
-    )
-    .bind(id)
-    .bind(&body.payment_reference)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
 /// IT security & compliance routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
@@ -2191,30 +1883,6 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/api/system-health", get(system_health_dashboard))
         .route("/api/backups", get(list_backups))
-        .route(
-            "/api/incentive-plans",
-            get(list_incentive_plans).post(create_incentive_plan),
-        )
-        .route(
-            "/api/incentive-plans/{id}/rules",
-            get(get_incentive_plan_rules).post(add_incentive_rule),
-        )
-        .route(
-            "/api/incentive-assignments",
-            get(list_doctor_incentive_assignments).post(assign_incentive_plan),
-        )
-        .route(
-            "/api/incentive-calculations",
-            get(list_incentive_calculations).post(calculate_incentive),
-        )
-        .route(
-            "/api/incentive-calculations/{id}/approve",
-            post(approve_incentive),
-        )
-        .route(
-            "/api/incentive-calculations/{id}/paid",
-            post(mark_incentive_paid),
-        )
 }
 
 #[cfg(test)]

@@ -176,9 +176,10 @@ async fn an_order_is_charged_once_reversed_once_and_the_issued_bill_queues_one_p
             .is_empty()
     );
 
+    // Cancelling again names why it can't (409 since #4758), rather than pretending the order is gone.
     assert_eq!(
         cancel(&app, &csrf, &order_id).await,
-        404,
+        409,
         "already cancelled"
     );
     assert_eq!(items(&app, order_uuid).await.len(), 2, "still one reversal");

@@ -118,5 +118,7 @@
   "hospitalBinding": "மருத்துவமனை இணைப்பு",
   "materials": "பொருள் மேலாண்மை",
   "approvals": "ஒப்புதல்கள்",
-  "onboardingWorkbook": "தொடக்க அமைப்புப் பணிப்புத்தகம்"
+  "onboardingWorkbook": "தொடக்க அமைப்புப் பணிப்புத்தகம்",
+  "doctorPayouts": "மருத்துவர் கொடுப்பனவுகள்",
+  "myEarnings": "என் வருமானம்"
 }

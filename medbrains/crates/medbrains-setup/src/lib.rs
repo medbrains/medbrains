@@ -1237,6 +1237,12 @@ pub async fn list_doctors(
             permissions::lab::orders::CREATE,
             permissions::lab::orders::DIRECT,
             permissions::radiology::orders::CREATE,
+            // Doctor payouts pick the doctor an agreement, statement or day
+            // settlement is for.
+            permissions::doctor_payouts::agreements::MANAGE,
+            permissions::doctor_payouts::ledger::VIEW,
+            permissions::doctor_payouts::statements::PREPARE,
+            permissions::doctor_payouts::day_settlement::EXECUTE,
         ],
     )?;
     let mut tx = state.db.begin().await?;

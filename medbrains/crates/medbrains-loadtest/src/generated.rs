@@ -5949,37 +5949,6 @@ async fn t_post_api_it_onboarding_complete_step_baf3bd(user: &mut GooseUser) -> 
     crate::json_post(user, &path, &serde_json::json!({})).await
 }
 
-async fn t_get_api_incentive_plans_bbbf64(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/incentive-plans").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_get_api_incentive_plans_id_rules_1262ec(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/incentive-plans/{id}/rules").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_get_api_incentive_assignments_727c12(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/incentive-assignments").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_get_api_incentive_calculations_7c0dd3(user: &mut GooseUser) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/incentive-calculations").await;
-    let _ = crate::json_get(user, &path).await?;
-    Ok(())
-}
-
-async fn t_post_api_incentive_calculations_id_approve_d03abc(
-    user: &mut GooseUser,
-) -> TransactionResult {
-    let path = crate::resolve_path(user, "/api/incentive-calculations/{id}/approve").await;
-    crate::json_post(user, &path, &serde_json::json!({})).await
-}
-
 async fn t_get_api_devices_manufacturers_52b3bb(user: &mut GooseUser) -> TransactionResult {
     let path = crate::resolve_path(user, "/api/devices/manufacturers").await;
     let _ = crate::json_get(user, &path).await?;
@@ -7550,13 +7519,6 @@ pub fn build_all_endpoints_scenario() -> Result<Scenario, GooseError> {
         .register_transaction(transaction!(t_patch_api_compliance_requirements_id_902184))
         .register_transaction(transaction!(t_get_api_backups_c72de9))
         .register_transaction(transaction!(t_post_api_it_onboarding_complete_step_baf3bd))
-        .register_transaction(transaction!(t_get_api_incentive_plans_bbbf64))
-        .register_transaction(transaction!(t_get_api_incentive_plans_id_rules_1262ec))
-        .register_transaction(transaction!(t_get_api_incentive_assignments_727c12))
-        .register_transaction(transaction!(t_get_api_incentive_calculations_7c0dd3))
-        .register_transaction(transaction!(
-            t_post_api_incentive_calculations_id_approve_d03abc
-        ))
         .register_transaction(transaction!(t_get_api_devices_manufacturers_52b3bb))
         .register_transaction(transaction!(t_get_api_devices_catalog_adapter_code_ccc725))
         .register_transaction(transaction!(t_get_api_devices_instances_fb8729))

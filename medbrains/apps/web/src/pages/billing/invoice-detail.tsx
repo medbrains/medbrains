@@ -64,6 +64,7 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
@@ -190,6 +191,7 @@ export function InvoiceDetail({
     quantity: 1,
     unit_price: 0,
     tax_percent: 0,
+    performing_doctor_id: "",
   };
   const discountDefaults: BillingDiscountFormInput = {
     discount_type: "percentage",
@@ -505,6 +507,7 @@ export function InvoiceDetail({
       quantity: billingIntegerOrFallback(values.quantity, 1),
       unit_price: billingNumberOrFallback(values.unit_price, 0),
       tax_percent: billingNumberOrFallback(values.tax_percent, 0),
+      performing_doctor_id: values.performing_doctor_id || undefined,
     });
   };
   const handleAddDiscount = (values: BillingDiscountFormInput) => {
@@ -845,6 +848,18 @@ export function InvoiceDetail({
                       required
                       error={itemErrors.description?.message}
                       {...registerItem("description")}
+                    />
+                    <Controller
+                      control={itemControl}
+                      name="performing_doctor_id"
+                      render={({ field }) => (
+                        <DoctorSearchSelect
+                          label="Performed by (credited for doctor payouts)"
+                          placeholder="Leave blank to take it from the order"
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
+                      )}
                     />
                     <Group grow>
                       <Controller
