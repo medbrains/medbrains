@@ -152,7 +152,8 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
       ? [{ label: target.focusLabel ?? "Counter sale", amount_paise: toPaise(due) }]
       : displayLines(bills),
     totalDue: due,
-    tender: tile,
+    // Paid is the end of this visit on the display; the emptied amount is not news.
+    tender: result ? null : tile,
     amount,
   });
   const showPaid = (total: number) =>

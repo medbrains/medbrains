@@ -8,13 +8,20 @@
  * Server pins: crates/medbrains-server/tests/counter_display_test.rs.
  * DB asserts read `E2E_DATABASE_URL` (the server's own database).
  */
-import type { Page } from "@playwright/test";
+import type { Page, WebSocketRoute } from "@playwright/test";
 import { routeApiDirect } from "../helpers";
 import { api } from "../helpers/api";
 import { createPatientApi } from "../helpers/journey-steps";
 import { DevicesAdmin } from "./pages/devices-admin";
 import { expectScreenAccessible } from "./support/a11y";
 import { billOf, collectDrawer, db, grantView, savedInvoice, shotPath } from "./support/collect";
+import {
+  mockUnavailable,
+  postWebhook,
+  qrCreditedEvent,
+  razorpayMock,
+  useTestKeys,
+} from "./support/razorpay";
 import { expect, test } from "./support/world";
 
 /** Speech and sound, recorded instead of played: the test hears what the patient would. */
@@ -23,7 +30,8 @@ async function recordAudio(page: Page): Promise<void> {
     const heard: string[] = [];
     (window as unknown as { __heard: string[] }).__heard = heard;
     HTMLMediaElement.prototype.play = function play() {
-      heard.push("chime");
+      // The first tap primes every sound muted, so a later alert may play; not heard.
+      if (!this.muted) heard.push("chime");
       setTimeout(() => this.dispatchEvent(new Event("ended")), 10);
       return Promise.resolve();
     };
@@ -37,14 +45,22 @@ async function recordAudio(page: Page): Promise<void> {
   });
 }
 
+/** A picture in place of Razorpay's QR image (the tablet has no internet in the test). */
+const QR_IMAGE =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#000"/></svg>';
+
 const heard = (page: Page) => page.evaluate(() => (window as unknown as { __heard: string[] }).__heard);
 
 test("the counter's display mirrors the drawer: lines, QR, then Paid with the announcement", async ({
   hospital,
   browser,
+  request,
 }) => {
   test.setTimeout(180_000);
-  await hospital.setting("payments", "upi_vpa", "hospital@okaxis");
+  test.skip(mockUnavailable !== null, mockUnavailable ?? "");
+  // A live Razorpay UPI QR, stood in for at Razorpay's boundary only.
+  const mock = await razorpayMock();
+  await useTestKeys(hospital.setting);
   const tag = crypto.randomUUID().slice(0, 6).toUpperCase();
   const counter = await api<{ id: string; name: string }>(hospital.admin, "POST", "/api/stations", {
     code: `CD-${tag}`,
@@ -57,6 +73,18 @@ test("the counter's display mirrors the drawer: lines, QR, then Paid with the an
   const display = await tablet.newPage();
   await routeApiDirect(display);
   await recordAudio(display);
+  // The tablet's socket runs through the test, so the test can cut it.
+  let outage = false;
+  let socket: WebSocketRoute | null = null;
+  await display.routeWebSocket(/\/ws\/counter-display/, (ws) => {
+    if (outage) return void ws.close();
+    socket = ws;
+    ws.connectToServer();
+  });
+  // Razorpay hosts the QR image; the tablet gets a stand-in picture of it.
+  await display.route("https://rzp.io/**", (route) =>
+    route.fulfill({ contentType: "image/svg+xml", body: QR_IMAGE }),
+  );
   await display.goto("/screen");
   const shown = display.getByTestId("screen-pairing-code");
   await expect(shown).toBeVisible({ timeout: 20_000 });
@@ -112,14 +140,17 @@ test("the counter's display mirrors the drawer: lines, QR, then Paid with the an
   await drawer.getByRole("button", { name: "Show QR for ₹600.00" }).click();
   const qr = display.getByTestId("cd-qr");
   await expect(qr).toContainText("₹600.00", { timeout: 10_000 });
-  await expect(qr.getByTitle("UPI QR code")).toBeVisible();
+  await expect(qr.getByRole("img", { name: "UPI QR code" })).toBeVisible();
+  await expect(display.getByTestId("cd-countdown")).toContainText("This code closes in");
   await expectScreenAccessible(display, "customer display QR");
   await display.screenshot({ path: shotPath("customer-display-qr") });
 
   // 4. Paid: on the screen, and said out loud — the chime first, then the voice.
-  await drawer.getByRole("textbox", { name: /UTR/ }).fill("UTR4883");
-  await drawer.getByRole("button", { name: "Collect ₹600.00" }).click();
-  await expect(drawer.getByText("₹600.00 received")).toBeVisible();
+  // The patient pays the QR: Razorpay tells the server, the drawer finishes by itself.
+  const code = mock.qrCodes.at(-1);
+  if (!code) throw new Error("no QR was made at Razorpay");
+  expect(await postWebhook(request, qrCreditedEvent(code))).toBe(200);
+  await expect(drawer.getByText("₹600.00 received")).toBeVisible({ timeout: 20_000 });
   const paid = display.getByTestId("cd-paid");
   await expect(paid).toContainText("Paid ✓ ₹600.00");
   await expect(paid).toContainText("Thank you");
@@ -136,10 +167,14 @@ test("the counter's display mirrors the drawer: lines, QR, then Paid with the an
   await expect(heard(display)).resolves.toHaveLength(2);
 
   // 6. The hospital unreachable: it says so, never a stale "Paid".
-  await tablet.setOffline(true);
-  await expect(display.getByTestId("cd-reconnecting")).toBeVisible({ timeout: 60_000 });
+  outage = true;
+  const unreachable = /\/api\/device\/counter-display/;
+  await display.route(unreachable, (route) => route.abort("connectionrefused"));
+  await (socket as WebSocketRoute | null)?.close();
+  await expect(display.getByTestId("cd-reconnecting")).toBeVisible({ timeout: 15_000 });
   await display.screenshot({ path: shotPath("customer-display-reconnecting") });
-  await tablet.setOffline(false);
+  outage = false;
+  await display.unroute(unreachable);
   await expect(display.getByTestId("cd-idle")).toBeVisible({ timeout: 60_000 });
   await tablet.close();
 });

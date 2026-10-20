@@ -216,3 +216,28 @@ fn a_repeated_start_renames_without_wiping() {
     assert!(renamed.qr.is_some());
     assert_eq!(renamed.patient.as_deref(), Some("Anita R."));
 }
+
+#[test]
+fn a_paid_visit_is_not_reopened_by_a_late_drawer_event() {
+    let s = Uuid::new_v4();
+    let paid = apply(
+        &started(s),
+        DisplayEvent::Paid {
+            session: s,
+            amount_paise: 100,
+            change_paise: None,
+        },
+    )
+    .expect("valid")
+    .expect("applies");
+    let late = DisplayEvent::TenderSelected {
+        session: s,
+        tender: "cash".into(),
+        amount_paise: 0,
+    };
+    assert_eq!(apply(&paid, late), Ok(None));
+    let cleared = apply(&paid, DisplayEvent::Cleared { session: s })
+        .expect("valid")
+        .expect("applies");
+    assert_eq!(cleared.phase, Phase::Idle);
+}

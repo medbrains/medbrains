@@ -28,7 +28,7 @@ export class DevicesAdmin {
   async approveCounterDisplay(code: string, counter: string): Promise<void> {
     const row = this.page.getByTestId(`row-screen-${code}`);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.getByRole("textbox", { name: "Board" }).click();
+    await row.getByRole("combobox", { name: "Board" }).click();
     await this.page.getByRole("option", { name: "Customer display (counter)" }).click();
     await row.getByTestId(`picker-screen-counter-${code}`).fill(counter);
     await this.page.getByRole("option", { name: counter, exact: true }).click();
