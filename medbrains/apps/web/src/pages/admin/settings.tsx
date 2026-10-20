@@ -516,6 +516,8 @@ export function SettingsPage() {
                           return (
                             <NavLink
                               key={cfg.value}
+                              component="button"
+                              type="button"
                               active={cfg.value === tab}
                               label={t(cfg.i18nKey)}
                               description={meta.description}

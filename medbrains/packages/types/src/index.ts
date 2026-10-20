@@ -183,6 +183,7 @@ export * from "./nurse-calls";
 export * from "./onboarding-masters";
 export * from "./onboarding-store";
 export * from "./onboarding-workbook";
+export * from "./online-payments";
 export * from "./order-sets";
 export * from "./org-structure";
 export * from "./other-specialties";

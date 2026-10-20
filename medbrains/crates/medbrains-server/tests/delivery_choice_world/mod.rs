@@ -347,7 +347,7 @@ pub async fn make_payment_link(app: &common::TestApp, setup: &Setup, txn: Uuid) 
         actor_user_id: None,
         attempts: 0,
         secret_resolver: Arc::new(common::TestSecrets::default().with(
-            medbrains_payment_gateway::payment_link::API_BASE_OVERRIDE,
+            medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE,
             base,
         )),
         http_client: reqwest::Client::new(),

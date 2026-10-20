@@ -12,15 +12,11 @@
 //! Pipeline fallback (catches unregistered `event_types)`:
 //! - `pipeline_fallback` — delegates to existing `events::dispatch_to_pipelines`
 
-pub mod cashfree;
-pub mod ccavenue;
 pub mod email_stub;
 pub mod google_meet;
 pub mod hl7_stub;
 pub mod nhcx;
 pub mod pacs_worklist;
-pub mod payu;
-pub mod phonepe;
 pub mod pipeline_fallback;
 pub mod razorpayx;
 pub mod teams;
