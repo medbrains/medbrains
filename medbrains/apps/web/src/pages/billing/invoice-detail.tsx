@@ -24,6 +24,7 @@ import type {
   AddInvoiceItemRequest,
   ClinicalEventName,
   ClinicalJourneyContext,
+  CollectionReceipt,
   InvoiceDetailResponse,
   InvoiceDiscount,
   RecordPaymentRequest,
@@ -69,6 +70,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import type { PaymentModalSettlement } from "@/components/PaymentModal";
 import { PaymentModal } from "@/components/PaymentModal";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
+import { useBillCollectable } from "@/components/payments/useBillCollectable";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingChargeSourceOptions,
@@ -337,6 +339,11 @@ export function InvoiceDetail({
     },
   });
 
+  const collectable = useBillCollectable(
+    data?.invoice.patient_id,
+    invoiceId,
+    canPay && amountAccess === "edit",
+  );
   const { data: discounts = [] } = useQuery({
     queryKey: ["invoice-discounts", invoiceId],
     queryFn: () => billingService.listInvoiceDiscounts(invoiceId),
@@ -368,8 +375,10 @@ export function InvoiceDetail({
 
   const receiptMutation = useMutation({
     mutationFn: async (paymentId: string) => {
+      // A leg of a collection comes back as the collection's receipt, which
+      // prints from the payment it was issued on.
       const receipt = await billingService.generateReceipt(invoiceId, paymentId);
-      const printData = await billingService.getReceiptPrintData(paymentId);
+      const printData = await billingService.getReceiptPrintData(receipt.payment_id);
       return { printData, receipt };
     },
     onSuccess: ({ printData }) => {
@@ -379,6 +388,22 @@ export function InvoiceDetail({
       toast.success("Customer and office copies are ready to print", {
         title: "Receipt generated",
       });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Unable to prepare receipt packet", {
+        title: "Receipt print failed",
+      });
+    },
+  });
+
+  // A collection's receipts — one per legal entity, each covering every leg
+  // of a split — print together.
+  const collectionReceiptsMutation = useMutation({
+    mutationFn: (receipts: CollectionReceipt[]) =>
+      Promise.all(receipts.map((r) => billingService.getReceiptPrintData(r.payment_id))),
+    onSuccess: (packets) => {
+      for (const packet of packets) printReceiptPacket(packet, billingDisplayAccess);
+      void queryClient.invalidateQueries({ queryKey: ["invoice-receipts", invoiceId] });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Unable to prepare receipt packet", {
@@ -960,11 +985,30 @@ export function InvoiceDetail({
                   </Table.Tbody>
                 </Table>
 
-                {canRecordPayment && paymentOpened && (
+                {canRecordPayment && paymentOpened && collectable === "checking" && (
+                  <Text size="sm" c="dimmed">
+                    Checking whether this desk collects this bill…
+                  </Text>
+                )}
+                {canRecordPayment && paymentOpened && collectable === "unknown" && (
+                  <Alert tone="danger" title="Could not check this bill">
+                    Whether your desk may collect it could not be read. Try again before taking
+                    money.
+                  </Alert>
+                )}
+                {canRecordPayment && paymentOpened && collectable === "no" && (
+                  <Alert tone="warning" title="Another desk collects this bill">
+                    Your desk collects its own department&apos;s bills. Send the patient to the
+                    billing counter for this one.
+                  </Alert>
+                )}
+                {canRecordPayment && paymentOpened && collectable === "yes" && (
                   <PaymentCollectPanel
+                    patientId={inv.patient_id}
                     invoiceId={invoiceId}
                     balance={balance}
-                    onRecorded={(payments) => {
+                    onRecorded={({ payments }) => {
+                      void queryClient.invalidateQueries({ queryKey: ["dues", inv.patient_id] });
                       for (const payment of payments) {
                         emit("billing.payment.received", {
                           amount: Number(payment.amount),
@@ -991,10 +1035,7 @@ export function InvoiceDetail({
                     }}
                     onPrint={
                       canPrintBillingDocs
-                        ? (payments) => {
-                            const last = payments.at(-1);
-                            if (last) receiptMutation.mutate(last.id);
-                          }
+                        ? (receipts) => collectionReceiptsMutation.mutate(receipts)
                         : undefined
                     }
                     autoFocus

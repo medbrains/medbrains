@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1105 permissions, one per constant in the Rust source. */
+/** 1116 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1011,6 +1011,72 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payments.reconcile",
     label: "Reconcile online payments",
     description: "See money a gateway took that could not be posted to a bill — a captured amount other than the one asked for, more than the bill owed, a method with no payment mode, a refund that failed — and mark each resolved once finance has put it right.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.registration",
+    label: "Collect registration fees",
+    description: "Take the registration fee at the front desk.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.opd",
+    label: "Collect OPD consultation charges",
+    description: "Take consultation and visit charges at the OPD desk.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.lab",
+    label: "Collect lab charges",
+    description: "Take the patient's lab charges at the lab desk or sample counter.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.radiology",
+    label: "Collect radiology charges",
+    description: "Take the patient's imaging charges at the radiology desk.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.emergency",
+    label: "Collect emergency charges",
+    description: "Take the patient's emergency department charges.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.ipd",
+    label: "Collect IPD deposits and balances",
+    description: "Take deposits and bill balances for admitted patients.",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.pharmacy",
+    label: "Collect pharmacy bills",
+    description: "Take payment for the patient's pharmacy bills (dispensing dues).",
+    module: "billing",
+  },
+  {
+    code: "billing.collect.cross",
+    label: "Collect any department's dues",
+    description: "Collect every department's dues at this desk — the central cashier's grant. Without it a desk collects only its own lanes.",
+    module: "billing",
+  },
+  {
+    code: "billing.bill_groups.manage",
+    label: "Bill a patient's charges together or separately",
+    description: "Group a patient's department bills into one statement, or split them back; items never move between bills.",
+    module: "billing",
+  },
+  {
+    code: "billing.lanes.manage",
+    label: "Configure billing entities and lanes",
+    description: "Set up the hospital's legal billing entities (GSTIN, receipt series) and, per department lane, which entity bills it, whether it bills separately, and when registration and consultation fees are charged.",
+    module: "billing",
+  },
+  {
+    code: "billing.refunds.create",
+    label: "Raise refunds on bills",
+    description: "Refund money already paid on a bill, from the refunds screen.",
     module: "billing",
   },
   {
@@ -7152,10 +7218,32 @@ export const P = {
     },
     BANK_RECON_LIST: "billing.bank_recon.list",
     BANK_RECON_MANAGE: "billing.bank_recon.manage",
+    BILL_GROUPS: {
+      MANAGE: "billing.bill_groups.manage",
+    },
+    BILL_GROUPS_MANAGE: "billing.bill_groups.manage",
     CATALOG: {
       MANAGE: "billing.catalog.manage",
     },
     CATALOG_MANAGE: "billing.catalog.manage",
+    COLLECT: {
+      CROSS: "billing.collect.cross",
+      EMERGENCY: "billing.collect.emergency",
+      IPD: "billing.collect.ipd",
+      LAB: "billing.collect.lab",
+      OPD: "billing.collect.opd",
+      PHARMACY: "billing.collect.pharmacy",
+      RADIOLOGY: "billing.collect.radiology",
+      REGISTRATION: "billing.collect.registration",
+    },
+    COLLECT_CROSS: "billing.collect.cross",
+    COLLECT_EMERGENCY: "billing.collect.emergency",
+    COLLECT_IPD: "billing.collect.ipd",
+    COLLECT_LAB: "billing.collect.lab",
+    COLLECT_OPD: "billing.collect.opd",
+    COLLECT_PHARMACY: "billing.collect.pharmacy",
+    COLLECT_RADIOLOGY: "billing.collect.radiology",
+    COLLECT_REGISTRATION: "billing.collect.registration",
     CONCESSIONS: {
       APPROVE: "billing.concessions.approve",
       CREATE: "billing.concessions.create",
@@ -7224,6 +7312,10 @@ export const P = {
     JOURNAL_CREATE: "billing.journal.create",
     JOURNAL_LIST: "billing.journal.list",
     JOURNAL_POST: "billing.journal.post",
+    LANES: {
+      MANAGE: "billing.lanes.manage",
+    },
+    LANES_MANAGE: "billing.lanes.manage",
     PAYER_SPLIT: {
       MANAGE: "billing.payer_split.manage",
     },
@@ -7242,6 +7334,10 @@ export const P = {
     },
     RECEIPTS_PRINT: "billing.receipts.print",
     RECEIPTS_REPRINT: "billing.receipts.reprint",
+    REFUNDS: {
+      CREATE: "billing.refunds.create",
+    },
+    REFUNDS_CREATE: "billing.refunds.create",
     REPORTS: {
       VIEW: "billing.reports.view",
     },
@@ -10583,6 +10679,11 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.BILL_GROUPS.MANAGE,
+      P.BILLING.COLLECT.EMERGENCY,
+      P.BILLING.COLLECT.IPD,
+      P.BILLING.COLLECT.OPD,
+      P.BILLING.COLLECT.REGISTRATION,
       P.BILLING.INVOICES.CANCEL,
       P.BILLING.INVOICES.CREATE,
       P.BILLING.INVOICES.LIST,
@@ -10658,6 +10759,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Lab Technician",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.COLLECT.LAB,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -10703,6 +10805,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Pharmacist",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.COLLECT.PHARMACY,
       P.CAMP.QUEUE.MANAGE,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
@@ -10807,7 +10910,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.AUDIT.VIEW,
       P.BILLING.BANK_RECON.LIST,
       P.BILLING.BANK_RECON.MANAGE,
+      P.BILLING.BILL_GROUPS.MANAGE,
       P.BILLING.CATALOG.MANAGE,
+      P.BILLING.COLLECT.CROSS,
       P.BILLING.CONCESSIONS.CREATE,
       P.BILLING.CONCESSIONS.LIST,
       P.BILLING.CORPORATE.CREATE,
@@ -10838,6 +10943,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.PAYMENTS.VOID,
       P.BILLING.RECEIPTS.PRINT,
       P.BILLING.RECEIPTS.REPRINT,
+      P.BILLING.REFUNDS.CREATE,
       P.BILLING.REPORTS.VIEW,
       P.BILLING.TDS.LIST,
       P.BILLING.TDS.MANAGE,
@@ -11371,6 +11477,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Radiology Technician",
     permissions: [
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.COLLECT.RADIOLOGY,
       P.DASHBOARD.VIEW,
       P.NOTES.USE,
       P.PATIENTS.FIND,
@@ -11453,6 +11560,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.ABHA.VIEW,
       P.ABDM.SCANSHARE.VIEW,
       P.ADMIN.SETTINGS.READ,
+      P.BILLING.COLLECT.IPD,
+      P.BILLING.COLLECT.OPD,
+      P.BILLING.COLLECT.REGISTRATION,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,
       P.COMMUNICATIONS.ALERTS.MANAGE,

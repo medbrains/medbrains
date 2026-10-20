@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, Image } from "@/components/ui";
 import { paymentsService } from "@/services/payments.service";
+import { useFireOnce } from "./payments/useFireOnce";
 
 interface VaReceiver {
   entity?: string;
@@ -53,6 +54,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
 
 export function VirtualAccountPanel({ invoiceId, amount, patientName, onSettled }: Props) {
   const [txnId, setTxnId] = useState<string | null>(null);
+  const fireOnce = useFireOnce();
 
   const createMutation = useMutation({
     mutationFn: () => paymentsService.createVirtualAccount({ invoice_id: invoiceId, amount }),
@@ -72,7 +74,7 @@ export function VirtualAccountPanel({ invoiceId, amount, patientName, onSettled 
     refetchInterval: (query) => {
       const st = query.state.data?.transaction.status;
       if (st === "captured") {
-        onSettled?.();
+        fireOnce(txnId ?? "", () => onSettled?.());
         return false;
       }
       if (st === "failed") return false;

@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { ExchangeRatesSection } from "./exchange-rates-section";
+import { BillingLanesSettings } from "./lanes-settings";
 import { NonPayablesCard } from "./NonPayablesCard";
 import { RevisitWindowCard } from "./RevisitWindowCard";
 
@@ -42,6 +43,7 @@ const AUTO_BILLING_KEYS = [
 export function BillingSettingsTab() {
   return (
     <Stack gap="xl">
+      <BillingLanesSettings />
       <BillingTenantSettings />
       <ExchangeRatesSection />
     </Stack>

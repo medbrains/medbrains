@@ -25,6 +25,16 @@ export const billingService = {
   removeInvoiceItem: (...args: Parameters<typeof api.removeInvoiceItem>) =>
     api.removeInvoiceItem(...args),
   recordPayment: (...args: Parameters<typeof api.recordPayment>) => api.recordPayment(...args),
+  getPatientDues: (...args: Parameters<typeof api.getPatientDues>) => api.getPatientDues(...args),
+  collectPayment: (...args: Parameters<typeof api.collectPayment>) => api.collectPayment(...args),
+  listBillingEntities: () => api.listBillingEntities(),
+  createBillingEntity: (...args: Parameters<typeof api.createBillingEntity>) =>
+    api.createBillingEntity(...args),
+  updateBillingEntity: (...args: Parameters<typeof api.updateBillingEntity>) =>
+    api.updateBillingEntity(...args),
+  listBillingLanes: () => api.listBillingLanes(),
+  updateBillingLane: (...args: Parameters<typeof api.updateBillingLane>) =>
+    api.updateBillingLane(...args),
   listInvoiceDiscounts: (...args: Parameters<typeof api.listInvoiceDiscounts>) =>
     api.listInvoiceDiscounts(...args),
   addDiscount: (...args: Parameters<typeof api.addDiscount>) => api.addDiscount(...args),

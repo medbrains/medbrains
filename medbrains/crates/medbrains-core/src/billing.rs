@@ -174,6 +174,15 @@ pub struct Payment {
     pub notes: Option<String>,
     pub paid_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    /// The collection (one patient payment act, #4885) it was taken in.
+    #[sqlx(default)]
+    pub collection_id: Option<Uuid>,
+    /// The counter it was taken at.
+    #[sqlx(default)]
+    pub station_id: Option<Uuid>,
+    /// The shift it was taken in.
+    #[sqlx(default)]
+    pub shift_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -282,6 +291,12 @@ pub struct Receipt {
     pub receipt_date: DateTime<Utc>,
     pub printed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// Set on a collection's receipt: it covers every payment the collection
+    /// made on its legal entity's bills (#4885).
+    #[sqlx(default)]
+    pub collection_id: Option<Uuid>,
+    #[sqlx(default)]
+    pub legal_entity_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

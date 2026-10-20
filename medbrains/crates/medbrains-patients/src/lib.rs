@@ -1624,6 +1624,16 @@ pub async fn create_patient(
         },
     )
     .await?;
+    // The registration fee, when the hospital charges one at registration
+    // (#4885); hospitals that charge it at the first consultation get it there.
+    medbrains_server_services::billing_lanes::charge_registration_fee(
+        &mut tx,
+        claims.tenant_id,
+        patient.id,
+        None,
+        medbrains_server_services::billing_lanes::FeeMoment::CheckIn,
+    )
+    .await?;
 
     tx.commit().await?;
 

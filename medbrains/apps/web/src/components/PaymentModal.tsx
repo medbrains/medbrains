@@ -45,6 +45,7 @@ import {
 } from "./PaymentSplitParts";
 import { CardTerminalPanel } from "./payments/CardTerminalPanel";
 import { approvedRupees } from "./payments/cardSale";
+import { capturedSettlement } from "./payments/settlement";
 import { UpiCollectPanel } from "./UpiCollectPanel";
 import { UpiQrCode } from "./UpiQrCode";
 import { VirtualAccountPanel } from "./VirtualAccountPanel";
@@ -195,12 +196,7 @@ export function PaymentModal({
       color: "green",
       icon: <IconCheck size={16} />,
     });
-    onSuccess(txn.id, {
-      source: "gateway",
-      mode: txn.payment_method === "card" ? "card" : "upi",
-      amount: paid,
-      reference_number: txn.gateway_payment_id ?? txn.id,
-    });
+    onSuccess(txn.id, capturedSettlement(txn, paid));
     onClose();
   };
   const fallbacks = (["upi_qr", "cash"] as const).filter((m): m is FallbackMode =>
@@ -460,12 +456,7 @@ export function PaymentModal({
                         posSaleId={posSaleId}
                         disabled={paymentBlocked}
                         onCaptured={(txn) => {
-                          onSuccess(txn.id, {
-                            source: "gateway",
-                            mode: "upi",
-                            amount,
-                            reference_number: txn.gateway_payment_id ?? txn.id,
-                          });
+                          onSuccess(txn.id, { ...capturedSettlement(txn, amount), mode: "upi" });
                           onClose();
                         }}
                       />
