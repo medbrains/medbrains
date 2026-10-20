@@ -246,13 +246,15 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       BACK,
     ],
   },
+  // The token only moves the patient through the queue; it records no money.
+  // It says where the patient is, never "Paid" — the bill says that (#4885).
   billing: {
     statusLabels: {
       waiting: "Waiting",
       on_hold: "On hold",
       called: "At counter",
-      serving: "Collecting",
-      completed: "Paid",
+      serving: "Being served",
+      completed: "Served",
       no_show: "No-show",
     },
     actions: [
@@ -266,7 +268,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
       },
       {
         id: "collect",
-        label: "Collect",
+        label: "Serve",
         from: ["called"],
         to: "serving",
         permission: MANAGE,

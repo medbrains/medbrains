@@ -192,6 +192,9 @@ pub async fn record_invoice_payment(
             received_by: None,
             counter_id: None,
             shift: None,
+            collection_id: None,
+            station_id: None,
+            shift_id: None,
         },
     )
     .await?;

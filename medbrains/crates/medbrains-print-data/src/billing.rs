@@ -132,8 +132,12 @@ pub async fn get_receipt_print_data(
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            inv.invoice_number, \
-           pay.amount::text AS amount, \
-           pay.mode::text AS payment_mode, \
+           r.amount::text AS amount, \
+           COALESCE((SELECT string_agg(DISTINCT p2.mode::text, ' + ') \
+                       FROM payments p2 JOIN invoices i2 ON i2.id = p2.invoice_id \
+                      WHERE r.collection_id IS NOT NULL AND p2.collection_id = r.collection_id \
+                        AND i2.legal_entity_id = r.legal_entity_id AND p2.deleted_at IS NULL), \
+                    pay.mode::text) AS payment_mode, \
            u.full_name AS received_by, \
            pay.paid_at \
          FROM payments pay \

@@ -8359,12 +8359,21 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         order.encounter_id,
     )
     .await?;
+    // The pharmacy's own lane and entity (#4885): its GSTIN and drug licence.
+    let lane = medbrains_server_services::billing_lanes::lane_for_charge(
+        tx,
+        tenant_id,
+        "pharmacy",
+        admission_id,
+    )
+    .await?;
     let invoice = sqlx::query_as::<_, InvoiceId>(
         "INSERT INTO invoices \
          (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, issued_at, \
-          created_by) \
-         VALUES ($1, $2, $3, $4, $5, $12::invoice_status, $6, $7, $8, $9, $13, $10, now(), $11) \
+          created_by, lane, legal_entity_id) \
+         VALUES ($1, $2, $3, $4, $5, $12::invoice_status, $6, $7, $8, $9, $13, $10, now(), $11, \
+          $14, $15) \
          RETURNING *",
     )
     .bind(tenant_id)
@@ -8387,6 +8396,8 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
         "issued"
     })
     .bind(settlement.paid)
+    .bind(&lane.lane_key)
+    .bind(lane.entity_id)
     .fetch_one(&mut **tx)
     .await?;
 

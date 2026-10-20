@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 816;
+pub const PERMISSION_COUNT: usize = 827;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -635,6 +635,61 @@ pub mod billing {
         /// owed, a method with no payment mode, a refund that failed — and
         /// mark each resolved once finance has put it right.
         pub const RECONCILE: &str = "billing.payments.reconcile";
+    }
+
+    /// Taking a patient's money at a department desk (#4885).
+    ///
+    /// Each desk collects its own department's dues; collecting another
+    /// department's needs `CROSS`. The server checks every bill a collection
+    /// touches and refuses the whole request if one is out of reach.
+    pub mod collect {
+        /// Collect registration fees.
+        /// Take the registration fee at the front desk.
+        pub const REGISTRATION: &str = "billing.collect.registration";
+        /// Collect OPD consultation charges.
+        /// Take consultation and visit charges at the OPD desk.
+        pub const OPD: &str = "billing.collect.opd";
+        /// Collect lab charges.
+        /// Take the patient's lab charges at the lab desk or sample counter.
+        pub const LAB: &str = "billing.collect.lab";
+        /// Collect radiology charges.
+        /// Take the patient's imaging charges at the radiology desk.
+        pub const RADIOLOGY: &str = "billing.collect.radiology";
+        /// Collect emergency charges.
+        /// Take the patient's emergency department charges.
+        pub const EMERGENCY: &str = "billing.collect.emergency";
+        /// Collect IPD deposits and balances.
+        /// Take deposits and bill balances for admitted patients.
+        pub const IPD: &str = "billing.collect.ipd";
+        /// Collect pharmacy bills.
+        /// Take payment for the patient's pharmacy bills (dispensing dues).
+        pub const PHARMACY: &str = "billing.collect.pharmacy";
+        /// Collect any department's dues.
+        /// Collect every department's dues at this desk — the central
+        /// cashier's grant. Without it a desk collects only its own lanes.
+        pub const CROSS: &str = "billing.collect.cross";
+    }
+
+    pub mod bill_groups {
+        /// Bill a patient's charges together or separately.
+        /// Group a patient's department bills into one statement, or split
+        /// them back; items never move between bills.
+        pub const MANAGE: &str = "billing.bill_groups.manage";
+    }
+
+    pub mod lanes {
+        /// Configure billing entities and lanes.
+        /// Set up the hospital's legal billing entities (GSTIN, receipt
+        /// series) and, per department lane, which entity bills it, whether
+        /// it bills separately, and when registration and consultation fees
+        /// are charged.
+        pub const MANAGE: &str = "billing.lanes.manage";
+    }
+
+    pub mod refunds {
+        /// Raise refunds on bills.
+        /// Refund money already paid on a bill, from the refunds screen.
+        pub const CREATE: &str = "billing.refunds.create";
     }
 
     pub mod terminals {

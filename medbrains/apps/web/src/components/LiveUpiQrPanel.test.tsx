@@ -1,4 +1,5 @@
 import type { PaymentGatewayTransaction, UpiQrResponse } from "@medbrains/types";
+import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
 import { LiveUpiQrPanel, qrClosed } from "./LiveUpiQrPanel";
@@ -48,6 +49,22 @@ describe("LiveUpiQrPanel", () => {
       "https://rzp.io/i/qr_1",
     );
     await waitFor(() => expect(onCaptured).toHaveBeenCalledWith(txn("captured")));
+  });
+
+  it("reports a capture once, however often the status is read again (#4885)", async () => {
+    service.getPaymentStatus.mockResolvedValue({ transaction: txn("captured") });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const onCaptured = vi.fn();
+    render(
+      <LiveUpiQrPanel qr={QR} amountText="₹600.00" onCaptured={onCaptured} onRenew={vi.fn()} />,
+      { queryClient: client },
+    );
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    // A refocus or an invalidation runs the status read again.
+    await client.refetchQueries();
+    await client.refetchQueries();
+    expect(service.getPaymentStatus.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(onCaptured).toHaveBeenCalledTimes(1);
   });
 
   it("keeps waiting, without a UTR field, until it is paid", async () => {

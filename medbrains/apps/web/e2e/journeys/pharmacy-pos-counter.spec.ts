@@ -62,10 +62,10 @@ test("a walk-in buys freshly received stock for cash and gets a receipt", async 
   await expectReceipt(page, done, drug);
 });
 
-test("the counter names a prescription-only drug instead of greying out", async ({
+test("a Schedule H drug sells against the prescription the customer brings; Schedule X never sells at the counter", async ({
   hospital,
 }) => {
-  const drug = await receiveStock(hospital.admin, {
+  const h = await receiveStock(hospital.admin, {
     generic: "Telmisartan",
     schedule: "H",
     price: 8,
@@ -73,13 +73,31 @@ test("the counter names a prescription-only drug instead of greying out", async 
   });
   const page = await hospital.as("pharmacist");
   await openCounter(page);
-  await addByKeyboard(page, drug);
+  await addByKeyboard(page, h);
 
-  await expect(page.getByRole("button", { name: "Take payment" })).toBeDisabled();
+  // Schedule H at the counter (#4865): the prescription's patient is recorded first.
+  const takePayment = page.getByRole("button", { name: "Take payment" });
+  await expect(takePayment).toBeDisabled();
   await expect(
     page.getByText(
-      `${drug.name} is Schedule H — dispense it against a prescription from the Rx queue.`,
+      "Schedule H/H1: pick the patient, or enter their name and mobile from the prescription.",
     ),
+  ).toBeVisible();
+  await page.getByRole("textbox", { name: "Customer" }).fill("Walk In Customer");
+  await page.getByRole("textbox", { name: "Phone" }).fill("9876501234");
+  await expect(takePayment).toBeEnabled();
+
+  // Schedule X is refused here and named, never greyed out.
+  const x = await receiveStock(hospital.admin, {
+    generic: "Buprenorphine",
+    schedule: "X",
+    price: 20,
+    quantity: 5,
+  });
+  await addByKeyboard(page, x);
+  await expect(takePayment).toBeDisabled();
+  await expect(
+    page.getByText(`${x.name} is Schedule X — dispense it against a prescription from the Rx queue.`),
   ).toBeVisible();
 });
 
