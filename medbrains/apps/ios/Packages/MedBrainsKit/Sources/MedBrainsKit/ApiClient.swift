@@ -18,7 +18,7 @@ public enum HttpMethod: String, Sendable {
 }
 
 public actor ApiClient {
-    public let baseURL: URL
+    public nonisolated let baseURL: URL
     public let clientName: String
     private let secrets: SecretStore
     private let session: URLSession

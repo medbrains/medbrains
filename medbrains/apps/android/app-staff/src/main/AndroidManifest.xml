@@ -17,7 +17,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Shares the ABHA card or QR (cache/abha) with a printer app or the patient's phone. -->
+        <!-- Shares the ABHA card or QR (cache/abha) and opens a document another hospital sent (cache/abdm-documents). -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

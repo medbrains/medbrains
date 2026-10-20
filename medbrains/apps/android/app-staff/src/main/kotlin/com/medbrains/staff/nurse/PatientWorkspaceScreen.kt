@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.medbrains.kit.LocalIdentity
+import com.medbrains.staff.abdm.OtherHospitalRecordsLink
 import com.medbrains.ui.CarbonActionRow
 import com.medbrains.ui.CarbonPageHeader
 import com.medbrains.ui.CarbonTag
@@ -56,5 +57,6 @@ fun PatientWorkspaceScreen(nav: NavHostController, admission: AdmissionRow) {
                 Box(Modifier.width(3.dp).height(24.dp).background(act.tone.bar))
             }
         }
+        OtherHospitalRecordsLink(nav, admission.patient_id, admission.patient_name)
     }
 }

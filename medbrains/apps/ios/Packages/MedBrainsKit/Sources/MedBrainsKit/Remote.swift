@@ -25,15 +25,23 @@ public final class Remote<T: Sendable> {
     /// Set when a refresh failed but an earlier answer is still shown; the
     /// screen says so instead of quietly going stale.
     public private(set) var staleSince: Date?
+    /// The HTTP status of the failure shown, when the server answered: a 404
+    /// or 403 is "not available to you", which a screen says differently
+    /// from an outage.
+    public private(set) var failedStatus: Int?
 
     public init() {}
 
     public var value: T? { state.value }
 
+    /// Refused or gone (403/404): "not available", never "none".
+    public var isNotAvailable: Bool { failedStatus == 403 || failedStatus == 404 }
+
     public func load(_ op: @Sendable () async throws -> T) async {
         do {
             state = .loaded(try await op())
             staleSince = nil
+            failedStatus = nil
         } catch {
             // Keep the last good answer if there is one; an alarm must not
             // clear because one poll dropped.
@@ -41,6 +49,7 @@ public final class Remote<T: Sendable> {
                 if staleSince == nil { staleSince = Date() }
             } else {
                 state = .failed(Self.describe(error))
+                failedStatus = (error as? ApiError)?.status
             }
         }
     }
@@ -85,6 +94,12 @@ public enum ServerTime {
         var style = Date.FormatStyle.dateTime.day().month(.abbreviated).year()
         style.timeZone = TimeZone(identifier: "UTC") ?? .gmt
         return date.formatted(style)
+    }
+
+    /// "9 Nov 2026" for a timestamp, on the device's calendar day.
+    public static func dateOf(_ text: String?) -> String {
+        guard let date = parse(text) else { return "—" }
+        return date.formatted(.dateTime.day().month(.abbreviated).year())
     }
 
     /// "12 Sep, 14:05" — short enough for a row, in the device's locale.

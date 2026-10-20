@@ -25,8 +25,12 @@ enum StaffModules {
         // Any of: a gate-only guard still gets the scanner, an auditor only the incident register.
         AppModule(id: "security", displayName: "Security", symbol: "shield.lefthalf.filled", requiredPermissions: [], requiredAnyPermissions: [SecurityPermission.verifyPass, SecurityPermission.listIncidents], appCodes: ["Mobile-Security", "TV-Emergency"]) { AnyView(SecurityHomeView()) },
         module("hr", "HR", "person.2", ["hr.attendance.list"], apps: ["Mobile-Admin"], phase: 5),
+        // Any role that answers patients' apps: an ambulance driver or blood-bank technician lands here, everyone else on their own desk first.
+        AppModule(id: "uhi", displayName: "UHI requests", symbol: "antenna.radiowaves.left.and.right", requiredPermissions: [UhiRequests.Permission.view], appCodes: ["Mobile-Admin", "Desktop-Workstation", "Mobile-LabTech"]) { AnyView(UhiRequestsView()) },
         // Last of the working modules: doctors, nurses and pharmacists also hold camp.queue.manage and must still open on their own desk.
         AppModule(id: "camp", displayName: "Camp", symbol: "tent", requiredPermissions: ["camp.queue.manage"], appCodes: ["Mobile-Camp"]) { AnyView(CampHomeView()) },
+        // Cross-cutting: nearly every role holds notes.use, so it sits after every desk and never decides where anyone lands.
+        AppModule(id: "notes", displayName: "Notes", symbol: "note.text", requiredPermissions: [StickyNotes.Permission.use]) { AnyView(NotesHomeView()) },
         // Phase 6 defines this module's own permission; until then the pairing roster gates the placeholder.
         module("device-sync", "Device sync", "arrow.triangle.2.circlepath", ["devices.pairing.paired_list"], apps: ["Mobile-Admin"], phase: 6),
     ]

@@ -32,6 +32,7 @@ struct QueueDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                OtherHospitalRecordsLink(patientId: token.patientId, patientName: token.displayName)
                 if let error { CarbonNotification(kind: .error, title: "Action failed", message: error).padding(.horizontal, 16) }
                 VStack(spacing: 8) {
                     if token.status == TokenStatus.waiting, canWorkQueue {

@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.LocalHospital
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Medication
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Science
@@ -19,15 +21,19 @@ import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.medbrains.kit.AppModule
+import com.medbrains.kit.StickyNotes
+import com.medbrains.kit.UhiRequests
 import com.medbrains.staff.abdm.AbdmPermission
 import com.medbrains.staff.abdm.ScanShareModule
 import com.medbrains.staff.camp.CampModule
 import com.medbrains.staff.deliveries.DeliveriesModule
 import com.medbrains.staff.doctor.DoctorModule
+import com.medbrains.staff.notes.NotesModule
 import com.medbrains.staff.nurse.NurseModule
 import com.medbrains.staff.reception.ReceptionModule
 import com.medbrains.staff.security.SecurityModule
 import com.medbrains.staff.security.SecurityPermission
+import com.medbrains.staff.uhi.UhiModule
 
 /**
  * The staff registry, in the order apps/mobile-staff/src/modules/index.ts
@@ -53,8 +59,12 @@ object StaffModules {
         // Any of: a gate-only guard still gets the scanner, an auditor only the incident register.
         AppModule(id = "security", displayName = "Security", requiredPermissions = emptyList(), requiredAnyPermissions = listOf(SecurityPermission.VERIFY_PASS, SecurityPermission.LIST_INCIDENTS), appCodes = listOf("Mobile-Security", "TV-Emergency"), icon = Icons.Filled.Security) { SecurityModule() },
         module("hr", "HR", Icons.Filled.Groups, listOf("hr.attendance.list"), listOf("Mobile-Admin"), 5),
+        // Any role that answers patients' apps: an ambulance driver or blood-bank technician lands here, everyone else on their own desk first.
+        AppModule(id = "uhi", displayName = "UHI requests", requiredPermissions = listOf(UhiRequests.Permission.VIEW), appCodes = listOf("Mobile-Admin", "Desktop-Workstation", "Mobile-LabTech"), icon = Icons.Filled.SettingsInputAntenna) { UhiModule() },
         // Last of the working modules: doctors, nurses and pharmacists also hold camp.queue.manage and must still open on their own desk.
         AppModule(id = "camp", displayName = "Camp", requiredPermissions = listOf("camp.queue.manage"), appCodes = listOf("Mobile-Camp"), icon = Icons.Filled.Festival) { CampModule() },
+        // Cross-cutting: nearly every role holds notes.use, so it sits after every desk and never decides where anyone lands.
+        AppModule(id = "notes", displayName = "Notes", requiredPermissions = listOf(StickyNotes.Permission.USE), icon = Icons.Filled.PushPin) { NotesModule() },
         // Phase 6 defines this module's own permission; until then the pairing roster gates the placeholder.
         module("device-sync", "Device sync", Icons.Filled.Sync, listOf("devices.pairing.paired_list"), listOf("Mobile-Admin"), 6),
     )
