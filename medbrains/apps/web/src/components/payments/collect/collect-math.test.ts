@@ -113,7 +113,7 @@ describe("which ways of paying a desk is offered", () => {
 
   it("a lab desk without the gateway takes cash, card slips and UPI by UTR — never online", () => {
     expect(shown(DESK)).toEqual(["cash", "card", "upi", "link"]);
-    expect(usableTiles(DESK).find((t) => t.tile === "upi")?.hint).toMatch(/UTR/);
+    expect(usableTiles(DESK).find((t) => t.tile === "upi")?.hint).toBe("Enter the UTR");
   });
 
   it("online checkout pays exactly one bill, with the gateway and a provider that checks out", () => {

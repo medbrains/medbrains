@@ -25,7 +25,10 @@ export function DueChip({ patientId, lane, encounterId }: DueChipProps) {
   const focus = { lane, encounterId };
   const due = dues.data ? billsDue(focusBills(dues.data.bills, focus)) : 0;
   const total = dues.data ? billsDue(dues.data.bills) : 0;
-  const collect = () => open({ patientId, ...focus });
+  // `C` while a collection is under way must not start another over it.
+  const collect = () => {
+    if (!useCollect.getState().target) open({ patientId, ...focus });
+  };
   useHotkeys(canCollect && due > 0 ? [["c", collect]] : []);
 
   if (!canCollect) return null;

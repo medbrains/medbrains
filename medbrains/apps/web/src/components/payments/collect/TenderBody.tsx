@@ -51,7 +51,7 @@ const fromCard = (sale: PosSaleView): TenderPart => ({
   amount: approvedRupees(sale),
   reference: sale.reference ?? sale.rrn ?? sale.transaction_id,
   gatewayTransactionId: sale.transaction_id,
-  label: `Card on ${sale.terminal_label}`,
+  label: sale.terminal_label,
 });
 
 const fromGateway = (txn: PaymentGatewayTransaction, label: string): TenderPart => ({

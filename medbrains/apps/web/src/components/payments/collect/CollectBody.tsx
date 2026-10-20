@@ -40,6 +40,7 @@ import {
 import type { CollectTarget } from "./collect-store";
 import { TenderBody } from "./TenderBody";
 import {
+  CHECKOUT_PROVIDERS,
   readLastTile,
   rememberTile,
   startTile,
@@ -139,7 +140,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
     isSale: Boolean(sale),
     cashAllowed: sale ? sale.cashAllowed : true,
     canUseGateway,
-    providerCheckout: provider?.provider === "razorpay" && provider.has_adapter,
+    providerCheckout: Boolean(provider?.has_adapter && CHECKOUT_PROVIDERS.has(provider.provider)),
     billCount: bills.length,
     hasDraft: bills.some((b) => b.status === "draft"),
     canApplyDeposit,
@@ -353,6 +354,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
               }))}
               value={tile}
               onChange={(v) => setTile(v as TenderTile)}
+              cols={3}
             />
             {tile && (
               <TenderBody
