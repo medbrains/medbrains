@@ -61,6 +61,8 @@ pub async fn list_stations(
         &[
             permissions::admin::settings::locations::LIST,
             permissions::front_office::queue::MANAGE,
+            // Card machines are bound to the counter they sit at.
+            permissions::billing::terminals::MANAGE,
         ],
     )?;
     let mut tx = state.db.begin().await?;

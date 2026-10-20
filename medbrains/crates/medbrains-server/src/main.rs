@@ -81,6 +81,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into());
     }
 
+    // The pretend card machine approves whatever it is told to. On in
+    // production it would let anyone mark a bill paid by card.
+    if std::env::var(medbrains_payment_gateway::pos::simulator::ENV_FLAG).is_ok_and(|v| v == "true")
+        && config.environment == "production"
+    {
+        return Err(format!(
+            "{} is on and MEDBRAINS_ENV=production — the card machine simulator would mark \
+             bills paid that no card paid. Unset it.",
+            medbrains_payment_gateway::pos::simulator::ENV_FLAG
+        )
+        .into());
+    }
+
     // Sub-commands run via the same binary so we share code/config:
     //   medbrains-server audit verify-chain [--tenant=<uuid>|--all]
     // RFC-INFRA-2026-002 Phase 2 deliverable.
@@ -774,7 +787,7 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback, razorpayx,
+        cashfree, email_stub, google_meet, hl7_stub, nhcx, pipeline_fallback, razorpayx,
         teams, twilio, whatsapp, zoom,
     };
 
@@ -787,8 +800,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
     registry.register(cashfree::CashfreeCreateOrderHandler::new());
     registry.register(cashfree::CashfreeRefundHandler::new());
-    // Pine Labs Plutus — POS card machine (push+poll, runs only for payment.pinelabs.*)
-    registry.register(pinelabs::PineLabsPosSaleHandler::new());
+    // Counter card machines are driven in the request and by the site bridge
+    // (medbrains_payment_gateway::pos), not here.
     // RazorpayX Smart Collect — bank virtual account (runs only for payment.razorpayx.*)
     registry.register(razorpayx::VirtualAccountCreateHandler::new());
     // Telemedicine meeting create — one handler per API provider.

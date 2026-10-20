@@ -1,5 +1,6 @@
 mod astm;
 mod buffer;
+mod card_terminal;
 mod config;
 mod heartbeat;
 mod hl7_listener;
@@ -118,6 +119,19 @@ async fn main() -> Result<()> {
                 &print_client,
                 &print_cfg,
                 std::time::Duration::from_secs(secs.max(2)),
+            )
+            .await;
+        });
+    }
+
+    // Card machines wired to this PC, if configured
+    if let Some(secs) = cfg.card_terminal_poll_secs {
+        let (card_client, card_cfg) = (client.clone(), cfg.clone());
+        tokio::spawn(async move {
+            card_terminal::poll_loop(
+                &card_client,
+                &card_cfg,
+                std::time::Duration::from_secs(secs.max(1)),
             )
             .await;
         });

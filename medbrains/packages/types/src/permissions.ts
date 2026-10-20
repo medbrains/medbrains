@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1103 permissions, one per constant in the Rust source. */
+/** 1105 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1011,6 +1011,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payments.reconcile",
     label: "Reconcile online payments",
     description: "See money a gateway took that could not be posted to a bill — a captured amount other than the one asked for, more than the bill owed, a method with no payment mode, a refund that failed — and mark each resolved once finance has put it right.",
+    module: "billing",
+  },
+  {
+    code: "billing.terminals.manage",
+    label: "Manage card machines at counters",
+    description: "Register the card machines (POS terminals) at billing and pharmacy counters, bind each to its counter, test that it answers, and retire one that is replaced. In test hospitals, also act as the person at a simulated machine.",
+    module: "billing",
+  },
+  {
+    code: "billing.terminals.drive",
+    label: "Drive counter card machines from a bridge",
+    description: "Lets a site bridge take card sales queued for the machines wired to its counter PCs, run them on the machine and report each approved, declined or timed out — which posts the money to the bill. Grant it to the bridge's API key, not to people.",
     module: "billing",
   },
   {
@@ -7240,6 +7252,12 @@ export const P = {
     },
     TDS_LIST: "billing.tds.list",
     TDS_MANAGE: "billing.tds.manage",
+    TERMINALS: {
+      DRIVE: "billing.terminals.drive",
+      MANAGE: "billing.terminals.manage",
+    },
+    TERMINALS_DRIVE: "billing.terminals.drive",
+    TERMINALS_MANAGE: "billing.terminals.manage",
     WRITE_OFF: {
       APPROVE: "billing.write_off.approve",
       CREATE: "billing.write_off.create",
@@ -10823,6 +10841,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.REPORTS.VIEW,
       P.BILLING.TDS.LIST,
       P.BILLING.TDS.MANAGE,
+      P.BILLING.TERMINALS.MANAGE,
       P.BILLING.WRITE_OFF.CREATE,
       P.CAMP.BILLING.CREATE,
       P.CAMP.BILLING.LIST,

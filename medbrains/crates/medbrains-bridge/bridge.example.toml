@@ -43,3 +43,16 @@ hl7_listen = "0.0.0.0:2575"
 
 # Deployment mode: on_premise, cloud_sidecar, embedded
 deployment_mode = "on_premise"
+
+# Card machines wired to this PC (USB / serial / Bluetooth). Register each in
+# MedBrains under Settings → Payment terminals with connection "bridge", then
+# list it here by its terminal id. Keep this block last: TOML puts every
+# key after a [[card_terminals]] header inside that table. Needs
+# billing.terminals.drive on the API key.
+# card_terminal_poll_secs = 2
+# [[card_terminals]]
+# id = "uuid-of-counter-1-card-machine"
+# adapter = "simulator"            # real ECR adapters per brand come later
+# address = "/dev/ttyUSB0"
+# simulator_outcome = "approve"    # approve | decline | timeout
+# simulator_delay_secs = 3

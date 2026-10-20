@@ -16,7 +16,12 @@ import { notifications } from "@mantine/notifications";
 import type { PaymentFormInput } from "@medbrains/schemas";
 import { createPaymentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { FieldAccessLevel, PaymentGatewayTransaction, UpiQrResponse } from "@medbrains/types";
+import type {
+  FieldAccessLevel,
+  PaymentGatewayTransaction,
+  PosSaleView,
+  UpiQrResponse,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
@@ -38,6 +43,8 @@ import {
   type PaymentSplitPart,
   PaymentSplitParts,
 } from "./PaymentSplitParts";
+import { CardTerminalPanel } from "./payments/CardTerminalPanel";
+import { approvedRupees } from "./payments/cardSale";
 import { UpiCollectPanel } from "./UpiCollectPanel";
 import { UpiQrCode } from "./UpiQrCode";
 import { VirtualAccountPanel } from "./VirtualAccountPanel";
@@ -93,6 +100,8 @@ export interface PaymentModalSettlement {
   tendered?: number;
   /** Part payments taken before this tender. */
   parts?: PaymentSplitPart[];
+  /** The card machine's approved payment, when this tender was taken on it. */
+  gateway_transaction_id?: string;
 }
 
 export function PaymentModal({
@@ -242,6 +251,35 @@ export function PaymentModal({
     });
     onClose();
   });
+
+  // The card machine approved: all of what is due completes the payment;
+  // less (a part, or a partial approval) is kept as a part, the rest still due.
+  const handleMachineApproved = (sale: PosSaleView) => {
+    const covered = approvedRupees(sale);
+    const tender = {
+      mode: "card" as const,
+      amount: covered,
+      reference_number: sale.reference ?? sale.transaction_id,
+      gateway_transaction_id: sale.transaction_id,
+    };
+    if (covered + 0.001 >= amount) {
+      onSuccess(sale.transaction_id, { source: "gateway", ...tender });
+      onClose();
+      return;
+    }
+    setParts([
+      ...parts,
+      {
+        id: sale.transaction_id,
+        mode: "card",
+        amount: covered,
+        reference: tender.reference_number,
+        gateway_transaction_id: sale.transaction_id,
+      },
+    ]);
+    setValue("mode", "cash");
+    setValue("cashReceived", Math.round((amount - covered) * 100) / 100);
+  };
 
   const handleCardConfirm = handleSubmit((values) => {
     if (paymentBlocked) {
@@ -569,6 +607,17 @@ export function PaymentModal({
 
             {mode === "card" && (
               <Stack gap="sm">
+                {!paymentBlocked && (
+                  <CardTerminalPanel
+                    amount={amount}
+                    editableAmount={Boolean(splitModes)}
+                    invoiceId={invoiceId}
+                    onApproved={handleMachineApproved}
+                    onUseOtherMode={() =>
+                      setValue("mode", modes.includes("cash") ? "cash" : "upi_qr")
+                    }
+                  />
+                )}
                 <Controller
                   control={control}
                   name="utrReference"
