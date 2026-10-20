@@ -58,7 +58,7 @@ test("the hospital switches to Cashfree and a cashier collects online through it
   await row.getByRole("button", { name: "Test Cashfree" }).click();
   await expect(admin.getByText("Cashfree answered and accepted the keys")).toBeVisible();
 
-  await admin.getByLabel("Online payment provider").click();
+  await admin.getByRole("combobox", { name: "Online payment provider" }).click();
   await admin.getByRole("option", { name: "Cashfree", exact: true }).click();
   await admin.getByRole("button", { name: "Save provider" }).click();
   await expect(admin.getByText("Online payment provider saved.")).toBeVisible();
@@ -72,13 +72,13 @@ test("the hospital switches to Cashfree and a cashier collects online through it
   ]);
   await serveSdk(page);
   const drawer = await openOnlineCollect(page, invoiceId);
-  await expect(drawer.getByText("Cashfree")).toBeVisible();
+  await expect(drawer.getByText("Cashfree", { exact: true })).toBeVisible();
   const pay = drawer.getByTestId("btn-pay-online");
   await expectUsable(pay, "Pay online");
   await pay.click();
   const opened = await sdkOpened(page);
   expect(opened.mode, "test keys open Cashfree's sandbox").toBe("sandbox");
-  await expect(page.getByText("Payment successful")).toBeVisible();
+  await expect(drawer.getByText("₹1,000.00 received")).toBeVisible();
 
   const [txn] = db(
     `SELECT id || '|' || gateway || '|' || status || '|' || gateway_order_id FROM payment_gateway_transactions WHERE invoice_id = '${invoiceId}'`,
