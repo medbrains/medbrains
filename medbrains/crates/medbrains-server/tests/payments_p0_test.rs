@@ -147,11 +147,16 @@ async fn webhook_then_verify_posts_once() {
 async fn order_paid_alone_settles_the_bill() {
     let _serial = SERIAL.lock().await;
     let w = world().await;
+    // Its own id each run: a reused database remembers every payment it has posted.
+    let orderpaidonly_id = format!(
+        "pay_orderpaidonly{}",
+        &uuid::Uuid::new_v4().simple().to_string()[..8]
+    );
     let invoice = w.bill(300).await;
     let (_, order) = w.order(invoice, 300).await;
     let body = json!({ "event": "order.paid", "payload": {
         "order": { "entity": { "id": order } },
-        "payment": { "entity": { "id": "pay_orderpaidonly", "order_id": order,
+        "payment": { "entity": { "id": orderpaidonly_id.as_str(), "order_id": order,
                                  "amount": 30_000, "method": "netbanking" } } } });
     assert_eq!(w.webhook(&body).await, StatusCode::OK);
     assert_eq!(
@@ -159,7 +164,7 @@ async fn order_paid_alone_settles_the_bill() {
         vec![(
             rupees(300),
             "bank_transfer".to_owned(),
-            Some("pay_orderpaidonly".to_owned())
+            Some(orderpaidonly_id.as_str().to_owned())
         )]
     );
 }
@@ -173,9 +178,19 @@ async fn order_paid_alone_settles_the_bill() {
 async fn money_that_cannot_post_goes_to_finance() {
     let _serial = SERIAL.lock().await;
     let w = world().await;
+    // Its own id each run: a reused database remembers every payment it has posted.
+    let pastbalance_id = format!(
+        "pay_pastbalance{}",
+        &uuid::Uuid::new_v4().simple().to_string()[..8]
+    );
+    // Its own id each run: a reused database remembers every payment it has posted.
+    let overcapture_id = format!(
+        "pay_overcapture{}",
+        &uuid::Uuid::new_v4().simple().to_string()[..8]
+    );
     let invoice = w.bill(1000).await;
     let (_, order) = w.order(invoice, 1000).await;
-    let body = captured(&order, "pay_overcapture", 120_000, "card");
+    let body = captured(&order, overcapture_id.as_str(), 120_000, "card");
     assert_eq!(w.webhook(&body).await, StatusCode::OK);
     assert!(w.payments(invoice).await.is_empty());
     assert_eq!(
@@ -205,7 +220,7 @@ async fn money_that_cannot_post_goes_to_finance() {
         .await;
     assert_eq!(status, StatusCode::OK, "{cash}");
     assert_eq!(
-        w.webhook(&captured(&order, "pay_pastbalance", 100_000, "card"))
+        w.webhook(&captured(&order, pastbalance_id.as_str(), 100_000, "card"))
             .await,
         StatusCode::OK
     );
@@ -325,6 +340,11 @@ async fn a_bad_signature_is_refused() {
 async fn a_razorpay_counter_qr_settles_the_bill_on_its_webhook() {
     let _serial = SERIAL.lock().await;
     let w = world().await;
+    // Its own id each run: a reused database remembers every payment it has posted.
+    let qrcounter1_id = format!(
+        "pay_qrcounter1{}",
+        &uuid::Uuid::new_v4().simple().to_string()[..8]
+    );
     let invoice = w.bill(600).await;
     let (status, qr) = w
         .call(
@@ -355,7 +375,7 @@ async fn a_razorpay_counter_qr_settles_the_bill_on_its_webhook() {
     assert_eq!(status_of(&w, txn).await["gateway_order_id"], qr_id.as_str());
 
     let credited = json!({ "event": "qr_code.credited", "payload": {
-        "payment": { "entity": { "id": "pay_qrcounter1", "amount": 60_000, "method": "upi",
+        "payment": { "entity": { "id": qrcounter1_id.as_str(), "amount": 60_000, "method": "upi",
                                  "status": "captured", "vpa": "patient@okaxis" } },
         "qr_code": { "entity": { "id": qr_id, "payments_amount_received": 60_000 } } } });
     assert_eq!(w.webhook(&credited).await, StatusCode::OK);
@@ -365,7 +385,7 @@ async fn a_razorpay_counter_qr_settles_the_bill_on_its_webhook() {
         vec![(
             rupees(600),
             "upi".to_owned(),
-            Some("pay_qrcounter1".to_owned())
+            Some(qrcounter1_id.as_str().to_owned())
         )]
     );
     assert_eq!(w.invoice(invoice).await, (rupees(600), "paid".to_owned()));

@@ -84,7 +84,7 @@ async fn refund(
     let mut refunds = rz.refunds.lock().expect("refunds");
     refunds.push((id.clone(), body.clone()));
     Json(
-        json!({ "id": format!("rfnd_p0{}", refunds.len()), "payment_id": id,
+        json!({ "id": format!("rfnd_{}", &Uuid::new_v4().simple().to_string()[..14]), "payment_id": id,
                  "amount": body["amount"], "status": "processed" }),
     )
 }
@@ -102,7 +102,7 @@ async fn create_qr(
         );
     }
     let mut made = rz.qr_codes.lock().expect("qr");
-    let id = format!("qr_p0{}", made.len() + 1);
+    let id = format!("qr_{}", &Uuid::new_v4().simple().to_string()[..14]);
     made.push(body.clone());
     (
         StatusCode::OK,
