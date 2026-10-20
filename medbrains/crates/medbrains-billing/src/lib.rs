@@ -153,6 +153,9 @@ pub struct AddInvoiceItemRequest {
     pub unit_price: Decimal,
     pub tax_percent: Option<Decimal>,
     pub ordering_doctor_id: Option<Uuid>,
+    /// Who performed the service — the doctor credited for it. When left
+    /// out, the line's source record names them (see `invoice_item_performer`).
+    pub performing_doctor_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
 }
 
@@ -1061,8 +1064,9 @@ pub async fn add_invoice_item(
     let item = sqlx::query_as::<_, InvoiceItem>(
         "INSERT INTO invoice_items \
          (tenant_id, invoice_id, charge_code, description, source, source_id, \
-          quantity, unit_price, tax_percent, total_price, ordering_doctor_id, department_id) \
-         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, $10, $11, $12) \
+          quantity, unit_price, tax_percent, total_price, ordering_doctor_id, department_id, \
+          performing_doctor_id) \
+         VALUES ($1, $2, $3, $4, $5::charge_source, $6, $7, $8, $9, $10, $11, $12, $13) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1077,6 +1081,7 @@ pub async fn add_invoice_item(
     .bind(total)
     .bind(body.ordering_doctor_id)
     .bind(body.department_id)
+    .bind(body.performing_doctor_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1333,6 +1338,8 @@ pub async fn issue_invoice(
             event = event.with_admission(admission_id);
         }
         medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        // Doctors paid on the billed basis earn their share now.
+        medbrains_doctor_payouts::accrual::sync_after_money(&mut tx, claims.tenant_id, i.id).await?;
     }
 
     tx.commit().await?;

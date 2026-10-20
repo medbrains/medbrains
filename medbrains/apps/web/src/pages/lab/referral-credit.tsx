@@ -192,7 +192,7 @@ export function LabReferralCreditSection() {
         emptyDescription={
           payoutsFailed
             ? "The list failed to load — this is not a statement that nothing is owed."
-            : "Commission periods appear here once they are raised."
+            : "Referral payouts are raised under Billing, Doctor payouts, and only once the hospital has switched them on with the required acknowledgement."
         }
       />
     </Stack>

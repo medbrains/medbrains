@@ -116,6 +116,7 @@ export type { IndentItem } from "./dashboard-widget-builder";
 export * from "./dashboard-widget-builder";
 export * from "./device-binding";
 export * from "./device-integration";
+export * from "./doctor-payouts";
 export * from "./documents-module";
 export * from "./emergency";
 export * from "./emergency-drug-kits";
@@ -5351,119 +5352,6 @@ export interface BackupHistory {
 // ══════════════════════════════════════════════════════════════
 // IT SECURITY: ONBOARDING WIZARD
 // ══════════════════════════════════════════════════════════════
-
-// ══════════════════════════════════════════════════════════════
-// IT SECURITY: INCENTIVE CONFIGURATION
-// ══════════════════════════════════════════════════════════════
-
-export interface IncentivePlan {
-  id: string;
-  tenant_id: string;
-  plan_name: string;
-  plan_code: string;
-  description: string | null;
-  effective_from: string;
-  effective_to: string | null;
-  is_active: boolean;
-  calculation_basis: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateIncentivePlanRequest {
-  plan_name: string;
-  plan_code: string;
-  description?: string;
-  effective_from: string;
-  effective_to?: string;
-  calculation_basis?: string;
-}
-
-export interface IncentivePlanRule {
-  id: string;
-  plan_id: string;
-  rule_name: string;
-  service_type: string | null;
-  department_id: string | null;
-  min_threshold: string | null;
-  max_threshold: string | null;
-  percentage: string | null;
-  fixed_amount: string | null;
-  multiplier: string | null;
-  created_at: string;
-}
-
-export interface CreateIncentiveRuleRequest {
-  rule_name: string;
-  service_type?: string;
-  department_id?: string;
-  min_threshold?: string;
-  max_threshold?: string;
-  percentage?: string;
-  fixed_amount?: string;
-  multiplier?: string;
-}
-
-export interface DoctorIncentiveAssignment {
-  id: string;
-  tenant_id: string;
-  doctor_id: string;
-  doctor_name: string | null;
-  plan_id: string;
-  plan_name: string | null;
-  effective_from: string;
-  effective_to: string | null;
-  custom_percentage: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AssignIncentivePlanRequest {
-  doctor_id: string;
-  plan_id: string;
-  effective_from: string;
-  effective_to?: string;
-  custom_percentage?: string;
-}
-
-export interface IncentiveCalculation {
-  id: string;
-  tenant_id: string;
-  doctor_id: string;
-  doctor_name: string | null;
-  plan_id: string;
-  period_start: string;
-  period_end: string;
-  gross_revenue: string | null;
-  eligible_revenue: string | null;
-  incentive_amount: string | null;
-  deductions: string | null;
-  net_payable: string | null;
-  status: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
-  paid_at: string | null;
-  payment_reference: string | null;
-  calculation_details: unknown;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CalculateIncentiveRequest {
-  doctor_id: string;
-  period_start: string;
-  period_end: string;
-}
-
-export interface ApproveIncentiveRequest {
-  notes?: string;
-}
-
-export interface MarkIncentivePaidRequest {
-  payment_reference: string;
-}
 
 // ═══════════════════════════════════════════════════════════════
 // ── Infrastructure & AI settings ──────────────────────────

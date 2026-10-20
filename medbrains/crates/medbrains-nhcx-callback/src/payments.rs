@@ -132,6 +132,8 @@ pub(crate) async fn post(
     .bind(tenant_id)
     .execute(&mut **tx)
     .await?;
+    // Doctors paid on insurer realisation earn their share as it settles.
+    medbrains_doctor_payouts::accrual::sync_after_money(tx, tenant_id, c.invoice_id).await?;
     Ok(())
 }
 

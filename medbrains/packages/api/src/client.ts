@@ -106,7 +106,6 @@ import type {
   ApprovalRequestDetail,
   ApprovalRequestSummary,
   ApproveDisposalRequest,
-  ApproveIncentiveRequest,
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
@@ -118,7 +117,6 @@ import type {
   AssignBedToWardRequest,
   AssignDeliveryRequest,
   AssignHospitalToGroup,
-  AssignIncentivePlanRequest,
   AssignTransportRequest,
   AssignUserFacilitiesRequest,
   AttachDocumentRequest,
@@ -222,7 +220,6 @@ import type {
   BulkCreateCampSupplyItemsRequest,
   BulkCreateCampSupplyItemsResponse,
   BulkCreateUsersRequest,
-  CalculateIncentiveRequest,
   CalibrationCertificatePrintData,
   CamIcuRequest,
   CamIcuResult,
@@ -596,8 +593,6 @@ import type {
   CreateIcuScoreRequest,
   CreateIcuVentilatorRequest,
   CreateImplantRequest,
-  CreateIncentivePlanRequest,
-  CreateIncentiveRuleRequest,
   CreateInclusionRequest,
   CreateIndentRequisitionRequest,
   CreateIndwellingDeviceRequest,
@@ -692,6 +687,7 @@ import type {
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponse,
   CreatePaymentTerminalRequest,
+  CreatePayoutRateCard,
   CreatePayrollRunRequest,
   CreatePcpndtRequest,
   CreatePestControlLogRequest,
@@ -872,6 +868,7 @@ import type {
   DayEndClose,
   DayReconciliation,
   DayReport,
+  DaySettlementSummary,
   DeactivateCodeRequest,
   DeadStockRow,
   DeathCertificatePrintData,
@@ -940,13 +937,17 @@ import type {
   DnrConsentPrintData,
   // Specialty Clinical: Palliative / Mortuary / Nuclear Med
   DnrOrder,
+  DoctorAgreement,
+  DoctorAgreementInput,
   // Post-Consultation
   DoctorDocket,
   DoctorHpr,
-  DoctorIncentiveAssignment,
   // Doctor Packages + Patient Subs + Coverage
   DoctorPackage,
   DoctorPackageInclusion,
+  DoctorPayout,
+  DoctorPayoutSettingsView,
+  DoctorPayoutSummaryRow,
   // Doctor Activities
   DoctorProfile,
   DoctorRevenueRow,
@@ -1152,9 +1153,6 @@ import type {
   ImplantRegistryEntry,
   ImportBankTransactionsRequest,
   ImportBankTransactionsResponse,
-  IncentiveCalculation,
-  IncentivePlan,
-  IncentivePlanRule,
   // Phase 3 Print Data - Quality & Safety
   IncidentReportPrintData,
   // Phase 4 Print Data - Admin & Procurement
@@ -1368,7 +1366,6 @@ import type {
   MarketingSuppression,
   MarketingTouchpoint,
   MarketingWebFormSetting,
-  MarkIncentivePaidRequest,
   MarListRow,
   MarPrintData,
   MassCasualtyEvent,
@@ -1602,6 +1599,17 @@ import type {
   PaymentStatusResponse,
   PaymentTerminal,
   PaymentWebhookException,
+  PayoutBankFile,
+  PayoutCalcInput,
+  PayoutCalcResult,
+  PayoutLedgerLine,
+  PayoutLedgerQuery,
+  PayoutRateCard,
+  PayoutRule,
+  PayoutRuleInput,
+  PayoutStatement,
+  PayoutStatementDetail,
+  PayoutTdsRow,
   PayrollRun,
   Payslip,
   PcpndtForm,
@@ -1685,6 +1693,7 @@ import type {
   PreauthNhcxView,
   PredictionAccuracyReport,
   PreopAssessmentPrintData,
+  PreparePayoutStatement,
   PrescriptionAuditEntry,
   PrescriptionHistoryItem,
   // Print Data
@@ -1812,7 +1821,10 @@ import type {
   RecordSecurityTagEventRequest,
   RecordTransfusionObservationRequest,
   RecordTtiRequest,
+  ReferralComplianceReport,
+  ReferralStatementRequest,
   ReferralStep,
+  ReferralSwitchRequest,
   ReferralWithNames,
   Refund,
   RefundAdvanceRequest,
@@ -1874,6 +1886,8 @@ import type {
   RoiRequest,
   RoomTurnaround,
   RoomUtilization,
+  RunPayoutsRequest,
+  RunPayoutsResult,
   RunVerificationRequest,
   // Pharmacy Phase 3
   RxQueueRow,
@@ -1922,6 +1936,8 @@ import type {
   SetCampusFenceRequest,
   SetDonorDeferralRequest,
   SetHprRequest,
+  SettleDayRequest,
+  SettleDayResult,
   SetupUser,
   SharpReplacementRequest,
   ShiftDefinition,
@@ -2156,6 +2172,7 @@ import type {
   UpdateDischargeTatRequest,
   UpdateDltTemplateRequest,
   UpdateDoctorPackageRequest,
+  UpdateDoctorPayoutSettings,
   UpdateDoctorRequest,
   UpdateDocumentTemplateRequest,
   UpdateDonationRequest,
@@ -15558,51 +15575,168 @@ export const api = {
 
   listBackups: () => request<BackupHistory[]>("/backups"),
 
-  // ══════════════════════════════════════════════════════════════
-  // IT SECURITY: INCENTIVE CONFIGURATION
-  // ══════════════════════════════════════════════════════════════
+  // ── Doctor payouts (#4886) ──────────────────────────────────
 
-  listIncentivePlans: () => request<IncentivePlan[]>("/incentive-plans"),
+  getDoctorPayoutSettings: () => request<DoctorPayoutSettingsView>("/doctor-payouts/settings"),
 
-  createIncentivePlan: (data: CreateIncentivePlanRequest) =>
-    request<IncentivePlan>("/incentive-plans", { method: "POST", body: JSON.stringify(data) }),
+  updateDoctorPayoutSettings: (data: UpdateDoctorPayoutSettings) =>
+    request<DoctorPayoutSettingsView>("/doctor-payouts/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  getIncentivePlanRules: (id: string) =>
-    request<IncentivePlanRule[]>(`/incentive-plans/${id}/rules`),
-
-  addIncentiveRule: (planId: string, data: CreateIncentiveRuleRequest) =>
-    request<IncentivePlanRule>(`/incentive-plans/${planId}/rules`, {
+  setReferralPayoutSwitch: (data: ReferralSwitchRequest) =>
+    request<DoctorPayoutSettingsView>("/doctor-payouts/settings/referral", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  listDoctorIncentiveAssignments: () =>
-    request<DoctorIncentiveAssignment[]>("/incentive-assignments"),
+  listDoctorAgreements: () => request<DoctorAgreement[]>("/doctor-payouts/agreements"),
 
-  assignIncentivePlan: (data: AssignIncentivePlanRequest) =>
-    request<DoctorIncentiveAssignment>("/incentive-assignments", {
+  createDoctorAgreement: (data: DoctorAgreementInput) =>
+    request<DoctorAgreement>("/doctor-payouts/agreements", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  listIncentiveCalculations: () => request<IncentiveCalculation[]>("/incentive-calculations"),
+  updateDoctorAgreement: (id: string, data: DoctorAgreementInput) =>
+    request<DoctorAgreement>(`/doctor-payouts/agreements/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
-  calculateIncentive: (data: CalculateIncentiveRequest) =>
-    request<IncentiveCalculation>("/incentive-calculations", {
+  listPayoutRateCards: () => request<PayoutRateCard[]>("/doctor-payouts/rate-cards"),
+
+  createPayoutRateCard: (data: CreatePayoutRateCard) =>
+    request<string>("/doctor-payouts/rate-cards", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  approveIncentive: (id: string, data: ApproveIncentiveRequest) =>
-    request<IncentiveCalculation>(`/incentive-calculations/${id}/approve`, {
+  newPayoutRateCardVersion: (id: string, effectiveFrom: string) =>
+    request<string>(`/doctor-payouts/rate-cards/${id}/versions`, {
+      method: "POST",
+      body: JSON.stringify({ effective_from: effectiveFrom }),
+    }),
+
+  listPayoutRules: (cardId: string) =>
+    request<PayoutRule[]>(`/doctor-payouts/rate-cards/${cardId}/rules`),
+
+  addPayoutRule: (cardId: string, data: PayoutRuleInput) =>
+    request<PayoutRule>(`/doctor-payouts/rate-cards/${cardId}/rules`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  markIncentivePaid: (id: string, data: MarkIncentivePaidRequest) =>
-    request<IncentiveCalculation>(`/incentive-calculations/${id}/paid`, {
+  removePayoutRule: (cardId: string, ruleId: string) =>
+    request<string>(`/doctor-payouts/rate-cards/${cardId}/rules/${ruleId}`, {
+      method: "DELETE",
+    }),
+
+  calculatePayout: (cardId: string, data: PayoutCalcInput) =>
+    request<PayoutCalcResult>(`/doctor-payouts/rate-cards/${cardId}/calculate`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  listPayoutLedger: (q: PayoutLedgerQuery) =>
+    request<PayoutLedgerLine[]>(
+      `/doctor-payouts/ledger?${new URLSearchParams(
+        Object.entries(q).filter((e): e is [string, string] => Boolean(e[1])),
+      ).toString()}`,
+    ),
+
+  listPayoutStatements: (status?: string, kind?: string) =>
+    request<PayoutStatement[]>(
+      `/doctor-payouts/statements?${new URLSearchParams({
+        ...(status ? { status } : {}),
+        ...(kind ? { kind } : {}),
+      }).toString()}`,
+    ),
+
+  getPayoutStatement: (id: string) =>
+    request<PayoutStatementDetail>(`/doctor-payouts/statements/${id}`),
+
+  preparePayoutStatement: (data: PreparePayoutStatement) =>
+    request<PayoutStatementDetail>("/doctor-payouts/statements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  adjustPayoutStatement: (id: string, data: { amount: string; reason: string }) =>
+    request<PayoutStatementDetail>(`/doctor-payouts/statements/${id}/adjust`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  disputePayoutStatement: (id: string, reason: string) =>
+    request<PayoutStatement>(`/doctor-payouts/statements/${id}/dispute`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  approvePayoutStatement: (id: string) =>
+    request<PayoutStatement>(`/doctor-payouts/statements/${id}/approve`, { method: "POST" }),
+
+  listDoctorPayouts: (status?: string) =>
+    request<DoctorPayout[]>(`/doctor-payouts/payouts${status ? `?status=${status}` : ""}`),
+
+  runDoctorPayouts: (data: RunPayoutsRequest) =>
+    request<RunPayoutsResult>("/doctor-payouts/payouts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  markDoctorPayoutPaid: (id: string, utr?: string) =>
+    request<string>(`/doctor-payouts/payouts/${id}/paid`, {
+      method: "POST",
+      body: JSON.stringify({ utr }),
+    }),
+
+  markDoctorPayoutFailed: (id: string, reason: string) =>
+    request<string>(`/doctor-payouts/payouts/${id}/failed`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  getPayoutBankFile: (runId: string) =>
+    request<PayoutBankFile>(`/doctor-payouts/runs/${runId}/bank-file`),
+
+  getDaySettlement: (doctorId: string, date: string) =>
+    request<DaySettlementSummary>(`/doctor-payouts/day?doctor_id=${doctorId}&date=${date}`),
+
+  settleDoctorDay: (data: SettleDayRequest) =>
+    request<SettleDayResult>("/doctor-payouts/day/settle", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  createReferralStatement: (data: ReferralStatementRequest) =>
+    request<PayoutStatementDetail>("/doctor-payouts/referral-statements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getDoctorPayoutSummary: (from: string, to: string) =>
+    request<DoctorPayoutSummaryRow[]>(`/doctor-payouts/reports/summary?from=${from}&to=${to}`),
+
+  getPayoutTdsRegister: (financialYear: string) =>
+    request<PayoutTdsRow[]>(`/doctor-payouts/reports/tds?financial_year=${financialYear}`),
+
+  getReferralCompliance: (financialYear: string) =>
+    request<ReferralComplianceReport>(
+      `/doctor-payouts/reports/referral-compliance?financial_year=${financialYear}`,
+    ),
+
+  getMyEarnings: (from: string, to: string) =>
+    request<PayoutLedgerLine[]>(`/doctor-payouts/me/ledger?from=${from}&to=${to}`),
+
+  getMyPayoutStatements: () => request<PayoutStatement[]>("/doctor-payouts/me/statements"),
+
+  disputeMyPayoutStatement: (id: string, reason: string) =>
+    request<PayoutStatement>(`/doctor-payouts/me/statements/${id}/dispute`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     }),
 
   // ── Device Integration ──────────────────────────────────────

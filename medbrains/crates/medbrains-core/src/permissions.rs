@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 816;
+pub const PERMISSION_COUNT: usize = 825;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -736,6 +736,62 @@ pub mod billing {
         pub const LIST: &str = "billing.concessions.list";
         pub const CREATE: &str = "billing.concessions.create";
         pub const APPROVE: &str = "billing.concessions.approve";
+    }
+}
+
+/// Doctor payouts: agreements, rate cards, the earnings ledger, statements and payouts.
+///
+/// Each screen has its own permission so a cashier can settle a day doctor
+/// without being able to approve a monthly statement, and the person who
+/// prepares a statement is never the one who approves it.
+pub mod doctor_payouts {
+    pub mod agreements {
+        /// Manage doctor payout agreements.
+        /// Set how each doctor is engaged and paid: earning basis, discount sharing, TDS section, PAN, bank or UPI.
+        pub const MANAGE: &str = "doctor_payouts.agreements.manage";
+    }
+    pub mod rate_cards {
+        /// Manage payout rate cards.
+        /// Write the versioned rates: per service, category or package, fixed or percentage, by payer class and role.
+        pub const MANAGE: &str = "doctor_payouts.rate_cards.manage";
+    }
+    pub mod ledger {
+        /// View the doctors' earnings ledger.
+        /// See every accrual, reversal and adjustment for any doctor.
+        pub const VIEW: &str = "doctor_payouts.ledger.view";
+    }
+    pub mod statements {
+        /// Prepare doctor payout statements.
+        /// Gather a doctor's earnings for a period into a statement, adjust it with a reason, record disputes.
+        pub const PREPARE: &str = "doctor_payouts.statements.prepare";
+        /// Approve doctor payout statements.
+        /// Approve a statement someone else prepared; TDS is computed on approval.
+        pub const APPROVE: &str = "doctor_payouts.statements.approve";
+    }
+    pub mod payouts {
+        /// Pay approved doctor statements.
+        /// Run payouts by bank file, RazorpayX or cash, and record the bank reference.
+        pub const EXECUTE: &str = "doctor_payouts.payouts.execute";
+    }
+    pub mod day_settlement {
+        /// Settle a day doctor's session.
+        /// At session close, pay a visiting or day doctor what the day earned, by cash, UPI or bank.
+        pub const EXECUTE: &str = "doctor_payouts.day_settlement.execute";
+    }
+    pub mod reports {
+        /// View doctor payout reports.
+        /// Doctor-wise earnings and payouts, the TDS register and the referral compliance report.
+        pub const VIEW: &str = "doctor_payouts.reports.view";
+    }
+    pub mod self_service {
+        /// See your own earnings.
+        /// Your accruals and statements, line by line, and dispute a statement.
+        pub const VIEW: &str = "doctor_payouts.self.view";
+    }
+    pub mod policy {
+        /// Set the hospital's payout policy.
+        /// Hospital defaults, TDS settings and the referral switches, which need a recorded acknowledgement.
+        pub const MANAGE: &str = "doctor_payouts.policy.manage";
     }
 }
 
@@ -2924,7 +2980,6 @@ pub mod admin {
     pub const COMPLIANCE: &str = "admin.compliance.manage";
     pub const SYSTEM: &str = "admin.system.view";
     pub const BACKUP: &str = "admin.backup.manage";
-    pub const INCENTIVE: &str = "admin.incentive.manage";
 
     // Doctor administration (SPRINT-doctor-activities.md)
     pub mod doctors {

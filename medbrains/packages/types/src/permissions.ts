@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1105 permissions, one per constant in the Rust source. */
+/** 1114 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1228,6 +1228,67 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Approve Concessions",
     description: "Approve Concessions",
     module: "billing",
+  },
+  // doctor_payouts
+  {
+    code: "doctor_payouts.agreements.manage",
+    label: "Manage doctor payout agreements",
+    description: "Set how each doctor is engaged and paid: earning basis, discount sharing, TDS section, PAN, bank or UPI.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.rate_cards.manage",
+    label: "Manage payout rate cards",
+    description: "Write the versioned rates: per service, category or package, fixed or percentage, by payer class and role.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.ledger.view",
+    label: "View the doctors' earnings ledger",
+    description: "See every accrual, reversal and adjustment for any doctor.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.statements.prepare",
+    label: "Prepare doctor payout statements",
+    description: "Gather a doctor's earnings for a period into a statement, adjust it with a reason, record disputes.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.statements.approve",
+    label: "Approve doctor payout statements",
+    description: "Approve a statement someone else prepared; TDS is computed on approval.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.payouts.execute",
+    label: "Pay approved doctor statements",
+    description: "Run payouts by bank file, RazorpayX or cash, and record the bank reference.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.day_settlement.execute",
+    label: "Settle a day doctor's session",
+    description: "At session close, pay a visiting or day doctor what the day earned, by cash, UPI or bank.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.reports.view",
+    label: "View doctor payout reports",
+    description: "Doctor-wise earnings and payouts, the TDS register and the referral compliance report.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.self.view",
+    label: "See your own earnings",
+    description: "Your accruals and statements, line by line, and dispute a statement.",
+    module: "doctor_payouts",
+  },
+  {
+    code: "doctor_payouts.policy.manage",
+    label: "Set the hospital's payout policy",
+    description: "Hospital defaults, TDS settings and the referral switches, which need a recorded acknowledgement.",
+    module: "doctor_payouts",
   },
   // ipd
   {
@@ -5386,12 +5447,6 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
-    code: "admin.incentive.manage",
-    label: "Manage Incentive",
-    description: "Manage Incentive",
-    module: "admin",
-  },
-  {
     code: "admin.doctors.list",
     label: "List Doctors",
     description: "Admin list of doctor profiles",
@@ -6833,7 +6888,6 @@ export const P = {
     },
     DOCTOR_PACKAGES_LIST: "admin.doctor_packages.list",
     DOCTOR_PACKAGES_MANAGE: "admin.doctor_packages.manage",
-    INCENTIVE_MANAGE: "admin.incentive.manage",
     MIGRATION_MANAGE: "admin.migration.manage",
     NOTIFICATIONS: {
       SIMULATOR: {
@@ -7738,6 +7792,46 @@ export const P = {
     },
     SIGNOFFS_VERBAL_REGISTER: "doctor.signoffs.verbal_register",
     SIGNOFFS_VIEW_OWN: "doctor.signoffs.view_own",
+  },
+  DOCTOR_PAYOUTS: {
+    AGREEMENTS: {
+      MANAGE: "doctor_payouts.agreements.manage",
+    },
+    AGREEMENTS_MANAGE: "doctor_payouts.agreements.manage",
+    DAY_SETTLEMENT: {
+      EXECUTE: "doctor_payouts.day_settlement.execute",
+    },
+    DAY_SETTLEMENT_EXECUTE: "doctor_payouts.day_settlement.execute",
+    LEDGER: {
+      VIEW: "doctor_payouts.ledger.view",
+    },
+    LEDGER_VIEW: "doctor_payouts.ledger.view",
+    PAYOUTS: {
+      EXECUTE: "doctor_payouts.payouts.execute",
+    },
+    PAYOUTS_EXECUTE: "doctor_payouts.payouts.execute",
+    POLICY: {
+      MANAGE: "doctor_payouts.policy.manage",
+    },
+    POLICY_MANAGE: "doctor_payouts.policy.manage",
+    RATE_CARDS: {
+      MANAGE: "doctor_payouts.rate_cards.manage",
+    },
+    RATE_CARDS_MANAGE: "doctor_payouts.rate_cards.manage",
+    REPORTS: {
+      VIEW: "doctor_payouts.reports.view",
+    },
+    REPORTS_VIEW: "doctor_payouts.reports.view",
+    SELF_SERVICE: {
+      VIEW: "doctor_payouts.self.view",
+    },
+    SELF_VIEW: "doctor_payouts.self.view",
+    STATEMENTS: {
+      APPROVE: "doctor_payouts.statements.approve",
+      PREPARE: "doctor_payouts.statements.prepare",
+    },
+    STATEMENTS_APPROVE: "doctor_payouts.statements.approve",
+    STATEMENTS_PREPARE: "doctor_payouts.statements.prepare",
   },
   DOCUMENTS: {
     AUDIT: {
@@ -10082,6 +10176,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DOCTOR.SIGNATURE.VERIFY,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.DOCTOR.SIGNOFFS.VIEW_OWN,
+      P.DOCTOR_PAYOUTS.SELF_SERVICE.VIEW,
       P.DOCUMENTS.AUDIT.LIST,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -10846,6 +10941,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CAMP.BILLING.CREATE,
       P.CAMP.BILLING.LIST,
       P.DASHBOARD.VIEW,
+      P.DOCTOR_PAYOUTS.DAY_SETTLEMENT.EXECUTE,
+      P.DOCTOR_PAYOUTS.LEDGER.VIEW,
+      P.DOCTOR_PAYOUTS.REPORTS.VIEW,
+      P.DOCTOR_PAYOUTS.STATEMENTS.PREPARE,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
       P.DOCUMENTS.TEMPLATES.LIST,
@@ -11039,6 +11138,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.CONSENT.AUDIT.LIST,
       P.CONSENT.TEMPLATES.LIST,
       P.DASHBOARD.VIEW,
+      P.DOCTOR_PAYOUTS.LEDGER.VIEW,
+      P.DOCTOR_PAYOUTS.REPORTS.VIEW,
       P.DOCUMENTS.AUDIT.LIST,
       P.DOCUMENTS.REVIEW.LIST,
       P.DOCUMENTS.TEMPLATES.LIST,

@@ -629,6 +629,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_order_basket::router())
         // ── Doctor Packages (admin) ─────────────────────────
         .merge(medbrains_doctor_packages::router())
+        .merge(medbrains_doctor_payouts::router())
         // ── Patient Packages ────────────────────────────────
         .merge(medbrains_patient_packages::router())
         // ── Doctor Coverage (admin) ─────────────────────────

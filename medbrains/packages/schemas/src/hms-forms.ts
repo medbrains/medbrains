@@ -1927,6 +1927,8 @@ export const billingInvoiceItemFormSchema = z.object({
   quantity: positiveFormInteger,
   unit_price: nonNegativeNumber("Unit price cannot be negative"),
   tax_percent: boundedTaxPercent,
+  /** The doctor credited for the service; blank lets the source record decide. */
+  performing_doctor_id: z.string(),
 });
 
 export const billingPaymentFormSchema = z.object({
