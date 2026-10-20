@@ -1,16 +1,25 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { useHasAnyPermission } from "@medbrains/stores";
-import type { PaymentTerminal, PosSaleView } from "@medbrains/types";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import type { PaymentTerminal, PosSaleView, PosTender } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCreditCard } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Badge, type BadgeTone, Button, NumberField, Select } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  NumberField,
+  SegmentedControl,
+  Select,
+} from "@/components/ui";
 import { useCounterStation } from "@/hooks/useCounterStation";
 import { pollUntil } from "@/lib/razorpay-checkout";
 import { paymentsService } from "@/services/payments.service";
 import { CardSaleStatus } from "./CardSaleStatus";
-import { CARD_POLL, countersWithMachines, machineStatusLabel } from "./cardSale";
+import { CARD_POLL, countersWithMachines, machineStatusLabel, TENDERS } from "./cardSale";
+import { ResolveCardSaleModal } from "./ResolveCardSaleModal";
 
 interface CardTerminalPanelProps {
   /** What is due; the card may take all of it or, when editable, a part. */
@@ -47,6 +56,9 @@ export function CardTerminalPanel({
   onUseOtherMode,
 }: CardTerminalPanelProps) {
   const canUse = useHasAnyPermission([P.BILLING.PAYMENTS_CREATE, P.PHARMACY.POS_CREATE]);
+  const canResolve = useHasPermission(P.BILLING.PAYMENTS_RECONCILE);
+  const [tender, setTender] = useState<PosTender>("either");
+  const [resolving, setResolving] = useState(false);
   const [stationId, setStationId] = useCounterStation();
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [charge, setCharge] = useState<number | string>(amount);
@@ -72,6 +84,16 @@ export function CardTerminalPanel({
   const here = machines.filter((t) => t.station_id === station);
   const terminal = here.length === 1 ? here[0] : here.find((t) => t.id === pickedId);
   const toCharge = editableAmount ? Number(charge) || 0 : amount;
+  const queryClient = useQueryClient();
+  // A card payment on this bill nobody knows the outcome of — from before a
+  // reload, or another cashier's — is shown instead of charging again.
+  const unresolvedKey = ["card-sales-unresolved", invoiceId] as const;
+  const unresolvedQuery = useQuery({
+    queryKey: unresolvedKey,
+    queryFn: () => paymentsService.listUnresolvedCardSales(invoiceId ?? ""),
+    enabled: canUse && Boolean(invoiceId) && sale === null,
+  });
+  const shown = sale ?? unresolvedQuery.data?.[0] ?? null;
 
   const run = useMutation({
     mutationFn: async (terminalId: string) => {
@@ -79,6 +101,7 @@ export function CardTerminalPanel({
         terminal_id: terminalId,
         invoice_id: invoiceId,
         amount: toCharge,
+        tender,
       });
       setSale(started);
       if (started.is_final) return started;
@@ -104,6 +127,12 @@ export function CardTerminalPanel({
     mutationFn: (id: string) => paymentsService.cancelCardSale(id),
     onSuccess: setSale,
   });
+  // A sale resolved while the panel still follows it is handed back by that follow-up.
+  const onResolved = (done: PosSaleView) => {
+    setSale(done);
+    void queryClient.invalidateQueries({ queryKey: unresolvedKey });
+    if (!run.isPending && done.stage === "approved" && !done.held_for_finance) onApproved(done);
+  };
 
   if (!canUse) return null;
   if (machinesQuery.isLoading) {
@@ -128,7 +157,7 @@ export function CardTerminalPanel({
     );
   }
 
-  const busy = run.isPending || (sale !== null && !sale.is_final);
+  const busy = run.isPending || (shown !== null && !shown.is_final);
   const offline = terminal?.status === "offline";
   return (
     <Stack gap="xs" data-testid="card-terminal-panel">
@@ -185,7 +214,16 @@ export function CardTerminalPanel({
           prefix="₹"
         />
       )}
-      {terminal && !offline && !busy && !sale && (
+      {terminal && !offline && !busy && !shown && (
+        <SegmentedControl
+          aria-label="Pay with"
+          data={TENDERS}
+          value={tender}
+          onChange={(v) => setTender(v as PosTender)}
+          disabled={disabled}
+        />
+      )}
+      {terminal && !offline && !busy && !shown && (
         <Button
           tone="primary"
           leftSection={<IconCreditCard size={16} />}
@@ -195,21 +233,35 @@ export function CardTerminalPanel({
           Send {rupees(toCharge)} to {terminal.label}
         </Button>
       )}
+      {unresolvedQuery.isError && (
+        <Alert tone="warning" title="Earlier card payments could not be checked">
+          Check the machine's last slip for this bill before charging the card again.
+        </Alert>
+      )}
       {run.isError && (
         <Alert tone="danger" title="Not sent to the card machine">
           {run.error.message}
         </Alert>
       )}
-      {sale && terminal && (
+      {shown && (
         <CardSaleStatus
-          sale={sale}
+          sale={shown}
           cancelling={cancel.isPending}
-          onCancel={() => cancel.mutate(sale.transaction_id)}
+          onCancel={() => cancel.mutate(shown.transaction_id)}
           onRetry={() => {
             setSale(null);
-            run.mutate(terminal.id);
+            if (terminal) run.mutate(terminal.id);
           }}
           onUseOtherMode={onUseOtherMode}
+          onResolve={canResolve ? () => setResolving(true) : undefined}
+        />
+      )}
+      {shown && resolving && (
+        <ResolveCardSaleModal
+          sale={shown}
+          opened
+          onClose={() => setResolving(false)}
+          onResolved={onResolved}
         />
       )}
     </Stack>

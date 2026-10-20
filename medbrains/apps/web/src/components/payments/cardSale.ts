@@ -1,4 +1,4 @@
-import type { PaymentTerminal, PosSaleStage, PosSaleView } from "@medbrains/types";
+import type { PaymentTerminal, PosSaleStage, PosSaleView, PosTender } from "@medbrains/types";
 
 /** How often the counter asks the machine (it never polls faster). */
 export const CARD_POLL = {
@@ -16,10 +16,19 @@ export interface CardSaleStep {
   state: StepState;
 }
 
+/** What the patient may pay with at the machine; either is the default. */
+export const TENDERS: { value: PosTender; label: string }[] = [
+  { value: "either", label: "Card or UPI" },
+  { value: "card", label: "Card" },
+  { value: "upi", label: "UPI on machine" },
+];
+
 const RESULT_LABEL: Record<PosSaleStage, string> = {
   sent: "Result",
   waiting: "Result",
   cancelling: "Cancelling",
+  cancel_refused: "Result",
+  unknown: "Outcome unknown",
   approved: "Approved",
   declined: "Declined",
   timed_out: "Timed out",
@@ -32,7 +41,13 @@ const RESULT_LABEL: Record<PosSaleStage, string> = {
 export function cardSaleSteps(stage: PosSaleStage): CardSaleStep[] {
   const failed = ["declined", "timed_out", "cancelled", "failed"].includes(stage);
   const result: StepState =
-    stage === "approved" || stage === "refunded" ? "done" : failed ? "failed" : "todo";
+    stage === "approved" || stage === "refunded"
+      ? "done"
+      : failed
+        ? "failed"
+        : stage === "unknown"
+          ? "current"
+          : "todo";
   return [
     { label: "Sent to machine", state: stage === "sent" ? "current" : "done" },
     {
@@ -40,12 +55,21 @@ export function cardSaleSteps(stage: PosSaleStage): CardSaleStep[] {
       state:
         stage === "sent"
           ? "todo"
-          : stage === "waiting" || stage === "cancelling"
+          : stage === "waiting" || stage === "cancelling" || stage === "cancel_refused"
             ? "current"
             : "done",
     },
     { label: RESULT_LABEL[stage], state: result },
   ];
+}
+
+/**
+ * A sale nobody knows the outcome of — the machine refused the cancel, or
+ * gave no definite answer in time. A supervisor resolves it from the slip;
+ * the card is never charged again meanwhile.
+ */
+export function needsResolving(sale: PosSaleView): boolean {
+  return sale.stage === "unknown" || sale.stage === "cancel_refused";
 }
 
 /** A finished sale the cashier may run again. */
