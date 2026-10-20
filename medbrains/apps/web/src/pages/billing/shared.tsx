@@ -91,6 +91,7 @@ export const BILLING_TAB_VALUES = [
   "financial-mis",
   "erp-export",
   "concessions",
+  "payment-exceptions",
   "settings",
 ] as const;
 

@@ -14,6 +14,7 @@
 //! (`payment`). Everything else is paid at the hospital (`ON-FULFILLMENT`);
 //! a physical visit always is, at the desk where OPD bills it.
 
+use medbrains_core::secrets::SecretResolver;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -57,6 +58,7 @@ fn slot_id(body: &Value) -> Option<&str> {
 /// A database fault.
 pub async fn answer(
     tx: &mut Tx<'_>,
+    secrets: &dyn SecretResolver,
     sub: &Subscription,
     ctx: &Context,
     body: &Value,
@@ -65,8 +67,8 @@ pub async fn answer(
     let physical = txn.service == Service::PhysicalConsultation.code();
     match ctx.action.as_str() {
         "search" => search(tx, sub, body, physical).await,
-        "select" | "init" => quote(tx, sub, ctx, body, physical).await.map(Some),
-        "confirm" => confirm(tx, sub, body, txn, physical).await,
+        "select" | "init" => quote(tx, secrets, sub, ctx, body, physical).await.map(Some),
+        "confirm" => confirm(tx, secrets, sub, body, txn, physical).await,
         "cancel" => cancel(tx, txn).await.map(Some),
         "status" | "update" => Ok(Some(current(txn))),
         _ => Ok(None),
@@ -149,6 +151,7 @@ fn order(sub: &Subscription, slot: &Slot, body: &Value) -> Value {
 
 async fn quote(
     tx: &mut Tx<'_>,
+    secrets: &dyn SecretResolver,
     sub: &Subscription,
     ctx: &Context,
     body: &Value,
@@ -162,7 +165,7 @@ async fn quote(
     };
     let mut order = order(sub, &slot, body);
     if ctx.action == "init" {
-        let online = payment::pays_online(tx, sub.tenant_id, &slot).await?;
+        let online = payment::pays_online(tx, secrets, sub.tenant_id, &slot).await?;
         order["payment"] = fees::payment(online, slot.fee.as_ref());
     }
     Ok(Reply::message(json!({ "order": order })))
@@ -187,6 +190,7 @@ fn patient(body: &Value) -> Patient<'_> {
 
 async fn confirm(
     tx: &mut Tx<'_>,
+    secrets: &dyn SecretResolver,
     sub: &Subscription,
     body: &Value,
     txn: &Txn,
@@ -252,7 +256,7 @@ async fn confirm(
         order["fulfillment"]["tags"] = json!({ TAG_TELECONF_URL: url });
         Some(id)
     };
-    let online = !physical && payment::pays_online(tx, sub.tenant_id, &slot).await?;
+    let online = !physical && payment::pays_online(tx, secrets, sub.tenant_id, &slot).await?;
     order["payment"] = fees::payment(online, slot.fee.as_ref());
     sqlx::query(
         "UPDATE uhi_transactions SET appointment_id = $2, tele_consultation_id = $3, \

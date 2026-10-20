@@ -11,6 +11,7 @@ export const paymentsService = {
     api.createVirtualAccount(data),
   getPaymentStatus: (id: string) => api.getPaymentStatus(id),
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
+  initiateRefund: (data: Parameters<typeof api.initiateRefund>[0]) => api.initiateRefund(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
   requestUpiCollect: (data: Parameters<typeof api.requestUpiCollect>[0]) =>
     api.requestUpiCollect(data),

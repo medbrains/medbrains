@@ -22,6 +22,7 @@ pub use catalog::*;
 // Discounts, refunds and credit notes — money going back the other way.
 mod adjustments;
 pub use adjustments::*;
+pub mod posting;
 
 // Revenue, doctor-share, insurance-panel and reconciliation reporting.
 // Read-only: nothing here writes.
@@ -1504,12 +1505,10 @@ pub async fn record_payment(
         encounter_id: Option<Uuid>,
         admission_id: Option<Uuid>,
         status: InvoiceStatus,
-        total_amount: Decimal,
-        paid_amount: Decimal,
     }
 
     let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
-        "SELECT patient_id, encounter_id, admission_id, status, total_amount, paid_amount \
+        "SELECT patient_id, encounter_id, admission_id, status \
          FROM invoices WHERE id = $1 AND tenant_id = $2 \
          FOR UPDATE",
     )
@@ -1529,63 +1528,29 @@ pub async fn record_payment(
         ));
     }
 
-    let outstanding = (invoice.total_amount - invoice.paid_amount).round_dp(2);
-    if outstanding <= Decimal::ZERO {
-        return Err(AppError::BadRequest(
-            "Invoice has no outstanding balance".to_owned(),
-        ));
-    }
-    if payment_amount > outstanding {
-        return Err(AppError::BadRequest(format!(
-            "Payment exceeds outstanding balance of {outstanding}"
-        )));
-    }
-
-    let payment = sqlx::query_as::<_, Payment>(
-        "INSERT INTO payments \
-         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, \
-          counter_id, shift, paid_at) \
-         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, $8, $9, now()) \
-         RETURNING *",
+    let posted = posting::post_payment(
+        &mut tx,
+        &posting::PostPayment {
+            tenant_id: claims.tenant_id,
+            invoice_id,
+            amount: payment_amount,
+            mode: &body.mode,
+            reference_number: body.reference_number.as_deref(),
+            notes: body.notes.as_deref(),
+            received_by: Some(claims.sub),
+            counter_id: body
+                .counter_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty()),
+            shift: body.shift.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+        },
     )
-    .bind(claims.tenant_id)
-    .bind(invoice_id)
-    .bind(payment_amount)
-    .bind(&body.mode)
-    .bind(&body.reference_number)
-    .bind(claims.sub)
-    .bind(&body.notes)
-    .bind(
-        body.counter_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.shift
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .fetch_one(&mut *tx)
     .await?;
-
-    // Update paid_amount and status
-    sqlx::query(
-        "UPDATE invoices SET \
-         paid_amount = paid_amount + $1, \
-         status = CASE \
-           WHEN paid_amount + $1 >= total_amount THEN 'paid'::invoice_status \
-           ELSE 'partially_paid'::invoice_status \
-         END, \
-         updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
-    )
-    .bind(payment_amount)
-    .bind(invoice_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let payment = match posted {
+        posting::Posted::Done(payment) => payment,
+        posting::Posted::Refused(why) => return Err(AppError::BadRequest(why)),
+    };
 
     let bill = PaymentBill {
         invoice_id,

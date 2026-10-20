@@ -1,0 +1,13 @@
+-- ====================================================================
+-- Migration: 1141_payment_mode_wallet.sql
+-- RLS-Posture: not-tenant-scoped
+-- Tenant-Column: none
+-- New-Tables: none
+-- Drops: none
+-- ====================================================================
+-- A patient who pays online from a wallet (Paytm, Amazon Pay, PhonePe
+-- wallet) is posted to the bill as a wallet payment, not as UPI or card:
+-- the receipt, the day close and the gateway settlement report have to say
+-- how the money came. Added, never used in this migration (an enum value
+-- cannot be used in the transaction that adds it).
+ALTER TYPE public.payment_mode ADD VALUE IF NOT EXISTS 'wallet';

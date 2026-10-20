@@ -145,6 +145,9 @@ pub async fn create_day_close(
     let mut total_cheque = Decimal::ZERO;
     let mut total_bank = Decimal::ZERO;
     let mut total_insurance = Decimal::ZERO;
+    // Online wallet payments have no column of their own, but they were
+    // collected and belong in the day's total.
+    let mut total_wallet = Decimal::ZERO;
     let mut payments_count: i64 = 0;
 
     for mt in &mode_totals {
@@ -156,12 +159,18 @@ pub async fn create_day_close(
             "cheque" => total_cheque = mt.total,
             "bank_transfer" => total_bank = mt.total,
             "insurance" => total_insurance = mt.total,
+            "wallet" => total_wallet = mt.total,
             _ => {}
         }
     }
 
-    let total_collected =
-        expected_cash + total_card + total_upi + total_cheque + total_bank + total_insurance;
+    let total_collected = expected_cash
+        + total_card
+        + total_upi
+        + total_cheque
+        + total_bank
+        + total_insurance
+        + total_wallet;
     let cash_difference = body.actual_cash - expected_cash;
     // Settlement reconciliation: a non-zero figure means the desk
     // entered a POS/bank total to match against the system.

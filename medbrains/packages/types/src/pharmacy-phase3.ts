@@ -335,7 +335,10 @@ export interface UpiDeepLinkResponse {
 }
 
 export interface InitiateRefundRequest {
-  transaction_id: string;
+  /** The gateway row, or… */
+  transaction_id?: string;
+  /** …the bill's payment row it posted as. */
+  payment_id?: string;
   amount?: number;
   reason?: string;
 }

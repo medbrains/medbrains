@@ -191,7 +191,15 @@ async fn process(
     let txn = record(&mut tx, sub.tenant_id, ctx, service, body).await?;
     let reply = match service {
         Service::Teleconsultation | Service::PhysicalConsultation => {
-            teleconsult::answer(&mut tx, sub, ctx, body, &txn).await
+            teleconsult::answer(
+                &mut tx,
+                state.secret_resolver.as_ref(),
+                sub,
+                ctx,
+                body,
+                &txn,
+            )
+            .await
         }
         Service::LabTests => labs::answer(&mut tx, sub, ctx, body, &txn).await,
         Service::BloodBank | Service::Ambulance => {

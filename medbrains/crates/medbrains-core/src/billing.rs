@@ -25,6 +25,8 @@ pub enum PaymentMode {
     Cheque,
     Insurance,
     Credit,
+    /// Paid online from a wallet (Paytm, Amazon Pay…).
+    Wallet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

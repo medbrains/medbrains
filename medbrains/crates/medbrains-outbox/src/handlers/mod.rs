@@ -1,7 +1,6 @@
 //! Built-in handlers for outbound integrations.
 //!
 //! Real handlers (typed, hit external partners):
-//! - `razorpay`  — `payment.create_order`, payment.refund
 //! - `twilio`    — sms.* (real Twilio REST; falls back to stub when creds unset)
 //! - `email_stub` — email.* (`SendGrid` HTTP API; SES pending `SigV4`)
 //! - `whatsapp`  — whatsapp.* (Meta Cloud API)
@@ -24,7 +23,6 @@ pub mod payu;
 pub mod phonepe;
 pub mod pinelabs;
 pub mod pipeline_fallback;
-pub mod razorpay;
 pub mod razorpayx;
 pub mod teams;
 pub mod twilio;
