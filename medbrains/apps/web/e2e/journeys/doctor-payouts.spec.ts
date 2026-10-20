@@ -15,13 +15,23 @@ import { expect, test } from "./support/world";
 const COMPOSE_DIR = fileURLToPath(new URL("../../../../", import.meta.url));
 const tag = () => crypto.randomUUID().slice(0, 6).toUpperCase();
 
-/** One value from the database the screens wrote to (local docker compose). */
+/**
+ * One value from the database the screens wrote to: `E2E_DATABASE_URL` when
+ * the stack under test has its own database, else the local docker compose
+ * one. Never empty — an empty answer means the wrong database, not "nothing".
+ */
 function db(sql: string): string {
-  return execFileSync(
-    "docker",
-    ["compose", "exec", "-T", "postgres", "psql", "-U", "medbrains", "-d", "medbrains", "-tAc", sql],
-    { cwd: COMPOSE_DIR, encoding: "utf8" },
-  ).trim();
+  const url = process.env.E2E_DATABASE_URL;
+  const out = url
+    ? execFileSync("psql", [url, "-tAc", sql], { encoding: "utf8" })
+    : execFileSync(
+        "docker",
+        ["compose", "exec", "-T", "postgres", "psql", "-U", "medbrains", "-d", "medbrains", "-tAc", sql],
+        { cwd: COMPOSE_DIR, encoding: "utf8" },
+      );
+  const value = out.trim();
+  if (value === "") throw new Error(`no row for: ${sql} — is E2E_DATABASE_URL the server's database?`);
+  return value;
 }
 
 const uuid = (v: string) => {
@@ -157,16 +167,17 @@ test("a monthly statement is prepared, approved by someone else and paid", async
   const payout = page.getByRole("row").filter({ hasText: name }).filter({ hasText: "pending" });
   await payout.getByRole("button", { name: "Record result" }).click();
   const modal = page.getByRole("dialog", { name: "What happened to this payout?" });
-  await modal.getByRole("textbox", { name: "UTR" }).fill("HDFCN52026102012345");
+  const utr = `HDFCN${Date.now()}`;
+  await modal.getByRole("textbox", { name: "UTR" }).fill(utr);
   await modal.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("row").filter({ hasText: "HDFCN52026102012345" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: utr })).toBeVisible();
 
   const id = uuid(doctor.id);
   expect(
     db(
       `SELECT status || '|' || payment_reference || '|' || (approved_by <> prepared_by)::text FROM incentive_calculations WHERE doctor_id = '${id}' AND kind = 'monthly'`,
     ),
-  ).toBe("paid|HDFCN52026102012345|true");
+  ).toBe(`paid|${utr}|true`);
 });
 
 test("a doctor sees their own earnings and nobody else's", async ({ hospital }) => {
