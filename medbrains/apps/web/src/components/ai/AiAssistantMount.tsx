@@ -15,6 +15,7 @@ import type { ChatRole } from "./transport/types";
 import { useAiChat } from "./useAiChat";
 import { useDraggableFab } from "./useDraggableFab";
 
+// ai-label-exempt: mounts AiChatPanel, which carries the label; history titles are the user's own question.
 const DEFAULT_SUGGESTIONS = [
   "Summarize this patient's labs",
   "Draft a discharge note",

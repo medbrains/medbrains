@@ -7,6 +7,8 @@ export interface NoteSection {
   text: string;
   /** A structured section's record (history, review of systems, examination). */
   data?: unknown;
+  /** The author accepted AI-drafted text into this section; it stays marked. */
+  ai_assisted?: boolean;
 }
 
 /** A change to one section of a draft: what is sent replaces, the rest stays. */
@@ -14,6 +16,8 @@ export interface NoteSectionPatch {
   code: string;
   text?: string;
   data?: unknown;
+  /** This patch carries AI-drafted text the author explicitly accepted (audited). */
+  ai_accepted?: boolean;
 }
 
 export type ClinicalNoteCategory = "physician" | "nursing" | "allied";

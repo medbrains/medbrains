@@ -1257,3 +1257,73 @@ async fn an_unregistered_opd_visit_opens_no_case_sheet_under_the_lock() {
     assert_eq!(refused.0, StatusCode::CONFLICT, "{}", refused.1);
     assert_eq!(allowed.0, StatusCode::OK, "{}", allowed.1);
 }
+
+fn section<'a>(note: &'a Value, code: &str) -> &'a Value {
+    note["sections"]
+        .as_array()
+        .and_then(|all| all.iter().find(|s| s["code"] == code))
+        .expect("section")
+}
+
+/// Given AI-drafted text the doctor explicitly accepts into the plan (#4895),
+/// Then that section is marked AI-assisted and the audit log names who
+/// accepted it; an ordinary autosave marks nothing and writes no such row.
+#[tokio::test]
+async fn accepted_ai_text_is_marked_and_audited_with_who_accepted_it() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let encounter = encounter(&app, &csrf).await;
+    let notes = format!("/api/encounters/{encounter}/clinical-notes");
+    let (status, note) = call(
+        &app,
+        &csrf,
+        "POST",
+        &notes,
+        json!({ "note_type_code": "consultation" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{note}");
+    let id = note["id"].as_str().expect("note id").to_owned();
+    let draft = format!("/api/clinical-notes/{id}/draft");
+
+    let (status, typed) = call(&app, &csrf, "PUT", &draft, soap("Fever two days", "Rest")).await;
+    assert_eq!(status, StatusCode::OK, "{typed}");
+    assert!(
+        section(&typed, "plan").get("ai_assisted").is_none(),
+        "typed text is not AI"
+    );
+
+    let accept = json!({ "sections": [
+        { "code": "plan", "text": "Paracetamol 500 mg if fever", "ai_accepted": true },
+    ]});
+    let (status, accepted) = call(&app, &csrf, "PUT", &draft, accept).await;
+    assert_eq!(status, StatusCode::OK, "{accepted}");
+    assert_eq!(section(&accepted, "plan")["ai_assisted"], true);
+    assert!(
+        section(&accepted, "subjective")
+            .get("ai_assisted")
+            .is_none()
+    );
+
+    let note_id = Uuid::parse_str(&id).expect("uuid");
+    let rows: Vec<(Option<Uuid>, Value)> = sqlx::query_as(
+        "SELECT user_id, new_values FROM audit_log \
+          WHERE entity_id = $1 AND action = 'ai_content_accepted'",
+    )
+    .bind(note_id)
+    .fetch_all(&app.db)
+    .await
+    .expect("audit rows");
+    assert_eq!(
+        rows.len(),
+        1,
+        "one acceptance, one row; the plain autosave wrote none"
+    );
+    let admin: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE username = 'admin'")
+        .fetch_one(&app.db)
+        .await
+        .expect("admin");
+    assert_eq!(rows[0].0, Some(admin), "the row names who accepted it");
+    assert_eq!(rows[0].1["sections"], json!(["plan"]));
+    assert_eq!(rows[0].1["ai_generated"], true);
+}
