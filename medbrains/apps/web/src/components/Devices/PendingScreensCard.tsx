@@ -5,7 +5,8 @@ import type { DevicePairingRequest } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Button, Card, Select, toast } from "@/components/ui";
-import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
+import { DEPARTMENT_LIST_CODES, STATION_LIST_CODES } from "@/lib/api-permission-sets";
+import { ScreenUrlHint } from "./ScreenUrlHint";
 
 /** The boards a waiting-room screen can show. */
 export const BOARDS = [
@@ -15,25 +16,39 @@ export const BOARDS = [
   { value: "lab", label: "Laboratory" },
   { value: "radiology", label: "Radiology" },
   { value: "billing", label: "Billing" },
+  { value: "counter_display", label: "Customer display (counter)" },
 ];
+
+/** A customer display is bound to a counter, not a department (#4883). */
+const COUNTER_DISPLAY = "counter_display";
+const COUNTER_TYPES = new Set(["billing_counter", "pharmacy_counter"]);
+
+interface Option {
+  value: string;
+  label: string;
+}
 
 interface ScreenRowProps {
   request: DevicePairingRequest;
-  departments: { value: string; label: string }[];
+  departments: Option[];
+  counters: Option[];
 }
 
 /** One screen asking to be paired: choose its board, then approve or deny. */
-function ScreenRow({ request, departments }: ScreenRowProps) {
+function ScreenRow({ request, departments, counters }: ScreenRowProps) {
   const queryClient = useQueryClient();
   const [board, setBoard] = useState<string | null>("opd");
   const [department, setDepartment] = useState<string | null>(null);
+  const [counter, setCounter] = useState<string | null>(null);
+  const isCounter = board === COUNTER_DISPLAY;
   const decide = useMutation({
     mutationFn: (deny: boolean) =>
       api.approveDevicePairingRequest({
         user_code: request.user_code,
         deny,
-        department_id: deny ? undefined : (department ?? undefined),
+        department_id: deny || isCounter ? undefined : (department ?? undefined),
         board_module: deny ? undefined : (board ?? undefined),
+        station_id: deny || !isCounter ? undefined : (counter ?? undefined),
       }),
     onSuccess: (_, deny) => {
       void queryClient.invalidateQueries({ queryKey: ["device-pairing-requests"] });
@@ -58,21 +73,35 @@ function ScreenRow({ request, departments }: ScreenRowProps) {
           </Text>
         </Stack>
         <Select label="Board" data={BOARDS} value={board} onChange={setBoard} w={160} />
-        <Select
-          label="Department"
-          placeholder="Which department"
-          data={departments}
-          value={department}
-          onChange={setDepartment}
-          searchable
-          w={220}
-          data-testid={`picker-screen-department-${request.user_code}`}
-        />
+        {isCounter ? (
+          <Select
+            label="Counter"
+            placeholder="Which counter"
+            data={counters}
+            value={counter}
+            onChange={setCounter}
+            searchable
+            w={220}
+            nothingFoundMessage="No billing or pharmacy counters — add one under Manage stations"
+            data-testid={`picker-screen-counter-${request.user_code}`}
+          />
+        ) : (
+          <Select
+            label="Department"
+            placeholder="Which department"
+            data={departments}
+            value={department}
+            onChange={setDepartment}
+            searchable
+            w={220}
+            data-testid={`picker-screen-department-${request.user_code}`}
+          />
+        )}
         <Button
           tone="primary"
           onClick={() => decide.mutate(false)}
           loading={decide.isPending}
-          disabled={!board || !department}
+          disabled={!board || !(isCounter ? counter : department)}
           data-testid={`btn-approve-screen-${request.user_code}`}
         >
           Approve
@@ -105,6 +134,16 @@ export function PendingScreensCard() {
     staleTime: 600_000,
   });
   const departmentOptions = (departments.data ?? []).map((d) => ({ value: d.id, label: d.name }));
+  const canListStations = useHasAnyPermission(STATION_LIST_CODES);
+  const stations = useQuery({
+    queryKey: ["stations"],
+    queryFn: () => api.listStations(),
+    enabled: canListStations,
+    staleTime: 600_000,
+  });
+  const counterOptions = (stations.data ?? [])
+    .filter((s) => COUNTER_TYPES.has(s.station_type) && s.is_active)
+    .map((s) => ({ value: s.id, label: s.name }));
 
   return (
     <Card>
@@ -116,8 +155,19 @@ export function PendingScreensCard() {
             No screens are waiting. Open the waiting-room board on the TV to get a code.
           </Text>
         )}
+        <ScreenUrlHint />
+        {stations.isError && (
+          <Alert tone="warning">
+            Could not load the counters, so a customer display cannot be paired.
+          </Alert>
+        )}
         {(requests.data ?? []).map((request) => (
-          <ScreenRow key={request.id} request={request} departments={departmentOptions} />
+          <ScreenRow
+            key={request.id}
+            request={request}
+            departments={departmentOptions}
+            counters={counterOptions}
+          />
         ))}
       </Stack>
     </Card>
