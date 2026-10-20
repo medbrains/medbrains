@@ -377,6 +377,14 @@ pub async fn update_insurance_claim(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Doctors paid on insurer realisation earn their share when it settles,
+    // cut down by what the insurer disallowed.
+    medbrains_doctor_payouts::accrual::sync_after_money(
+        &mut tx,
+        claims.tenant_id,
+        claim.invoice_id,
+    )
+    .await?;
 
     // The patient hears about an approval once, on the change into it.
     if claim.status == "claim_approved" && gate.status != "claim_approved" {

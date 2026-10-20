@@ -118,5 +118,7 @@
   "hospitalBinding": "अस्पताल बाइंडिंग",
   "materials": "सामग्री प्रबंधन",
   "approvals": "अनुमोदन",
-  "onboardingWorkbook": "ऑनबोर्डिंग वर्कबुक"
+  "onboardingWorkbook": "ऑनबोर्डिंग वर्कबुक",
+  "doctorPayouts": "डॉक्टर भुगतान",
+  "myEarnings": "मेरी कमाई"
 }

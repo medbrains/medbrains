@@ -31,6 +31,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // A doctor sees only their own earnings (a per-record check).
+            permissions::doctor_payouts::self_service::VIEW,
             permissions::terminology::snomed::VIEW,
             permissions::forms::definitions::READ,
             // A department head decides the first step of their staff's leave;
@@ -992,6 +994,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::gst_returns::LIST,
             permissions::billing::gst_returns::MANAGE,
             permissions::billing::erp::EXPORT,
+            // Doctor payouts — prepare and settle; approval and payout runs
+            // stay with finance (maker-checker).
+            permissions::doctor_payouts::ledger::VIEW,
+            permissions::doctor_payouts::statements::PREPARE,
+            permissions::doctor_payouts::day_settlement::EXECUTE,
+            permissions::doctor_payouts::reports::VIEW,
             permissions::camp::billing::LIST,
             permissions::camp::billing::CREATE,
             permissions::emergency::visits::LIST,
@@ -1190,6 +1198,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         permissions: &[
             permissions::terminology::snomed::ANALYTICS,
             permissions::admin::settings::READ,
+            permissions::doctor_payouts::ledger::VIEW,
+            permissions::doctor_payouts::reports::VIEW,
             permissions::dashboard::VIEW,
             permissions::notes::USE,
             permissions::patients::LIST,
