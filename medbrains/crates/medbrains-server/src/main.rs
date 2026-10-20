@@ -69,37 +69,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = AppConfig::from_env()?;
 
-    // The message simulator stores SMS, WhatsApp and email instead of sending
-    // them. On in production it would silently stop every real patient
-    // message, so the server does not start at all.
-    if medbrains_outbox::simulator::enabled() && config.environment == "production" {
-        return Err(format!(
-            "{} is on and MEDBRAINS_ENV=production — the message simulator would stop \
-             every real SMS, WhatsApp and email. Unset it.",
-            medbrains_outbox::simulator::ENV_FLAG
-        )
-        .into());
-    }
-
-    // The pretend card machine approves whatever it is told to. On in
-    // production it would let anyone mark a bill paid by card.
-    if std::env::var(medbrains_payment_gateway::pos::simulator::ENV_FLAG).is_ok_and(|v| v == "true")
-        && config.environment == "production"
-    {
-        return Err(format!(
-            "{} is on and MEDBRAINS_ENV=production — the card machine simulator would mark \
-             bills paid that no card paid. Unset it.",
-            medbrains_payment_gateway::pos::simulator::ENV_FLAG
-        )
-        .into());
-    }
-
     // Sub-commands run via the same binary so we share code/config:
     //   medbrains-server audit verify-chain [--tenant=<uuid>|--all]
     // RFC-INFRA-2026-002 Phase 2 deliverable.
     let args: Vec<String> = std::env::args().collect();
     if args.len() >= 3 && args[1] == "audit" && args[2] == "verify-chain" {
         return run_verify_chain(&config, &args[3..]).await;
+    }
+    // `medbrains-server preflight`: the startup checks without starting the
+    // server — exit 1 when any failed. For installs and deploys to run first.
+    if args.get(1).is_some_and(|a| a == "preflight") {
+        return run_preflight(&config).await;
     }
     // Hybrid mode ships outbox events and audit-log entries from on-prem
     // to the cloud. `medbrains_core::boundary_filter` exists to strip PHI
@@ -174,9 +154,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             db_pool.clone()
         }
     };
-
-    // After migrations, so table ownership is visible on a fresh database.
-    warn_if_request_role_skips_rls(&db_pool).await;
 
     // A second pool for the background workers.
     //
@@ -338,22 +315,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build shared state
     let state_secret_resolver = medbrains_server::secret_backend::build_secret_resolver().await;
 
-    // Both keys fall back to a development value that is in the source. In
-    // production that would key Aadhaar fingerprints and seal the ABDM client
-    // secret with a key anyone can read, so the server does not start.
-    if config.environment == "production" {
-        for key in ["MEDBRAINS_IDENTIFIER_HMAC_KEY", "MEDBRAINS_ABDM_SECRET_KEY"] {
-            if !state_secret_resolver.get(key).await.is_ok_and(|v| v.len() >= 32) {
-                return Err(format!(
-                    "{key} could not be read or is shorter than 32 characters and \
-                     MEDBRAINS_ENV=production — the development key would be used. \
-                     Set it: openssl rand -base64 48"
-                )
-                .into());
-            }
-        }
-    }
-
     let s3_client = S3PresignClient::from_config(&config).await.map(Arc::new);
 
     // Generated-document storage: MEDBRAINS_OBJECTS_HOT (deploy kit
@@ -408,6 +369,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // DEFAULT. Cheap, idempotent, and the only thing that repairs a tenant
     // whose roles table was never populated — or was emptied.
     medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
+
+    // Every startup check, reported at once; production does not serve on a
+    // failure. After seeding, so a fresh database is judged as it will run.
+    let findings = medbrains_server::preflight::run(
+        &config,
+        state.secret_resolver.as_ref(),
+        &medbrains_server::preflight::Pools { request: &db_pool, owner: &bootstrap_pool },
+    )
+    .await;
+    medbrains_server::preflight::log(&findings);
+    if medbrains_server::preflight::blocks_boot(&config, &findings) {
+        return Err(medbrains_server::preflight::failure_summary(&findings).into());
+    }
+    medbrains_infra_settings::preflight::record(findings);
 
     if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
         bootstrap_pool.close().await;
@@ -732,42 +707,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Row level security is the boundary between hospitals, and Postgres skips it
-/// for a superuser, a `BYPASSRLS` role, and the owner of a table. The request
-/// pool must be none of those (`medbrains_app`, migration 0981).
-///
-/// Logged, not fatal: installs that predate the role split connect as the
-/// owner, and refusing to boot would turn a missing safeguard into an outage.
-/// The switch is in `docs/ops/DB-ROLES.md`.
-async fn warn_if_request_role_skips_rls(pool: &sqlx::PgPool) {
-    let row = sqlx::query_as::<_, (String, bool, bool, bool)>(
-        "SELECT current_user::text, r.rolsuper, r.rolbypassrls, \
-                EXISTS (SELECT 1 FROM pg_tables t \
-                        WHERE t.schemaname = 'public' AND t.tableowner = current_user) \
-         FROM pg_roles r WHERE r.rolname = current_user",
+/// `medbrains-server preflight`: connect, check, report, exit — no migrations,
+/// no seeding, no server. Exit 1 when any check failed.
+async fn run_preflight(config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let request = medbrains_db::pool::create_pool(&config.database_url).await?;
+    let owner = match std::env::var("MIGRATION_DATABASE_URL") {
+        Ok(url) if !url.trim().is_empty() => medbrains_db::pool::create_pool(&url).await?,
+        _ => request.clone(),
+    };
+    let secrets = medbrains_server::secret_backend::build_secret_resolver().await;
+    let findings = medbrains_server::preflight::run(
+        config,
+        secrets.as_ref(),
+        &medbrains_server::preflight::Pools { request: &request, owner: &owner },
     )
-    .fetch_one(pool)
     .await;
-    match row {
-        Ok((role, superuser, bypassrls, owns_tables)) if superuser || bypassrls || owns_tables => {
-            tracing::error!(
-                role = %role,
-                superuser,
-                bypassrls,
-                owns_tables,
-                "DATABASE_URL connects as a role that row level security does not apply to — \
-                 tenant isolation rests on every query's own WHERE clause. Point DATABASE_URL \
-                 at medbrains_app (see docs/ops/DB-ROLES.md)."
-            );
-        }
-        Ok((role, ..)) => {
-            tracing::info!(role = %role, "request pool is subject to row level security");
-        }
-        Err(e) => tracing::error!(
-            error = %e,
-            "could not check whether the request pool's role is subject to row level security"
-        ),
+    medbrains_server::preflight::log(&findings);
+    if findings.iter().any(|f| f.level == medbrains_infra_settings::preflight::Level::Fail) {
+        return Err(medbrains_server::preflight::failure_summary(&findings).into());
     }
+    tracing::info!(checks = findings.len(), "preflight passed");
+    Ok(())
 }
 
 async fn shutdown_signal() {

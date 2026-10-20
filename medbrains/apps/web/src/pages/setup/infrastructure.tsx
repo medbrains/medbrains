@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { PageHeader } from "@/components";
+import { StartupChecksCard } from "@/components/admin/StartupChecksCard";
 import { AiLabel, Badge, Button, Input, Select } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -100,6 +101,8 @@ export function InfrastructurePage() {
           </Stack>
         </SimpleGrid>
       </Card>
+
+      <StartupChecksCard checks={status?.startup_checks} />
 
       <Card withBorder padding="lg">
         <Group gap="xs" mb="xs">

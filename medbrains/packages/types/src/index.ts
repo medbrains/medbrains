@@ -5364,6 +5364,16 @@ export interface InfraStatus {
   secrets_backend: string;
   /** Active deploy mode: "saas" | "hybrid" | "onprem". */
   deploy_mode: string;
+  /** What the startup checks found when this server booted. */
+  startup_checks: StartupCheck[];
+}
+
+/** One startup check's answer. A `fail` stops a production boot. */
+export interface StartupCheck {
+  check: string;
+  level: "ok" | "warn" | "fail";
+  detail: string;
+  fix: string | null;
 }
 
 export interface AiSettings {
