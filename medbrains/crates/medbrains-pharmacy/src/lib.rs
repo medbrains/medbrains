@@ -46,6 +46,7 @@ pub mod pos_counter;
 pub mod pos_returns;
 mod pos_scheduled;
 mod return_rules;
+mod terminal_tender;
 pub mod rx_safety;
 pub mod storefront;
 
@@ -7397,6 +7398,7 @@ pub async fn create_pos_sale(
                 .unwrap_or_else(|| "cash".to_owned()),
             amount: body.amount_received.unwrap_or(total),
             reference: body.payment_reference.clone(),
+            gateway_transaction_id: None,
         }]
     });
     let settlement = pos_counter::settle(total, &tender_inputs)?;
@@ -7714,6 +7716,9 @@ pub async fn create_pos_sale(
         .bind(claims.sub)
         .execute(&mut *tx)
         .await?;
+        if let Some(paid_by) = tender.gateway_transaction_id {
+            terminal_tender::claim(&mut tx, claims.tenant_id, paid_by, sale.id, tender.amount).await?;
+        }
     }
 
     if let Some(reason) = discount_reason {

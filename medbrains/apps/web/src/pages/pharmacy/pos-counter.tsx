@@ -98,6 +98,7 @@ function tenderOf(settlement: PaymentModalSettlement): PosTenderInput[] {
     mode: part.mode,
     amount: part.amount,
     reference: part.reference,
+    gateway_transaction_id: part.gateway_transaction_id,
   }));
   if (settlement.amount > 0) {
     parts.push({
@@ -105,6 +106,7 @@ function tenderOf(settlement: PaymentModalSettlement): PosTenderInput[] {
       amount:
         settlement.mode === "cash" ? (settlement.tendered ?? settlement.amount) : settlement.amount,
       reference: settlement.reference_number,
+      gateway_transaction_id: settlement.gateway_transaction_id,
     });
   }
   return parts;

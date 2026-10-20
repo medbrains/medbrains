@@ -940,6 +940,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::payments::RECONCILE,
+            permissions::billing::terminals::MANAGE,
             permissions::billing::receipts::PRINT,
             permissions::billing::receipts::REPRINT,
             permissions::billing::advances::LIST,

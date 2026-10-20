@@ -174,6 +174,8 @@ export interface PosTenderInput {
   mode: "cash" | "card" | "upi" | "credit";
   amount: number;
   reference?: string;
+  /** The approved card-machine payment this tender is. */
+  gateway_transaction_id?: string;
 }
 
 /** A patient as the pharmacy counter sees them — never more. */
@@ -262,6 +264,9 @@ export interface PaymentGatewayTransaction {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** The card machine a counter card sale ran on. */
+  terminal_id?: string | null;
+  card_auth_code?: string | null;
 }
 
 export interface CreatePaymentOrderRequest {
@@ -487,15 +492,80 @@ export interface UpdateTeleStatusRequest {
 
 export interface PosSaleRequest {
   terminal_id: string;
+  /** The bill; absent for a pharmacy counter sale not yet posted. */
   invoice_id?: string;
-  pos_sale_id?: string;
   amount: number;
 }
 
-export interface PosSaleResponse {
+/** Where a card sale stands at the machine, as the counter shows it. */
+export type PosSaleStage =
+  | "sent"
+  | "waiting"
+  | "cancelling"
+  | "approved"
+  | "declined"
+  | "timed_out"
+  | "cancelled"
+  | "failed"
+  | "refunded";
+
+export interface PosSaleView {
   transaction_id: string;
-  provider: string;
-  status: string;
+  terminal_id: string;
+  terminal_label: string;
+  invoice_id: string | null;
+  amount: string | number;
+  /** What the card covered, once approved — less than `amount` when partial. */
+  approved_amount: string | number | null;
+  stage: PosSaleStage;
+  message: string;
+  is_final: boolean;
+  reference: string | null;
+  card_last4: string | null;
+  auth_code: string | null;
+  held_for_finance: boolean;
+  created_at: string;
+}
+
+export interface TerminalProviderChoice {
+  code: string;
+  label: string;
+}
+
+export interface TerminalProviders {
+  cloud: TerminalProviderChoice[];
+  bridge_adapters: TerminalProviderChoice[];
+  simulator_enabled: boolean;
+}
+
+/** A sale waiting at a simulated card machine (dev and test only). */
+export interface SimulatedSale {
+  transaction_id: string;
+  terminal_id: string;
+  terminal_label: string;
+  amount: string | number;
+  created_at: string;
+}
+
+export type SimulatedOutcome = "approve" | "decline" | "timeout" | "offline" | "partial";
+
+/** A card sale or cancel a site bridge takes for a machine on its PC. */
+export interface TerminalJob {
+  job_id: string;
+  action: "sale" | "cancel";
+  terminal_id: string;
+  adapter: string | null;
+  device_address: string | null;
+  amount_paise: number;
+}
+
+export interface TerminalJobResult {
+  outcome: "waiting" | "approved" | "declined" | "timed_out" | "cancelled";
+  reference?: string;
+  approved_paise?: number;
+  card_last4?: string;
+  auth_code?: string;
+  message?: string;
 }
 
 export interface CreateVirtualAccountRequest {
@@ -546,35 +616,40 @@ export interface PaymentTerminal {
   kind: string;
   terminal_code?: string | null;
   acquiring_bank?: string | null;
-  counter_id?: string | null;
+  /** The counter (station) the machine sits at. */
+  station_id?: string | null;
+  station_name?: string | null;
   location_id?: string | null;
   label: string;
   mode: string;
+  /** `cloud` (provider API) or `bridge` (wired to a counter PC). */
+  connection: "cloud" | "bridge";
+  adapter?: string | null;
+  device_address?: string | null;
+  last_seen_at?: string | null;
+  status: "online" | "offline" | "unknown";
+  last_error?: string | null;
   is_active: boolean;
+  retired_at?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface CreatePaymentTerminalRequest {
-  provider: string;
+  provider?: string;
   kind?: string;
   terminal_code?: string;
   acquiring_bank?: string;
-  counter_id?: string;
-  location_id?: string;
+  station_id?: string;
   label: string;
   mode?: string;
+  connection?: "cloud" | "bridge";
+  adapter?: string;
+  device_address?: string;
 }
 
-export interface UpdatePaymentTerminalRequest {
-  kind?: string;
-  terminal_code?: string;
-  acquiring_bank?: string;
-  counter_id?: string;
-  location_id?: string;
-  label?: string;
-  mode?: string;
+export interface UpdatePaymentTerminalRequest extends Partial<CreatePaymentTerminalRequest> {
   is_active?: boolean;
 }
 

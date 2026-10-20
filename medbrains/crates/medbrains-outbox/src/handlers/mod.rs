@@ -21,7 +21,6 @@ pub mod nhcx;
 pub mod pacs_worklist;
 pub mod payu;
 pub mod phonepe;
-pub mod pinelabs;
 pub mod pipeline_fallback;
 pub mod razorpayx;
 pub mod teams;

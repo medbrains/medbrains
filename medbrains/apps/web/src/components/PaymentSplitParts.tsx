@@ -18,6 +18,8 @@ export interface PaymentSplitPart {
   mode: PaymentSplitMode;
   amount: number;
   reference?: string;
+  /** Taken on the card machine: the money is in, so the part stays. */
+  gateway_transaction_id?: string;
 }
 
 const MODE_LABELS: Record<PaymentSplitMode, string> = {
@@ -72,14 +74,16 @@ export function PaymentSplitParts({
             {MODE_LABELS[part.mode]} {formatAmount(part.amount)}
             {part.reference ? ` · ${part.reference}` : ""}
           </Text>
-          <IconButton
-            size="sm"
-            tone="danger"
-            aria-label={`Remove ${MODE_LABELS[part.mode]} part`}
-            onClick={() => onRemove(index)}
-          >
-            <IconX size={14} />
-          </IconButton>
+          {!part.gateway_transaction_id && (
+            <IconButton
+              size="sm"
+              tone="danger"
+              aria-label={`Remove ${MODE_LABELS[part.mode]} part`}
+              onClick={() => onRemove(index)}
+            >
+              <IconX size={14} />
+            </IconButton>
+          )}
         </Group>
       ))}
       <Group align="flex-end" gap="xs" wrap="wrap">

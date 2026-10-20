@@ -1,27 +1,12 @@
-import {
-  ActionIcon,
-  Box,
-  Button,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Box, Button, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { Payment, PaymentMode } from "@medbrains/types";
+import type { Payment, PaymentMode, PosSaleView } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type KeyboardEvent, useMemo, useState } from "react";
 import { billingService } from "@/services/billing.service";
-import { paymentsService } from "@/services/payments.service";
-
-/** Which terminal kinds settle a given tender mode at the counter. */
-const TERMINAL_KIND_FOR_MODE: Partial<Record<PaymentMode, string[]>> = {
-  card: ["pos"],
-  upi: ["qr", "pos", "online"],
-};
+import { CardTerminalPanel } from "./payments/CardTerminalPanel";
+import { approvedRupees } from "./payments/cardSale";
 
 /** Modes offered as one-key shortcuts, in shortcut order (1..n). */
 const QUICK_MODES: { mode: PaymentMode; label: string }[] = [
@@ -39,8 +24,8 @@ interface PaymentLine {
   amount: number | string;
   reference: string;
   tendered: number | string;
-  /** Selected counter terminal for the card/UPI leg (display/routing only). */
-  terminalId: string | null;
+  /** Taken on the card machine — already on the bill; the line is closed. */
+  paidOnMachine: string | null;
 }
 
 interface PaymentCollectPanelProps {
@@ -75,7 +60,7 @@ function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
     amount,
     reference: "",
     tendered: amount,
-    terminalId: null,
+    paidOnMachine: null,
   };
 }
 
@@ -98,30 +83,15 @@ export function PaymentCollectPanel({
   const [lines, setLines] = useState<PaymentLine[]>(() => [makeLine(balance)]);
   const [printOnSave, setPrintOnSave] = useState(Boolean(onPrint));
 
-  // Devices physically at this counter — the card/UPI leg routes to one of them.
-  const trimmedCounter = counterId?.trim();
-  const { data: terminals } = useQuery({
-    queryKey: ["payment-terminals", trimmedCounter],
-    queryFn: () =>
-      paymentsService.listPaymentTerminals({ counter_id: trimmedCounter, active_only: true }),
-    enabled: Boolean(trimmedCounter),
-    staleTime: 300_000,
-  });
-  const terminalsForMode = (mode: PaymentMode) => {
-    const kinds = TERMINAL_KIND_FOR_MODE[mode];
-    if (!kinds || !terminals) return [];
-    return terminals
-      .filter((tnl) => kinds.includes(tnl.kind))
-      .map((tnl) => ({
-        value: tnl.id,
-        label: `${tnl.label}${tnl.acquiring_bank ? ` · ${tnl.acquiring_bank}` : ""} (${tnl.provider})`,
-      }));
-  };
-
   const total = useMemo(() => lines.reduce((sum, line) => sum + num(line.amount), 0), [lines]);
+  // What Record posts: the card machine's lines are on the bill already.
+  const toRecord = useMemo(
+    () => lines.reduce((sum, line) => sum + (line.paidOnMachine ? 0 : num(line.amount)), 0),
+    [lines],
+  );
   const remaining = balance - total;
   const overpaid = total > balance + 0.001;
-  const canRecord = total > 0 && !overpaid;
+  const canRecord = toRecord > 0 && !overpaid;
 
   const updateLine = (key: string, patch: Partial<PaymentLine>) =>
     setLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -134,27 +104,26 @@ export function PaymentCollectPanel({
   const removeLine = (key: string) =>
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((line) => line.key !== key)));
 
-  // Drive a POS card machine: push the sale, then poll until the customer
-  // completes. The worker settles the invoice on approval (no manual record).
-  const chargeOnTerminal = async (terminalId: string, amount: number) => {
-    const sale = await paymentsService.posSale({
-      terminal_id: terminalId,
-      invoice_id: invoiceId,
-      amount,
-    });
-    notifications.show({
-      title: "Card terminal",
-      message: "Waiting for the customer to tap / insert the card…",
-      color: "info",
-    });
-    for (let attempt = 0; attempt < 25; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      const res = await paymentsService.getPaymentStatus(sale.transaction_id);
-      const st = res.transaction.status;
-      if (st === "captured") return;
-      if (st === "failed") throw new Error("Card was declined at the terminal");
+  // The machine approved a card line: it is on the bill already. Anything
+  // the card did not cover becomes a new line to take another way.
+  const onCardApproved = (key: string, sale: PosSaleView) => {
+    const covered = approvedRupees(sale);
+    const asked = num(lines.find((line) => line.key === key)?.amount ?? 0);
+    const rest = Math.round((asked - covered) * 100) / 100;
+    const closed = lines.map((line) =>
+      line.key === key
+        ? {
+            ...line,
+            amount: covered,
+            paidOnMachine: `${sale.terminal_label} ${sale.reference ?? ""}`,
+          }
+        : line,
+    );
+    const next = rest > 0 ? [...closed, makeLine(rest, "cash")] : closed;
+    setLines(next);
+    if (next.every((line) => line.paidOnMachine || num(line.amount) <= 0)) {
+      onRecorded([]);
     }
-    throw new Error("Terminal timed out — retry or check the device");
   };
 
   const recordMutation = useMutation({
@@ -162,15 +131,8 @@ export function PaymentCollectPanel({
       const recorded: Payment[] = [];
       for (const line of lines) {
         const amount = num(line.amount);
-        if (amount <= 0) continue;
-        const terminal = line.terminalId
-          ? terminals?.find((tnl) => tnl.id === line.terminalId)
-          : undefined;
-        // Card leg on a POS device → drive the terminal; worker settles it.
-        if (line.mode === "card" && terminal?.kind === "pos") {
-          await chargeOnTerminal(terminal.id, amount);
-          continue;
-        }
+        // A line the card machine took is on the bill already.
+        if (amount <= 0 || line.paidOnMachine) continue;
         const payment = await billingService.recordPayment(invoiceId, {
           amount,
           mode: line.mode,
@@ -183,10 +145,10 @@ export function PaymentCollectPanel({
       return recorded;
     },
     onSuccess: (recorded) => {
-      const legs = lines.filter((line) => num(line.amount) > 0).length;
+      const legs = lines.filter((line) => num(line.amount) > 0 && !line.paidOnMachine).length;
       notifications.show({
         title: "Payment recorded",
-        message: `₹${money(total)} across ${legs} ${legs === 1 ? "tender" : "tenders"}`,
+        message: `₹${money(toRecord)} across ${legs} ${legs === 1 ? "tender" : "tenders"}`,
         color: "success",
       });
       onRecorded(recorded);
@@ -227,87 +189,87 @@ export function PaymentCollectPanel({
             style={{ borderTop: lineIndex > 0 ? "1px dashed var(--fc-rule, #e7ebe8)" : undefined }}
             pt={lineIndex > 0 ? "sm" : undefined}
           >
-            <Stack gap="xs">
-              <Group gap={6}>
-                {QUICK_MODES.map((quick, quickIndex) => (
-                  <Button
-                    key={quick.mode}
-                    size="compact-xs"
-                    variant={line.mode === quick.mode ? "filled" : "default"}
-                    onClick={() => updateLine(line.key, { mode: quick.mode })}
-                  >
-                    {quickIndex + 1} · {quick.label}
-                  </Button>
-                ))}
-                {lines.length > 1 && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
-                    size="sm"
-                    aria-label="Remove split"
-                    onClick={() => removeLine(line.key)}
-                  >
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                )}
+            {line.paidOnMachine ? (
+              <Group justify="space-between" data-testid="line-paid-on-machine">
+                <Text size="sm">Card · approved on {line.paidOnMachine}</Text>
+                <Text size="sm" fw={700}>
+                  ₹{money(num(line.amount))}
+                </Text>
               </Group>
-              <Group grow align="flex-start">
-                <NumberInput
-                  label="Amount"
-                  data-autofocus={autoFocus && lineIndex === 0 ? true : undefined}
-                  value={line.amount}
-                  onChange={(value) => updateLine(line.key, { amount: value })}
-                  min={0}
-                  decimalScale={2}
-                />
-                {line.mode === "cash" ? (
+            ) : (
+              <Stack gap="xs">
+                <Group gap={6}>
+                  {QUICK_MODES.map((quick, quickIndex) => (
+                    <Button
+                      key={quick.mode}
+                      size="compact-xs"
+                      variant={line.mode === quick.mode ? "filled" : "default"}
+                      onClick={() => updateLine(line.key, { mode: quick.mode })}
+                    >
+                      {quickIndex + 1} · {quick.label}
+                    </Button>
+                  ))}
+                  {lines.filter((other) => !other.paidOnMachine).length > 1 && (
+                    <ActionIcon
+                      variant="subtle"
+                      color="danger"
+                      size="sm"
+                      aria-label="Remove split"
+                      onClick={() => removeLine(line.key)}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  )}
+                </Group>
+                <Group grow align="flex-start">
                   <NumberInput
-                    label="Cash tendered"
-                    value={line.tendered}
-                    onChange={(value) => updateLine(line.key, { tendered: value })}
+                    label="Amount"
+                    data-autofocus={autoFocus && lineIndex === 0 ? true : undefined}
+                    value={line.amount}
+                    onChange={(value) => updateLine(line.key, { amount: value })}
                     min={0}
                     decimalScale={2}
                   />
-                ) : (
-                  <Stack gap={4}>
-                    {terminalsForMode(line.mode).length > 0 && (
-                      <Select
-                        label="Terminal"
-                        placeholder="Counter device"
-                        data={terminalsForMode(line.mode)}
-                        value={line.terminalId}
-                        onChange={(value) => {
-                          const picked = terminals?.find((tnl) => tnl.id === value);
-                          updateLine(line.key, {
-                            terminalId: value,
-                            reference: picked && !line.reference ? picked.label : line.reference,
-                          });
-                        }}
-                        clearable
-                        searchable
-                      />
-                    )}
-                    <TextInput
-                      label={needsRef ? "Reference no." : "Reference (optional)"}
-                      value={line.reference}
-                      onChange={(event) =>
-                        updateLine(line.key, { reference: event.currentTarget.value })
-                      }
+                  {line.mode === "cash" ? (
+                    <NumberInput
+                      label="Cash tendered"
+                      value={line.tendered}
+                      onChange={(value) => updateLine(line.key, { tendered: value })}
+                      min={0}
+                      decimalScale={2}
                     />
-                  </Stack>
-                )}
-              </Group>
-              {line.mode === "cash" && (
-                <Group justify="space-between">
-                  <Text size="xs" c="dimmed">
-                    Change due
-                  </Text>
-                  <Text size="sm" fw={700} c={change > 0 ? "copper" : undefined}>
-                    ₹{money(change)}
-                  </Text>
+                  ) : (
+                    <Stack gap={4}>
+                      {line.mode === "card" && (
+                        <CardTerminalPanel
+                          amount={num(line.amount)}
+                          invoiceId={invoiceId}
+                          onApproved={(sale) => onCardApproved(line.key, sale)}
+                          onUseOtherMode={() => updateLine(line.key, { mode: "cash" })}
+                        />
+                      )}
+                      <TextInput
+                        label={needsRef ? "Reference no." : "Reference (optional)"}
+                        value={line.reference}
+                        onChange={(event) =>
+                          updateLine(line.key, { reference: event.currentTarget.value })
+                        }
+                      />
+                    </Stack>
+                  )}
                 </Group>
-              )}
-            </Stack>
+                {line.mode === "cash" && (
+                  <Group justify="space-between">
+                    <Text size="xs" c="dimmed">
+                      Change due
+                    </Text>
+                    <Text size="sm" fw={700} c={change > 0 ? "copper" : undefined}>
+                      ₹{money(change)}
+                    </Text>
+                  </Group>
+                )}
+              </Stack>
+            )}
           </Box>
         );
       })}
@@ -345,7 +307,7 @@ export function PaymentCollectPanel({
         disabled={!canRecord}
         onClick={() => recordMutation.mutate()}
       >
-        Record ₹{money(total)}
+        Record ₹{money(toRecord)}
         {printOnSave && onPrint ? " + print" : ""} · Enter
       </Button>
     </Stack>

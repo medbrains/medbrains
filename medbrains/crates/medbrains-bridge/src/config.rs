@@ -30,6 +30,13 @@ pub struct BridgeConfig {
     /// Only these printers (MedBrains printer ids) — the ones this site can
     /// reach. Every deliverable printer when absent.
     pub printer_ids: Option<Vec<String>>,
+    /// Drive card machines wired to this PC, polling every this many
+    /// seconds (also their heartbeat). Off when absent. Needs
+    /// `billing.terminals.drive`.
+    pub card_terminal_poll_secs: Option<u64>,
+    /// The card machines on this PC: their MedBrains terminal ids and how
+    /// to drive each.
+    pub card_terminals: Option<Vec<CardTerminalConfig>>,
     pub device_instance_id: Option<String>,
     #[serde(default = "default_deployment_mode")]
     pub deployment_mode: String,
@@ -39,6 +46,20 @@ pub struct BridgeConfig {
     /// rewrites api_base via Transport::cloud_url before talking to
     /// the cloud.
     pub tunnel: Option<TunnelConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CardTerminalConfig {
+    /// The terminal's id in MedBrains (Settings → Payment terminals).
+    pub id: String,
+    /// The device adapter: `simulator` today; a brand's ECR protocol later.
+    pub adapter: String,
+    /// Where it is plugged in: COM3, /dev/ttyUSB0, a Bluetooth address.
+    pub address: Option<String>,
+    /// Simulator only: approve (default), decline or timeout.
+    pub simulator_outcome: Option<String>,
+    /// Simulator only: seconds before it answers (default 3).
+    pub simulator_delay_secs: Option<u64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

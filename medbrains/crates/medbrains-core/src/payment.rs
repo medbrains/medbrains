@@ -37,6 +37,12 @@ pub struct PaymentGatewayTransaction {
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// The card machine a counter card sale ran on.
+    #[sqlx(default)]
+    pub terminal_id: Option<Uuid>,
+    /// The card network's approval code, from the machine.
+    #[sqlx(default)]
+    pub card_auth_code: Option<String>,
 }
 
 /// A payment device bolted to a billing place — maps to `payment_terminals`.
@@ -52,11 +58,23 @@ pub struct PaymentTerminal {
     /// Bank whose MID the device sits under (SBI / Canara / TMB / …). The
     /// integration is `provider` (the TSP); this is just the acquiring bank.
     pub acquiring_bank: Option<String>,
-    pub counter_id: Option<String>,
+    /// The counter (station) the machine sits at.
+    pub station_id: Option<Uuid>,
+    pub station_name: Option<String>,
     pub location_id: Option<Uuid>,
     pub label: String,
     pub mode: String,
+    /// `cloud` (the provider's API) or `bridge` (wired to a counter PC).
+    pub connection: String,
+    /// Bridge only: the device adapter and where the machine is plugged in.
+    pub adapter: Option<String>,
+    pub device_address: Option<String>,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    /// `online`, `offline`, or `unknown` when it has never answered.
+    pub status: String,
+    pub last_error: Option<String>,
     pub is_active: bool,
+    pub retired_at: Option<DateTime<Utc>>,
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
