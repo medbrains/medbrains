@@ -12,7 +12,7 @@
 // Plan section 1 — feeds form defaults via the hook elsewhere.
 
 import { Box, Group, Skeleton, Tooltip } from "@mantine/core";
-import type { PatientContext } from "@medbrains/types";
+import type { BillingLaneName, PatientContext } from "@medbrains/types";
 import {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
@@ -31,6 +31,8 @@ import type { ComponentType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components/OperationalSignal";
 import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
+import { DueChip } from "@/components/payments/collect/DueChip";
+import { useCanCollect } from "@/components/payments/collect/use-dues";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { patientIdentitySubline, patientInitials } from "@/utils/patient-identity";
 import styles from "./PatientContextBanner.module.scss";
@@ -55,6 +57,10 @@ interface PatientContextBannerProps {
   /** Surface-driven layout: "compact" strip (default) or a large "detail"
    * header for full pages (patient detail, OPD/IPD encounter). */
   surface?: "compact" | "detail";
+  /** The screen's department: a user who collects it gets "₹X due · Collect". */
+  collectLane?: BillingLaneName;
+  /** Narrow the chip's dues to this visit's bills. */
+  collectEncounterId?: string;
 }
 
 interface PatientContextChip {
@@ -146,9 +152,12 @@ export function PatientContextBanner({
   variant = "clinical",
   inline = false,
   surface = "compact",
+  collectLane,
+  collectEncounterId,
 }: PatientContextBannerProps) {
   const { t } = useTranslation("patients");
   const { data, isLoading, isError } = usePatientContext(patientId);
+  const canCollect = useCanCollect(collectLane);
 
   if (!patientId) return null;
 
@@ -253,7 +262,16 @@ export function PatientContextBanner({
     });
   }
 
-  if (hasBalance) {
+  if (canCollect) {
+    chips.push({
+      key: "balance",
+      scope: "all",
+      severity: "critical",
+      node: (
+        <DueChip patientId={data.patient_id} lane={collectLane} encounterId={collectEncounterId} />
+      ),
+    });
+  } else if (hasBalance) {
     pushChip(
       "balance_due",
       "balance",

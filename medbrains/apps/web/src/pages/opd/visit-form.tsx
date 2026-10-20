@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useEffectOnce } from "react-use";
 import { DoctorSearchSelect, PatientSearchSelect, useClinicalEmit } from "@/components";
+import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
@@ -33,6 +34,7 @@ interface OpdVisitFormProps {
 export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFormProps) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const collectAtCheckIn = useCollectAtCheckIn();
   const {
     control,
     getFieldState,
@@ -117,6 +119,7 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       toast.success("Patient added to queue", { title: "Visit created" });
+      void collectAtCheckIn(result.encounter.patient_id, result.encounter.id);
       emit("opd.encounter.created", {
         encounter_id: result.encounter.id,
         patient_id: result.encounter.patient_id,

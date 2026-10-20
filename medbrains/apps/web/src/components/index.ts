@@ -51,8 +51,6 @@ export type { PatientFlowModule } from "./Patient/PatientFlowNavigator";
 export { PatientFlowNavigator } from "./Patient/PatientFlowNavigator";
 export { PatientJourneyActions } from "./Patient/PatientJourneyActions";
 export { PatientSearchSelect } from "./PatientSearchSelect";
-export { PaymentCollectPanel } from "./PaymentCollectPanel";
-export { PaymentModal } from "./PaymentModal";
 export type { PermissionedFieldKind } from "./PermissionedFieldValue";
 export {
   PermissionedFieldValue,

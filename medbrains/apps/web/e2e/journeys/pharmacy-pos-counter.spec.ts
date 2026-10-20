@@ -119,20 +119,23 @@ test("a counter bill is split: part on card, the rest in cash with change", asyn
   await addByKeyboard(page, drug);
   const dialog = await setThreeAndOpenPayment(page, drug);
 
-  const split = dialog.getByTestId("payment-split");
-  await split.getByRole("textbox", { name: "Part amount" }).fill("20");
+  // ₹20 on a standalone card machine: the amount, the card tile, the slip's approval code.
+  const amount = dialog.getByRole("textbox", { name: /Amount/ });
+  await amount.fill("20");
+  await dialog.getByRole("radio", { name: /Card/ }).click();
+  const addWay = dialog.getByRole("button", { name: "Add another way" });
   // A card part needs its approval code before it can be added.
-  await expect(split.getByRole("button", { name: "Add part" })).toBeDisabled();
-  await expect(split.getByText("Enter the card approval code.")).toBeVisible();
-  await split.getByRole("textbox", { name: "Approval code" }).fill("AP4471");
-  await split.getByRole("button", { name: "Add part" }).click();
-  await expect(split.getByText(/Card ₹20\.00 · AP4471/)).toBeVisible();
+  await expect(addWay).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "Approval code" }).fill("AP4471");
+  await addWay.click();
+  await expect(dialog.getByTestId("collect-part")).toContainText("₹20.00");
 
   // ₹16.00 is left for cash; ₹20 handed over leaves ₹4.00 change.
-  await expect(dialog.getByText("₹16.00").first()).toBeVisible();
-  await dialog.getByRole("textbox", { name: "Cash Received" }).fill("20");
-  await expect(dialog.getByText("₹4.00")).toBeVisible();
-  await dialog.getByRole("button", { name: "Record Cash Payment" }).click();
+  await expect(dialog.getByTestId("collect-remaining")).toContainText("₹16.00");
+  await dialog.getByRole("radio", { name: /Cash/ }).click();
+  await dialog.getByRole("textbox", { name: "Cash handed over" }).fill("20");
+  await expect(dialog.getByTestId("cash-change")).toHaveText("₹4.00");
+  await dialog.getByRole("button", { name: "Collect ₹36.00" }).click();
   await expect(dialog).toBeHidden();
 
   const done = await expectSaleDone(page, "4.00");

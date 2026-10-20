@@ -9,7 +9,7 @@ import { loginAsRole, routeApiDirect } from "../helpers";
 import { api, E2E_BACKEND_URL } from "../helpers/api";
 import { expectScreenAccessible, expectUsable } from "./support/a11y";
 import { billingDepartment,
-  issuedBill, openOnlineCollect, paymentsCard, savedBill } from "./support/billing";
+  issuedBill, openOnlineCollect, savedBill } from "./support/billing";
 import { mockUnavailable, razorpayMock, serveCheckout, useTestKeys } from "./support/razorpay";
 import { expect, freshPerson, test } from "./support/world";
 
@@ -34,7 +34,8 @@ test("checkout.js will not load: the cashier is told, offered cash or UPI, and n
   await expectUsable(dialog.getByTestId("btn-use-upi_qr"), "Use UPI QR instead");
   await expectUsable(cash, "Take cash instead");
   await cash.click();
-  await expect(dialog.getByRole("button", { name: "Record Cash Payment" })).toBeVisible();
+  await expect(dialog.getByRole("radio", { name: /Cash/ })).toBeChecked();
+  await expect(dialog.getByRole("textbox", { name: "Cash handed over" })).toBeVisible();
 
   const saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.status).toBe("issued");
@@ -85,7 +86,17 @@ test("a user who may not collect sees no collect control and the server refuses 
     full_name: `${freshPerson().firstName} Reception`,
     role: "receptionist",
     department_ids: [await billingDepartment(hospital.admin)],
-    access_matrix: { extra: [], denied: ["billing.payments.create"] },
+    // Every way to take money at a desk: the central code and each department's.
+    access_matrix: {
+      extra: [],
+      denied: [
+        "billing.payments.create",
+        "billing.collect.registration",
+        "billing.collect.opd",
+        "billing.collect.emergency",
+        "billing.collect.ipd",
+      ],
+    },
   });
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -95,8 +106,8 @@ test("a user who may not collect sees no collect control and the server refuses 
     await page.goto(`/billing/invoices/${invoiceId}`);
     await expectScreenAccessible(page, "invoice detail");
     await expect(page.getByText("Balance:")).toBeVisible();
-    await expect(paymentsCard(page).getByRole("button", { name: "Gateway" })).toHaveCount(0);
-    await expect(paymentsCard(page).getByRole("button", { name: "Record Payment" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Collect", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /due · Collect/ })).toHaveCount(0);
 
     const login = await page.request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
       data: { username, password },

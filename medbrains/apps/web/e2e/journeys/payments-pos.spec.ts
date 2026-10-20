@@ -18,7 +18,8 @@
  */
 import { api } from "../helpers/api";
 import { expectScreenAccessible, expectUsable } from "./support/a11y";
-import { billingDepartment, expectBillOnScreen, issuedBill, paymentsCard, savedBill } from "./support/billing";
+import { billingDepartment, expectBillOnScreen, issuedBill, openCollectOnBill, paymentsCard, savedBill } from "./support/billing";
+import { expectDrawerAccessible } from "./support/collect";
 import {
   asUser,
   cardDoes,
@@ -63,12 +64,9 @@ async function cashier(hospital: Hospital, denied?: string[]) {
 
 /** The cashier opens the bill and starts collecting by card. */
 async function collectByCard(page: Awaited<ReturnType<typeof cashier>>["page"], invoiceId: string) {
-  await page.goto(`/billing/invoices/${invoiceId}`);
-  const record = paymentsCard(page).getByRole("button", { name: "Record Payment" });
-  await expectUsable(record, "Record Payment");
-  await record.click();
-  await paymentsCard(page).getByRole("button", { name: "3 · Card" }).click();
-  return paymentsCard(page);
+  const drawer = await openCollectOnBill(page, invoiceId);
+  await drawer.getByRole("radio", { name: /Card/ }).click();
+  return drawer;
 }
 
 async function withMachine(hospital: Hospital, type: "billing_counter" | "pharmacy_counter", run: (m: Machine) => Promise<void>) {
@@ -87,7 +85,7 @@ test("a card payment at the billing counter is approved at the machine and posts
     const card = await collectByCard(page, invoiceId);
     const panel = await sendToMachine(page, card, machine, "₹500.00");
     await expect(panel.getByRole("status")).toContainText("Waiting for the card");
-    await expectScreenAccessible(page, "invoice detail");
+    await expectDrawerAccessible(page);
     expect((await savedBill(hospital.admin, invoiceId)).payments, "nothing posts while waiting").toEqual([]);
 
     const saleId = await saleAtMachine(hospital.admin, machine);
@@ -161,11 +159,12 @@ test("an offline machine is refused up front and the cashier takes cash instead"
     }
     await expect(offline).toBeVisible();
     await expect(panel.getByRole("button", { name: /^Send / })).toHaveCount(0);
-    await expectScreenAccessible(page, "invoice detail");
+    await expectDrawerAccessible(page);
     await panel.getByRole("button", { name: "Take it another way" }).click();
 
-    const recordCash = card.getByRole("button", { name: /^Record ₹120/ });
-    await expectUsable(recordCash, "Record ₹120");
+    await expect(card.getByRole("radio", { name: /Cash/ })).toBeChecked();
+    const recordCash = card.getByRole("button", { name: "Collect ₹120.00" });
+    await expectUsable(recordCash, "Collect ₹120");
     await recordCash.click();
     await expect.poll(async () => (await savedBill(hospital.admin, invoiceId)).status).toBe("paid");
     const saved = await savedBill(hospital.admin, invoiceId);
@@ -176,10 +175,10 @@ test("an offline machine is refused up front and the cashier takes cash instead"
 test("a cashier who may not collect sees no way to charge the card, and the server refuses", async ({ hospital }) => {
   await withMachine(hospital, "billing_counter", async (machine) => {
     const invoiceId = await issuedBill(hospital.admin, 90);
-    const { page } = await cashier(hospital, ["billing.payments.create"]);
+    const { page } = await cashier(hospital, ["billing.payments.create", "billing.collect.cross"]);
     await page.goto(`/billing/invoices/${invoiceId}`);
     await expect(paymentsCard(page)).toBeVisible();
-    await expect(paymentsCard(page).getByRole("button", { name: "Record Payment" })).toHaveCount(0);
+    await expect(paymentsCard(page).getByRole("button", { name: "Collect" })).toHaveCount(0);
     const refused = await asUser(page, "/api/payments/pos-sale", {
       terminal_id: machine.terminalId,
       invoice_id: invoiceId,
@@ -201,22 +200,20 @@ test("at the pharmacy counter part goes on the card machine and the rest is cash
     await addByKeyboard(page, drug);
     const dialog = await setThreeAndOpenPayment(page, drug);
 
-    // The tender is a segmented control: its radio is hidden, so press the label a person sees.
-    const cardTender = dialog.getByRole("radio", { name: "Card" });
-    await dialog.locator(`label[for="${await cardTender.getAttribute("id")}"]`).click();
-    await expect(cardTender).toBeChecked();
-    const amountOnCard = dialog.getByRole("textbox", { name: "Amount on card" });
-    await amountOnCard.fill("20");
+    // ₹20 of the ₹36 on the card: the amount first, then the card tile.
+    await dialog.getByRole("textbox", { name: /Amount/ }).fill("20");
+    await dialog.getByRole("radio", { name: /Card/ }).click();
     const panel = await sendToMachine(page, dialog, machine, "₹20.00");
-    await expectScreenAccessible(page, "collect payment");
+    await expectDrawerAccessible(page);
     const saleId = await saleAtMachine(hospital.admin, machine);
     await cardDoes(hospital.admin, saleId, "approve");
-    await expect(dialog.getByText(/Card ₹20\.00 · SIM-/)).toBeVisible();
+    await expect(dialog.getByTestId("collect-part")).toContainText("₹20.00");
     await expect(panel).toBeHidden();
 
     // ₹16.00 is left for cash; ₹20 handed over leaves ₹4.00 change.
-    await dialog.getByRole("textbox", { name: "Cash Received" }).fill("20");
-    await dialog.getByRole("button", { name: "Record Cash Payment" }).click();
+    await dialog.getByRole("radio", { name: /Cash/ }).click();
+    await dialog.getByRole("textbox", { name: "Cash handed over" }).fill("20");
+    await dialog.getByRole("button", { name: "Collect ₹36.00" }).click();
     await expect(dialog).toBeHidden();
     const done = await expectSaleDone(page, "4.00");
     await expect(done).toContainText("mixed");

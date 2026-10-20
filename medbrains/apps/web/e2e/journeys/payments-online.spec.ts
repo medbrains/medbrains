@@ -12,6 +12,7 @@ import {
   expectBillOnScreen,
   billingDepartment,
   issuedBill,
+  closeCollected,
   openOnlineCollect,
   paymentsCard,
   savedBill,
@@ -46,8 +47,7 @@ test("a cashier collects a whole bill online by card; the later webhook posts no
   const opened = await checkoutOpened(page);
   expect(opened.amount, "checkout opened on the whole bill, in paise").toBe(100_000);
   expect(mock.orders.get(opened.order_id)?.amount).toBe(100_000);
-  await expect(page.getByText("Payment successful")).toBeVisible();
-  await expect(dialog).toBeHidden();
+  await closeCollected(dialog, "₹1,000.00");
 
   let saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.status).toBe("paid");
@@ -99,7 +99,7 @@ test("the webhook beats the browser: the bill is paid once, by UPI", async ({
   await page.evaluate(() =>
     (window as unknown as { __releaseCheckout: () => void }).__releaseCheckout(),
   );
-  await expect(page.getByText("Payment successful")).toBeVisible();
+  await closeCollected(dialog, "₹750.00");
   saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.payments, "verify did not post the money a second time").toHaveLength(1);
   await page.reload();
@@ -122,23 +122,21 @@ test("part of the bill online, the rest in cash: partially paid, then paid", asy
   await pay.click();
   const opened = await checkoutOpened(page);
   expect(opened.amount).toBe(40_000);
-  await expect(dialog).toBeHidden();
+  // The online part is taken: it stays in the drawer, and ₹600 is left for another way.
+  await expect(dialog.getByTestId("collect-part")).toContainText("₹400.00");
+  await expect(dialog.getByTestId("collect-remaining")).toContainText("₹600.00");
 
   let saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.status).toBe("partially_paid");
   expect(saved.paid).toBe(400);
-  await expectBillOnScreen(page, saved);
 
-  const record = paymentsCard(page).getByRole("button", { name: "Record Payment" });
-  await expectUsable(record, "Record Payment");
-  await record.click();
-  const recordCash = paymentsCard(page).getByRole("button", { name: /^Record ₹600/ });
-  await expectUsable(recordCash, "Record ₹600");
-  await recordCash.click();
-  await expect
-    .poll(async () => (await savedBill(hospital.admin, invoiceId)).status)
-    .toBe("paid");
+  await dialog.getByRole("radio", { name: /Cash/ }).click();
+  const collect = dialog.getByRole("button", { name: "Collect ₹1,000.00" });
+  await expectUsable(collect, "Collect ₹1,000");
+  await collect.click();
+  await closeCollected(dialog, "₹1,000.00");
   saved = await savedBill(hospital.admin, invoiceId);
+  expect(saved.status).toBe("paid");
   expect(saved.paid).toBe(1000);
   // The bill lists the newest payment first; what matters is the two tenders, once each.
   expect(saved.payments.map((p) => [p.mode, p.amount]).sort()).toEqual([

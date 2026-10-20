@@ -179,7 +179,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
             />
           )}
         />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
+        <PatientContextBanner patientId={patientId} hideLoadingState collectLane="radiology" />
         <Controller
           control={control}
           name="modality_id"

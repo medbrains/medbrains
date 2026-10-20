@@ -18,7 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import type { PharmacyPosSaleFormInput } from "@medbrains/schemas";
 import { pharmacyPosSaleFormSchema } from "@medbrains/schemas";
 import { useFieldAccess, useHasAnyPermission, useHasPermission } from "@medbrains/stores";
-import type { PharmacyCatalog, PharmacyPosSale } from "@medbrains/types";
+import type { CollectTender, PharmacyCatalog, PharmacyPosSale } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconAlertTriangle, IconCash, IconReceipt, IconX } from "@tabler/icons-react";
@@ -30,10 +30,9 @@ import type { DataTableFilter } from "@/components";
 import { DataTable } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
 import { isSafetyRefusal } from "@/components/Pharmacy/safetyGate";
 import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
-import { posTendersOf } from "@/components/payments/settlement";
+import { useCollect } from "@/components/payments/collect/collect-store";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   formIntegerOrFallback,
@@ -82,13 +81,6 @@ interface PosLineMeta {
   mrp: number;
 }
 
-/** Tenders a counter takes before the sale exists; a gateway order needs a record. */
-const POS_PAYMENT_MODES = ["cash", "upi_qr", "card"] as const;
-const NON_CASH_MODES = ["upi_qr", "card"] as const;
-
-/** Part payments the counter takes; credit only against a registered patient. */
-const SPLIT_MODES_WALK_IN = ["card", "upi"] as const;
-const SPLIT_MODES_PATIENT = ["card", "upi", "credit"] as const;
 /** Literal until the permission catalogue is regenerated from Rust. */
 const PERM_DISCOUNT_APPROVE = P.PHARMACY.POS_DISCOUNT_APPROVE;
 const PERM_COUNTER_PATIENT_SEARCH = P.PHARMACY.PATIENTS_SEARCH;
@@ -121,7 +113,7 @@ export function PosCounterTab({
   const canApproveDiscount = useHasPermission(PERM_DISCOUNT_APPROVE);
   const canCounterSearch = useHasPermission(PERM_COUNTER_PATIENT_SEARCH);
   const canPrintPharmacyBill = useHasPermission(PERM_PHARMACY_BILL_PRINT);
-  const [paymentOpened, { open: openPayment, close: closePayment }] = useDisclosure(false);
+  const openCollect = useCollect((st) => st.open);
   const [saleToCancel, setSaleToCancel] = useState<PharmacyPosSale | null>(null);
   const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -286,7 +278,7 @@ export function PosCounterTab({
   const { data: activeDrawer, isError: drawerUnknown } = useActiveCashDrawer();
   // Cash goes into a drawer; with none open (or none we can confirm), only
   // UPI and card are offered.
-  const paymentModes = activeDrawer && !drawerUnknown ? POS_PAYMENT_MODES : NON_CASH_MODES;
+  const cashAllowed = Boolean(activeDrawer) && !drawerUnknown;
   const rxMeta = cart.map((item) => lineMeta[item.catalog_item_id]).filter(Boolean);
   const hasRxLines = rxMeta.some((m) => m && needsCounterRx(m));
   const hasH1Lines = rxMeta.some((m) => m?.schedule === "H1" && !m.isControlled);
@@ -379,16 +371,14 @@ export function PosCounterTab({
     update(index, { ...item, unit_price: formNumberOrFallback(price, 0) });
   }
 
-  function submitSale(settlement: PaymentModalSettlement) {
+  /** Post the sale with the drawer's tenders; a refusal keeps the drawer open. */
+  async function submitSale(tenders: CollectTender[]): Promise<void> {
     const values = getValues();
     if (posAllergyBlocked) {
-      toast.error("Documented drug allergy — record an override reason to sell.", {
-        title: "Allergy conflict",
-      });
-      return;
+      throw new Error("Documented drug allergy — record an override reason to sell.");
     }
     const discountPercentValue = formNumberOrFallback(values.discount_percent, 0);
-    createMutation.mutate({
+    await createMutation.mutateAsync({
       patient_id: optionalFormText(values.patient_id),
       allergy_override_reason: posAllergyConflicts.length > 0 ? posAllergyReason.trim() : undefined,
       safety_override_reason: safetyBlock && safetyReason.trim() ? safetyReason.trim() : undefined,
@@ -400,7 +390,7 @@ export function PosCounterTab({
         selling_price: posSaleLinePrice(c),
         gst_rate: lineGstRate(c.catalog_item_id),
       })),
-      payments: posTendersOf(settlement),
+      payments: tenders,
       patient_name: canEditWalkInName ? optionalFormText(values.patient_name) : undefined,
       patient_phone: canEditWalkInPhone ? optionalFormText(values.patient_phone) : undefined,
       discount_percent: discountPercentValue || undefined,
@@ -651,7 +641,18 @@ export function PosCounterTab({
           <Stack
             component="form"
             onSubmit={handleSubmit(() => {
-              if (!checkoutBlocker) openPayment();
+              if (checkoutBlocker) return;
+              openCollect({
+                patientId: registeredPatientId || null,
+                lane: "pharmacy",
+                focusLabel: "This sale",
+                sale: {
+                  amount: totalAmount,
+                  cashAllowed,
+                  creditAllowed: Boolean(registeredPatientId),
+                  pay: submitSale,
+                },
+              });
             })}
           >
             <Text fw={600}>New Sale</Text>
@@ -973,18 +974,6 @@ export function PosCounterTab({
                 )}
               </Stack>
             </Group>
-            {paymentOpened && (
-              <PaymentModal
-                opened
-                onClose={closePayment}
-                amount={totalAmount}
-                amountAccess={priceAccess}
-                modes={paymentModes}
-                splitModes={registeredPatientId ? SPLIT_MODES_PATIENT : SPLIT_MODES_WALK_IN}
-                collectPermission={P.PHARMACY.POS_CREATE}
-                onSuccess={(_id, settlement) => submitSale(settlement)}
-              />
-            )}
           </Stack>
         </Card>
       )}

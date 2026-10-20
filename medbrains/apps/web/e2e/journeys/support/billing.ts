@@ -81,19 +81,32 @@ export function paymentsCard(page: Page): Locator {
   return page.locator("#billing-payments");
 }
 
-/** Open the bill and start an online collection, checking the screen on the way. */
-export async function openOnlineCollect(page: Page, invoiceId: string): Promise<Locator> {
+/** Open the bill's Collect drawer from the payments card, checking the screen on the way. */
+export async function openCollectOnBill(page: Page, invoiceId: string): Promise<Locator> {
   await page.goto(`/billing/invoices/${invoiceId}`);
   await expectScreenAccessible(page, "invoice detail");
-  const gateway = paymentsCard(page).getByRole("button", { name: "Gateway" });
-  await expectUsable(gateway, "Gateway");
-  await gateway.click();
-  const dialog = page.getByRole("dialog", { name: "Collect Payment" });
-  await expect(dialog).toBeVisible();
-  await expectScreenAccessible(page, "collect payment");
-  const pay = dialog.getByTestId("btn-pay-online");
+  const collect = paymentsCard(page).getByRole("button", { name: "Collect" });
+  await expectUsable(collect, "Collect");
+  await collect.click();
+  const drawer = page.getByRole("dialog", { name: "Collect payment" });
+  await expect(drawer).toBeVisible();
+  return drawer;
+}
+
+/** Open the bill and start an online collection, checking the screen on the way. */
+export async function openOnlineCollect(page: Page, invoiceId: string): Promise<Locator> {
+  const drawer = await openCollectOnBill(page, invoiceId);
+  await drawer.getByRole("radio", { name: /Online/ }).click();
+  const pay = drawer.getByTestId("btn-pay-online");
   await expectUsable(pay, "Pay online");
-  return dialog;
+  return drawer;
+}
+
+/** The collection went through: the drawer says so, and the cashier closes it. */
+export async function closeCollected(drawer: Locator, amount: string): Promise<void> {
+  await expect(drawer.getByText(`${amount} received`)).toBeVisible();
+  await drawer.getByRole("button", { name: "Close", exact: true }).last().click();
+  await expect(drawer).toBeHidden();
 }
 
 export { rupees };

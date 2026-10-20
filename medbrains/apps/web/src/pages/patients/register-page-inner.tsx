@@ -25,6 +25,7 @@ import { DataTable, PageHeader, useClinicalEmit } from "@/components";
 import { shareRegistrationValues } from "@/components/abha/scanShare";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
+import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import { nextCheckState } from "@/lib/advisoryCheck";
 import { abdmScanShareService } from "@/services/abdmScanShare.service";
@@ -113,6 +114,7 @@ export function PatientRegisterPageInner() {
   // Arrived from Front Office → Scan & Share: the profile the server verified.
   const scanShare = (useLocation().state as ScanShareRegistrationState | null)?.scanShare;
   const queryClient = useQueryClient();
+  const collectAtCheckIn = useCollectAtCheckIn();
   const source = params.get("source");
   const sourceCampId = params.get("campId") ?? "";
   const returnTo = params.get("returnTo") ?? undefined;
@@ -288,6 +290,7 @@ export function PatientRegisterPageInner() {
           encounter_id: encounterId,
           patient_id: patient.id,
         });
+        void collectAtCheckIn(patient.id, encounterId);
       }
       // The visit exists but the queue gave no number (outside its hours,
       // paused, full): say why, so the desk can tell the patient when to return.

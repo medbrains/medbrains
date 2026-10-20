@@ -7,6 +7,7 @@ import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { DuesByDepartment } from "@/components/payments/collect/DuesByDepartment";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { escapeHtml, formatDate, formatMoney } from "./shared";
@@ -201,6 +202,7 @@ export function BillingTab({ patientId }: { patientId: string }) {
 
   return (
     <Stack gap="md">
+      <DuesByDepartment patientId={patientId} />
       <Group justify="space-between" align="center">
         <Text size="sm" c="dimmed">
           Central billing ledger, camp charges, pharmacy invoices, and IPD balances are summarized

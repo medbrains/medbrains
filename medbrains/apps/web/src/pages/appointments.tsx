@@ -30,6 +30,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PageHeader } from "@/components/PageHeader";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
+import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, todayDateString } from "@/lib/date-utils";
@@ -73,6 +74,7 @@ export function AppointmentsPage() {
   const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
 
   const queryClient = useQueryClient();
+  const collectAtCheckIn = useCollectAtCheckIn();
   const [modalOpen, setModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string | null>(todayStr());
   const [cancelTarget, setCancelTarget] = useState<AppointmentWithPatient | null>(null);
@@ -120,6 +122,7 @@ export function AppointmentsPage() {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
+      void collectAtCheckIn(result.encounter.patient_id, result.encounter.id);
     },
     onError: (err: Error) => {
       toast.error(err.message, { title: "Check-in failed" });

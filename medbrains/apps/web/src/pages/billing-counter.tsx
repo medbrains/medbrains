@@ -1,81 +1,29 @@
 import { Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { Invoice, PatientAdvance } from "@medbrains/types";
+import type { PatientAdvance } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCash, IconListCheck, IconReceipt, IconWallet } from "@tabler/icons-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { PageHeader, PatientSearchSelect, PaymentCollectPanel } from "@/components";
+import { PageHeader, PatientSearchSelect } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { useBillCollectable } from "@/components/payments/useBillCollectable";
+import { billsDue, rupees } from "@/components/payments/collect/collect-math";
+import { useCollect } from "@/components/payments/collect/collect-store";
+import { LANE_LABEL, useDues } from "@/components/payments/collect/use-dues";
 import { Alert, Badge, Button, Card, Input } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { billingInvoicePaymentRoute } from "./billing-workspace";
 
-function money(value: number | string | null | undefined): string {
-  const parsed = Number(value ?? 0);
-  return (Number.isFinite(parsed) ? parsed : 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+const COUNTER_KEY = "billing.counter";
 
-function invoiceBalance(invoice: Invoice): number {
-  return Number(invoice.total_amount) - Number(invoice.paid_amount);
-}
-
-/** A counter-paced collect panel: keyboard-first, mixed-mode split. */
-function CollectPanel({
-  invoice,
-  onCollected,
-  counterId,
-}: {
-  invoice: Invoice;
-  onCollected: () => void;
-  counterId: string;
-}) {
-  const collectable = useBillCollectable(invoice.patient_id, invoice.id, true);
-  return (
-    <Card withBorder bg="var(--mb-bg-subtle)">
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text size="sm" fw={700}>
-            Collect for {invoice.invoice_number}
-          </Text>
-          <Text size="sm" c="dimmed">
-            Balance ₹{money(invoiceBalance(invoice))}
-          </Text>
-        </Group>
-        {collectable === "checking" && (
-          <Text size="sm" c="dimmed">
-            Checking whether this desk collects this bill…
-          </Text>
-        )}
-        {collectable === "unknown" && (
-          <Alert tone="danger" title="Could not check this bill">
-            Whether your desk may collect it could not be read. Try again before taking money.
-          </Alert>
-        )}
-        {collectable === "no" && (
-          <Alert tone="warning" title="Another desk collects this bill">
-            Your desk collects its own department&apos;s bills.
-          </Alert>
-        )}
-        {collectable === "yes" && (
-          <PaymentCollectPanel
-            patientId={invoice.patient_id}
-            invoiceId={invoice.id}
-            balance={invoiceBalance(invoice)}
-            onRecorded={onCollected}
-            counterId={counterId}
-            autoFocus
-          />
-        )}
-      </Stack>
-    </Card>
-  );
+function readCounter(): string {
+  try {
+    return localStorage.getItem(COUNTER_KEY) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 function AdvanceSummary({ advances }: { advances: PatientAdvance[] }) {
@@ -86,72 +34,48 @@ function AdvanceSummary({ advances }: { advances: PatientAdvance[] }) {
       <Group gap="xs">
         <IconWallet size={16} />
         <Text size="sm" fw={600}>
-          Advance balance
+          Deposit balance
         </Text>
         <Badge tone="success" ff="monospace">
-          ₹{money(totalBalance)}
+          {rupees(totalBalance)}
         </Badge>
       </Group>
     </Card>
   );
 }
 
+/** The cashier's counter: find the patient, see every open bill, collect in one drawer. */
 export function BillingCounterPage() {
   useRequirePermission(P.BILLING.PAYMENTS_CREATE);
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
-  // Taking payment needs billing.payments.create; reading what is owed needs
-  // billing.invoices.list. Held apart, the counter showed an empty list of
-  // open invoices — a cashier would have told the patient there is nothing
-  // outstanding.
-  const canListInvoices = useHasPermission(P.BILLING.INVOICES_LIST);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const open = useCollect((s) => s.open);
   const [patientId, setPatientId] = useState("");
-  const [collectingId, setCollectingId] = useState<string | null>(null);
-  // Active counter label tags every payment for the day-close tally;
-  // persisted so the cashier sets it once per shift.
-  const [counterId, setCounterId] = useState(() => localStorage.getItem("billing.counter") ?? "");
+  // Day close still tallies by this label; remembered for the shift.
+  const [counterId, setCounterId] = useState(readCounter);
   const onCounterChange = (value: string) => {
     setCounterId(value);
-    localStorage.setItem("billing.counter", value);
+    try {
+      localStorage.setItem(COUNTER_KEY, value);
+    } catch {
+      // Private window: the label holds for this page only.
+    }
   };
 
-  const invoicesQuery = useQuery({
-    queryKey: ["counter-invoices", patientId],
-    queryFn: () => billingService.listInvoices({ patient_id: patientId, per_page: "50" }),
-    enabled: patientId.length > 0 && canListInvoices,
-  });
-
+  const dues = useDues(patientId || null);
   const advancesQuery = useQuery({
     queryKey: ["counter-advances", patientId],
     queryFn: () => billingService.listAdvances({ patient_id: patientId }),
     enabled: patientId.length > 0,
   });
-
-  const openInvoices = useMemo(
-    () =>
-      (invoicesQuery.data?.invoices ?? []).filter(
-        (invoice) =>
-          (invoice.status === "issued" || invoice.status === "partially_paid") &&
-          invoiceBalance(invoice) > 0,
-      ),
-    [invoicesQuery.data],
-  );
-
-  const onCollected = (invoiceId: string) => {
-    setCollectingId(null);
-    void queryClient.invalidateQueries({ queryKey: ["dues", patientId] });
-    void queryClient.invalidateQueries({ queryKey: ["counter-invoices", patientId] });
-    void queryClient.invalidateQueries({ queryKey: ["counter-advances", patientId] });
-    void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patientId] });
-    void invoiceId;
-  };
+  const bills = dues.data?.bills ?? [];
+  const collectable = bills.filter((b) => b.can_collect);
 
   return (
     <Stack>
       <PageHeader
         title="Cashier counter"
-        subtitle="Search a patient, collect against open invoices."
+        subtitle="Search a patient, collect every department's dues in one go."
         icon={<IconReceipt size={20} stroke={1.5} />}
         color="orange"
         actions={
@@ -174,10 +98,7 @@ export function BillingCounterPage() {
         <Group align="flex-end" gap="sm">
           <PatientSearchSelect
             value={patientId}
-            onChange={(id) => {
-              setPatientId(id);
-              setCollectingId(null);
-            }}
+            onChange={setPatientId}
             label="Patient"
             placeholder="Search by name, UHID, or phone…"
             size="md"
@@ -200,75 +121,89 @@ export function BillingCounterPage() {
           <Card withBorder>
             <Stack gap="sm">
               <Group justify="space-between">
-                <Title order={6}>Open invoices</Title>
-                {canCreate && (
-                  <Button
-                    size="xs"
-                    tone="secondary"
-                    onClick={() => navigate(`/billing?patient_id=${patientId}`)}
-                  >
-                    New invoice
-                  </Button>
-                )}
+                <Title order={6}>Open bills</Title>
+                <Group gap="xs">
+                  {canCreate && (
+                    <Button
+                      size="xs"
+                      tone="secondary"
+                      onClick={() => navigate(`/billing?patient_id=${patientId}`)}
+                    >
+                      New invoice
+                    </Button>
+                  )}
+                  {collectable.length > 0 && (
+                    <Button
+                      size="xs"
+                      tone="primary"
+                      leftSection={<IconCash size={14} />}
+                      onClick={() => open({ patientId })}
+                    >
+                      Collect {rupees(billsDue(collectable))}
+                    </Button>
+                  )}
+                </Group>
               </Group>
 
-              {invoicesQuery.isLoading && <Text c="dimmed">Loading…</Text>}
-              {!invoicesQuery.isLoading && openInvoices.length === 0 && (
+              {dues.isError && (
+                <Alert tone="danger" title="Open bills could not be read">
+                  {dues.error.message}
+                </Alert>
+              )}
+              {dues.isLoading && <Text c="dimmed">Loading…</Text>}
+              {dues.data && bills.length === 0 && (
                 <Alert tone="info">
-                  No open invoices for this patient. Use “New invoice” to start one, or check Back
-                  office for drafts and history.
+                  Nothing is due from this patient. Use “New invoice” to start one.
                 </Alert>
               )}
 
-              {openInvoices.map((invoice) => (
-                <Card key={invoice.id} withBorder padding="sm">
+              {bills.map((bill) => (
+                <Card key={bill.invoice_id} withBorder padding="sm" data-testid="row-counter-bill">
                   <Group justify="space-between" wrap="nowrap">
                     <Stack gap={2}>
                       <Group gap="xs">
-                        <Text fw={700}>{invoice.invoice_number}</Text>
+                        <Text fw={700}>{bill.invoice_number}</Text>
                         <Badge size="xs" tone="warning">
-                          {invoice.status}
+                          {bill.status}
                         </Badge>
-                        {invoice.is_er_deferred && (
-                          <Badge size="xs" tone="danger">
-                            ER deferred
+                        {bill.entity_name && (
+                          <Badge size="xs" tone="neutral">
+                            {bill.entity_name}
                           </Badge>
                         )}
                       </Group>
                       <Text size="sm" c="dimmed">
-                        Total ₹{money(invoice.total_amount)} · Paid ₹{money(invoice.paid_amount)} ·
-                        Balance ₹{money(invoiceBalance(invoice))}
+                        {bill.lanes.map((l) => LANE_LABEL[l] ?? l).join(" + ")} · Total{" "}
+                        {rupees(Number(bill.total_amount))} · Paid{" "}
+                        {rupees(Number(bill.paid_amount))} · Balance {rupees(Number(bill.balance))}
                       </Text>
                     </Stack>
                     <Group gap="xs">
                       <Button
                         size="xs"
                         tone="ghost"
-                        onClick={() => navigate(billingInvoicePaymentRoute(invoice.id))}
+                        onClick={() => navigate(billingInvoicePaymentRoute(bill.invoice_id))}
                       >
                         Open
                       </Button>
-                      <Button
-                        size="xs"
-                        tone="primary"
-                        leftSection={<IconCash size={14} />}
-                        onClick={() =>
-                          setCollectingId(collectingId === invoice.id ? null : invoice.id)
-                        }
-                      >
-                        {collectingId === invoice.id ? "Close" : "Collect"}
-                      </Button>
+                      {bill.can_collect && (
+                        <Button
+                          size="xs"
+                          tone="secondary"
+                          leftSection={<IconCash size={14} />}
+                          onClick={() =>
+                            open({
+                              patientId,
+                              invoiceIds: [bill.invoice_id],
+                              focusLabel: "This bill",
+                            })
+                          }
+                        >
+                          Collect
+                        </Button>
+                      )}
                     </Group>
                   </Group>
-                  {collectingId === invoice.id && (
-                    <Stack mt="sm">
-                      <CollectPanel
-                        invoice={invoice}
-                        onCollected={() => onCollected(invoice.id)}
-                        counterId={counterId}
-                      />
-                    </Stack>
-                  )}
                 </Card>
               ))}
             </Stack>
