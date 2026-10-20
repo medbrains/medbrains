@@ -34,7 +34,8 @@ const STATUS_FILTERS = [
 ] as const;
 
 function reasonTone(reason: string): "danger" | "warning" | "neutral" {
-  if (reason === "signature_failed") return "danger";
+  // A patient paid by link after the counter settled the bill: they are owed money.
+  if (reason === "signature_failed" || reason === "refund_due") return "danger";
   if (reason === "amount_mismatch" || reason === "over_capture") return "warning";
   return "neutral";
 }

@@ -54,6 +54,9 @@ pub struct CreateLinkRequest {
     /// The counter sending it: its own provider, if it has one.
     #[serde(default)]
     pub station_id: Option<Uuid>,
+    /// Days it stays open; the hospital's setting when absent.
+    #[serde(default)]
+    pub expiry_days: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,6 +153,7 @@ pub async fn create_link(
         channel,
         replaces: None,
         station_id: body.station_id,
+        expiry_days: body.expiry_days,
     };
     Ok(Json(
         issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?,
@@ -266,6 +270,7 @@ pub async fn resend_link(
         channel,
         replaces: None,
         station_id: body.station_id,
+        expiry_days: None,
     };
     Ok(Json(
         issue(&ctx_for(&state, claims.tenant_id, Some(claims.sub)), &spec).await?,

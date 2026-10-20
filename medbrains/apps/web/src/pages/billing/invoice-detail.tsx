@@ -67,6 +67,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { useCollect } from "@/components/payments/collect/collect-store";
 import { useCanCollect } from "@/components/payments/collect/use-dues";
+import { PaymentLinksPanel } from "@/components/payments/links/PaymentLinksPanel";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingChargeSourceOptions,
@@ -894,6 +895,7 @@ export function InvoiceDetail({
                     ))}
                   </Table.Tbody>
                 </Table>
+                <PaymentLinksPanel invoiceId={invoiceId} />
 
                 {refunding && (
                   <GatewayRefundModal

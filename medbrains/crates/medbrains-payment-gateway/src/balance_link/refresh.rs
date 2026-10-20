@@ -171,6 +171,7 @@ async fn replace(ctx: &HandlerCtx, id: Uuid, link: &Stale) -> Result<Value, Hand
         channel: Channel::stored(&link.channel),
         replaces: Some(id),
         station_id: None,
+        expiry_days: None,
     };
     let made = issue(ctx, &spec).await.map_err(handler_error)?;
     Ok(json!({ "link_id": id, "replaced_by": made.id }))

@@ -52,8 +52,15 @@ export interface TileState {
   hint: string;
 }
 
-/** A bill-balance payment link has no endpoint yet: it shows, and says so. */
-export const LINK_PENDING = "Coming soon (#4871)";
+/** A provider that makes no payment links (PhonePe, PayU): the tile says so. */
+export const LINK_UNSUPPORTED = "Not supported by this provider";
+
+/** A link for the balance (#4871): bills must be issued, the provider must make links. */
+function linkTile(providerLinks: boolean, hasDraft: boolean): TileState {
+  if (!providerLinks) return { tile: "link", disabled: true, hint: LINK_UNSUPPORTED };
+  if (hasDraft) return { tile: "link", disabled: true, hint: "Issue the bills first" };
+  return { tile: "link", disabled: false, hint: "All or part, by SMS" };
+}
 
 /** The tiles to show, in key order; a tile nobody here can use is left out. */
 export function usableTiles(c: TileContext): TileState[] {
@@ -63,8 +70,8 @@ export function usableTiles(c: TileContext): TileState[] {
   // The hospital's own UPI ID QR needs no provider; a provider's QR confirms itself.
   const liveQr = c.canUseGateway && Boolean(c.capabilities?.dynamic_qr);
   tiles.push({ tile: "upi", disabled: false, hint: liveQr ? "Confirms itself" : "Enter the UTR" });
-  if (c.canUseGateway && c.capabilities?.payment_links) {
-    tiles.push({ tile: "link", disabled: true, hint: LINK_PENDING });
+  if (!c.isSale && c.canUseGateway && c.capabilities) {
+    tiles.push(linkTile(c.capabilities.payment_links, c.hasDraft));
   }
   if (!c.isSale && c.canUseGateway && c.capabilities?.checkout && c.billCount === 1) {
     tiles.push({ tile: "online", disabled: false, hint: "Checkout" });

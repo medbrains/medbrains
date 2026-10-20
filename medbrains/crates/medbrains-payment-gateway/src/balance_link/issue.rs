@@ -45,6 +45,8 @@ pub struct LinkSpec {
     pub replaces: Option<Uuid>,
     /// The counter asking: its own provider, if it has one.
     pub station_id: Option<Uuid>,
+    /// Days it stays open; the hospital's setting when absent.
+    pub expiry_days: Option<i64>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -325,7 +327,7 @@ async fn open(
     .bind(plan.amount)
     .bind(t.accept_partial)
     .bind(t.min_part)
-    .bind(i32::try_from(plan.settings.expiry_days()).unwrap_or(7))
+    .bind(i32::try_from(plan.settings.expiry_days_or(spec.expiry_days)).unwrap_or(7))
     .bind(spec.channel.as_str())
     .bind(txn_id)
     .bind(spec.replaces.or_else(|| old.first().copied()))

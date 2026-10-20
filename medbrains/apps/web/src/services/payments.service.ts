@@ -22,6 +22,14 @@ export const paymentsService = {
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   initiateRefund: (data: Parameters<typeof api.initiateRefund>[0]) => api.initiateRefund(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
+  createPaymentLink: (data: Parameters<typeof api.createPaymentLink>[0]) =>
+    api.createPaymentLink(data),
+  listPaymentLinks: (params: Parameters<typeof api.listPaymentLinks>[0]) =>
+    api.listPaymentLinks(params),
+  getPaymentLink: (id: string) => api.getPaymentLink(id),
+  resendPaymentLink: (id: string, data: Parameters<typeof api.resendPaymentLink>[1]) =>
+    api.resendPaymentLink(id, data),
+  cancelPaymentLink: (id: string) => api.cancelPaymentLink(id),
   listPaymentProviders: () => api.listPaymentProviders(),
   getPaymentCapabilities: (stationId: string | null) => api.getPaymentCapabilities(stationId),
   getOnlineSettings: () => api.getOnlineSettings(),

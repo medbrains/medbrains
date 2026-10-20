@@ -41,10 +41,11 @@ impl Default for LinkSettings {
 }
 
 impl LinkSettings {
-    /// Days a link stays open, within 1 and [`MAX_EXPIRY_DAYS`].
+    /// Days one link stays open: the desk's choice, else the setting, within
+    /// 1 and [`MAX_EXPIRY_DAYS`].
     #[must_use]
-    pub fn expiry_days(&self) -> i64 {
-        self.expiry_days.clamp(1, MAX_EXPIRY_DAYS)
+    pub fn expiry_days_or(&self, asked: Option<i64>) -> i64 {
+        asked.unwrap_or(self.expiry_days).clamp(1, MAX_EXPIRY_DAYS)
     }
 
     /// The least part, never below zero.
@@ -84,7 +85,9 @@ mod tests {
             serde_json::from_value(serde_json::json!({ "expiry_days": 400 })).unwrap_or_default();
         assert!(s.accept_partial);
         assert_eq!(s.min_part(), Decimal::from(100));
-        assert_eq!(s.expiry_days(), MAX_EXPIRY_DAYS);
-        assert_eq!(LinkSettings::default().expiry_days(), 7);
+        assert_eq!(s.expiry_days_or(None), MAX_EXPIRY_DAYS);
+        assert_eq!(LinkSettings::default().expiry_days_or(None), 7);
+        assert_eq!(LinkSettings::default().expiry_days_or(Some(2)), 2);
+        assert_eq!(LinkSettings::default().expiry_days_or(Some(0)), 1);
     }
 }

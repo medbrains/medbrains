@@ -37,6 +37,7 @@ pub async fn portal_pay_bill(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     // The patient's own bill, or nothing: another patient's bill is a 404.
+    // allow-raw-sql: the portal's own-bill check, tenant context set above
     let own: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM invoices WHERE tenant_id = $1 AND id = $2 AND patient_id = $3 \
             AND deleted_at IS NULL",
@@ -59,6 +60,7 @@ pub async fn portal_pay_bill(
         channel: Channel::Portal,
         replaces: None,
         station_id: None,
+        expiry_days: None,
     };
     Ok(Json(
         issue(&ctx_for(&state, claims.tenant_id, None), &spec).await?,
