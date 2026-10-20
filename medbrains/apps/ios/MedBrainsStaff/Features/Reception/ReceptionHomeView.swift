@@ -38,6 +38,21 @@ final class ReceptionSession {
 
     func departmentName(_ id: String?) -> String? { departments.first { $0.id == id }?.name }
     func doctorName(_ id: String?) -> String? { doctors.first { $0.id == id }?.fullName }
+
+    /// The pickers' rows for a registration desk: departments, doctors, and
+    /// the open camps and running campaigns when the role may list them.
+    /// An unloadable department list is an outage, never an empty hospital.
+    @MainActor
+    func load(_ api: ReceptionApi, identity: TenantIdentity?) async {
+        async let d = try? api.departments()
+        async let r = try? api.doctors()
+        let loaded = await d
+        departments = loaded ?? []
+        if identity?.can("camp.list") ?? false { camps = ((try? await api.camps()) ?? []).filter(\.isOpen) }
+        if identity?.can("marketing.campaigns.lookup") ?? false { campaigns = (try? await api.campaigns()) ?? [] }
+        departmentsFailed = loaded == nil
+        doctors = await r ?? []
+    }
 }
 
 /// One place that turns a route into a screen, so a stack opened inside a
@@ -110,15 +125,7 @@ struct ReceptionHomeView: View {
         }
         .task {
             guard let client else { return }
-            let api = ReceptionApi(client: client)
-            async let d = try? api.departments()
-            async let r = try? api.doctors()
-            let loaded = await d
-            session.departments = loaded ?? []
-            if auth.identity?.can("camp.list") ?? false { session.camps = ((try? await api.camps()) ?? []).filter(\.isOpen) }
-            if auth.identity?.can("marketing.campaigns.lookup") ?? false { session.campaigns = (try? await api.campaigns()) ?? [] }
-            session.departmentsFailed = loaded == nil
-            session.doctors = await r ?? []
+            await session.load(ReceptionApi(client: client), identity: auth.identity)
             if auth.identity?.can("opd.queue.list") ?? false, let dept = session.departmentId {
                 await queue.load { try await TokenApi(client: client, module: .opd).worklist(.department(dept)) }
             }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Files the app hands to a viewer: only a document another hospital sent, from its own cache, removed when the record closes. -->
+<!-- Files the staff app hands to another app, only from its own cache: the ABHA card or QR the desk chose to share, and a document another hospital sent (removed when the record closes). -->
 <paths>
+    <cache-path name="abha" path="abha/" />
     <cache-path name="abdm_documents" path="abdm-documents/" />
 </paths>

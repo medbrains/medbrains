@@ -58,6 +58,14 @@ import com.medbrains.ui.CarbonTonedTile
 import com.medbrains.ui.CarbonTone
 import com.medbrains.ui.Eyebrow
 import com.medbrains.ui.NotificationKind
+import com.medbrains.kit.Abha
+import com.medbrains.kit.OurDetails
+import com.medbrains.kit.ScanShareApi
+import com.medbrains.kit.VerifiedAbha
+import com.medbrains.staff.abdm.AbdmPermission
+import com.medbrains.staff.abdm.AbhaFlowMode
+import com.medbrains.staff.abdm.AbhaFlowSheet
+import com.medbrains.staff.abdm.ShareStart
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -85,6 +93,9 @@ fun RegisterPatientScreen(
     // Registering at a camp: the form starts as the camp's, and the patient
     // is put on the camp's route (a camp number) once registered.
     camp: CampSummary? = null,
+    // Registering from a Scan & Share: the form starts from the profile the
+    // server verified, and the share is marked done once registered.
+    share: ShareStart? = null,
 ) {
     val scope = rememberCoroutineScope()
     val catalogue = RegistrationCatalogue.shared
@@ -98,6 +109,11 @@ fun RegisterPatientScreen(
     var checkUnavailable by remember { mutableStateOf(false) }
     var registered by remember { mutableStateOf<PatientSummary?>(null) }
     var campNumber by remember { mutableStateOf<String?>(null) }
+    // The ABHA verification this registration rides on, if any.
+    var verifiedAbha by remember { mutableStateOf<VerifiedAbha?>(null) }
+    var abhaFlow by remember { mutableStateOf<AbhaFlowMode?>(null) }
+    var shareTaken by remember { mutableStateOf(false) }
+    var shareFailure by remember { mutableStateOf<String?>(null) }
     val identity = LocalIdentity.current
     val client = LocalApiClient.current
     val lookupsApi = remember { CatalogueLookups(client) }
@@ -119,6 +135,12 @@ fun RegisterPatientScreen(
 
     /** The desk's department and consultant, kept between walk-ins — and at a camp, the camp itself, as the web's camp mode starts. */
     fun takeDeskContext() {
+        val profile = share?.step?.profile
+        if (share != null && profile != null && !shareTaken) {
+            Abha.sharePrefill(profile).forEach { (k, v) -> draft[k] = v }
+            verifiedAbha = VerifiedAbha.of(share.step.id, profile.abha_number)
+            shareTaken = true
+        }
         if (camp != null && draft["camp_id"].isEmpty()) {
             draft["registration_type"] = "camp"; draft["registration_source"] = "camp"
             draft["camp_id"] = camp.id; draft["camp_name"] = camp.name
@@ -169,9 +191,14 @@ fun RegisterPatientScreen(
                 "matched_uhid" to (matchedUhid?.let { JsonPrimitive(it) } ?: JsonNull),
             ))
             val attributes = JsonObject((request["attributes"]?.jsonObject ?: JsonObject(emptyMap())) + ("mobile_registration" to audit))
-            val patient = api.createPatient(JsonObject(request + ("attributes" to attributes)).toString())
+            val proof = Abha.verificationToSend(verifiedAbha, draft["abha_number"])?.let { mapOf("abha_verification_id" to JsonPrimitive(it)) }.orEmpty()
+            val patient = api.createPatient(JsonObject(request + ("attributes" to attributes) + proof).toString())
             session.patients[patient.id] = patient
             registered = patient
+            // The share is dealt with; a failure leaves the record registered and says so.
+            if (share != null) runCatching { ScanShareApi(client).complete(share.shareId, patient.id) }.onFailure {
+                shareFailure = "The patient is registered, but their Scan & Share entry still shows as waiting. Open the queue and choose Open patient."
+            }
             draft["department_id"].ifEmpty { null }?.let { session.departmentId = it }
             session.consultantId = draft["consultant_id"].ifEmpty { null }
             if (camp != null) {
@@ -209,7 +236,7 @@ fun RegisterPatientScreen(
 
     /** The person is cleared; the desk stays. */
     fun nextWalkIn() {
-        registered = null; campNumber = null; checkUnavailable = false; shown = emptyList(); failure = null
+        registered = null; campNumber = null; checkUnavailable = false; shown = emptyList(); failure = null; verifiedAbha = null; shareFailure = null
         draft.clearPerson()
         stepIndex = 0
         takeDeskContext()
@@ -230,12 +257,14 @@ fun RegisterPatientScreen(
             val done = registered
             if (done != null) {
                 RegisteredCard(nav, done, camp != null, campNumber, ::nextWalkIn)
+                shareFailure?.let { CarbonNotification(NotificationKind.Warning, "Scan & Share still waiting", it) }
                 if (camp != null && campNumber == null) failure?.let {
                     CarbonNotification(NotificationKind.Error, "Not on the camp's route yet", "The record is saved. $it")
                     CarbonTertiaryButton("Try again", onClick = { scope.launch { putOnCampRoute(done) } }, enabled = !busy, modifier = Modifier.fillMaxWidth().testTag("camp-link-retry"))
                 }
             } else {
                 val visible = draft.visible()
+                if (stepIndex == 0) AbhaRegistrationTile(draft["abha_number"], Abha.verificationToSend(verifiedAbha, draft["abha_number"]) != null, identity?.can(AbdmPermission.MANAGE_ABHA) == true) { abhaFlow = it }
                 if (onReview) {
                     RegistrationReview(draft, lists, visible, onEdit = { stepIndex = it })
                 } else {
@@ -261,6 +290,14 @@ fun RegisterPatientScreen(
         }
     }
 
+    abhaFlow?.let { mode ->
+        AbhaFlowSheet(mode, OurDetails(draft["first_name"], draft["middle_name"], draft["last_name"], draft["date_of_birth"], draft["gender"]), "Use for this registration", onDismiss = { abhaFlow = null }, mobile = draft["phone"]) { c ->
+            Abha.appliedValues(c.profile, c.apply).forEach { (k, v) -> draft[k] = v }
+            verifiedAbha = VerifiedAbha.of(c.verificationId, c.profile.abha_number)
+            null
+        }
+    }
+
     candidates?.let { found ->
         ModalBottomSheet(onDismissRequest = { candidates = null }, modifier = Modifier.testTag("duplicate-sheet")) {
             Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -278,6 +315,25 @@ fun RegisterPatientScreen(
                 CarbonDangerButton("Register as new anyway", onClick = { candidates = null; scope.launch { create("overridden", found.firstOrNull()?.uhid) } }, modifier = Modifier.fillMaxWidth().testTag("duplicate-register-anyway"))
                 Spacer(Modifier.height(24.dp))
             }
+        }
+    }
+}
+
+/**
+ * Verify or create the patient's ABHA first: what ABDM verified fills the
+ * form where the desk chooses, and the registration carries the proof for
+ * the server to link. Without `abdm.abha.manage`, only a verified one shows.
+ */
+@Composable
+private fun AbhaRegistrationTile(abhaNumber: String, verified: Boolean, canManage: Boolean, onStart: (AbhaFlowMode) -> Unit) {
+    if (!verified && !canManage) return
+    CarbonTonedTile(if (verified) CarbonTone.Success else CarbonTone.Neutral) {
+        Eyebrow("ABHA")
+        Text(if (verified) "Verified · $abhaNumber" else "Verify the patient's ABHA, or create one with Aadhaar, to fill their details from it.", style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.testTag(if (verified) "register-abha-verified" else "register-abha-none"))
+        if (canManage) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            CarbonTertiaryButton(if (verified) "Verify again" else "Verify ABHA", onClick = { onStart(AbhaFlowMode.VERIFY) }, modifier = Modifier.weight(1f).testTag("register-abha-verify"))
+            CarbonTertiaryButton("Create ABHA", onClick = { onStart(AbhaFlowMode.CREATE) }, modifier = Modifier.weight(1f).testTag("register-abha-create"))
         }
     }
 }
