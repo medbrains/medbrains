@@ -45,13 +45,14 @@ import {
   IconPlus,
   IconPrinter,
   IconReceipt,
+  IconReceiptRefund,
   IconShieldCheck,
   IconTags,
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -82,6 +83,7 @@ import { paymentsService } from "@/services/payments.service";
 import { printCopyRouteLabel } from "@/utils/printCopies";
 import classes from "../billing.module.scss";
 import { billingInvoicePaymentRoute } from "../billing-workspace";
+import { GatewayRefundModal, isOnlinePayment } from "./gateway-refund-modal";
 import { PayerSplitPanel } from "./PayerSplitPanel";
 import type { BillingDisplayAccess } from "./shared";
 import {
@@ -161,6 +163,8 @@ export function InvoiceDetail({
   const canEditDraft = useHasPermission(P.BILLING.INVOICES_UPDATE);
   const canCancelInvoice = useHasPermission(P.BILLING.INVOICES_CANCEL);
   const canPrintBillingDocs = useHasPermission(P.BILLING.RECEIPTS_PRINT);
+  const canRefundOnline = useHasPermission(P.BILLING.PAYMENTS_VOID);
+  const [refunding, setRefunding] = useState<{ id: string; amount: number } | null>(null);
   const amountAccess = useProtectedFieldAccess("billing.amount");
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const patientAddressAccess = useProtectedFieldAccess("patients.address");
@@ -280,7 +284,7 @@ export function InvoiceDetail({
           invoice_id: invoiceId,
           description: `Invoice ${printData.invoice.invoice_number}`,
         });
-        return { printData, upiUri: qr.upi_uri };
+        return { printData, upiUri: qr.upi_uri ?? undefined };
       } catch {
         // A hospital with no UPI configured still needs its bill. Print without.
         return { printData, upiUri: undefined };
@@ -907,11 +911,12 @@ export function InvoiceDetail({
                       <Table.Th>{t("label.reference")}</Table.Th>
                       <Table.Th>{t("label.date")}</Table.Th>
                       {canPrintBillingDocs && <Table.Th />}
+                      {canRefundOnline && <Table.Th />}
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
                     {detail.payments.map((p) => (
-                      <Table.Tr key={p.id}>
+                      <Table.Tr key={p.id} data-testid="row-payment">
                         <Table.Td>{billingAmountText(p.amount, amountAccess)}</Table.Td>
                         <Table.Td>{p.mode}</Table.Td>
                         <Table.Td>{p.reference_number ?? "—"}</Table.Td>
@@ -929,6 +934,25 @@ export function InvoiceDetail({
                                 <IconReceipt size={14} />
                               </IconButton>
                             </Tooltip>
+                          </Table.Td>
+                        )}
+                        {canRefundOnline && (
+                          <Table.Td>
+                            {isOnlinePayment(p.notes) && (
+                              <Tooltip label="Refund to the payer">
+                                <IconButton
+                                  tone="default"
+                                  aria-label="Refund online payment"
+                                  data-testid={`btn-refund-${p.id}`}
+                                  size="sm"
+                                  onClick={() =>
+                                    setRefunding({ id: p.id, amount: Number(p.amount) })
+                                  }
+                                >
+                                  <IconReceiptRefund size={14} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Table.Td>
                         )}
                       </Table.Tr>
@@ -974,6 +998,20 @@ export function InvoiceDetail({
                         : undefined
                     }
                     autoFocus
+                  />
+                )}
+                {refunding && (
+                  <GatewayRefundModal
+                    opened
+                    paymentId={refunding.id}
+                    maxAmount={refunding.amount}
+                    onClose={() => setRefunding(null)}
+                    onRefunded={() => {
+                      void queryClient.invalidateQueries({
+                        queryKey: ["invoice-detail", invoiceId],
+                      });
+                      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                    }}
                   />
                 )}
                 {canRecordPayment && (

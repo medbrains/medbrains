@@ -1,4 +1,9 @@
 pub mod payment_link;
+pub mod razorpay;
+pub mod settle;
+pub mod upi_qr;
+
+pub use settle::{CAPTURE_EVENTS, GatewayPosting, record_invoice_payment};
 
 use axum::{
     Extension, Json,
@@ -27,73 +32,6 @@ type HmacSha256 = Hmac<Sha256>;
 //  Config helpers
 // ══════════════════════════════════════════════════════════
 
-#[derive(Debug, Deserialize)]
-struct RazorpayConfig {
-    key_id: String,
-    key_secret: String,
-    #[serde(default)]
-    webhook_secret: Option<String>,
-}
-
-#[derive(Debug)]
-struct ResolvedRazorpayConfig {
-    config: RazorpayConfig,
-    source: String,
-}
-
-/// Read Razorpay config from `tenant_settings` or env vars.
-async fn get_razorpay_config(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<RazorpayConfig, AppError> {
-    resolve_razorpay_config(tx, tenant_id)
-        .await?
-        .map(|value| value.config)
-        .ok_or_else(|| {
-            AppError::ServiceUnavailable("Razorpay credentials are not configured".to_owned())
-        })
-}
-
-async fn resolve_razorpay_config(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<Option<ResolvedRazorpayConfig>, AppError> {
-    let row = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'payments' AND key = 'razorpay_config' \
-           AND deleted_at IS NULL",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    if let Some(val) = row {
-        let cfg: RazorpayConfig = serde_json::from_value(val)
-            .map_err(|e| AppError::Internal(format!("invalid razorpay_config: {e}")))?;
-        return Ok(Some(ResolvedRazorpayConfig {
-            config: cfg,
-            source: "tenant_settings".to_owned(),
-        }));
-    }
-
-    let key_id = std::env::var("RAZORPAY_KEY_ID").ok();
-    let key_secret = std::env::var("RAZORPAY_KEY_SECRET").ok();
-    let webhook_secret = std::env::var("RAZORPAY_WEBHOOK_SECRET").ok();
-
-    if let (Some(key_id), Some(key_secret)) = (key_id, key_secret) {
-        return Ok(Some(ResolvedRazorpayConfig {
-            config: RazorpayConfig {
-                key_id,
-                key_secret,
-                webhook_secret,
-            },
-            source: "env".to_owned(),
-        }));
-    }
-
-    Ok(None)
-}
-
 /// Razorpay's key ID and secret when Razorpay is the hospital's active
 /// online provider and is configured — what a hosted payment link needs.
 /// `None` when the hospital takes no online payment this way.
@@ -102,14 +40,38 @@ async fn resolve_razorpay_config(
 /// A database fault, or a stored config that does not parse.
 pub async fn razorpay_link_credentials(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    secrets: &dyn medbrains_core::secrets::SecretResolver,
     tenant_id: &Uuid,
 ) -> Result<Option<(String, String)>, AppError> {
     if resolve_active_provider(tx, tenant_id).await? != "razorpay" {
         return Ok(None);
     }
-    Ok(resolve_razorpay_config(tx, tenant_id)
+    Ok(razorpay::credentials(tx, secrets, tenant_id)
         .await?
-        .map(|r| (r.config.key_id, r.config.key_secret)))
+        .map(|c| (c.key_id, c.key_secret)))
+}
+
+/// The hospital's Razorpay keys, or a clear 503 when it has none.
+async fn require_razorpay(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    state: &AppState,
+    tenant_id: &Uuid,
+) -> Result<razorpay::Credentials, AppError> {
+    razorpay::credentials(tx, state.secret_resolver.as_ref(), tenant_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::ServiceUnavailable("Razorpay credentials are not configured".to_owned())
+        })
+}
+
+fn razorpay_mode(key_id: &str) -> &'static str {
+    if key_id.starts_with("rzp_test_") {
+        "test"
+    } else if key_id.starts_with("rzp_live_") {
+        "live"
+    } else {
+        "unknown"
+    }
 }
 
 /// Read UPI VPA from `tenant_settings`.
@@ -159,19 +121,36 @@ pub struct GenerateUpiQrRequest {
     pub invoice_id: Option<Uuid>,
     pub pos_sale_id: Option<Uuid>,
     pub description: Option<String>,
+    /// A QR the patient pays now, at the counter: made by Razorpay for this
+    /// amount and confirmed by it. Without it (a printed bill) the QR is the
+    /// hospital's own UPI ID, which lasts as long as the paper does.
+    pub live: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UpiQrResponse {
-    pub upi_uri: String,
-    pub vpa: String,
+    /// `razorpay` — Razorpay made it and confirms the payment itself;
+    /// `upi_id` — the hospital's UPI ID, confirmed by the UTR the patient shows.
+    pub source: &'static str,
+    pub upi_uri: Option<String>,
+    pub vpa: Option<String>,
     pub amount: Decimal,
     pub transaction_ref: String,
+    /// The payment row a Razorpay QR settles, to watch.
+    pub transaction_id: Option<Uuid>,
+    pub image_url: Option<String>,
+    /// When a Razorpay QR stops taking payment (Unix seconds).
+    pub close_by: Option<i64>,
+    /// Why a live QR was asked for but the hospital's UPI ID QR is shown.
+    pub fallback_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct InitiateRefundRequest {
-    pub transaction_id: Uuid,
+    /// The online payment to refund, by its gateway row…
+    pub transaction_id: Option<Uuid>,
+    /// …or by the bill's payment row it posted as (the invoice screen's view).
+    pub payment_id: Option<Uuid>,
     pub amount: Option<Decimal>,
     pub reason: Option<String>,
 }
@@ -200,7 +179,8 @@ pub async fn razorpay_status(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let resolved = resolve_razorpay_config(&mut tx, &claims.tenant_id).await?;
+    let resolved =
+        razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id).await?;
     tx.commit().await?;
 
     let Some(resolved) = resolved else {
@@ -213,20 +193,12 @@ pub async fn razorpay_status(
         }));
     };
 
-    let mode = if resolved.config.key_id.starts_with("rzp_test_") {
-        "test"
-    } else if resolved.config.key_id.starts_with("rzp_live_") {
-        "live"
-    } else {
-        "unknown"
-    };
-
     Ok(Json(RazorpayStatusResponse {
         configured: true,
-        mode: Some(mode.to_owned()),
-        source: Some(resolved.source),
-        key_id_prefix: Some(mask_key_id(&resolved.config.key_id)),
-        webhook_configured: resolved.config.webhook_secret.is_some(),
+        mode: Some(razorpay_mode(&resolved.key_id).to_owned()),
+        source: Some(resolved.source.to_owned()),
+        key_id_prefix: Some(mask_key_id(&resolved.key_id)),
+        webhook_configured: resolved.webhook_secret.is_some(),
     }))
 }
 
@@ -476,17 +448,14 @@ pub async fn list_payment_providers(
         // Razorpay keeps its typed resolver (incl. env fallback + key-id mode
         // detection); other providers use the generic peek.
         let (configured, mode, webhook_configured) = if spec.code == "razorpay" {
-            match resolve_razorpay_config(&mut tx, &claims.tenant_id).await? {
-                Some(resolved) => {
-                    let mode = if resolved.config.key_id.starts_with("rzp_test_") {
-                        Some("test".to_owned())
-                    } else if resolved.config.key_id.starts_with("rzp_live_") {
-                        Some("live".to_owned())
-                    } else {
-                        Some("unknown".to_owned())
-                    };
-                    (true, mode, resolved.config.webhook_secret.is_some())
-                }
+            match razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id)
+                .await?
+            {
+                Some(c) => (
+                    true,
+                    Some(razorpay_mode(&c.key_id).to_owned()),
+                    c.webhook_secret.is_some(),
+                ),
                 None => (false, None, false),
             }
         } else {
@@ -839,16 +808,11 @@ pub async fn create_order(
     // Convert amount to paise (smallest unit)
     let amount_paise = amount_to_paise(body.amount)?;
 
-    let receipt = body
-        .receipt
-        .clone()
-        .unwrap_or_else(|| format!("rcpt_{}", Uuid::new_v4()));
-
-    // Async outbox flow. Insert the txn (status='pending_gateway') under the
-    // active provider, then queue a provider-specific outbox event so the
-    // worker hits the gateway off-thread. Client polls /status until the
-    // worker reports `created`. idempotency_key = txn UUID (also the gateway
-    // receipt / order_id) so a worker retry never double-creates an order.
+    // Insert the txn (status='pending_gateway') under the active provider.
+    // Razorpay's order is then made in this request (checkout needs its id
+    // now); the other providers' adapters run in the outbox worker and the
+    // client polls /status. idempotency_key = txn UUID (also the gateway
+    // receipt) so neither path can make a second order for one row.
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
@@ -875,8 +839,7 @@ pub async fn create_order(
     .execute(&mut *tx)
     .await?;
 
-    // Provider dispatch. Razorpay arm is the original flow verbatim (txn_id
-    // payload, `payment.create_order`); Cashfree and PhonePe are additive arms.
+    let mut razorpay_keys = None;
     let key_id = if provider == "cashfree" {
         let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "cashfree").await?;
         let api_base = if mode.as_deref() == Some("live") {
@@ -995,39 +958,88 @@ pub async fn create_order(
         .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
         String::new()
     } else {
-        let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
-        medbrains_outbox::queue_in_tx(
-            &mut tx,
-            medbrains_outbox::OutboxRow {
-                tenant_id: claims.tenant_id,
-                aggregate_type: "payment_gateway_transaction",
-                aggregate_id: Some(txn.id),
-                event_type: "payment.create_order",
-                payload: serde_json::json!({
-                    "internal_payment_id": txn.id,
-                    "amount_paise": amount_paise,
-                    "currency": currency,
-                    "receipt": receipt,
-                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-                }),
-                idempotency_key: Some(txn.id.to_string()),
-            },
-        )
-        .await
-        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-        config.key_id // safe to return — Razorpay key_id is public-side
+        let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
+        let key_id = keys.key_id.clone(); // safe to return — Razorpay key_id is public-side
+        razorpay_keys = Some(keys);
+        key_id
     };
 
     tx.commit().await?;
 
+    let (order_id, status) = match razorpay_keys {
+        Some(keys) => {
+            let id = create_razorpay_order(&state, &keys, &txn, amount_paise, currency).await?;
+            (id, "created")
+        }
+        None => (String::new(), "pending_gateway"),
+    };
+
     Ok(Json(CreateOrderResponse {
         transaction_id: txn.id,
-        order_id: String::new(), // populated by worker on success; client polls /status
+        order_id,
         amount: body.amount,
         currency: currency.to_owned(),
         key_id,
-        status: "pending_gateway".to_owned(),
+        status: status.to_owned(),
     }))
+}
+
+/// Razorpay's order for a payment row, made in the request rather than by
+/// the outbox: checkout cannot open without its id, and one call here is
+/// simpler and faster than a queued job and a polling loop. The receipt is
+/// the row's id, so the order and the row name each other. The row is
+/// committed before the call (no transaction is held open across it) and
+/// records the answer either way: `created` with the order id, or `failed`
+/// with Razorpay's reason — the cashier is told, never left waiting.
+async fn create_razorpay_order(
+    state: &AppState,
+    keys: &razorpay::Credentials,
+    txn: &PaymentGatewayTransaction,
+    amount_paise: i64,
+    currency: &str,
+) -> Result<String, AppError> {
+    let body = serde_json::json!({
+        "amount": amount_paise,
+        "currency": currency,
+        "receipt": txn.id.to_string(),
+        "notes": { "tenant_id": txn.tenant_id, "internal_payment_id": txn.id },
+    });
+    let answer = razorpay::call(state.secret_resolver.as_ref(), keys, "/orders", Some(&body)).await;
+    let made = match &answer {
+        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned),
+        _ => None,
+    };
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &txn.tenant_id).await?;
+    let Some(order_id) = made else {
+        let why = match answer {
+            razorpay::Answer::Refused(w) => format!("Razorpay refused the order: {w}"),
+            razorpay::Answer::Unreachable(w) => w,
+            razorpay::Answer::Ok(_) => "Razorpay's answer named no order".to_owned(),
+        };
+        sqlx::query(
+            "UPDATE payment_gateway_transactions SET status = 'failed', \
+             error_description = $2, updated_at = now() WHERE id = $1",
+        )
+        .bind(txn.id)
+        .bind(&why)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        return Err(AppError::ServiceUnavailable(format!(
+            "{why}. Online payment is not available right now; take the payment another way."
+        )));
+    };
+    sqlx::query(
+        "UPDATE payment_gateway_transactions SET status = 'created', \
+         gateway_order_id = $2, updated_at = now() WHERE id = $1",
+    )
+    .bind(txn.id)
+    .bind(&order_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(order_id)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1298,7 +1310,7 @@ pub async fn razorpayx_webhook(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
 
-    verify_webhook_signature(&mut tx, &txn_row, &body, signature).await?;
+    verify_webhook_signature(&mut tx, &state, &txn_row, &body, signature).await?;
 
     let inserted: Option<(String,)> = sqlx::query_as(
         // allow-raw-sql: webhook idempotency PK insert
@@ -1323,38 +1335,26 @@ pub async fn razorpayx_webhook(
     if payload["event"].as_str() == Some("virtual_account.credited") {
         let payment = &payload["payload"]["payment"]["entity"];
         let payment_id = payment["id"].as_str().unwrap_or(va_id);
-        sqlx::query(
-            "UPDATE payment_gateway_transactions SET \
-             status = 'captured', gateway_payment_id = $1, webhook_payload = $2, \
-             verified_at = now(), updated_at = now() \
-             WHERE gateway_order_id = $3 AND tenant_id = $4 AND status != 'captured'",
+        // A transfer to the account credits whatever the payer sent.
+        let received = payment["amount"]
+            .as_i64()
+            .filter(|p| *p > 0)
+            .map_or(settle::Received::AsRequested, |p| {
+                settle::Received::Credited(settle::rupees(p))
+            });
+        settle::settle_capture(
+            &mut tx,
+            txn_row.id,
+            &settle::Capture {
+                provider: "razorpayx",
+                payment_id,
+                method: Some(payment["method"].as_str().unwrap_or("bank_transfer")),
+                received,
+                signature: None,
+                payload: Some(&payload),
+            },
         )
-        .bind(payment_id)
-        .bind(&payload)
-        .bind(va_id)
-        .bind(txn_row.tenant_id)
-        .execute(&mut *tx)
         .await?;
-
-        if let Some(invoice_id) = txn_row.invoice_id {
-            if txn_row.status != "captured" {
-                // Credit the actual amount received (paise → rupees).
-                let paise = payment["amount"].as_i64().unwrap_or(0);
-                let received = if paise > 0 {
-                    Decimal::from(paise) / Decimal::from(100)
-                } else {
-                    txn_row.amount
-                };
-                record_invoice_payment(
-                    &mut tx,
-                    txn_row.tenant_id,
-                    invoice_id,
-                    received,
-                    payment_id,
-                )
-                .await?;
-            }
-        }
     }
 
     tx.commit().await?;
@@ -1365,6 +1365,10 @@ pub async fn razorpayx_webhook(
 //  POST /api/payments/verify
 // ══════════════════════════════════════════════════════════
 
+/// The checkout's word that the patient paid. The signature proves the
+/// browser did not invent the ids; the amount and method come from Razorpay
+/// itself, never from the browser. Settled through the same path as the
+/// webhook, so whichever arrives first posts and the other posts nothing.
 pub async fn verify_payment(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1374,50 +1378,69 @@ pub async fn verify_payment(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
-
-    // Verify HMAC-SHA256 signature
-    let payload = format!("{}|{}", body.razorpay_order_id, body.razorpay_payment_id);
-    let mut mac = HmacSha256::new_from_slice(config.key_secret.as_bytes())
-        .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
-    mac.update(payload.as_bytes());
-    let expected = hex::encode(mac.finalize().into_bytes());
-
-    if expected != body.razorpay_signature {
+    let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
+    let message = format!("{}|{}", body.razorpay_order_id, body.razorpay_payment_id);
+    if !razorpay::signature_matches(
+        &keys.key_secret,
+        message.as_bytes(),
+        &body.razorpay_signature,
+    ) {
         return Err(AppError::BadRequest(
             "payment signature verification failed".to_owned(),
         ));
     }
-
-    // Update transaction to captured
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "UPDATE payment_gateway_transactions SET \
-         gateway_payment_id = $1, gateway_signature = $2, \
-         status = 'captured', verified_at = now(), updated_at = now() \
-         WHERE gateway_order_id = $3 AND tenant_id = $4 \
-         RETURNING *",
+        "SELECT * FROM payment_gateway_transactions \
+         WHERE gateway_order_id = $1 AND tenant_id = $2",
     )
-    .bind(&body.razorpay_payment_id)
-    .bind(&body.razorpay_signature)
     .bind(&body.razorpay_order_id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
 
-    // Auto-record payment in billing payments table if linked to an invoice
-    if let Some(invoice_id) = txn.invoice_id {
-        record_invoice_payment(
-            &mut tx,
-            claims.tenant_id,
-            invoice_id,
-            txn.amount,
-            &body.razorpay_payment_id,
+    let payment = fetch_razorpay_payment(&state, &keys, &body).await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if payment["status"].as_str() != Some("captured") {
+        // Authorised but not yet captured: `payment.captured` settles it.
+        sqlx::query(
+            "UPDATE payment_gateway_transactions SET status = 'authorized', \
+             gateway_payment_id = $2, updated_at = now() \
+             WHERE id = $1 AND status IN ('pending_gateway', 'created')",
         )
+        .bind(txn.id)
+        .bind(&body.razorpay_payment_id)
+        .execute(&mut *tx)
         .await?;
+        let current = settle::lock_txn(&mut tx, txn.id).await?;
+        tx.commit().await?;
+        return Ok(Json(current));
     }
-
+    let received = payment["amount"]
+        .as_i64()
+        .map_or(settle::Received::AsRequested, |p| {
+            settle::Received::Exactly(settle::rupees(p))
+        });
+    let settled = settle::settle_capture(
+        &mut tx,
+        txn.id,
+        &settle::Capture {
+            provider: "razorpay",
+            payment_id: &body.razorpay_payment_id,
+            method: payment["method"].as_str(),
+            received,
+            signature: Some(&body.razorpay_signature),
+            payload: None,
+        },
+    )
+    .await?;
+    let current = match settled {
+        settle::Settled::Now(t) => *t,
+        settle::Settled::Already => settle::lock_txn(&mut tx, txn.id).await?,
+    };
     tx.commit().await?;
 
     let _ = medbrains_workflow::events::emit_event(
@@ -1426,14 +1449,47 @@ pub async fn verify_payment(
         claims.sub,
         "payment.gateway.captured",
         serde_json::json!({
-            "transaction_id": txn.id,
+            "transaction_id": current.id,
             "gateway_payment_id": body.razorpay_payment_id,
-            "amount": txn.amount,
+            "amount": current.amount,
         }),
     )
     .await;
 
-    Ok(Json(txn))
+    Ok(Json(current))
+}
+
+/// Razorpay's own record of a payment the checkout reported, which must be
+/// a payment of the order it named.
+async fn fetch_razorpay_payment(
+    state: &AppState,
+    keys: &razorpay::Credentials,
+    body: &VerifyPaymentRequest,
+) -> Result<serde_json::Value, AppError> {
+    let path = format!(
+        "/payments/{}",
+        urlencoding::encode(&body.razorpay_payment_id)
+    );
+    let payment = match razorpay::call(state.secret_resolver.as_ref(), keys, &path, None).await {
+        razorpay::Answer::Ok(v) => v,
+        razorpay::Answer::Refused(w) => {
+            return Err(AppError::BadRequest(format!(
+                "Razorpay does not know this payment: {w}"
+            )));
+        }
+        razorpay::Answer::Unreachable(w) => {
+            return Err(AppError::ServiceUnavailable(format!(
+                "{w}. The payment posts when Razorpay's notice arrives; \
+                 check the bill before collecting again."
+            )));
+        }
+    };
+    if payment["order_id"].as_str() != Some(body.razorpay_order_id.as_str()) {
+        return Err(AppError::BadRequest(
+            "That payment is not for this order".to_owned(),
+        ));
+    }
+    Ok(payment)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1465,8 +1521,10 @@ pub async fn razorpay_webhook(
 
     // A payment link is filed under its own ID (`plink_…`); its payment
     // carries an order Razorpay made for it, which nothing here knows.
+    // A counter QR is filed under its own ID (`qr_…`) the same way.
     let order_id = payload["payload"]["payment_link"]["entity"]["id"]
         .as_str()
+        .or_else(|| payload["payload"]["qr_code"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["payment"]["entity"]["order_id"].as_str());
 
@@ -1500,7 +1558,7 @@ pub async fn razorpay_webhook(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
 
-    verify_webhook_signature(&mut tx, &txn_row, &body, signature).await?;
+    verify_webhook_signature(&mut tx, &state, &txn_row, &body, signature).await?;
 
     // Idempotency guard. INSERT ... ON CONFLICT DO NOTHING RETURNING.
     // If we get zero rows back, this event_id was already processed →
@@ -1528,11 +1586,14 @@ pub async fn razorpay_webhook(
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
-        "payment.captured" | "payment_link.paid" => {
-            handle_webhook_captured(&mut tx, &txn_row, order_id, &payload).await?;
+        "payment.captured" | "order.paid" | "payment_link.paid" | "qr_code.credited" => {
+            handle_webhook_captured(&mut tx, &txn_row, &payload).await?;
         }
-        "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, order_id, &payload).await?,
-        "refund.created" => handle_webhook_refund(&mut tx, &txn_row, order_id, &payload).await?,
+        "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, &payload).await?,
+        "refund.created" | "refund.processed" => {
+            handle_webhook_refund(&mut tx, &txn_row, &payload).await?;
+        }
+        "refund.failed" => handle_refund_failed(&mut tx, &txn_row, &payload).await?,
         _ => tracing::info!(event, "unhandled razorpay webhook event"),
     }
 
@@ -1542,20 +1603,14 @@ pub async fn razorpay_webhook(
 
 async fn verify_webhook_signature(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    state: &AppState,
     txn_row: &PaymentGatewayTransaction,
     body: &str,
     signature: &str,
 ) -> Result<(), AppError> {
-    let config = get_razorpay_config(tx, &txn_row.tenant_id).await?;
-    let secret = config
-        .webhook_secret
-        .as_deref()
-        .unwrap_or(&config.key_secret);
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
-    mac.update(body.as_bytes());
-    let expected = hex::encode(mac.finalize().into_bytes());
-    if expected != signature {
+    let keys = require_razorpay(tx, state, &txn_row.tenant_id).await?;
+    let secret = keys.webhook_secret.as_deref().unwrap_or(&keys.key_secret);
+    if !razorpay::signature_matches(secret, body.as_bytes(), signature) {
         return Err(AppError::BadRequest(
             "webhook signature verification failed".to_owned(),
         ));
@@ -1566,127 +1621,111 @@ async fn verify_webhook_signature(
 async fn handle_webhook_captured(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     txn_row: &PaymentGatewayTransaction,
-    order_id: &str,
     payload: &serde_json::Value,
 ) -> Result<(), AppError> {
     let payment = &payload["payload"]["payment"]["entity"];
-    let payment_id = payment["id"].as_str().unwrap_or("");
-    let method = payment["method"].as_str();
-
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET \
-         gateway_payment_id = $1, status = 'captured', payment_method = $2, \
-         webhook_payload = $3, verified_at = now(), updated_at = now() \
-         WHERE gateway_order_id = $4 AND tenant_id = $5 AND status != 'captured'",
-    )
-    .bind(payment_id)
-    .bind(method)
-    .bind(payload)
-    .bind(order_id)
-    .bind(txn_row.tenant_id)
-    .execute(&mut **tx)
-    .await?;
-
-    if let Some(invoice_id) = txn_row.invoice_id {
-        if txn_row.status != "captured" {
-            record_invoice_payment(
-                tx,
-                txn_row.tenant_id,
-                invoice_id,
-                txn_row.amount,
-                payment_id,
-            )
-            .await?;
-        }
-    }
-    if txn_row.status != "captured" {
-        announce_capture(tx, txn_row).await?;
-    }
-    Ok(())
-}
-
-/// The outbox events a payment may ask to have queued when it is captured.
-/// An allowlist: a payment row never names an arbitrary event.
-pub const CAPTURE_EVENTS: [&str; 1] = ["uhi.payment_captured"];
-
-/// Tell whoever opened the payment that it is in: a payment raised for
-/// something other than a bill names, in `notes.on_captured`, the outbox
-/// event that finishes its work (a UHI booking: `uhi.payment_captured`).
-async fn announce_capture(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    txn_row: &PaymentGatewayTransaction,
-) -> Result<(), AppError> {
-    let named = txn_row
-        .notes
-        .get("on_captured")
-        .and_then(serde_json::Value::as_str);
-    let Some(event) = CAPTURE_EVENTS.into_iter().find(|e| Some(*e) == named) else {
-        return Ok(());
-    };
-    medbrains_outbox::queue_in_tx(
+    let received = payment["amount"]
+        .as_i64()
+        .map_or(settle::Received::AsRequested, |p| {
+            settle::Received::Exactly(settle::rupees(p))
+        });
+    settle::settle_capture(
         tx,
-        medbrains_outbox::OutboxRow {
-            tenant_id: txn_row.tenant_id,
-            aggregate_type: "payment_gateway_transaction",
-            aggregate_id: Some(txn_row.id),
-            event_type: event,
-            payload: serde_json::json!({ "payment_transaction_id": txn_row.id }),
-            idempotency_key: Some(format!("captured:{}", txn_row.id)),
+        txn_row.id,
+        &settle::Capture {
+            provider: "razorpay",
+            payment_id: payment["id"].as_str().unwrap_or(""),
+            method: payment["method"].as_str(),
+            received,
+            signature: None,
+            payload: Some(payload),
         },
     )
-    .await
-    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+    .await?;
     Ok(())
 }
 
 async fn handle_webhook_failed(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     txn_row: &PaymentGatewayTransaction,
-    order_id: &str,
     payload: &serde_json::Value,
 ) -> Result<(), AppError> {
     let payment = &payload["payload"]["payment"]["entity"];
+    // A failed attempt never undoes a later attempt that succeeded.
     sqlx::query(
         "UPDATE payment_gateway_transactions SET \
          status = 'failed', error_code = $1, error_description = $2, \
          webhook_payload = $3, updated_at = now() \
-         WHERE gateway_order_id = $4 AND tenant_id = $5",
+         WHERE id = $4 AND status NOT IN ('captured', 'refunded')",
     )
     .bind(payment["error_code"].as_str())
     .bind(payment["error_description"].as_str())
     .bind(payload)
-    .bind(order_id)
-    .bind(txn_row.tenant_id)
+    .bind(txn_row.id)
     .execute(&mut **tx)
     .await?;
     Ok(())
 }
 
+/// A refund Razorpay made — from our refund screen (already taken into the
+/// books; this is a no-op) or from its dashboard (taken in now).
 async fn handle_webhook_refund(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     txn_row: &PaymentGatewayTransaction,
-    order_id: &str,
+    payload: &serde_json::Value,
+) -> Result<(), AppError> {
+    let refund = &payload["payload"]["refund"]["entity"];
+    let (Some(refund_id), Some(paise)) = (refund["id"].as_str(), refund["amount"].as_i64()) else {
+        tracing::warn!("razorpay refund webhook without an id or amount");
+        return Ok(());
+    };
+    let txn = settle::lock_txn(tx, txn_row.id).await?;
+    settle::settle_refund(
+        tx,
+        &txn,
+        &settle::RefundMade {
+            refund_id,
+            amount: settle::rupees(paise),
+            reason: refund["notes"]["reason"]
+                .as_str()
+                .unwrap_or("Refunded through Razorpay"),
+            refunded_by: None,
+            payload: Some(payload),
+        },
+    )
+    .await?;
+    Ok(())
+}
+
+/// A refund Razorpay could not make: the bill already shows it returned, so
+/// finance has to put it right.
+async fn handle_refund_failed(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    txn_row: &PaymentGatewayTransaction,
     payload: &serde_json::Value,
 ) -> Result<(), AppError> {
     let refund = &payload["payload"]["refund"]["entity"];
     let refund_id = refund["id"].as_str().unwrap_or("");
-    let refund_paise = refund["amount"].as_i64().unwrap_or(0);
-    let refund_amount = Decimal::from(refund_paise) / Decimal::from(100);
-
-    sqlx::query(
-        "UPDATE payment_gateway_transactions SET \
-         status = 'refunded', refund_id = $1, refund_amount = $2, \
-         webhook_payload = $3, updated_at = now() \
-         WHERE gateway_order_id = $4 AND tenant_id = $5",
+    let Some(invoice_id) = txn_row.invoice_id else {
+        return Ok(());
+    };
+    let posting = GatewayPosting {
+        tenant_id: txn_row.tenant_id,
+        invoice_id,
+        provider: "razorpay",
+        order_ref: refund_id,
+        amount: settle::rupees(refund["amount"].as_i64().unwrap_or(0)),
+        method: txn_row.payment_method.as_deref(),
+        reference: refund_id,
+        payload: Some(payload),
+    };
+    settle::park(
+        tx,
+        &posting,
+        "refund_failed",
+        "Razorpay could not make this refund",
     )
-    .bind(refund_id)
-    .bind(refund_amount)
-    .bind(payload)
-    .bind(order_id)
-    .bind(txn_row.tenant_id)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
+    .await
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1779,7 +1818,7 @@ pub async fn list_payment_exceptions(
     Query(q): Query<ExceptionsQuery>,
 ) -> Result<Json<Vec<PaymentWebhookException>>, AppError> {
     let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_permission(&claims, permissions::billing::payments::RECONCILE)?;
 
     let rows = sqlx::query_as::<_, PaymentWebhookException>(
         "SELECT * FROM payment_webhook_exceptions \
@@ -1800,7 +1839,7 @@ pub async fn resolve_payment_exception(
     Path(id): Path<Uuid>,
     Json(body): Json<ResolveExceptionRequest>,
 ) -> Result<Json<PaymentWebhookException>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_permission(&claims, permissions::billing::payments::RECONCILE)?;
 
     let status = body.status.trim();
     if !matches!(status, "open" | "resolved" | "ignored") {
@@ -1851,7 +1890,7 @@ pub async fn payment_recon_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<ReconSummary>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_permission(&claims, permissions::billing::payments::RECONCILE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1940,8 +1979,10 @@ pub async fn cashfree_webhook(
         .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
     mac.update(timestamp.as_bytes());
     mac.update(body.as_bytes());
-    let expected = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
-    if expected != signature {
+    let given = base64::engine::general_purpose::STANDARD
+        .decode(signature.trim())
+        .unwrap_or_default();
+    if mac.verify_slice(&given).is_err() {
         return Err(AppError::BadRequest(
             "cashfree webhook signature verification failed".to_owned(),
         ));
@@ -1987,32 +2028,19 @@ pub async fn cashfree_webhook(
         "PAYMENT_SUCCESS_WEBHOOK" => {
             let payment_id = cf_payment_id.as_deref().unwrap_or("");
             let method = payload["data"]["payment"]["payment_group"].as_str();
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 gateway_payment_id = $1, status = 'captured', payment_method = $2, \
-                 webhook_payload = $3, verified_at = now(), updated_at = now() \
-                 WHERE gateway_order_id = $4 AND tenant_id = $5 AND status != 'captured'",
+            settle::settle_capture(
+                &mut tx,
+                txn_row.id,
+                &settle::Capture {
+                    provider: "cashfree",
+                    payment_id,
+                    method,
+                    received: settle::Received::AsRequested,
+                    signature: None,
+                    payload: Some(&payload),
+                },
             )
-            .bind(payment_id)
-            .bind(method)
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
             .await?;
-
-            if let Some(invoice_id) = txn_row.invoice_id {
-                if txn_row.status != "captured" {
-                    record_invoice_payment(
-                        &mut tx,
-                        txn_row.tenant_id,
-                        invoice_id,
-                        txn_row.amount,
-                        payment_id,
-                    )
-                    .await?;
-                }
-            }
         }
         "PAYMENT_FAILED_WEBHOOK" => {
             sqlx::query(
@@ -2114,32 +2142,19 @@ pub async fn phonepe_webhook(
             let method = payload["data"]["paymentDetails"]["paymentInstrument"]["type"]
                 .as_str()
                 .unwrap_or("upi");
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 gateway_payment_id = $1, status = 'captured', payment_method = $2, \
-                 webhook_payload = $3, verified_at = now(), updated_at = now() \
-                 WHERE gateway_order_id = $4 AND tenant_id = $5 AND status != 'captured'",
+            settle::settle_capture(
+                &mut tx,
+                txn_row.id,
+                &settle::Capture {
+                    provider: "phonepe",
+                    payment_id,
+                    method: Some(method),
+                    received: settle::Received::AsRequested,
+                    signature: None,
+                    payload: Some(&payload),
+                },
             )
-            .bind(payment_id)
-            .bind(method)
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
             .await?;
-
-            if let Some(invoice_id) = txn_row.invoice_id {
-                if txn_row.status != "captured" {
-                    record_invoice_payment(
-                        &mut tx,
-                        txn_row.tenant_id,
-                        invoice_id,
-                        txn_row.amount,
-                        payment_id,
-                    )
-                    .await?;
-                }
-            }
         }
         "PAYMENT_FAILED" | "FAILED" => {
             sqlx::query(
@@ -2227,32 +2242,19 @@ pub async fn payu_webhook(
                 .or_else(|| payload["netbanking_brand"].as_str().map(|_| "netbanking"))
                 .unwrap_or("upi");
 
-            sqlx::query(
-                "UPDATE payment_gateway_transactions SET \
-                 gateway_payment_id = $1, status = 'captured', payment_method = $2, \
-                 webhook_payload = $3, verified_at = now(), updated_at = now() \
-                 WHERE gateway_order_id = $4 AND tenant_id = $5 AND status != 'captured'",
+            settle::settle_capture(
+                &mut tx,
+                txn_row.id,
+                &settle::Capture {
+                    provider: "payu",
+                    payment_id: payu_payment_id,
+                    method: Some(method),
+                    received: settle::Received::AsRequested,
+                    signature: None,
+                    payload: Some(&payload),
+                },
             )
-            .bind(payu_payment_id)
-            .bind(method)
-            .bind(&payload)
-            .bind(order_id)
-            .bind(txn_row.tenant_id)
-            .execute(&mut *tx)
             .await?;
-
-            if let Some(invoice_id) = txn_row.invoice_id {
-                if txn_row.status != "captured" {
-                    record_invoice_payment(
-                        &mut tx,
-                        txn_row.tenant_id,
-                        invoice_id,
-                        txn_row.amount,
-                        payu_payment_id,
-                    )
-                    .await?;
-                }
-            }
         }
         "failed" | "bounce" => {
             sqlx::query(
@@ -2350,7 +2352,7 @@ pub async fn ccavenue_webhook(
                          ON CONFLICT (provider, event_id) DO NOTHING \
                          RETURNING event_id",
                     )
-                    .bind(&format!("ccavenue:{oid}:{status}"))
+                    .bind(format!("ccavenue:{oid}:{status}"))
                     .bind(txn_row.tenant_id)
                     .bind(&payload)
                     .fetch_optional(&mut *tx)
@@ -2359,31 +2361,19 @@ pub async fn ccavenue_webhook(
                     if inserted.is_some() {
                         match status {
                             "Success" => {
-                                sqlx::query(
-                                    "UPDATE payment_gateway_transactions SET \
-                                     gateway_payment_id = $1, status = 'captured', \
-                                     webhook_payload = $2, verified_at = now(), updated_at = now() \
-                                     WHERE gateway_order_id = $3 AND tenant_id = $4 AND status != 'captured'",
+                                settle::settle_capture(
+                                    &mut tx,
+                                    txn_row.id,
+                                    &settle::Capture {
+                                        provider: "ccavenue",
+                                        payment_id: tracking_id.unwrap_or(""),
+                                        method: params.get("payment_mode").map(String::as_str),
+                                        received: settle::Received::AsRequested,
+                                        signature: None,
+                                        payload: Some(&payload),
+                                    },
                                 )
-                                .bind(tracking_id.unwrap_or(""))
-                                .bind(&payload)
-                                .bind(oid)
-                                .bind(txn_row.tenant_id)
-                                .execute(&mut *tx)
                                 .await?;
-
-                                if let Some(invoice_id) = txn_row.invoice_id {
-                                    if txn_row.status != "captured" {
-                                        record_invoice_payment(
-                                            &mut tx,
-                                            txn_row.tenant_id,
-                                            invoice_id,
-                                            txn_row.amount,
-                                            tracking_id.unwrap_or(""),
-                                        )
-                                        .await?;
-                                    }
-                                }
                             }
                             "Aborted" | "Failed" => {
                                 sqlx::query(
@@ -2451,51 +2441,6 @@ async fn get_ccavenue_working_key(
         .ok_or_else(|| "ccavenue_working_key not configured".to_owned())
 }
 
-/// Record a payment against an invoice and update its status.
-/// Post a gateway payment to its bill: the payment row and the bill's paid
-/// amount and status — how every online payment lands.
-///
-/// # Errors
-/// A database fault.
-pub async fn record_invoice_payment(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    invoice_id: Uuid,
-    amount: Decimal,
-    reference: &str,
-) -> Result<(), AppError> {
-    sqlx::query(
-        "INSERT INTO payments \
-         (tenant_id, invoice_id, amount, mode, reference_number, notes, paid_at) \
-         VALUES ($1, $2, $3, 'upi'::payment_mode, $4, 'Razorpay gateway', now())",
-    )
-    .bind(tenant_id)
-    .bind(invoice_id)
-    .bind(amount)
-    .bind(reference)
-    .execute(&mut **tx)
-    .await?;
-
-    sqlx::query(
-        "UPDATE invoices SET \
-         paid_amount = paid_amount + $1, \
-         status = CASE \
-           WHEN paid_amount + $1 >= total_amount THEN 'paid'::invoice_status \
-           ELSE 'partially_paid'::invoice_status \
-         END, \
-         updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
-    )
-    .bind(amount)
-    .bind(invoice_id)
-    .bind(tenant_id)
-    .execute(&mut **tx)
-    .await?;
-    // A home delivery the patient paid for in advance goes out once paid.
-    medbrains_pharmacy_delivery::pay::release_paid(tx, tenant_id, invoice_id).await?;
-    Ok(())
-}
-
 // ══════════════════════════════════════════════════════════
 //  GET /api/payments/{id}/status
 // ══════════════════════════════════════════════════════════
@@ -2534,36 +2479,100 @@ pub async fn generate_upi_qr(
 ) -> Result<Json<UpiQrResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
     require_invoice_billing(&state, &claims, body.invoice_id).await?;
+    let amount_paise = amount_to_paise(body.amount)?;
+    let description = body.description.as_deref().unwrap_or("Hospital Payment");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let vpa = get_upi_vpa(&mut tx, &claims.tenant_id).await?;
+    let live = body.live.unwrap_or(false);
+    let keys = if live && resolve_active_provider(&mut tx, &claims.tenant_id).await? == "razorpay" {
+        razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id).await?
+    } else {
+        None
+    };
+    tx.commit().await?;
 
-    let vpa = get_upi_vpa(&mut tx, &claims.tenant_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::BadRequest("UPI VPA not configured in tenant settings".to_owned())
-        })?;
+    let mut fallback_reason = None;
+    if live {
+        let made = match &keys {
+            Some(keys) => {
+                upi_qr::make_live_qr(
+                    &state.db,
+                    state.secret_resolver.as_ref(),
+                    keys,
+                    &upi_qr::QrFor {
+                        tenant_id: claims.tenant_id,
+                        user_id: claims.sub,
+                        invoice_id: body.invoice_id,
+                        pos_sale_id: body.pos_sale_id,
+                        amount: body.amount,
+                        amount_paise,
+                        description,
+                    },
+                )
+                .await?
+            }
+            None => upi_qr::Made::Unavailable(
+                "Razorpay is not set up for online payment at this hospital".to_owned(),
+            ),
+        };
+        match made {
+            upi_qr::Made::Live(qr) => {
+                return Ok(Json(UpiQrResponse {
+                    source: "razorpay",
+                    upi_uri: None,
+                    vpa: None,
+                    amount: body.amount,
+                    transaction_ref: qr.qr_id,
+                    transaction_id: Some(qr.transaction_id),
+                    image_url: Some(qr.image_url),
+                    close_by: Some(qr.close_by),
+                    fallback_reason: None,
+                }));
+            }
+            upi_qr::Made::Unavailable(why) => fallback_reason = Some(why),
+        }
+    }
 
-    // Get hospital name for payee name
+    let Some(vpa) = vpa else {
+        let unset = "The hospital's UPI ID is not set. An administrator sets it under \
+                     Billing → Settings → UPI ID.";
+        return Err(AppError::BadRequest(match fallback_reason {
+            Some(why) => format!("{why}. {unset}"),
+            None => unset.to_owned(),
+        }));
+    };
+    static_upi_qr(&state, &claims, &body, vpa, fallback_reason)
+        .await
+        .map(Json)
+}
+
+/// The hospital's own UPI ID QR: any UPI app pays it; the cashier confirms
+/// with the UTR the patient shows. Also what a printed bill carries.
+async fn static_upi_qr(
+    state: &AppState,
+    claims: &Claims,
+    body: &GenerateUpiQrRequest,
+    vpa: String,
+    fallback_reason: Option<String>,
+) -> Result<UpiQrResponse, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let hospital_name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
         .bind(claims.tenant_id)
         .fetch_optional(&mut *tx)
         .await?
         .unwrap_or_else(|| "Hospital".to_owned());
-
     let txn_ref = format!("MDB{}", Uuid::new_v4().simple());
     let description = body.description.as_deref().unwrap_or("Hospital Payment");
-
     let upi_uri = format!(
         "upi://pay?pa={vpa}&pn={pn}&am={am}&tn={tn}&tr={tr}",
-        vpa = vpa,
         pn = urlencoded(&hospital_name),
         am = body.amount,
         tn = urlencoded(description),
         tr = txn_ref,
     );
-
-    // Save a transaction record for tracking
     sqlx::query(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
@@ -2579,15 +2588,18 @@ pub async fn generate_upi_qr(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
-
     tx.commit().await?;
-
-    Ok(Json(UpiQrResponse {
-        upi_uri,
-        vpa,
+    Ok(UpiQrResponse {
+        source: "upi_id",
+        upi_uri: Some(upi_uri),
+        vpa: Some(vpa),
         amount: body.amount,
         transaction_ref: txn_ref,
-    }))
+        transaction_id: None,
+        image_url: None,
+        close_by: None,
+        fallback_reason,
+    })
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2748,7 +2760,7 @@ pub async fn upi_deep_link(
     let vpa = get_upi_vpa(&mut tx, &claims.tenant_id)
         .await?
         .ok_or_else(|| {
-            AppError::BadRequest("UPI VPA not configured in tenant settings".to_owned())
+            AppError::BadRequest("The hospital's UPI ID is not set. An administrator sets it under Billing → Settings → UPI ID.".to_owned())
         })?;
 
     let hospital_name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
@@ -2788,6 +2800,18 @@ pub async fn upi_deep_link(
 //  POST /api/payments/refund
 // ══════════════════════════════════════════════════════════
 
+/// Refund an online payment back to the card / UPI / bank it came from,
+/// and take it off the bill.
+///
+/// Called on Razorpay in the request, not through the outbox: the cashier
+/// needs the answer now, and Razorpay's refund call takes no idempotency key,
+/// so a worker retrying after a timeout could refund twice. Exactly-once is
+/// held here instead: the payment row is locked for the whole call, the
+/// refundable remainder is checked under that lock, and the refund id is
+/// taken into the books once (`settle_refund`) — the `refund.created`
+/// webhook for the same refund then finds it known and does nothing. When
+/// Razorpay does not answer, nothing is posted here; if it did refund, its
+/// webhook posts it.
 pub async fn initiate_refund(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2798,79 +2822,99 @@ pub async fn initiate_refund(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "SELECT * FROM payment_gateway_transactions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(body.transaction_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
+    let txn_id = match (body.transaction_id, body.payment_id) {
+        (Some(id), _) => id,
+        (None, Some(payment_id)) => sqlx::query_scalar::<_, Uuid>(
+            "SELECT t.id FROM payment_gateway_transactions t \
+             JOIN payments p ON p.reference_number = t.gateway_payment_id \
+                            AND p.invoice_id = t.invoice_id \
+             WHERE p.id = $1 AND p.tenant_id = $2 LIMIT 1",
+        )
+        .bind(payment_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?,
+        (None, None) => {
+            return Err(AppError::BadRequest(
+                "Name the payment to refund".to_owned(),
+            ));
+        }
+    };
+    let txn = settle::lock_txn(&mut tx, txn_id).await?;
+    if txn.tenant_id != claims.tenant_id {
+        return Err(AppError::NotFound);
+    }
+    require_invoice_billing(&state, &claims, txn.invoice_id).await?;
     if txn.status != "captured" {
         return Err(AppError::BadRequest(
-            "can only refund captured payments".to_owned(),
+            "Only a captured payment with money left on it can be refunded".to_owned(),
         ));
     }
-
-    let Some(ref gateway_payment_id) = txn.gateway_payment_id else {
+    let Some(gateway_payment_id) = txn.gateway_payment_id.clone() else {
         return Err(AppError::BadRequest(
             "no gateway payment id for this transaction".to_owned(),
         ));
     };
-
-    let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
-
-    let refund_amount = body.amount.unwrap_or(txn.amount);
-    let refund_paise = amount_to_paise(refund_amount)?;
-
-    let mut rz_body = serde_json::json!({
-        "amount": refund_paise,
-    });
-    if let Some(ref reason) = body.reason {
-        rz_body["notes"] = serde_json::json!({ "reason": reason });
-    }
-
-    let client = reqwest::Client::new();
-    let url = format!("https://api.razorpay.com/v1/payments/{gateway_payment_id}/refund");
-    let response = client
-        .post(&url)
-        .basic_auth(&config.key_id, Some(&config.key_secret))
-        .json(&rz_body)
-        .send()
-        .await
-        .map_err(|e| AppError::Internal(format!("razorpay refund request failed: {e}")))?;
-
-    if !response.status().is_success() {
-        let err_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "unknown".to_owned());
-        return Err(AppError::Internal(format!(
-            "razorpay refund failed: {err_text}"
+    let refundable = txn.amount - txn.refund_amount.unwrap_or_default();
+    let refund_amount = body.amount.unwrap_or(refundable);
+    if refund_amount > refundable {
+        return Err(AppError::BadRequest(format!(
+            "Refund exceeds the {refundable} left on this payment"
         )));
     }
+    let refund_paise = amount_to_paise(refund_amount)?;
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .unwrap_or("Refund to the patient");
 
-    let rz_refund: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AppError::Internal(format!("razorpay refund parse: {e}")))?;
+    let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
+    let rz_body = serde_json::json!({
+        "amount": refund_paise,
+        "receipt": format!("rf_{}", Uuid::new_v4().simple()),
+        "notes": { "reason": reason, "internal_payment_id": txn.id },
+    });
+    let path = format!(
+        "/payments/{}/refund",
+        urlencoding::encode(&gateway_payment_id)
+    );
+    // ponytail: the row lock is held across this call (≤ CALL_TIMEOUT); it only
+    // blocks other settles/refunds of this one payment.
+    let answer = razorpay::call(state.secret_resolver.as_ref(), &keys, &path, Some(&rz_body)).await;
+    let refund_id = match answer {
+        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned).ok_or_else(|| {
+            AppError::ServiceUnavailable(
+                "Razorpay's answer named no refund; check the payment in Razorpay".to_owned(),
+            )
+        })?,
+        razorpay::Answer::Refused(w) => {
+            return Err(AppError::BadRequest(format!(
+                "Razorpay refused the refund: {w}"
+            )));
+        }
+        razorpay::Answer::Unreachable(w) => {
+            return Err(AppError::ServiceUnavailable(format!(
+                "{w}. If Razorpay made the refund it will show on the bill when its notice arrives."
+            )));
+        }
+    };
 
-    let refund_id = rz_refund["id"].as_str().unwrap_or("unknown").to_owned();
-
-    let updated = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "UPDATE payment_gateway_transactions SET \
-         status = 'refunded', refund_id = $1, refund_amount = $2, updated_at = now() \
-         WHERE id = $3 AND tenant_id = $4 \
-         RETURNING *",
+    settle::settle_refund(
+        &mut tx,
+        &txn,
+        &settle::RefundMade {
+            refund_id: &refund_id,
+            amount: refund_amount,
+            reason,
+            refunded_by: Some(claims.sub),
+            payload: None,
+        },
     )
-    .bind(&refund_id)
-    .bind(refund_amount)
-    .bind(body.transaction_id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
     .await?;
-
+    let updated = settle::lock_txn(&mut tx, txn.id).await?;
     tx.commit().await?;
 
     Ok(Json(RefundResponse {

@@ -10,7 +10,7 @@
 //! ```ignore
 //! outbox::queue_in_tx(tx, OutboxRow {
 //!     tenant_id, aggregate_type: "payment_gateway_transaction",
-//!     aggregate_id: txn.id, event_type: "payment.create_order",
+//!     aggregate_id: txn.id, event_type: "payment.cashfree.create_order",
 //!     payload: json!({...}),
 //!     idempotency_key: Some(txn.id.to_string()),
 //! }).await?;

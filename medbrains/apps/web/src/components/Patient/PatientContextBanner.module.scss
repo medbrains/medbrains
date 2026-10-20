@@ -7,8 +7,9 @@
 // patient's name rendered near-white on white and simply vanished — on the
 // one element in the encounter that says who is being treated.
 //
-// `color: #fff` on the avatars below is deliberate: that is white on brand
-// blue, which is correct in both schemes.
+// The avatars are white on brand blue. In dark mode the brand blue lightens
+// (#4589ff) and white on it measured 3.34:1, so there the avatars sit on the
+// brand's pressed shade instead, which keeps white above 4.5:1.
 
 .banner {
   display: flex;
@@ -34,7 +35,7 @@
   flex-shrink: 0;
   border-radius: var(--mb-radius-sm, 4px);
   background: var(--mb-brand, #0f62fe);
-  color: #fff;
+  color: var(--mb-brand-on-emphasis, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,6 +43,10 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
+
+  [data-mantine-color-scheme="dark"] & {
+    background: var(--mb-brand-emphasis-pressed, #0f62fe);
+  }
 }
 
 .idText {
@@ -88,13 +93,17 @@
   flex-shrink: 0;
   border-radius: var(--mb-radius-sm, 4px);
   background: var(--mb-brand, #0f62fe);
-  color: #fff;
+  color: var(--mb-brand-on-emphasis, #fff);
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
   font-size: 17px;
   font-weight: 600;
+
+  [data-mantine-color-scheme="dark"] & {
+    background: var(--mb-brand-emphasis-pressed, #0f62fe);
+  }
 }
 
 .nameLg {

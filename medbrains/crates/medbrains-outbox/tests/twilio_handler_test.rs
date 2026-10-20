@@ -1,6 +1,6 @@
 //! Phase 8 — real Twilio outbound handler tests.
 //!
-//! Same wiremock pattern as `razorpay_handler_test.rs`. We point the
+//! Same wiremock pattern as `razorpayx_handler_test.rs`. We point the
 //! handler at a local mock server via `SmsSendHandler::with_api_base`
 //! so tests run in parallel without env-var races and the workspace's
 //! `unsafe_code = forbid` lint stays clean.

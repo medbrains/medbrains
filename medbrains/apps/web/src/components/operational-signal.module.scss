@@ -22,21 +22,29 @@
   padding: 2px 7px 2px 4px;
 }
 
+// The indicator hue is fixed across schemes, which is right for the marker
+// and border but too dark to read as text on a dark surface (red on the
+// tinted chip measured 3.16:1). The figure takes the scheme's own status
+// text colour instead.
 .signal[data-tone="active"] {
   --signal-color: var(--mb-indicator-info);
+  --signal-text: var(--mb-info-fg);
 }
 
 .signal[data-tone="blocked"] {
   --signal-color: var(--mb-indicator-warning);
+  --signal-text: var(--mb-warning-fg);
 }
 
 .signal[data-tone="complete"],
 .signal[data-tone="ready"] {
   --signal-color: var(--mb-indicator-success);
+  --signal-text: var(--mb-success-fg);
 }
 
 .signal[data-tone="risk"] {
   --signal-color: var(--mb-indicator-danger);
+  --signal-text: var(--mb-danger-fg);
 }
 
 .marker {
@@ -100,7 +108,7 @@
 }
 
 .value {
-  color: currentColor;
+  color: var(--signal-text, var(--mb-text-body));
   font-variant-numeric: tabular-nums;
 }
 

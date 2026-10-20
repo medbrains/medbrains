@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 813;
+pub const PERMISSION_COUNT: usize = 814;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -629,6 +629,12 @@ pub mod billing {
     pub mod payments {
         pub const CREATE: &str = "billing.payments.create";
         pub const VOID: &str = "billing.payments.void";
+        /// Reconcile online payments.
+        /// See money a gateway took that could not be posted to a bill — a
+        /// captured amount other than the one asked for, more than the bill
+        /// owed, a method with no payment mode, a refund that failed — and
+        /// mark each resolved once finance has put it right.
+        pub const RECONCILE: &str = "billing.payments.reconcile";
     }
 
     pub mod receipts {

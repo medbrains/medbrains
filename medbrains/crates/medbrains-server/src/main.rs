@@ -774,15 +774,15 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback, razorpay,
-        razorpayx, teams, twilio, whatsapp, zoom,
+        cashfree, email_stub, google_meet, hl7_stub, nhcx, pinelabs, pipeline_fallback, razorpayx,
+        teams, twilio, whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
 
     // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
-    registry.register(razorpay::CreateOrderHandler::new());
-    registry.register(razorpay::RefundHandler::new());
+    // Razorpay orders and refunds are made in the request (see
+    // medbrains_payment_gateway::create_order / initiate_refund), not here.
     registry.register(medbrains_payment_gateway::payment_link::PaymentLinkHandler);
     // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
     registry.register(cashfree::CashfreeCreateOrderHandler::new());

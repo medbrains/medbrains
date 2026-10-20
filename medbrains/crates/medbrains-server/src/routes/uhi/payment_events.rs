@@ -8,7 +8,9 @@
 use async_trait::async_trait;
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
 use medbrains_payment_gateway::payment_link::{Link, LinkRequest, record_link, request_link};
-use medbrains_payment_gateway::{razorpay_link_credentials, record_invoice_payment};
+use medbrains_payment_gateway::{
+    GatewayPosting, razorpay_link_credentials, record_invoice_payment,
+};
 use medbrains_server_services::billing::{AutoChargeInput, auto_charge};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -85,9 +87,10 @@ impl Handler for UhiPaymentLinkHandler {
             .fetch_optional(&mut *tx)
             .await
             .map_err(transient)?;
-        let credentials = razorpay_link_credentials(&mut tx, &ctx.tenant_id)
-            .await
-            .map_err(transient)?;
+        let credentials =
+            razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &ctx.tenant_id)
+                .await
+                .map_err(transient)?;
         tx.commit().await.map_err(transient)?;
         let Some(held) = held.filter(|h| h.state == "awaiting_payment" && h.payment_uri.is_none())
         else {
@@ -168,6 +171,8 @@ struct Captured {
     status: String,
     amount: Decimal,
     gateway_payment_id: Option<String>,
+    gateway_order_id: String,
+    payment_method: Option<String>,
     notes: Value,
 }
 
@@ -192,7 +197,7 @@ impl Handler for UhiPaymentCapturedHandler {
         .await
         .map_err(transient)?;
         let payment = sqlx::query_as::<_, Captured>(
-            "SELECT status, amount, gateway_payment_id, notes \
+            "SELECT status, amount, gateway_payment_id, gateway_order_id, payment_method, notes \
                FROM payment_gateway_transactions WHERE id = $1",
         )
         .bind(paying)
@@ -293,7 +298,20 @@ async fn bill(
     )
     .await?;
     let reference = payment.gateway_payment_id.as_deref().unwrap_or_default();
-    record_invoice_payment(tx, tenant_id, charged.invoice_id, payment.amount, reference).await?;
+    record_invoice_payment(
+        tx,
+        &GatewayPosting {
+            tenant_id,
+            invoice_id: charged.invoice_id,
+            provider: "razorpay",
+            order_ref: &payment.gateway_order_id,
+            amount: payment.amount,
+            method: payment.payment_method.as_deref(),
+            reference,
+            payload: None,
+        },
+    )
+    .await?;
     sqlx::query("UPDATE payment_gateway_transactions SET invoice_id = $2 WHERE id = $1")
         .bind(held.payment_transaction_id)
         .bind(charged.invoice_id)

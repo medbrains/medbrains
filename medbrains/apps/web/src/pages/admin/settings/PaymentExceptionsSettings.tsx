@@ -1,4 +1,4 @@
-import { Card, Group, Loader, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Card, Group, Loader, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { PaymentWebhookException } from "@medbrains/types";
 import { IconCheck, IconShieldCheck, IconX } from "@tabler/icons-react";
@@ -35,7 +35,7 @@ const STATUS_FILTERS = [
 
 function reasonTone(reason: string): "danger" | "warning" | "neutral" {
   if (reason === "signature_failed") return "danger";
-  if (reason === "amount_mismatch") return "warning";
+  if (reason === "amount_mismatch" || reason === "over_capture") return "warning";
   return "neutral";
 }
 
@@ -106,15 +106,15 @@ export function PaymentExceptionsSettings() {
   return (
     <Stack gap="lg">
       <Group justify="space-between">
-        <div>
+        <Box>
           <Text fw={600} size="lg">
-            Payment Reconciliation Exceptions
+            Payment exceptions
           </Text>
           <Text size="sm" c="dimmed">
-            Inbound gateway credits that couldn't be matched to a bill — review and resolve so no
-            payment is lost.
+            Online money that could not be posted to a bill — review and resolve so no payment is
+            lost.
           </Text>
-        </div>
+        </Box>
         <SegmentedControl
           value={status}
           onChange={setStatus}
@@ -138,14 +138,16 @@ export function PaymentExceptionsSettings() {
               <Table.Th>When</Table.Th>
               <Table.Th>Provider</Table.Th>
               <Table.Th>Order ref</Table.Th>
+              <Table.Th>Amount</Table.Th>
               <Table.Th>Reason</Table.Th>
+              <Table.Th>Why</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th w={160}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {exceptions.map((exc: PaymentWebhookException) => (
-              <Table.Tr key={exc.id}>
+              <Table.Tr key={exc.id} data-testid="row-exception">
                 <Table.Td>
                   <Text size="xs" ff="monospace">
                     {new Date(exc.created_at).toLocaleString("en-IN")}
@@ -157,10 +159,14 @@ export function PaymentExceptionsSettings() {
                     {exc.order_ref ?? "—"}
                   </Text>
                 </Table.Td>
+                <Table.Td>{exc.amount == null ? "—" : money(Number(exc.amount))}</Table.Td>
                 <Table.Td>
                   <Badge tone={reasonTone(exc.reason)} size="sm">
                     {exc.reason}
                   </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">{exc.notes ?? "—"}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Badge tone={exc.status === "open" ? "warning" : "neutral"} size="sm">

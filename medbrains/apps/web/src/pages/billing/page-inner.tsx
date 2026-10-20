@@ -6,6 +6,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type { Invoice } from "@medbrains/types";
 import { billingInvoiceBalanceSignal, billingInvoiceStatusSignal, P } from "@medbrains/types";
 import {
+  IconAlertTriangle,
   IconBuildingBank,
   IconCalendarCheck,
   IconCash,
@@ -46,6 +47,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
+import { PaymentExceptionsSettings } from "../admin/settings/PaymentExceptionsSettings";
 import {
   billingAdmissionFilterFromSearchParams,
   billingEncounterFilterFromSearchParams,
@@ -103,6 +105,7 @@ export function BillingPageInner() {
   const canErp = useHasPermission(P.BILLING.ERP_EXPORT);
   const canConcessions = useHasPermission(P.BILLING.CONCESSIONS_LIST);
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
+  const canReconcile = useHasPermission(P.BILLING.PAYMENTS_RECONCILE);
 
   const [page, setPage] = useState(1);
   const [invoiceSort, setInvoiceSort] = useState<SortState | null>(null);
@@ -126,6 +129,7 @@ export function BillingPageInner() {
     "financial-mis",
     ...(canErp ? ["erp-export"] : []),
     ...(canConcessions ? ["concessions"] : []),
+    ...(canReconcile ? ["payment-exceptions"] : []),
     "settings",
   ]);
   const requestedTab = searchParams.get("tab");
@@ -553,6 +557,11 @@ export function BillingPageInner() {
               Concessions
             </Tabs.Tab>
           )}
+          {canReconcile && (
+            <Tabs.Tab value="payment-exceptions" leftSection={<IconAlertTriangle size={14} />}>
+              {t("paymentExceptions")}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />}>
             {t("settings")}
           </Tabs.Tab>
@@ -677,6 +686,12 @@ export function BillingPageInner() {
         {canConcessions && (
           <Tabs.Panel value="concessions">
             <ConcessionsTab canApprove={canApproveConcessions} />
+          </Tabs.Panel>
+        )}
+
+        {canReconcile && (
+          <Tabs.Panel value="payment-exceptions">
+            <PaymentExceptionsSettings />
           </Tabs.Panel>
         )}
 

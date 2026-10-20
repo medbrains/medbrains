@@ -15,12 +15,8 @@ use serde_json::{Value, json};
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
+pub use crate::razorpay::API_BASE_OVERRIDE;
 use crate::razorpay_link_credentials;
-
-/// A stand-in Razorpay for tests and rehearsals (a secret, so it never
-/// leaks into production by a stray environment variable).
-pub const API_BASE_OVERRIDE: &str = "RAZORPAY_API_BASE_OVERRIDE";
-const API_BASE: &str = "https://api.razorpay.com/v1";
 
 /// What a link is for.
 #[derive(Debug)]
@@ -55,13 +51,7 @@ pub async fn request_link(
     (key_id, key_secret): (String, String),
     req: &LinkRequest,
 ) -> Result<Link, HandlerError> {
-    let base = ctx
-        .secret_resolver
-        .get(API_BASE_OVERRIDE)
-        .await
-        .ok()
-        .filter(|b| b.starts_with("http"))
-        .unwrap_or_else(|| API_BASE.to_owned());
+    let base = crate::razorpay::api_base(ctx.secret_resolver.as_ref()).await;
     let paise = (req.amount * Decimal::ONE_HUNDRED)
         .round()
         .to_i64()
@@ -83,7 +73,7 @@ pub async fn request_link(
     }
     let response = ctx
         .http_client
-        .post(format!("{}/payment_links", base.trim_end_matches('/')))
+        .post(format!("{base}/payment_links"))
         .basic_auth(key_id, Some(key_secret))
         .json(&body)
         .send()
@@ -156,9 +146,10 @@ impl Handler for PaymentLinkHandler {
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(transient)?;
-        let credentials = razorpay_link_credentials(&mut tx, &ctx.tenant_id)
-            .await
-            .map_err(transient)?;
+        let credentials =
+            razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &ctx.tenant_id)
+                .await
+                .map_err(transient)?;
         tx.commit().await.map_err(transient)?;
         let Some((amount, _)) = row.filter(|(_, s)| s == "pending_gateway") else {
             return Ok(json!({ "skipped": "no longer waiting for a link" }));
