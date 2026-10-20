@@ -22,8 +22,32 @@ collections:
     sortable_fields: [date, title]
     fields:
       - { name: title, label: Title, widget: string }
+      - { name: seoTitle, label: "Title for Google (optional)", widget: string, required: false, hint: "60 characters or fewer. Used instead of the title in the browser tab and search results." }
       - { name: description, label: Summary, widget: text, hint: "One or two sentences. Shown on the blog list and in Google." }
       - { name: date, label: Date, widget: datetime, time_format: false, date_format: "YYYY-MM-DD" }
+      - { name: updated, label: "Updated (optional)", widget: datetime, time_format: false, date_format: "YYYY-MM-DD", required: false }
+      - name: category
+        label: Topic
+        widget: select
+        options:
+          - { label: "Hospital leadership & strategy", value: hospital-leadership }
+          - { label: "Patient education & wellness", value: patient-education }
+          - { label: "Doctor & clinical excellence", value: clinical-excellence }
+          - { label: "Operations & efficiency", value: operations }
+          - { label: "Technology & innovation", value: technology }
+          - { label: "Regulatory & compliance", value: regulatory-compliance }
+      - { name: author, label: Author, widget: relation, collection: authors, value_field: "{{slug}}", search_fields: [name], display_fields: [name], default: medbrains-editorial }
+      - name: reviewer
+        label: "Medically reviewed by (optional)"
+        widget: object
+        required: false
+        fields:
+          - { name: name, label: Name, widget: string }
+          - { name: credentials, label: "Qualifications, e.g. MBBS, MD", widget: string }
+          - { name: registration, label: "Registration number", widget: string, required: false }
+          - { name: url, label: "Profile link", widget: string, required: false }
+      - { name: featured, label: "Feature on the blog home", widget: boolean, default: false }
+      - { name: draft, label: "Draft (not published)", widget: boolean, default: false }
       - name: tags
         label: Topics
         widget: select
@@ -39,4 +63,29 @@ collections:
         fields:
           - { name: title, label: Name, widget: string }
           - { name: url, label: Link, widget: string, pattern: ["^https://", "Must be an https:// link"] }
+      - name: faq
+        label: "Questions and answers (optional)"
+        widget: list
+        required: false
+        fields:
+          - { name: q, label: Question, widget: string }
+          - { name: a, label: Answer, widget: text }
       - { name: body, label: Article, widget: markdown }
+
+  - name: authors
+    label: Authors
+    label_singular: Author
+    folder: website/src/content/authors
+    extension: json
+    format: json
+    create: true
+    slug: "{{slug}}"
+    identifier_field: name
+    fields:
+      - { name: name, label: Name, widget: string }
+      - { name: type, label: Type, widget: select, options: [Person, Organization], default: Person }
+      - { name: role, label: "Role, e.g. Consultant physician", widget: string }
+      - { name: credentials, label: "Qualifications", widget: string, required: false }
+      - { name: registration, label: "Registration number", widget: string, required: false }
+      - { name: bio, label: Bio, widget: text }
+      - { name: sameAs, label: "Profile links (https://)", widget: list, required: false }

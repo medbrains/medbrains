@@ -1,0 +1,41 @@
+---
+import PageHead from "../../../components/blog/PageHead.astro";
+import PostGrid from "../../../components/blog/PostGrid.astro";
+import { SITE } from "../../../consts";
+import BlogLayout from "../../../layouts/BlogLayout.astro";
+import { breadcrumbs, collectionPage, getAuthorNames, getPosts, tagSlug, type Post } from "../../../lib/blog";
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  const tags = new Map<string, string>();
+  for (const p of posts) for (const t of p.data.tags) tags.set(tagSlug(t), t);
+  return [...tags].map(([tag, name]) => ({
+    params: { tag },
+    props: { name, posts: posts.filter((p) => p.data.tags.some((t) => tagSlug(t) === tag)) },
+  }));
+}
+
+const { name, posts } = Astro.props as { name: string; posts: Post[] };
+// A tag with one post is a thin page: kept for readers, out of the index.
+const authorNames = await getAuthorNames();
+const path = `/blog/tag/${tagSlug(name)}`;
+const description = `Articles about ${name.toLowerCase()} on the ${SITE.brand} blog.`;
+const schema = [
+  collectionPage(Astro.site, { name, description, path, posts }),
+  breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name, path }]),
+];
+---
+
+<BlogLayout title={`${name} | ${SITE.brand} blog`} description={description} schema={schema} noindex={posts.length < 2}>
+  <PageHead
+    crumbs={[{ name: "Blog", href: "/blog" }, { name }]}
+    eyebrow="Tag"
+    title={name}
+    intro={`${posts.length} ${posts.length === 1 ? "article" : "articles"} tagged ${name.toLowerCase()}.`}
+  />
+  <section class="wrap list"><PostGrid posts={posts} authorNames={authorNames} /></section>
+</BlogLayout>
+
+<style>
+  .list { padding-block: 16px 96px; }
+</style>

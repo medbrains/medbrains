@@ -1,0 +1,50 @@
+---
+import type { GetStaticPaths, Page } from "astro";
+import PageHead from "../../../components/blog/PageHead.astro";
+import PostGrid from "../../../components/blog/PostGrid.astro";
+import { SITE } from "../../../consts";
+import BlogLayout from "../../../layouts/BlogLayout.astro";
+import { PAGE_SIZE, breadcrumbs, collectionPage, getAuthorNames, getPosts, type Post } from "../../../lib/blog";
+
+// Page 1 is the blog home (featured post + the next PAGE_SIZE); these are the older ones.
+export const getStaticPaths = (async ({ paginate }) => {
+  const posts = await getPosts();
+  const featured = posts.find((p) => p.data.featured) ?? posts[0];
+  return paginate(
+    posts.filter((p) => p !== featured),
+    { pageSize: PAGE_SIZE },
+  ).filter((p) => p.params.page !== "1");
+}) satisfies GetStaticPaths;
+
+const { page } = Astro.props as { page: Page<Post> };
+const authorNames = await getAuthorNames();
+const path = `/blog/page/${page.currentPage}`;
+const title = `Older articles, page ${page.currentPage} | ${SITE.brand} blog`;
+const description = `Older articles from the ${SITE.brand} health blog, page ${page.currentPage} of ${page.lastPage}.`;
+const schema = [
+  collectionPage(Astro.site, { name: title, description, path, posts: page.data }),
+  breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name: `Page ${page.currentPage}`, path }]),
+];
+const prev = page.currentPage === 2 ? "/blog" : page.url.prev;
+---
+
+<BlogLayout title={title} description={description} schema={schema}>
+  <PageHead
+    crumbs={[{ name: "Blog", href: "/blog" }, { name: `Page ${page.currentPage}` }]}
+    eyebrow="Archive"
+    title={`Older articles, page ${page.currentPage}`}
+  />
+  <section class="wrap list">
+    <PostGrid posts={page.data} authorNames={authorNames} />
+    <nav class="pager" aria-label="Pages">
+      {prev && <a href={prev} rel="prev">Newer articles</a>}
+      {page.url.next && <a href={page.url.next} rel="next">Older articles</a>}
+    </nav>
+  </section>
+</BlogLayout>
+
+<style>
+  .list { padding-block: 16px 96px; }
+  .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 40px; font-weight: 600; }
+  .pager a { color: var(--blue-deep); }
+</style>

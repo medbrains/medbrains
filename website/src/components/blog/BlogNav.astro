@@ -1,0 +1,91 @@
+---
+// The blog's own bar under the site header: topics menu, search, RSS.
+// The menu is a native <details>, so it opens with Enter/Space and works
+// without JavaScript; the small script only adds Escape and click-away.
+import { BLOG_CATEGORIES } from "../../data/blog-categories";
+import Icon from "./Icon.astro";
+import SearchForm from "./SearchForm.astro";
+---
+
+<div class="blognav">
+  <div class="wrap row">
+    <nav aria-label="Blog">
+      <a class="home" href="/blog">Blog</a>
+      <details class="topics" data-menu>
+        <summary>Topics <Icon name="chevron-down" size={16} class="chev" /></summary>
+        <ul class="menu">
+          {BLOG_CATEGORIES.map((c) => (
+            <li>
+              <a href={`/blog/category/${c.slug}`} style={`--tint:${c.tint};--tone:${c.ink}`}>
+                <span class="ico"><Icon name={c.icon} size={18} /></span>
+                <span><strong>{c.name}</strong><small>{c.description}</small></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <a class="rss" href="/blog/rss.xml"><Icon name="rss" size={16} />RSS</a>
+    </nav>
+    <div class="find"><SearchForm id="nav-search" /></div>
+  </div>
+</div>
+
+<script>
+  for (const menu of document.querySelectorAll<HTMLDetailsElement>("[data-menu]")) {
+    const summary = menu.querySelector("summary");
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && menu.open) {
+        menu.open = false;
+        summary?.focus();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      if (menu.open && !menu.contains(e.target as Node)) menu.open = false;
+    });
+    menu.addEventListener("focusout", (e) => {
+      if (menu.open && !menu.contains(e.relatedTarget as Node | null) && e.relatedTarget) menu.open = false;
+    });
+  }
+</script>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .blognav { border-bottom: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+  .row { display: flex; align-items: center; gap: 24px; min-height: 64px; flex-wrap: wrap; padding-block: 10px; }
+  nav { display: flex; align-items: center; gap: 8px; }
+  .home, summary, .rss {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px;
+    border-radius: 10px; font-weight: 600; font-size: .95rem; text-decoration: none; color: var(--ink); cursor: pointer;
+  }
+  .home:hover, summary:hover, .rss:hover, .topics[open] summary { background: var(--paper-2); }
+  .rss { color: var(--ink-2); font-weight: 500; }
+  .topics { position: relative; }
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  .topics :global(.chev) { transition: transform .18s ease; }
+  .topics[open] :global(.chev) { transform: rotate(180deg); }
+  .menu {
+    position: absolute; z-index: 40; top: calc(100% + 8px); left: 0; width: min(440px, calc(100vw - 32px));
+    margin: 0; padding: 8px; list-style: none; background: var(--paper);
+    border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-lift);
+  }
+  .menu a {
+    display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; text-decoration: none;
+    strong { display: block; font-size: .95rem; }
+    small { display: block; color: var(--muted); font-size: .84rem; line-height: 1.4; margin-top: 2px; }
+  }
+  .menu a:hover { background: var(--paper-2); }
+  .ico {
+    flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px;
+    background: var(--tint); color: var(--tone);
+  }
+  .find { margin-left: auto; width: min(340px, 100%); }
+  @include below(md) {
+    .row { gap: 8px; position: relative; }
+    .topics { position: static; }
+    .menu { left: 16px; right: 16px; width: auto; }
+    .find { width: 100%; margin-left: 0; }
+    nav { margin-left: -12px; }
+  }
+</style>

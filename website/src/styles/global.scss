@@ -25,6 +25,10 @@
   --glow-green: rgb(66 190 101 / 22%);
   --radius: 14px;
   --shadow: 0 1px 2px rgb(11 18 32 / 6%), 0 12px 32px rgb(11 18 32 / 10%);
+  /* The blog: calm white canvas, soft shadows, rounder cards. */
+  --radius-lg: 20px;
+  --shadow-soft: 0 1px 2px rgb(11 18 32 / 4%), 0 8px 24px rgb(11 18 32 / 6%);
+  --shadow-lift: 0 2px 4px rgb(11 18 32 / 5%), 0 18px 40px rgb(11 18 32 / 10%);
   --wrap: 1200px;
   --display: "Archivo Expanded", "Archivo", system-ui, sans-serif;
   --sans: "IBM Plex Sans", system-ui, sans-serif;
@@ -37,6 +41,7 @@ body {
   font-family: var(--sans); font-size: 17px; line-height: 1.55;
   -webkit-font-smoothing: antialiased; overflow-x: hidden;
 }
+body.light { background: var(--paper); color: var(--ink); }
 a { color: inherit; }
 img { max-width: 100%; display: block; }
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
@@ -44,6 +49,13 @@ img { max-width: 100%; display: block; }
 .eyebrow {
   font-family: var(--mono); font-weight: 600; font-size: .74rem;
   letter-spacing: .14em; text-transform: uppercase; color: var(--sky); margin: 0 0 14px;
+}
+.crumbs {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
+  font-size: .9rem; color: var(--muted);
+  li + li::before { content: "/"; margin-right: 6px; color: var(--line); }
+  a { color: var(--ink-2); text-underline-offset: 3px; }
+  a:hover { color: var(--blue-deep); }
 }
 .section { padding: 112px 0; }
 .section-title {
@@ -82,4 +94,5 @@ img { max-width: 100%; display: block; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .reveal { opacity: 1; transform: none; }
 }
+@include below(md) { body.light .wrap { padding: 0 16px; } }
 @include below(md) { .section { padding: 80px 0; } body { font-size: 16px; } }
