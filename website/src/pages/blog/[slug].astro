@@ -208,6 +208,10 @@ const schema = [
           </aside>
         )}
 
+        <aside class="contact" aria-label="Contact us">
+          <p><strong>Questions about this article, or a topic you'd like us to cover?</strong> Write to us at <a href={`mailto:${SITE.email}?subject=${encodeURIComponent(`About: ${title}`)}`}>{SITE.email}</a>.</p>
+        </aside>
+
         <AuthorCard author={author} />
       </div>
 
@@ -330,6 +334,12 @@ const schema = [
     margin-top: 40px; padding: 24px 28px; border-radius: var(--radius-lg); background: var(--blue-tint);
     p { margin: 0; flex: 1 1 280px; }
     :global(a.btn) { color: #fff; }
+  }
+
+  .contact {
+    margin-top: 24px; padding: 20px 24px; border-radius: var(--radius-lg); border: 1px solid var(--line);
+    p { margin: 0; }
+    a { font-weight: 700; overflow-wrap: anywhere; }
   }
 
   .related {
