@@ -1,8 +1,14 @@
 ---
 import { SITE } from "../consts";
+
+interface Props {
+  /** White bar for light pages (the blog). */
+  light?: boolean;
+}
+const { light = false } = Astro.props;
 ---
 
-<header class="header">
+<header class:list={["header", { light }]}>
   <div class="wrap bar">
     <a class="brand" href="/" aria-label={`${SITE.brand} home`}>
       <img src="/logo/medbrains-mark.svg" alt="" width="32" height="32" />
@@ -40,6 +46,14 @@ import { SITE } from "../consts";
   .signin { color: #fff; text-decoration: none; font-size: .94rem; font-weight: 600; }
   .signin:hover { color: var(--pulse); }
   .cta { min-height: 40px; padding: 0 18px; font-size: .9rem; box-shadow: none; }
+  .light {
+    background: rgb(255 255 255 / 90%); color: var(--ink); border-bottom-color: var(--line);
+    nav a { color: var(--ink-2); }
+    nav a:hover, .signin { color: var(--ink); }
+    .signin:hover { color: var(--blue-deep); }
+  }
+  .signin, .cta { white-space: nowrap; }
+  @include below(sm) { .bar { gap: 16px; } }
   @include below(lg) {
     nav { display: none; }
     .signin { margin-left: auto; }

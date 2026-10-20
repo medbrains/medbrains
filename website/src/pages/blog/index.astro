@@ -1,66 +1,143 @@
 ---
-import { getCollection } from "astro:content";
-import Footer from "../../components/Footer.astro";
-import Header from "../../components/Header.astro";
-import WhatsAppFloat from "../../components/WhatsAppFloat.astro";
+import Icon from "../../components/blog/Icon.astro";
+import PostCard from "../../components/blog/PostCard.astro";
+import PostGrid from "../../components/blog/PostGrid.astro";
+import SearchForm from "../../components/blog/SearchForm.astro";
 import { SITE } from "../../consts";
-import Base from "../../layouts/Base.astro";
+import { BLOG_CATEGORIES } from "../../data/blog-categories";
+import BlogLayout from "../../layouts/BlogLayout.astro";
+import { PAGE_SIZE, breadcrumbs, collectionPage, getAuthorNames, getPosts, organization } from "../../lib/blog";
 
-const posts = (await getCollection("blog")).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
-const day = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" });
-const schema = [{ "@type": "Blog", name: `${SITE.brand} Health Blog`, url: new URL("/blog", Astro.site).href }];
+const posts = await getPosts();
+const authorNames = await getAuthorNames();
+const featured = posts.find((p) => p.data.featured) ?? posts[0];
+const rest = posts.filter((p) => p !== featured);
+const latest = rest.slice(0, PAGE_SIZE);
+const counts = new Map(BLOG_CATEGORIES.map((c) => [c.slug, posts.filter((p) => p.data.category === c.slug).length]));
+// Most-read data does not exist yet, so "popular" means the topics with the most articles.
+const topics = [...BLOG_CATEGORIES].sort((a, b) => (counts.get(b.slug) ?? 0) - (counts.get(a.slug) ?? 0));
+
+const title = `Health blog: plain-language health and hospital insights | ${SITE.brand}`;
+const description =
+  "Plain-language health advice for Indian families, and practical writing on running hospitals, clinical care, technology and compliance.";
+const schema = [
+  organization(Astro.site),
+  collectionPage(Astro.site, { name: `${SITE.brand} health blog`, description, path: "/blog", posts }),
+  breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }]),
+];
 ---
 
-<Base
-  title={`Health blog | ${SITE.brand}`}
-  description="Plain-language health advice for Indian families, and notes on health technology for hospitals."
-  schema={schema}
->
-  <Header />
-  <main id="main">
-    <section class="hero">
-      <div class="wrap">
-        <p class="eyebrow">Health blog</p>
-        <h1>Health, in plain words.</h1>
-        <p class="lede">Practical advice for families through the seasons, and what's changing in health technology in India.</p>
+<BlogLayout title={title} description={description} schema={schema}>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <div class="copy">
+        <p class="eyebrow">The {SITE.brand} blog</p>
+        <h1>Health, in plain <em>words</em>.</h1>
+        <p class="lede">
+          Practical advice for families through the seasons, and clear writing for the people who run India's
+          hospitals and clinics.
+        </p>
+        <SearchForm id="hero-search" size="lg" />
       </div>
-    </section>
-    <section class="list">
-      <div class="wrap posts">
-        {posts.map((p) => (
-          <a class="card" href={`/blog/${p.id}`}>
-            <span class="meta">{p.data.tags.join(" · ")} — <time datetime={p.data.date.toISOString()}>{day.format(p.data.date)}</time></span>
-            <h2>{p.data.title}</h2>
-            <p>{p.data.description}</p>
-          </a>
+      <div class="mosaic" aria-hidden="true">
+        {BLOG_CATEGORIES.map((c) => (
+          <span style={`--tint:${c.tint};--tone:${c.ink}`}><Icon name={c.icon} size={30} /></span>
         ))}
       </div>
+    </div>
+  </section>
+
+  <section class="topics" aria-labelledby="topics-title">
+    <div class="wrap">
+      <h2 id="topics-title" class="h2">Most popular topics</h2>
+      <ul class="tiles">
+        {topics.map((c) => {
+          const n = counts.get(c.slug) ?? 0;
+          return (
+            <li>
+              <a class="tile" href={`/blog/category/${c.slug}`} style={`--tint:${c.tint};--tone:${c.ink}`}>
+                <span class="ico"><Icon name={c.icon} size={26} /></span>
+                <span class="name">{c.name}</span>
+                <span class="count">{n === 0 ? "Coming soon" : `${n} ${n === 1 ? "article" : "articles"}`}</span>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  </section>
+
+  {featured && (
+    <section class="featured" aria-labelledby="featured-title">
+      <div class="wrap">
+        <h2 id="featured-title" class="h2">Featured</h2>
+        <PostCard post={featured} authorName={authorNames.get(featured.data.author.id) ?? ""} featured eager />
+      </div>
     </section>
-  </main>
-  <Footer />
-  <WhatsAppFloat />
-</Base>
+  )}
+
+  {latest.length > 0 && (
+    <section class="latest" aria-labelledby="latest-title">
+      <div class="wrap">
+        <h2 id="latest-title" class="h2">Latest articles</h2>
+        <PostGrid posts={latest} authorNames={authorNames} />
+        {rest.length > PAGE_SIZE && (
+          <a class="older" href="/blog/page/2">Older articles <Icon name="arrow-right" size={18} /></a>
+        )}
+      </div>
+    </section>
+  )}
+</BlogLayout>
 
 <style lang="scss">
   @use "../../styles/mixins" as *;
 
   .hero {
-    padding: 72px 0 64px;
-    background: radial-gradient(900px 500px at 80% -20%, rgb(15 98 254 / 35%), transparent 60%), var(--night);
-    h1 { font: 900 clamp(2.2rem, 5vw, 4rem) var(--display); letter-spacing: -.035em; line-height: 1.02; margin: 0 0 20px; }
-    .lede { color: var(--night-text); font-size: 1.15rem; max-width: 60ch; margin: 0; }
+    padding: 64px 0 56px;
+    background:
+      radial-gradient(700px 360px at 85% 10%, var(--blue-tint), transparent 70%),
+      radial-gradient(520px 300px at 0% 100%, rgb(167 240 186 / 25%), transparent 70%),
+      var(--paper);
   }
-  .list { background: var(--paper-2); color: var(--ink); padding: 64px 0 96px; }
-  .posts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .card {
-    display: grid; align-content: start; gap: 10px; padding: 28px; border: 1px solid var(--line);
-    border-radius: 18px; background: #fff; box-shadow: var(--shadow); text-decoration: none;
-    transition: border-color .2s ease;
-    h2 { font: 800 1.2rem/1.25 var(--display); letter-spacing: -.02em; margin: 0; }
-    p { margin: 0; color: var(--ink-2); }
+  .hero-in { display: grid; grid-template-columns: 1.3fr 1fr; gap: 56px; align-items: center; }
+  .eyebrow { color: var(--blue-deep); }
+  h1 {
+    font: 800 clamp(2.4rem, 6vw, 4.4rem)/1.02 var(--display); letter-spacing: -.035em; margin: 0 0 20px;
+    em { font-style: normal; color: var(--blue); }
   }
-  .card:hover { border-color: var(--blue); }
-  .meta { font: 600 .72rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--blue-deep); }
-  @include below(lg) { .posts { grid-template-columns: 1fr 1fr; } }
-  @include below(sm) { .posts { grid-template-columns: 1fr; } }
+  .lede { font-size: 1.18rem; color: var(--ink-2); max-width: 54ch; margin: 0 0 28px; }
+  .copy { min-width: 0; }
+  .copy :global(form) { max-width: 560px; }
+  .mosaic {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: 360px; justify-self: end;
+    span {
+      display: grid; place-items: center; aspect-ratio: 1; border-radius: 24px;
+      background: var(--tint); color: var(--tone); box-shadow: var(--shadow-soft);
+    }
+    span:nth-child(2n) { transform: translateY(18px); }
+  }
+  .h2 { font: 800 clamp(1.5rem, 3vw, 2rem)/1.15 var(--display); letter-spacing: -.025em; margin: 0 0 24px; }
+  .topics, .featured { padding: 40px 0; }
+  .latest { padding: 40px 0 96px; }
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin: 0; padding: 0; list-style: none; }
+  .tile {
+    display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 20px; border-radius: var(--radius-lg);
+    background: var(--tint); color: var(--ink); text-decoration: none;
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); }
+  .ico {
+    display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px;
+    background: rgb(255 255 255 / 75%); color: var(--tone);
+  }
+  .name { font-weight: 700; line-height: 1.3; }
+  .count { margin-top: auto; font: 600 .74rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .older {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 32px; font-weight: 600; color: var(--blue-deep);
+  }
+  @include below(xl) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+  @include below(lg) { .hero-in { grid-template-columns: minmax(0, 1fr); } .mosaic { display: none; } }
+  @include below(sm) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @include below(md) { .hero { padding: 40px 0; } }
+  @media (prefers-reduced-motion: reduce) { .tile:hover { transform: none; } }
 </style>

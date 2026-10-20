@@ -1,0 +1,96 @@
+---
+// A post in a list. The title is the link; its ::after stretches over the
+// card so the whole card clicks, while the topic badge stays its own link.
+import { Image } from "astro:assets";
+import { formatDate, postPath, readingTime, type Post } from "../../lib/blog";
+import CategoryArt from "./CategoryArt.astro";
+import CategoryBadge from "./CategoryBadge.astro";
+
+interface Props {
+  post: Post;
+  authorName: string;
+  /** The wide featured layout on the blog home. */
+  featured?: boolean;
+  /** Load the cover eagerly when the card is the page's largest image. */
+  eager?: boolean;
+  headingLevel?: 2 | 3;
+}
+const { post, authorName, featured = false, eager = false, headingLevel = 3 } = Astro.props;
+const { title, description, date, category, cover } = post.data;
+const H = `h${headingLevel}` as "h2" | "h3";
+---
+
+<article class:list={["card", { featured }]}>
+  <div class="media">
+    {cover ? (
+      <Image
+        src={cover.src}
+        alt={cover.alt}
+        width={featured ? 960 : 640}
+        height={featured ? 540 : 360}
+        fit="cover"
+        loading={eager ? "eager" : "lazy"}
+        fetchpriority={eager ? "high" : "auto"}
+      />
+    ) : (
+      <CategoryArt slug={category} size={featured ? "lg" : "sm"} />
+    )}
+  </div>
+  <div class="body">
+    <div class="top"><CategoryBadge slug={category} /></div>
+    <H class="title"><a href={postPath(post)}>{title}</a></H>
+    <p class="excerpt">{description}</p>
+    <p class="meta">
+      <span>{authorName}</span>
+      <span aria-hidden="true">·</span>
+      <time datetime={date.toISOString()}>{formatDate(date)}</time>
+      <span aria-hidden="true">·</span>
+      <span>{readingTime(post)} min read</span>
+    </p>
+  </div>
+</article>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .card {
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft); transition: box-shadow .2s ease, transform .2s ease;
+  }
+  .card:hover { box-shadow: var(--shadow-lift); transform: translateY(-2px); }
+  .card:has(.title a:focus-visible) { box-shadow: 0 0 0 3px var(--blue); }
+  .media { border-radius: var(--radius-lg) var(--radius-lg) 0 0; overflow: hidden; }
+  .media :global(img) { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+  .body { display: flex; flex-direction: column; gap: 10px; padding: 20px 22px 22px; flex: 1; }
+  .top { position: relative; z-index: 2; }
+  .title {
+    margin: 4px 0 0; font: 700 1.2rem/1.3 var(--sans); letter-spacing: -.01em; color: var(--ink);
+    a { text-decoration: none; }
+    a::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+    a:focus-visible { outline: none; }
+  }
+  .card:hover .title a { text-decoration: underline; text-underline-offset: 3px; }
+  .excerpt { margin: 0; color: var(--ink-2); font-size: .98rem; line-height: 1.55; }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding-top: 8px;
+    color: var(--muted); font-size: .86rem;
+  }
+  .featured {
+    display: grid; grid-template-columns: 1.15fr 1fr;
+    .media { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+    .media :global(.art), .media :global(img) { height: 100%; aspect-ratio: auto; min-height: 300px; }
+    .body { padding: 36px 40px; justify-content: center; gap: 14px; }
+    .title { font: 800 clamp(1.5rem, 2.6vw, 2.1rem)/1.15 var(--display); letter-spacing: -.025em; }
+    .excerpt { font-size: 1.08rem; }
+  }
+  @include below(lg) {
+    .featured {
+      display: flex;
+      .media { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+      .media :global(.art), .media :global(img) { min-height: 0; aspect-ratio: 16 / 9; }
+      .body { padding: 22px; }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) { .card:hover { transform: none; } }
+</style>

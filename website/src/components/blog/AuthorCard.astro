@@ -1,0 +1,38 @@
+---
+import { Image } from "astro:assets";
+import type { Author } from "../../lib/blog";
+import Icon from "./Icon.astro";
+
+interface Props {
+  author: Author;
+}
+const { author } = Astro.props;
+const { name, role, credentials, bio, photo, type } = author.data;
+---
+
+<aside class="author" aria-label="About the author">
+  {photo ? (
+    <Image src={photo} alt="" width={96} height={96} fit="cover" class="pic" />
+  ) : (
+    <span class="pic mark" aria-hidden="true"><Icon name={type === "Organization" ? "building-community" : "rosette-discount-check"} size={32} /></span>
+  )}
+  <div>
+    <p class="label">Written by</p>
+    <p class="name"><a href={`/blog/author/${author.id}`}>{name}</a></p>
+    <p class="role">{role}{credentials && `, ${credentials}`}</p>
+    <p class="bio">{bio}</p>
+  </div>
+</aside>
+
+<style>
+  .author { display: flex; gap: 20px; align-items: flex-start; margin-top: 40px; padding: 24px; border-radius: var(--radius-lg); background: var(--paper-2); }
+  .author :global(.pic) { flex: none; width: 64px; height: 64px; border-radius: 20px; object-fit: cover; }
+  .mark { display: grid; place-items: center; background: var(--blue-tint); color: var(--blue-deep); }
+  p { margin: 0; }
+  .label { font: 600 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .name { font-weight: 700; font-size: 1.1rem; margin-top: 4px; }
+  .name a { text-decoration: none; }
+  .name a:hover { text-decoration: underline; }
+  .role { color: var(--ink-2); font-size: .92rem; }
+  .bio { margin-top: 10px; color: var(--ink-2); font-size: .98rem; }
+</style>

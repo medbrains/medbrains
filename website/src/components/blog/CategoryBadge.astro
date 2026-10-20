@@ -1,0 +1,28 @@
+---
+import { getCategory, type CategorySlug } from "../../data/blog-categories";
+import Icon from "./Icon.astro";
+
+interface Props {
+  slug: CategorySlug;
+  /** Render as a link to the topic page. */
+  link?: boolean;
+}
+const { slug, link = true } = Astro.props;
+const c = getCategory(slug);
+const Tag = link ? "a" : "span";
+---
+
+<Tag class="badge" href={link ? `/blog/category/${c.slug}` : undefined} style={`--tint:${c.tint};--tone:${c.ink}`}>
+  <Icon name={c.icon} size={16} />
+  {c.name}
+</Tag>
+
+<style>
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 2px 12px;
+    border-radius: 999px; background: var(--tint); color: var(--ink);
+    font-size: .8rem; font-weight: 600; text-decoration: none; line-height: 1.3;
+  }
+  .badge :global(svg) { color: var(--tone); flex: none; }
+  a.badge:hover { text-decoration: underline; }
+</style>

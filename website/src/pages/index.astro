@@ -11,7 +11,7 @@ import Statement from "../components/Statement.astro";
 import Story from "../components/Story.astro";
 import Trust from "../components/Trust.astro";
 import WhatsAppFloat from "../components/WhatsAppFloat.astro";
-import { SITE, SOCIAL, WHATSAPP } from "../consts";
+import { SAME_AS, SITE, WHATSAPP } from "../consts";
 import { FAQ, MODULE_GROUPS } from "../data/content";
 import Base from "../layouts/Base.astro";
 
@@ -27,7 +27,7 @@ const schema = [
     email: SITE.email,
     address: { "@type": "PostalAddress", addressLocality: "Karaikudi", addressRegion: "Tamil Nadu", addressCountry: "IN" },
     contactPoint: { "@type": "ContactPoint", telephone: `+${WHATSAPP.number}`, contactType: "sales", areaServed: "IN", availableLanguage: ["en", "ta"] },
-    sameAs: [SOCIAL.instagram, SOCIAL.facebook, SOCIAL.linkedin].filter(Boolean),
+    sameAs: SAME_AS,
   },
   { "@type": "WebSite", "@id": `${home}#site`, name: SITE.brand, url: home, inLanguage: "en-IN", publisher: org },
   {

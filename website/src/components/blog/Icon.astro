@@ -1,0 +1,27 @@
+---
+// A Tabler icon from src/assets/icons by file name. Decorative unless `label` is set.
+const icons = import.meta.glob<{ default: (props: Record<string, unknown>) => unknown }>(
+  "../../assets/icons/*.svg",
+  { eager: true },
+);
+
+interface Props {
+  name: string;
+  size?: number;
+  label?: string;
+  class?: string;
+}
+const { name, size = 20, label, class: className } = Astro.props;
+const Svg = icons[`../../assets/icons/${name}.svg`]?.default;
+if (!Svg) throw new Error(`No icon "${name}" in src/assets/icons`);
+---
+
+<Svg
+  width={size}
+  height={size}
+  class={className}
+  aria-hidden={label ? undefined : "true"}
+  role={label ? "img" : undefined}
+  aria-label={label}
+  focusable="false"
+/>

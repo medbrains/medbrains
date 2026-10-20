@@ -1,0 +1,117 @@
+---
+import { Image } from "astro:assets";
+import { getCollection } from "astro:content";
+import Icon from "../../../components/blog/Icon.astro";
+import PostGrid from "../../../components/blog/PostGrid.astro";
+import { SAME_AS, SITE } from "../../../consts";
+import BlogLayout from "../../../layouts/BlogLayout.astro";
+import { absolute, breadcrumbs, getAuthorNames, getPosts, organization, type Author, type Post } from "../../../lib/blog";
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return (await getCollection("authors")).map((author) => ({
+    params: { slug: author.id },
+    props: { author, posts: posts.filter((p) => p.data.author.id === author.id) },
+  }));
+}
+
+const { author, posts } = Astro.props as { author: Author; posts: Post[] };
+const { name, type, role, credentials, registration, bio, photo } = author.data;
+// The editorial desk speaks for MedBrains, so its profiles are the company's.
+const sameAs = author.data.sameAs.length ? author.data.sameAs : type === "Organization" ? SAME_AS : [];
+const authorNames = await getAuthorNames();
+const path = `/blog/author/${author.id}`;
+const url = absolute(path, Astro.site);
+const description = bio.length > 160 ? `${bio.slice(0, 157).trimEnd()}…` : bio;
+const entity =
+  type === "Organization"
+    ? { "@type": "Organization", "@id": `${url}#author`, name, url, description: bio, parentOrganization: organization(Astro.site) }
+    : {
+        "@type": "Person",
+        "@id": `${url}#author`,
+        name,
+        url,
+        jobTitle: role,
+        description: bio,
+        ...(credentials ? { honorificSuffix: credentials } : {}),
+        ...(photo ? { image: absolute(photo.src, Astro.site) } : {}),
+        worksFor: organization(Astro.site),
+      };
+const schema = [
+  { "@type": "ProfilePage", url, name: `${name} | ${SITE.brand} blog`, mainEntity: { ...entity, ...(sameAs.length ? { sameAs } : {}) } },
+  breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name, path }]),
+];
+const linkLabel = (href: string) => {
+  const host = new URL(href).hostname.replace(/^www\./, "");
+  const known: Record<string, [string, string]> = {
+    "facebook.com": ["Facebook", "brand-facebook"],
+    "instagram.com": ["Instagram", "brand-instagram"],
+    "linkedin.com": ["LinkedIn", "brand-linkedin"],
+    "x.com": ["X", "brand-x"],
+    "twitter.com": ["X", "brand-x"],
+    "youtube.com": ["YouTube", "brand-youtube"],
+  };
+  return known[host] ?? [host, "link"];
+};
+---
+
+<BlogLayout title={`${name} | ${SITE.brand} blog`} description={description} schema={schema}>
+  <header class="head">
+    <div class="wrap inner">
+      <nav aria-label="Breadcrumb">
+        <ol class="crumbs"><li><a href="/blog">Blog</a></li><li><span aria-current="page">{name}</span></li></ol>
+      </nav>
+      <div class="profile">
+        {photo ? (
+          <Image src={photo} alt={`Photo of ${name}`} width={160} height={160} fit="cover" class="photo" loading="eager" />
+        ) : (
+          <span class="photo mark" aria-hidden="true"><Icon name={type === "Organization" ? "building-community" : "rosette-discount-check"} size={48} /></span>
+        )}
+        <div>
+          <p class="eyebrow">{role}</p>
+          <h1>{name}</h1>
+          {credentials && <p class="cred">{credentials}</p>}
+          {registration && <p class="reg">Registration: {registration}</p>}
+          <p class="bio">{bio}</p>
+          {sameAs.length > 0 && (
+            <ul class="links">
+              {sameAs.map((href) => {
+                const [label, icon] = linkLabel(href);
+                return <li><a href={href} target="_blank" rel="noopener me"><Icon name={icon} size={18} />{label}</a></li>;
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  </header>
+  <section class="wrap list" aria-labelledby="by-title">
+    <h2 id="by-title">Articles by {name}</h2>
+    {posts.length > 0 ? <PostGrid posts={posts} authorNames={authorNames} /> : <p>No articles yet.</p>}
+  </section>
+</BlogLayout>
+
+<style lang="scss">
+  @use "../../../styles/mixins" as *;
+
+  .head { background: linear-gradient(180deg, var(--paper-2), var(--paper)); padding: 40px 0 48px; }
+  .profile { display: flex; gap: 32px; align-items: flex-start; margin-top: 28px; max-width: 860px; }
+  .profile :global(.photo) { flex: none; width: 140px; height: 140px; border-radius: 36px; object-fit: cover; box-shadow: var(--shadow-soft); }
+  .mark { display: grid; place-items: center; background: var(--blue-tint); color: var(--blue-deep); }
+  .eyebrow { color: var(--blue-deep); }
+  h1 { font: 800 clamp(1.9rem, 4vw, 2.8rem)/1.1 var(--display); letter-spacing: -.03em; margin: 0 0 8px; }
+  .cred { margin: 0 0 4px; font-weight: 600; }
+  .reg { margin: 0 0 4px; color: var(--ink-2); font: 500 .9rem var(--mono); }
+  .bio { font-size: 1.1rem; color: var(--ink-2); max-width: 62ch; }
+  .links {
+    display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none;
+    a {
+      display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px;
+      border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-weight: 600; font-size: .92rem;
+    }
+    a:hover { border-color: var(--blue); color: var(--blue-deep); }
+  }
+  .list { padding-block: 16px 96px; }
+  h2 { font: 800 1.5rem var(--display); letter-spacing: -.02em; margin: 0 0 24px; }
+  @include below(md) { .profile { flex-direction: column; gap: 20px; } .profile :global(.photo) { width: 104px; height: 104px; border-radius: 28px; } }
+</style>
