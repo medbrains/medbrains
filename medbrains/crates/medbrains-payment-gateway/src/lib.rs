@@ -1,6 +1,8 @@
 pub mod payment_link;
+pub mod pos;
 pub mod razorpay;
 pub mod settle;
+pub mod terminals;
 pub mod upi_qr;
 
 pub use settle::{CAPTURE_EVENTS, GatewayPosting, record_invoice_payment};
@@ -12,7 +14,7 @@ use axum::{
 };
 use hmac::{Hmac, Mac};
 use medbrains_core::payment::{
-    CreateOrderResponse, PaymentGatewayTransaction, PaymentTerminal, VerifyPaymentRequest,
+    CreateOrderResponse, PaymentGatewayTransaction, VerifyPaymentRequest,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -306,7 +308,7 @@ fn provider_spec(code: &str) -> Option<&'static ProviderSpec> {
 
 /// Rupees to paise for a gateway. Refuses amounts that are not whole paise —
 /// silently rounding would charge the patient something other than the bill.
-fn amount_to_paise(amount: Decimal) -> Result<i64, AppError> {
+pub(crate) fn amount_to_paise(amount: Decimal) -> Result<i64, AppError> {
     use rust_decimal::prelude::ToPrimitive;
     if amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
@@ -327,7 +329,7 @@ fn amount_to_paise(amount: Decimal) -> Result<i64, AppError> {
 
 /// A payment raised against a bill may only be raised by someone who may bill
 /// that bill's patient — the same check recording a payment makes.
-async fn require_invoice_billing(
+pub(crate) async fn require_invoice_billing(
     state: &AppState,
     claims: &Claims,
     invoice_id: Option<Uuid>,
@@ -482,46 +484,8 @@ pub async fn list_payment_providers(
     }))
 }
 
-// ══════════════════════════════════════════════════════════
-//  Payment terminals — per-billing-place device registry
-// ══════════════════════════════════════════════════════════
-
-const TERMINAL_KINDS: &[&str] = &["online", "pos", "qr"];
-const TERMINAL_MODES: &[&str] = &["sandbox", "live"];
-
-#[derive(Debug, Deserialize)]
-pub struct ListTerminalsQuery {
-    /// Filter to one billing place (cashier's counter at pay time).
-    counter_id: Option<String>,
-    /// When true, only active devices.
-    active_only: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreatePaymentTerminalRequest {
-    pub provider: String,
-    pub kind: Option<String>,
-    pub terminal_code: Option<String>,
-    pub acquiring_bank: Option<String>,
-    pub counter_id: Option<String>,
-    pub location_id: Option<Uuid>,
-    pub label: String,
-    pub mode: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdatePaymentTerminalRequest {
-    pub kind: Option<String>,
-    pub terminal_code: Option<String>,
-    pub acquiring_bank: Option<String>,
-    pub counter_id: Option<String>,
-    pub location_id: Option<Uuid>,
-    pub label: Option<String>,
-    pub mode: Option<String>,
-    pub is_active: Option<bool>,
-}
-
-fn validate_terminal_provider(provider: &str) -> Result<(), AppError> {
+/// A terminal for online checkout or a QR names a known payment provider.
+pub(crate) fn validate_terminal_provider(provider: &str) -> Result<(), AppError> {
     if provider_spec(provider).is_some() {
         Ok(())
     } else {
@@ -529,238 +493,6 @@ fn validate_terminal_provider(provider: &str) -> Result<(), AppError> {
             "Unknown payment provider '{provider}'"
         )))
     }
-}
-
-fn validate_terminal_kind(kind: &str) -> Result<(), AppError> {
-    if TERMINAL_KINDS.contains(&kind) {
-        Ok(())
-    } else {
-        Err(AppError::BadRequest(
-            "Terminal kind must be one of: online, pos, qr".to_owned(),
-        ))
-    }
-}
-
-fn validate_terminal_mode(mode: &str) -> Result<(), AppError> {
-    if TERMINAL_MODES.contains(&mode) {
-        Ok(())
-    } else {
-        Err(AppError::BadRequest(
-            "Terminal mode must be sandbox or live".to_owned(),
-        ))
-    }
-}
-
-/// GET /api/payments/terminals — registered devices, optionally for one counter.
-pub async fn list_payment_terminals(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Query(q): Query<ListTerminalsQuery>,
-) -> Result<Json<Vec<PaymentTerminal>>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, PaymentTerminal>(
-        "SELECT * FROM payment_terminals \
-         WHERE tenant_id = $1 \
-           AND ($2::text IS NULL OR counter_id = $2) \
-           AND ($3::bool IS NOT TRUE OR is_active = true) \
-         ORDER BY counter_id NULLS LAST, provider, label",
-    )
-    .bind(claims.tenant_id)
-    .bind(
-        q.counter_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(q.active_only)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-/// POST /api/payments/terminals — register a device at a billing place.
-pub async fn create_payment_terminal(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<CreatePaymentTerminalRequest>,
-) -> Result<Json<PaymentTerminal>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    let provider = body.provider.trim();
-    validate_terminal_provider(provider)?;
-    let kind = body
-        .kind
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("pos");
-    validate_terminal_kind(kind)?;
-    let mode = body
-        .mode
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .unwrap_or("sandbox");
-    validate_terminal_mode(mode)?;
-    let label = body.label.trim();
-    if label.is_empty() {
-        return Err(AppError::BadRequest(
-            "Terminal label is required".to_owned(),
-        ));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let terminal = sqlx::query_as::<_, PaymentTerminal>(
-        "INSERT INTO payment_terminals \
-         (tenant_id, provider, kind, terminal_code, acquiring_bank, counter_id, \
-          location_id, label, mode, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(provider)
-    .bind(kind)
-    .bind(
-        body.terminal_code
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.acquiring_bank
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.counter_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(body.location_id)
-    .bind(label)
-    .bind(mode)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(terminal))
-}
-
-/// PUT /api/payments/terminals/{id} — update a registered device.
-pub async fn update_payment_terminal(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdatePaymentTerminalRequest>,
-) -> Result<Json<PaymentTerminal>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    if let Some(kind) = body.kind.as_deref() {
-        validate_terminal_kind(kind.trim())?;
-    }
-    if let Some(mode) = body.mode.as_deref() {
-        validate_terminal_mode(mode.trim())?;
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let terminal = sqlx::query_as::<_, PaymentTerminal>(
-        "UPDATE payment_terminals SET \
-         kind = COALESCE($1, kind), \
-         terminal_code = COALESCE($2, terminal_code), \
-         acquiring_bank = COALESCE($3, acquiring_bank), \
-         counter_id = COALESCE($4, counter_id), \
-         location_id = COALESCE($5, location_id), \
-         label = COALESCE($6, label), \
-         mode = COALESCE($7, mode), \
-         is_active = COALESCE($8, is_active), \
-         updated_at = now() \
-         WHERE id = $9 AND tenant_id = $10 \
-         RETURNING *",
-    )
-    .bind(
-        body.kind
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.terminal_code
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.acquiring_bank
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.counter_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(body.location_id)
-    .bind(
-        body.label
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(
-        body.mode
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty()),
-    )
-    .bind(body.is_active)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    tx.commit().await?;
-    Ok(Json(terminal))
-}
-
-/// DELETE /api/payments/terminals/{id} — de-register a device.
-pub async fn delete_payment_terminal(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let deleted = sqlx::query("DELETE FROM payment_terminals WHERE id = $1 AND tenant_id = $2")
-        .bind(id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-    tx.commit().await?;
-    if deleted == 0 {
-        return Err(AppError::NotFound);
-    }
-    Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1040,139 +772,6 @@ async fn create_razorpay_order(
     .await?;
     tx.commit().await?;
     Ok(order_id)
-}
-
-// ══════════════════════════════════════════════════════════
-//  POST /api/payments/pos-sale  (drive a counter POS terminal)
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct PosSaleRequest {
-    pub terminal_id: Uuid,
-    pub invoice_id: Option<Uuid>,
-    pub pos_sale_id: Option<Uuid>,
-    pub amount: Decimal,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PosSaleResponse {
-    pub transaction_id: Uuid,
-    pub provider: String,
-    pub status: String,
-}
-
-/// POST /api/payments/pos-sale — push a billed sale to the card machine at the
-/// cashier's counter. Creates the gateway txn and queues the provider-specific
-/// POS event; the worker drives the terminal (push+poll) and settles on
-/// approval. The client polls /status. Currently Pine Labs Plutus.
-pub async fn pos_sale(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(body): Json<PosSaleRequest>,
-) -> Result<Json<PosSaleResponse>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
-
-    if body.invoice_id.is_none() && body.pos_sale_id.is_none() {
-        return Err(AppError::BadRequest(
-            "either invoice_id or pos_sale_id is required".to_owned(),
-        ));
-    }
-    if body.amount <= Decimal::ZERO {
-        return Err(AppError::BadRequest(
-            "Amount must be greater than zero".to_owned(),
-        ));
-    }
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Resolve the terminal (must be an active POS device at this tenant).
-    let terminal = sqlx::query_as::<_, PaymentTerminal>(
-        "SELECT * FROM payment_terminals WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(body.terminal_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    if !terminal.is_active {
-        return Err(AppError::BadRequest("Terminal is inactive".to_owned()));
-    }
-    if terminal.kind != "pos" {
-        return Err(AppError::BadRequest(
-            "Terminal is not a POS card machine".to_owned(),
-        ));
-    }
-    // Only Pine Labs has a POS worker adapter today.
-    let event_type = match terminal.provider.as_str() {
-        "pinelabs" => "payment.pinelabs.pos_sale",
-        other => {
-            return Err(AppError::ServiceUnavailable(format!(
-                "POS provider '{other}' has no adapter yet"
-            )));
-        }
-    };
-    let api_base = if terminal.mode == "live" {
-        "https://www.plutuscloudservice.in:8201/API/CloudBasedIntegration/V1"
-    } else {
-        "https://www.plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1"
-    };
-
-    let amount_paise = amount_to_paise(body.amount)?;
-
-    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
-        "INSERT INTO payment_gateway_transactions \
-         (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
-          amount, currency, status, created_by, idempotency_key) \
-         VALUES ($1, $2, $3, $4, '', $5, 'INR', 'pending_gateway', $6, $7) \
-         RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
-    )
-    .bind(claims.tenant_id)
-    .bind(body.invoice_id)
-    .bind(body.pos_sale_id)
-    .bind(&terminal.provider)
-    .bind(body.amount)
-    .bind(claims.sub)
-    .bind(Uuid::new_v4().to_string())
-    .fetch_one(&mut *tx)
-    .await?;
-
-    sqlx::query(
-        // allow-raw-sql: backfill idempotency_key with txn.id
-        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
-    )
-    .bind(txn.id)
-    .execute(&mut *tx)
-    .await?;
-
-    medbrains_outbox::queue_in_tx(
-        &mut tx,
-        medbrains_outbox::OutboxRow {
-            tenant_id: claims.tenant_id,
-            aggregate_type: "payment_gateway_transaction",
-            aggregate_id: Some(txn.id),
-            event_type,
-            payload: serde_json::json!({
-                "internal_payment_id": txn.id,
-                "amount_paise": amount_paise,
-                "api_base": api_base,
-                "terminal_code": terminal.terminal_code,
-                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-            }),
-            idempotency_key: Some(txn.id.to_string()),
-        },
-    )
-    .await
-    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
-
-    tx.commit().await?;
-
-    Ok(Json(PosSaleResponse {
-        transaction_id: txn.id,
-        provider: terminal.provider,
-        status: "pending_gateway".to_owned(),
-    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2871,34 +2470,14 @@ pub async fn initiate_refund(
         .filter(|r| !r.is_empty())
         .unwrap_or("Refund to the patient");
 
-    let keys = require_razorpay(&mut tx, &state, &claims.tenant_id).await?;
-    let rz_body = serde_json::json!({
-        "amount": refund_paise,
-        "receipt": format!("rf_{}", Uuid::new_v4().simple()),
-        "notes": { "reason": reason, "internal_payment_id": txn.id },
-    });
-    let path = format!(
-        "/payments/{}/refund",
-        urlencoding::encode(&gateway_payment_id)
-    );
-    // ponytail: the row lock is held across this call (≤ CALL_TIMEOUT); it only
-    // blocks other settles/refunds of this one payment.
-    let answer = razorpay::call(state.secret_resolver.as_ref(), &keys, &path, Some(&rz_body)).await;
-    let refund_id = match answer {
-        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned).ok_or_else(|| {
-            AppError::ServiceUnavailable(
-                "Razorpay's answer named no refund; check the payment in Razorpay".to_owned(),
-            )
-        })?,
-        razorpay::Answer::Refused(w) => {
-            return Err(AppError::BadRequest(format!(
-                "Razorpay refused the refund: {w}"
-            )));
+    let refund_id = match txn.terminal_id {
+        // A card sale goes back through the machine's provider, never Razorpay.
+        Some(terminal_id) => {
+            pos::undo::refund_on_machine(&state, &txn, terminal_id, refund_paise).await?
         }
-        razorpay::Answer::Unreachable(w) => {
-            return Err(AppError::ServiceUnavailable(format!(
-                "{w}. If Razorpay made the refund it will show on the bill when its notice arrives."
-            )));
+        None => {
+            refund_through_razorpay(&mut tx, &state, &txn, &gateway_payment_id, refund_paise, reason)
+                .await?
         }
     };
 
@@ -2923,6 +2502,43 @@ pub async fn initiate_refund(
     }))
 }
 
+/// Refund an online payment through Razorpay; its refund id.
+async fn refund_through_razorpay(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    state: &AppState,
+    txn: &PaymentGatewayTransaction,
+    gateway_payment_id: &str,
+    refund_paise: i64,
+    reason: &str,
+) -> Result<String, AppError> {
+    let keys = require_razorpay(tx, state, &txn.tenant_id).await?;
+    let rz_body = serde_json::json!({
+        "amount": refund_paise,
+        "receipt": format!("rf_{}", Uuid::new_v4().simple()),
+        "notes": { "reason": reason, "internal_payment_id": txn.id },
+    });
+    let path = format!(
+        "/payments/{}/refund",
+        urlencoding::encode(gateway_payment_id)
+    );
+    // ponytail: the row lock is held across this call (≤ CALL_TIMEOUT); it only
+    // blocks other settles/refunds of this one payment.
+    let answer = razorpay::call(state.secret_resolver.as_ref(), &keys, &path, Some(&rz_body)).await;
+    match answer {
+        razorpay::Answer::Ok(v) => v["id"].as_str().map(ToOwned::to_owned).ok_or_else(|| {
+            AppError::ServiceUnavailable(
+                "Razorpay's answer named no refund; check the payment in Razorpay".to_owned(),
+            )
+        }),
+        razorpay::Answer::Refused(w) => Err(AppError::BadRequest(format!(
+            "Razorpay refused the refund: {w}"
+        ))),
+        razorpay::Answer::Unreachable(w) => Err(AppError::ServiceUnavailable(format!(
+            "{w}. If Razorpay made the refund it will show on the bill when its notice arrives."
+        ))),
+    }
+}
+
 /// Minimal URL encoding for UPI URI parameters.
 fn urlencoded(s: &str) -> String {
     s.replace(' ', "%20")
@@ -2942,7 +2558,29 @@ fn mask_key_id(key_id: &str) -> String {
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/payments/create-order", post(create_order))
-        .route("/api/payments/pos-sale", post(pos_sale))
+        .route("/api/payments/pos-sale", post(pos::sale::start_sale))
+        .route("/api/payments/pos-sale/{id}", get(pos::sale::sale_status))
+        .route("/api/payments/pos-sale/{id}/cancel", post(pos::undo::cancel_sale))
+        .route(
+            "/api/payments/terminal-jobs/claim",
+            post(pos::bridge::claim_terminal_jobs),
+        )
+        .route(
+            "/api/payments/terminal-jobs/{id}/result",
+            post(pos::bridge::report_terminal_job),
+        )
+        .route(
+            "/api/payments/simulator/sales",
+            get(pos::simulator::list_simulated_sales),
+        )
+        .route(
+            "/api/payments/simulator/sales/{id}",
+            post(pos::simulator::act_on_simulated_sale),
+        )
+        .route(
+            "/api/payments/simulator/terminals/{id}/power",
+            post(pos::simulator::power_simulated_terminal),
+        )
         .route(
             "/api/payments/virtual-account",
             post(create_virtual_account),
@@ -2957,11 +2595,23 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/payments/providers", get(list_payment_providers))
         .route(
             "/api/payments/terminals",
-            get(list_payment_terminals).post(create_payment_terminal),
+            get(terminals::list_payment_terminals).post(terminals::create_payment_terminal),
         )
         .route(
             "/api/payments/terminals/{id}",
-            put(update_payment_terminal).delete(delete_payment_terminal),
+            put(terminals::update_payment_terminal),
+        )
+        .route(
+            "/api/payments/terminals/{id}/ping",
+            post(terminals::ping_payment_terminal),
+        )
+        .route(
+            "/api/payments/terminals/{id}/retire",
+            post(terminals::retire_payment_terminal),
+        )
+        .route(
+            "/api/payments/terminal-providers",
+            get(pos::list_terminal_providers),
         )
         .route("/api/payments/recon-summary", get(payment_recon_summary))
         .route("/api/payments/exceptions", get(list_payment_exceptions))

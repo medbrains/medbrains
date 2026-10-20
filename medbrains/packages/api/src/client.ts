@@ -1677,7 +1677,7 @@ import type {
   PosDaySummary,
   PosPricesResponse,
   PosSaleRequest,
-  PosSaleResponse,
+  PosSaleView,
   PostNhcxPaymentRequest,
   PostnatalRecord,
   PostopOrdersPrintData,
@@ -1934,6 +1934,8 @@ import type {
   SignPreviewResponse,
   SignRequest,
   SignResponse,
+  SimulatedOutcome,
+  SimulatedSale,
   SimulationDebriefingPrintData,
   SimulatorInbox,
   SimulatorInboxQuery,
@@ -2020,6 +2022,9 @@ import type {
   TemplateWithItems,
   TenantSettingsRow,
   TenantSummary,
+  TerminalJob,
+  TerminalJobResult,
+  TerminalProviders,
   TerminologySearchResponse,
   TerminologySearchResult,
   TestCaseResult,
@@ -15951,8 +15956,41 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Send an amount to the card machine at the counter. */
   posSale: (data: PosSaleRequest) =>
-    request<PosSaleResponse>("/payments/pos-sale", {
+    request<PosSaleView>("/payments/pos-sale", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** Where a card sale stands; asks the machine while it is open. */
+  getCardSale: (id: string) => request<PosSaleView>(`/payments/pos-sale/${id}`),
+  cancelCardSale: (id: string) =>
+    request<PosSaleView>(`/payments/pos-sale/${id}/cancel`, { method: "POST" }),
+  /** A site bridge's heartbeat for its card machines, and the jobs for them. */
+  claimTerminalJobs: (data: {
+    terminals: { terminal_id: string; online: boolean; error?: string | null }[];
+  }) =>
+    request<TerminalJob[]>("/payments/terminal-jobs/claim", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** A site bridge reports what the card machine did. */
+  reportTerminalJob: (id: string, data: TerminalJobResult) =>
+    request<{ status: string }>(`/payments/terminal-jobs/${id}/result`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** Dev/test: sales waiting at a simulated card machine. */
+  listSimulatedSales: () => request<SimulatedSale[]>("/payments/simulator/sales"),
+  /** Dev/test: what the card did at the simulated machine. */
+  actOnSimulatedSale: (id: string, data: { outcome: SimulatedOutcome; approved_amount?: number }) =>
+    request<{ outcome: string }>(`/payments/simulator/sales/${id}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  /** Dev/test: plug a simulated machine in, or pull its cable. */
+  powerSimulatedTerminal: (id: string, data: { on: boolean }) =>
+    request<{ on: boolean }>(`/payments/simulator/terminals/${id}/power`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -16066,7 +16104,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listPaymentTerminals: (params?: { counter_id?: string; active_only?: boolean }) => {
+  listPaymentTerminals: (params?: { station_id?: string; active_only?: boolean }) => {
     const qs = params
       ? `?${new URLSearchParams(
           Object.entries(params)
@@ -16086,10 +16124,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  deletePaymentTerminal: (id: string) =>
-    request<{ status: string }>(`/payments/terminals/${id}`, {
-      method: "DELETE",
-    }),
+  /** Does the card machine answer? The answer is kept for the counter. */
+  pingPaymentTerminal: (id: string) =>
+    request<PaymentTerminal>(`/payments/terminals/${id}/ping`, { method: "POST" }),
+  /** A replaced machine takes no more sales. */
+  retirePaymentTerminal: (id: string) =>
+    request<PaymentTerminal>(`/payments/terminals/${id}/retire`, { method: "POST" }),
+  listTerminalProviders: () => request<TerminalProviders>("/payments/terminal-providers"),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
       method: "POST",

@@ -144,6 +144,10 @@ pub struct PosTenderInput {
     pub amount: Decimal,
     /// UTR for UPI, approval code for card.
     pub reference: Option<String>,
+    /// The approved card-machine (or gateway) payment this tender is, so
+    /// one approval pays for one sale only.
+    #[serde(default)]
+    pub gateway_transaction_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,6 +197,7 @@ pub(crate) struct Tender {
     /// For cash, what the drawer keeps — the change has already gone back.
     pub amount: Decimal,
     pub reference: Option<String>,
+    pub gateway_transaction_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +252,7 @@ pub(crate) fn settle(total: Decimal, inputs: &[PosTenderInput]) -> Result<Settle
                     mode,
                     amount: input.amount,
                     reference,
+                    gateway_transaction_id: input.gateway_transaction_id,
                 });
             }
             TenderMode::Credit => {
@@ -256,6 +262,7 @@ pub(crate) fn settle(total: Decimal, inputs: &[PosTenderInput]) -> Result<Settle
                     mode,
                     amount: input.amount,
                     reference,
+                    gateway_transaction_id: None,
                 });
             }
         }
@@ -284,6 +291,7 @@ pub(crate) fn settle(total: Decimal, inputs: &[PosTenderInput]) -> Result<Settle
                 mode: TenderMode::Cash,
                 amount: cash_due,
                 reference: None,
+                gateway_transaction_id: None,
             },
         );
     }
@@ -606,6 +614,7 @@ mod tests {
             mode: mode.to_owned(),
             amount: Decimal::from(amount),
             reference: reference.map(str::to_owned),
+            gateway_transaction_id: None,
         }
     }
 

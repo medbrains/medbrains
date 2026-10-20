@@ -281,7 +281,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     value: "payment-terminals",
     i18nKey: "settings.paymentTerminals",
     icon: "IconCreditCard",
-    requiredPermission: "billing.payments.create",
+    requiredPermission: "billing.terminals.manage",
     component: PaymentTerminalsSettings,
   },
   {

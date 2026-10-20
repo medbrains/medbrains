@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 814;
+pub const PERMISSION_COUNT: usize = 816;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -635,6 +635,23 @@ pub mod billing {
         /// owed, a method with no payment mode, a refund that failed — and
         /// mark each resolved once finance has put it right.
         pub const RECONCILE: &str = "billing.payments.reconcile";
+    }
+
+    pub mod terminals {
+        /// Manage card machines at counters.
+        ///
+        /// Register the card machines (POS terminals) at billing and
+        /// pharmacy counters, bind each to its counter, test that it answers,
+        /// and retire one that is replaced. In test hospitals, also act as
+        /// the person at a simulated machine.
+        pub const MANAGE: &str = "billing.terminals.manage";
+        /// Drive counter card machines from a bridge.
+        ///
+        /// Lets a site bridge take card sales queued for the machines wired
+        /// to its counter PCs, run them on the machine and report each
+        /// approved, declined or timed out — which posts the money to the
+        /// bill. Grant it to the bridge's API key, not to people.
+        pub const DRIVE: &str = "billing.terminals.drive";
     }
 
     pub mod receipts {

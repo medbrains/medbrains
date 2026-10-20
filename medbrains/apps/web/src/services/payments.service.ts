@@ -7,6 +7,12 @@ export type GenerateUpiQrInput = Parameters<typeof api.generateUpiQr>[0];
 export const paymentsService = {
   createPaymentOrder: (data: CreatePaymentOrderInput) => api.createPaymentOrder(data),
   posSale: (data: Parameters<typeof api.posSale>[0]) => api.posSale(data),
+  getCardSale: (id: string) => api.getCardSale(id),
+  cancelCardSale: (id: string) => api.cancelCardSale(id),
+  listSimulatedSales: () => api.listSimulatedSales(),
+  actOnSimulatedSale: (id: string, data: Parameters<typeof api.actOnSimulatedSale>[1]) =>
+    api.actOnSimulatedSale(id, data),
+  powerSimulatedTerminal: (id: string, on: boolean) => api.powerSimulatedTerminal(id, { on }),
   createVirtualAccount: (data: Parameters<typeof api.createVirtualAccount>[0]) =>
     api.createVirtualAccount(data),
   getPaymentStatus: (id: string) => api.getPaymentStatus(id),
@@ -27,5 +33,7 @@ export const paymentsService = {
     api.createPaymentTerminal(data),
   updatePaymentTerminal: (id: string, data: Parameters<typeof api.updatePaymentTerminal>[1]) =>
     api.updatePaymentTerminal(id, data),
-  deletePaymentTerminal: (id: string) => api.deletePaymentTerminal(id),
+  pingPaymentTerminal: (id: string) => api.pingPaymentTerminal(id),
+  retirePaymentTerminal: (id: string) => api.retirePaymentTerminal(id),
+  listTerminalProviders: () => api.listTerminalProviders(),
 };

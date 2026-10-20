@@ -35,6 +35,8 @@ export interface Hospital {
     extraPermissions?: string[],
     /** Departments they work in — where work handed to a department reaches them. */
     departmentIds?: string[],
+    /** Permissions taken away from what the role gives (a cashier who may not collect). */
+    deniedPermissions?: string[],
   ) => Promise<{ id: string; page: Page; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
@@ -89,7 +91,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         pages.push(page);
         return page;
       },
-      newStaff: async (role, fullName, extraPermissions, departmentIds) => {
+      newStaff: async (role, fullName, extraPermissions, departmentIds, deniedPermissions) => {
         const suffix = unique().toLowerCase();
         // Usernames are at most 30 characters; long role codes are cut.
         const username = `${role.slice(0, 20)}_${suffix}`;
@@ -100,7 +102,11 @@ export const test = base.extend<{ hospital: Hospital }>({
           password,
           full_name: fullName,
           role,
-          ...(extraPermissions ? { access_matrix: { extra: extraPermissions, denied: [] } } : {}),
+          ...(extraPermissions || deniedPermissions
+            ? {
+                access_matrix: { extra: extraPermissions ?? [], denied: deniedPermissions ?? [] },
+              }
+            : {}),
           ...(departmentIds ? { department_ids: departmentIds } : {}),
         });
         const page = await openPage(browser);
