@@ -78,6 +78,7 @@ function formToReviewPayload(form: UtilizationReviewFormInput): CreateUrReviewIn
   };
 }
 
+// ai-label-exempt: the AI extract endpoint is a stub that returns no AI content (deferred).
 export function ReviewsTab() {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.UR.REVIEWS_CREATE);
@@ -189,7 +190,11 @@ export function ReviewsTab() {
       render: (r) => (
         <Group gap="xs">
           {canUpdate && (
-            <IconButton onClick={() => aiMut.mutate(r.id)} title="AI Extract" aria-label="Edit">
+            <IconButton
+              onClick={() => aiMut.mutate(r.id)}
+              title="AI extract (not available yet)"
+              aria-label="AI extract (not available yet)"
+            >
               <IconPencil size={16} />
             </IconButton>
           )}

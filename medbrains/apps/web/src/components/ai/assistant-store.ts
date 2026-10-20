@@ -17,6 +17,14 @@ interface AiAssistantState {
   setContext: (context: ChatContext | undefined) => void;
   /** Read + clear the queued query (the panel calls this after sending it). */
   consumeQuery: () => string | null;
+  /**
+   * An AI answer the user chose to use in a note. It is only offered: the
+   * case sheet shows it for review and nothing reaches the record until the
+   * author accepts it there (#4895).
+   */
+  draftOffer: string | null;
+  offerDraft: (text: string) => void;
+  clearDraftOffer: () => void;
 }
 
 export const useAiAssistantStore = create<AiAssistantState>((set, get) => ({
@@ -32,6 +40,9 @@ export const useAiAssistantStore = create<AiAssistantState>((set, get) => ({
   close: () => set({ isOpen: false }),
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
   setContext: (context) => set({ context }),
+  draftOffer: null,
+  offerDraft: (text) => set({ draftOffer: text }),
+  clearDraftOffer: () => set({ draftOffer: null }),
   consumeQuery: () => {
     const query = get().pendingQuery;
     if (query !== null) set({ pendingQuery: null });

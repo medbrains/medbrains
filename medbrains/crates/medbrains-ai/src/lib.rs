@@ -400,8 +400,9 @@ impl rig::tool::Tool for DrugSafetyTool {
 // the SERVER — not the model — runs the pharmacy safety engine and REFUSES to
 // stage it when the engine returns a Block-severity warning (contraindication).
 // The block lives in server code, so the model cannot talk its way past it. Both
-// the refusal and the staged draft are audited. The AI never creates the order:
-// a clean draft is handed to a clinician to sign via the normal workflow.
+// the refusal and the proposal are audited. The AI never creates the order and
+// stages nothing (#4895): a clean proposal is text the clinician may write on the
+// prescription themselves.
 
 #[derive(serde::Deserialize)]
 struct DraftPrescriptionArgs {
@@ -499,8 +500,8 @@ impl rig::tool::Tool for DraftPrescriptionTool {
             description:
                 "Draft a prescription for the current patient. The server runs the pharmacy \
                 safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
-                override it. On success the draft is staged for a clinician to sign; you never \
-                prescribe directly."
+                override it. On success nothing is saved: tell the clinician it is a proposal \
+                for them to write on the prescription. You never prescribe."
                     .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -529,7 +530,7 @@ impl rig::tool::Tool for DraftPrescriptionTool {
             Ok((true, messages)) => Ok(DraftPrescriptionResult {
                 decision: "blocked".to_owned(),
                 message: format!(
-                    "REFUSED by the safety system — this prescription was NOT staged: {}. Do not \
+                    "REFUSED by the safety system — do not propose this prescription: {}. Do not \
                      recommend it; escalate to the clinician.",
                     messages.join("; ")
                 ),
@@ -537,14 +538,15 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 drug: args.drug,
             }),
             Ok((false, messages)) => Ok(DraftPrescriptionResult {
-                decision: "staged".to_owned(),
+                decision: "proposed".to_owned(),
                 message: if messages.is_empty() {
-                    "Draft staged for the clinician to review and sign. You have NOT prescribed it."
+                    "Safety check passed. Nothing was prescribed or saved — the clinician writes it \
+                     on the prescription if they agree."
                         .to_owned()
                 } else {
                     format!(
-                        "Draft staged with advisories: {}. The clinician must review and sign; you \
-                         have NOT prescribed it.",
+                        "Safety check passed with advisories: {}. Nothing was prescribed or saved — \
+                         the clinician decides and writes it on the prescription.",
                         messages.join("; ")
                     )
                 },
@@ -555,7 +557,7 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 decision: "error".to_owned(),
                 drug: args.drug,
                 warnings: Vec::new(),
-                message: "Could not verify safety — draft NOT staged. Escalate to the clinician."
+                message: "Could not verify safety — do not propose it. Escalate to the clinician."
                     .to_owned(),
             }),
         }

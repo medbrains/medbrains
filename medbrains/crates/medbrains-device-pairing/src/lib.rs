@@ -33,6 +33,8 @@ use axum::{
 
 pub mod binding;
 mod binding_redeem;
+pub mod counter_display;
+pub mod counter_display_routes;
 pub mod binding_token;
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
@@ -525,6 +527,11 @@ pub fn device_code_router() -> axum::Router<AppState> {
             "/api/device-pairing/device-token",
             post(device_code::poll_device_token),
         )
+        // The customer display's socket authenticates its own device token.
+        .route(
+            "/ws/counter-display",
+            get(counter_display_routes::counter_display_ws),
+        )
 }
 
 /// Approval routes, which do require an authenticated administrator.
@@ -539,6 +546,18 @@ pub fn device_code_admin_router() -> axum::Router<AppState> {
             post(device_code::approve_pairing_request),
         )
         .route("/api/device/board", get(device_code::device_board))
+        .route(
+            "/api/device/counter-display",
+            get(counter_display_routes::get_counter_display),
+        )
+        .route(
+            "/api/counter-display/{station_id}/events",
+            post(counter_display_routes::publish_event),
+        )
+        .route(
+            "/api/counter-display/{station_id}/status",
+            get(counter_display_routes::display_status),
+        )
 }
 
 // ══════════════════════════════════════════════════════════

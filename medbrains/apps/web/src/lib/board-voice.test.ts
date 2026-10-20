@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { callPhrase, spokenNumber, unspeakable } from "./board-voice";
+import { callPhrase, paidPhrase, spokenNumber, unspeakable } from "./board-voice";
 
 describe("board voice", () => {
   it("reads a token one character at a time", () => {
@@ -17,5 +17,11 @@ describe("board voice", () => {
     const englishOnly = [{ lang: "en-IN" }, { lang: "en-US" }];
     expect(unspeakable(["en", "ta"], englishOnly)).toEqual(["ta"]);
     expect(unspeakable(["en", "ta"], [])).toEqual([]);
+  });
+
+  it("says the rupees received, without the paise, in each language", () => {
+    expect(paidPhrase("en", 600.4)).toBe("Payment of rupees 600 received, thank you.");
+    expect(paidPhrase("hi", 600)).toContain("600 रुपये");
+    expect(paidPhrase("ta", 600)).toContain("600 ரூபாய்");
   });
 });

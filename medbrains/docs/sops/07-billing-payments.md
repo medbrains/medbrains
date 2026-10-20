@@ -107,3 +107,31 @@ The Billing module handles revenue cycle management for OPD, IPD, Emergency, and
 **Exit / Outcome**: Credit bill generated for company/government; patient responsibility collected; reimbursement tracking open.  
 **Regulatory note**: CGHS rates circular (latest) must be applied; ECHS empanelment conditions; GST exemption on government scheme claims; audit trail mandatory (CAG compliance for government-funded patients).  
 **Existing test**: `— needs test`
+
+---
+
+## Scenario 5: The Customer Display Shows the Patient What They Pay — Actor: Billing Clerk / Pharmacist (#4883)
+
+**Actor**: `billing_clerk`, `pharmacist`, any desk with `billing.counter_display.publish`  
+**Entry point**: The Collect drawer, at a billing or pharmacy counter that has a customer display paired  
+**Preconditions**: A `billing_counter` or `pharmacy_counter` station; a tablet or second monitor paired to it; the cashier's drawer set to that counter
+
+**Setting up the display (once per counter)**:
+1. Hardware: any Android tablet (₹6–8k) or a second monitor on a mini-PC, facing the patient, on mains power.
+2. Browser in kiosk mode, opening `https://<hospital-host>/screen`:
+   - **Fully Kiosk Browser** (Android): Start URL = `/screen`; *Keep screen on*; *Launch on boot*; *Disable screensaver*; *Autoplay audio* on (so the chime and voice play); lock the tablet to the app (Kiosk mode PIN).
+   - **Chrome** (desktop): `chrome --kiosk --autoplay-policy=no-user-gesture-required https://<hospital-host>/screen`, started at login; OS sleep and screen blanking off.
+3. The screen shows a code. An administrator opens Admin → Paired devices (needs `devices.pairing.token.create`), finds it under "Screens waiting to be paired", chooses board **Customer display (counter)** and the counter, and approves. The screen opens on that counter by itself. It acts as the hospital's display account, never a staff login.
+4. If the browser blocks sound, the display says "Sound is off until someone taps this screen once": tap it once after setting up.
+5. To retire a display: Admin → Paired devices → Revoke. It is refused at once and goes back to showing a code.
+
+**Steps (every payment)**:
+1. Cashier opens the Collect drawer; it shows "Customer display: connected" and "Show QR on display" (on by default).
+2. The display shows the patient's first name and initial, department lines and the total due — never the UHID, bill numbers or item names.
+3. Card tender: the display asks the patient to insert or tap their card on the machine.
+4. UPI tender: the QR the drawer makes is shown large on the display, with the amount and a countdown to when it closes.
+5. Paid: "Paid ✓ ₹X, thank you", the change for cash, a chime, then "Payment of rupees X received, thank you" in the counter's languages (the counter's queue voice setting: English, Hindi, Tamil). It returns to idle after 8 seconds.
+
+**Exit / Outcome**: The patient sees and hears exactly what they paid; the bill is closed by the collection itself, never by the display.  
+**Regulatory note**: DPDP Act 2023 / IT Act privacy — a patient-facing screen shows a first name and initial only, nothing from another patient, and clears itself. The announcement is UX, not evidence: money is posted only by the collection or the gateway's webhook.  
+**Existing test**: `e2e/journeys/customer-display.spec.ts`; `crates/medbrains-server/tests/counter_display_test.rs`

@@ -9,7 +9,7 @@ Silent when everything passes or the file is outside the checked areas.
     route / handler Rust  → authz collapse, soft-delete filter, partial upserts,
                             API contract (when it registers routes)
     migration SQL         → migration headers, RLS coverage, partial upserts
-    web TS/TSX            → Biome on the file, raw HTML, UI seam
+    web TS/TSX            → Biome on the file, raw HTML, UI seam, AI label
     packages/api client   → API contract
 """
 
@@ -53,6 +53,7 @@ def checks_for(path: str) -> dict[str, list[str]]:
         if rel.endswith(".tsx"):
             checks["raw-html"] = py("scripts/check_raw_html.py")
             checks["ui-seam"] = py("scripts/check_ui_seam.py")
+            checks["ai-label"] = py("scripts/check_ai_label.py")
     return checks
 
 

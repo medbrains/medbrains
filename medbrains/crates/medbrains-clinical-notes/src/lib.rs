@@ -336,6 +336,7 @@ async fn addendum_type(
         title: "Addendum".to_owned(),
         text: String::new(),
         data: None,
+        ai_assisted: false,
     };
     Ok((type_id, roles, vec![section]))
 }
@@ -367,5 +368,44 @@ pub async fn save_draft(
     .bind(serde_json::to_value(&sections).map_err(|e| AppError::Internal(e.to_string()))?)
     .execute(&mut *tx)
     .await?;
+    audit_ai_acceptance(&mut tx, &claims, &note, &body.sections).await?;
     finish(tx, &claims, &note, false).await
+}
+
+/// Who accepted AI-drafted text into which sections (#4895). The AI proposes;
+/// this row is the record that a named clinician took it into the note.
+async fn audit_ai_acceptance(
+    tx: &mut Transaction<'static, Postgres>,
+    claims: &Claims,
+    note: &own::OwnNote,
+    patches: &[SectionPatch],
+) -> Result<(), AppError> {
+    let accepted: Vec<&str> = patches
+        .iter()
+        .filter(|p| p.ai_accepted)
+        .map(|p| p.code.as_str())
+        .collect();
+    if accepted.is_empty() {
+        return Ok(());
+    }
+    let detail = serde_json::json!({
+        "sections": accepted,
+        "ai_generated": true,
+        "encounter_id": note.encounter_id,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "ai_content_accepted",
+            entity_type: "clinical_note",
+            entity_id: Some(note.id),
+            old_values: None,
+            new_values: Some(&detail),
+            ip_address: None,
+        },
+    )
+    .await?;
+    Ok(())
 }

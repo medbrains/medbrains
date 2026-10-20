@@ -58,3 +58,11 @@ export const WARD_LIST_CODES: string[] = [
   P.IPD.TRANSFERS_CREATE,
   P.IPD.WARDS_MANAGE,
 ];
+
+/** `medbrains-platform::list_stations` — GET /api/stations. */
+export const STATION_LIST_CODES: string[] = [
+  P.ADMIN.SETTINGS_LOCATIONS_LIST,
+  P.FRONT_OFFICE.QUEUE_MANAGE,
+  P.BILLING.TERMINALS_MANAGE,
+  P.DEVICES.PAIRING_TOKEN_CREATE,
+];

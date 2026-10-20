@@ -21,6 +21,8 @@ import type { ChatContext, ChatMessage, ChatPart, ChatToolCall } from "./transpo
 import { messageParts } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
+// ai-label-exempt: drawn only inside Message, which labels every assistant answer.
+
 /** A renderer for one part type. Consumers override any of these. */
 export type PartRenderers = Partial<{
   markdown: (part: Extract<ChatPart, { type: "markdown" }>) => ReactNode;

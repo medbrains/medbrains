@@ -397,6 +397,10 @@ import type {
   CorporateEnrollment,
   CoSignatureRequest,
   CounterDay,
+  CounterDisplayAck,
+  CounterDisplayEvent,
+  CounterDisplayStatus,
+  CounterDisplayView,
   CounterPatient,
   CourseWithModules,
   CoverageAssignment,
@@ -17945,6 +17949,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getDeviceBoard: () => request<DeviceBoard>("/device/board"),
+  /** A paired customer display: its counter and what to show (also the polling fallback). */
+  getCounterDisplay: () => request<CounterDisplayView>("/device/counter-display"),
+  publishCounterDisplayEvent: (stationId: string, event: CounterDisplayEvent) =>
+    request<CounterDisplayAck>(`/counter-display/${stationId}/events`, {
+      method: "POST",
+      body: JSON.stringify(event),
+    }),
+  getCounterDisplayStatus: (stationId: string) =>
+    request<CounterDisplayStatus>(`/counter-display/${stationId}/status`),
   listDevicePairingRequests: () =>
     request<DevicePairingRequest[]>("/admin/device-pairing/requests"),
   approveDevicePairingRequest: (data: {
@@ -17955,6 +17968,8 @@ export const api = {
     department_id?: string;
     /** A waiting-room screen: which board. */
     board_module?: string;
+    /** A customer display (`board_module: "counter_display"`): its counter. */
+    station_id?: string;
   }) =>
     request<DevicePairingRequest>("/admin/device-pairing/approve", {
       method: "POST",

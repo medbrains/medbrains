@@ -20,6 +20,7 @@ import { CardTerminalPanel } from "../CardTerminalPanel";
 import { approvedRupees } from "../cardSale";
 import { CashTender } from "./CashTender";
 import { rupees, type TenderPart } from "./collect-math";
+import { useDisplayFeed } from "./customer-display";
 import { DepositTender } from "./DepositTender";
 import { LinkTender } from "./LinkTender";
 import type { TenderTile } from "./tender-tiles";
@@ -82,7 +83,10 @@ function UpiTender(props: TenderBodyProps) {
         live,
         station_id: props.stationId ?? undefined,
       }),
-    onSuccess: setQr,
+    onSuccess: (made) => {
+      setQr(made);
+      useDisplayFeed.getState().showUpiQr(made, amount);
+    },
   });
   return (
     <Stack gap="sm">

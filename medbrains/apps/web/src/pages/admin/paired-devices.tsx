@@ -195,9 +195,11 @@ export function PairedDevicesPage() {
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs">
-                      {row.board_module
-                        ? `${BOARDS.find((b) => b.value === row.board_module)?.label ?? row.board_module} board · ${row.department_name ?? "—"}`
-                        : (row.location_label ?? row.station_name ?? "—")}
+                      {row.board_module === "counter_display"
+                        ? `Customer display · ${row.station_name ?? "—"}`
+                        : row.board_module
+                          ? `${BOARDS.find((b) => b.value === row.board_module)?.label ?? row.board_module} board · ${row.department_name ?? "—"}`
+                          : (row.location_label ?? row.station_name ?? "—")}
                     </Text>
                   </Table.Td>
                   <Table.Td>
