@@ -194,7 +194,7 @@ export function PharmacyPatientContext({
       </Alert>
     );
   }
-  return <PatientContextBanner patientId={patientId} hideLoadingState />;
+  return <PatientContextBanner patientId={patientId} hideLoadingState collectLane="pharmacy" />;
 }
 
 export function pharmacyRxTranslatedLabel(

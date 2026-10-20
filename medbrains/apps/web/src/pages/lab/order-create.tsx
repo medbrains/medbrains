@@ -4,7 +4,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { DirectLabOrderResponse, LabPriority } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconArrowLeft, IconFlask, IconReceipt } from "@tabler/icons-react";
+import { IconArrowLeft, IconCash, IconFlask, IconReceipt } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -15,11 +15,13 @@ import { EncounterSelect } from "@/components/EncounterSelect";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useCollect } from "@/components/payments/collect/collect-store";
+import { useCanCollect } from "@/components/payments/collect/use-dues";
 import { Alert, Button, Panel, SegmentedControl } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { labService } from "@/services/lab.service";
 import { lookupsService } from "@/services/lookups.service";
-import { billingInvoicePaymentRoute, billingInvoiceWorkspaceRoute } from "../billing-workspace";
+import { billingInvoiceWorkspaceRoute } from "../billing-workspace";
 import {
   addCounterTest,
   emptyCounterForm,
@@ -58,7 +60,8 @@ function LabOrderCreatePageInner() {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const canWalkIn = useHasPermission(LAB_ORDERS_DIRECT);
-  const canTakePayment = useHasPermission(P.BILLING.PAYMENTS_CREATE);
+  const canCollectLab = useCanCollect("lab");
+  const openCollect = useCollect((st) => st.open);
   // Visit lookup is a patient read the create permission does not imply.
   const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const [raised, setRaised] = useState<DirectLabOrderResponse | null>(null);
@@ -123,11 +126,17 @@ function LabOrderCreatePageInner() {
       labService.createDirectLabOrder(toDirectLabOrderRequest(v)),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
-      if (canTakePayment && result.invoice_id) {
-        navigate(billingInvoicePaymentRoute(result.invoice_id));
-        return;
-      }
       setRaised(result);
+      // The lab desk takes the money here, in place — no trip to billing.
+      const patient = result.orders[0]?.patient_id;
+      if (canCollectLab && result.invoice_id && patient) {
+        openCollect({
+          patientId: patient,
+          lane: "lab",
+          invoiceIds: [result.invoice_id],
+          focusLabel: "This order",
+        });
+      }
     },
     onError,
   });
@@ -193,7 +202,7 @@ function LabOrderCreatePageInner() {
             />
           )}
         />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
+        <PatientContextBanner patientId={patientId} hideLoadingState collectLane="lab" />
 
         <Panel title="Tests">
           <Stack gap="xs">
@@ -284,18 +293,40 @@ function LabOrderCreatePageInner() {
 
 function BillRaised({ result, onNext }: { result: DirectLabOrderResponse; onNext: () => void }) {
   const navigate = useNavigate();
+  const canCollectLab = useCanCollect("lab");
+  const openCollect = useCollect((st) => st.open);
+  const patientId = result.orders[0]?.patient_id;
+  const invoiceId = result.invoice_id;
   return (
     <Stack maw={720}>
       <Alert
         tone="success"
-        title={`Bill raised ${formatRupees(result.total)} — collect at billing`}
+        title={`Bill raised ${formatRupees(result.total)}${canCollectLab ? "" : " — collect at billing"}`}
       >
         <Text size="sm">
-          {result.orders.length} {result.orders.length === 1 ? "test is" : "tests are"} booked. Send
-          the patient to the billing desk; the sample is drawn once the bill is paid.
+          {result.orders.length} {result.orders.length === 1 ? "test is" : "tests are"} booked.{" "}
+          {canCollectLab
+            ? "Collect here; the sample is drawn once the bill is paid."
+            : "Send the patient to the billing desk; the sample is drawn once the bill is paid."}
         </Text>
       </Alert>
       <Group>
+        {canCollectLab && invoiceId && patientId && (
+          <Button
+            tone="primary"
+            leftSection={<IconCash size={16} />}
+            onClick={() =>
+              openCollect({
+                patientId,
+                lane: "lab",
+                invoiceIds: [invoiceId],
+                focusLabel: "This order",
+              })
+            }
+          >
+            Collect {formatRupees(result.total)}
+          </Button>
+        )}
         {result.invoice_id && (
           <Button
             tone="secondary"
@@ -308,7 +339,7 @@ function BillRaised({ result, onNext }: { result: DirectLabOrderResponse; onNext
         <Button tone="secondary" onClick={() => navigate(`/lab/orders/${result.orders[0]?.id}`)}>
           Open the order
         </Button>
-        <Button tone="primary" onClick={onNext}>
+        <Button tone="secondary" onClick={onNext}>
           Next walk-in
         </Button>
       </Group>

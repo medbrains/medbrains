@@ -568,7 +568,11 @@ export function MlcTab({
             </Text>
           )}
           {canViewPatientRecord && (
-            <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+            <PatientContextBanner
+              patientId={selectedPatientId}
+              hideLoadingState
+              collectLane="emergency"
+            />
           )}
           <Controller
             name="case_type"

@@ -293,7 +293,13 @@ export function EncounterDetail({
         />
       )}
 
-      <PatientContextBanner patientId={patientId} hideLoadingState surface="detail" />
+      <PatientContextBanner
+        patientId={patientId}
+        hideLoadingState
+        surface="detail"
+        collectLane="opd"
+        collectEncounterId={encounterId}
+      />
       <PatientFlowNavigator
         patientId={patientId}
         active="opd"

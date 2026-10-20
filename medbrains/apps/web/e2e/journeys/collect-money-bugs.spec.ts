@@ -16,14 +16,15 @@
  */
 import type { Page } from "@playwright/test";
 import { api } from "../helpers/api";
-import { expectScreenAccessible, expectUsable } from "./support/a11y";
+import { expectUsable } from "./support/a11y";
 import {
   billingDepartment,
   expectBillOnScreen,
   issuedBill,
-  paymentsCard,
+  openCollectOnBill,
   savedBill,
 } from "./support/billing";
+import { expectDrawerAccessible } from "./support/collect";
 import {
   addByKeyboard,
   keepSheetsOpen,
@@ -88,17 +89,17 @@ test("a split at the cashier is one collection: a lost answer, retried, posts no
     return route.abort("connectionreset");
   });
 
-  await page.goto(`/billing/invoices/${invoiceId}`);
-  const card = paymentsCard(page);
-  await card.getByRole("button", { name: "Record Payment" }).click();
-  await card.getByRole("textbox", { name: "Amount" }).first().fill("300");
-  await card.getByRole("button", { name: "Split payment" }).click();
-  await card.getByRole("textbox", { name: "Reference no." }).fill("UTR4885");
-  const record = card.getByRole("button", { name: /^Record ₹500\.00/ });
-  await expectUsable(record, "Record ₹500.00");
-  await expectScreenAccessible(page, "invoice detail");
+  const card = await openCollectOnBill(page, invoiceId);
+  await card.getByRole("textbox", { name: /Amount/ }).fill("300");
+  await card.getByRole("radio", { name: /Cash/ }).click();
+  await card.getByRole("button", { name: "Add another way" }).click();
+  await card.getByRole("radio", { name: /UPI QR/ }).click();
+  await card.getByRole("textbox", { name: /UTR/ }).fill("UTR4885");
+  const record = card.getByRole("button", { name: "Collect ₹500.00" });
+  await expectUsable(record, "Collect ₹500.00");
+  await expectDrawerAccessible(page);
   await record.click();
-  await expect(page.getByText("Payment failed")).toBeVisible();
+  await expect(card.getByText("Not collected")).toBeVisible();
   // The cashier presses Record again, as anyone would.
   await record.click();
   await expect.poll(async () => (await savedBill(hospital.admin, invoiceId)).status).toBe("paid");
@@ -158,13 +159,12 @@ test("a UPI QR paid at the pharmacy counter pays that sale and is linked to it",
   await addByKeyboard(page, drug);
   const dialog = await setThreeAndOpenPayment(page, drug);
 
-  const upi = dialog.getByRole("radio", { name: "UPI" });
-  await dialog.locator(`label[for="${await upi.getAttribute("id")}"]`).click();
+  await dialog.getByRole("radio", { name: /UPI QR/ }).click();
   const made = page.waitForResponse("**/payments/upi-qr");
-  await dialog.getByRole("button", { name: "Generate UPI QR Code" }).click();
+  await dialog.getByRole("button", { name: "Show QR for ₹36.00" }).click();
   const qr = (await (await made).json()) as { transaction_id: string };
   await expect(dialog.getByTestId("text-qr-waiting")).toBeVisible();
-  await expectScreenAccessible(page, "collect payment");
+  await expectDrawerAccessible(page);
 
   const code = mock.qrCodes.at(-1);
   if (!code) throw new Error("no QR was made at Razorpay");

@@ -36,6 +36,12 @@ export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
 export { Slider, type SliderProps } from "./Slider";
 export { Switch } from "./Switch";
 export { Table } from "./Table";
+export {
+  type TileGroupProps,
+  type TileOption,
+  TileGroup,
+  tileHotkeys,
+} from "./TileGroup";
 export { ThemeIcon, type ThemeIconProps, type ThemeIconTone } from "./ThemeIcon";
 export { TokenDashboard, type TokenDashboardProps, type TokenItem } from "./TokenDashboard";
 export { Tooltip } from "./Tooltip";

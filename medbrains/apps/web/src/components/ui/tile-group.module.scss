@@ -1,0 +1,11 @@
+// TileGroup — layout only; the card's colours and focus ring are the theme's.
+.tile {
+  // WCAG 2.2 SC 2.5.8 and the device rules' 44px touch target.
+  min-height: 44px;
+  padding: var(--mantine-spacing-xs) var(--mantine-spacing-sm);
+  text-align: start;
+}
+
+.text {
+  min-width: 0;
+}

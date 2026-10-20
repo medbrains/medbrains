@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { TokenCollectButton } from "@/components/payments/collect/TokenCollectButton";
 import { TransferVisitModal } from "@/components/Queues/TransferVisitModal";
 import { Alert, Badge, Button, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
@@ -276,6 +277,7 @@ export function TokenConsolePage() {
               {action.label}
             </Button>
           ))}
+          <TokenCollectButton module={module} token={row} />
           {/* Only while they are still waiting to be seen — escalating
               somebody already in the room changes nothing about their care. */}
           {/* A visit registered to the wrong department moves before any

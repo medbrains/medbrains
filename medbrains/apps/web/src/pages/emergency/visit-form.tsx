@@ -105,7 +105,11 @@ export function EmergencyVisitForm({
           )}
         />
         {canViewPatientRecord && selectedPatientId && (
-          <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+          <PatientContextBanner
+            patientId={selectedPatientId}
+            hideLoadingState
+            collectLane="emergency"
+          />
         )}
         {!canViewPatientRecord && selectedPatientId && (
           <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>

@@ -354,7 +354,6 @@ export const appointmentRecurrenceValues = ["weekly", "biweekly", "monthly"] as 
 export const shareRelationValues = ["viewer", "editor", "consultant"] as const;
 export const sharingSubjectTypeValues = ["user", "role", "department", "group"] as const;
 export const signerRoleValues = ["patient", "guardian", "witness", "doctor", "nurse"] as const;
-export const paymentModeValues = ["online", "upi_qr", "cash", "card"] as const;
 export const billingChargeSourceValues = [
   "opd",
   "ipd",
@@ -1080,7 +1079,6 @@ export const appointmentRecurrenceFormSchema = z.enum(appointmentRecurrenceValue
 export const shareRelationFormSchema = z.enum(shareRelationValues);
 export const sharingSubjectTypeFormSchema = z.enum(sharingSubjectTypeValues);
 export const signerRoleFormSchema = z.enum(signerRoleValues);
-export const paymentModeFormSchema = z.enum(paymentModeValues);
 export const billingChargeSourceFormSchema = z.enum(billingChargeSourceValues);
 export const billingPaymentModeFormSchema = z.enum(billingPaymentModeValues);
 export const billingDiscountTypeFormSchema = z.enum(billingDiscountTypeValues);
@@ -1907,12 +1905,6 @@ export const subscribePackageFormSchema = z.object({
   package_id: requiredNullableString("Package is required"),
   total_paid: nonNegativeNumber("Amount cannot be negative"),
   notes: z.string(),
-});
-
-export const paymentFormSchema = z.object({
-  mode: paymentModeFormSchema,
-  cashReceived: nonNegativeNumber("Cash received is required"),
-  utrReference: z.string(),
 });
 
 const boundedTaxPercent = nonNegativeNumber("Tax percent cannot be negative").refine((value) => {
@@ -3868,34 +3860,6 @@ export const radiologyAppointmentFormSchema = z.object({
   notes: z.string(),
 });
 
-export const createPaymentFormSchema = (amount: number) =>
-  paymentFormSchema.superRefine((value, ctx) => {
-    if (value.mode === "cash") {
-      const received =
-        typeof value.cashReceived === "number" ? value.cashReceived : Number(value.cashReceived);
-      if (!Number.isFinite(received) || received < amount) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["cashReceived"],
-          message: "Cash received is less than amount due",
-        });
-      }
-    }
-    if (
-      (value.mode === "upi_qr" || value.mode === "card") &&
-      value.utrReference.trim().length === 0
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["utrReference"],
-        message:
-          value.mode === "card"
-            ? "Card approval code is required"
-            : "UTR / reference number is required",
-      });
-    }
-  });
-
 export const shareGrantFormSchema = z.object({
   subject_type: sharingSubjectTypeFormSchema,
   subject_id: requiredTrimmed("Subject is required"),
@@ -5290,7 +5254,6 @@ export type AppointmentRecurrenceFormValue = z.infer<typeof appointmentRecurrenc
 export type ShareRelationFormValue = z.infer<typeof shareRelationFormSchema>;
 export type SharingSubjectTypeFormValue = z.infer<typeof sharingSubjectTypeFormSchema>;
 export type SignerRoleFormValue = z.infer<typeof signerRoleFormSchema>;
-export type PaymentModeFormValue = z.infer<typeof paymentModeFormSchema>;
 export type BillingChargeSourceFormValue = z.infer<typeof billingChargeSourceFormSchema>;
 export type BillingPaymentModeFormValue = z.infer<typeof billingPaymentModeFormSchema>;
 export type BillingDiscountTypeFormValue = z.infer<typeof billingDiscountTypeFormSchema>;
@@ -5464,7 +5427,6 @@ export type PharmacyRxReviewFormInput = z.infer<typeof pharmacyRxReviewFormSchem
 export type PharmacyRxReviewItemFormInput = z.infer<typeof pharmacyRxReviewItemFormSchema>;
 export type MiniAddVendorFormInput = z.infer<typeof miniAddVendorFormSchema>;
 export type SubscribePackageFormInput = z.infer<typeof subscribePackageFormSchema>;
-export type PaymentFormInput = z.infer<typeof paymentFormSchema>;
 export type BillingInvoiceItemFormInput = z.infer<typeof billingInvoiceItemFormSchema>;
 export type BillingPaymentFormInput = z.infer<typeof billingPaymentFormSchema>;
 export type BillingCreateInvoiceFormInput = z.infer<typeof billingCreateInvoiceFormSchema>;

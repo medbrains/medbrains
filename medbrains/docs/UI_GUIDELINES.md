@@ -100,6 +100,7 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Toggle | `ui/Switch` | sm by default |
 | Checkbox | `ui/Checkbox` | sm by default |
 | Inline view switch | `ui/SegmentedControl` | 2–4 options; Tabs for page sections |
+| Keyboard tile choice | `ui/TileGroup` | radio cards with icon + hint; number keys 1–9 pick (not while typing); `disabled` + hint says why |
 | Icon tile | `ui/ThemeIcon` | `tone="neutral\|primary\|success\|warning\|danger\|info"`; decorative only |
 | Divider | `ui/Divider` | always the hairline rule colour |
 | Data grid | `DataTable` | columns + loading/empty — the default for lists |
@@ -111,7 +112,7 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Hero header | `ui/SignatureHero` | flagship clinical writers ONLY |
 
 Reuse, don't re-invent: `PageHeader`, `DataTable`, `FormModal`,
-`PaymentCollectPanel`, `PatientContextBanner`, `OperationalSignal`.
+`CollectDrawer` (via `useCollect().open`), `PatientContextBanner`, `OperationalSignal`.
 
 **Buttons** — one **primary** per view (the main action); everything else
 `secondary` (bordered) or `ghost` (text); destructive = `danger`/`subtle-danger`.

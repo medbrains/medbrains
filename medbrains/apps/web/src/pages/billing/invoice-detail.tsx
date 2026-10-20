@@ -24,10 +24,8 @@ import type {
   AddInvoiceItemRequest,
   ClinicalEventName,
   ClinicalJourneyContext,
-  CollectionReceipt,
   InvoiceDetailResponse,
   InvoiceDiscount,
-  RecordPaymentRequest,
 } from "@medbrains/types";
 import {
   billingInvoiceBalance,
@@ -40,7 +38,6 @@ import {
 import {
   IconCash,
   IconCheck,
-  IconCreditCard,
   IconDiscount2,
   IconFileInvoice,
   IconPlus,
@@ -60,7 +57,6 @@ import { useNavigate } from "react-router";
 import {
   DocumentActions,
   OperationalSignal,
-  PaymentCollectPanel,
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
@@ -68,10 +64,9 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import type { PaymentModalSettlement } from "@/components/PaymentModal";
-import { PaymentModal } from "@/components/PaymentModal";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
-import { useBillCollectable } from "@/components/payments/useBillCollectable";
+import { useCollect } from "@/components/payments/collect/collect-store";
+import { useCanCollect } from "@/components/payments/collect/use-dues";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingChargeSourceOptions,
@@ -179,9 +174,8 @@ export function InvoiceDetail({
     uhid: uhidAccess,
   };
   const [addItemOpened, addItemHandlers] = useDisclosure(false);
-  const [paymentOpened, { open: openPaymentPanel, close: closePaymentPanel }] =
-    useDisclosure(false);
-  const [gatewayOpened, gatewayHandlers] = useDisclosure(false);
+  const openCollect = useCollect((st) => st.open);
+  const canCollectHere = useCanCollect();
   const [discountOpened, discountHandlers] = useDisclosure(false);
   const [payerSplitOpened, payerSplitHandlers] = useDisclosure(false);
   const itemDefaults: BillingInvoiceItemFormInput = {
@@ -319,33 +313,6 @@ export function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
-  const payMutation = useMutation({
-    mutationFn: (pay: RecordPaymentRequest) => billingService.recordPayment(invoiceId, pay),
-    onSuccess: (result, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-context", inv.patient_id] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", inv.patient_id] });
-      emit("billing.payment.received", {
-        amount: variables.amount,
-        admission_id: inv.admission_id,
-        encounter_id: inv.encounter_id,
-        invoice_id: result.invoice_id,
-        mode: variables.mode,
-        patient_id: inv.patient_id,
-        payment_id: result.id,
-      });
-      closePaymentPanel();
-      onClearAction?.();
-    },
-  });
-
-  const collectable = useBillCollectable(
-    data?.invoice.patient_id,
-    invoiceId,
-    canPay && amountAccess === "edit",
-  );
   const { data: discounts = [] } = useQuery({
     queryKey: ["invoice-discounts", invoiceId],
     queryFn: () => billingService.listInvoiceDiscounts(invoiceId),
@@ -398,51 +365,13 @@ export function InvoiceDetail({
     },
   });
 
-  // A collection's receipts — one per legal entity, each covering every leg
-  // of a split — print together.
-  const collectionReceiptsMutation = useMutation({
-    mutationFn: (receipts: CollectionReceipt[]) =>
-      Promise.all(receipts.map((r) => billingService.getReceiptPrintData(r.payment_id))),
-    onSuccess: (packets) => {
-      for (const packet of packets) printReceiptPacket(packet, billingDisplayAccess);
-      void queryClient.invalidateQueries({ queryKey: ["invoice-receipts", invoiceId] });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Unable to prepare receipt packet", {
-        title: "Receipt print failed",
-      });
-    },
-  });
-
+  // The cashier handoff (?action=payment) lands on the payments card.
   useEffect(() => {
-    if (initialAction !== "payment" || !data) {
-      return;
-    }
-
+    if (initialAction !== "payment" || !data) return;
     window.requestAnimationFrame(() => {
       document.getElementById("billing-payments")?.scrollIntoView({ block: "start" });
     });
-
-    if (paymentOpened) {
-      return;
-    }
-
-    const invoiceDetail = data as InvoiceDetailResponse;
-    const invoice = invoiceDetail.invoice;
-    const invoiceStatus = invoiceDisplayStatus(invoice);
-    const invoiceBalanceAmount = invoiceBalance(invoice);
-    const canOpenPaymentPanel =
-      amountAccess === "edit" &&
-      canPay &&
-      (invoiceStatus === "issued" || invoiceStatus === "partially_paid") &&
-      invoiceBalanceAmount > 0;
-
-    if (!canOpenPaymentPanel) {
-      return;
-    }
-
-    openPaymentPanel();
-  }, [amountAccess, canPay, data, initialAction, openPaymentPanel, paymentOpened]);
+  }, [data, initialAction]);
 
   // A refusal answers 404 and an outage 5xx: both must say so, never spin.
   if (isError) {
@@ -485,20 +414,21 @@ export function InvoiceDetail({
     activeOrderContext: inv.admission_id ? "ipd" : inv.encounter_id ? "opd" : null,
     completedEvents,
   };
+  // Collecting a draft issues it: the drawer takes money on draft, issued and part-paid bills.
   const canRecordPayment =
     amountAccess === "edit" &&
-    canPay &&
-    (displayStatus === "issued" || displayStatus === "partially_paid") &&
+    (canPay || canCollectHere) &&
+    (displayStatus === "draft" ||
+      displayStatus === "issued" ||
+      displayStatus === "partially_paid") &&
     balance > 0;
-  const openPaymentForm = () => {
-    if (paymentOpened) {
-      closePaymentPanel();
-      onClearAction?.();
-      return;
-    }
-    navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
-    openPaymentPanel();
-  };
+  const openPaymentForm = () =>
+    openCollect({
+      patientId: inv.patient_id,
+      invoiceIds: [inv.id],
+      focusLabel: "This bill",
+      onCollected: () => onClearAction?.(),
+    });
   const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
     addItemMutation.mutate({
       charge_code: values.charge_code.trim(),
@@ -517,21 +447,6 @@ export function InvoiceDetail({
       reason: billingOptionalText(values.reason),
     });
   };
-  const handleGatewayPaymentSuccess = (_paymentId: string, settlement: PaymentModalSettlement) => {
-    if (settlement.source === "manual") {
-      payMutation.mutate({
-        amount: settlement.amount,
-        mode: settlement.mode,
-        reference_number: settlement.reference_number,
-      });
-      return;
-    }
-    void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-    void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    gatewayHandlers.close();
-    onClearAction?.();
-  };
-
   return (
     <Stack className={classes.invoiceWorkspace}>
       <Card withBorder className={classes.commandBar}>
@@ -644,24 +559,14 @@ export function InvoiceDetail({
                 </Button>
               )}
               {canRecordPayment && (
-                <>
-                  <Button
-                    tone="primary"
-                    size="xs"
-                    leftSection={<IconCash size={14} />}
-                    onClick={openPaymentForm}
-                  >
-                    {t("button.recordPayment")}
-                  </Button>
-                  <Button
-                    tone="secondary"
-                    size="xs"
-                    leftSection={<IconCreditCard size={14} />}
-                    onClick={gatewayHandlers.open}
-                  >
-                    {t("button.gateway")}
-                  </Button>
-                </>
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconCash size={14} />}
+                  onClick={openPaymentForm}
+                >
+                  Collect
+                </Button>
               )}
             </Group>
           </Group>
@@ -923,24 +828,14 @@ export function InvoiceDetail({
                 <Group justify="space-between" align="center">
                   <Text fw={700}>{t("payments")}</Text>
                   {canRecordPayment && (
-                    <Group gap="xs">
-                      <Button
-                        tone="primary"
-                        size="xs"
-                        leftSection={<IconCash size={14} />}
-                        onClick={openPaymentForm}
-                      >
-                        {paymentOpened ? t("label.close") : t("button.recordPayment")}
-                      </Button>
-                      <Button
-                        tone="secondary"
-                        size="xs"
-                        leftSection={<IconCreditCard size={14} />}
-                        onClick={gatewayHandlers.open}
-                      >
-                        {t("button.gateway")}
-                      </Button>
-                    </Group>
+                    <Button
+                      tone="primary"
+                      size="xs"
+                      leftSection={<IconCash size={14} />}
+                      onClick={openPaymentForm}
+                    >
+                      Collect
+                    </Button>
                   )}
                 </Group>
                 <Table striped>
@@ -1000,62 +895,6 @@ export function InvoiceDetail({
                   </Table.Tbody>
                 </Table>
 
-                {canRecordPayment && paymentOpened && collectable === "checking" && (
-                  <Text size="sm" c="dimmed">
-                    Checking whether this desk collects this bill…
-                  </Text>
-                )}
-                {canRecordPayment && paymentOpened && collectable === "unknown" && (
-                  <Alert tone="danger" title="Could not check this bill">
-                    Whether your desk may collect it could not be read. Try again before taking
-                    money.
-                  </Alert>
-                )}
-                {canRecordPayment && paymentOpened && collectable === "no" && (
-                  <Alert tone="warning" title="Another desk collects this bill">
-                    Your desk collects its own department&apos;s bills. Send the patient to the
-                    billing counter for this one.
-                  </Alert>
-                )}
-                {canRecordPayment && paymentOpened && collectable === "yes" && (
-                  <PaymentCollectPanel
-                    patientId={inv.patient_id}
-                    invoiceId={invoiceId}
-                    balance={balance}
-                    onRecorded={({ payments }) => {
-                      void queryClient.invalidateQueries({ queryKey: ["dues", inv.patient_id] });
-                      for (const payment of payments) {
-                        emit("billing.payment.received", {
-                          amount: Number(payment.amount),
-                          admission_id: inv.admission_id,
-                          encounter_id: inv.encounter_id,
-                          invoice_id: payment.invoice_id,
-                          mode: payment.mode,
-                          patient_id: inv.patient_id,
-                          payment_id: payment.id,
-                        });
-                      }
-                      void queryClient.invalidateQueries({
-                        queryKey: ["invoice-detail", invoiceId],
-                      });
-                      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-                      void queryClient.invalidateQueries({
-                        queryKey: ["patient-context", inv.patient_id],
-                      });
-                      void queryClient.invalidateQueries({
-                        queryKey: ["patient-invoices", inv.patient_id],
-                      });
-                      closePaymentPanel();
-                      onClearAction?.();
-                    }}
-                    onPrint={
-                      canPrintBillingDocs
-                        ? (receipts) => collectionReceiptsMutation.mutate(receipts)
-                        : undefined
-                    }
-                    autoFocus
-                  />
-                )}
                 {refunding && (
                   <GatewayRefundModal
                     opened
@@ -1068,16 +907,6 @@ export function InvoiceDetail({
                       });
                       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
                     }}
-                  />
-                )}
-                {canRecordPayment && (
-                  <PaymentModal
-                    opened={gatewayOpened}
-                    onClose={gatewayHandlers.close}
-                    amount={balance}
-                    amountAccess={amountAccess}
-                    invoiceId={invoiceId}
-                    onSuccess={handleGatewayPaymentSuccess}
                   />
                 )}
               </Stack>
@@ -1354,28 +1183,6 @@ export function InvoiceDetail({
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                   {t("label.actions")}
                 </Text>
-                {canRecordPayment && (
-                  <>
-                    <Button
-                      tone="primary"
-                      size="xs"
-                      leftSection={<IconCash size={14} />}
-                      onClick={openPaymentForm}
-                      fullWidth
-                    >
-                      {t("button.recordPayment")}
-                    </Button>
-                    <Button
-                      tone="secondary"
-                      size="xs"
-                      leftSection={<IconCreditCard size={14} />}
-                      onClick={gatewayHandlers.open}
-                      fullWidth
-                    >
-                      {t("button.gateway")}
-                    </Button>
-                  </>
-                )}
                 {canCreate && inv.status === "draft" && (
                   <>
                     <Button

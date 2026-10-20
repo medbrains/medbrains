@@ -7,9 +7,11 @@
 import { Box, Group, List, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { type FinalBillChecklist as Checklist, P } from "@medbrains/types";
-import { IconAlertTriangle, IconCircleCheck, IconFileInvoice } from "@tabler/icons-react";
+import { IconAlertTriangle, IconCash, IconCircleCheck, IconFileInvoice } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { useCollect } from "@/components/payments/collect/collect-store";
+import { useCanCollect } from "@/components/payments/collect/use-dues";
 import { QueryError } from "@/components/QueryError";
 import { Alert, Badge, Button, Card, ThemeIcon, toast } from "@/components/ui";
 import { formatMoney } from "@/pages/patient-detail/shared";
@@ -38,6 +40,8 @@ export function FinalBillChecklist({ admissionId }: { admissionId: string }) {
   const canIssue = useHasPermission(P.BILLING.INVOICES_UPDATE);
   const canAdjust = useHasPermission(P.BILLING.ADVANCES_ADJUST);
   const canRefund = useHasPermission(P.BILLING.ADVANCES_REFUND);
+  const canCollect = useCanCollect("ipd");
+  const openCollect = useCollect((st) => st.open);
   const key = ["final-bill-checklist", admissionId];
   const query = useQuery({
     queryKey: key,
@@ -183,6 +187,23 @@ export function FinalBillChecklist({ admissionId }: { admissionId: string }) {
                 onClick={() => applyAdvance.mutate(c)}
               >
                 Apply advance
+              </Button>
+            )}
+            {isIssued && canCollect && due > 0 && c.invoice && (
+              <Button
+                tone="primary"
+                leftSection={<IconCash size={16} />}
+                onClick={() =>
+                  c.invoice &&
+                  openCollect({
+                    patientId: c.patient_id,
+                    invoiceIds: [c.invoice.id],
+                    focusLabel: "Final bill",
+                    onCollected: refresh,
+                  })
+                }
+              >
+                Collect balance {money(due)}
               </Button>
             )}
             {isIssued && canRefund && due <= 0 && Number(c.advance_balance) > 0 && (

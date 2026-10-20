@@ -132,7 +132,7 @@ test.describe("Billing Invoice — UI", () => {
     );
   });
 
-  test("Record Payment button present on an issued invoice detail page", async ({
+  test("Collect button present on an issued invoice detail page", async ({
     page,
     request,
   }) => {
@@ -158,7 +158,7 @@ test.describe("Billing Invoice — UI", () => {
     await navigateTo(page, `/billing/invoices/${invoiceId}`);
 
     await expect(
-      page.locator("#billing-payments").getByRole("button", { name: "Record Payment" }),
+      page.locator("#billing-payments").getByRole("button", { name: "Collect" }),
     ).toBeVisible({ timeout: 12_000 });
   });
 });

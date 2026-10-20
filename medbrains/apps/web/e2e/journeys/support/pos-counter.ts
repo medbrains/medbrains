@@ -125,10 +125,10 @@ export async function setThreeAndOpenPayment(page: Page, drug: Received) {
   // Enter from the basket goes straight to payment.
   await quantity.press("Enter");
 
-  const dialog = page.getByRole("dialog", { name: "Collect Payment" });
+  const dialog = page.getByRole("dialog", { name: "Collect payment" });
   await expect(dialog).toBeVisible();
   // Counter tenders only — a gateway order needs a record the sale is not yet.
-  await expect(dialog.getByText("Online")).toHaveCount(0);
+  await expect(dialog.getByRole("radio", { name: /Online/ })).toHaveCount(0);
   return dialog;
 }
 
@@ -144,9 +144,10 @@ export async function expectSaleDone(page: Page, change: string) {
 
 export async function payCashForThree(page: Page, drug: Received) {
   const dialog = await setThreeAndOpenPayment(page, drug);
-  await dialog.getByRole("textbox", { name: "Cash Received" }).fill("50");
-  await expect(dialog.getByText("₹14.00")).toBeVisible();
-  await dialog.getByRole("button", { name: "Record Cash Payment" }).click();
+  await dialog.getByRole("radio", { name: /Cash/ }).click();
+  await dialog.getByRole("textbox", { name: "Cash handed over" }).fill("50");
+  await expect(dialog.getByTestId("cash-change")).toHaveText("₹14.00");
+  await dialog.getByRole("button", { name: "Collect ₹36.00" }).click();
   await expect(dialog).toBeHidden();
   return expectSaleDone(page, "14.00");
 }

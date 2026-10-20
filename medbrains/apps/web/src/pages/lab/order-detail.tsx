@@ -413,7 +413,7 @@ export function LabOrderDetail({
           {order.status.replace(/_/g, " ")}
         </Badge>
       </Group>
-      <PatientContextBanner patientId={order.patient_id} hideLoadingState />
+      <PatientContextBanner patientId={order.patient_id} hideLoadingState collectLane="lab" />
       {/* The laboratory prints more than any other department, and most of
           these documents had a data endpoint and no renderer. `lab-report` and
           `lab-report-full` are excluded: this page already prints those its own
