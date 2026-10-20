@@ -101,8 +101,14 @@ class ReceptionApi(private val client: ApiClient) {
     /// and answers with identity only.
     suspend fun searchPatients(text: String): List<PatientSummary> =
         client.get<List<PatientSummary>>("/api/patients/find?q=${URLEncoder.encode(text, "UTF-8")}")
-    /** One record, for the desk's compare and open (`patients.view`). */
-    suspend fun patient(id: String): PatientSummary = client.get("/api/patients/$id")
+    /**
+     * One record, by its UHID through the desk's hospital-wide lookup when the
+     * UHID is known: `/api/patients/{id}` answers only for patients this user
+     * has a relationship with, so a receptionist opening a share for someone
+     * a colleague registered got a 404 for a real record.
+     */
+    suspend fun patient(id: String, uhid: String?): PatientSummary =
+        uhid?.let { u -> searchPatients(u).firstOrNull { it.id == id } } ?: client.get("/api/patients/$id")
     suspend fun departments(): List<DepartmentRow> = client.get("/api/setup/departments")
     suspend fun doctors(): List<DoctorRow> = client.get("/api/setup/doctors")
     suspend fun camps(): List<CampSummary> = client.get("/api/camp/camps")

@@ -72,7 +72,7 @@ fun ScanShareFindScreen(desk: ScanShareDesk, api: ReceptionApi, share: AbdmProfi
         ScanShare.rank(share.profile, api.matchPatients(MatchQuery(q.firstName, q.lastName, q.dateOfBirth, q.phone)).map { it.asMatch() })
     }
     fun search() { searched = true; scope.launch { results.load { api.searchPatients(query.trim()) } } }
-    fun pick(patientId: String) { scope.launch { desk.use(share, ScanShare.Intent.COMPARE, picked = patientId) } }
+    fun pick(patientId: String, uhid: String) { scope.launch { desk.use(share, ScanShare.Intent.COMPARE, picked = patientId, pickedUhid = uhid) } }
     LaunchedEffect(share.id) { if (identity.canMatchPatients) loadMatches() }
     val matchState by matches.state.collectAsState()
     val searchState by results.state.collectAsState()
@@ -88,7 +88,7 @@ fun ScanShareFindScreen(desk: ScanShareDesk, api: ReceptionApi, share: AbdmProfi
                         CarbonNotification(NotificationKind.Warning, "This may be an existing patient", "Registering again would give the same person a second UHID. Link instead if one of these is them.", Modifier.padding(16.dp).testTag("share-likely-warning"))
                     }
                     ranked.take(ScanShare.CANDIDATE_LIMIT).forEach { c ->
-                        CarbonActionRow("${c.match.firstName} ${c.match.lastName}", listOfNotNull(c.match.uhid, c.match.dateOfBirth, c.match.phone).joinToString(" · "), onClick = { pick(c.match.id) }, modifier = Modifier.testTag("share-candidate-${c.match.uhid}")) {
+                        CarbonActionRow("${c.match.firstName} ${c.match.lastName}", listOfNotNull(c.match.uhid, c.match.dateOfBirth, c.match.phone).joinToString(" · "), onClick = { pick(c.match.id, c.match.uhid) }, modifier = Modifier.testTag("share-candidate-${c.match.uhid}")) {
                             Column {
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { c.reasons.forEach { CarbonTag(it, CarbonTone.Info) } }
                                 Text(if (c.isLikely) "Link instead" else "Compare and link", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
@@ -105,7 +105,7 @@ fun ScanShareFindScreen(desk: ScanShareDesk, api: ReceptionApi, share: AbdmProfi
             }
             if (searched) {
                 RemoteContent("share-search", searchState, "Couldn't search", "The hospital server did not answer. Do not read this as \"not registered\".", { it.isEmpty() }, "No patient by that name, phone or UHID", "Check the spelling, or register them.", ::search) { rows ->
-                    Column { rows.forEach { r -> CarbonActionRow(r.fullName, r.identifiers, onClick = { pick(r.id) }, modifier = Modifier.testTag("share-search-row-${r.id}")) } }
+                    Column { rows.forEach { r -> CarbonActionRow(r.fullName, r.identifiers, onClick = { pick(r.id, r.uhid) }, modifier = Modifier.testTag("share-search-row-${r.id}")) } }
                 }
             }
         }
@@ -121,14 +121,14 @@ fun ScanShareFindScreen(desk: ScanShareDesk, api: ReceptionApi, share: AbdmProfi
  * is linked through the verified path and the share marked dealt with.
  */
 @Composable
-fun ScanShareCompareScreen(desk: ScanShareDesk, api: ReceptionApi, shareId: String, step: AbhaVerificationStep, patientId: String, onDone: (PatientSummary) -> Unit) {
+fun ScanShareCompareScreen(desk: ScanShareDesk, api: ReceptionApi, shareId: String, step: AbhaVerificationStep, patientId: String, uhid: String?, onDone: (PatientSummary) -> Unit) {
     val scope = rememberCoroutineScope()
     val client = LocalApiClient.current
     val patient = remember { Remote<PatientSummary>() }
     var apply by remember { mutableStateOf<Set<AbhaField>>(emptySet()) }
     var busy by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(patientId) { patient.load { api.patient(patientId) } }
+    LaunchedEffect(patientId) { patient.load { api.patient(patientId, uhid) } }
     val state by patient.state.collectAsState()
 
     fun link(p: PatientSummary) = scope.launch {
@@ -144,7 +144,7 @@ fun ScanShareCompareScreen(desk: ScanShareDesk, api: ReceptionApi, shareId: Stri
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-share-compare")) {
         CarbonPageHeader("Scan & Share", "Compare and link")
         desk.notice?.let { CarbonNotification(NotificationKind.Info, "Note", it, Modifier.padding(horizontal = 16.dp)) }
-        RemoteContent("share-compare", state, "Could not load the patient", "The record failed to load; nothing was changed.", { false }, "", "", { scope.launch { patient.load { api.patient(patientId) } } }) { p ->
+        RemoteContent("share-compare", state, "Could not load the patient", "The record failed to load; nothing was changed.", { false }, "", "", { scope.launch { patient.load { api.patient(patientId, uhid) } } }) { p ->
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("${p.uhid} · ${p.fullName}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.testTag("share-compare-patient"))
                 step.profile?.let { profile ->

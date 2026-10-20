@@ -10,7 +10,8 @@ struct ScanShareFindView: View {
     let share: AbdmProfileShare
     /// The desk pressed Register and likely matches were found (or the check failed).
     let registering: Bool
-    let onPick: (String) -> Void
+    /// The patient picked: id and UHID.
+    let onPick: (String, String) -> Void
     let onRegister: () -> Void
 
     @Environment(AuthStore.self) private var auth
@@ -37,6 +38,7 @@ struct ScanShareFindView: View {
                                 candidateRow(c)
                             }
                         }
+                        .accessibilityElement(children: .contain)
                     }
                 }
                 if who?.can(AbdmPermission.findPatient) ?? false { search }
@@ -60,7 +62,7 @@ struct ScanShareFindView: View {
     }
 
     private func candidateRow(_ c: ShareCandidate) -> some View {
-        Button { onPick(c.match.id) } label: {
+        Button { onPick(c.match.id, c.match.uhid) } label: {
             CarbonRow("\(c.match.firstName) \(c.match.lastName)", detail: ([c.match.uhid, c.match.dateOfBirth, c.match.phone] as [String?]).compactMap { $0 }.joined(separator: " · ")) {
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 4) { ForEach(c.reasons, id: \.self) { CarbonTag($0, tone: .info) } }
@@ -84,10 +86,11 @@ struct ScanShareFindView: View {
                 RemoteContentView(id: "share-search", state: results.state, unavailableTitle: "Couldn't search", unavailableMessage: "The hospital server did not answer. Do not read this as \"not registered\".", isEmpty: \.isEmpty, emptyTitle: "No patient by that name, phone or UHID", emptyMessage: "Check the spelling, or register them.", retry: { Task { await runSearch() } }) { rows in
                     LazyVStack(spacing: 1) {
                         ForEach(rows) { p in
-                            Button { onPick(p.id) } label: { CarbonRow(p.fullName, detail: p.identifiers) }
+                            Button { onPick(p.id, p.uhid) } label: { CarbonRow(p.fullName, detail: p.identifiers) }
                                 .buttonStyle(.plain).accessibilityIdentifier("share-search-row-\(p.id)")
                         }
                     }
+                    .accessibilityElement(children: .contain)
                 }
             }
         }
@@ -118,6 +121,7 @@ struct ScanShareCompareView: View {
     let shareId: String
     let step: AbhaVerificationStep
     let patientId: String
+    let uhid: String?
     let onDone: (PatientSummary) -> Void
 
     @Environment(\.apiClient) private var client
@@ -144,6 +148,8 @@ struct ScanShareCompareView: View {
                         Button { Task { await link(p) } } label: { HStack { Text("Link to this patient"); Spacer(); Image(systemName: "link") } }
                             .buttonStyle(.carbonPrimary).disabled(busy || step.profile == nil).accessibilityIdentifier("share-link")
                     }
+                    // A container, so the list id does not overwrite the ids inside it.
+                    .accessibilityElement(children: .contain)
                 }
             }
             .padding(16)
@@ -156,7 +162,7 @@ struct ScanShareCompareView: View {
 
     private func load() async {
         guard let client else { return }
-        await patient.load { [patientId] in try await ReceptionApi(client: client).patient(patientId) }
+        await patient.load { [patientId, uhid] in try await ReceptionApi(client: client).patient(patientId, uhid: uhid) }
     }
 
     private func link(_ p: PatientSummary) async {

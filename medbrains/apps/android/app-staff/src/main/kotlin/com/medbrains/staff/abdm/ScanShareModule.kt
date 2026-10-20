@@ -81,6 +81,7 @@ class ScanShareDesk(private val scanApi: ScanShareApi, private val receptionApi:
     var failure by mutableStateOf<String?>(null)
     val shares = mutableStateMapOf<String, AbdmProfileShare>()
     val steps = mutableStateMapOf<String, AbhaVerificationStep>()
+    val uhids = mutableStateMapOf<String, String?>()
 
     suspend fun reload() = queue.load { scanApi.queue() }
 
@@ -97,7 +98,7 @@ class ScanShareDesk(private val scanApi: ScanShareApi, private val receptionApi:
         val patientId = share.patient_id ?: return
         act {
             scanApi.complete(share.id, patientId)
-            val p = receptionApi.patient(patientId)
+            val p = receptionApi.patient(patientId, share.patient_uhid)
             session.patients[p.id] = p
             go("patient/${p.id}")
         }
@@ -105,11 +106,20 @@ class ScanShareDesk(private val scanApi: ScanShareApi, private val receptionApi:
     }
 
     /** The share as a verified ABHA, then wherever it leads: its own patient's comparison, or a registration filled from it. */
-    suspend fun use(share: AbdmProfileShare, intent: ScanShare.Intent, picked: String? = null) = act {
+    suspend fun use(share: AbdmProfileShare, intent: ScanShare.Intent, picked: String? = null, pickedUhid: String? = null) = act {
         val step = scanApi.verification(share.id)
         shares[share.id] = share; steps[share.id] = step
         when (val next = ScanShare.next(intent, share.patient_id, step.already_linked, picked)) {
-            is ScanShare.Next.Compare -> { notice = next.notice; go("share-compare/${share.id}/${next.patientId}") }
+            is ScanShare.Next.Compare -> {
+                notice = next.notice
+                // The UHID the desk's lookup finds the record by, from whichever source named it.
+                uhids[next.patientId] = when (next.patientId) {
+                    share.patient_id -> share.patient_uhid
+                    step.already_linked?.patient_id -> step.already_linked?.uhid
+                    else -> pickedUhid
+                }
+                go("share-compare/${share.id}/${next.patientId}")
+            }
             ScanShare.Next.Register -> go("share-register/${share.id}")
             null -> Unit
         }
@@ -156,7 +166,8 @@ fun ScanShareModule() {
         }
         composable("share-compare/{id}/{patient}") {
             val id = it.arguments!!.getString("id")!!
-            ScanShareCompareScreen(desk, api, id, desk.steps.getValue(id), it.arguments!!.getString("patient")!!) { p ->
+            val patientId = it.arguments!!.getString("patient")!!
+            ScanShareCompareScreen(desk, api, id, desk.steps.getValue(id), patientId, desk.uhids[patientId]) { p ->
                 session.patients[p.id] = p
                 desk.notice = "The ABHA is linked to ${p.uhid}."
                 nav.navigate("patient/${p.id}") { popUpTo("queue") }
@@ -231,7 +242,7 @@ private fun ShareRow(share: AbdmProfileShare, desk: ScanShareDesk, identity: Ten
             val hasNumber = share.abha_number != null
             fun tag(id: String) = Modifier.fillMaxWidth().testTag("share-$id-${share.id}")
             if (share.patient_id != null) {
-                if (identity.can(AbdmPermission.VIEW_PATIENT)) CarbonPrimaryButton("Open patient", enabled = !desk.busy, modifier = tag("open"), onClick = { scope.launch { desk.open(share) } })
+                if (identity.can(AbdmPermission.FIND_PATIENT)) CarbonPrimaryButton("Open patient", enabled = !desk.busy, modifier = tag("open"), onClick = { scope.launch { desk.open(share) } })
                 if (identity.canCompareShare) CarbonTertiaryButton("Compare and link", enabled = !desk.busy, modifier = tag("compare"), onClick = { scope.launch { desk.use(share, ScanShare.Intent.COMPARE) } })
             } else {
                 if (identity.canRegisterWithAbha) CarbonPrimaryButton("Register", enabled = !desk.busy && hasNumber, modifier = tag("register"), onClick = { scope.launch { desk.registerOrWarn(share, identity.canMatchPatients) } })

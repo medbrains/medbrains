@@ -10,7 +10,7 @@ struct ShareStart: Hashable {
 }
 
 enum ScanShareRoute: Hashable {
-    case compare(shareId: String, step: AbhaVerificationStep, patientId: String)
+    case compare(shareId: String, step: AbhaVerificationStep, patientId: String, uhid: String?)
     case find(AbdmProfileShare, registering: Bool)
     case register(ShareStart)
     case patient(PatientSummary)
@@ -60,6 +60,7 @@ struct ScanShareHomeView: View {
                             ScanShareRow(share: share, busy: busy, actions: actions(for: share))
                         }
                     }
+                    .accessibilityElement(children: .contain)
                     .padding(.horizontal, 16)
                 }
             }
@@ -95,15 +96,15 @@ struct ScanShareHomeView: View {
     @ViewBuilder
     private func destination(_ route: ScanShareRoute) -> some View {
         switch route {
-        case .compare(let shareId, let step, let patientId):
-            ScanShareCompareView(shareId: shareId, step: step, patientId: patientId) { patient in
+        case .compare(let shareId, let step, let patientId, let uhid):
+            ScanShareCompareView(shareId: shareId, step: step, patientId: patientId, uhid: uhid) { patient in
                 notice = "The ABHA is linked to \(patient.uhid)."
                 self.route = .patient(patient)
                 Task { await reload() }
             }
         case .find(let share, let registering):
             ScanShareFindView(share: share, registering: registering,
-                              onPick: { id in Task { await use(share, .compare, picked: id) } },
+                              onPick: { id, uhid in Task { await use(share, .compare, picked: id, pickedUhid: uhid) } },
                               onRegister: { Task { await use(share, .register) } })
         case .register(let start): RegisterPatientView(share: start)
         case .patient(let p): ReceptionPatientView(patient: p)
@@ -114,7 +115,7 @@ struct ScanShareHomeView: View {
         guard ScanShare.isActionable(s.status), let who else { return [] }
         var out: [ScanShareRow.Action] = []
         if s.patientId != nil {
-            if who.can(AbdmPermission.viewPatient) { out.append(.init(id: "open", label: "Open patient", primary: true) { Task { await open(s) } }) }
+            if who.can(AbdmPermission.findPatient) { out.append(.init(id: "open", label: "Open patient", primary: true) { Task { await open(s) } }) }
             if who.canCompareShare { out.append(.init(id: "compare", label: "Compare and link") { Task { await use(s, .compare) } }) }
         } else {
             let hasNumber = s.abhaNumber != nil
@@ -143,20 +144,22 @@ struct ScanShareHomeView: View {
         guard let client, let patientId = s.patientId else { return }
         await act {
             _ = try await ScanShareApi(client: client).complete(s.id, patientId: patientId)
-            route = .patient(try await ReceptionApi(client: client).patient(patientId))
+            route = .patient(try await ReceptionApi(client: client).patient(patientId, uhid: s.patientUhid))
         }
         await reload()
     }
 
     /// The share as a verified ABHA, then wherever it leads: its own
     /// patient's comparison, or a registration filled from it.
-    private func use(_ s: AbdmProfileShare, _ intent: ScanShare.Intent, picked: String? = nil) async {
+    private func use(_ s: AbdmProfileShare, _ intent: ScanShare.Intent, picked: String? = nil, pickedUhid: String? = nil) async {
         guard let client else { return }
         await act {
             let step = try await ScanShareApi(client: client).verification(s.id)
             switch ScanShare.next(intent: intent, sharePatientId: s.patientId, alreadyLinked: step.alreadyLinked, picked: picked) {
             case .compare(let patientId, let note)?:
-                route = .compare(shareId: s.id, step: step, patientId: patientId)
+                // The UHID the desk's lookup finds the record by, from whichever source named it.
+                let uhid = patientId == s.patientId ? s.patientUhid : patientId == step.alreadyLinked?.patientId ? step.alreadyLinked?.uhid : pickedUhid
+                route = .compare(shareId: s.id, step: step, patientId: patientId, uhid: uhid)
                 notice = note
             case .register?: route = .register(ShareStart(shareId: s.id, step: step))
             case nil: break

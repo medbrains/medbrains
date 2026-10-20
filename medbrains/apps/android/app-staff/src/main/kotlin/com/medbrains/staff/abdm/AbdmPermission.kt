@@ -21,5 +21,5 @@ val TenantIdentity?.canLinkAbha: Boolean get() = this != null && can(AbdmPermiss
 /** Run the duplicate check (`POST /api/patients/match`). */
 val TenantIdentity?.canMatchPatients: Boolean get() = this != null && canAny(listOf(AbdmPermission.VIEW_PATIENT, AbdmPermission.CREATE_PATIENT))
 
-/** Compare a share with a record and link it: the record is read (`patients.view`) before it is linked. */
-val TenantIdentity?.canCompareShare: Boolean get() = canLinkAbha && this != null && can(AbdmPermission.VIEW_PATIENT)
+/** Compare a share with a record and link it: the record is looked up hospital-wide (`patients.find`) before it is linked. */
+val TenantIdentity?.canCompareShare: Boolean get() = canLinkAbha && this != null && can(AbdmPermission.FIND_PATIENT)

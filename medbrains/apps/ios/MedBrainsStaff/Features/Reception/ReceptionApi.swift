@@ -144,8 +144,14 @@ struct ReceptionApi: Sendable {
         let q = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
         return try await client.request(.get, "/api/patients/find?q=\(q)")
     }
-    /// One record, for the desk's compare and open (`patients.view`).
-    func patient(_ id: String) async throws -> PatientSummary { try await client.request(.get, "/api/patients/\(id)") }
+    /// One record, by its UHID through the desk's hospital-wide lookup when
+    /// the UHID is known: `/api/patients/{id}` answers only for patients this
+    /// user has a relationship with, so a receptionist opening a share for
+    /// someone a colleague registered got a 404 ("not found") for a real record.
+    func patient(_ id: String, uhid: String?) async throws -> PatientSummary {
+        if let uhid, let found = try await searchPatients(uhid).first(where: { $0.id == id }) { return found }
+        return try await client.request(.get, "/api/patients/\(id)")
+    }
     func departments() async throws -> [DepartmentRow] { try await client.request(.get, "/api/setup/departments") }
     func doctors() async throws -> [DoctorRow] { try await client.request(.get, "/api/setup/doctors") }
     func camps() async throws -> [CampSummary] { try await client.request(.get, "/api/camp/camps") }

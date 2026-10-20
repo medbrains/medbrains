@@ -136,6 +136,8 @@ final class AbdmDeskJourneyTests: JourneyCase {
         XCTAssertTrue(el("register-abha-none").exists, "nothing verified, nothing claimed")
 
         guard hasQueue else { return }
+        // The keyboard is still up over the tab bar; put it away as a person would.
+        if app.keyboards.firstMatch.exists { app.keyboards.buttons["return"].firstMatch.tap() }
         shareTab.tap()
         XCTAssertTrue(el("module-home-scan-share").waitForExistence(timeout: 10), "the tab is where it was left")
         app.tabBars.buttons["Reception"].firstMatch.tap()

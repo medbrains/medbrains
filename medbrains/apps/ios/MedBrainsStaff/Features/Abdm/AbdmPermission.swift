@@ -16,8 +16,9 @@ extension TenantIdentity {
     var canRegisterWithAbha: Bool { can(AbdmPermission.createPatient) && can(AbdmPermission.manageAbha) }
     /// Link a verified ABHA to an existing record (`/link` checks both).
     var canLinkAbha: Bool { can(AbdmPermission.updatePatient) && can(AbdmPermission.manageAbha) }
-    /// Compare a share with a record and link it: the record is read before it is linked.
-    var canCompareShare: Bool { canLinkAbha && can(AbdmPermission.viewPatient) }
+    /// Compare a share with a record and link it: the record is looked up
+    /// hospital-wide (`patients.find`) before it is linked.
+    var canCompareShare: Bool { canLinkAbha && can(AbdmPermission.findPatient) }
     /// Run the duplicate check (`POST /api/patients/match`).
     var canMatchPatients: Bool { canAny([AbdmPermission.viewPatient, AbdmPermission.createPatient]) }
 }

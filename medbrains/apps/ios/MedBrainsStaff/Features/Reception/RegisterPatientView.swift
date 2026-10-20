@@ -75,6 +75,8 @@ struct RegisterPatientView: View {
                 }
                 .padding(16)
             }
+            // Scrolling puts the keyboard away, so the tab bar is never stuck under it.
+            .scrollDismissesKeyboard(.interactively)
             // A new step opens at its top, never where the last one was scrolled to.
             .id(stepIndex)
             // A refused step shows the first field to fix, not wherever the desk was.

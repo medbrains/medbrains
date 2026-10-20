@@ -18,14 +18,16 @@
 #     -Pandroid.testInstrumentationRunnerArguments.shareMatchedId=$SHARE_MATCHED_ID \
 #     -Pandroid.testInstrumentationRunnerArguments.shareNewId=$SHARE_NEW_ID
 #
-# Needs a server with the Scan & Share routes and a facility in the admin's hospital.
+# Needs a server with the Scan & Share routes and a facility in the admin's
+# hospital. MEDBRAINS_BASE_URL and MEDBRAINS_DB point it at another server.
 set -euo pipefail
 BASE="${MEDBRAINS_BASE_URL:-http://127.0.0.1:3000}"
 RUN="$(date +%s | tail -c 7)"
 H=(-sf -H 'X-MedBrains-Client: mobile-staff' -H 'content-type: application/json')
 TOKEN=$(curl "${H[@]}" -d '{"username":"admin","password":"admin123"}' "$BASE/api/auth/login" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 H+=(-H "authorization: Bearer $TOKEN")
-psql_run() { docker compose exec -T postgres psql -U medbrains -d medbrains -At -v ON_ERROR_STOP=1 -c "$1"; }
+DB="${MEDBRAINS_DB:-medbrains}"
+psql_run() { docker compose exec -T postgres psql -U medbrains -d "$DB" -At -v ON_ERROR_STOP=1 -c "$1"; }
 
 MATCHED="Sharematch$RUN"
 NEW="Sharenew$RUN"
