@@ -274,8 +274,9 @@ export default defineConfig(async ({ command }) => {
             path: "/vite-hmr",
           },
       proxy: {
+        // `VITE_API_PROXY` points a dev server at another backend (e2e runs a branch's server elsewhere).
         "/api": {
-          target: "http://localhost:3000",
+          target: process.env.VITE_API_PROXY ?? "http://localhost:3000",
           changeOrigin: true,
           cookieDomainRewrite: "",
         },
@@ -285,7 +286,7 @@ export default defineConfig(async ({ command }) => {
         // The user guide's dev server (apps/docs, `pnpm --filter @medbrains/docs dev`).
         "/help": { target: "http://localhost:3010", changeOrigin: true },
         "/ws": {
-          target: "ws://localhost:3000",
+          target: (process.env.VITE_API_PROXY ?? "http://localhost:3000").replace(/^http/, "ws"),
           ws: true,
           changeOrigin: true,
         },

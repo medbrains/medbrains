@@ -55,13 +55,20 @@ pub(super) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 ///
 /// # Errors
 /// A database fault.
-pub async fn pays_online(tx: &mut Tx<'_>, tenant_id: Uuid, slot: &Slot) -> Result<bool, AppError> {
+pub async fn pays_online(
+    tx: &mut Tx<'_>,
+    secrets: &dyn SecretResolver,
+    tenant_id: Uuid,
+    slot: &Slot,
+) -> Result<bool, AppError> {
     let starts = slot.date.and_time(slot.start);
     if slot.physical || slot.fee.is_none() || starts < now_local() + Duration::minutes(HOLD_MINUTES)
     {
         return Ok(false);
     }
-    Ok(razorpay_link_credentials(tx, &tenant_id).await?.is_some())
+    Ok(razorpay_link_credentials(tx, secrets, &tenant_id)
+        .await?
+        .is_some())
 }
 
 /// A booking to hold for its payment.

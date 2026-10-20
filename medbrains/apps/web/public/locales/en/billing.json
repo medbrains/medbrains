@@ -314,5 +314,6 @@
   "aria.close": "Close",
   "aria.edit": "Edit",
   "aria.verified": "Verified",
-  "label.visit": "Visit"
+  "label.visit": "Visit",
+  "paymentExceptions": "Payment exceptions"
 }

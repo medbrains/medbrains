@@ -839,7 +839,8 @@ export type PaymentMode =
   | "bank_transfer"
   | "cheque"
   | "insurance"
-  | "credit";
+  | "credit"
+  | "wallet";
 
 export interface Invoice {
   id: string;

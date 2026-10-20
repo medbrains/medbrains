@@ -296,13 +296,23 @@ export interface GenerateUpiQrRequest {
   invoice_id?: string;
   pos_sale_id?: string;
   description?: string;
+  /** A QR paid now at the counter: made and confirmed by Razorpay. */
+  live?: boolean;
 }
 
 export interface UpiQrResponse {
-  upi_uri: string;
-  vpa: string;
+  /** `razorpay`: Razorpay confirms the payment. `upi_id`: the hospital's UPI ID, confirmed by UTR. */
+  source: "razorpay" | "upi_id";
+  upi_uri: string | null;
+  vpa: string | null;
   amount: number;
   transaction_ref: string;
+  transaction_id: string | null;
+  image_url: string | null;
+  /** When a Razorpay QR closes (Unix seconds). */
+  close_by: number | null;
+  /** Why a live QR was asked for but the UPI ID QR is shown. */
+  fallback_reason: string | null;
 }
 
 export interface UpiCollectRequest {
@@ -335,7 +345,10 @@ export interface UpiDeepLinkResponse {
 }
 
 export interface InitiateRefundRequest {
-  transaction_id: string;
+  /** The gateway row, or… */
+  transaction_id?: string;
+  /** …the bill's payment row it posted as. */
+  payment_id?: string;
   amount?: number;
   reason?: string;
 }

@@ -192,33 +192,6 @@ pub struct CreateRefundRequest {
     pub reference_number: Option<String>,
 }
 
-async fn generate_refund_number(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &Uuid,
-) -> Result<String, AppError> {
-    let seq = sqlx::query_as::<_, SeqResult>(
-        "UPDATE sequences SET current_val = current_val + 1 \
-         WHERE tenant_id = $1 AND seq_type = 'REFUND' \
-         RETURNING current_val, prefix, pad_width",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-
-    if let Some(s) = seq {
-        let pad = usize::try_from(s.pad_width).unwrap_or(6);
-        Ok(format!("{}{:0>pad$}", s.prefix, s.current_val))
-    } else {
-        // Fallback: use count-based number
-        let count =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1")
-                .bind(tenant_id)
-                .fetch_one(&mut **tx)
-                .await?;
-        Ok(format!("RFD{:0>6}", count + 1))
-    }
-}
-
 pub async fn list_refunds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -229,10 +202,12 @@ pub async fn list_refunds(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1 AND deleted_at IS NULL")
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM refunds WHERE tenant_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let rows = sqlx::query_as::<_, Refund>(
         "SELECT * FROM refunds WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3",
@@ -276,96 +251,24 @@ pub async fn create_refund(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let refund_amount = body.amount.round_dp(2);
-    if refund_amount <= Decimal::ZERO {
-        return Err(AppError::BadRequest(
-            "Refund amount must be greater than zero".to_owned(),
-        ));
-    }
-
-    #[derive(sqlx::FromRow)]
-    struct RefundInvoiceGate {
-        status: InvoiceStatus,
-        paid_amount: Decimal,
-    }
-
-    let invoice = sqlx::query_as::<_, RefundInvoiceGate>(
-        "SELECT status, paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    let posted = crate::posting::post_refund(
+        &mut tx,
+        &crate::posting::PostRefund {
+            tenant_id: claims.tenant_id,
+            invoice_id: body.invoice_id,
+            payment_id: body.payment_id,
+            amount: body.amount,
+            reason: &body.reason,
+            mode: &body.mode,
+            reference_number: body.reference_number.as_deref(),
+            refunded_by: Some(claims.sub),
+        },
     )
-    .bind(body.invoice_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    if matches!(
-        invoice.status,
-        InvoiceStatus::Draft | InvoiceStatus::Cancelled | InvoiceStatus::Refunded
-    ) {
-        return Err(AppError::BadRequest(
-            "Refunds can be processed only against paid or partially paid invoices".to_owned(),
-        ));
-    }
-    if refund_amount > invoice.paid_amount {
-        return Err(AppError::BadRequest(format!(
-            "Refund exceeds refundable paid amount of {}",
-            invoice.paid_amount
-        )));
-    }
-
-    if let Some(payment_id) = body.payment_id {
-        let payment_exists = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM payments WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3)",
-        )
-        .bind(payment_id)
-        .bind(body.invoice_id)
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if !payment_exists {
-            return Err(AppError::BadRequest(
-                "Refund payment reference does not belong to this invoice".to_owned(),
-            ));
-        }
-    }
-
-    let refund_number = generate_refund_number(&mut tx, &claims.tenant_id).await?;
-
-    let refund = sqlx::query_as::<_, Refund>(
-        "INSERT INTO refunds \
-         (tenant_id, invoice_id, payment_id, refund_number, amount, reason, \
-          mode, reference_number, refunded_by, refunded_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7::payment_mode, $8, $9, now()) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(body.invoice_id)
-    .bind(body.payment_id)
-    .bind(&refund_number)
-    .bind(refund_amount)
-    .bind(&body.reason)
-    .bind(&body.mode)
-    .bind(&body.reference_number)
-    .bind(claims.sub)
-    .fetch_one(&mut *tx)
     .await?;
-
-    // Update invoice paid_amount and status
-    sqlx::query(
-        "UPDATE invoices SET \
-         paid_amount = paid_amount - $1, \
-         status = CASE \
-           WHEN paid_amount - $1 <= 0 THEN 'refunded'::invoice_status \
-           ELSE 'partially_paid'::invoice_status \
-         END, \
-         updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
-    )
-    .bind(refund_amount)
-    .bind(body.invoice_id)
-    .bind(claims.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let refund = match posted {
+        crate::posting::Posted::Done(refund) => refund,
+        crate::posting::Posted::Refused(why) => return Err(AppError::BadRequest(why)),
+    };
 
     tx.commit().await?;
     Ok(Json(filter_refund_amounts(refund, &restricted_fields)))
@@ -430,10 +333,12 @@ pub async fn list_credit_notes(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1 AND deleted_at IS NULL")
-        .bind(claims.tenant_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     let rows = sqlx::query_as::<_, CreditNote>(
         "SELECT * FROM credit_notes WHERE tenant_id = $1 AND deleted_at IS NULL \

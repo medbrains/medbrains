@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 1102 permissions, one per constant in the Rust source. */
+/** 1103 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1005,6 +1005,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "billing.payments.void",
     label: "Void Payment",
     description: "Void or reverse payments",
+    module: "billing",
+  },
+  {
+    code: "billing.payments.reconcile",
+    label: "Reconcile online payments",
+    description: "See money a gateway took that could not be posted to a bill — a captured amount other than the one asked for, more than the bill owed, a method with no payment mode, a refund that failed — and mark each resolved once finance has put it right.",
     module: "billing",
   },
   {
@@ -7212,9 +7218,11 @@ export const P = {
     PAYER_SPLIT_MANAGE: "billing.payer_split.manage",
     PAYMENTS: {
       CREATE: "billing.payments.create",
+      RECONCILE: "billing.payments.reconcile",
       VOID: "billing.payments.void",
     },
     PAYMENTS_CREATE: "billing.payments.create",
+    PAYMENTS_RECONCILE: "billing.payments.reconcile",
     PAYMENTS_VOID: "billing.payments.void",
     RECEIPTS: {
       PRINT: "billing.receipts.print",
@@ -10808,6 +10816,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.BILLING.JOURNAL.POST,
       P.BILLING.PAYER_SPLIT.MANAGE,
       P.BILLING.PAYMENTS.CREATE,
+      P.BILLING.PAYMENTS.RECONCILE,
       P.BILLING.PAYMENTS.VOID,
       P.BILLING.RECEIPTS.PRINT,
       P.BILLING.RECEIPTS.REPRINT,

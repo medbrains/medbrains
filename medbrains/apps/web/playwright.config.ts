@@ -156,7 +156,21 @@ export default defineConfig({
       },
       dependencies: ["setup"],
       testIgnore:
-        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|passmark|scenarios|journeys|accessibility|robustness|linkages|screens)\/.*\.spec\.ts/,
+        /(mock|smoke\/api|writes|crud|forms|analytics|rbac|passmark|scenarios|journeys|accessibility|robustness|linkages|screens|payments-live)\/.*\.spec\.ts/,
+    },
+
+    {
+      // Razorpay TEST mode through the real hosted checkout (opt-in): the spec
+      // self-skips unless RAZORPAY_LIVE_TEST=1. The mocked payments journeys
+      // live in the `journeys` project (e2e/journeys/payments-*.spec.ts).
+      name: "payments-live",
+      testMatch: /payments-live\/.*\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStatePath,
+        trace: "on",
+      },
+      dependencies: ["setup"],
     },
 
     {
