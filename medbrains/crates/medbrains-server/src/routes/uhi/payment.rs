@@ -14,13 +14,14 @@
 //!    requests screen (a bounded read-time sweep, no timer): the appointment
 //!    is cancelled and the app gets `on_status`, `CANCELLED`.
 //!
-//! Razorpay payment links only — the one provider here with a hosted link
-//! and a webhook. Any other provider, or none, keeps pay-at-hospital.
+//! Through the hospital's online provider when it makes payment links
+//! (`medbrains_payment_gateway::payment_link`). A provider without links,
+//! or none, keeps pay-at-hospital.
 
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::secrets::SecretResolver;
 use medbrains_outbox::{OutboxRow, queue_in_tx};
-use medbrains_payment_gateway::razorpay_link_credentials;
+use medbrains_payment_gateway::payment_link::link_provider;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -40,7 +41,7 @@ pub const LINK_EVENT: &str = "uhi.payment_link";
 /// queues it (`medbrains_payment_gateway::CAPTURE_EVENTS`).
 pub const CAPTURED_EVENT: &str = "uhi.payment_captured";
 /// How long a booking is held for its payment. Razorpay refuses a link that
-/// expires in under fifteen minutes.
+/// expires in under fifteen minutes (the strictest of the providers).
 pub const HOLD_MINUTES: i64 = 30;
 /// The most lapsed holds one sweep lets go of.
 const SWEEP_LIMIT: i64 = 20;
@@ -51,7 +52,7 @@ pub(super) const LINK_REFUSED: &str =
 pub(super) type Tx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
 
 /// Whether this slot is paid online: a teleconsultation with a fee, far
-/// enough off to hold, at a hospital whose online provider is Razorpay.
+/// enough off to hold, at a hospital whose online provider makes payment links.
 ///
 /// # Errors
 /// A database fault.
@@ -66,9 +67,7 @@ pub async fn pays_online(
     {
         return Ok(false);
     }
-    Ok(razorpay_link_credentials(tx, secrets, &tenant_id)
-        .await?
-        .is_some())
+    Ok(link_provider(tx, secrets, tenant_id).await?.is_some())
 }
 
 /// A booking to hold for its payment.

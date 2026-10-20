@@ -635,6 +635,12 @@ pub mod billing {
         /// owed, a method with no payment mode, a refund that failed — and
         /// mark each resolved once finance has put it right.
         pub const RECONCILE: &str = "billing.payments.reconcile";
+        /// Configure online payment providers.
+        /// Choose the hospital's online payment provider (Razorpay, Cashfree,
+        /// PhonePe, PayU), a fallback for when it is down, a different one
+        /// for a counter, set its keys and test that it answers. Keys are
+        /// write-only: no screen ever shows a stored secret.
+        pub const CONFIGURE: &str = "billing.payments.configure";
     }
 
     /// Taking a patient's money at a department desk (#4885).

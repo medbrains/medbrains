@@ -1014,6 +1014,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "billing",
   },
   {
+    code: "billing.payments.configure",
+    label: "Configure online payment providers",
+    description: "Choose the hospital's online payment provider (Razorpay, Cashfree, PhonePe, PayU), a fallback for when it is down, a different one for a counter, set its keys and test that it answers. Keys are write-only: no screen ever shows a stored secret.",
+    module: "billing",
+  },
+  {
     code: "billing.collect.registration",
     label: "Collect registration fees",
     description: "Take the registration fee at the front desk.",
@@ -7385,10 +7391,12 @@ export const P = {
     },
     PAYER_SPLIT_MANAGE: "billing.payer_split.manage",
     PAYMENTS: {
+      CONFIGURE: "billing.payments.configure",
       CREATE: "billing.payments.create",
       RECONCILE: "billing.payments.reconcile",
       VOID: "billing.payments.void",
     },
+    PAYMENTS_CONFIGURE: "billing.payments.configure",
     PAYMENTS_CREATE: "billing.payments.create",
     PAYMENTS_RECONCILE: "billing.payments.reconcile",
     PAYMENTS_VOID: "billing.payments.void",

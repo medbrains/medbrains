@@ -1,3 +1,4 @@
+import { ApiError } from "@medbrains/api";
 import type { PaymentGatewayTransaction } from "@medbrains/types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent, waitFor } from "@/test/test-utils";
@@ -169,6 +170,48 @@ describe("OnlineCheckoutPanel", () => {
       expect.objectContaining({ amount: 200 }),
     );
     expect(opened[0]).toMatchObject({ amount: 20000 });
+  });
+
+  it("offers the hospital's fallback when the provider does not answer, and uses it only when chosen", async () => {
+    service.createPaymentOrder
+      .mockRejectedValueOnce(
+        new ApiError("PhonePe is unavailable", 503, {
+          error: "provider_unavailable",
+          fallback: { provider: "razorpay", label: "Razorpay" },
+        }),
+      )
+      .mockResolvedValueOnce(ORDER);
+    service.verifyPayment.mockResolvedValue(txn("captured"));
+    fakeCheckout("pay");
+    const { onCaptured } = renderPanel();
+    await pay();
+    const fallback = await screen.findByRole("button", { name: "Try Razorpay instead" });
+    expect(service.createPaymentOrder).toHaveBeenCalledTimes(1);
+    expect(onCaptured).not.toHaveBeenCalled();
+    await userEvent.click(fallback);
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(service.createPaymentOrder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ provider: "razorpay" }),
+    );
+  });
+
+  it("opens a hosted page in a new tab and waits for the provider's word", async () => {
+    const url = "https://mercury-uat.phonepe.com/transact/txn-1";
+    service.createPaymentOrder.mockResolvedValue({
+      ...ORDER,
+      key_id: "",
+      provider: "phonepe",
+      checkout: { kind: "redirect", url },
+    });
+    service.verifyPayment.mockResolvedValue(txn("created"));
+    service.getPaymentStatus.mockResolvedValue({ transaction: txn("captured") });
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const { onCaptured } = renderPanel();
+    await pay();
+    await waitFor(() => expect(onCaptured).toHaveBeenCalledTimes(1));
+    expect(open).toHaveBeenCalledWith(url, "_blank", "noopener");
+    expect(service.verifyPayment).toHaveBeenCalledWith({ transaction_id: "txn-1" });
+    open.mockRestore();
   });
 
   it("refuses more than is due before asking for an order", async () => {

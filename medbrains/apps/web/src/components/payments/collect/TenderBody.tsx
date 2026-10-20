@@ -1,8 +1,8 @@
 import { Stack, Text } from "@mantine/core";
 import type {
+  CapabilitiesView,
   DueBill,
   PaymentGatewayTransaction,
-  PaymentProviderInfo,
   PosSaleView,
   UpiQrResponse,
 } from "@medbrains/types";
@@ -12,7 +12,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { LiveUpiQrPanel } from "@/components/LiveUpiQrPanel";
 import { OnlineCheckoutPanel } from "@/components/OnlineCheckoutPanel";
-import { UpiCollectPanel } from "@/components/UpiCollectPanel";
 import { UpiQrCode } from "@/components/UpiQrCode";
 import { Alert, Button, Input } from "@/components/ui";
 import { VirtualAccountPanel } from "@/components/VirtualAccountPanel";
@@ -35,7 +34,9 @@ export interface TenderBodyProps {
   bills: DueBill[];
   isSale: boolean;
   canUseGateway: boolean;
-  provider?: PaymentProviderInfo;
+  /** This counter's online provider and the hospital's fallback. */
+  capabilities?: CapabilitiesView;
+  stationId: string | null;
   tendered: number | string;
   onTendered: (value: number | string) => void;
   reference: string;
@@ -65,15 +66,21 @@ const fromGateway = (txn: PaymentGatewayTransaction, label: string): TenderPart 
 });
 
 function UpiTender(props: TenderBodyProps) {
-  const { amount, invoiceId, isSale, canUseGateway, provider } = props;
+  const { amount, invoiceId, isSale, canUseGateway, capabilities } = props;
   const [qr, setQr] = useState<UpiQrResponse | null>(null);
+  // Only a provider that makes dynamic QRs is asked for one; otherwise the
+  // hospital's own UPI ID QR is shown without a warning about it.
+  const live = Boolean(
+    capabilities?.active?.configured && capabilities.active.capabilities.dynamic_qr,
+  );
   const make = useMutation({
     mutationFn: () =>
       paymentsService.generateUpiQr({
         amount,
         invoice_id: isSale ? undefined : invoiceId,
         description: props.patientName ? `Payment for ${props.patientName}` : "Hospital payment",
-        live: true,
+        live,
+        station_id: props.stationId ?? undefined,
       }),
     onSuccess: (made) => {
       setQr(made);
@@ -98,7 +105,7 @@ function UpiTender(props: TenderBodyProps) {
           {make.error.message} Take the counter UPI and enter the UTR, or use another way.
         </Alert>
       )}
-      {qr?.source === "razorpay" && (
+      {qr && qr.source !== "upi_id" && (
         <LiveUpiQrPanel
           qr={qr}
           amountText={rupees(qr.amount)}
@@ -122,16 +129,7 @@ function UpiTender(props: TenderBodyProps) {
           </Text>
         </Stack>
       )}
-      {canUseGateway && !qr && provider?.supports_upi_collect && (
-        <UpiCollectPanel
-          providerLabel={provider.label}
-          amount={amount}
-          invoiceId={isSale ? undefined : invoiceId}
-          disabled={amount <= 0}
-          onCaptured={(txn) => props.onApproved(fromGateway(txn, "UPI request"))}
-        />
-      )}
-      {qr?.source !== "razorpay" && (
+      {(!qr || qr.source === "upi_id") && (
         <Input
           label="UTR / reference"
           description="Paid to the counter's own UPI QR: the UTR from the patient's app"
@@ -209,6 +207,8 @@ export function TenderBody(props: TenderBodyProps) {
             formatAmount={rupees}
             invoiceId={props.invoiceId}
             patientName={props.patientName}
+            stationId={props.stationId}
+            providerLabel={props.capabilities?.active?.label}
             disabled={props.amount <= 0}
             fallbacks={["upi_qr", "cash"]}
             onCaptured={(txn) => props.onApproved(fromGateway(txn, "Online"))}

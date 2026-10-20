@@ -263,6 +263,7 @@ import type {
   CancelOrderRequest,
   CancelRadiologyOrderRequest,
   CancerStaging,
+  CapabilitiesView,
   CapaFormPrintData,
   CaregiverEducation,
   // Case Management
@@ -299,6 +300,7 @@ import type {
   ChiefComplaintMaster,
   ChildPughRequest,
   ChildPughResult,
+  ChooseProviders,
   ChronicEnrollmentRow,
   ChronicProgram,
   CiwaArRequest,
@@ -1510,6 +1512,7 @@ import type {
   OnboardingWorkbook,
   OnCallSchedule,
   // Phase 2 Print Data - Billing
+  OnlineSettings,
   OpdBillPrintData,
   OpdCertificatePrintData,
   OpdFootfallRow,
@@ -1729,6 +1732,8 @@ import type {
   ProcessPharmacyReturnRequest,
   ProfitLossDeptRow,
   ProgressNotePrintData,
+  ProviderSetup,
+  ProviderTestResult,
   ProvisionDomainResponse,
   PsychAssessment,
   PsychCounselingSession,
@@ -1949,6 +1954,7 @@ import type {
   SetCampusFenceRequest,
   SetDonorDeferralRequest,
   SetHprRequest,
+  SetKeys,
   SettleDayRequest,
   SettleDayResult,
   SetupUser,
@@ -2003,6 +2009,7 @@ import type {
   StateFormularyRow,
   StateScheme,
   Station,
+  StationChoice,
   StationHandoff,
   StatutoryRecord,
   StipendPaymentAdvicePrintData,
@@ -2292,8 +2299,6 @@ import type {
   UpdateVulnerabilityRequest,
   UpdateWaitlistRequest,
   UpdateWardRequest,
-  UpiCollectRequest,
-  UpiCollectResponse,
   UpiDeepLinkRequest,
   UpiDeepLinkResponse,
   UpiQrResponse,
@@ -2704,11 +2709,17 @@ function reportClientFailure(data: ClientErrorReportRequest): void {
  */
 export class ApiError extends Error {
   readonly status: number;
+  /** The server's error code (`provider_unavailable`, `unsupported_capability`…). */
+  readonly code: string | undefined;
+  /** The whole error body, for the structured errors that carry more (a fallback offer). */
+  readonly body: Record<string, unknown>;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, body: Record<string, unknown> = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.body = body;
+    this.code = typeof body.error === "string" ? body.error : undefined;
   }
 }
 
@@ -2865,7 +2876,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       throw new ValidationError((body as { fields: Record<string, string[]> }).fields);
     }
 
-    throw new ApiError(errorMessage, response.status);
+    throw new ApiError(errorMessage, response.status, body as Record<string, unknown>);
   }
 
   return response.json() as Promise<T>;
@@ -16183,6 +16194,30 @@ export const api = {
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
+  /** What this counter's online provider can do, and the hospital's fallback. */
+  getPaymentCapabilities: (stationId?: string | null) =>
+    request<CapabilitiesView>(
+      `/payments/capabilities?${new URLSearchParams(stationId ? { station_id: stationId } : {})}`,
+    ),
+  getOnlineSettings: () => request<OnlineSettings>("/payments/online-settings"),
+  updateOnlineSettings: (data: ChooseProviders) =>
+    request<ChooseProviders>("/payments/online-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  /** Write-only: a stored secret is never sent back. */
+  setProviderKeys: (provider: string, data: SetKeys) =>
+    request<ProviderSetup>(`/payments/online-settings/keys/${provider}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  setStationProvider: (id: string, data: StationChoice) =>
+    request<StationChoice & { id: string }>(`/payments/online-settings/stations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  testPaymentProvider: (provider: string) =>
+    request<ProviderTestResult>(`/payments/online-settings/test/${provider}`, { method: "POST" }),
   getReconSummary: () => request<ReconSummary>("/payments/recon-summary"),
 
   // OAuth connect (common token module)
@@ -16309,11 +16344,6 @@ export const api = {
   listTerminalProviders: () => request<TerminalProviders>("/payments/terminal-providers"),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  requestUpiCollect: (data: UpiCollectRequest) =>
-    request<UpiCollectResponse>("/payments/upi-collect", {
       method: "POST",
       body: JSON.stringify(data),
     }),

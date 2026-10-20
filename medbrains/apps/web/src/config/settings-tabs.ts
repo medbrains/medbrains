@@ -57,6 +57,7 @@ import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
 import { NhcxSettings } from "@/pages/admin/settings/NhcxSettings";
 import { OAuthIntegrationsSettings } from "@/pages/admin/settings/OAuthIntegrationsSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
+import { OnlinePaymentsSettings } from "@/pages/admin/settings/OnlinePaymentsSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
 import { PaymentExceptionsSettings } from "@/pages/admin/settings/PaymentExceptionsSettings";
 import { PaymentTerminalsSettings } from "@/pages/admin/settings/PaymentTerminalsSettings";
@@ -276,6 +277,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconShieldCheck",
     requiredPermission: "insurance.nhcx.configure",
     component: NhcxSettings,
+  },
+  {
+    value: "online-payments",
+    i18nKey: "settings.onlinePayments",
+    icon: "IconWorld",
+    requiredPermission: "billing.payments.configure",
+    component: OnlinePaymentsSettings,
   },
   {
     value: "payment-terminals",
