@@ -140,7 +140,8 @@ test("part of the bill online, the rest in cash: partially paid, then paid", asy
     .toBe("paid");
   saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.paid).toBe(1000);
-  expect(saved.payments.map((p) => [p.mode, p.amount])).toEqual([
+  // The bill lists the newest payment first; what matters is the two tenders, once each.
+  expect(saved.payments.map((p) => [p.mode, p.amount]).sort()).toEqual([
     ["card", 400],
     ["cash", 600],
   ]);
