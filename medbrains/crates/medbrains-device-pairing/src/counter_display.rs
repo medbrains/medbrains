@@ -395,5 +395,6 @@ pub fn subscribe(tenant: Uuid, station: Uuid) -> watch::Receiver<Stamped> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 #[path = "counter_display_tests.rs"]
 mod tests;
