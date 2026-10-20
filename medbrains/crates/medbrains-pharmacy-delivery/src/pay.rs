@@ -2,7 +2,7 @@
 //! pharmacist approves the refill, and the release of the delivery once a
 //! payment settles its bill.
 
-use medbrains_core::payment::RAZORPAY_LINK_EVENT;
+use medbrains_core::payment::PAYMENT_LINK_EVENT;
 use medbrains_server_core::error::AppError;
 use rust_decimal::Decimal;
 use sqlx::{Postgres, Transaction};
@@ -15,9 +15,10 @@ use crate::source::Source;
 /// Pay-now requests one payment can settle, at most.
 const RELEASE_LIMIT: i64 = 20;
 
-/// A pay-now payment row for `amount`, and its link made off-thread by the
-/// shared Razorpay client (`medbrains_payment_gateway::payment_link`), which
-/// reads the amount from the row and files the URL on its notes.
+/// A pay-now payment row for `amount`, and its link made off-thread through
+/// the hospital's online provider (`medbrains_payment_gateway::payment_link`),
+/// which reads the amount from the row, files the URL on its notes and the
+/// provider that made it as the row's `gateway`.
 pub(crate) async fn payment_link(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,
@@ -48,7 +49,7 @@ pub(crate) async fn payment_link(
             tenant_id,
             aggregate_type: "payment_gateway_transaction",
             aggregate_id: Some(txn),
-            event_type: RAZORPAY_LINK_EVENT,
+            event_type: PAYMENT_LINK_EVENT,
             payload: serde_json::json!({
                 "internal_payment_id": txn,
                 "description": "Medicines for home delivery",

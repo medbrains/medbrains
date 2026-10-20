@@ -787,19 +787,16 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        cashfree, email_stub, google_meet, hl7_stub, nhcx, pipeline_fallback, razorpayx,
-        teams, twilio, whatsapp, zoom,
+        email_stub, google_meet, hl7_stub, nhcx, pipeline_fallback, razorpayx, teams, twilio,
+        whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
 
     // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
-    // Razorpay orders and refunds are made in the request (see
-    // medbrains_payment_gateway::create_order / initiate_refund), not here.
+    // Online orders and refunds, for every provider, are made in the request
+    // through medbrains_payment_gateway::online; only payment links are queued.
     registry.register(medbrains_payment_gateway::payment_link::PaymentLinkHandler);
-    // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
-    registry.register(cashfree::CashfreeCreateOrderHandler::new());
-    registry.register(cashfree::CashfreeRefundHandler::new());
     // Counter card machines are driven in the request and by the site bridge
     // (medbrains_payment_gateway::pos), not here.
     // RazorpayX Smart Collect — bank virtual account (runs only for payment.razorpayx.*)
@@ -1063,7 +1060,7 @@ mod tests {
     #[test]
     fn the_delivery_payment_link_has_a_maker() {
         let registry = super::build_outbox_registry();
-        let event = medbrains_core::payment::RAZORPAY_LINK_EVENT;
+        let event = medbrains_core::payment::PAYMENT_LINK_EVENT;
         assert_eq!(registry.lookup(event).map(|h| h.event_type()), Some(event));
     }
 }
@@ -1092,20 +1089,20 @@ fn content_security_policy(anatomy_origin: Option<&str>) -> HeaderValue {
         .unwrap_or_default();
     let policy = format!(
         "default-src 'self'; \
-             script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com; \
-             script-src-elem 'self' https://*.razorpay.com; \
+             script-src 'self' 'wasm-unsafe-eval' https://*.razorpay.com https://sdk.cashfree.com; \
+             script-src-elem 'self' https://*.razorpay.com https://sdk.cashfree.com; \
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
              style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; \
              img-src 'self' data: blob: https:; \
              font-src 'self' data: https://fonts.gstatic.com; \
-             connect-src 'self' https://*.razorpay.com wss:{anatomy}; \
+             connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss:{anatomy}; \
              worker-src 'self' blob:; \
              manifest-src 'self'; \
              object-src 'none'; \
-             frame-src https://*.razorpay.com; \
+             frame-src https://*.razorpay.com https://*.cashfree.com; \
              frame-ancestors 'none'; \
              base-uri 'self'; \
-             form-action 'self'; \
+             form-action 'self' https://secure.payu.in https://test.payu.in; \
              upgrade-insecure-requests",
     );
     HeaderValue::from_str(&policy)
@@ -1130,16 +1127,22 @@ mod csp_tests {
     fn the_anatomy_cdn_joins_connect_src() {
         assert_eq!(
             connect_src(Some("https://d111.cloudfront.net")),
-            "connect-src 'self' https://*.razorpay.com wss: https://d111.cloudfront.net"
+            "connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss: \
+             https://d111.cloudfront.net"
         );
     }
 
     #[test]
     fn a_malformed_origin_is_ignored_not_spliced_in() {
-        for bad in ["http://cdn.example", "https://x; script-src *", "cdn.example", "https://"] {
+        for bad in [
+            "http://cdn.example",
+            "https://x; script-src *",
+            "cdn.example",
+            "https://",
+        ] {
             assert_eq!(
                 connect_src(Some(bad)),
-                "connect-src 'self' https://*.razorpay.com wss:",
+                "connect-src 'self' https://*.razorpay.com https://*.cashfree.com wss:",
                 "{bad}"
             );
         }

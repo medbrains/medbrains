@@ -16,7 +16,7 @@ use axum::{
     routing::{get, post},
 };
 use hmac::{Hmac, Mac};
-use medbrains_payment_gateway::payment_link::API_BASE_OVERRIDE;
+use medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE;
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use sha2::Sha256;

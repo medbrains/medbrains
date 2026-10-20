@@ -1,5 +1,5 @@
 //! The two outbox events of an online payment (see `payment`):
-//! `uhi.payment_link` asks Razorpay for the hosted link (through the shared
+//! `uhi.payment_link` asks the hospital's provider for the hosted link (through the shared
 //! `medbrains_payment_gateway::payment_link` client) and sends it in
 //! `on_confirm`; `uhi.payment_captured` — queued by the gateway's webhook —
 //! confirms the booking, bills it and says so in `on_confirm` and
@@ -7,10 +7,10 @@
 
 use async_trait::async_trait;
 use medbrains_outbox::handler::{Handler, HandlerCtx, HandlerError};
-use medbrains_payment_gateway::payment_link::{Link, LinkRequest, record_link, request_link};
-use medbrains_payment_gateway::{
-    GatewayPosting, razorpay_link_credentials, record_invoice_payment,
+use medbrains_payment_gateway::payment_link::{
+    Link, LinkRequest, link_provider, record_link, request_link,
 };
+use medbrains_payment_gateway::{GatewayPosting, record_invoice_payment};
 use medbrains_server_services::billing::{AutoChargeInput, auto_charge};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
@@ -55,7 +55,7 @@ async fn subscription(tx: &mut Tx<'_>, tenant_id: Uuid) -> Result<Subscription, 
 }
 
 /// The link for a held booking: its payment row, its amount, until the hold ends.
-fn link_request(ctx: &HandlerCtx, held: &Held) -> Result<LinkRequest, HandlerError> {
+fn link_request(held: &Held) -> Result<LinkRequest, HandlerError> {
     Ok(LinkRequest {
         payment_transaction_id: held.payment_transaction_id.unwrap_or_default(),
         amount: held
@@ -64,8 +64,6 @@ fn link_request(ctx: &HandlerCtx, held: &Held) -> Result<LinkRequest, HandlerErr
         description: "Teleconsultation booked through UHI".to_owned(),
         expire_by: held.hold_expires_at.map(|t| t.timestamp()),
         contact: None,
-        notes: json!({ "tenant_id": ctx.tenant_id.to_string(),
-                       "uhi_transaction_id": held.id.to_string() }),
     })
 }
 
@@ -87,10 +85,9 @@ impl Handler for UhiPaymentLinkHandler {
             .fetch_optional(&mut *tx)
             .await
             .map_err(transient)?;
-        let credentials =
-            razorpay_link_credentials(&mut tx, ctx.secret_resolver.as_ref(), &ctx.tenant_id)
-                .await
-                .map_err(transient)?;
+        let chosen = link_provider(&mut tx, ctx.secret_resolver.as_ref(), ctx.tenant_id)
+            .await
+            .map_err(transient)?;
         tx.commit().await.map_err(transient)?;
         let Some(held) = held.filter(|h| h.state == "awaiting_payment" && h.payment_uri.is_none())
         else {
@@ -98,10 +95,11 @@ impl Handler for UhiPaymentLinkHandler {
         };
         // The provider is called outside any transaction; what it answers is
         // applied only if the booking is still held.
-        let link = match credentials {
-            Some(c) => request_link(ctx, c, &link_request(ctx, &held)?).await?,
+        let link = match &chosen {
+            Some(c) => request_link(ctx, c, &link_request(&held)?).await?,
             None => Link::Refused("online payment is no longer set up".to_owned()),
         };
+        let provider = chosen.as_ref().map_or("", |c| c.provider.code());
         let mut tx = begin(ctx).await?;
         let Some(held) = sqlx::query_as::<_, Held>(&format!("{HELD} WHERE id = $1 FOR UPDATE"))
             .bind(id)
@@ -116,7 +114,7 @@ impl Handler for UhiPaymentLinkHandler {
         let secrets = ctx.secret_resolver.as_ref();
         let outcome = match link {
             Link::Made { id: link_id, url } => {
-                let order = linked(&mut tx, &held, &link_id, &url)
+                let order = linked(&mut tx, &held, (provider, &link_id), &url)
                     .await
                     .map_err(transient)?;
                 let key = format!("paylink|{}", held.id);
@@ -148,9 +146,14 @@ impl Handler for UhiPaymentLinkHandler {
 
 /// File the link against the payment and the booking; the order the app
 /// gets, with the link to pay at.
-async fn linked(tx: &mut Tx<'_>, held: &Held, link_id: &str, url: &str) -> Result<Value, AppError> {
+async fn linked(
+    tx: &mut Tx<'_>,
+    held: &Held,
+    (provider, link_id): (&str, &str),
+    url: &str,
+) -> Result<Value, AppError> {
     let paying = held.payment_transaction_id.unwrap_or_default();
-    record_link(tx, paying, link_id, url).await?;
+    record_link(tx, paying, provider, link_id, url).await?;
     let mut order = held.order_details.clone().unwrap_or_else(|| json!({}));
     let amount = held.amount.map(money);
     order["payment"] = json!({ "type": PAYMENT_ON_ORDER, "status": PAYMENT_NOT_PAID,
@@ -170,6 +173,7 @@ async fn linked(tx: &mut Tx<'_>, held: &Held, link_id: &str, url: &str) -> Resul
 struct Captured {
     status: String,
     amount: Decimal,
+    gateway: String,
     gateway_payment_id: Option<String>,
     gateway_order_id: String,
     payment_method: Option<String>,
@@ -197,7 +201,7 @@ impl Handler for UhiPaymentCapturedHandler {
         .await
         .map_err(transient)?;
         let payment = sqlx::query_as::<_, Captured>(
-            "SELECT status, amount, gateway_payment_id, gateway_order_id, payment_method, notes \
+            "SELECT status, amount, gateway, gateway_payment_id, gateway_order_id, payment_method, notes \
                FROM payment_gateway_transactions WHERE id = $1",
         )
         .bind(paying)
@@ -303,7 +307,7 @@ async fn bill(
         &GatewayPosting {
             tenant_id,
             invoice_id: charged.invoice_id,
-            provider: "razorpay",
+            provider: &payment.gateway,
             order_ref: &payment.gateway_order_id,
             amount: payment.amount,
             method: payment.payment_method.as_deref(),
