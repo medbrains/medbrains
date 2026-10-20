@@ -20,8 +20,8 @@ import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { Alert, Badge, Button, NumberField, TileGroup } from "@/components/ui";
 import { useCounterStation } from "@/hooks/useCounterStation";
 import { usePatientContext } from "@/hooks/usePatientContext";
+import { usePaymentCapabilities } from "@/hooks/usePaymentCapabilities";
 import { billingService } from "@/services/billing.service";
-import { paymentsService } from "@/services/payments.service";
 import { CollectDone, useReceiptPrinter } from "./CollectDone";
 import { CollectScope } from "./CollectScope";
 import {
@@ -40,7 +40,6 @@ import {
 import type { CollectTarget } from "./collect-store";
 import { TenderBody } from "./TenderBody";
 import {
-  CHECKOUT_PROVIDERS,
   readLastTile,
   rememberTile,
   startTile,
@@ -115,13 +114,8 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
   const canCross = useHasPermission(P.BILLING.COLLECT_CROSS);
   const canApplyDeposit = useHasPermission(P.BILLING.ADVANCES_ADJUST);
   const context = usePatientContext(target.patientId).data;
-  const providers = useQuery({
-    queryKey: ["payment-providers"],
-    queryFn: paymentsService.listPaymentProviders,
-    enabled: canUseGateway,
-    staleTime: 300_000,
-  });
-  const provider = providers.data?.providers.find((p) => p.active);
+  const caps = usePaymentCapabilities(stationId, canUseGateway);
+  const provider = caps.data?.active ?? null;
   const deposits = useQuery({
     queryKey: ["counter-advances", target.patientId],
     queryFn: () => billingService.listAdvances({ patient_id: target.patientId ?? "" }),
@@ -140,7 +134,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
     isSale: Boolean(sale),
     cashAllowed: sale ? sale.cashAllowed : true,
     canUseGateway,
-    providerCheckout: Boolean(provider?.has_adapter && CHECKOUT_PROVIDERS.has(provider.provider)),
+    capabilities: provider?.configured ? provider.capabilities : null,
     billCount: bills.length,
     hasDraft: bills.some((b) => b.status === "draft"),
     canApplyDeposit,
@@ -297,10 +291,14 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
         {provider && canUseGateway && (
           <Group gap="xs">
             <Badge tone="neutral">{provider.label}</Badge>
-            {(provider.mode === "sandbox" || provider.mode === "test") && (
-              <Badge tone="warning">Test mode</Badge>
-            )}
+            {provider.mode !== "live" && <Badge tone="warning">Test mode</Badge>}
           </Group>
+        )}
+        {caps.isError && (
+          <Alert tone="warning" title="Online payment options not loaded">
+            This counter&apos;s payment provider could not be read, so online checkout and live UPI
+            QR are not offered. Cash, card and UPI by UTR still work.
+          </Alert>
         )}
         {snapshot && (
           <CollectScope
@@ -366,7 +364,8 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
                 bills={bills}
                 isSale={Boolean(sale)}
                 canUseGateway={canUseGateway}
-                provider={provider}
+                capabilities={caps.data}
+                stationId={stationId}
                 tendered={tendered}
                 onTendered={setTendered}
                 reference={reference}

@@ -16,7 +16,7 @@ use axum::{
 };
 use medbrains_crypto::beckn::{KeyPair, SignatureHeader, generate, sign};
 use medbrains_outbox::Handler;
-use medbrains_payment_gateway::payment_link::API_BASE_OVERRIDE;
+use medbrains_payment_gateway::razorpay::API_BASE_OVERRIDE;
 use medbrains_server::routes::uhi::{auth, outbox::UhiCallbackHandler, protocol};
 use serde_json::{Value, json};
 use uuid::Uuid;

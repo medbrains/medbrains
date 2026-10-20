@@ -15,6 +15,7 @@
   "settings.bedTypes": "Bed Types",
   "settings.billing": "Billing & Tax",
   "settings.paymentTerminals": "Payment Terminals",
+  "settings.onlinePayments": "Online Payments",
   "settings.abdm": "ABDM (ABHA & health records)",
   "settings.abdmSharing": "ABDM sharing",
   "settings.uhi": "UHI (patient apps)",

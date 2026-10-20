@@ -1,13 +1,6 @@
-//! Razorpay: the one place its keys are found, and the calls checkout,
-//! verification and refunds make to it.
-//!
-//! Endpoints and fields per Razorpay's API reference (`POST /v1/orders`,
-//! `GET /v1/payments/{id}`, `POST /v1/payments/{id}/refund`) and its
-//! signature rules (checkout: HMAC-SHA256 of `order_id|payment_id` keyed by
-//! the key secret; webhook: HMAC-SHA256 of the raw body keyed by the webhook
-//! secret, hex encoded).
-
-use std::time::Duration;
+//! Razorpay's keys when no settings-screen keys are stored (the secret
+//! store, then the server's environment), and its HMAC signature check. The
+//! calls themselves are [`crate::online::razorpay`].
 
 use hmac::{Hmac, Mac};
 use medbrains_core::secrets::{SecretError, SecretResolver};
@@ -18,12 +11,9 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 /// A stand-in Razorpay for tests and rehearsals (a secret, so it never
-/// leaks into production by a stray environment variable).
+/// leaks into production by a stray environment variable); the
+/// `<CODE>_API_BASE_OVERRIDE` of [`crate::online::keys::api_base`].
 pub const API_BASE_OVERRIDE: &str = "RAZORPAY_API_BASE_OVERRIDE";
-const API_BASE: &str = "https://api.razorpay.com/v1";
-/// Inferred, not from Razorpay: long enough for a slow gateway, short enough
-/// that a cashier is not left watching a spinner.
-const CALL_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// The hospital's Razorpay keys and where they were found.
 pub struct Credentials {
@@ -119,68 +109,6 @@ pub async fn credentials(
         }),
         _ => None,
     })
-}
-
-/// Where Razorpay is: the real one unless a stand-in is configured.
-pub async fn api_base(secrets: &dyn SecretResolver) -> String {
-    secrets
-        .get(API_BASE_OVERRIDE)
-        .await
-        .ok()
-        .filter(|b| b.starts_with("http"))
-        .map_or_else(
-            || API_BASE.to_owned(),
-            |b| b.trim_end_matches('/').to_owned(),
-        )
-}
-
-/// What Razorpay said to a call.
-#[derive(Debug)]
-pub enum Answer {
-    Ok(Value),
-    /// A definite no, with Razorpay's reason.
-    Refused(String),
-    /// No answer, or a rate limit / outage: whether it acted is unknown.
-    Unreachable(String),
-}
-
-/// Call Razorpay: `GET` when `body` is `None`, else `POST` it.
-pub async fn call(
-    secrets: &dyn SecretResolver,
-    creds: &Credentials,
-    path: &str,
-    body: Option<&Value>,
-) -> Answer {
-    let client = match reqwest::Client::builder().timeout(CALL_TIMEOUT).build() {
-        Ok(c) => c,
-        Err(e) => return Answer::Unreachable(format!("http client: {e}")),
-    };
-    let url = format!("{}{path}", api_base(secrets).await);
-    let request = match body {
-        Some(b) => client.post(&url).json(b),
-        None => client.get(&url),
-    };
-    let response = match request
-        .basic_auth(&creds.key_id, Some(&creds.key_secret))
-        .send()
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => return Answer::Unreachable(format!("Razorpay did not answer: {e}")),
-    };
-    let status = response.status();
-    let answer: Value = response.json().await.unwrap_or(Value::Null);
-    if status.is_success() {
-        return Answer::Ok(answer);
-    }
-    let why = answer["error"]["description"]
-        .as_str()
-        .map_or_else(|| status.to_string(), ToOwned::to_owned);
-    if status.as_u16() == 429 || status.is_server_error() {
-        Answer::Unreachable(format!("Razorpay is unavailable: {why}"))
-    } else {
-        Answer::Refused(why)
-    }
 }
 
 /// Whether `signature_hex` is the HMAC-SHA256 of `message` under `secret`,

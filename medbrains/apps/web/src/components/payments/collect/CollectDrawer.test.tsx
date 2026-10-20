@@ -15,13 +15,34 @@ const billing = vi.hoisted(() => ({
   adjustAdvance: vi.fn(),
 }));
 vi.mock("@/services/billing.service", () => ({ billingService: billing }));
-vi.mock("@/services/payments.service", () => ({
-  paymentsService: {
-    listPaymentProviders: vi.fn(async () => ({ active_provider: "", providers: [] })),
-    listPaymentTerminals: vi.fn(async () => []),
-    listUnresolvedCardSales: vi.fn(async () => []),
-  },
+const payments = vi.hoisted(() => ({
+  getPaymentCapabilities: vi.fn(),
+  listPaymentTerminals: vi.fn(async () => []),
+  listUnresolvedCardSales: vi.fn(async () => []),
 }));
+vi.mock("@/services/payments.service", () => ({ paymentsService: payments }));
+
+/** A counter whose provider checks out online but makes no payment links (PhonePe-like). */
+const CHECKOUT_ONLY = {
+  active: {
+    provider: "phonepe",
+    label: "PhonePe",
+    configured: true,
+    mode: "test",
+    capabilities: {
+      checkout: true,
+      dynamic_qr: false,
+      payment_links: false,
+      partial_refund: true,
+      multiple_refunds: false,
+      payouts: false,
+      upi_collect: false,
+      emi: false,
+    },
+  },
+  station_override: false,
+  fallback: null,
+};
 vi.mock("@/hooks/usePatientContext", () => ({
   usePatientContext: () => ({ data: undefined }),
 }));
@@ -77,6 +98,7 @@ beforeEach(() => {
   billing.getPatientDues.mockResolvedValue(DUES);
   billing.collectPayment.mockResolvedValue(DONE);
   billing.listAdvances.mockResolvedValue([]);
+  payments.getPaymentCapabilities.mockResolvedValue(CHECKOUT_ONLY);
   act(() => useCollect.getState().close());
 });
 
@@ -86,9 +108,10 @@ describe("the Collect drawer", () => {
     const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
     await within(dialog).findByRole("button", { name: "Collect ₹1,200.00" });
     expect(within(dialog).queryByText(/All dues/)).toBeNull();
-    // A lab desk without the gateway: no online checkout, no QR of its own.
+    // A lab desk without the gateway: no online checkout, no link, and it asks no provider.
     expect(within(dialog).queryByRole("radio", { name: /Online/ })).toBeNull();
-    expect(within(dialog).getByRole("radio", { name: /Payment link/ })).toBeDisabled();
+    expect(within(dialog).queryByRole("radio", { name: /Payment link/ })).toBeNull();
+    expect(payments.getPaymentCapabilities).not.toHaveBeenCalled();
 
     await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
     await waitFor(() => expect(billing.collectPayment).toHaveBeenCalledTimes(1));
@@ -114,6 +137,23 @@ describe("the Collect drawer", () => {
     await userEvent.click(all);
     expect(await within(dialog).findByRole("button", { name: "Collect ₹1,650.00" })).toBeEnabled();
     expect(within(dialog).getAllByTestId("row-collect-bill")).toHaveLength(2);
+  });
+
+  it("the cashier is offered what the counter's provider can do — online, not a link", async () => {
+    for (const p of CASHIER) held.add(p);
+    const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
+    expect(await within(dialog).findByRole("radio", { name: /Online/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radio", { name: /Payment link/ })).toBeNull();
+    expect(within(dialog).getByText("PhonePe")).toBeInTheDocument();
+    expect(payments.getPaymentCapabilities).toHaveBeenCalledWith(null);
+  });
+
+  it("a counter whose provider cannot be read says so, and offers no online way", async () => {
+    for (const p of CASHIER) held.add(p);
+    payments.getPaymentCapabilities.mockRejectedValue(new Error("Service unavailable"));
+    const dialog = await openDrawer({ patientId: "p1", lane: "lab" });
+    expect(await within(dialog).findByText("Online payment options not loaded")).toBeVisible();
+    expect(within(dialog).queryByRole("radio", { name: /Online/ })).toBeNull();
   });
 
   it("splits: the remainder updates live and both ways go in one request", async () => {
