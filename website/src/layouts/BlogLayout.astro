@@ -1,0 +1,25 @@
+---
+// Every blog page: white canvas, light header, the blog bar, the site footer.
+import Footer from "../components/Footer.astro";
+import Header from "../components/Header.astro";
+import WhatsAppFloat from "../components/WhatsAppFloat.astro";
+import BlogNav from "../components/blog/BlogNav.astro";
+import Base from "./Base.astro";
+
+type Props = Omit<import("astro/types").ComponentProps<typeof Base>, "light">;
+const props = Astro.props;
+---
+
+<Base {...props} light>
+  <Header light />
+  <BlogNav />
+  <main id="main" class="blog">
+    <slot />
+  </main>
+  <Footer />
+  <WhatsAppFloat />
+</Base>
+
+<style>
+  .blog { background: var(--paper); color: var(--ink); }
+</style>

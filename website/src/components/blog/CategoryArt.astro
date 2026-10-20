@@ -1,0 +1,34 @@
+---
+// The pastel illustration for a topic: its icon on soft overlapping shapes.
+// Stands in for a cover photo, so no post ever needs a stock image.
+import { getCategory, type CategorySlug } from "../../data/blog-categories";
+import Icon from "./Icon.astro";
+
+interface Props {
+  slug: CategorySlug;
+  size?: "sm" | "lg";
+}
+const { slug, size = "sm" } = Astro.props;
+const c = getCategory(slug);
+---
+
+<div class:list={["art", size]} style={`--tint:${c.tint};--tone:${c.ink}`} aria-hidden="true">
+  <span class="blob one"></span>
+  <span class="blob two"></span>
+  <span class="disc"><Icon name={c.icon} size={size === "lg" ? 56 : 36} /></span>
+</div>
+
+<style>
+  .art {
+    position: relative; overflow: hidden; display: grid; place-items: center;
+    aspect-ratio: 16 / 9; border-radius: inherit; background: var(--tint);
+  }
+  .blob { position: absolute; border-radius: 50%; background: var(--tone); opacity: .08; }
+  .one { width: 60%; aspect-ratio: 1; top: -25%; right: -12%; }
+  .two { width: 38%; aspect-ratio: 1; bottom: -18%; left: -8%; opacity: .06; }
+  .disc {
+    position: relative; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 28px;
+    background: rgb(255 255 255 / 75%); color: var(--tone); box-shadow: var(--shadow-soft);
+  }
+  .lg .disc { width: 120px; height: 120px; border-radius: 36px; }
+</style>

@@ -28,7 +28,12 @@ export const SOCIAL = {
   instagram: env.PUBLIC_INSTAGRAM ?? "https://instagram.com/medbrains_official",
   // Shown only once set: a link to a placeholder page is worse than none.
   linkedin: env.PUBLIC_LINKEDIN ?? "",
+  x: env.PUBLIC_X ?? "",
+  youtube: env.PUBLIC_YOUTUBE ?? "",
 };
+
+// The social profiles that exist, for schema.org `sameAs` and link lists.
+export const SAME_AS = Object.values(SOCIAL).filter(Boolean);
 
 // The demo form files a lead in MedBrains' own Marketing → Enquiries, under this
 // hospital code (the server must also list the site in CORS_ORIGIN and have

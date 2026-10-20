@@ -1,0 +1,26 @@
+---
+import type { Post } from "../../lib/blog";
+import PostCard from "./PostCard.astro";
+
+interface Props {
+  posts: Post[];
+  authorNames: Map<string, string>;
+}
+const { posts, authorNames } = Astro.props;
+---
+
+<ul class="grid">
+  {posts.map((p) => (
+    <li><PostCard post={p} authorName={authorNames.get(p.data.author.id) ?? ""} /></li>
+  ))}
+</ul>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin: 0; padding: 0; list-style: none; }
+  .grid > li { display: flex; }
+  .grid > li > :global(*) { flex: 1; }
+  @include below(xl) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @include below(md) { .grid { grid-template-columns: 1fr; } }
+</style>
