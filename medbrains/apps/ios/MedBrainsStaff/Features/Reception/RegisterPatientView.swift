@@ -13,6 +13,9 @@ struct RegisterPatientView: View {
     /// Registering at a camp: the form starts as the camp's, and the patient
     /// is put on the camp's route (a camp number) once registered.
     var camp: CampSummary? = nil
+    /// Registering from a Scan & Share: the form starts from the profile the
+    /// server verified, and the share is marked done once registered.
+    var share: ShareStart? = nil
 
     @Environment(\.apiClient) private var client
     @Environment(AuthStore.self) private var auth
@@ -31,6 +34,11 @@ struct RegisterPatientView: View {
     @State private var registered: PatientSummary?
     @State private var visit: VisitStarted?
     @State private var campNumber: String?
+    /// The ABHA verification this registration rides on, if any.
+    @State private var verifiedAbha: VerifiedAbha?
+    @State private var abhaFlow: AbhaFlowSheet.Mode?
+    @State private var shareTaken = false
+    @State private var shareFailure: String?
 
     private let catalogue = RegistrationCatalogue.shared
     private var stepCount: Int { catalogue.steps.count + 1 }
@@ -55,6 +63,7 @@ struct RegisterPatientView: View {
                     ProgressView(value: Double(stepIndex + 1), total: Double(stepCount)).tint(MedBrainsTheme.interactive)
                     if let registered {
                         RegisteredCard(patient: registered, atCamp: camp != nil, campNumber: campNumber, onNext: nextWalkIn)
+                        if let shareFailure { CarbonNotification(kind: .warning, title: "Scan & Share still waiting", message: shareFailure) }
                         if camp != nil, campNumber == nil, let failure {
                             CarbonNotification(kind: .error, title: "Not on the camp's route yet", message: "The record is saved. \(failure)")
                             Button("Try again") { Task { await putOnCampRoute(registered) } }
@@ -66,6 +75,8 @@ struct RegisterPatientView: View {
                 }
                 .padding(16)
             }
+            // Scrolling puts the keyboard away, so the tab bar is never stuck under it.
+            .scrollDismissesKeyboard(.interactively)
             // A new step opens at its top, never where the last one was scrolled to.
             .id(stepIndex)
             // A refused step shows the first field to fix, not wherever the desk was.
@@ -102,6 +113,7 @@ struct RegisterPatientView: View {
     @ViewBuilder
     private var stepContent: some View {
         let visible = draft.visible
+        if stepIndex == 0 { abhaSection }
         if onReview {
             RegistrationReview(draft: draft, lists: lists, visible: visible, onEdit: { stepIndex = $0 })
         } else {
@@ -114,6 +126,44 @@ struct RegisterPatientView: View {
             CarbonNotification(kind: .warning, title: "Duplicate check unavailable", message: "Nobody was compared. Registering now may give this person a second UHID; the record will say the check did not run.")
         }
         if let failure { CarbonNotification(kind: .error, title: "Not registered", message: failure) }
+    }
+
+    /// Verify or create the patient's ABHA first: what ABDM verified fills
+    /// the form where the desk chooses, and the registration carries the
+    /// proof for the server to link. Without `abdm.abha.manage`, absent.
+    @ViewBuilder
+    private var abhaSection: some View {
+        let verified = Abha.verificationToSend(verifiedAbha, abhaNumber: draft["abha_number"]) != nil
+        let canManage = auth.identity?.can(AbdmPermission.manageAbha) ?? false
+        if verified || canManage {
+            CarbonTile(tone: verified ? .success : .neutral) {
+                Eyebrow("ABHA")
+                Text(verified ? "Verified · \(draft["abha_number"])" : "Verify the patient's ABHA, or create one with Aadhaar, to fill their details from it.")
+                    .font(CarbonType.bodyCompact).foregroundStyle(MedBrainsTheme.ink).accessibilityIdentifier(verified ? "register-abha-verified" : "register-abha-none")
+                if canManage {
+                    HStack(spacing: 8) {
+                        Button(verified ? "Verify again" : "Verify ABHA") { abhaFlow = .verify }.buttonStyle(.carbonTertiary).accessibilityIdentifier("register-abha-verify")
+                        Button("Create ABHA") { abhaFlow = .create }.buttonStyle(.carbonGhost).accessibilityIdentifier("register-abha-create")
+                    }
+                }
+            }
+            .sheet(item: $abhaFlow) { mode in
+                AbhaFlowSheet(mode: mode, ours: ours, mobile: draft["phone"], confirmLabel: "Use for this registration") { c in
+                    useAbha(c)
+                    return nil
+                }
+            }
+        }
+    }
+
+    private var ours: OurDetails {
+        OurDetails(firstName: draft["first_name"], middleName: draft["middle_name"], lastName: draft["last_name"], dateOfBirth: draft["date_of_birth"], gender: draft["gender"])
+    }
+
+    private func useAbha(_ c: AbhaConfirmation) {
+        for (key, value) in Abha.appliedValues(c.profile, apply: c.apply) { draft[key] = value }
+        verifiedAbha = VerifiedAbha(id: c.verificationId, abhaNumber: c.profile.abhaNumber)
+        UIAccessibility.post(notification: .announcement, argument: "ABHA verified")
     }
 
     private var bottomBar: some View {
@@ -166,6 +216,11 @@ struct RegisterPatientView: View {
     /// The desk's department and consultant, kept between walk-ins — and at
     /// a camp, the camp itself, as the web's camp mode starts.
     private func takeDeskContext() {
+        if let share, !shareTaken, let profile = share.step.profile {
+            for (key, value) in Abha.sharePrefill(profile) { draft[key] = value }
+            verifiedAbha = VerifiedAbha(id: share.step.id, abhaNumber: profile.abhaNumber)
+            shareTaken = true
+        }
         if let camp, draft["camp_id"].isEmpty {
             draft["registration_type"] = "camp"
             draft["registration_source"] = "camp"
@@ -212,8 +267,13 @@ struct RegisterPatientView: View {
         let attributes = (request["attributes"] ?? .object([:])).setting("mobile_registration", to: audit)
         do {
             let api = ReceptionApi(client: client)
-            let patient = try await api.createPatient(request.setting("attributes", to: attributes))
+            var body = request.setting("attributes", to: attributes)
+            if let proof = Abha.verificationToSend(verifiedAbha, abhaNumber: draft["abha_number"]) {
+                body = body.setting("abha_verification_id", to: .string(proof))
+            }
+            let patient = try await api.createPatient(body)
             registered = patient
+            if let share { await complete(share, for: patient) }
             session.departmentId = draft["department_id"].isEmpty ? session.departmentId : draft["department_id"]
             session.consultantId = draft["consultant_id"].isEmpty ? nil : draft["consultant_id"]
             UIAccessibility.post(notification: .announcement, argument: "Registered. UHID \(patient.uhid)")
@@ -261,9 +321,21 @@ struct RegisterPatientView: View {
         }
     }
 
+    /// The share is dealt with; a failure leaves the record registered and says so.
+    private func complete(_ share: ShareStart, for patient: PatientSummary) async {
+        guard let client else { return }
+        do {
+            _ = try await ScanShareApi(client: client).complete(share.shareId, patientId: patient.id)
+        } catch {
+            shareFailure = "The patient is registered, but their Scan & Share entry still shows as waiting. Open the queue and choose Open patient."
+        }
+    }
+
     /// The person is cleared; the desk stays.
     private func nextWalkIn() {
         registered = nil
+        verifiedAbha = nil
+        shareFailure = nil
         campNumber = nil
         checkUnavailable = false
         shown = []

@@ -21,6 +21,7 @@ data class PatientSummary(
     val last_visit_date: String? = null,
     val total_visits: Int? = null,
     val outstanding_balance: String? = null,
+    val middle_name: String? = null,
 ) {
     val fullName: String get() = "$first_name $last_name"
     /** "UHID · DOB · phone": the line the desk reads back. */
@@ -31,9 +32,11 @@ data class PatientSummary(
 @Serializable
 data class MatchCandidate(val id: String, val uhid: String, val first_name: String, val last_name: String, val date_of_birth: String? = null, val phone: String, val score: Double) {
     fun asSummary() = PatientSummary(id, uhid, first_name, last_name, date_of_birth, phone, "unknown")
+    fun asMatch() = com.medbrains.kit.PatientMatch(id, uhid, first_name, last_name, date_of_birth, phone, score)
 }
 
-@Serializable data class MatchQuery(val first_name: String, val last_name: String, val date_of_birth: String?, val phone: String)
+/** `phone` is absent when none is known (a share may carry none). */
+@Serializable data class MatchQuery(val first_name: String, val last_name: String, val date_of_birth: String?, val phone: String?)
 
 
 
@@ -98,6 +101,14 @@ class ReceptionApi(private val client: ApiClient) {
     /// and answers with identity only.
     suspend fun searchPatients(text: String): List<PatientSummary> =
         client.get<List<PatientSummary>>("/api/patients/find?q=${URLEncoder.encode(text, "UTF-8")}")
+    /**
+     * One record, by its UHID through the desk's hospital-wide lookup when the
+     * UHID is known: `/api/patients/{id}` answers only for patients this user
+     * has a relationship with, so a receptionist opening a share for someone
+     * a colleague registered got a 404 for a real record.
+     */
+    suspend fun patient(id: String, uhid: String?): PatientSummary =
+        uhid?.let { u -> searchPatients(u).firstOrNull { it.id == id } } ?: client.get("/api/patients/$id")
     suspend fun departments(): List<DepartmentRow> = client.get("/api/setup/departments")
     suspend fun doctors(): List<DoctorRow> = client.get("/api/setup/doctors")
     suspend fun camps(): List<CampSummary> = client.get("/api/camp/camps")

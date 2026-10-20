@@ -37,6 +37,15 @@ import com.medbrains.ui.CarbonTile
 import com.medbrains.ui.CarbonTone
 import com.medbrains.ui.Eyebrow
 import com.medbrains.ui.RemoteContent
+import com.medbrains.kit.AbhaApi
+import com.medbrains.kit.ApiError
+import com.medbrains.kit.LocalApiClient
+import com.medbrains.kit.OurDetails
+import com.medbrains.staff.abdm.AbhaFlowMode
+import com.medbrains.staff.abdm.AbhaFlowSheet
+import com.medbrains.staff.abdm.canLinkAbha
+import com.medbrains.ui.CarbonNotification
+import com.medbrains.ui.NotificationKind
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +89,9 @@ fun FindPatientScreen(nav: NavHostController, api: ReceptionApi, session: Recept
 @Composable
 fun ReceptionPatientScreen(nav: NavHostController, patient: PatientSummary) {
     val identity = LocalIdentity.current
+    val client = LocalApiClient.current
+    var abhaFlow by remember { mutableStateOf<AbhaFlowMode?>(null) }
+    var abhaLinked by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("screen-reception-patient")) {
         CarbonPageHeader("Patient", patient.fullName, patient.identifiers)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -96,6 +108,13 @@ fun ReceptionPatientScreen(nav: NavHostController, patient: PatientSummary) {
                 patient.outstanding_balance?.toDoubleOrNull()?.takeIf { it > 0 }?.let { CarbonTag("₹%.2f due".format(it), CarbonTone.Warning) }
             }
             patient.last_visit_date?.let { CarbonRow("Last visit", it) }
+            if (abhaLinked) CarbonNotification(NotificationKind.Success, "ABHA linked", "The ABHA is linked and verified on this record.", Modifier.testTag("patient-abha-linked"))
+            if (identity.canLinkAbha) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CarbonTertiaryButton("Verify and link ABHA", onClick = { abhaFlow = AbhaFlowMode.VERIFY }, modifier = Modifier.weight(1f).testTag("patient-abha-verify"))
+                    CarbonTertiaryButton("Create ABHA", onClick = { abhaFlow = AbhaFlowMode.CREATE }, modifier = Modifier.weight(1f).testTag("patient-abha-create"))
+                }
+            }
             if (identity?.can("opd.visit.create") == true) {
                 CarbonPrimaryButton("Start OPD visit", modifier = Modifier.testTag("patient-start-visit"), onClick = { nav.navigate("start-visit/${patient.id}") })
             }
@@ -105,6 +124,16 @@ fun ReceptionPatientScreen(nav: NavHostController, patient: PatientSummary) {
             if (identity?.can("opd.visit.create") != true) {
                 Text("This account cannot start a visit.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+    // Linked now, server-side, through the verified path — never by writing the number onto the record from the phone.
+    abhaFlow?.let { mode ->
+        AbhaFlowSheet(mode, OurDetails(patient.first_name, patient.middle_name, patient.last_name, patient.date_of_birth, patient.gender), "Link to this patient", onDismiss = { abhaFlow = null }, mobile = patient.phone) { c ->
+            try {
+                AbhaApi(client).link(c.verificationId, patient.id, c.apply)
+                abhaLinked = true
+                null
+            } catch (e: ApiError) { e.message ?: "ABDM said no" } catch (e: Exception) { "Could not reach the hospital server. Nothing was linked." }
         }
     }
 }

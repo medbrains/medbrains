@@ -17,7 +17,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Opens a document another hospital sent (cache/abdm-documents) in the viewer the person chooses. -->
+        <!-- Shares the ABHA card or QR (cache/abha) and opens a document another hospital sent (cache/abdm-documents). -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"
