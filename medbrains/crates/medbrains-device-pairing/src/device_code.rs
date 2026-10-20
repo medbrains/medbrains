@@ -246,8 +246,9 @@ pub async fn poll_device_token(
     let paired_id: Uuid = sqlx::query_scalar(
         "INSERT INTO paired_devices \
            (tenant_id, label, app_variant, cert_fingerprint, cert_pem, issued_to_user_id, \
-            paired_via_token_id, department_id, board_module) \
-         SELECT $1, r.requested_label, $2, $3, $4, $5, NULL, r.department_id, r.board_module \
+            paired_via_token_id, department_id, board_module, station_id) \
+         SELECT $1, r.requested_label, $2, $3, $4, $5, NULL, r.department_id, r.board_module, \
+                r.station_id \
          FROM device_pairing_requests r WHERE r.id = $6 \
          RETURNING id",
     )
@@ -354,6 +355,8 @@ pub struct ApproveRequest {
     pub department_id: Option<Uuid>,
     /// For a waiting-room screen: which board (`opd`, `pharmacy`, …).
     pub board_module: Option<String>,
+    /// For a customer display (`board_module = counter_display`): its counter.
+    pub station_id: Option<Uuid>,
 }
 
 const BOARD_MODULES: [&str; 6] = [
@@ -364,6 +367,33 @@ const BOARD_MODULES: [&str; 6] = [
     "pharmacy",
     "billing",
 ];
+
+/// A customer display: bound to one billing or pharmacy counter, not a
+/// department (#4883).
+pub const COUNTER_DISPLAY: &str = "counter_display";
+
+/// The counter a customer display is approved for: an active billing or
+/// pharmacy counter of this hospital. Returns the counter's department, which
+/// the device row carries like a board's.
+async fn counter_of(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    station_id: Option<Uuid>,
+) -> Result<(Uuid, Option<Uuid>), AppError> {
+    let refuse = || AppError::BadRequest("Choose the counter this display shows".to_owned());
+    let station_id = station_id.ok_or_else(refuse)?;
+    let row: Option<(Option<Uuid>,)> = sqlx::query_as(
+        "SELECT department_id FROM stations \
+          WHERE id = $1 AND tenant_id = $2 AND is_active AND deleted_at IS NULL \
+            AND station_type IN ('billing_counter', 'pharmacy_counter')",
+    )
+    .bind(station_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let (department_id,) = row.ok_or_else(refuse)?;
+    Ok((station_id, department_id))
+}
 
 /// The hospital's display account: a service account, so it cannot sign in
 /// and holds no grants. What a screen may do comes from its pairing (the auth
@@ -428,7 +458,14 @@ pub async fn approve_pairing_request(
     } else {
         body.approved_for_user_id.unwrap_or(claims.sub)
     };
-    if display && !body.deny {
+    let is_counter = display && !body.deny && body.board_module.as_deref() == Some(COUNTER_DISPLAY);
+    let (station_id, department_id) = if is_counter {
+        let (station, department) = counter_of(&mut tx, claims.tenant_id, body.station_id).await?;
+        (Some(station), department)
+    } else {
+        (None, body.department_id)
+    };
+    if display && !body.deny && !is_counter {
         let module_ok = body
             .board_module
             .as_deref()
@@ -473,7 +510,7 @@ pub async fn approve_pairing_request(
         "UPDATE device_pairing_requests SET \
            status = $1, tenant_id = $2, approved_by_user_id = $3, \
            approved_for_user_id = $4, approved_at = now(), department_id = $6, \
-           board_module = $7 \
+           board_module = $7, station_id = $8 \
          WHERE user_code = $5 AND status = 'pending' AND expires_at > now() \
          RETURNING id, user_code, app_variant, requested_label, expires_at, created_at",
     )
@@ -482,12 +519,13 @@ pub async fn approve_pairing_request(
     .bind(claims.sub)
     .bind(if body.deny { None } else { Some(approved_for) })
     .bind(&normalized)
-    .bind(if display { body.department_id } else { None })
+    .bind(if display { department_id } else { None })
     .bind(if display {
         body.board_module.as_deref()
     } else {
         None
     })
+    .bind(station_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

@@ -101,6 +101,7 @@ export * from "./collect";
 export * from "./command-center";
 export * from "./common";
 export * from "./communication-hub";
+export * from "./counter-display";
 export type {
   DashboardMobileIntent,
   DashboardMobileRoute,

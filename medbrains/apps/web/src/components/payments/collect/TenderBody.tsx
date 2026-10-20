@@ -21,6 +21,7 @@ import { CardTerminalPanel } from "../CardTerminalPanel";
 import { approvedRupees } from "../cardSale";
 import { CashTender } from "./CashTender";
 import { rupees, type TenderPart } from "./collect-math";
+import { useDisplayFeed } from "./customer-display";
 import { DepositTender } from "./DepositTender";
 import { LINK_PENDING, type TenderTile } from "./tender-tiles";
 
@@ -74,7 +75,10 @@ function UpiTender(props: TenderBodyProps) {
         description: props.patientName ? `Payment for ${props.patientName}` : "Hospital payment",
         live: true,
       }),
-    onSuccess: setQr,
+    onSuccess: (made) => {
+      setQr(made);
+      useDisplayFeed.getState().showUpiQr(made, amount);
+    },
   });
   return (
     <Stack gap="sm">

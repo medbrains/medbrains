@@ -53,10 +53,22 @@ export function unspeakable(
   });
 }
 
-/** Speak a call in each language, `repeat` times over. */
-export function announceCall(
-  tokenNumber: string,
-  where: string | undefined,
+/** "Payment of rupees 600 received, thank you" — paise are not read out. */
+export function paidPhrase(language: VoiceLanguage, rupees: number): string {
+  const amount = Math.round(rupees).toString();
+  switch (language) {
+    case "hi":
+      return `${amount} रुपये का भुगतान प्राप्त हुआ, धन्यवाद।`;
+    case "ta":
+      return `${amount} ரூபாய் பணம் பெறப்பட்டது, நன்றி.`;
+    default:
+      return `Payment of rupees ${amount} received, thank you.`;
+  }
+}
+
+/** Speak one sentence in each language this screen can, `repeat` times over. */
+function speakIn(
+  phrase: (language: VoiceLanguage) => string,
   { languages, repeat }: { languages: VoiceLanguage[]; repeat: number },
 ): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -66,10 +78,24 @@ export function announceCall(
   for (let round = 0; round < repeat; round += 1) {
     for (const language of languages) {
       if (skip.has(language)) continue;
-      const utter = new SpeechSynthesisUtterance(callPhrase(language, tokenNumber, where));
+      const utter = new SpeechSynthesisUtterance(phrase(language));
       utter.lang = VOICE_LANGUAGES.find((l) => l.value === language)?.speechLang ?? "en-IN";
       utter.rate = 0.9;
       synth.speak(utter);
     }
   }
+}
+
+/** Speak a call in each language, `repeat` times over. */
+export function announceCall(
+  tokenNumber: string,
+  where: string | undefined,
+  voice: { languages: VoiceLanguage[]; repeat: number },
+): void {
+  speakIn((language) => callPhrase(language, tokenNumber, where), voice);
+}
+
+/** Say a counter payment was received, once in each language. */
+export function announcePaid(rupees: number, languages: VoiceLanguage[]): void {
+  speakIn((language) => paidPhrase(language, rupees), { languages, repeat: 1 });
 }

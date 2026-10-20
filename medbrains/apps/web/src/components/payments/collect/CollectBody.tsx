@@ -24,11 +24,13 @@ import { billingService } from "@/services/billing.service";
 import { paymentsService } from "@/services/payments.service";
 import { CollectDone, useReceiptPrinter } from "./CollectDone";
 import { CollectScope } from "./CollectScope";
+import { CustomerDisplayBar } from "./CustomerDisplayBar";
 import {
   billsDue,
   buildCollectRequest,
   type CollectScopeChoice,
-  changeDue,
+  cashChange,
+  currentPart,
   focusBills,
   outcomeOf,
   remainingAfter,
@@ -38,6 +40,7 @@ import {
   toPaise,
 } from "./collect-math";
 import type { CollectTarget } from "./collect-store";
+import { displayLines, useDisplayFeed, useMirrorToDisplay } from "./customer-display";
 import { TenderBody } from "./TenderBody";
 import {
   CHECKOUT_PROVIDERS,
@@ -69,32 +72,6 @@ function counterLabel(): string | undefined {
     return localStorage.getItem("billing.counter")?.trim() || undefined;
   } catch {
     return undefined;
-  }
-}
-
-/** The way being typed in now, as a part — or nothing yet. */
-function currentPart(
-  tile: TenderTile | null,
-  amount: number,
-  tendered: number | string,
-  reference: string,
-  isSale: boolean,
-): TenderPart | null {
-  if (amount <= 0) return null;
-  const ref = reference.trim();
-  const base = { id: "current", amount };
-  switch (tile) {
-    case "cash":
-      return { ...base, mode: "cash", tendered: Number(tendered) || amount, label: "Cash" };
-    case "card":
-      return ref ? { ...base, mode: "card", reference: ref, label: "Card (slip)" } : null;
-    case "upi":
-      return ref ? { ...base, mode: "upi", reference: ref, label: "UPI" } : null;
-    case "credit":
-      // A counter sale on the patient's account; a bill's credit is settled on the bill.
-      return isSale ? { ...base, mode: "credit", label: "On account" } : null;
-    default:
-      return null;
   }
 }
 
@@ -167,9 +144,27 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
   const over = !sale && toPaise(total) > toPaise(due);
   const blocked = bills.some((b) => !b.can_collect);
   const cashOk = tiles.some((t) => t.tile === "cash");
+  useMirrorToDisplay({
+    stationId,
+    attempt: key,
+    patientName: context?.full_name,
+    lines: sale
+      ? [{ label: target.focusLabel ?? "Counter sale", amount_paise: toPaise(due) }]
+      : displayLines(bills),
+    totalDue: due,
+    tender: tile,
+    amount,
+  });
+  const showPaid = (total: number) =>
+    useDisplayFeed.getState().send({
+      type: "paid",
+      amount_paise: toPaise(total),
+      change_paise: toPaise(cashChange(toSend)),
+    });
 
   const finish = (done: CollectResult) => {
     setResult(done);
+    showPaid(Number(done.total_amount));
     if (tile) rememberTile(stationId, tile);
     invalidate(target.patientId);
     for (const p of done.payments) {
@@ -223,6 +218,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
       ),
     onSuccess: () => {
       if (tile) rememberTile(stationId, tile);
+      showPaid(total);
       onClose();
     },
     onError: (e: Error) => setSaleError(e.message),
@@ -240,6 +236,10 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
     setReference("");
   };
   const onApproved = (part: TenderPart) => {
+    if (part.mode === "card")
+      useDisplayFeed
+        .getState()
+        .send({ type: "card_status", status: "approved", amount_paise: toPaise(part.amount) });
     const next = [...parts, part];
     setParts(next);
     resetEntry();
@@ -268,9 +268,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
       <CollectDone
         result={result}
         outcome={outcomeOf(due, Number(result.total_amount))}
-        change={toSend
-          .filter((p) => p.mode === "cash")
-          .reduce((s, p) => s + changeDue(p.amount, p.tendered ?? p.amount), 0)}
+        change={cashChange(toSend)}
         printer={printer}
         onNext={() => {
           setSnapshot(dues);
@@ -294,6 +292,7 @@ export function CollectBody({ target, dues, onClose }: BodyProps) {
       }}
     >
       <Stack gap="md">
+        <CustomerDisplayBar stationId={stationId} />
         {provider && canUseGateway && (
           <Group gap="xs">
             <Badge tone="neutral">{provider.label}</Badge>
