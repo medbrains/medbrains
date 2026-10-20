@@ -97,6 +97,7 @@ export * from "./chronic-care";
 export * from "./clinical-identity-forms";
 export * from "./clinical-knowledge-base";
 export * from "./clinical-notes";
+export * from "./collect";
 export * from "./command-center";
 export * from "./common";
 export * from "./communication-hub";

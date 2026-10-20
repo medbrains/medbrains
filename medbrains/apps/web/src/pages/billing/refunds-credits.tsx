@@ -56,6 +56,9 @@ export function RefundsCreditsTab({
 }) {
   const queryClient = useQueryClient();
   const canApproveWriteOff = useHasPermission(P.BILLING.WRITE_OFF_APPROVE);
+  // Refunding is its own grant — the same code the server requires (#4885);
+  // raising an invoice never implied giving money back.
+  const canRefund = useHasPermission(P.BILLING.REFUNDS_CREATE);
   const [showRefund, setShowRefund] = useState(false);
   const [showCredit, setShowCredit] = useState(false);
   const [showWriteOff, setShowWriteOff] = useState(false);
@@ -372,7 +375,7 @@ export function RefundsCreditsTab({
         <ApplyCreditNoteModal note={applyingNote} onClose={() => setApplyingNote(null)} />
       )}
       <Text fw={600}>Refunds</Text>
-      {canCreate && (
+      {canRefund && (
         <>
           <Button
             tone="primary"

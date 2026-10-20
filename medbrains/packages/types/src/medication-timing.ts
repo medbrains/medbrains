@@ -831,7 +831,10 @@ export type ChargeSource =
   | "emergency"
   | "diet"
   | "cssd"
-  | "ambulance";
+  | "ambulance"
+  | "consumable"
+  | "dental"
+  | "registration";
 export type PaymentMode =
   | "cash"
   | "card"
@@ -907,6 +910,10 @@ export interface Payment {
   notes: string | null;
   paid_at: string;
   created_at: string;
+  /** The collection (one patient payment act) it was taken in. */
+  collection_id?: string | null;
+  station_id?: string | null;
+  shift_id?: string | null;
 }
 
 export interface ChargeMaster {
@@ -1181,6 +1188,9 @@ export interface Receipt {
   receipt_date: string;
   printed_at: string | null;
   created_at: string;
+  /** Set on a collection's receipt: it covers every payment the collection made for its entity. */
+  collection_id?: string | null;
+  legal_entity_id?: string | null;
 }
 
 // -- Insurance Claims --

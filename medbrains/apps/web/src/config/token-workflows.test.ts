@@ -53,3 +53,15 @@ describe("the shape of every workflow", () => {
     expect(resolveTokenActions("opd", "no_show")).toHaveLength(0);
   });
 });
+
+describe("the billing counter token", () => {
+  it("never says Paid, because moving a token records no money", () => {
+    // #4885: "completed" was labelled Paid while nothing was posted to the
+    // bill — a patient could walk away owing with the board saying paid.
+    const labels = Object.values(TOKEN_WORKFLOWS.billing.statusLabels);
+    const actions = TOKEN_WORKFLOWS.billing.actions.map((a) => a.label);
+    for (const text of [...labels, ...actions]) {
+      expect(text).not.toMatch(/paid|collect/i);
+    }
+  });
+});

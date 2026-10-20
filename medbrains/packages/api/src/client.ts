@@ -179,6 +179,11 @@ import type {
   BereavementFollowup,
   // Billing Concessions
   BillingConcession,
+  BillingEntity,
+  BillingEntityInput,
+  BillingLane,
+  BillingLaneInput,
+  BillingLaneName,
   BillingPackage,
   BillingQueueDisplay,
   BillingServicePackage,
@@ -333,6 +338,8 @@ import type {
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
+  CollectRequest,
+  CollectResult,
   CollectSampleRequest,
   CommClinicalMessageRow,
   CommComplaintRow,
@@ -1570,6 +1577,7 @@ import type {
   PatientDiagnosisRow,
   PatientDocument,
   PatientDpdpConsent,
+  PatientDues,
   PatientFamilyLink,
   PatientFeedback,
   // Command Center
@@ -5231,6 +5239,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  // -- Collect anywhere (#4885) --
+  getPatientDues: (patientId: string, lane?: BillingLaneName) =>
+    request<PatientDues>(
+      `/billing/patients/${patientId}/dues${lane ? `?lane=${encodeURIComponent(lane)}` : ""}`,
+    ),
+  collectPayment: (data: CollectRequest) =>
+    request<CollectResult>("/billing/collect", { method: "POST", body: JSON.stringify(data) }),
+  listBillingEntities: () => request<BillingEntity[]>("/billing/entities"),
+  createBillingEntity: (data: BillingEntityInput) =>
+    request<BillingEntity>("/billing/entities", { method: "POST", body: JSON.stringify(data) }),
+  updateBillingEntity: (id: string, data: BillingEntityInput) =>
+    request<BillingEntity>(`/billing/entities/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listBillingLanes: () => request<BillingLane[]>("/billing/lanes"),
+  updateBillingLane: (lane: BillingLaneName, data: BillingLaneInput) =>
+    request<BillingLane>(`/billing/lanes/${lane}`, { method: "PUT", body: JSON.stringify(data) }),
   listPayments: (invoiceId: string) =>
     checkedRequest<Payment[]>(paymentListResponseSchema, `/billing/invoices/${invoiceId}/payments`),
   listChargeMaster: (params?: Record<string, string>) => {

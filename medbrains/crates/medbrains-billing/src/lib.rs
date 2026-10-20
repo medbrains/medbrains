@@ -41,6 +41,9 @@ pub use credit::*;
 
 // Day-end cash closing — the one place billing's source of truth is a drawer.
 mod cash_closing;
+// Collect anywhere (#4885): dues by department, one collect endpoint, and the
+// billing entities and lanes behind them.
+pub mod collect;
 pub mod final_bill;
 
 // Who pays each bill line: insurer, scheme or corporate, or the patient.
@@ -423,6 +426,7 @@ const BILLING_RECEIPT_CONTEXT_PERMISSIONS: &[&str] = &[
 const BILLING_REFUND_LIST_PERMISSIONS: &[&str] = &[
     permissions::billing::invoices::LIST,
     permissions::billing::payments::VOID,
+    permissions::billing::refunds::CREATE,
 ];
 
 fn claims_have_any_billing_permission(claims: &Claims, permissions: &[&str]) -> bool {
@@ -1001,28 +1005,7 @@ pub async fn update_invoice(
     .await?;
 
     if let Some(ref i) = inv {
-        let mut event = ClinicalEventEnvelope::new(
-            claims.tenant_id,
-            ClinicalEventName::BillingInvoiceFinalized,
-            i.id,
-            claims.sub,
-            serde_json::json!({
-                "invoice_id": i.id,
-                "patient_id": i.patient_id,
-                "encounter_id": i.encounter_id,
-                "admission_id": i.admission_id,
-                "invoice_number": &i.invoice_number,
-                "status": format!("{:?}", i.status),
-            }),
-        )
-        .with_patient(i.patient_id);
-        if let Some(encounter_id) = i.encounter_id {
-            event = event.with_encounter(encounter_id);
-        }
-        if let Some(admission_id) = i.admission_id {
-            event = event.with_admission(admission_id);
-        }
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        queue_invoice_finalized(&mut tx, &claims, i).await?;
     }
 
     tx.commit().await?;
@@ -1274,6 +1257,40 @@ async fn enforce_preauth_limit(
     )))
 }
 
+/// Queue the invoice-finalized clinical event inside the issuing transaction.
+async fn queue_invoice_finalized(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    i: &Invoice,
+) -> Result<(), AppError> {
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BillingInvoiceFinalized,
+        i.id,
+        claims.sub,
+        serde_json::json!({
+            "invoice_id": i.id,
+            "patient_id": i.patient_id,
+            "encounter_id": i.encounter_id,
+            "admission_id": i.admission_id,
+            "invoice_number": &i.invoice_number,
+            "status": format!("{:?}", i.status),
+        }),
+    )
+    .with_patient(i.patient_id);
+    if let Some(encounter_id) = i.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = i.admission_id {
+        event = event.with_admission(admission_id);
+    }
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
+    // Doctors paid on the billed basis earn their share now, on every path
+    // that issues a bill (the issue button and collect alike).
+    medbrains_doctor_payouts::accrual::sync_after_money(tx, claims.tenant_id, i.id).await?;
+    Ok(())
+}
+
 pub async fn issue_invoice(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1316,30 +1333,7 @@ pub async fn issue_invoice(
     .await?;
 
     if let Some(ref i) = inv {
-        let mut event = ClinicalEventEnvelope::new(
-            claims.tenant_id,
-            ClinicalEventName::BillingInvoiceFinalized,
-            i.id,
-            claims.sub,
-            serde_json::json!({
-                "invoice_id": i.id,
-                "patient_id": i.patient_id,
-                "encounter_id": i.encounter_id,
-                "admission_id": i.admission_id,
-                "invoice_number": &i.invoice_number,
-                "status": format!("{:?}", i.status),
-            }),
-        )
-        .with_patient(i.patient_id);
-        if let Some(encounter_id) = i.encounter_id {
-            event = event.with_encounter(encounter_id);
-        }
-        if let Some(admission_id) = i.admission_id {
-            event = event.with_admission(admission_id);
-        }
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
-        // Doctors paid on the billed basis earn their share now.
-        medbrains_doctor_payouts::accrual::sync_after_money(&mut tx, claims.tenant_id, i.id).await?;
+        queue_invoice_finalized(&mut tx, &claims, i).await?;
     }
 
     tx.commit().await?;
@@ -1551,6 +1545,9 @@ pub async fn record_payment(
                 .map(str::trim)
                 .filter(|s| !s.is_empty()),
             shift: body.shift.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+            collection_id: None,
+            station_id: None,
+            shift_id: None,
         },
     )
     .await?;
@@ -1793,6 +1790,15 @@ pub async fn generate_receipt(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // A leg of a collection is covered by the collection's receipt for its
+    // entity (#4885): printing it never mints a second receipt.
+    if let Some(covering) =
+        collect::receipts::covering(&mut tx, claims.tenant_id, payment.id).await?
+    {
+        tx.commit().await?;
+        return Ok(Json(covering));
+    }
 
     if let Some(existing) = sqlx::query_as::<_, Receipt>(
         "SELECT * FROM receipts \
@@ -3504,6 +3510,25 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/invoices/{id}/payments",
             get(list_payments).post(record_payment),
+        )
+        .route(
+            "/api/billing/patients/{id}/dues",
+            get(collect::dues::patient_dues),
+        )
+        .route("/api/billing/collect", post(collect::post::collect))
+        .route(
+            "/api/billing/entities",
+            get(collect::settings::list_entities)
+                .post(collect::settings::create_entity),
+        )
+        .route(
+            "/api/billing/entities/{id}",
+            put(collect::settings::update_entity),
+        )
+        .route("/api/billing/lanes", get(collect::settings::list_lanes))
+        .route(
+            "/api/billing/lanes/{lane}",
+            put(collect::settings::update_lane),
         )
         .route(
             "/api/billing/charge-master",

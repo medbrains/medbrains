@@ -44,6 +44,7 @@ use medbrains_server_core::middleware::authorization::{
 };
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
+use medbrains_server_services::billing_lanes::{self, FeeMoment};
 
 const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
     permissions::opd::queue::VIEW,
@@ -924,6 +925,7 @@ pub async fn create_encounter(
     .bind(today)
     .fetch_one(&mut *tx)
     .await?;
+    charge_visit_fees(&mut tx, &claims, &queue, FeeMoment::CheckIn).await?;
 
     if let Some(appointment_id) = body.appointment_id {
         sqlx::query(
@@ -1430,58 +1432,82 @@ async fn charge_consultation(
     claims: &Claims,
     q: &OpdQueue,
 ) -> Result<(), AppError> {
-    if q.kind != "returned"
-        && medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "opd")
-            .await?
-    {
-        let enc_patient = sqlx::query_scalar::<_, Uuid>(
-            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    charge_visit_fees(tx, claims, q, FeeMoment::Complete).await
+}
+
+/// Charge the registration fee and the consultation a queue row stands for,
+/// as far as the hospital charges them at `moment` (#4885: at check-in, or
+/// when the consultation completes — the hospital's choice on its lanes).
+async fn charge_visit_fees(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    q: &OpdQueue,
+    moment: FeeMoment,
+) -> Result<(), AppError> {
+    let Some(patient_id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(q.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    else {
+        return Ok(());
+    };
+    billing_lanes::charge_registration_fee(
+        tx,
+        claims.tenant_id,
+        patient_id,
+        Some(q.encounter_id),
+        moment,
+    )
+    .await?;
+    if q.kind == "returned"
+        || !billing_lanes::consult_due_at(tx, claims.tenant_id, moment).await?
+        || !medbrains_server_services::billing::is_auto_billing_enabled(
+            tx,
+            &claims.tenant_id,
+            "opd",
         )
-        .bind(q.encounter_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&mut **tx)
-        .await?;
-
-        if let Some(patient_id) = enc_patient {
-            let dept_code = sqlx::query_scalar::<_, String>(
-                "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(q.department_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-
-            let charge_code =
-                dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
-            // Free inside the revisit window; else the doctor's own fee; else
-            // the charge master's department rate (#296).
-            let priced = consult_pricing::consult_price(
-                tx,
-                claims.tenant_id,
-                patient_id,
-                q.doctor_id,
-                q.department_id,
-            )
-            .await?;
-
-            let _ = medbrains_server_services::billing::auto_charge(
-                tx,
-                &claims.tenant_id,
-                medbrains_server_services::billing::AutoChargeInput {
-                    patient_id,
-                    encounter_id: Some(q.encounter_id),
-                    charge_code,
-                    source: "opd".to_owned(),
-                    source_id: q.id,
-                    quantity: 1,
-                    description_override: Some(priced.description),
-                    unit_price_override: priced.price,
-                    tax_percent_override: None,
-                },
-            )
-            .await;
-        }
+        .await?
+    {
+        return Ok(());
     }
+    let dept_code = sqlx::query_scalar::<_, String>(
+        "SELECT code FROM departments WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(q.department_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let charge_code =
+        dept_code.map_or_else(|| "OPD-CONSULT".to_owned(), |c| format!("OPD-CONSULT-{c}"));
+    // Free inside the revisit window; else the doctor's own fee; else
+    // the charge master's department rate (#296).
+    let priced = consult_pricing::consult_price(
+        tx,
+        claims.tenant_id,
+        patient_id,
+        q.doctor_id,
+        q.department_id,
+    )
+    .await?;
+    let _ = medbrains_server_services::billing::auto_charge(
+        tx,
+        &claims.tenant_id,
+        medbrains_server_services::billing::AutoChargeInput {
+            patient_id,
+            encounter_id: Some(q.encounter_id),
+            charge_code,
+            source: "opd".to_owned(),
+            source_id: q.id,
+            quantity: 1,
+            description_override: Some(priced.description),
+            unit_price_override: priced.price,
+            tax_percent_override: None,
+        },
+    )
+    .await;
     Ok(())
 }
 

@@ -1,6 +1,12 @@
 import { ActionIcon, Box, Button, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import type { Payment, PaymentMode, PosSaleView } from "@medbrains/types";
+import type {
+  CollectionReceipt,
+  CollectRequest,
+  CollectResult,
+  PaymentMode,
+  PosSaleView,
+} from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { type KeyboardEvent, useMemo, useState } from "react";
@@ -18,7 +24,7 @@ const QUICK_MODES: { mode: PaymentMode; label: string }[] = [
 
 const NON_CASH_NEEDS_REF: PaymentMode[] = ["upi", "card", "cheque", "bank_transfer"];
 
-interface PaymentLine {
+export interface PaymentLine {
   key: string;
   mode: PaymentMode;
   amount: number | string;
@@ -26,19 +32,23 @@ interface PaymentLine {
   tendered: number | string;
   /** Taken on the card machine — already on the bill; the line is closed. */
   paidOnMachine: string | null;
+  /** The machine's approved payment, which the collection takes over. */
+  machineTxnId: string | null;
 }
 
 interface PaymentCollectPanelProps {
+  patientId: string;
   invoiceId: string;
   /** Outstanding balance; the panel will not let the total exceed it. */
   balance: number;
-  /** Called after all lines record successfully, with the new payments. */
-  onRecorded: (payments: Payment[]) => void;
+  /** Called once the collection is recorded — every line, in one request. */
+  onRecorded: (result: CollectResult) => void;
   /** Optional: print after a successful record (Enter = save + print). */
-  onPrint?: (payments: Payment[]) => void;
-  /** Cash counter / shift to tag payments with, for day-close tally. */
+  onPrint?: (receipts: CollectionReceipt[]) => void;
+  /** The counter (station) the money is taken at. */
+  stationId?: string | null;
+  /** The counter's free-text label, which day close tallies by. */
   counterId?: string;
-  shift?: string;
   autoFocus?: boolean;
 }
 
@@ -52,7 +62,7 @@ function money(value: number): string {
 }
 
 let lineSeq = 0;
-function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
+export function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
   lineSeq += 1;
   return {
     key: `line-${lineSeq}`,
@@ -61,6 +71,44 @@ function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
     reference: "",
     tendered: amount,
     paidOnMachine: null,
+    machineTxnId: null,
+  };
+}
+
+/** A fresh idempotency key: one per collection attempt, kept across retries. */
+function newAttemptKey(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Every line as one collection: the hand-taken lines are posted, the card
+ * machine's are taken over (already on the bill). One request, so a failure
+ * posts nothing and a retry with the same key posts nothing twice.
+ */
+export function buildCollectRequest(
+  bill: { patientId: string; invoiceId: string; stationId?: string | null; counterId?: string },
+  lines: PaymentLine[],
+  attemptKey: string,
+): CollectRequest {
+  const tenders = lines
+    .filter((line) => line.machineTxnId || num(line.amount) > 0)
+    .map((line) =>
+      line.machineTxnId
+        ? { mode: "card", gateway_transaction_id: line.machineTxnId }
+        : {
+            mode: line.mode,
+            amount: num(line.amount),
+            reference: line.reference.trim() || undefined,
+          },
+    );
+  return {
+    patient_id: bill.patientId,
+    scope: "all",
+    invoice_ids: [bill.invoiceId],
+    tenders,
+    station_id: bill.stationId ?? undefined,
+    counter_id: bill.counterId?.trim() || undefined,
+    idempotency_key: attemptKey,
   };
 }
 
@@ -72,15 +120,17 @@ function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
  * posts several payments against the one invoice — a mixed-mode split.
  */
 export function PaymentCollectPanel({
+  patientId,
   invoiceId,
   balance,
   onRecorded,
   onPrint,
+  stationId,
   counterId,
-  shift,
   autoFocus,
 }: PaymentCollectPanelProps) {
   const [lines, setLines] = useState<PaymentLine[]>(() => [makeLine(balance)]);
+  const [attemptKey, setAttemptKey] = useState(newAttemptKey);
   const [printOnSave, setPrintOnSave] = useState(Boolean(onPrint));
 
   const total = useMemo(() => lines.reduce((sum, line) => sum + num(line.amount), 0), [lines]);
@@ -91,7 +141,8 @@ export function PaymentCollectPanel({
   );
   const remaining = balance - total;
   const overpaid = total > balance + 0.001;
-  const canRecord = toRecord > 0 && !overpaid;
+  const hasMachineLine = lines.some((line) => line.machineTxnId);
+  const canRecord = (toRecord > 0 || hasMachineLine) && !overpaid;
 
   const updateLine = (key: string, patch: Partial<PaymentLine>) =>
     setLines((prev) => prev.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -116,43 +167,34 @@ export function PaymentCollectPanel({
             ...line,
             amount: covered,
             paidOnMachine: `${sale.terminal_label} ${sale.reference ?? ""}`,
+            machineTxnId: sale.transaction_id,
           }
         : line,
     );
     const next = rest > 0 ? [...closed, makeLine(rest, "cash")] : closed;
     setLines(next);
+    // The machine took it all: record the collection so it gets its receipt.
     if (next.every((line) => line.paidOnMachine || num(line.amount) <= 0)) {
-      onRecorded([]);
+      recordMutation.mutate(next);
     }
   };
 
   const recordMutation = useMutation({
-    mutationFn: async () => {
-      const recorded: Payment[] = [];
-      for (const line of lines) {
-        const amount = num(line.amount);
-        // A line the card machine took is on the bill already.
-        if (amount <= 0 || line.paidOnMachine) continue;
-        const payment = await billingService.recordPayment(invoiceId, {
-          amount,
-          mode: line.mode,
-          reference_number: line.reference.trim() || undefined,
-          counter_id: counterId?.trim() || undefined,
-          shift: shift?.trim() || undefined,
-        });
-        recorded.push(payment);
-      }
-      return recorded;
-    },
-    onSuccess: (recorded) => {
-      const legs = lines.filter((line) => num(line.amount) > 0 && !line.paidOnMachine).length;
+    mutationFn: (current: PaymentLine[]) =>
+      billingService.collectPayment(
+        buildCollectRequest({ patientId, invoiceId, stationId, counterId }, current, attemptKey),
+      ),
+    onSuccess: (result) => {
       notifications.show({
         title: "Payment recorded",
-        message: `₹${money(toRecord)} across ${legs} ${legs === 1 ? "tender" : "tenders"}`,
+        message: `₹${money(Number(result.total_amount))} across ${result.payments.length} ${
+          result.payments.length === 1 ? "tender" : "tenders"
+        }`,
         color: "success",
       });
-      onRecorded(recorded);
-      if (printOnSave && onPrint) onPrint(recorded);
+      setAttemptKey(newAttemptKey());
+      onRecorded(result);
+      if (printOnSave && onPrint) onPrint(result.receipts);
     },
     onError: (error: Error) => {
       notifications.show({ title: "Payment failed", message: error.message, color: "danger" });
@@ -164,7 +206,7 @@ export function PaymentCollectPanel({
   const onLineKeyDown = (event: KeyboardEvent<HTMLDivElement>, key: string) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (canRecord && !recordMutation.isPending) recordMutation.mutate();
+      if (canRecord && !recordMutation.isPending) recordMutation.mutate(lines);
       return;
     }
     const target = event.target as HTMLElement;
@@ -305,7 +347,7 @@ export function PaymentCollectPanel({
       <Button
         loading={recordMutation.isPending}
         disabled={!canRecord}
-        onClick={() => recordMutation.mutate()}
+        onClick={() => recordMutation.mutate(lines)}
       >
         Record ₹{money(toRecord)}
         {printOnSave && onPrint ? " + print" : ""} · Enter

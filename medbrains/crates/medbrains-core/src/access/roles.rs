@@ -707,6 +707,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::receipts::PRINT,
             permissions::patient_packages::VIEW,
+            // Desk collection (#4885): the front desk takes registration,
+            // OPD, emergency and admission money, not other desks'.
+            permissions::billing::collect::REGISTRATION,
+            permissions::billing::collect::OPD,
+            permissions::billing::collect::EMERGENCY,
+            permissions::billing::collect::IPD,
+            permissions::billing::bill_groups::MANAGE,
             permissions::patient_packages::SUBSCRIBE,
             permissions::admin::doctor_packages::LIST,
             // Front Office
@@ -753,6 +760,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            permissions::billing::collect::LAB,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -815,6 +823,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            permissions::billing::collect::PHARMACY,
             permissions::terminology::snomed::VIEW,
             permissions::pharmacy::deliveries::VIEW,
             permissions::pharmacy::deliveries::ARRANGE,
@@ -942,6 +951,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::billing::payments::CREATE,
             permissions::billing::payments::VOID,
             permissions::billing::payments::RECONCILE,
+            // The central cashier collects every department's dues (#4885).
+            permissions::billing::collect::CROSS,
+            permissions::billing::bill_groups::MANAGE,
+            permissions::billing::refunds::CREATE,
             permissions::billing::terminals::MANAGE,
             permissions::billing::receipts::PRINT,
             permissions::billing::receipts::REPRINT,
@@ -1586,6 +1599,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Radiology Technician",
         description: "Modality acquisition, study upload, technologist worklist",
         permissions: &[
+            permissions::billing::collect::RADIOLOGY,
             permissions::terminology::snomed::VIEW,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
@@ -1697,6 +1711,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            permissions::billing::collect::REGISTRATION,
+            permissions::billing::collect::OPD,
+            permissions::billing::collect::IPD,
             permissions::front_office::passes::VERIFY,
             permissions::patients::privacy_requests::LIST,
             permissions::patients::privacy_requests::CREATE,

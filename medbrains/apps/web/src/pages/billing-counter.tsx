@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader, PatientSearchSelect, PaymentCollectPanel } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { useBillCollectable } from "@/components/payments/useBillCollectable";
 import { Alert, Badge, Button, Card, Input } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
@@ -35,6 +36,7 @@ function CollectPanel({
   onCollected: () => void;
   counterId: string;
 }) {
+  const collectable = useBillCollectable(invoice.patient_id, invoice.id, true);
   return (
     <Card withBorder bg="var(--mb-bg-subtle)">
       <Stack gap="sm">
@@ -46,13 +48,31 @@ function CollectPanel({
             Balance ₹{money(invoiceBalance(invoice))}
           </Text>
         </Group>
-        <PaymentCollectPanel
-          invoiceId={invoice.id}
-          balance={invoiceBalance(invoice)}
-          onRecorded={onCollected}
-          counterId={counterId}
-          autoFocus
-        />
+        {collectable === "checking" && (
+          <Text size="sm" c="dimmed">
+            Checking whether this desk collects this bill…
+          </Text>
+        )}
+        {collectable === "unknown" && (
+          <Alert tone="danger" title="Could not check this bill">
+            Whether your desk may collect it could not be read. Try again before taking money.
+          </Alert>
+        )}
+        {collectable === "no" && (
+          <Alert tone="warning" title="Another desk collects this bill">
+            Your desk collects its own department&apos;s bills.
+          </Alert>
+        )}
+        {collectable === "yes" && (
+          <PaymentCollectPanel
+            patientId={invoice.patient_id}
+            invoiceId={invoice.id}
+            balance={invoiceBalance(invoice)}
+            onRecorded={onCollected}
+            counterId={counterId}
+            autoFocus
+          />
+        )}
       </Stack>
     </Card>
   );
@@ -120,6 +140,7 @@ export function BillingCounterPage() {
 
   const onCollected = (invoiceId: string) => {
     setCollectingId(null);
+    void queryClient.invalidateQueries({ queryKey: ["dues", patientId] });
     void queryClient.invalidateQueries({ queryKey: ["counter-invoices", patientId] });
     void queryClient.invalidateQueries({ queryKey: ["counter-advances", patientId] });
     void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patientId] });

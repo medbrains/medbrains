@@ -282,8 +282,11 @@ pub async fn auto_charge_with_batch(
         });
     }
 
-    // 2. Find or create draft invoice for this encounter
+    // 2. Find or create the draft for this encounter's lane (#4885): a lane
+    // billed on its own gets its own draft, so its desk can collect it.
     let admission_id = admission_id_for_encounter_in_tx(tx, tenant_id, input.encounter_id).await?;
+    let lane =
+        crate::billing_lanes::lane_for_charge(tx, *tenant_id, &input.source, admission_id).await?;
     let draft_invoice = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM invoices \
          WHERE tenant_id = $1 \
@@ -292,11 +295,14 @@ pub async fn auto_charge_with_batch(
              ($2::uuid IS NOT NULL AND encounter_id = $2) \
              OR ($2::uuid IS NULL AND encounter_id IS NULL AND patient_id = $3) \
            ) \
+           AND COALESCE(lane, 'together') = $4 AND legal_entity_id = $5 \
          LIMIT 1",
     )
     .bind(tenant_id)
     .bind(input.encounter_id)
     .bind(input.patient_id)
+    .bind(&lane.lane_key)
+    .bind(lane.entity_id)
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -318,8 +324,10 @@ pub async fn auto_charge_with_batch(
         let id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO invoices \
              (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
-              subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes) \
-             VALUES ($1, $2, $3, $4, $5, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated') \
+              subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, \
+              lane, legal_entity_id) \
+             VALUES ($1, $2, $3, $4, $5, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated', \
+              $6, $7) \
              RETURNING id",
         )
         .bind(tenant_id)
@@ -327,6 +335,8 @@ pub async fn auto_charge_with_batch(
         .bind(input.patient_id)
         .bind(input.encounter_id)
         .bind(admission_id)
+        .bind(&lane.lane_key)
+        .bind(lane.entity_id)
         .fetch_one(&mut **tx)
         .await?;
         (id, true)
