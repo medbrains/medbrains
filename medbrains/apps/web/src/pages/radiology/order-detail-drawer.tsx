@@ -109,7 +109,11 @@ export function OrderDetailDrawer({
     <Drawer opened onClose={onClose} title="Order Detail" position="right" size="lg">
       {order && (
         <Stack>
-          <PatientContextBanner patientId={order.patient_id} hideLoadingState />
+          <PatientContextBanner
+            patientId={order.patient_id}
+            hideLoadingState
+            collectLane="radiology"
+          />
           <Group>
             <Text fw={600}>Status:</Text>
             <Badge tone={colorToBadgeTone(statusColors[order.status])}>{order.status}</Badge>

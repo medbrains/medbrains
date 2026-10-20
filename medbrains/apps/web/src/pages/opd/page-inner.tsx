@@ -39,6 +39,7 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
+import { useCollectAtCheckIn } from "@/components/payments/collect/use-collect-at-checkin";
 import { Alert, Button, IconButton, SegmentedControl, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import type {
@@ -108,6 +109,7 @@ export function OpdPageInner() {
   );
 
   const queryClient = useQueryClient();
+  const collectAtCheckIn = useCollectAtCheckIn();
   // Today, shown. The server already defaults to the tenant's local today when
   // no date is sent, so an empty box and a filled one fetched the same rows --
   // but the box read as "no date filter", and a desk looking at an empty date
@@ -209,6 +211,7 @@ export function OpdPageInner() {
       }),
     onSuccess: (result, appointment) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void collectAtCheckIn(result.encounter.patient_id, result.encounter.id);
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       const protectedName = fieldAccessText(patientNameAccess, appointment.patient_name, "name");

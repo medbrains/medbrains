@@ -10,6 +10,7 @@ import {
   expectBillOnScreen,
   billingDepartment,
   issuedBill,
+  closeCollected,
   openOnlineCollect,
   paymentsCard,
   savedBill,
@@ -97,7 +98,7 @@ test("the cashier refunds part of an online payment; the bill goes from paid to 
   const dialog = await openOnlineCollect(page, invoiceId);
   await dialog.getByTestId("btn-pay-online").click();
   const opened = await checkoutOpened(page);
-  await expect(dialog).toBeHidden();
+  await closeCollected(dialog, "₹1,000.00");
   let saved = await savedBill(hospital.admin, invoiceId);
   expect(saved.status).toBe("paid");
   const payment = saved.payments[0];

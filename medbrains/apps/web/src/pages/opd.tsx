@@ -231,7 +231,9 @@ export function OpdNewVisitPage() {
             </Button>
           }
         />
-        {initialPatientId && <PatientContextBanner patientId={initialPatientId} />}
+        {initialPatientId && (
+          <PatientContextBanner patientId={initialPatientId} collectLane="opd" />
+        )}
         <Card withBorder radius="md" p="md">
           <OpdVisitForm
             key={initialPatientId}

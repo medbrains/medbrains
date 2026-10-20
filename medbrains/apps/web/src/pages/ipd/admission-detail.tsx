@@ -350,7 +350,7 @@ export function AdmissionDetail({
     <Stack className={classes.admissionWorkspace}>
       <Box className={classes.commandBar}>
         <Stack gap="xs">
-          <PatientContextBanner patientId={adm.patient_id} surface="detail" />
+          <PatientContextBanner patientId={adm.patient_id} surface="detail" collectLane="ipd" />
           <PatientFlowNavigator
             patientId={adm.patient_id}
             active="ipd"

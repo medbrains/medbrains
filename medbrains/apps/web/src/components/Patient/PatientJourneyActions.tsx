@@ -43,6 +43,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
+import { useCollect } from "@/components/payments/collect/collect-store";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -262,7 +263,21 @@ export function PatientJourneyActions({
   const visibleActions =
     layout === "inline" && !showUnavailable ? actions.filter((a) => a.enabled) : actions;
 
+  const openCollect = useCollect((st) => st.open);
+
   function handleAction(actionId: ClinicalJourneyActionId) {
+    // Collecting happens here, in the drawer — not on another screen.
+    if (actionId === "billing.collect_payment" && journeyContext.patientId) {
+      const { activeInvoiceId, activeOrderContext, activeEncounterId } = journeyContext;
+      openCollect({
+        patientId: journeyContext.patientId,
+        invoiceIds: activeInvoiceId ? [activeInvoiceId] : undefined,
+        lane: activeOrderContext ?? undefined,
+        encounterId: activeOrderContext === "opd" ? (activeEncounterId ?? undefined) : undefined,
+      });
+      return;
+    }
+
     if (actionId === "patient.edit" && onEdit) {
       onEdit();
       return;

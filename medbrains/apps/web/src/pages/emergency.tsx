@@ -217,7 +217,11 @@ export function EmergencyPage() {
         subtitle={t("subtitle.erVisits,Triage,MlcManagement,MassCasualty")}
       />
       {contextPatientId && canViewPatientRecord && (
-        <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+        <PatientContextBanner
+          patientId={contextPatientId}
+          hideLoadingState
+          collectLane="emergency"
+        />
       )}
       {contextPatientId && !canViewPatientRecord && (
         <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>

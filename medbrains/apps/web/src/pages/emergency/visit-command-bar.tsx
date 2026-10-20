@@ -138,7 +138,11 @@ export function EmergencyVisitCommandBar({
         <Group justify="space-between" align="flex-start">
           <Stack gap="xs">
             {canViewPatientRecord ? (
-              <PatientContextBanner patientId={visit.patient_id} hideLoadingState />
+              <PatientContextBanner
+                patientId={visit.patient_id}
+                hideLoadingState
+                collectLane="emergency"
+              />
             ) : (
               <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
                 {t("patient.restrictedIdentity")}
