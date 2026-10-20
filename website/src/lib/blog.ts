@@ -57,6 +57,8 @@ export function organization(site: URL | undefined) {
     name: SITE.brand,
     url: home,
     logo: { "@type": "ImageObject", url: absolute("/apple-touch-icon.png", site), width: 180, height: 180 },
+    email: SITE.email,
+    contactPoint: { "@type": "ContactPoint", contactType: "customer support", email: SITE.email, areaServed: "IN", availableLanguage: ["en"] },
     ...(SAME_AS.length ? { sameAs: SAME_AS } : {}),
   };
 }
