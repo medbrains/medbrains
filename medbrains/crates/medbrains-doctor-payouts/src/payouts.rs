@@ -272,7 +272,7 @@ async fn send_all(
                 .await?;
             }
             Sent::Processing { provider_ref } => {
-                set(&mut tx, q.payout, "processing", Some(&provider_ref), None).await?
+                set(&mut tx, q.payout, "processing", Some(&provider_ref), None).await?;
             }
             Sent::Refused(why) => set(&mut tx, q.payout, "failed", None, Some(&why)).await?,
             Sent::Unreachable(why) => {
