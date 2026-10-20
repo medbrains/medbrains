@@ -19,6 +19,14 @@ export interface SavedBill {
   payments: Array<{ id: string; amount: number; mode: string; reference: string | null }>;
 }
 
+/** The billing department, where bills are handed to cashiers. */
+export async function billingDepartment(admin: AuthContext): Promise<string> {
+  const rows = await api<Array<{ id: string; code?: string }>>(admin, "GET", "/api/setup/departments");
+  const dept = rows.find((d) => d.code === "BILLING-DEPT");
+  if (!dept) throw new Error("no BILLING-DEPT department to put cashiers in");
+  return dept.id;
+}
+
 /** An issued bill for a new patient, for `total` rupees. */
 export async function issuedBill(admin: AuthContext, total: number): Promise<string> {
   const patient = await createPatientApi(admin);

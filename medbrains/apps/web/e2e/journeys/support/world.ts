@@ -33,6 +33,8 @@ export interface Hospital {
     fullName: string,
     /** Per-user grants on top of the role, set before they first sign in. */
     extraPermissions?: string[],
+    /** Departments they work in — where work handed to a department reaches them. */
+    departmentIds?: string[],
   ) => Promise<{ id: string; page: Page; password: string }>;
   /** Set a tenant setting for this test; the old value is restored after. */
   setting: (category: string, key: string, value: unknown) => Promise<void>;
@@ -87,7 +89,7 @@ export const test = base.extend<{ hospital: Hospital }>({
         pages.push(page);
         return page;
       },
-      newStaff: async (role, fullName, extraPermissions) => {
+      newStaff: async (role, fullName, extraPermissions, departmentIds) => {
         const suffix = unique().toLowerCase();
         // Usernames are at most 30 characters; long role codes are cut.
         const username = `${role.slice(0, 20)}_${suffix}`;
@@ -99,6 +101,7 @@ export const test = base.extend<{ hospital: Hospital }>({
           full_name: fullName,
           role,
           ...(extraPermissions ? { access_matrix: { extra: extraPermissions, denied: [] } } : {}),
+          ...(departmentIds ? { department_ids: departmentIds } : {}),
         });
         const page = await openPage(browser);
         await loginAsRole(page, username, password);

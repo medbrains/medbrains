@@ -284,7 +284,7 @@ export function InvoiceDetail({
           invoice_id: invoiceId,
           description: `Invoice ${printData.invoice.invoice_number}`,
         });
-        return { printData, upiUri: qr.upi_uri };
+        return { printData, upiUri: qr.upi_uri ?? undefined };
       } catch {
         // A hospital with no UPI configured still needs its bill. Print without.
         return { printData, upiUri: undefined };

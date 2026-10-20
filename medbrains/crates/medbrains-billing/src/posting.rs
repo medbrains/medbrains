@@ -1,7 +1,8 @@
-//! The one way money lands on, and comes back off, a bill. The cashier's
-//! payment and refund screens and every online gateway post through these, so
-//! a bill is never overpaid or over-refunded whichever door the money came in
-//! by.
+//! The one way money lands on, and comes back off, a bill.
+//!
+//! The cashier's payment and refund screens and every online gateway post
+//! through these, so a bill is never overpaid or over-refunded whichever door
+//! the money came in by.
 //!
 //! Each takes the bill's row lock first (`FOR UPDATE`), so two postings to the
 //! same bill are applied one after the other against the balance the first

@@ -36,6 +36,9 @@ pub struct Razorpay {
     pub orders: Mutex<Vec<Value>>,
     pub refunds: Mutex<Vec<(String, Value)>>,
     pub refuse_orders: AtomicBool,
+    pub qr_codes: Mutex<Vec<Value>>,
+    /// Answer QR requests the way an account without QR Codes does.
+    pub refuse_qr: AtomicBool,
 }
 
 async fn create_order(
@@ -86,11 +89,35 @@ async fn refund(
     )
 }
 
+async fn create_qr(
+    State(rz): State<Arc<Razorpay>>,
+    Json(body): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    if rz.refuse_qr.load(Ordering::SeqCst) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(
+                json!({ "error": { "description": "The requested URL was not found on the server." } }),
+            ),
+        );
+    }
+    let mut made = rz.qr_codes.lock().expect("qr");
+    let id = format!("qr_p0{}", made.len() + 1);
+    made.push(body.clone());
+    (
+        StatusCode::OK,
+        Json(json!({ "id": id, "entity": "qr_code", "status": "active",
+                     "image_url": format!("https://rzp.io/i/{id}"),
+                     "payment_amount": body["payment_amount"], "close_by": body["close_by"] })),
+    )
+}
+
 async fn spawn_razorpay(rz: Arc<Razorpay>) -> String {
     let app = Router::new()
         .route("/v1/orders", post(create_order))
         .route("/v1/payments/{id}", get(payment))
         .route("/v1/payments/{id}/refund", post(refund))
+        .route("/v1/payments/qr_codes", post(create_qr))
         .with_state(rz);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

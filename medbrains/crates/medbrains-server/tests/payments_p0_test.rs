@@ -317,3 +317,105 @@ async fn a_bad_signature_is_refused() {
     assert!(w.payments(invoice).await.is_empty());
     assert_eq!(w.invoice(invoice).await, (rupees(0), "issued".to_owned()));
 }
+
+/// Given Razorpay as the provider, When the cashier asks for a counter QR,
+/// Then Razorpay makes a single-use QR fixed to the amount due, and its
+/// `qr_code.credited` posts the bill once, as UPI — no UTR typed.
+#[tokio::test]
+async fn a_razorpay_counter_qr_settles_the_bill_on_its_webhook() {
+    let _serial = SERIAL.lock().await;
+    let w = world().await;
+    let invoice = w.bill(600).await;
+    let (status, qr) = w
+        .call(
+            "POST",
+            "/api/payments/upi-qr",
+            json!({ "invoice_id": invoice, "amount": 600, "live": true }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{qr}");
+    assert_eq!(qr["source"], "razorpay");
+    let qr_id = qr["transaction_ref"].as_str().expect("qr id").to_owned();
+    let asked = w
+        .razorpay
+        .qr_codes
+        .lock()
+        .expect("qr")
+        .last()
+        .cloned()
+        .expect("asked");
+    assert_eq!(asked["usage"], "single_use");
+    assert_eq!(asked["fixed_amount"], true);
+    assert_eq!(asked["payment_amount"], 60_000);
+    let txn: uuid::Uuid = qr["transaction_id"]
+        .as_str()
+        .expect("txn")
+        .parse()
+        .expect("uuid");
+    assert_eq!(status_of(&w, txn).await["gateway_order_id"], qr_id.as_str());
+
+    let credited = json!({ "event": "qr_code.credited", "payload": {
+        "payment": { "entity": { "id": "pay_qrcounter1", "amount": 60_000, "method": "upi",
+                                 "status": "captured", "vpa": "patient@okaxis" } },
+        "qr_code": { "entity": { "id": qr_id, "payments_amount_received": 60_000 } } } });
+    assert_eq!(w.webhook(&credited).await, StatusCode::OK);
+    assert_eq!(w.webhook(&credited).await, StatusCode::OK);
+    assert_eq!(
+        w.payments(invoice).await,
+        vec![(
+            rupees(600),
+            "upi".to_owned(),
+            Some("pay_qrcounter1".to_owned())
+        )]
+    );
+    assert_eq!(w.invoice(invoice).await, (rupees(600), "paid".to_owned()));
+}
+
+/// Given an account without Razorpay QR Codes and a hospital UPI ID, When
+/// the cashier asks for a counter QR, Then they get the UPI ID QR and the
+/// reason; with no UPI ID either, a 400 says both.
+#[tokio::test]
+async fn without_razorpay_qr_the_counter_falls_back_and_says_why() {
+    let _serial = SERIAL.lock().await;
+    let w = world().await;
+    let invoice = w.bill(200).await;
+    w.razorpay.refuse_qr.store(true, Ordering::SeqCst);
+    w.setting("upi_vpa", json!("hospital@okaxis")).await;
+    let (status, qr) = w
+        .call(
+            "POST",
+            "/api/payments/upi-qr",
+            json!({ "invoice_id": invoice, "amount": 200, "live": true }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{qr}");
+    assert_eq!(qr["source"], "upi_id");
+    assert!(
+        qr["upi_uri"]
+            .as_str()
+            .is_some_and(|u| u.starts_with("upi://pay?pa=hospital@okaxis"))
+    );
+    assert!(
+        qr["fallback_reason"]
+            .as_str()
+            .is_some_and(|r| r.contains("not found")),
+        "{qr}"
+    );
+
+    w.setting("upi_vpa", json!(null)).await;
+    let (status, body) = w
+        .call(
+            "POST",
+            "/api/payments/upi-qr",
+            json!({ "invoice_id": invoice, "amount": 200, "live": true }),
+        )
+        .await;
+    w.razorpay.refuse_qr.store(false, Ordering::SeqCst);
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("UPI ID is not set")),
+        "{body}"
+    );
+}

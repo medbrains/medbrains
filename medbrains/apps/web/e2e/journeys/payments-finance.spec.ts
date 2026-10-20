@@ -8,6 +8,7 @@ import { api } from "../helpers/api";
 import { expectScreenAccessible, expectUsable } from "./support/a11y";
 import {
   expectBillOnScreen,
+  billingDepartment,
   issuedBill,
   openOnlineCollect,
   paymentsCard,
@@ -42,7 +43,7 @@ test("an over-capture is held for finance, who sees it and resolves it on screen
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 1000);
   const person = freshPerson();
-  const cashier = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const cashier = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(cashier.page);
 
   const dialog = await openOnlineCollect(cashier.page, invoiceId);
@@ -60,7 +61,7 @@ test("an over-capture is held for finance, who sees it and resolves it on screen
     expect.objectContaining({ reason: "amount_mismatch", amount: "1200.00", status: "open" }),
   ]);
 
-  const finance = await hospital.newStaff("billing_clerk", `${person.lastName} Finance`);
+  const finance = await hospital.newStaff("billing_clerk", `${person.lastName} Finance`, undefined, [await billingDepartment(hospital.admin)]);
   await finance.page.goto("/billing?tab=payment-exceptions");
   await expectScreenAccessible(finance.page, "payment exceptions");
   const row = finance.page.getByTestId("row-exception").filter({ hasText: opened.order_id });
@@ -90,7 +91,7 @@ test("the cashier refunds part of an online payment; the bill goes from paid to 
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 1000);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page);
 
   const dialog = await openOnlineCollect(page, invoiceId);

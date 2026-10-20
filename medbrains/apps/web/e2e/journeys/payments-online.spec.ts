@@ -10,6 +10,7 @@
 import { expectScreenAccessible, expectUsable } from "./support/a11y";
 import {
   expectBillOnScreen,
+  billingDepartment,
   issuedBill,
   openOnlineCollect,
   paymentsCard,
@@ -37,7 +38,7 @@ test("a cashier collects a whole bill online by card; the later webhook posts no
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 1000);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page);
 
   const dialog = await openOnlineCollect(page, invoiceId);
@@ -77,7 +78,7 @@ test("the webhook beats the browser: the bill is paid once, by UPI", async ({
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 750);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page);
   // The stand-in checkout waits, so Razorpay's webhook lands first.
   await page.addInitScript(() => {
@@ -110,7 +111,7 @@ test("part of the bill online, the rest in cash: partially paid, then paid", asy
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 1000);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page);
 
   const dialog = await openOnlineCollect(page, invoiceId);

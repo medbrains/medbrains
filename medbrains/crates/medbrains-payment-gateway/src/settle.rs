@@ -53,7 +53,7 @@ pub struct Capture<'a> {
 #[derive(Debug)]
 pub enum Settled {
     /// This call won the row (and posted it, or parked it for finance).
-    Now(PaymentGatewayTransaction),
+    Now(Box<PaymentGatewayTransaction>),
     /// Already settled by an earlier call; nothing was posted.
     Already,
 }
@@ -99,7 +99,7 @@ pub async fn settle_capture(
         txn = mark_held(tx, txn.id).await?;
     }
     announce_capture(tx, &txn).await?;
-    Ok(Settled::Now(txn))
+    Ok(Settled::Now(Box::new(txn)))
 }
 
 /// The money is in but not on the bill: say so on the row, so the cashier's

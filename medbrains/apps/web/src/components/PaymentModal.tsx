@@ -31,6 +31,7 @@ import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { paymentsService } from "@/services/payments.service";
+import { LiveUpiQrPanel } from "./LiveUpiQrPanel";
 import { type FallbackMode, OnlineCheckoutPanel } from "./OnlineCheckoutPanel";
 import {
   type PaymentSplitMode,
@@ -116,6 +117,9 @@ export function PaymentModal({
   const onSuccess = (paymentId: string, settlement: PaymentModalSettlement) =>
     onSettled(paymentId, parts.length > 0 ? { ...settlement, parts } : settlement);
   const [qrData, setQrData] = useState<UpiQrResponse | null>(null);
+  // A Razorpay QR confirms itself; the hospital's UPI ID QR needs the UTR.
+  const liveQr = qrData?.source === "razorpay" ? qrData : null;
+  const staticQr = qrData?.source === "upi_id" ? qrData : null;
   const canCollect = useHasPermission(collectPermission);
   // Gateway orders and generated QR codes are billing endpoints.
   const canUseGateway = useHasPermission(P.BILLING.PAYMENTS_CREATE);
@@ -201,16 +205,10 @@ export function PaymentModal({
         invoice_id: invoiceId,
         pos_sale_id: posSaleId,
         description: patientName ? `Payment for ${patientName}` : "Hospital Payment",
+        live: true,
       }),
     onSuccess: (data: UpiQrResponse) => {
       setQrData(data);
-    },
-    onError: () => {
-      notifications.show({
-        title: "UPI Error",
-        message: "Failed to generate UPI QR code",
-        color: "red",
-      });
     },
   });
 
@@ -405,6 +403,17 @@ export function PaymentModal({
                     >
                       Generate UPI QR Code
                     </Button>
+                    {upiQrMutation.isError && (
+                      <Alert
+                        variant="light"
+                        color="red"
+                        icon={<IconAlertCircle size={16} />}
+                        title="UPI QR not made"
+                        data-testid="alert-upi-qr-error"
+                      >
+                        {upiQrMutation.error.message}
+                      </Alert>
+                    )}
                     {activeProvider?.supports_upi_collect && (
                       <UpiCollectPanel
                         providerLabel={activeProvider.label}
@@ -425,26 +434,51 @@ export function PaymentModal({
                     )}
                   </>
                 )}
-                {qrData && (
+                {liveQr && (
+                  <LiveUpiQrPanel
+                    qr={liveQr}
+                    amountText={
+                      showAmountInAction ? paymentAmountText(amountAccess, liveQr.amount) : null
+                    }
+                    onCaptured={handleOnlineCaptured}
+                    onRenew={() => {
+                      setQrData(null);
+                      generateUpiQr();
+                    }}
+                  />
+                )}
+                {staticQr?.fallback_reason && (
+                  <Alert
+                    variant="light"
+                    color="yellow"
+                    icon={<IconAlertCircle size={16} />}
+                    title="Showing the hospital's own UPI QR"
+                    data-testid="alert-upi-qr-fallback"
+                  >
+                    {staticQr.fallback_reason}. This QR is not confirmed by Razorpay — enter the UTR
+                    the patient shows.
+                  </Alert>
+                )}
+                {staticQr && (
                   <Stack gap="sm" align="center">
                     <Badge size="lg" variant="light" color="green">
                       {showAmountInAction
-                        ? `Scan to Pay ${paymentAmountText(amountAccess, qrData.amount)}`
+                        ? `Scan to Pay ${paymentAmountText(amountAccess, staticQr.amount)}`
                         : "Scan to Pay"}
                     </Badge>
-                    <UpiQrCode value={qrData.upi_uri} />
+                    <UpiQrCode value={staticQr.upi_uri ?? ""} />
                     <Text size="xs" c="dimmed">
-                      VPA: {qrData.vpa}
+                      VPA: {staticQr.vpa}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Ref: {qrData.transaction_ref}
+                      Ref: {staticQr.transaction_ref}
                     </Text>
                   </Stack>
                 )}
-                {(qrData || !canUseGateway) && (
+                {(staticQr || !canUseGateway || upiQrMutation.isError) && (
                   <>
                     <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
-                      {qrData
+                      {staticQr
                         ? "After the patient pays, enter the UTR/reference number below to confirm."
                         : "The customer pays the counter UPI QR. Enter the UTR from their app to confirm."}
                     </Alert>

@@ -8,7 +8,8 @@
 import { loginAsRole, routeApiDirect } from "../helpers";
 import { api, E2E_BACKEND_URL } from "../helpers/api";
 import { expectScreenAccessible, expectUsable } from "./support/a11y";
-import { issuedBill, openOnlineCollect, paymentsCard, savedBill } from "./support/billing";
+import { billingDepartment,
+  issuedBill, openOnlineCollect, paymentsCard, savedBill } from "./support/billing";
 import { mockUnavailable, razorpayMock, serveCheckout, useTestKeys } from "./support/razorpay";
 import { expect, freshPerson, test } from "./support/world";
 
@@ -22,7 +23,7 @@ test("checkout.js will not load: the cashier is told, offered cash or UPI, and n
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 500);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page, "fails");
 
   const dialog = await openOnlineCollect(page, invoiceId);
@@ -48,7 +49,7 @@ test("Razorpay refuses the order: the reason is shown, no checkout opens, nothin
   await useTestKeys(hospital.setting);
   const invoiceId = await issuedBill(hospital.admin, 500);
   const person = freshPerson();
-  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`);
+  const { page } = await hospital.newStaff("billing_clerk", `${person.firstName} Cashier`, undefined, [await billingDepartment(hospital.admin)]);
   await serveCheckout(page);
 
   const dialog = await openOnlineCollect(page, invoiceId);
@@ -83,6 +84,7 @@ test("a user who may not collect sees no collect control and the server refuses 
     password,
     full_name: `${freshPerson().firstName} Reception`,
     role: "receptionist",
+    department_ids: [await billingDepartment(hospital.admin)],
     access_matrix: { extra: [], denied: ["billing.payments.create"] },
   });
   const context = await browser.newContext();

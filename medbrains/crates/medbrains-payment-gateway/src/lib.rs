@@ -1,6 +1,7 @@
 pub mod payment_link;
 pub mod razorpay;
 pub mod settle;
+pub mod upi_qr;
 
 pub use settle::{CAPTURE_EVENTS, GatewayPosting, record_invoice_payment};
 
@@ -120,14 +121,28 @@ pub struct GenerateUpiQrRequest {
     pub invoice_id: Option<Uuid>,
     pub pos_sale_id: Option<Uuid>,
     pub description: Option<String>,
+    /// A QR the patient pays now, at the counter: made by Razorpay for this
+    /// amount and confirmed by it. Without it (a printed bill) the QR is the
+    /// hospital's own UPI ID, which lasts as long as the paper does.
+    pub live: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UpiQrResponse {
-    pub upi_uri: String,
-    pub vpa: String,
+    /// `razorpay` — Razorpay made it and confirms the payment itself;
+    /// `upi_id` — the hospital's UPI ID, confirmed by the UTR the patient shows.
+    pub source: &'static str,
+    pub upi_uri: Option<String>,
+    pub vpa: Option<String>,
     pub amount: Decimal,
     pub transaction_ref: String,
+    /// The payment row a Razorpay QR settles, to watch.
+    pub transaction_id: Option<Uuid>,
+    pub image_url: Option<String>,
+    /// When a Razorpay QR stops taking payment (Unix seconds).
+    pub close_by: Option<i64>,
+    /// Why a live QR was asked for but the hospital's UPI ID QR is shown.
+    pub fallback_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1423,7 +1438,7 @@ pub async fn verify_payment(
     )
     .await?;
     let current = match settled {
-        settle::Settled::Now(t) => t,
+        settle::Settled::Now(t) => *t,
         settle::Settled::Already => settle::lock_txn(&mut tx, txn.id).await?,
     };
     tx.commit().await?;
@@ -1506,8 +1521,10 @@ pub async fn razorpay_webhook(
 
     // A payment link is filed under its own ID (`plink_…`); its payment
     // carries an order Razorpay made for it, which nothing here knows.
+    // A counter QR is filed under its own ID (`qr_…`) the same way.
     let order_id = payload["payload"]["payment_link"]["entity"]["id"]
         .as_str()
+        .or_else(|| payload["payload"]["qr_code"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["order"]["entity"]["id"].as_str())
         .or_else(|| payload["payload"]["payment"]["entity"]["order_id"].as_str());
 
@@ -1569,7 +1586,7 @@ pub async fn razorpay_webhook(
 
     let event = payload["event"].as_str().unwrap_or("");
     match event {
-        "payment.captured" | "order.paid" | "payment_link.paid" => {
+        "payment.captured" | "order.paid" | "payment_link.paid" | "qr_code.credited" => {
             handle_webhook_captured(&mut tx, &txn_row, &payload).await?;
         }
         "payment.failed" => handle_webhook_failed(&mut tx, &txn_row, &payload).await?,
@@ -2335,7 +2352,7 @@ pub async fn ccavenue_webhook(
                          ON CONFLICT (provider, event_id) DO NOTHING \
                          RETURNING event_id",
                     )
-                    .bind(&format!("ccavenue:{oid}:{status}"))
+                    .bind(format!("ccavenue:{oid}:{status}"))
                     .bind(txn_row.tenant_id)
                     .bind(&payload)
                     .fetch_optional(&mut *tx)
@@ -2462,36 +2479,100 @@ pub async fn generate_upi_qr(
 ) -> Result<Json<UpiQrResponse>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
     require_invoice_billing(&state, &claims, body.invoice_id).await?;
+    let amount_paise = amount_to_paise(body.amount)?;
+    let description = body.description.as_deref().unwrap_or("Hospital Payment");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let vpa = get_upi_vpa(&mut tx, &claims.tenant_id).await?;
+    let live = body.live.unwrap_or(false);
+    let keys = if live && resolve_active_provider(&mut tx, &claims.tenant_id).await? == "razorpay" {
+        razorpay::credentials(&mut tx, state.secret_resolver.as_ref(), &claims.tenant_id).await?
+    } else {
+        None
+    };
+    tx.commit().await?;
 
-    let vpa = get_upi_vpa(&mut tx, &claims.tenant_id)
-        .await?
-        .ok_or_else(|| {
-            AppError::BadRequest("UPI VPA not configured in tenant settings".to_owned())
-        })?;
+    let mut fallback_reason = None;
+    if live {
+        let made = match &keys {
+            Some(keys) => {
+                upi_qr::make_live_qr(
+                    &state.db,
+                    state.secret_resolver.as_ref(),
+                    keys,
+                    &upi_qr::QrFor {
+                        tenant_id: claims.tenant_id,
+                        user_id: claims.sub,
+                        invoice_id: body.invoice_id,
+                        pos_sale_id: body.pos_sale_id,
+                        amount: body.amount,
+                        amount_paise,
+                        description,
+                    },
+                )
+                .await?
+            }
+            None => upi_qr::Made::Unavailable(
+                "Razorpay is not set up for online payment at this hospital".to_owned(),
+            ),
+        };
+        match made {
+            upi_qr::Made::Live(qr) => {
+                return Ok(Json(UpiQrResponse {
+                    source: "razorpay",
+                    upi_uri: None,
+                    vpa: None,
+                    amount: body.amount,
+                    transaction_ref: qr.qr_id,
+                    transaction_id: Some(qr.transaction_id),
+                    image_url: Some(qr.image_url),
+                    close_by: Some(qr.close_by),
+                    fallback_reason: None,
+                }));
+            }
+            upi_qr::Made::Unavailable(why) => fallback_reason = Some(why),
+        }
+    }
 
-    // Get hospital name for payee name
+    let Some(vpa) = vpa else {
+        let unset = "The hospital's UPI ID is not set. An administrator sets it under \
+                     Billing → Settings → UPI ID.";
+        return Err(AppError::BadRequest(match fallback_reason {
+            Some(why) => format!("{why}. {unset}"),
+            None => unset.to_owned(),
+        }));
+    };
+    static_upi_qr(&state, &claims, &body, vpa, fallback_reason)
+        .await
+        .map(Json)
+}
+
+/// The hospital's own UPI ID QR: any UPI app pays it; the cashier confirms
+/// with the UTR the patient shows. Also what a printed bill carries.
+async fn static_upi_qr(
+    state: &AppState,
+    claims: &Claims,
+    body: &GenerateUpiQrRequest,
+    vpa: String,
+    fallback_reason: Option<String>,
+) -> Result<UpiQrResponse, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let hospital_name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
         .bind(claims.tenant_id)
         .fetch_optional(&mut *tx)
         .await?
         .unwrap_or_else(|| "Hospital".to_owned());
-
     let txn_ref = format!("MDB{}", Uuid::new_v4().simple());
     let description = body.description.as_deref().unwrap_or("Hospital Payment");
-
     let upi_uri = format!(
         "upi://pay?pa={vpa}&pn={pn}&am={am}&tn={tn}&tr={tr}",
-        vpa = vpa,
         pn = urlencoded(&hospital_name),
         am = body.amount,
         tn = urlencoded(description),
         tr = txn_ref,
     );
-
-    // Save a transaction record for tracking
     sqlx::query(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
@@ -2507,15 +2588,18 @@ pub async fn generate_upi_qr(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
-
     tx.commit().await?;
-
-    Ok(Json(UpiQrResponse {
-        upi_uri,
-        vpa,
+    Ok(UpiQrResponse {
+        source: "upi_id",
+        upi_uri: Some(upi_uri),
+        vpa: Some(vpa),
         amount: body.amount,
         transaction_ref: txn_ref,
-    }))
+        transaction_id: None,
+        image_url: None,
+        close_by: None,
+        fallback_reason,
+    })
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2676,7 +2760,7 @@ pub async fn upi_deep_link(
     let vpa = get_upi_vpa(&mut tx, &claims.tenant_id)
         .await?
         .ok_or_else(|| {
-            AppError::BadRequest("UPI VPA not configured in tenant settings".to_owned())
+            AppError::BadRequest("The hospital's UPI ID is not set. An administrator sets it under Billing → Settings → UPI ID.".to_owned())
         })?;
 
     let hospital_name = sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
