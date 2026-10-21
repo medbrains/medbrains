@@ -277,6 +277,60 @@ describe("patient flow readiness", () => {
     );
   });
 
+  it("shows lab and radiology between camp and pharmacy once the chart has looked orders up", () => {
+    const readiness = buildPatientFlowReadiness(
+      patientFlowJourneyContext({
+        patientId: "patient-1",
+        activeLabOrderId: "lab-1",
+        activeRadiologyOrderId: "rad-1",
+      }),
+      allowAll,
+    );
+
+    expect(readiness.items.map((item) => item.id)).toEqual([
+      "patient",
+      "opd",
+      "ipd",
+      "emergency",
+      "camp",
+      "lab",
+      "radiology",
+      "pharmacy",
+      "billing",
+    ]);
+    expect(flowItem(readiness, "lab")).toMatchObject({
+      enabled: true,
+      href: "/lab/orders/lab-1",
+      labelKey: "patientJourney.flow.modules.lab.label",
+      requiredPermissions: [P.LAB.ORDERS_LIST, P.LAB.ORDERS_VIEW],
+    });
+    expect(flowItem(readiness, "radiology")).toMatchObject({
+      enabled: true,
+      href: "/radiology?tab=orders&order_id=rad-1",
+      labelKey: "patientJourney.flow.modules.radiology.label",
+      requiredPermissions: [P.RADIOLOGY.ORDERS_LIST, P.RADIOLOGY.ORDERS_VIEW],
+    });
+    expect(readiness.summary.total).toBe(9);
+  });
+
+  it("blocks lab and radiology on permission before claiming the patient has no order", () => {
+    const readiness = buildPatientFlowReadiness(
+      patientFlowJourneyContext({
+        patientId: "patient-1",
+        activeLabOrderId: null,
+        activeRadiologyOrderId: "rad-1",
+      }),
+      // List alone is not enough: the chip opens the order record.
+      allowPermissions([P.LAB.ORDERS_LIST, P.RADIOLOGY.ORDERS_LIST]),
+    );
+
+    expect(flowItem(readiness, "lab").blockedReason).toBe("permission");
+    expect(flowItem(readiness, "radiology")).toMatchObject({
+      blockedReason: "permission",
+      enabled: false,
+    });
+  });
+
   it("classifies patient-state blockers separately from permission and event blockers", () => {
     const readiness = buildPatientFlowReadiness(
       patientFlowJourneyContext({

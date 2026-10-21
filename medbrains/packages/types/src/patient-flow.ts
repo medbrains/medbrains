@@ -13,7 +13,9 @@ import type {
   ClinicalEventName,
   PatientLabOrderRow,
   PatientRadiologyReport,
+  PharmacyOrder,
   PrescriptionHistoryItem,
+  RadiologyOrder,
 } from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
@@ -24,6 +26,8 @@ export type PatientFlowModule =
   | "ipd"
   | "emergency"
   | "camp"
+  | "lab"
+  | "radiology"
   | "pharmacy"
   | "billing";
 
@@ -102,6 +106,8 @@ export function patientFlowReadinessSignal(
 const OPD_FLOW_ACTION = "opd.open_visit" satisfies ClinicalJourneyActionId;
 const EMERGENCY_FLOW_ACTION = "emergency.open_visit" satisfies ClinicalJourneyActionId;
 const CAMP_FLOW_ACTION = "camp.open_context" satisfies ClinicalJourneyActionId;
+const LAB_FLOW_ACTION = "lab.open_order" satisfies ClinicalJourneyActionId;
+const RADIOLOGY_FLOW_ACTION = "imaging.open_study" satisfies ClinicalJourneyActionId;
 const PHARMACY_FLOW_ACTION = "pharmacy.open_patient_queue" satisfies ClinicalJourneyActionId;
 const BILLING_FLOW_ACTION = "billing.open_ledger" satisfies ClinicalJourneyActionId;
 
@@ -150,6 +156,34 @@ function itemState(
     activationEvents: action.activatesAfter,
     emittedEvent: action.emitsEvent ?? null,
     requiredPermissions: action.requiredPermissions,
+  };
+}
+
+/**
+ * Lab and radiology are links to an order, not a place to start one (orders
+ * are raised from OPD/IPD or at the desk). Enabled when the patient has an
+ * order and the user may list and open it; otherwise blocked on context.
+ */
+function orderItemState(
+  orderId: string | null | undefined,
+  allowed: boolean,
+  permissions: readonly string[],
+  empty: { reason: string; key: string },
+): PatientFlowItemState {
+  const state = itemState(
+    undefined,
+    allowed,
+    "Permission required",
+    ["order.created"],
+    permissions,
+  );
+  if (!state.enabled || orderId) return state;
+  return {
+    ...state,
+    enabled: false,
+    blockedReason: "context",
+    disabledReason: empty.reason,
+    disabledReasonKey: empty.key,
   };
 }
 
@@ -210,10 +244,13 @@ function summarizePatientFlow(
 export function activePatientLabOrderIdForJourney(
   orders: readonly PatientLabOrderRow[],
 ): string | null {
+  // A cancelled order is never "the one waiting on somebody", whether it came
+  // from an encounter or straight from the lab desk.
+  const live = orders.filter((order) => order.status !== "cancelled");
   return (
-    orders.find((order) => order.collected_at && !order.verified_at)?.id ??
-    orders.find((order) => !order.verified_at)?.id ??
-    orders[0]?.id ??
+    live.find((order) => order.collected_at && !order.verified_at)?.id ??
+    live.find((order) => !order.verified_at)?.id ??
+    live[0]?.id ??
     null
   );
 }
@@ -233,32 +270,60 @@ export function activeLabOrderIsCollectedForJourney(
   return activeId != null && orders.some((o) => o.id === activeId && o.collected_at != null);
 }
 
+const OPEN_RADIOLOGY_ORDER_STATUSES = new Set<RadiologyOrder["status"]>([
+  "ordered",
+  "scheduled",
+  "in_progress",
+  "completed",
+]);
+
 /**
  * The radiology order a clinician on this chart would open.
  *
  * A critical finding nobody has acknowledged outranks everything: that is a
  * result somebody is waiting to be told about. Then an unverified report,
- * then the most recent.
+ * then an order still waiting for its study or its report, then the most
+ * recent. Reports alone miss that third kind entirely — a walk-in X-ray
+ * booked at the radiology desk has no encounter and no report yet — so the
+ * patient's orders are read too.
  */
 export function activePatientRadiologyOrderIdForJourney(
   reports: readonly PatientRadiologyReport[],
+  orders: readonly Pick<RadiologyOrder, "id" | "status">[] = [],
 ): string | null {
+  const live = orders.filter((order) => order.status !== "cancelled");
   return (
     reports.find((r) => r.is_critical && !r.alert_acknowledged_at)?.order_id ??
     reports.find((r) => !r.verified_at)?.order_id ??
+    live.find((order) => OPEN_RADIOLOGY_ORDER_STATUSES.has(order.status))?.id ??
     reports[0]?.order_id ??
+    live[0]?.id ??
     null
   );
 }
 
+const OPEN_PHARMACY_ORDER_STATUSES = new Set<PharmacyOrder["status"]>([
+  "ordered",
+  "partially_dispensed",
+]);
+
+/**
+ * The pharmacy order this chart points at. Prescriptions only reach pharmacy
+ * orders raised from an encounter; a direct counter sale for a registered
+ * patient has no prescription, so the patient's pharmacy orders are read too.
+ */
 export function activePatientPharmacyOrderIdForJourney(
   prescriptions: readonly PrescriptionHistoryItem[],
+  orders: readonly Pick<PharmacyOrder, "id" | "status">[] = [],
 ): string | null {
+  const live = orders.filter((order) => order.status !== "cancelled");
   return (
     prescriptions.find((prescription) =>
       prescription.items.some((item) => item.item_status !== "discontinued"),
     )?.pharmacy_order_id ??
+    live.find((order) => OPEN_PHARMACY_ORDER_STATUSES.has(order.status))?.id ??
     prescriptions.find((prescription) => prescription.pharmacy_order_id)?.pharmacy_order_id ??
+    live[0]?.id ??
     null
   );
 }
@@ -411,6 +476,23 @@ export function buildPatientFlowReadiness(
     ["patient.created", "camp.registration.created", "camp.screening.completed"],
     [P.CAMP.LIST, P.CAMP.REGISTRATIONS_LIST, P.CAMP.REGISTRATIONS_CREATE],
   );
+  const labPermissions = [P.LAB.ORDERS_LIST, P.LAB.ORDERS_VIEW];
+  const labState = orderItemState(
+    context.activeLabOrderId,
+    labPermissions.every((code) => hasPermission(code)),
+    labPermissions,
+    { reason: "No lab order for this patient", key: "patientJourney.blockers.noLabOrder" },
+  );
+  const radiologyPermissions = [P.RADIOLOGY.ORDERS_LIST, P.RADIOLOGY.ORDERS_VIEW];
+  const radiologyState = orderItemState(
+    context.activeRadiologyOrderId,
+    radiologyPermissions.every((code) => hasPermission(code)),
+    radiologyPermissions,
+    {
+      reason: "No radiology order for this patient",
+      key: "patientJourney.blockers.noRadiologyOrder",
+    },
+  );
   const pharmacyState = itemState(
     actions.get(PHARMACY_FLOW_ACTION),
     hasPermission(P.PHARMACY.PRESCRIPTIONS_LIST),
@@ -526,6 +608,42 @@ export function buildPatientFlowReadiness(
       requiredPermissions: campState.requiredPermissions,
     },
     {
+      id: "lab",
+      actionId: LAB_FLOW_ACTION,
+      blockedReason: labState.blockedReason,
+      label: "Lab",
+      labelKey: "patientJourney.flow.modules.lab.label",
+      description: "Open the patient's current lab order.",
+      descriptionKey: "patientJourney.flow.modules.lab.description",
+      href: patientJourneyActionRoute(LAB_FLOW_ACTION, context) ?? `/patients/${patientId}#lab`,
+      enabled: labState.enabled,
+      disabledReason: labState.disabledReason,
+      disabledReasonKey: labState.disabledReasonKey,
+      disabledReasonValues: labState.disabledReasonValues,
+      activationEvents: labState.activationEvents,
+      emittedEvent: labState.emittedEvent,
+      requiredPermissions: labState.requiredPermissions,
+    },
+    {
+      id: "radiology",
+      actionId: RADIOLOGY_FLOW_ACTION,
+      blockedReason: radiologyState.blockedReason,
+      label: "Radiology",
+      labelKey: "patientJourney.flow.modules.radiology.label",
+      description: "Open the patient's current radiology order.",
+      descriptionKey: "patientJourney.flow.modules.radiology.description",
+      href:
+        patientJourneyActionRoute(RADIOLOGY_FLOW_ACTION, context) ??
+        `/patients/${patientId}#imaging`,
+      enabled: radiologyState.enabled,
+      disabledReason: radiologyState.disabledReason,
+      disabledReasonKey: radiologyState.disabledReasonKey,
+      disabledReasonValues: radiologyState.disabledReasonValues,
+      activationEvents: radiologyState.activationEvents,
+      emittedEvent: radiologyState.emittedEvent,
+      requiredPermissions: radiologyState.requiredPermissions,
+    },
+    {
       id: "pharmacy",
       actionId: PHARMACY_FLOW_ACTION,
       blockedReason: pharmacyState.blockedReason,
@@ -565,8 +683,16 @@ export function buildPatientFlowReadiness(
     },
   ];
 
+  // A surface that never looked the orders up (undefined, not null) has no
+  // business claiming the patient has none, so those chips are left out.
+  const shown = items.filter(
+    (item) =>
+      (item.id !== "lab" || context.activeLabOrderId !== undefined) &&
+      (item.id !== "radiology" || context.activeRadiologyOrderId !== undefined),
+  );
+
   return {
-    items,
-    summary: summarizePatientFlow(items),
+    items: shown,
+    summary: summarizePatientFlow(shown),
   };
 }

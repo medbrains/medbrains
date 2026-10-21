@@ -398,6 +398,26 @@ describe("which imaging study the chart considers active", () => {
     ).toBe("critical-verified");
   });
 
+  it("finds a desk-booked order that has no report yet, behind any critical finding", () => {
+    const walkIn = { id: "walk-in", status: "scheduled" } as const;
+    expect(activePatientRadiologyOrderIdForJourney([], [walkIn])).toBe("walk-in");
+    expect(
+      activePatientRadiologyOrderIdForJourney(
+        [report("old", false, null, "2026-09-01")],
+        [{ id: "dropped", status: "cancelled" }, walkIn],
+      ),
+    ).toBe("walk-in");
+    expect(
+      activePatientRadiologyOrderIdForJourney(
+        [report("critical", true, null, "2026-09-02")],
+        [walkIn],
+      ),
+    ).toBe("critical");
+    expect(
+      activePatientRadiologyOrderIdForJourney([], [{ id: "dropped", status: "cancelled" }]),
+    ).toBeNull();
+  });
+
   it("falls back to an unverified report before an old one", () => {
     expect(
       activePatientRadiologyOrderIdForJourney([

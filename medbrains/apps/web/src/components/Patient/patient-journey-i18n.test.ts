@@ -3,10 +3,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  buildPatientFlowReadiness,
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   type ClinicalEventName,
   type ClinicalJourneyActionSignalPhase,
   clinicalJourneyActionSignalLabelKey,
+  patientFlowJourneyContext,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
@@ -85,6 +87,35 @@ describe("patient journey i18n", () => {
     expect(getPathValue(locale, "patientJourney.blockers.availableAfterEvents")).toBe(
       "Available after {{events}}",
     );
+  });
+
+  it("keeps every patient flow chip's copy in the English clinical catalog", () => {
+    const locale: unknown = JSON.parse(
+      readFileSync(join(process.cwd(), "public/locales/en/clinical.json"), "utf8"),
+    );
+    // Lab/radiology are only listed once orders were looked up; null = none found.
+    const items = [
+      ...buildPatientFlowReadiness(
+        patientFlowJourneyContext({
+          patientId: "p-1",
+          activeLabOrderId: null,
+          activeRadiologyOrderId: null,
+        }),
+        () => true,
+      ).items,
+      ...buildPatientFlowReadiness(
+        patientFlowJourneyContext({ patientId: "p-1", activeEncounterId: "e-1" }),
+        () => true,
+      ).items,
+    ];
+    const keys = items.flatMap((item) => [
+      item.labelKey,
+      item.descriptionKey,
+      ...(item.disabledReasonKey ? [item.disabledReasonKey] : []),
+    ]);
+
+    expect(items.map((item) => item.id)).toEqual(expect.arrayContaining(["lab", "radiology"]));
+    expect(keys.filter((key) => typeof getPathValue(locale, key) !== "string")).toEqual([]);
   });
 
   it("labels prescription review through the translation catalog", () => {

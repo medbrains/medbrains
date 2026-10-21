@@ -114,6 +114,9 @@ export function PatientDetailPageInner() {
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const canViewNotes = useHasPermission(P.CLINICAL_NOTES.VIEW);
+  const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  const canListPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -159,13 +162,27 @@ export function PatientDetailPageInner() {
   const { data: labOrders = [] } = useQuery({
     queryKey: ["patient-lab-orders", patientId],
     queryFn: () => patientDetailService.listPatientLabOrders(patientId),
-    enabled: patientId.length > 0,
+    enabled: canListLabOrders && patientId.length > 0,
   });
   // Same key the imaging tab uses, so this is one shared fetch.
   const { data: radiologyReports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
     enabled: patientId.length > 0,
+  });
+  // Reports miss orders not yet reported (a desk walk-in, mostly); prescriptions
+  // miss direct counter sales. Both lists are read for the flow bar.
+  const { data: radiologyOrders = [] } = useQuery({
+    queryKey: ["radiology-orders", "patient", patientId],
+    queryFn: () => patientDetailService.listPatientRadiologyOrders(patientId),
+    select: (response) => response.orders,
+    enabled: canListRadiologyOrders && patientId.length > 0,
+  });
+  const { data: pharmacyOrders = [] } = useQuery({
+    queryKey: ["pharmacy-orders", "patient", patientId],
+    queryFn: () => patientDetailService.listPatientPharmacyOrders(patientId),
+    select: (response) => response.orders,
+    enabled: canListPharmacyOrders && patientId.length > 0,
   });
 
   // Latest active encounter — basket needs an encounter to scope orders to.
@@ -284,7 +301,7 @@ export function PatientDetailPageInner() {
   if (hasPaymentReceived) {
     completedEvents.push("billing.payment.received");
   }
-  if (labOrders.length > 0) {
+  if (labOrders.length > 0 || radiologyOrders.length > 0) {
     completedEvents.push("order.created");
   }
   if (activeLabOrderIsCollectedForJourney(labOrders)) {
@@ -311,6 +328,8 @@ export function PatientDetailPageInner() {
     prescriptions,
     labOrders,
     radiologyReports,
+    radiologyOrders,
+    pharmacyOrders,
   });
   const emitPatientShareCreated = (grant: {
     expiresAt: string | null;
@@ -459,6 +478,8 @@ export function PatientDetailPageInner() {
               activeInvoiceId={activeInvoiceId}
               activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
               activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
+            activeLabOrderId={actionContext.activeLabOrderId ?? null}
+            activeRadiologyOrderId={actionContext.activeRadiologyOrderId ?? null}
               activeOrderContext={activeOrderContext}
               completedEvents={completedEvents}
               compact
