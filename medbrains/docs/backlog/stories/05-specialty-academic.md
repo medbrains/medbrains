@@ -174,7 +174,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Infusion administration documentation (start/stop time, rate, reactions, vitals)
 > As a **specialist**, I want **infusion administration documentation (start/stop time, rate, reactions, vitals)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can infusion administration documentation (start/stop time, rate, reactions, vitals) from the relevant screen, with clear loading / empty / error states.
@@ -191,7 +191,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hospital micro website builder (drag-and-drop pages)
 > As a **specialist**, I want **hospital micro website builder (drag-and-drop pages)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can hospital micro website builder (drag-and-drop pages) from the relevant screen, with clear loading / empty / error states.
@@ -205,7 +205,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department pages with doctor profiles, timings, contact
 > As a **specialist**, I want **department pages with doctor profiles, timings, contact**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can department pages with doctor profiles, timings, contact from the relevant screen, with clear loading / empty / error states.
@@ -220,7 +220,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Online appointment booking widget (embeddable)
 > As a **specialist**, I want **online appointment booking widget (embeddable)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can online appointment booking widget (embeddable) from the relevant screen, with clear loading / empty / error states.
@@ -235,7 +235,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Health packages / promotions display with online payment
 > As a **specialist**, I want **health packages / promotions display with online payment**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can health packages / promotions display with online payment from the relevant screen, with clear loading / empty / error states.
@@ -250,7 +250,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient testimonials and review section
 > As a **specialist**, I want **patient testimonials and review section**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can patient testimonials and review section from the relevant screen, with clear loading / empty / error states.
@@ -264,7 +264,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SEO optimization tools (meta tags, sitemap, schema markup)
 > As a **specialist**, I want **seo optimization tools (meta tags, sitemap, schema markup)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can sEO optimization tools (meta tags, sitemap, schema markup) from the relevant screen, with clear loading / empty / error states.
@@ -278,7 +278,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Custom domain mapping (hospital.com → micro site)
 > As a **specialist**, I want **custom domain mapping (hospital.com → micro site)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can custom domain mapping (hospital.com → micro site) from the relevant screen, with clear loading / empty / error states.
@@ -292,7 +292,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Responsive design — auto-adapt to mobile/tablet/desktop
 > As a **specialist**, I want **responsive design — auto-adapt to mobile/tablet/desktop**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can responsive design — auto-adapt to mobile/tablet/desktop from the relevant screen, with clear loading / empty / error states.
@@ -306,7 +306,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Blog/health articles CMS for patient education
 > As a **specialist**, I want **blog/health articles cms for patient education**.
 
-`Pending · Platforms: Web, Mobile, TV · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can blog/health articles CMS for patient education from the relevant screen, with clear loading / empty / error states.
@@ -322,7 +322,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### WhatsApp/chat widget integration
 > As a **specialist**, I want **whatsapp/chat widget integration**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can whatsApp/chat widget integration from the relevant screen, with clear loading / empty / error states.
@@ -536,7 +536,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Chronic disease management in custody (diabetes, HIV, hepatitis, psychiatric conditions)
 > As a **specialist**, I want **chronic disease management in custody (diabetes, hiv, hepatitis, psychiatric conditions)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can chronic disease management in custody (diabetes, HIV, hepatitis, psychiatric conditions) from the relevant screen, with clear loading / empty / error states.
@@ -552,7 +552,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Uro-specific workflows (cystoscopy, urodynamics, biopsy documentation)
 > As a **specialist**, I want **uro-specific workflows (cystoscopy, urodynamics, biopsy documentation)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can uro-specific workflows (cystoscopy, urodynamics, biopsy documentation) from the relevant screen, with clear loading / empty / error states.
@@ -566,7 +566,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Prostate cancer screening tracking (PSA trends, biopsy results, Gleason scoring)
 > As a **specialist**, I want **prostate cancer screening tracking (psa trends, biopsy results, gleason scoring)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can prostate cancer screening tracking (PSA trends, biopsy results, Gleason scoring) from the relevant screen, with clear loading / empty / error states.
@@ -580,7 +580,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Kidney stone analysis documentation (composition, size, location, intervention)
 > As a **specialist**, I want **kidney stone analysis documentation (composition, size, location, intervention)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can kidney stone analysis documentation (composition, size, location, intervention) from the relevant screen, with clear loading / empty / error states.
@@ -818,7 +818,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Family communication portal (limited health updates via patient portal)
 > As a **specialist**, I want **family communication portal (limited health updates via patient portal)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can family communication portal (limited health updates via patient portal) from the relevant screen, with clear loading / empty / error states.
@@ -835,7 +835,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### IRB/Ethics committee submission tracking
 > As a **specialist**, I want **irb/ethics committee submission tracking**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can iRB/Ethics committee submission tracking from the relevant screen, with clear loading / empty / error states.
@@ -849,7 +849,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CTMS (Clinical Trial Management System) integration / data export for sponsors
 > As a **specialist**, I want **ctms (clinical trial management system) integration / data export for sponsors**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can cTMS (Clinical Trial Management System) integration / data export for sponsors from the relevant screen, with clear loading / empty / error states.
@@ -863,7 +863,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Treatment compliance tracking (missed sessions, shortened treatments)
 > As a **specialist**, I want **treatment compliance tracking (missed sessions, shortened treatments)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can treatment compliance tracking (missed sessions, shortened treatments) from the relevant screen, with clear loading / empty / error states.
@@ -1059,7 +1059,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Transplant candidate evaluation workflow (cardiac, renal, hepatic, lung)
 > As a **specialist**, I want **transplant candidate evaluation workflow (cardiac, renal, hepatic, lung)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can transplant candidate evaluation workflow (cardiac, renal, hepatic, lung) from the relevant screen, with clear loading / empty / error states.
@@ -1074,7 +1074,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Transplant waitlist management with status tracking (active, inactive, removed)
 > As a **specialist**, I want **transplant waitlist management with status tracking (active, inactive, removed)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can transplant waitlist management with status tracking (active, inactive, removed) from the relevant screen, with clear loading / empty / error states.
@@ -1089,7 +1089,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-disciplinary transplant committee documentation (meeting notes, decisions)
 > As a **specialist**, I want **multi-disciplinary transplant committee documentation (meeting notes, decisions)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can multi-disciplinary transplant committee documentation (meeting notes, decisions) from the relevant screen, with clear loading / empty / error states.
@@ -1106,7 +1106,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Protocol-driven visit schedule and procedure tracking
 > As a **specialist**, I want **protocol-driven visit schedule and procedure tracking**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can protocol-driven visit schedule and procedure tracking from the relevant screen, with clear loading / empty / error states.
@@ -1121,7 +1121,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Adverse event reporting and SAE (Serious Adverse Event) documentation
 > As a **specialist**, I want **adverse event reporting and sae (serious adverse event) documentation**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can adverse event reporting and SAE (Serious Adverse Event) documentation from the relevant screen, with clear loading / empty / error states.
@@ -1135,7 +1135,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Blinded/unblinded data handling (randomization module)
 > As a **specialist**, I want **blinded/unblinded data handling (randomization module)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can blinded/unblinded data handling (randomization module) from the relevant screen, with clear loading / empty / error states.
@@ -1313,7 +1313,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-procedure follow-up protocols (catheter removal, stent check, imaging schedule)
 > As a **specialist**, I want **post-procedure follow-up protocols (catheter removal, stent check, imaging schedule)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can post-procedure follow-up protocols (catheter removal, stent check, imaging schedule) from the relevant screen, with clear loading / empty / error states.
@@ -1747,7 +1747,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home care referral from discharge (nursing, wound care, physiotherapy)
 > As a **specialist**, I want **home care referral from discharge (nursing, wound care, physiotherapy)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home care referral from discharge (nursing, wound care, physiotherapy) from the relevant screen, with clear loading / empty / error states.
@@ -1762,7 +1762,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home visit scheduling and nurse assignment with route optimization
 > As a **specialist**, I want **home visit scheduling and nurse assignment with route optimization**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home visit scheduling and nurse assignment with route optimization from the relevant screen, with clear loading / empty / error states.
@@ -1777,7 +1777,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home visit documentation — vitals, wound photo, medication compliance
 > As a **specialist**, I want **home visit documentation — vitals, wound photo, medication compliance**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home visit documentation — vitals, wound photo, medication compliance from the relevant screen, with clear loading / empty / error states.
@@ -1792,7 +1792,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Remote vital monitoring integration (BP cuff, glucometer, pulse ox via Bluetooth)
 > As a **specialist**, I want **remote vital monitoring integration (bp cuff, glucometer, pulse ox via bluetooth)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can remote vital monitoring integration (BP cuff, glucometer, pulse ox via Bluetooth) from the relevant screen, with clear loading / empty / error states.
@@ -1807,7 +1807,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home care billing (visit-based, package-based)
 > As a **specialist**, I want **home care billing (visit-based, package-based)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home care billing (visit-based, package-based) from the relevant screen, with clear loading / empty / error states.
@@ -1822,7 +1822,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Caregiver education and instruction documentation
 > As a **specialist**, I want **caregiver education and instruction documentation**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can caregiver education and instruction documentation from the relevant screen, with clear loading / empty / error states.
@@ -1946,7 +1946,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Inmate intake health screening (medical history, mental health, substance use, TB, HIV)
 > As a **specialist**, I want **inmate intake health screening (medical history, mental health, substance use, tb, hiv)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can inmate intake health screening (medical history, mental health, substance use, TB, HIV) from the relevant screen, with clear loading / empty / error states.
@@ -1961,7 +1961,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Medication reconciliation on intake (continue pre-incarceration medications)
 > As a **specialist**, I want **medication reconciliation on intake (continue pre-incarceration medications)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can medication reconciliation on intake (continue pre-incarceration medications) from the relevant screen, with clear loading / empty / error states.
@@ -2560,7 +2560,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Suicide risk screening and watch-list management
 > As a **specialist**, I want **suicide risk screening and watch-list management**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can suicide risk screening and watch-list management from the relevant screen, with clear loading / empty / error states.
@@ -2577,7 +2577,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Remote dialysis session monitoring (treatment time, UF volume, BP)
 > As a **specialist**, I want **remote dialysis session monitoring (treatment time, uf volume, bp)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can remote dialysis session monitoring (treatment time, UF volume, BP) from the relevant screen, with clear loading / empty / error states.
@@ -2591,7 +2591,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Dialysis machine data integration (Baxter, Fresenius — auto-upload treatment logs)
 > As a **specialist**, I want **dialysis machine data integration (baxter, fresenius — auto-upload treatment logs)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can dialysis machine data integration (Baxter, Fresenius — auto-upload treatment logs) from the relevant screen, with clear loading / empty / error states.
@@ -2605,7 +2605,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Adverse reaction monitoring and emergency protocol for home infusions
 > As a **specialist**, I want **adverse reaction monitoring and emergency protocol for home infusions**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can adverse reaction monitoring and emergency protocol for home infusions from the relevant screen, with clear loading / empty / error states.
@@ -2621,7 +2621,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home infusion order management (IV antibiotics, TPN, chemotherapy, biologics)
 > As a **specialist**, I want **home infusion order management (iv antibiotics, tpn, chemotherapy, biologics)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home infusion order management (IV antibiotics, TPN, chemotherapy, biologics) from the relevant screen, with clear loading / empty / error states.
@@ -2636,7 +2636,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Urology-specific order sets (UTI workup, hematuria evaluation, BPH management)
 > As a **specialist**, I want **urology-specific order sets (uti workup, hematuria evaluation, bph management)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can urology-specific order sets (UTI workup, hematuria evaluation, BPH management) from the relevant screen, with clear loading / empty / error states.
@@ -2916,7 +2916,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hospice enrollment with prognosis documentation and comfort care plan
 > As a **specialist**, I want **hospice enrollment with prognosis documentation and comfort care plan**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can hospice enrollment with prognosis documentation and comfort care plan from the relevant screen, with clear loading / empty / error states.
@@ -2931,7 +2931,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pain & symptom management tracking (Edmonton Symptom Assessment)
 > As a **specialist**, I want **pain & symptom management tracking (edmonton symptom assessment)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can pain & symptom management tracking (Edmonton Symptom Assessment) from the relevant screen, with clear loading / empty / error states.
@@ -2946,7 +2946,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Advance directive / DNR management with family consent tracking
 > As a **specialist**, I want **advance directive / dnr management with family consent tracking**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can advance directive / DNR management with family consent tracking from the relevant screen, with clear loading / empty / error states.
@@ -2961,7 +2961,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bereavement support coordination and follow-up scheduling
 > As a **specialist**, I want **bereavement support coordination and follow-up scheduling**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can bereavement support coordination and follow-up scheduling from the relevant screen, with clear loading / empty / error states.
@@ -2976,7 +2976,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Interdisciplinary care team notes (doctor, nurse, social worker, chaplain)
 > As a **specialist**, I want **interdisciplinary care team notes (doctor, nurse, social worker, chaplain)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can interdisciplinary care team notes (doctor, nurse, social worker, chaplain) from the relevant screen, with clear loading / empty / error states.
@@ -3177,7 +3177,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home infusion pharmacy preparation and dispensing workflow
 > As a **specialist**, I want **home infusion pharmacy preparation and dispensing workflow**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home infusion pharmacy preparation and dispensing workflow from the relevant screen, with clear loading / empty / error states.
@@ -3193,7 +3193,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-transplant immunosuppression protocol and drug level monitoring
 > As a **specialist**, I want **post-transplant immunosuppression protocol and drug level monitoring**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can post-transplant immunosuppression protocol and drug level monitoring from the relevant screen, with clear loading / empty / error states.
@@ -3208,7 +3208,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Graft function monitoring (creatinine trend/renal, LFTs/hepatic, PFTs/lung)
 > As a **specialist**, I want **graft function monitoring (creatinine trend/renal, lfts/hepatic, pfts/lung)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can graft function monitoring (creatinine trend/renal, LFTs/hepatic, PFTs/lung) from the relevant screen, with clear loading / empty / error states.
@@ -3224,7 +3224,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hospital-at-home eligibility screening (diagnosis-based criteria)
 > As a **specialist**, I want **hospital-at-home eligibility screening (diagnosis-based criteria)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can hospital-at-home eligibility screening (diagnosis-based criteria) from the relevant screen, with clear loading / empty / error states.
@@ -3238,7 +3238,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Remote patient monitoring dashboard (continuous vitals via IoT devices)
 > As a **specialist**, I want **remote patient monitoring dashboard (continuous vitals via iot devices)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can remote patient monitoring dashboard (continuous vitals via IoT devices) from the relevant screen, with clear loading / empty / error states.
@@ -3253,7 +3253,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Virtual rounding — scheduled video check-ins with attending physician
 > As a **specialist**, I want **virtual rounding — scheduled video check-ins with attending physician**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can virtual rounding — scheduled video check-ins with attending physician from the relevant screen, with clear loading / empty / error states.
@@ -3268,7 +3268,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home medication administration tracking (IV antibiotics, infusions)
 > As a **specialist**, I want **home medication administration tracking (iv antibiotics, infusions)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home medication administration tracking (IV antibiotics, infusions) from the relevant screen, with clear loading / empty / error states.
@@ -3283,7 +3283,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Emergency escalation protocol (auto-trigger ambulance if vitals breach threshold)
 > As a **specialist**, I want **emergency escalation protocol (auto-trigger ambulance if vitals breach threshold)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can emergency escalation protocol (auto-trigger ambulance if vitals breach threshold) from the relevant screen, with clear loading / empty / error states.
@@ -3298,7 +3298,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Daily clinical progress notes by visiting nurse + remote physician
 > As a **specialist**, I want **daily clinical progress notes by visiting nurse + remote physician**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can daily clinical progress notes by visiting nurse + remote physician from the relevant screen, with clear loading / empty / error states.
@@ -3313,7 +3313,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient/family training materials and discharge criteria from home program
 > As a **specialist**, I want **patient/family training materials and discharge criteria from home program**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can patient/family training materials and discharge criteria from home program from the relevant screen, with clear loading / empty / error states.
@@ -3503,7 +3503,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Clinical trial registry with active/recruiting/completed status
 > As a **specialist**, I want **clinical trial registry with active/recruiting/completed status**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can clinical trial registry with active/recruiting/completed status from the relevant screen, with clear loading / empty / error states.
@@ -3518,7 +3518,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient-trial matching engine (diagnosis, age, labs, medications auto-screened)
 > As a **specialist**, I want **patient-trial matching engine (diagnosis, age, labs, medications auto-screened)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can patient-trial matching engine (diagnosis, age, labs, medications auto-screened) from the relevant screen, with clear loading / empty / error states.
@@ -3533,7 +3533,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Informed consent management for trial participation (e-consent with versioning)
 > As a **specialist**, I want **informed consent management for trial participation (e-consent with versioning)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The specialist can informed consent management for trial participation (e-consent with versioning) from the relevant screen, with clear loading / empty / error states.
@@ -3550,7 +3550,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Transplant registry reporting (UNOS/NOTTO compliance submission)
 > As a **specialist**, I want **transplant registry reporting (unos/notto compliance submission)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can transplant registry reporting (UNOS/NOTTO compliance submission) from the relevant screen, with clear loading / empty / error states.
@@ -3565,7 +3565,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Long-term transplant outcome tracking (1-yr, 3-yr, 5-yr graft/patient survival)
 > As a **specialist**, I want **long-term transplant outcome tracking (1-yr, 3-yr, 5-yr graft/patient survival)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can long-term transplant outcome tracking (1-yr, 3-yr, 5-yr graft/patient survival) from the relevant screen, with clear loading / empty / error states.
@@ -3582,7 +3582,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Release health summary and community provider handoff
 > As a **specialist**, I want **release health summary and community provider handoff**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can release health summary and community provider handoff from the relevant screen, with clear loading / empty / error states.
@@ -3700,7 +3700,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Monthly nephrologist review with remote labs and treatment summary
 > As a **specialist**, I want **monthly nephrologist review with remote labs and treatment summary**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can monthly nephrologist review with remote labs and treatment summary from the relevant screen, with clear loading / empty / error states.
@@ -3716,7 +3716,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SNF admission from hospital discharge with care plan transfer
 > As a **specialist**, I want **snf admission from hospital discharge with care plan transfer**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can sNF admission from hospital discharge with care plan transfer from the relevant screen, with clear loading / empty / error states.
@@ -3730,7 +3730,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Minimum Data Set (MDS) assessment and documentation
 > As a **specialist**, I want **minimum data set (mds) assessment and documentation**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can minimum Data Set (MDS) assessment and documentation from the relevant screen, with clear loading / empty / error states.
@@ -3744,7 +3744,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Long-term medication management (90-day supply, auto-refill)
 > As a **specialist**, I want **long-term medication management (90-day supply, auto-refill)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can long-term medication management (90-day supply, auto-refill) from the relevant screen, with clear loading / empty / error states.
@@ -3758,7 +3758,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Rehabilitation progress tracking (PT/OT/Speech therapy)
 > As a **specialist**, I want **rehabilitation progress tracking (pt/ot/speech therapy)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can rehabilitation progress tracking (PT/OT/Speech therapy) from the relevant screen, with clear loading / empty / error states.
@@ -3773,7 +3773,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Family communication portal (care updates, visit scheduling)
 > As a **specialist**, I want **family communication portal (care updates, visit scheduling)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can family communication portal (care updates, visit scheduling) from the relevant screen, with clear loading / empty / error states.
@@ -3787,7 +3787,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Readmission risk scoring (track patients likely to return to hospital)
 > As a **specialist**, I want **readmission risk scoring (track patients likely to return to hospital)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can readmission risk scoring (track patients likely to return to hospital) from the relevant screen, with clear loading / empty / error states.
@@ -3803,7 +3803,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home infusion nurse scheduling and route planning
 > As a **specialist**, I want **home infusion nurse scheduling and route planning**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home infusion nurse scheduling and route planning from the relevant screen, with clear loading / empty / error states.
@@ -3819,7 +3819,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Security-restricted access controls (officer vs nurse vs doctor view)
 > As a **specialist**, I want **security-restricted access controls (officer vs nurse vs doctor view)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can security-restricted access controls (officer vs nurse vs doctor view) from the relevant screen, with clear loading / empty / error states.
@@ -3836,7 +3836,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home dialysis patient enrollment (PD or home HD) with training plan
 > As a **specialist**, I want **home dialysis patient enrollment (pd or home hd) with training plan**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home dialysis patient enrollment (PD or home HD) with training plan from the relevant screen, with clear loading / empty / error states.
@@ -4048,7 +4048,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home dialysis supply ordering and delivery tracking
 > As a **specialist**, I want **home dialysis supply ordering and delivery tracking**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home dialysis supply ordering and delivery tracking from the relevant screen, with clear loading / empty / error states.
@@ -4062,7 +4062,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Home infusion supply/equipment tracking (pumps, tubing, dressings)
 > As a **specialist**, I want **home infusion supply/equipment tracking (pumps, tubing, dressings)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can home infusion supply/equipment tracking (pumps, tubing, dressings) from the relevant screen, with clear loading / empty / error states.
@@ -4078,7 +4078,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Donor-recipient matching documentation and crossmatch results
 > As a **specialist**, I want **donor-recipient matching documentation and crossmatch results**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can donor-recipient matching documentation and crossmatch results from the relevant screen, with clear loading / empty / error states.
@@ -4092,7 +4092,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Organ procurement coordination (retrieval team, cold ischemia time, transport)
 > As a **specialist**, I want **organ procurement coordination (retrieval team, cold ischemia time, transport)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can organ procurement coordination (retrieval team, cold ischemia time, transport) from the relevant screen, with clear loading / empty / error states.
@@ -4350,7 +4350,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Video consultation scheduling (patient books slot, doctor confirms)
 > As a **specialist**, I want **video consultation scheduling (patient books slot, doctor confirms)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can video consultation scheduling (patient books slot, doctor confirms) from the relevant screen, with clear loading / empty / error states.
@@ -4365,7 +4365,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### WebRTC-based video call with in-browser + mobile support
 > As a **specialist**, I want **webrtc-based video call with in-browser + mobile support**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can webRTC-based video call with in-browser + mobile support from the relevant screen, with clear loading / empty / error states.
@@ -4380,7 +4380,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Screen sharing for radiology/lab results during consult
 > As a **specialist**, I want **screen sharing for radiology/lab results during consult**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can screen sharing for radiology/lab results during consult from the relevant screen, with clear loading / empty / error states.
@@ -4395,7 +4395,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### E-prescription generation during video consult
 > As a **specialist**, I want **e-prescription generation during video consult**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can e-prescription generation during video consult from the relevant screen, with clear loading / empty / error states.
@@ -4410,7 +4410,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Payment collection before/after teleconsultation
 > As a **specialist**, I want **payment collection before/after teleconsultation**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can payment collection before/after teleconsultation from the relevant screen, with clear loading / empty / error states.
@@ -4425,7 +4425,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Waiting room with queue position display
 > As a **specialist**, I want **waiting room with queue position display**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can waiting room with queue position display from the relevant screen, with clear loading / empty / error states.
@@ -4440,7 +4440,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Recording consent + optional session recording
 > As a **specialist**, I want **recording consent + optional session recording**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can recording consent + optional session recording from the relevant screen, with clear loading / empty / error states.
@@ -4455,7 +4455,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Follow-up scheduling from within video session
 > As a **specialist**, I want **follow-up scheduling from within video session**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can follow-up scheduling from within video session from the relevant screen, with clear loading / empty / error states.
@@ -4470,7 +4470,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Chat messaging fallback when video not possible
 > As a **specialist**, I want **chat messaging fallback when video not possible**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can chat messaging fallback when video not possible from the relevant screen, with clear loading / empty / error states.
@@ -4485,7 +4485,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Integration with EMR — auto-create visit record on call end
 > As a **specialist**, I want **integration with emr — auto-create visit record on call end**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The specialist can integration with EMR — auto-create visit record on call end from the relevant screen, with clear loading / empty / error states.

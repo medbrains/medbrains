@@ -102,10 +102,10 @@ users/roles/keys removed; `AdministratorAccess` held by [ORG: named people only]
 ## 4. GitHub
 
 ```sh
-gh api repos/DomnicAmalan/MedBrains/collaborators --paginate --jq '.[] | [.login, .role_name] | @tsv'
-gh api repos/DomnicAmalan/MedBrains/keys --jq '.[] | [.title, .read_only, .created_at] | @tsv'
-gh api repos/DomnicAmalan/MedBrains/actions/secrets --jq '.secrets[] | [.name, .updated_at] | @tsv'
-gh api repos/DomnicAmalan/MedBrains/invitations --jq '.[] | .invitee.login'
+gh api repos/medbrains/medbrains/collaborators --paginate --jq '.[] | [.login, .role_name] | @tsv'
+gh api repos/medbrains/medbrains/keys --jq '.[] | [.title, .read_only, .created_at] | @tsv'
+gh api repos/medbrains/medbrains/actions/secrets --jq '.secrets[] | [.name, .updated_at] | @tsv'
+gh api repos/medbrains/medbrains/invitations --jq '.[] | .invitee.login'
 ```
 
 Check: collaborators current, least role (write vs admin); deploy keys known and read-only where possible; secrets

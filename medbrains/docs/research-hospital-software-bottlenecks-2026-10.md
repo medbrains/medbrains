@@ -151,7 +151,7 @@ Indian HMS failures cluster around:
 - partial go-live, where only some modules ship;
 - inconsistent data-entry standards.
 
-Sources: [MocDoc](https://mocdoc.com/blog/how-to-implement-hms-successfully-in-hospitals) and [Slideshare](https://www.slideshare.net/slideshow/challenges-while-implementing-the-hospital-management-systempptx/254090034); both are vendor or academic, mostly 2014–2019.
+Sources: [an Indian HMS vendor](https://an Indian HMS vendor.com/blog/how-to-implement-hms-successfully-in-hospitals) and [Slideshare](https://www.slideshare.net/slideshow/challenges-while-implementing-the-hospital-management-systempptx/254090034); both are vendor or academic, mostly 2014–2019.
 
 Product notes:
 
@@ -203,7 +203,7 @@ No good forum evidence surfaced.
   - fear of disrupting workflow;
   - privacy uncertainty ([ISB](https://blogs.isb.edu/healthcare/2026/03/18/why-sme-hospitals-matter-in-india-digital-health-transformation/); [BMC 2025 survey of 105 doctors](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12087044/)).
 - **Price floor.** IndiaMART HMS listings start around ₹10k–50k a pack, so buyers anchor low.
-- **How hospitals evaluate.** Visit an existing site of similar size before buying (MocDoc guide). Trust comes from referrals, not reviews.
+- **How hospitals evaluate.** Visit an existing site of similar size before buying (an Indian HMS vendor guide). Trust comes from referrals, not reviews.
 - **Cloud vs on-prem.** Tier-3 cloud adoption is reportedly around 29% (Ken Research, unverified). The public sector is pushing cloud-only through NIC e-Hospital. That leaves room for "cloud with a local fallback".
 
 ---

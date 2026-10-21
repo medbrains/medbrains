@@ -703,7 +703,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Incentive statement and earnings view
 > As a **mobile app user**, I want **incentive statement and earnings view**.
 
-`Pending · Platforms: Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The mobile app user can incentive statement and earnings view from the relevant screen, with clear loading / empty / error states.
@@ -719,7 +719,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Insurance card upload and pre-auth status tracking
 > As a **mobile app user**, I want **insurance card upload and pre-auth status tracking**.
 
-`Pending · Platforms: Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The mobile app user can insurance card upload and pre-auth status tracking from the relevant screen, with clear loading / empty / error states.
@@ -851,7 +851,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Indoor navigation / wayfinding (department directions)
 > As a **mobile app user**, I want **indoor navigation / wayfinding (department directions)**.
 
-`Pending · Platforms: Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The mobile app user can indoor navigation / wayfinding (department directions) from the relevant screen, with clear loading / empty / error states.
@@ -975,7 +975,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### On-site payment collection (cash/UPI)
 > As a **mobile app user**, I want **on-site payment collection (cash/upi)**.
 
-`Pending · Platforms: Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The mobile app user can on-site payment collection (cash/UPI) from the relevant screen, with clear loading / empty / error states.
@@ -1007,7 +1007,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Live queue position tracking (estimated wait time)
 > As a **mobile app user**, I want **live queue position tracking (estimated wait time)**.
 
-`Done · Platforms: Mobile · Source: MocDoc+RFC · RFC: §Mobile`
+`Done · Platforms: Mobile · Source: Market research+RFC · RFC: §Mobile`
 
 **Acceptance criteria**
 - [x] The mobile app user can live queue position tracking (estimated wait time) from the relevant screen, with clear loading / empty / error states.
@@ -1119,7 +1119,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Video consultation launch from app
 > As a **mobile app user**, I want **video consultation launch from app**.
 
-`Pending · Platforms: Mobile · Source: MocDoc+RFC · RFC: §Mobile`
+`Pending · Platforms: Mobile · Source: Market research+RFC · RFC: §Mobile`
 
 **Acceptance criteria**
 - [ ] The mobile app user can video consultation launch from app from the relevant screen, with clear loading / empty / error states.
@@ -1133,7 +1133,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Video consultation join from app
 > As a **mobile app user**, I want **video consultation join from app**.
 
-`Pending · Platforms: Mobile · Source: MocDoc+RFC · RFC: §Mobile`
+`Pending · Platforms: Mobile · Source: Market research+RFC · RFC: §Mobile`
 
 **Acceptance criteria**
 - [ ] The mobile app user can video consultation join from app from the relevant screen, with clear loading / empty / error states.

@@ -194,7 +194,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Ambient AI listening — auto-generates clinical notes from doctor-patient conversation
 > As a **clinician**, I want **ambient ai listening — auto-generates clinical notes from doctor-patient conversation**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can ambient AI listening — auto-generates clinical notes from doctor-patient conversation from the relevant screen, with clear loading / empty / error states.
@@ -209,7 +209,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-drafted SOAP notes with physician review and edit workflow
 > As a **clinician**, I want **ai-drafted soap notes with physician review and edit workflow**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can aI-drafted SOAP notes with physician review and edit workflow from the relevant screen, with clear loading / empty / error states.
@@ -224,7 +224,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-extraction of diagnoses, medications, allergies from conversation
 > As a **clinician**, I want **auto-extraction of diagnoses, medications, allergies from conversation**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can auto-extraction of diagnoses, medications, allergies from conversation from the relevant screen, with clear loading / empty / error states.
@@ -239,7 +239,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-drafted shift conclusion/handover notes for nursing
 > As a **clinician**, I want **ai-drafted shift conclusion/handover notes for nursing**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can aI-drafted shift conclusion/handover notes for nursing from the relevant screen, with clear loading / empty / error states.
@@ -254,7 +254,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Smart charting — pre-fill fields based on context (returning patient, chronic condition)
 > As a **clinician**, I want **smart charting — pre-fill fields based on context (returning patient, chronic condition)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can smart charting — pre-fill fields based on context (returning patient, chronic condition) from the relevant screen, with clear loading / empty / error states.
@@ -268,7 +268,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI summarization of patient history for quick review (visit summary generator)
 > As a **clinician**, I want **ai summarization of patient history for quick review (visit summary generator)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can aI summarization of patient history for quick review (visit summary generator) from the relevant screen, with clear loading / empty / error states.
@@ -283,7 +283,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-language ambient capture (Hindi, Tamil, Telugu → English clinical note)
 > As a **clinician**, I want **multi-language ambient capture (hindi, tamil, telugu → english clinical note)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can multi-language ambient capture (Hindi, Tamil, Telugu → English clinical note) from the relevant screen, with clear loading / empty / error states.
@@ -300,7 +300,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Order set utilization analytics (which sets used, by whom, compliance)
 > As a **clinician**, I want **order set utilization analytics (which sets used, by whom, compliance)**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can order set utilization analytics (which sets used, by whom, compliance) from the relevant screen, with clear loading / empty / error states.
@@ -1143,7 +1143,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Message nurse / request assistance from bedside
 > As a **clinician**, I want **message nurse / request assistance from bedside**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can message nurse / request assistance from bedside from the relevant screen, with clear loading / empty / error states.
@@ -1158,7 +1158,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Video call with family members from bedside terminal
 > As a **clinician**, I want **video call with family members from bedside terminal**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can video call with family members from bedside terminal from the relevant screen, with clear loading / empty / error states.
@@ -1175,7 +1175,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Order set builder — group labs, meds, nursing orders, diets into named bundles
 > As a **clinician**, I want **order set builder — group labs, meds, nursing orders, diets into named bundles**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can order set builder — group labs, meds, nursing orders, diets into named bundles from the relevant screen, with clear loading / empty / error states.
@@ -1190,7 +1190,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Diagnosis-driven order sets (Pneumonia workup, DKA protocol, Chest Pain panel)
 > As a **clinician**, I want **diagnosis-driven order sets (pneumonia workup, dka protocol, chest pain panel)**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can diagnosis-driven order sets (Pneumonia workup, DKA protocol, Chest Pain panel) from the relevant screen, with clear loading / empty / error states.
@@ -1205,7 +1205,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission order sets (general admission, ICU admission, pediatric admission)
 > As a **clinician**, I want **admission order sets (general admission, icu admission, pediatric admission)**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can admission order sets (general admission, ICU admission, pediatric admission) from the relevant screen, with clear loading / empty / error states.
@@ -1220,7 +1220,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pre-operative order sets (by surgery type — cardiac, ortho, neuro)
 > As a **clinician**, I want **pre-operative order sets (by surgery type — cardiac, ortho, neuro)**.
 
-`Partial · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can pre-operative order sets (by surgery type — cardiac, ortho, neuro) from the relevant screen, with clear loading / empty / error states.
@@ -1524,7 +1524,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Backdated clinical data entry with mandatory reason and supervisor approval
 > As a **clinician**, I want **backdated clinical data entry with mandatory reason and supervisor approval**.
 
-`Done · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can backdated clinical data entry with mandatory reason and supervisor approval from the relevant screen, with clear loading / empty / error states.
@@ -1538,7 +1538,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Retrospective visit creation (paper records digitization)
 > As a **clinician**, I want **retrospective visit creation (paper records digitization)**.
 
-`Done · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can retrospective visit creation (paper records digitization) from the relevant screen, with clear loading / empty / error states.
@@ -1552,7 +1552,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Visual indicator on all retrospective entries (badge/watermark: 'Entered retrospectively')
 > As a **clinician**, I want **visual indicator on all retrospective entries (badge/watermark: 'entered retrospectively')**.
 
-`Done · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can visual indicator on all retrospective entries (badge/watermark: 'Entered retrospectively') from the relevant screen, with clear loading / empty / error states.
@@ -1566,7 +1566,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit trail — original entry time vs clinical event time
 > As a **clinician**, I want **audit trail — original entry time vs clinical event time**.
 
-`Done · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can audit trail — original entry time vs clinical event time from the relevant screen, with clear loading / empty / error states.
@@ -1580,7 +1580,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Configurable retrospective entry window (e.g., max 72 hours back, admin override)
 > As a **clinician**, I want **configurable retrospective entry window (e.g., max 72 hours back, admin override)**.
 
-`Done · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can configurable retrospective entry window (e.g., max 72 hours back, admin override) from the relevant screen, with clear loading / empty / error states.
@@ -1596,7 +1596,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Automated infection surveillance — flag potential HAIs from lab + clinical data patterns
 > As a **clinician**, I want **automated infection surveillance — flag potential hais from lab + clinical data patterns**.
 
-`Partial · Platforms: Web · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can automated infection surveillance — flag potential HAIs from lab + clinical data patterns from the relevant screen, with clear loading / empty / error states.
@@ -1610,7 +1610,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Nosocomial infection classification (CAUTI, CLABSI, SSI, VAP) with CDC/NHSN criteria
 > As a **clinician**, I want **nosocomial infection classification (cauti, clabsi, ssi, vap) with cdc/nhsn criteria**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can nosocomial infection classification (CAUTI, CLABSI, SSI, VAP) with CDC/NHSN criteria from the relevant screen, with clear loading / empty / error states.
@@ -1942,7 +1942,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Drug-o-gram — visual timeline of all medications for chronic patients (diabetes, TB, HIV, etc.)
 > As a **clinician**, I want **drug-o-gram — visual timeline of all medications for chronic patients (diabetes, tb, hiv, etc.)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can drug-o-gram — visual timeline of all medications for chronic patients (diabetes, TB, HIV, etc.) from the relevant screen, with clear loading / empty / error states.
@@ -1957,7 +1957,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medication change tracking on timeline (start, stop, dose change, switch)
 > As a **clinician**, I want **medication change tracking on timeline (start, stop, dose change, switch)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can medication change tracking on timeline (start, stop, dose change, switch) from the relevant screen, with clear loading / empty / error states.
@@ -1972,7 +1972,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Side-by-side lab value overlay on drug timeline (HbA1c trend vs insulin dose)
 > As a **clinician**, I want **side-by-side lab value overlay on drug timeline (hba1c trend vs insulin dose)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can side-by-side lab value overlay on drug timeline (HbA1c trend vs insulin dose) from the relevant screen, with clear loading / empty / error states.
@@ -1987,7 +1987,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Treatment program enrollment (TB DOTS, HIV ART, Diabetes, Hypertension)
 > As a **clinician**, I want **treatment program enrollment (tb dots, hiv art, diabetes, hypertension)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir+Bahmni · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can treatment program enrollment (TB DOTS, HIV ART, Diabetes, Hypertension) from the relevant screen, with clear loading / empty / error states.
@@ -2002,7 +2002,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Protocol adherence tracking — missed doses, late refills, appointment no-shows
 > As a **clinician**, I want **protocol adherence tracking — missed doses, late refills, appointment no-shows**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can protocol adherence tracking — missed doses, late refills, appointment no-shows from the relevant screen, with clear loading / empty / error states.
@@ -2017,7 +2017,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Chronic disease outcome dashboard (target vs actual — BP, sugar, viral load)
 > As a **clinician**, I want **chronic disease outcome dashboard (target vs actual — bp, sugar, viral load)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can chronic disease outcome dashboard (target vs actual — BP, sugar, viral load) from the relevant screen, with clear loading / empty / error states.
@@ -2032,7 +2032,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Multi-drug interaction timeline alerts for polypharmacy patients
 > As a **clinician**, I want **multi-drug interaction timeline alerts for polypharmacy patients**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can multi-drug interaction timeline alerts for polypharmacy patients from the relevant screen, with clear loading / empty / error states.
@@ -2047,7 +2047,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Printable chronic treatment summary for patient/referral
 > As a **clinician**, I want **printable chronic treatment summary for patient/referral**.
 
-`Done · Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can printable chronic treatment summary for patient/referral from the relevant screen, with clear loading / empty / error states.
@@ -2064,7 +2064,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient education videos (condition-specific, post-op care, medication guides)
 > As a **clinician**, I want **patient education videos (condition-specific, post-op care, medication guides)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can patient education videos (condition-specific, post-op care, medication guides) from the relevant screen, with clear loading / empty / error states.
@@ -2082,7 +2082,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ One-click order set activation with per-item opt-out
 > As a **clinician**, I want **one-click order set activation with per-item opt-out**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can one-click order set activation with per-item opt-out from the relevant screen, with clear loading / empty / error states.
@@ -2097,7 +2097,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Order set version control (update protocol without breaking active orders)
 > As a **clinician**, I want **order set version control (update protocol without breaking active orders)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can order set version control (update protocol without breaking active orders) from the relevant screen, with clear loading / empty / error states.
@@ -2114,7 +2114,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Real-time experience feedback (pain level, comfort, cleanliness)
 > As a **clinician**, I want **real-time experience feedback (pain level, comfort, cleanliness)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can real-time experience feedback (pain level, comfort, cleanliness) from the relevant screen, with clear loading / empty / error states.
@@ -3713,7 +3713,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Bedside tablet — patient views their daily schedule (tests, procedures, meals, visits)
 > As a **clinician**, I want **bedside tablet — patient views their daily schedule (tests, procedures, meals, visits)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can bedside tablet — patient views their daily schedule (tests, procedures, meals, visits) from the relevant screen, with clear loading / empty / error states.
@@ -3728,7 +3728,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ View current medications with plain-language descriptions
 > As a **clinician**, I want **view current medications with plain-language descriptions**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can view current medications with plain-language descriptions from the relevant screen, with clear loading / empty / error states.
@@ -3743,7 +3743,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ View latest vitals and lab results (patient-friendly format)
 > As a **clinician**, I want **view latest vitals and lab results (patient-friendly format)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can view latest vitals and lab results (patient-friendly format) from the relevant screen, with clear loading / empty / error states.
@@ -3758,7 +3758,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Meal ordering from bedside (diet-restricted menu based on orders)
 > As a **clinician**, I want **meal ordering from bedside (diet-restricted menu based on orders)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can meal ordering from bedside (diet-restricted menu based on orders) from the relevant screen, with clear loading / empty / error states.
@@ -4333,7 +4333,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ NHSN/CDC regulatory reporting auto-generation
 > As a **clinician**, I want **nhsn/cdc regulatory reporting auto-generation**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can nHSN/CDC regulatory reporting auto-generation from the relevant screen, with clear loading / empty / error states.
@@ -4347,7 +4347,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Line-day/device-day tracking for denominator calculation
 > As a **clinician**, I want **line-day/device-day tracking for denominator calculation**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can line-day/device-day tracking for denominator calculation from the relevant screen, with clear loading / empty / error states.
@@ -4363,7 +4363,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Contact tracing workflow (identify exposed patients/staff from index case)
 > As a **clinician**, I want **contact tracing workflow (identify exposed patients/staff from index case)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can contact tracing workflow (identify exposed patients/staff from index case) from the relevant screen, with clear loading / empty / error states.
@@ -4467,7 +4467,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Express Lane documentation — single-screen visit templates (well-child, routine follow-up)
 > As a **clinician**, I want **express lane documentation — single-screen visit templates (well-child, routine follow-up)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can express Lane documentation — single-screen visit templates (well-child, routine follow-up) from the relevant screen, with clear loading / empty / error states.
@@ -4481,7 +4481,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Specialty-specific smart templates (cardiology review, orthopedic assessment, psych eval)
 > As a **clinician**, I want **specialty-specific smart templates (cardiology review, orthopedic assessment, psych eval)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can specialty-specific smart templates (cardiology review, orthopedic assessment, psych eval) from the relevant screen, with clear loading / empty / error states.
@@ -4495,7 +4495,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient-reported pre-visit questionnaire auto-populating chart fields
 > As a **clinician**, I want **patient-reported pre-visit questionnaire auto-populating chart fields**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The clinician can patient-reported pre-visit questionnaire auto-populating chart fields from the relevant screen, with clear loading / empty / error states.
@@ -4511,7 +4511,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Infection trend analysis — time-series charts per ward/ICU/procedure type
 > As a **clinician**, I want **infection trend analysis — time-series charts per ward/icu/procedure type**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can infection trend analysis — time-series charts per ward/ICU/procedure type from the relevant screen, with clear loading / empty / error states.
@@ -4525,7 +4525,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Antibiogram generation — hospital-wide antibiotic sensitivity patterns
 > As a **clinician**, I want **antibiogram generation — hospital-wide antibiotic sensitivity patterns**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can antibiogram generation — hospital-wide antibiotic sensitivity patterns from the relevant screen, with clear loading / empty / error states.
@@ -4539,7 +4539,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Outbreak detection algorithm (unusual cluster of same organism/ward)
 > As a **clinician**, I want **outbreak detection algorithm (unusual cluster of same organism/ward)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can outbreak detection algorithm (unusual cluster of same organism/ward) from the relevant screen, with clear loading / empty / error states.
@@ -4749,7 +4749,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Ward-level patient grid — all beds with status (vitals due, meds due, assessments pending)
 > As a **clinician**, I want **ward-level patient grid — all beds with status (vitals due, meds due, assessments pending)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can ward-level patient grid — all beds with status (vitals due, meds due, assessments pending) from the relevant screen, with clear loading / empty / error states.
@@ -4765,7 +4765,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Color-coded task urgency (overdue=red, due-now=yellow, upcoming=green)
 > As a **clinician**, I want **color-coded task urgency (overdue=red, due-now=yellow, upcoming=green)**.
 
-`Done · Platforms: Web, TV · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can color-coded task urgency (overdue=red, due-now=yellow, upcoming=green) from the relevant screen, with clear loading / empty / error states.
@@ -4780,7 +4780,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Medication administration pending list per nurse assignment
 > As a **clinician**, I want **medication administration pending list per nurse assignment**.
 
-`Done · Platforms: Web, Mobile, TV · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can medication administration pending list per nurse assignment from the relevant screen, with clear loading / empty / error states.
@@ -4796,7 +4796,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Vitals collection checklist (which patients need vitals, when last taken)
 > As a **clinician**, I want **vitals collection checklist (which patients need vitals, when last taken)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can vitals collection checklist (which patients need vitals, when last taken) from the relevant screen, with clear loading / empty / error states.
@@ -4812,7 +4812,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient handover summary generation (shift change — pending tasks, critical notes)
 > As a **clinician**, I want **patient handover summary generation (shift change — pending tasks, critical notes)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: iElixir+Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can patient handover summary generation (shift change — pending tasks, critical notes) from the relevant screen, with clear loading / empty / error states.
@@ -4828,7 +4828,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Real-time bed board with acuity scores and fall risk indicators
 > As a **clinician**, I want **real-time bed board with acuity scores and fall risk indicators**.
 
-`Done · Platforms: Web, Mobile, TV · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can real-time bed board with acuity scores and fall risk indicators from the relevant screen, with clear loading / empty / error states.
@@ -4844,7 +4844,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge readiness tracker (pending labs, clearances, meds, transport)
 > As a **clinician**, I want **discharge readiness tracker (pending labs, clearances, meds, transport)**.
 
-`Done · Platforms: Web, TV · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can discharge readiness tracker (pending labs, clearances, meds, transport) from the relevant screen, with clear loading / empty / error states.
@@ -4859,7 +4859,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Non-medication task tracking (wound care, catheter care, repositioning)
 > As a **clinician**, I want **non-medication task tracking (wound care, catheter care, repositioning)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: iElixir+Bahmni · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can non-medication task tracking (wound care, catheter care, repositioning) from the relevant screen, with clear loading / empty / error states.

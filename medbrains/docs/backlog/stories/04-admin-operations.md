@@ -1091,7 +1091,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Case manager assignment per patient with caseload balancing
 > As a **operations admin**, I want **case manager assignment per patient with caseload balancing**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can case manager assignment per patient with caseload balancing from the relevant screen, with clear loading / empty / error states.
@@ -1106,7 +1106,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge barriers tracking (insurance, placement, equipment, family, transport)
 > As a **operations admin**, I want **discharge barriers tracking (insurance, placement, equipment, family, transport)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can discharge barriers tracking (insurance, placement, equipment, family, transport) from the relevant screen, with clear loading / empty / error states.
@@ -1121,7 +1121,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-acute facility finder (SNF, rehab, LTAC — availability, ratings, distance)
 > As a **operations admin**, I want **post-acute facility finder (snf, rehab, ltac — availability, ratings, distance)**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The operations admin can post-acute facility finder (SNF, rehab, LTAC — availability, ratings, distance) from the relevant screen, with clear loading / empty / error states.
@@ -1136,7 +1136,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Social work referral integration (housing, financial assistance, transportation)
 > As a **operations admin**, I want **social work referral integration (housing, financial assistance, transportation)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can social work referral integration (housing, financial assistance, transportation) from the relevant screen, with clear loading / empty / error states.
@@ -1151,7 +1151,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Discharge disposition tracking (home, SNF, rehab, AMA, expired) with outcome analytics
 > As a **operations admin**, I want **discharge disposition tracking (home, snf, rehab, ama, expired) with outcome analytics**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can discharge disposition tracking (home, SNF, rehab, AMA, expired) with outcome analytics from the relevant screen, with clear loading / empty / error states.
@@ -2889,7 +2889,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Work-related injury documentation with OSHA recordability determination
 > As a **operations admin**, I want **work-related injury documentation with osha recordability determination**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can work-related injury documentation with OSHA recordability determination from the relevant screen, with clear loading / empty / error states.
@@ -2903,7 +2903,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Workers compensation claim integration (injury → treatment → claim)
 > As a **operations admin**, I want **workers compensation claim integration (injury → treatment → claim)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can workers compensation claim integration (injury → treatment → claim) from the relevant screen, with clear loading / empty / error states.
@@ -2917,7 +2917,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Return-to-work clearance workflow with restrictions and accommodations
 > As a **operations admin**, I want **return-to-work clearance workflow with restrictions and accommodations**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can return-to-work clearance workflow with restrictions and accommodations from the relevant screen, with clear loading / empty / error states.
@@ -3492,7 +3492,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Needle stick / blood exposure incident protocol with follow-up scheduling
 > As a **operations admin**, I want **needle stick / blood exposure incident protocol with follow-up scheduling**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can needle stick / blood exposure incident protocol with follow-up scheduling from the relevant screen, with clear loading / empty / error states.
@@ -3509,7 +3509,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ML-based no-show prediction scoring per appointment (historical patterns, demographics)
 > As a **operations admin**, I want **ml-based no-show prediction scoring per appointment (historical patterns, demographics)**.
 
-`Done · Platforms: Web · Source: Epic+iElixir · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can mL-based no-show prediction scoring per appointment (historical patterns, demographics) from the relevant screen, with clear loading / empty / error states.
@@ -3523,7 +3523,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Overbooking recommendation based on predicted no-show rate per slot
 > As a **operations admin**, I want **overbooking recommendation based on predicted no-show rate per slot**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can overbooking recommendation based on predicted no-show rate per slot from the relevant screen, with clear loading / empty / error states.
@@ -3537,7 +3537,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Targeted reminder escalation for high no-show risk patients (call instead of SMS)
 > As a **operations admin**, I want **targeted reminder escalation for high no-show risk patients (call instead of sms)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can targeted reminder escalation for high no-show risk patients (call instead of SMS) from the relevant screen, with clear loading / empty / error states.
@@ -3551,7 +3551,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Waitlist auto-fill — offer cancelled/no-show slots to waitlisted patients instantly
 > As a **operations admin**, I want **waitlist auto-fill — offer cancelled/no-show slots to waitlisted patients instantly**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can waitlist auto-fill — offer cancelled/no-show slots to waitlisted patients instantly from the relevant screen, with clear loading / empty / error states.
@@ -3565,7 +3565,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ No-show analytics dashboard (rate by doctor, department, day, time, insurance)
 > As a **operations admin**, I want **no-show analytics dashboard (rate by doctor, department, day, time, insurance)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic+iElixir · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can no-show analytics dashboard (rate by doctor, department, day, time, insurance) from the relevant screen, with clear loading / empty / error states.
@@ -4250,7 +4250,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-employment physical examination workflow (medical history, fitness assessment)
 > As a **operations admin**, I want **pre-employment physical examination workflow (medical history, fitness assessment)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can pre-employment physical examination workflow (medical history, fitness assessment) from the relevant screen, with clear loading / empty / error states.
@@ -4265,7 +4265,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Pre-employment drug screening management (chain-of-custody, MRO review)
 > As a **operations admin**, I want **pre-employment drug screening management (chain-of-custody, mro review)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can pre-employment drug screening management (chain-of-custody, MRO review) from the relevant screen, with clear loading / empty / error states.
@@ -4279,7 +4279,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Vaccination compliance tracking for healthcare workers (Hep B, flu, COVID)
 > As a **operations admin**, I want **vaccination compliance tracking for healthcare workers (hep b, flu, covid)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can vaccination compliance tracking for healthcare workers (Hep B, flu, COVID) from the relevant screen, with clear loading / empty / error states.
@@ -4382,7 +4382,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prior authorization requirement detection at order entry (procedure, imaging, medication)
 > As a **operations admin**, I want **prior authorization requirement detection at order entry (procedure, imaging, medication)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can prior authorization requirement detection at order entry (procedure, imaging, medication) from the relevant screen, with clear loading / empty / error states.
@@ -4397,7 +4397,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Electronic prior auth submission to payer (FHIR-based or payer portal integration)
 > As a **operations admin**, I want **electronic prior auth submission to payer (fhir-based or payer portal integration)**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The operations admin can electronic prior auth submission to payer (FHIR-based or payer portal integration) from the relevant screen, with clear loading / empty / error states.
@@ -4412,7 +4412,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Prior auth status tracking dashboard (pending, approved, denied, appeal)
 > As a **operations admin**, I want **prior auth status tracking dashboard (pending, approved, denied, appeal)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can prior auth status tracking dashboard (pending, approved, denied, appeal) from the relevant screen, with clear loading / empty / error states.
@@ -4427,7 +4427,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-attach clinical documentation to PA request (diagnosis, notes, labs)
 > As a **operations admin**, I want **auto-attach clinical documentation to pa request (diagnosis, notes, labs)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can auto-attach clinical documentation to PA request (diagnosis, notes, labs) from the relevant screen, with clear loading / empty / error states.
@@ -4442,7 +4442,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ PA denial appeal workflow with letter generation
 > As a **operations admin**, I want **pa denial appeal workflow with letter generation**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can pA denial appeal workflow with letter generation from the relevant screen, with clear loading / empty / error states.
@@ -4457,7 +4457,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### PA turnaround time tracking with escalation on delays
 > As a **operations admin**, I want **pa turnaround time tracking with escalation on delays**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The operations admin can pA turnaround time tracking with escalation on delays from the relevant screen, with clear loading / empty / error states.
@@ -4474,7 +4474,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Employer access controls (employer sees fitness status only, not clinical details)
 > As a **operations admin**, I want **employer access controls (employer sees fitness status only, not clinical details)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can employer access controls (employer sees fitness status only, not clinical details) from the relevant screen, with clear loading / empty / error states.
@@ -4841,7 +4841,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Admission/continued stay review with InterQual/Milliman criteria integration
 > As a **operations admin**, I want **admission/continued stay review with interqual/milliman criteria integration**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can admission/continued stay review with InterQual/Milliman criteria integration from the relevant screen, with clear loading / empty / error states.
@@ -4855,7 +4855,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ AI-assisted utilization review (auto-extract relevant clinical data for reviewer)
 > As a **operations admin**, I want **ai-assisted utilization review (auto-extract relevant clinical data for reviewer)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can aI-assisted utilization review (auto-extract relevant clinical data for reviewer) from the relevant screen, with clear loading / empty / error states.
@@ -4869,7 +4869,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Concurrent review tracking — LOS vs expected LOS with outlier alerts
 > As a **operations admin**, I want **concurrent review tracking — los vs expected los with outlier alerts**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can concurrent review tracking — LOS vs expected LOS with outlier alerts from the relevant screen, with clear loading / empty / error states.
@@ -4883,7 +4883,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Payer communication log (authorization requests, denials, appeals per case)
 > As a **operations admin**, I want **payer communication log (authorization requests, denials, appeals per case)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can payer communication log (authorization requests, denials, appeals per case) from the relevant screen, with clear loading / empty / error states.
@@ -4897,7 +4897,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Observation vs inpatient status tracking with conversion workflow
 > As a **operations admin**, I want **observation vs inpatient status tracking with conversion workflow**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can observation vs inpatient status tracking with conversion workflow from the relevant screen, with clear loading / empty / error states.
@@ -5113,7 +5113,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Periodic health surveillance scheduling (hearing tests, lung function, blood lead)
 > As a **operations admin**, I want **periodic health surveillance scheduling (hearing tests, lung function, blood lead)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can periodic health surveillance scheduling (hearing tests, lung function, blood lead) from the relevant screen, with clear loading / empty / error states.
@@ -5130,7 +5130,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time electronic insurance eligibility verification (X12 270/271 transaction)
 > As a **operations admin**, I want **real-time electronic insurance eligibility verification (x12 270/271 transaction)**.
 
-`Partial · Platforms: Web · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The operations admin can real-time electronic insurance eligibility verification (X12 270/271 transaction) from the relevant screen, with clear loading / empty / error states.
@@ -5144,7 +5144,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Auto-verify insurance at scheduling, check-in, and admission (3-point verification)
 > As a **operations admin**, I want **auto-verify insurance at scheduling, check-in, and admission (3-point verification)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can auto-verify insurance at scheduling, check-in, and admission (3-point verification) from the relevant screen, with clear loading / empty / error states.
@@ -5158,7 +5158,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Benefits breakdown display (deductible remaining, co-pay, co-insurance, OOP max)
 > As a **operations admin**, I want **benefits breakdown display (deductible remaining, co-pay, co-insurance, oop max)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can benefits breakdown display (deductible remaining, co-pay, co-insurance, OOP max) from the relevant screen, with clear loading / empty / error states.
@@ -5172,7 +5172,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Policy active/inactive status with coverage dates and member ID validation
 > As a **operations admin**, I want **policy active/inactive status with coverage dates and member id validation**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can policy active/inactive status with coverage dates and member ID validation from the relevant screen, with clear loading / empty / error states.
@@ -5385,7 +5385,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Employee wellness program tracking (BMI, fitness challenges, health risk assessment)
 > As a **operations admin**, I want **employee wellness program tracking (bmi, fitness challenges, health risk assessment)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The operations admin can employee wellness program tracking (BMI, fitness challenges, health risk assessment) from the relevant screen, with clear loading / empty / error states.

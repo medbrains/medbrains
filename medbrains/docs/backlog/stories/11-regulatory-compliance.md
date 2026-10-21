@@ -7,7 +7,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ISO 27001 ISMS (Information Security Management System) control mapping
 > As a **compliance officer**, I want **iso 27001 isms (information security management system) control mapping**.
 
-`Partial · Platforms: Web · Source: Reg+MocDoc · RFC: §Reg`
+`Partial · Platforms: Web · Source: Reg+Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can iSO 27001 ISMS (Information Security Management System) control mapping from the relevant screen, with clear loading / empty / error states.
@@ -23,7 +23,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ISO 9001:2015 quality management system compliance tracking
 > As a **compliance officer**, I want **iso 9001:2015 quality management system compliance tracking**.
 
-`Partial · Platforms: Web · Source: Reg+MocDoc · RFC: §Reg`
+`Partial · Platforms: Web · Source: Reg+Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can iSO 9001:2015 quality management system compliance tracking from the relevant screen, with clear loading / empty / error states.
@@ -513,7 +513,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Fiji VAT (Value Added Tax) compliance for healthcare services billing
 > As a **compliance officer**, I want **fiji vat (value added tax) compliance for healthcare services billing**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Reg`
+`Pending · Platforms: Web · Source: Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can fiji VAT (Value Added Tax) compliance for healthcare services billing from the relevant screen, with clear loading / empty / error states.
@@ -575,7 +575,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CERT-In 6-hour incident reporting compliance and log retention (180 days)
 > As a **compliance officer**, I want **cert-in 6-hour incident reporting compliance and log retention (180 days)**.
 
-`Partial · Platforms: Web, Mobile · Source: Reg+MocDoc · RFC: §Reg`
+`Partial · Platforms: Web, Mobile · Source: Reg+Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can cERT-In 6-hour incident reporting compliance and log retention (180 days) from the relevant screen, with clear loading / empty / error states.
@@ -656,7 +656,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Maldives AASANDHA national health insurance integration
 > As a **compliance officer**, I want **maldives aasandha national health insurance integration**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Reg`
+`Pending · Platforms: Web · Source: Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can maldives AASANDHA national health insurance integration from the relevant screen, with clear loading / empty / error states.
@@ -1018,7 +1018,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SOC 2 Type II evidence collection and control monitoring
 > As a **compliance officer**, I want **soc 2 type ii evidence collection and control monitoring**.
 
-`Partial · Platforms: Web · Source: Reg+MocDoc · RFC: §Reg`
+`Partial · Platforms: Web · Source: Reg+Market research · RFC: §Reg`
 
 **Acceptance criteria**
 - [ ] The compliance officer can sOC 2 Type II evidence collection and control monitoring from the relevant screen, with clear loading / empty / error states.

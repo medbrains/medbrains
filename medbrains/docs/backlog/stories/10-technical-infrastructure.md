@@ -599,7 +599,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### RPO < 15 minutes, RTO < 2 hours disaster recovery target
 > As a **platform engineer**, I want **rpo < 15 minutes, rto < 2 hours disaster recovery target**.
 
-`Pending · Platforms: Web · Source: RFC+MocDoc · RFC: §3`
+`Pending · Platforms: Web · Source: RFC+Market research · RFC: §3`
 
 **Acceptance criteria**
 - [ ] The platform engineer can rPO < 15 minutes, RTO < 2 hours disaster recovery target from the relevant screen, with clear loading / empty / error states.
@@ -3586,7 +3586,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Penetration testing schedule (quarterly VAPT with third-party vendor)
 > As a **platform engineer**, I want **penetration testing schedule (quarterly vapt with third-party vendor)**.
 
-`Pending · Platforms: Web · Source: RFC+MocDoc · RFC: §3`
+`Pending · Platforms: Web · Source: RFC+Market research · RFC: §3`
 
 **Acceptance criteria**
 - [ ] The platform engineer can penetration testing schedule (quarterly VAPT with third-party vendor) from the relevant screen, with clear loading / empty / error states.

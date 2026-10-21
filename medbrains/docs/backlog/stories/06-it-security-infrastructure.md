@@ -835,7 +835,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### MediBuddy / Practo / Lybrate appointment sync
 > As a **system administrator**, I want **medibuddy / practo / lybrate appointment sync**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can mediBuddy / Practo / Lybrate appointment sync from the relevant screen, with clear loading / empty / error states.
@@ -849,7 +849,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Karkinos oncology referral integration
 > As a **system administrator**, I want **karkinos oncology referral integration**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can karkinos oncology referral integration from the relevant screen, with clear loading / empty / error states.
@@ -863,7 +863,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Medall / SRL diagnostics lab integration
 > As a **system administrator**, I want **medall / srl diagnostics lab integration**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can medall / SRL diagnostics lab integration from the relevant screen, with clear loading / empty / error states.
@@ -877,7 +877,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Sufalam / InstaHealth data exchange
 > As a **system administrator**, I want **sufalam / instahealth data exchange**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sufalam / InstaHealth data exchange from the relevant screen, with clear loading / empty / error states.
@@ -891,7 +891,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ABDM health locker — push/pull patient records
 > As a **system administrator**, I want **abdm health locker — push/pull patient records**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aBDM health locker — push/pull patient records from the relevant screen, with clear loading / empty / error states.
@@ -906,7 +906,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Insurance TPA portal integration (pre-auth, claim status)
 > As a **system administrator**, I want **insurance tpa portal integration (pre-auth, claim status)**.
 
-`Pending · Platforms: Web · Source: MocDoc+RFC · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+RFC · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can insurance TPA portal integration (pre-auth, claim status) from the relevant screen, with clear loading / empty / error states.
@@ -920,7 +920,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### International compliance adapters (AASANDHA/Maldives, VAT/Fiji)
 > As a **system administrator**, I want **international compliance adapters (aasandha/maldives, vat/fiji)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can international compliance adapters (AASANDHA/Maldives, VAT/Fiji) from the relevant screen, with clear loading / empty / error states.
@@ -936,7 +936,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Warning before submitting critical orders on degraded connection
 > As a **system administrator**, I want **warning before submitting critical orders on degraded connection**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can warning before submitting critical orders on degraded connection from the relevant screen, with clear loading / empty / error states.
@@ -952,7 +952,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-escalation on TAT breach (notify supervisor when SLA exceeded)
 > As a **system administrator**, I want **auto-escalation on tat breach (notify supervisor when sla exceeded)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-escalation on TAT breach (notify supervisor when SLA exceeded) from the relevant screen, with clear loading / empty / error states.
@@ -1227,7 +1227,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Population dashboard — disease prevalence, outcomes, cost per capita
 > As a **system administrator**, I want **population dashboard — disease prevalence, outcomes, cost per capita**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can population dashboard — disease prevalence, outcomes, cost per capita from the relevant screen, with clear loading / empty / error states.
@@ -1241,7 +1241,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### HEDIS/quality measure tracking (compliance rates per measure)
 > As a **system administrator**, I want **hedis/quality measure tracking (compliance rates per measure)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can hEDIS/quality measure tracking (compliance rates per measure) from the relevant screen, with clear loading / empty / error states.
@@ -1255,7 +1255,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Cohort builder — dynamic patient groups by diagnosis, age, location, risk
 > As a **system administrator**, I want **cohort builder — dynamic patient groups by diagnosis, age, location, risk**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can cohort builder — dynamic patient groups by diagnosis, age, location, risk from the relevant screen, with clear loading / empty / error states.
@@ -1269,7 +1269,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SDOH impact analytics — correlation between social factors and readmission/outcomes
 > As a **system administrator**, I want **sdoh impact analytics — correlation between social factors and readmission/outcomes**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sDOH impact analytics — correlation between social factors and readmission/outcomes from the relevant screen, with clear loading / empty / error states.
@@ -1283,7 +1283,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time KPI tiles (ALOS, mortality, infection rate, patient satisfaction)
 > As a **system administrator**, I want **real-time kpi tiles (alos, mortality, infection rate, patient satisfaction)**.
 
-`Partial · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Partial · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can real-time KPI tiles (ALOS, mortality, infection rate, patient satisfaction) from the relevant screen, with clear loading / empty / error states.
@@ -1298,7 +1298,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Campaign ROI analytics (cost per acquisition, conversion rate, revenue generated)
 > As a **system administrator**, I want **campaign roi analytics (cost per acquisition, conversion rate, revenue generated)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can campaign ROI analytics (cost per acquisition, conversion rate, revenue generated) from the relevant screen, with clear loading / empty / error states.
@@ -1456,7 +1456,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Google Reserve / Google Maps appointment booking integration
 > As a **system administrator**, I want **google reserve / google maps appointment booking integration**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir+Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can google Reserve / Google Maps appointment booking integration from the relevant screen, with clear loading / empty / error states.
@@ -1471,7 +1471,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Practo / Lybrate / DocPrime profile sync (availability, fees)
 > As a **system administrator**, I want **practo / lybrate / docprime profile sync (availability, fees)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can practo / Lybrate / DocPrime profile sync (availability, fees) from the relevant screen, with clear loading / empty / error states.
@@ -1701,7 +1701,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### CERT-In incident reporting integration (6-hour mandatory reporting)
 > As a **system administrator**, I want **cert-in incident reporting integration (6-hour mandatory reporting)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can cERT-In incident reporting integration (6-hour mandatory reporting) from the relevant screen, with clear loading / empty / error states.
@@ -1716,7 +1716,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Vulnerability assessment scheduling and tracking
 > As a **system administrator**, I want **vulnerability assessment scheduling and tracking**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can vulnerability assessment scheduling and tracking from the relevant screen, with clear loading / empty / error states.
@@ -1730,7 +1730,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Security event log retention (180 days as per CERT-In)
 > As a **system administrator**, I want **security event log retention (180 days as per cert-in)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can security event log retention (180 days as per CERT-In) from the relevant screen, with clear loading / empty / error states.
@@ -1744,7 +1744,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### VAPT (Vulnerability Assessment & Penetration Testing) report dashboard
 > As a **system administrator**, I want **vapt (vulnerability assessment & penetration testing) report dashboard**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can vAPT (Vulnerability Assessment & Penetration Testing) report dashboard from the relevant screen, with clear loading / empty / error states.
@@ -1758,7 +1758,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ISO 27001 control mapping dashboard
 > As a **system administrator**, I want **iso 27001 control mapping dashboard**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can iSO 27001 control mapping dashboard from the relevant screen, with clear loading / empty / error states.
@@ -1772,7 +1772,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### HIPAA compliance checklist tracker
 > As a **system administrator**, I want **hipaa compliance checklist tracker**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can hIPAA compliance checklist tracker from the relevant screen, with clear loading / empty / error states.
@@ -1786,7 +1786,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### GDPR data subject request handling (right to erasure, portability)
 > As a **system administrator**, I want **gdpr data subject request handling (right to erasure, portability)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can gDPR data subject request handling (right to erasure, portability) from the relevant screen, with clear loading / empty / error states.
@@ -1800,7 +1800,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SOC 2 Type II evidence collection automation
 > As a **system administrator**, I want **soc 2 type ii evidence collection automation**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sOC 2 Type II evidence collection automation from the relevant screen, with clear loading / empty / error states.
@@ -1814,7 +1814,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Compliance dashboard — multi-standard view (NABH + HIPAA + ISO + CERT-In)
 > As a **system administrator**, I want **compliance dashboard — multi-standard view (nabh + hipaa + iso + cert-in)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can compliance dashboard — multi-standard view (NABH + HIPAA + ISO + CERT-In) from the relevant screen, with clear loading / empty / error states.
@@ -1830,7 +1830,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient CRM — unified caller profile (call history, preferences, complaints, satisfaction)
 > As a **system administrator**, I want **patient crm — unified caller profile (call history, preferences, complaints, satisfaction)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient CRM — unified caller profile (call history, preferences, complaints, satisfaction) from the relevant screen, with clear loading / empty / error states.
@@ -1844,7 +1844,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Inbound call routing with caller identification and context display
 > As a **system administrator**, I want **inbound call routing with caller identification and context display**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can inbound call routing with caller identification and context display from the relevant screen, with clear loading / empty / error states.
@@ -1860,7 +1860,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Care gap identification (overdue screenings, vaccinations, follow-ups)
 > As a **system administrator**, I want **care gap identification (overdue screenings, vaccinations, follow-ups)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can care gap identification (overdue screenings, vaccinations, follow-ups) from the relevant screen, with clear loading / empty / error states.
@@ -1874,7 +1874,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Automated outreach for care gaps (SMS/WhatsApp/email reminders)
 > As a **system administrator**, I want **automated outreach for care gaps (sms/whatsapp/email reminders)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can automated outreach for care gaps (SMS/WhatsApp/email reminders) from the relevant screen, with clear loading / empty / error states.
@@ -2008,7 +2008,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ AI-assisted clinical coding (ICD-10, CPT suggestion from notes)
 > As a **system administrator**, I want **ai-assisted clinical coding (icd-10, cpt suggestion from notes)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can aI-assisted clinical coding (ICD-10, CPT suggestion from notes) from the relevant screen, with clear loading / empty / error states.
@@ -2023,7 +2023,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-generated discharge summary draft (from clinical notes, labs, meds)
 > As a **system administrator**, I want **ai-generated discharge summary draft (from clinical notes, labs, meds)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI-generated discharge summary draft (from clinical notes, labs, meds) from the relevant screen, with clear loading / empty / error states.
@@ -2038,7 +2038,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI drug interaction checker (beyond standard — ML-based severity scoring)
 > As a **system administrator**, I want **ai drug interaction checker (beyond standard — ml-based severity scoring)**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI drug interaction checker (beyond standard — ML-based severity scoring) from the relevant screen, with clear loading / empty / error states.
@@ -2053,7 +2053,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-powered triage assistant (symptom → urgency classification)
 > As a **system administrator**, I want **ai-powered triage assistant (symptom → urgency classification)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI-powered triage assistant (symptom → urgency classification) from the relevant screen, with clear loading / empty / error states.
@@ -2198,7 +2198,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ICD-10/CPT coding accuracy monitoring (unspecified codes, missing codes)
 > As a **system administrator**, I want **icd-10/cpt coding accuracy monitoring (unspecified codes, missing codes)**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can iCD-10/CPT coding accuracy monitoring (unspecified codes, missing codes) from the relevant screen, with clear loading / empty / error states.
@@ -2215,7 +2215,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient inflow rate comparison — period vs period (this month vs last month vs last year)
 > As a **system administrator**, I want **patient inflow rate comparison — period vs period (this month vs last month vs last year)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient inflow rate comparison — period vs period (this month vs last month vs last year) from the relevant screen, with clear loading / empty / error states.
@@ -2229,7 +2229,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department-wise patient volume trending (OPD, ER, Lab, Radiology)
 > As a **system administrator**, I want **department-wise patient volume trending (opd, er, lab, radiology)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can department-wise patient volume trending (OPD, ER, Lab, Radiology) from the relevant screen, with clear loading / empty / error states.
@@ -2243,7 +2243,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Doctor-wise patient load comparison
 > As a **system administrator**, I want **doctor-wise patient load comparison**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can doctor-wise patient load comparison from the relevant screen, with clear loading / empty / error states.
@@ -2260,7 +2260,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Data completeness dashboard — % of records with missing demographics, diagnosis, vitals
 > As a **system administrator**, I want **data completeness dashboard — % of records with missing demographics, diagnosis, vitals**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can data completeness dashboard — % of records with missing demographics, diagnosis, vitals from the relevant screen, with clear loading / empty / error states.
@@ -2275,7 +2275,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Mandatory field compliance tracking per department
 > As a **system administrator**, I want **mandatory field compliance tracking per department**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can mandatory field compliance tracking per department from the relevant screen, with clear loading / empty / error states.
@@ -2529,7 +2529,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Configurable incentive slabs (percentage-based, flat-rate, tiered)
 > As a **system administrator**, I want **configurable incentive slabs (percentage-based, flat-rate, tiered)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can configurable incentive slabs (percentage-based, flat-rate, tiered) from the relevant screen, with clear loading / empty / error states.
@@ -2543,7 +2543,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Doctor referral incentive tracking (internal + external)
 > As a **system administrator**, I want **doctor referral incentive tracking (internal + external)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can doctor referral incentive tracking (internal + external) from the relevant screen, with clear loading / empty / error states.
@@ -2558,7 +2558,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Target-based incentive calculation (monthly/quarterly)
 > As a **system administrator**, I want **target-based incentive calculation (monthly/quarterly)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can target-based incentive calculation (monthly/quarterly) from the relevant screen, with clear loading / empty / error states.
@@ -2572,7 +2572,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department-wise incentive rules (surgery, lab, radiology)
 > As a **system administrator**, I want **department-wise incentive rules (surgery, lab, radiology)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can department-wise incentive rules (surgery, lab, radiology) from the relevant screen, with clear loading / empty / error states.
@@ -2586,7 +2586,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Incentive approval workflow (calculate → review → approve → disburse)
 > As a **system administrator**, I want **incentive approval workflow (calculate → review → approve → disburse)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can incentive approval workflow (calculate → review → approve → disburse) from the relevant screen, with clear loading / empty / error states.
@@ -2600,7 +2600,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Incentive statement generation (PDF for doctor)
 > As a **system administrator**, I want **incentive statement generation (pdf for doctor)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can incentive statement generation (PDF for doctor) from the relevant screen, with clear loading / empty / error states.
@@ -2615,7 +2615,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Integration with billing — auto-calculate from revenue
 > As a **system administrator**, I want **integration with billing — auto-calculate from revenue**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can integration with billing — auto-calculate from revenue from the relevant screen, with clear loading / empty / error states.
@@ -2629,7 +2629,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Audit trail for all incentive modifications
 > As a **system administrator**, I want **audit trail for all incentive modifications**.
 
-`Done · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can audit trail for all incentive modifications from the relevant screen, with clear loading / empty / error states.
@@ -2645,7 +2645,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Discharge coordinator view — all patients pending discharge with blocker list
 > As a **system administrator**, I want **discharge coordinator view — all patients pending discharge with blocker list**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can discharge coordinator view — all patients pending discharge with blocker list from the relevant screen, with clear loading / empty / error states.
@@ -2659,7 +2659,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Environmental services tracking (bed cleaning status, room turnaround)
 > As a **system administrator**, I want **environmental services tracking (bed cleaning status, room turnaround)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can environmental services tracking (bed cleaning status, room turnaround) from the relevant screen, with clear loading / empty / error states.
@@ -2674,7 +2674,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Transport management (patient transport requests, porter tracking)
 > As a **system administrator**, I want **transport management (patient transport requests, porter tracking)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can transport management (patient transport requests, porter tracking) from the relevant screen, with clear loading / empty / error states.
@@ -2690,7 +2690,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Unified TAT dashboard — all departments on one screen with deviation heat map
 > As a **system administrator**, I want **unified tat dashboard — all departments on one screen with deviation heat map**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can unified TAT dashboard — all departments on one screen with deviation heat map from the relevant screen, with clear loading / empty / error states.
@@ -2704,7 +2704,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### TAT trend analysis — weekly/monthly improvement or degradation tracking
 > As a **system administrator**, I want **tat trend analysis — weekly/monthly improvement or degradation tracking**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can tAT trend analysis — weekly/monthly improvement or degradation tracking from the relevant screen, with clear loading / empty / error states.
@@ -2835,7 +2835,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time network connectivity indicator in UI (green/yellow/red bar)
 > As a **system administrator**, I want **real-time network connectivity indicator in ui (green/yellow/red bar)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can real-time network connectivity indicator in UI (green/yellow/red bar) from the relevant screen, with clear loading / empty / error states.
@@ -2849,7 +2849,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-save clinical data locally when network drops (IndexedDB / WatermelonDB)
 > As a **system administrator**, I want **auto-save clinical data locally when network drops (indexeddb / watermelondb)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-save clinical data locally when network drops (IndexedDB / WatermelonDB) from the relevant screen, with clear loading / empty / error states.
@@ -3167,7 +3167,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Discharge TAT — decision-to-actual-discharge time with bottleneck analysis
 > As a **system administrator**, I want **discharge tat — decision-to-actual-discharge time with bottleneck analysis**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can discharge TAT — decision-to-actual-discharge time with bottleneck analysis from the relevant screen, with clear loading / empty / error states.
@@ -3184,7 +3184,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Expired drug identification and quarantine workflow
 > As a **system administrator**, I want **expired drug identification and quarantine workflow**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can expired drug identification and quarantine workflow from the relevant screen, with clear loading / empty / error states.
@@ -3198,7 +3198,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Drug destruction documentation (witness, method, quantity)
 > As a **system administrator**, I want **drug destruction documentation (witness, method, quantity)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can drug destruction documentation (witness, method, quantity) from the relevant screen, with clear loading / empty / error states.
@@ -3212,7 +3212,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Narcotics disposal with mandatory dual-witness sign-off
 > As a **system administrator**, I want **narcotics disposal with mandatory dual-witness sign-off**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can narcotics disposal with mandatory dual-witness sign-off from the relevant screen, with clear loading / empty / error states.
@@ -3226,7 +3226,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Batch-level disposal tracking with reason codes
 > As a **system administrator**, I want **batch-level disposal tracking with reason codes**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can batch-level disposal tracking with reason codes from the relevant screen, with clear loading / empty / error states.
@@ -3240,7 +3240,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Environmental compliance documentation (biomedical waste category)
 > As a **system administrator**, I want **environmental compliance documentation (biomedical waste category)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can environmental compliance documentation (biomedical waste category) from the relevant screen, with clear loading / empty / error states.
@@ -3255,7 +3255,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Disposal approval workflow (pharmacist → manager → compliance)
 > As a **system administrator**, I want **disposal approval workflow (pharmacist → manager → compliance)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can disposal approval workflow (pharmacist → manager → compliance) from the relevant screen, with clear loading / empty / error states.
@@ -3269,7 +3269,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Integration with inventory — auto-deduct disposed stock
 > As a **system administrator**, I want **integration with inventory — auto-deduct disposed stock**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can integration with inventory — auto-deduct disposed stock from the relevant screen, with clear loading / empty / error states.
@@ -3283,7 +3283,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Disposal register report for regulatory audit
 > As a **system administrator**, I want **disposal register report for regulatory audit**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can disposal register report for regulatory audit from the relevant screen, with clear loading / empty / error states.
@@ -3299,7 +3299,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Duplicate patient detection (fuzzy matching on name, DOB, phone, Aadhaar)
 > As a **system administrator**, I want **duplicate patient detection (fuzzy matching on name, dob, phone, aadhaar)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can duplicate patient detection (fuzzy matching on name, DOB, phone, Aadhaar) from the relevant screen, with clear loading / empty / error states.
@@ -3313,7 +3313,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Patient merge workflow (merge duplicates with audit trail and supervisor approval)
 > As a **system administrator**, I want **patient merge workflow (merge duplicates with audit trail and supervisor approval)**.
 
-`Done · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can patient merge workflow (merge duplicates with audit trail and supervisor approval) from the relevant screen, with clear loading / empty / error states.
@@ -3489,7 +3489,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ER TAT — door-to-doctor, door-to-disposition time tracking
 > As a **system administrator**, I want **er tat — door-to-doctor, door-to-disposition time tracking**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can eR TAT — door-to-doctor, door-to-disposition time tracking from the relevant screen, with clear loading / empty / error states.
@@ -3506,7 +3506,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time wait time display per department/doctor on website
 > As a **system administrator**, I want **real-time wait time display per department/doctor on website**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can real-time wait time display per department/doctor on website from the relevant screen, with clear loading / empty / error states.
@@ -3521,7 +3521,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Chat bot / virtual assistant for FAQs, appointment help, directions
 > As a **system administrator**, I want **chat bot / virtual assistant for faqs, appointment help, directions**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can chat bot / virtual assistant for FAQs, appointment help, directions from the relevant screen, with clear loading / empty / error states.
@@ -3535,7 +3535,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient lifecycle tracking (prospect → first visit → regular → inactive → re-engaged)
 > As a **system administrator**, I want **patient lifecycle tracking (prospect → first visit → regular → inactive → re-engaged)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient lifecycle tracking (prospect → first visit → regular → inactive → re-engaged) from the relevant screen, with clear loading / empty / error states.
@@ -3549,7 +3549,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Birthday/anniversary greetings automation
 > As a **system administrator**, I want **birthday/anniversary greetings automation**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can birthday/anniversary greetings automation from the relevant screen, with clear loading / empty / error states.
@@ -3763,7 +3763,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Full data export (all patient records, visits, orders in FHIR/CSV/JSON)
 > As a **system administrator**, I want **full data export (all patient records, visits, orders in fhir/csv/json)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can full data export (all patient records, visits, orders in FHIR/CSV/JSON) from the relevant screen, with clear loading / empty / error states.
@@ -3777,7 +3777,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department-wise data export with date range filters
 > As a **system administrator**, I want **department-wise data export with date range filters**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can department-wise data export with date range filters from the relevant screen, with clear loading / empty / error states.
@@ -3793,7 +3793,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-discharge follow-up scheduling (auto-book 7-day/30-day follow-up)
 > As a **system administrator**, I want **post-discharge follow-up scheduling (auto-book 7-day/30-day follow-up)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can post-discharge follow-up scheduling (auto-book 7-day/30-day follow-up) from the relevant screen, with clear loading / empty / error states.
@@ -3807,7 +3807,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Post-discharge phone/WhatsApp call tracking (nurse callback with checklist)
 > As a **system administrator**, I want **post-discharge phone/whatsapp call tracking (nurse callback with checklist)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can post-discharge phone/WhatsApp call tracking (nurse callback with checklist) from the relevant screen, with clear loading / empty / error states.
@@ -4407,7 +4407,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Structured handoff document (I-PASS: Illness, Patient Summary, Action List, Situation, Synthesis)
 > As a **system administrator**, I want **structured handoff document (i-pass: illness, patient summary, action list, situation, synthesis)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can structured handoff document (I-PASS: Illness, Patient Summary, Action List, Situation, Synthesis) from the relevant screen, with clear loading / empty / error states.
@@ -4421,7 +4421,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Automated transition-of-care notification to PCP/referring doctor
 > As a **system administrator**, I want **automated transition-of-care notification to pcp/referring doctor**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can automated transition-of-care notification to PCP/referring doctor from the relevant screen, with clear loading / empty / error states.
@@ -4436,7 +4436,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI handoff summary generation (synthesize shift events into structured handover)
 > As a **system administrator**, I want **ai handoff summary generation (synthesize shift events into structured handover)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI handoff summary generation (synthesize shift events into structured handover) from the relevant screen, with clear loading / empty / error states.
@@ -4452,7 +4452,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bulk patient import from CSV/Excel (demographics, insurance, contacts)
 > As a **system administrator**, I want **bulk patient import from csv/excel (demographics, insurance, contacts)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can bulk patient import from CSV/Excel (demographics, insurance, contacts) from the relevant screen, with clear loading / empty / error states.
@@ -4466,7 +4466,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Historical visit/encounter import (map fields from competitor HMS export)
 > As a **system administrator**, I want **historical visit/encounter import (map fields from competitor hms export)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can historical visit/encounter import (map fields from competitor HMS export) from the relevant screen, with clear loading / empty / error states.
@@ -4480,7 +4480,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Drug master import (name, generic, strength, route, frequency from CSV)
 > As a **system administrator**, I want **drug master import (name, generic, strength, route, frequency from csv)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can drug master import (name, generic, strength, route, frequency from CSV) from the relevant screen, with clear loading / empty / error states.
@@ -4494,7 +4494,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Lab test master import (test name, sample type, ranges from CSV)
 > As a **system administrator**, I want **lab test master import (test name, sample type, ranges from csv)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can lab test master import (test name, sample type, ranges from CSV) from the relevant screen, with clear loading / empty / error states.
@@ -4599,7 +4599,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Apple Health / Google Fit data ingestion (steps, heart rate, sleep, activity)
 > As a **system administrator**, I want **apple health / google fit data ingestion (steps, heart rate, sleep, activity)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can apple Health / Google Fit data ingestion (steps, heart rate, sleep, activity) from the relevant screen, with clear loading / empty / error states.
@@ -4614,7 +4614,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bluetooth BP cuff, glucometer, pulse oximeter, weight scale integration
 > As a **system administrator**, I want **bluetooth bp cuff, glucometer, pulse oximeter, weight scale integration**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can bluetooth BP cuff, glucometer, pulse oximeter, weight scale integration from the relevant screen, with clear loading / empty / error states.
@@ -4629,7 +4629,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Continuous glucose monitor (CGM) data integration (Dexcom, Libre)
 > As a **system administrator**, I want **continuous glucose monitor (cgm) data integration (dexcom, libre)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can continuous glucose monitor (CGM) data integration (Dexcom, Libre) from the relevant screen, with clear loading / empty / error states.
@@ -4645,7 +4645,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Lab TAT tracking — order-to-result time with SLA breach alerts
 > As a **system administrator**, I want **lab tat tracking — order-to-result time with sla breach alerts**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can lab TAT tracking — order-to-result time with SLA breach alerts from the relevant screen, with clear loading / empty / error states.
@@ -4661,7 +4661,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Medication reconciliation at every transition (admit → transfer → discharge)
 > As a **system administrator**, I want **medication reconciliation at every transition (admit → transfer → discharge)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can medication reconciliation at every transition (admit → transfer → discharge) from the relevant screen, with clear loading / empty / error states.
@@ -4678,7 +4678,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-drafted replies to patient portal messages (doctor reviews before sending)
 > As a **system administrator**, I want **ai-drafted replies to patient portal messages (doctor reviews before sending)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI-drafted replies to patient portal messages (doctor reviews before sending) from the relevant screen, with clear loading / empty / error states.
@@ -4693,7 +4693,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI patient message categorization (urgent vs routine vs administrative)
 > As a **system administrator**, I want **ai patient message categorization (urgent vs routine vs administrative)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI patient message categorization (urgent vs routine vs administrative) from the relevant screen, with clear loading / empty / error states.
@@ -4823,7 +4823,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Abnormal reading alerts to care team (HR >120, SpO2 <90, BP >180)
 > As a **system administrator**, I want **abnormal reading alerts to care team (hr >120, spo2 <90, bp >180)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can abnormal reading alerts to care team (HR >120, SpO2 <90, BP >180) from the relevant screen, with clear loading / empty / error states.
@@ -4837,7 +4837,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient-generated health data dashboard (trend charts, compliance)
 > As a **system administrator**, I want **patient-generated health data dashboard (trend charts, compliance)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient-generated health data dashboard (trend charts, compliance) from the relevant screen, with clear loading / empty / error states.
@@ -4851,7 +4851,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### RPM (Remote Patient Monitoring) program enrollment and billing (CPT 99453-99458)
 > As a **system administrator**, I want **rpm (remote patient monitoring) program enrollment and billing (cpt 99453-99458)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can rPM (Remote Patient Monitoring) program enrollment and billing (CPT 99453-99458) from the relevant screen, with clear loading / empty / error states.
@@ -4865,7 +4865,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Wearable data quality filtering (artifact rejection, plausibility checks)
 > As a **system administrator**, I want **wearable data quality filtering (artifact rejection, plausibility checks)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can wearable data quality filtering (artifact rejection, plausibility checks) from the relevant screen, with clear loading / empty / error states.
@@ -4882,7 +4882,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Automated end-of-day summary (OPD count, IPD census, revenue, pending tasks)
 > As a **system administrator**, I want **automated end-of-day summary (opd count, ipd census, revenue, pending tasks)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can automated end-of-day summary (OPD count, IPD census, revenue, pending tasks) from the relevant screen, with clear loading / empty / error states.
@@ -4896,7 +4896,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department-wise EOD breakdown (lab pending, pharmacy pending, billing pending)
 > As a **system administrator**, I want **department-wise eod breakdown (lab pending, pharmacy pending, billing pending)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can department-wise EOD breakdown (lab pending, pharmacy pending, billing pending) from the relevant screen, with clear loading / empty / error states.
@@ -4910,7 +4910,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### WhatsApp/email delivery of EOD digest to management
 > As a **system administrator**, I want **whatsapp/email delivery of eod digest to management**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can whatsApp/email delivery of EOD digest to management from the relevant screen, with clear loading / empty / error states.
@@ -4925,7 +4925,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Configurable digest schedule (shift-end, 8PM, midnight)
 > As a **system administrator**, I want **configurable digest schedule (shift-end, 8pm, midnight)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can configurable digest schedule (shift-end, 8PM, midnight) from the relevant screen, with clear loading / empty / error states.
@@ -4939,7 +4939,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Critical alert escalation (overdue tasks, pending discharges, low stock)
 > As a **system administrator**, I want **critical alert escalation (overdue tasks, pending discharges, low stock)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can critical alert escalation (overdue tasks, pending discharges, low stock) from the relevant screen, with clear loading / empty / error states.
@@ -4953,7 +4953,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Week/month trend comparison in digest
 > As a **system administrator**, I want **week/month trend comparison in digest**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can week/month trend comparison in digest from the relevant screen, with clear loading / empty / error states.
@@ -4969,7 +4969,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Health campaign management (flu drive, screening camp, wellness program)
 > As a **system administrator**, I want **health campaign management (flu drive, screening camp, wellness program)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can health campaign management (flu drive, screening camp, wellness program) from the relevant screen, with clear loading / empty / error states.
@@ -4984,7 +4984,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Targeted patient outreach — filter by condition, age, last visit, insurance for campaigns
 > As a **system administrator**, I want **targeted patient outreach — filter by condition, age, last visit, insurance for campaigns**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can targeted patient outreach — filter by condition, age, last visit, insurance for campaigns from the relevant screen, with clear loading / empty / error states.
@@ -4998,7 +4998,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Multi-channel campaign delivery (SMS, WhatsApp, email, push notification, IVR)
 > As a **system administrator**, I want **multi-channel campaign delivery (sms, whatsapp, email, push notification, ivr)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can multi-channel campaign delivery (SMS, WhatsApp, email, push notification, IVR) from the relevant screen, with clear loading / empty / error states.
@@ -5013,7 +5013,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Campaign response tracking (opened, clicked, booked, no-response)
 > As a **system administrator**, I want **campaign response tracking (opened, clicked, booked, no-response)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can campaign response tracking (opened, clicked, booked, no-response) from the relevant screen, with clear loading / empty / error states.
@@ -5029,7 +5029,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hour-of-day / day-of-week heat map (when do patients come?)
 > As a **system administrator**, I want **hour-of-day / day-of-week heat map (when do patients come?)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can hour-of-day / day-of-week heat map (when do patients come?) from the relevant screen, with clear loading / empty / error states.
@@ -5043,7 +5043,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Referral source analysis (self, doctor referral, insurance, online booking)
 > As a **system administrator**, I want **referral source analysis (self, doctor referral, insurance, online booking)**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can referral source analysis (self, doctor referral, insurance, online booking) from the relevant screen, with clear loading / empty / error states.
@@ -5058,7 +5058,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### New vs returning patient ratio tracking
 > As a **system administrator**, I want **new vs returning patient ratio tracking**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can new vs returning patient ratio tracking from the relevant screen, with clear loading / empty / error states.
@@ -5178,7 +5178,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pharmacy TAT — prescription-to-dispensing time
 > As a **system administrator**, I want **pharmacy tat — prescription-to-dispensing time**.
 
-`Pending · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can pharmacy TAT — prescription-to-dispensing time from the relevant screen, with clear loading / empty / error states.
@@ -5195,7 +5195,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI plain language translator — convert medical terminology to patient-friendly language
 > As a **system administrator**, I want **ai plain language translator — convert medical terminology to patient-friendly language**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI plain language translator — convert medical terminology to patient-friendly language from the relevant screen, with clear loading / empty / error states.
@@ -5212,7 +5212,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Digital pre-registration (demographics, insurance, consent — before arrival)
 > As a **system administrator**, I want **digital pre-registration (demographics, insurance, consent — before arrival)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can digital pre-registration (demographics, insurance, consent — before arrival) from the relevant screen, with clear loading / empty / error states.
@@ -5226,7 +5226,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pre-visit questionnaire (symptoms, history, allergies — auto-populates chart)
 > As a **system administrator**, I want **pre-visit questionnaire (symptoms, history, allergies — auto-populates chart)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can pre-visit questionnaire (symptoms, history, allergies — auto-populates chart) from the relevant screen, with clear loading / empty / error states.
@@ -5241,7 +5241,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Agentic AI pre-visit chart preparation (summarize history, flag care gaps, stage orders)
 > As a **system administrator**, I want **agentic ai pre-visit chart preparation (summarize history, flag care gaps, stage orders)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can agentic AI pre-visit chart preparation (summarize history, flag care gaps, stage orders) from the relevant screen, with clear loading / empty / error states.
@@ -5255,7 +5255,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-generated patient briefing for doctor (1-page summary before consultation)
 > As a **system administrator**, I want **ai-generated patient briefing for doctor (1-page summary before consultation)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI-generated patient briefing for doctor (1-page summary before consultation) from the relevant screen, with clear loading / empty / error states.
@@ -5272,7 +5272,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient flow prediction — ED arrivals, admissions, discharges by hour
 > As a **system administrator**, I want **patient flow prediction — ed arrivals, admissions, discharges by hour**.
 
-`Pending · Platforms: Web · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient flow prediction — ED arrivals, admissions, discharges by hour from the relevant screen, with clear loading / empty / error states.
@@ -5286,7 +5286,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bed demand forecasting (predict bed shortages 24-48 hours ahead)
 > As a **system administrator**, I want **bed demand forecasting (predict bed shortages 24-48 hours ahead)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can bed demand forecasting (predict bed shortages 24-48 hours ahead) from the relevant screen, with clear loading / empty / error states.
@@ -5300,7 +5300,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Readmission risk scoring (30-day readmission probability per patient)
 > As a **system administrator**, I want **readmission risk scoring (30-day readmission probability per patient)**.
 
-`Pending · Platforms: Web · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can readmission risk scoring (30-day readmission probability per patient) from the relevant screen, with clear loading / empty / error states.
@@ -5314,7 +5314,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient deterioration early warning (NEWS2/MEWS auto-calculated from vitals)
 > As a **system administrator**, I want **patient deterioration early warning (news2/mews auto-calculated from vitals)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient deterioration early warning (NEWS2/MEWS auto-calculated from vitals) from the relevant screen, with clear loading / empty / error states.
@@ -5657,7 +5657,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Provider directory with search by specialty, language, insurance, availability
 > As a **system administrator**, I want **provider directory with search by specialty, language, insurance, availability**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can provider directory with search by specialty, language, insurance, availability from the relevant screen, with clear loading / empty / error states.
@@ -5671,7 +5671,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Provider profile pages (photo, qualifications, ratings, available slots)
 > As a **system administrator**, I want **provider profile pages (photo, qualifications, ratings, available slots)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can provider profile pages (photo, qualifications, ratings, available slots) from the relevant screen, with clear loading / empty / error states.
@@ -5687,7 +5687,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Radiology TAT — order-to-report time with priority-based SLAs
 > As a **system administrator**, I want **radiology tat — order-to-report time with priority-based slas**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can radiology TAT — order-to-report time with priority-based SLAs from the relevant screen, with clear loading / empty / error states.
@@ -5703,7 +5703,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Community resource directory (food banks, shelters, mental health, transport services)
 > As a **system administrator**, I want **community resource directory (food banks, shelters, mental health, transport services)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can community resource directory (food banks, shelters, mental health, transport services) from the relevant screen, with clear loading / empty / error states.
@@ -5717,7 +5717,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Closed-loop referral to community orgs (track if patient connected with resource)
 > As a **system administrator**, I want **closed-loop referral to community orgs (track if patient connected with resource)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can closed-loop referral to community orgs (track if patient connected with resource) from the relevant screen, with clear loading / empty / error states.
@@ -5731,7 +5731,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### External referral tracking (referred out — track if patient was seen, report received)
 > As a **system administrator**, I want **external referral tracking (referred out — track if patient was seen, report received)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can external referral tracking (referred out — track if patient was seen, report received) from the relevant screen, with clear loading / empty / error states.
@@ -5747,7 +5747,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Monthly data quality scorecard per department (completeness, accuracy, timeliness)
 > As a **system administrator**, I want **monthly data quality scorecard per department (completeness, accuracy, timeliness)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can monthly data quality scorecard per department (completeness, accuracy, timeliness) from the relevant screen, with clear loading / empty / error states.
@@ -5763,7 +5763,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ JustDial review integration — auto-push patient feedback to JustDial listing
 > As a **system administrator**, I want **justdial review integration — auto-push patient feedback to justdial listing**.
 
-`Done · Platforms: Web, Mobile · Source: iElixir · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can justDial review integration — auto-push patient feedback to JustDial listing from the relevant screen, with clear loading / empty / error states.
@@ -5778,7 +5778,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Google Business review integration — prompt satisfied patients to leave Google review
 > As a **system administrator**, I want **google business review integration — prompt satisfied patients to leave google review**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can google Business review integration — prompt satisfied patients to leave Google review from the relevant screen, with clear loading / empty / error states.
@@ -5794,7 +5794,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient risk stratification (low/medium/high based on conditions, utilization, social factors)
 > As a **system administrator**, I want **patient risk stratification (low/medium/high based on conditions, utilization, social factors)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient risk stratification (low/medium/high based on conditions, utilization, social factors) from the relevant screen, with clear loading / empty / error states.
@@ -5808,7 +5808,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Chronic disease registry (all diabetics, hypertensives, COPD patients in one view)
 > As a **system administrator**, I want **chronic disease registry (all diabetics, hypertensives, copd patients in one view)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can chronic disease registry (all diabetics, hypertensives, COPD patients in one view) from the relevant screen, with clear loading / empty / error states.
@@ -5938,7 +5938,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Unified online scheduling — OPD, teleconsult, lab, radiology, vaccination
 > As a **system administrator**, I want **unified online scheduling — opd, teleconsult, lab, radiology, vaccination**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can unified online scheduling — OPD, teleconsult, lab, radiology, vaccination from the relevant screen, with clear loading / empty / error states.
@@ -5952,7 +5952,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Appointment booking from Google Maps / Google Business integration
 > As a **system administrator**, I want **appointment booking from google maps / google business integration**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic+iElixir · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can appointment booking from Google Maps / Google Business integration from the relevant screen, with clear loading / empty / error states.
@@ -5969,7 +5969,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### SDOH screening questionnaire (food insecurity, housing, transportation, safety)
 > As a **system administrator**, I want **sdoh screening questionnaire (food insecurity, housing, transportation, safety)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sDOH screening questionnaire (food insecurity, housing, transportation, safety) from the relevant screen, with clear loading / empty / error states.
@@ -5983,7 +5983,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ ICD-10 Z-code auto-mapping from SDOH responses (Z59=housing, Z56=employment)
 > As a **system administrator**, I want **icd-10 z-code auto-mapping from sdoh responses (z59=housing, z56=employment)**.
 
-`Done · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can iCD-10 Z-code auto-mapping from SDOH responses (Z59=housing, Z56=employment) from the relevant screen, with clear loading / empty / error states.
@@ -6000,7 +6000,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Predictive staffing — nurse/doctor demand based on census forecast
 > As a **system administrator**, I want **predictive staffing — nurse/doctor demand based on census forecast**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can predictive staffing — nurse/doctor demand based on census forecast from the relevant screen, with clear loading / empty / error states.
@@ -6015,7 +6015,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### OR utilization optimization — suggest schedule changes to reduce idle time
 > As a **system administrator**, I want **or utilization optimization — suggest schedule changes to reduce idle time**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can oR utilization optimization — suggest schedule changes to reduce idle time from the relevant screen, with clear loading / empty / error states.
@@ -6031,7 +6031,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI-powered symptom checker (patient enters symptoms → suggested specialty/urgency)
 > As a **system administrator**, I want **ai-powered symptom checker (patient enters symptoms → suggested specialty/urgency)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI-powered symptom checker (patient enters symptoms → suggested specialty/urgency) from the relevant screen, with clear loading / empty / error states.
@@ -6048,7 +6048,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-sync queued data when connectivity restored (conflict resolution)
 > As a **system administrator**, I want **auto-sync queued data when connectivity restored (conflict resolution)**.
 
-`Pending · Platforms: Web · Source: iElixir+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-sync queued data when connectivity restored (conflict resolution) from the relevant screen, with clear loading / empty / error states.
@@ -6062,7 +6062,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Sync status dashboard — pending uploads, last sync time, failed syncs
 > As a **system administrator**, I want **sync status dashboard — pending uploads, last sync time, failed syncs**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sync status dashboard — pending uploads, last sync time, failed syncs from the relevant screen, with clear loading / empty / error states.
@@ -6078,7 +6078,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Documentation timeliness — time from event to chart entry per department
 > As a **system administrator**, I want **documentation timeliness — time from event to chart entry per department**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can documentation timeliness — time from event to chart entry per department from the relevant screen, with clear loading / empty / error states.
@@ -6094,7 +6094,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pre-import data validation (missing fields, format errors, duplicates)
 > As a **system administrator**, I want **pre-import data validation (missing fields, format errors, duplicates)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can pre-import data validation (missing fields, format errors, duplicates) from the relevant screen, with clear loading / empty / error states.
@@ -6108,7 +6108,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Migration reconciliation report (imported vs source counts per entity)
 > As a **system administrator**, I want **migration reconciliation report (imported vs source counts per entity)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can migration reconciliation report (imported vs source counts per entity) from the relevant screen, with clear loading / empty / error states.
@@ -6122,7 +6122,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI model validation framework (accuracy, bias, drift monitoring)
 > As a **system administrator**, I want **ai model validation framework (accuracy, bias, drift monitoring)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI model validation framework (accuracy, bias, drift monitoring) from the relevant screen, with clear loading / empty / error states.
@@ -6136,7 +6136,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ AI decision audit trail (which model, version, input, output, confidence score)
 > As a **system administrator**, I want **ai decision audit trail (which model, version, input, output, confidence score)**.
 
-`Done · Platforms: Web · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can aI decision audit trail (which model, version, input, output, confidence score) from the relevant screen, with clear loading / empty / error states.
@@ -6150,7 +6150,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### HIPAA-compliant AI pipeline (LLM integration with PHI guardrails)
 > As a **system administrator**, I want **hipaa-compliant ai pipeline (llm integration with phi guardrails)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can hIPAA-compliant AI pipeline (LLM integration with PHI guardrails) from the relevant screen, with clear loading / empty / error states.
@@ -6164,7 +6164,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### AI feature toggle per department (enable/disable specific AI features)
 > As a **system administrator**, I want **ai feature toggle per department (enable/disable specific ai features)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can aI feature toggle per department (enable/disable specific AI features) from the relevant screen, with clear loading / empty / error states.
@@ -6178,7 +6178,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Clinician override tracking (how often AI suggestion is accepted vs rejected)
 > As a **system administrator**, I want **clinician override tracking (how often ai suggestion is accepted vs rejected)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can clinician override tracking (how often AI suggestion is accepted vs rejected) from the relevant screen, with clear loading / empty / error states.
@@ -6194,7 +6194,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Hospital-wide real-time dashboard — ED census, bed occupancy, OT status, pending discharges
 > As a **system administrator**, I want **hospital-wide real-time dashboard — ed census, bed occupancy, ot status, pending discharges**.
 
-`Done · Platforms: Web, TV · Source: Epic · RFC: §Ext`
+`Done · Platforms: Web, TV · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The system administrator can hospital-wide real-time dashboard — ED census, bed occupancy, OT status, pending discharges from the relevant screen, with clear loading / empty / error states.
@@ -6209,7 +6209,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient flow visualization (admission → ward → discharge pipeline with bottlenecks)
 > As a **system administrator**, I want **patient flow visualization (admission → ward → discharge pipeline with bottlenecks)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient flow visualization (admission → ward → discharge pipeline with bottlenecks) from the relevant screen, with clear loading / empty / error states.
@@ -6223,7 +6223,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Department load balancing alerts (ED overcrowding, ICU full, OR delays)
 > As a **system administrator**, I want **department load balancing alerts (ed overcrowding, icu full, or delays)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can department load balancing alerts (ED overcrowding, ICU full, OR delays) from the relevant screen, with clear loading / empty / error states.
@@ -6237,7 +6237,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Ambulance tracking & incoming patient alerts (pre-arrival notification)
 > As a **system administrator**, I want **ambulance tracking & incoming patient alerts (pre-arrival notification)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can ambulance tracking & incoming patient alerts (pre-arrival notification) from the relevant screen, with clear loading / empty / error states.
@@ -6252,7 +6252,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hospital listing management across Google, JustDial, Practo (single dashboard)
 > As a **system administrator**, I want **hospital listing management across google, justdial, practo (single dashboard)**.
 
-`Pending · Platforms: Web · Source: iElixir · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can hospital listing management across Google, JustDial, Practo (single dashboard) from the relevant screen, with clear loading / empty / error states.
@@ -6382,7 +6382,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Step-by-step hospital setup wizard (org details → departments → users → config)
 > As a **system administrator**, I want **step-by-step hospital setup wizard (org details → departments → users → config)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can step-by-step hospital setup wizard (org details → departments → users → config) from the relevant screen, with clear loading / empty / error states.
@@ -6396,7 +6396,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Import existing data (CSV/Excel for patients, doctors, inventory)
 > As a **system administrator**, I want **import existing data (csv/excel for patients, doctors, inventory)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can import existing data (CSV/Excel for patients, doctors, inventory) from the relevant screen, with clear loading / empty / error states.
@@ -6411,7 +6411,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Template selection (clinic vs hospital vs chain — pre-configured modules)
 > As a **system administrator**, I want **template selection (clinic vs hospital vs chain — pre-configured modules)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can template selection (clinic vs hospital vs chain — pre-configured modules) from the relevant screen, with clear loading / empty / error states.
@@ -6425,7 +6425,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Branding setup (logo, colors, letterhead, receipt format)
 > As a **system administrator**, I want **branding setup (logo, colors, letterhead, receipt format)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can branding setup (logo, colors, letterhead, receipt format) from the relevant screen, with clear loading / empty / error states.
@@ -6439,7 +6439,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Integration configuration (ABDM, payment gateway, SMS/WhatsApp)
 > As a **system administrator**, I want **integration configuration (abdm, payment gateway, sms/whatsapp)**.
 
-`Pending · Platforms: Web, Mobile · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can integration configuration (ABDM, payment gateway, SMS/WhatsApp) from the relevant screen, with clear loading / empty / error states.
@@ -6454,7 +6454,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Sample data mode (demo patients/visits for training)
 > As a **system administrator**, I want **sample data mode (demo patients/visits for training)**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can sample data mode (demo patients/visits for training) from the relevant screen, with clear loading / empty / error states.
@@ -6468,7 +6468,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Progress tracker with completion percentage
 > As a **system administrator**, I want **progress tracker with completion percentage**.
 
-`Pending · Platforms: Web · Source: MocDoc · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can progress tracker with completion percentage from the relevant screen, with clear loading / empty / error states.
