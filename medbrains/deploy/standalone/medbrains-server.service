@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains HMS — Rust API + SPA server
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service

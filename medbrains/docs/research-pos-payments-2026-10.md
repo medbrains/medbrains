@@ -5,7 +5,7 @@ Date: 2026-10-20. This is research only; nothing in the repo was changed.
 **Code read:** `/Users/apple/Projects/MedBrains-pos/medbrains`, branch `feature/payments-p4-pos`, HEAD `f59b6603`. Paths below are relative to `medbrains/crates/` unless shown otherwise. Master has none of `pos/`, `settle.rs`, `upi_qr.rs` or `payment_link.rs`; its card-machine settlement is the old outbox handler `medbrains-outbox/src/handlers/pinelabs.rs`.
 
 **Labels used throughout:**
-- **VERIFIED**: seen in an official doc or in real third-party source code (Odoo, Care/10BedICU, Eka Care, HyFib).
+- **VERIFIED**: seen in an official doc or in real third-party source code (Odoo, Care/10BedICU, another hospital system, HyFib).
 - **SECONDARY**: from a news or integrator page.
 - **INFERRED**: my reasoning, not confirmed by a source.
 - **UNKNOWN**: looked for and not found.
@@ -68,7 +68,7 @@ Date: 2026-10-20. This is research only; nothing in the repo was changed.
 **Hosts** ([spec](https://developer.pinelabs.com/in/instore/cloud-integration); Odoo `pine_labs_pos_request.py`):
 - UAT: `https://www.plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1/`
 - Prod: `https://www.plutuscloudservice.in:8201/API/CloudBasedIntegration/V1/`
-- POST JSON only. Every answer is **HTTP 200**; the outcome is in `ResponseCode` and `ResponseMessage`. The one exception: a non-numeric `SequenceNumber` returns HTTP 400 ([Eka Care field notes](https://github.com/eka-care/pos-terminal-mock), `docs/pine-labs.md`).
+- POST JSON only. Every answer is **HTTP 200**; the outcome is in `ResponseCode` and `ResponseMessage`. The one exception: a non-numeric `SequenceNumber` returns HTTP 400 ([another hospital system field notes](https://github.com/eka-care/pos-terminal-mock), `docs/pine-labs.md`).
 - **India IPs only.** Odoo needs a proxy outside India.
 
 **Auth:** in the body, `MerchantID`, `SecurityToken`, `StoreID` (one billing system, many terminals) and/or `ClientID` (one terminal; needed for zero-click push).
@@ -389,7 +389,7 @@ Juspay has no POS product. Hyperswitch is online-only (§10).
 
 ### 2.9 POS orchestration layers that unify terminals
 
-**None found in India.** Each ERP integrator (Odoo, Ginesys, LS Pay, Zoho, WizApp, Eka Care, HyFib) writes one adapter per TSP. MedBrains' `PosProvider` trait *is* that orchestration layer.
+**None found in India.** Each ERP integrator (Odoo, Ginesys, LS Pay, Zoho, WizApp, another hospital system, HyFib) writes one adapter per TSP. MedBrains' `PosProvider` trait *is* that orchestration layer.
 
 ---
 
@@ -560,7 +560,7 @@ Juspay has no POS product. Hyperswitch is online-only (§10).
 **Build first: two card providers and one UPI path.**
 
 1. **Pine Labs Plutus Cloud** (pattern a). Why:
-   - Public spec, plus three open-source hospital-grade references (Odoo, Care/10BedICU, Eka Care).
+   - Public spec, plus three open-source hospital-grade references (Odoo, Care/10BedICU, another hospital system).
    - The largest installed base in Indian hospitals, including most bank-branded terminals (ICICI, AU, HDFC through Pine Labs).
    - Card + UPI + EMI on one device; a PostBack exists.
    - Our adapter is 70% there — fix the §5.1 items.
@@ -683,7 +683,7 @@ Juspay has no POS product. Hyperswitch is online-only (§10).
 - Variance needs a reason and permission ([Comarch](https://help.comarch.com/pos/?p=296), [LaunchMyStore](https://launchmystore.help.center/article/1116-pos-shifts-opening-closing-x-and-z-reports)).
 - POS: the cashier runs the terminal's **batch settlement** at end of shift/day. The Z report lists card/UPI totals **per TID** and the terminal batch number/total, and compares them with HMIS card totals. Later these are matched to the provider MIS and the bank UTR.
 
-**Indian HMIS (Medeil, Marg, KareXpert, Insta by Practo):** no public documentation on shift close, refund approval or deposit refund was found (UNKNOWN; needs vendor demos). Gofrugal documents strip-wise returns ([link](https://community.gofrugal.com/portal/en/kb/articles/strip-wise-sales-and-sales-return-in-pharmacy-vertical)).
+**Indian HMIS (another hospital system, Marg, other hospital systems):** no public documentation on shift close, refund approval or deposit refund was found (UNKNOWN; needs vendor demos). another hospital system documents strip-wise returns ([link](https://community.another hospital system.com/portal/en/kb/articles/strip-wise-sales-and-sales-return-in-pharmacy-vertical)).
 
 **Our code:**
 - **Pharmacy is good:**

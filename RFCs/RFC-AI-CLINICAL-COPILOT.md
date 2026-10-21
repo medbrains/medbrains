@@ -16,7 +16,7 @@ The 2025–2026 clinical-AI market has **bifurcated** into five lanes, each with
 |---|---|---|
 | Ambient scribes | Abridge · Microsoft Dragon Copilot · Suki · Nabla · Ambience | **linked-evidence provenance** (Abridge) / **ambient order staging** (Suki) |
 | Grounded Q&A | OpenEvidence · UpToDate Expert AI · Glass Health | **cite-only-vetted-sources, refuse-if-no-evidence** |
-| EHR-native agents | Epic (Art / Cosmos / In-Basket ART) · Oracle Health Clinical AI Agent | **own the workflow surface + a population-scale model** |
+| EHR-native agents | Epic (Art / Cosmos / In-Basket ART) · another hospital system Clinical AI Agent | **own the workflow surface + a population-scale model** |
 | Patient agents | Hippocratic AI | **safety architecture** (a constellation of supervising LLMs) |
 | Multimodal models | Google Med-Gemini / MedLM · AWS HealthScribe | **read scans/ECGs / FHIR-native API** |
 
@@ -206,4 +206,4 @@ Each LLM call carries a `// cost:` rationale (tier chosen + why) so inference co
 
 ## 12. References
 
-Research sources (SOTA scan, mid-2026): Abridge, Microsoft Dragon Copilot (Ignite 2025), Suki ambient order staging, Nabla, Ambience, OpenEvidence, UpToDate Expert AI, Glass Health, Epic Art/Cosmos/In-Basket ART, Oracle Health Clinical AI Agent, Hippocratic AI (Polaris), Google Med-Gemini/MedLM, AWS HealthScribe; agentic guardrails / kill switches (Becker's, AWS HITL); hallucination/RAG/citation-enforced prompting (MDPI, npj Digital Medicine); FDA PCCP/SaMD; India DPDP Act 2023 + DPDP Rules 2025, ABDM/ABHA/NDHM, NDPS/CDSCO Schedule H/H1/X; Eka Care + NVIDIA offline multilingual scribe; on-prem open medical LLMs (vLLM/TGI). Full URL list in the research brief accompanying this RFC.
+Research sources (SOTA scan, mid-2026): Abridge, Microsoft Dragon Copilot (Ignite 2025), Suki ambient order staging, Nabla, Ambience, OpenEvidence, UpToDate Expert AI, Glass Health, Epic Art/Cosmos/In-Basket ART, another hospital system Clinical AI Agent, Hippocratic AI (Polaris), Google Med-Gemini/MedLM, AWS HealthScribe; agentic guardrails / kill switches (Becker's, AWS HITL); hallucination/RAG/citation-enforced prompting (MDPI, npj Digital Medicine); FDA PCCP/SaMD; India DPDP Act 2023 + DPDP Rules 2025, ABDM/ABHA/NDHM, NDPS/CDSCO Schedule H/H1/X; another hospital system + NVIDIA offline multilingual scribe; on-prem open medical LLMs (vLLM/TGI). Full URL list in the research brief accompanying this RFC.

@@ -696,7 +696,7 @@ Lower-priority but wide gaps:
 | 11 | Biometric devices | Missing | none (no device punch in medbrains-hr) | No attendance/access device integration | M |
 | 12 | SMS/WhatsApp | Partly | Twilio SMS outbox (services/appointment_reminders.rs) | WhatsApp only in marketing paths | S |
 | 13 | Payment gateway | Met | crates/medbrains-payment-gateway; components/PaymentModal.tsx, VirtualAccountPanel.tsx | | |
-| 14 | eHospital NIC | Missing | none | No integration | L |
+| 14 | another hospital system NIC | Missing | none | No integration | L |
 | 15 | RBAC + ABAC | Met | crates/medbrains-authz (ReBAC/classification), `require_permission`, `require_patient_access` | | |
 | 16 | Break-glass + audit | Met | `break_glass_events` (medbrains-it-security); pages/login.tsx, pages/audit.tsx | | |
 | 17 | Psychiatric data isolation (PSY-001) | Missing | psych_* tables share the same RLS as everything else | No separate encrypted partition | L |

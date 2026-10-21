@@ -1,21 +1,21 @@
-# OpenMRS 3 (O3) — Patterns to Steal for MedBrains
+# another hospital system 3 (O3) — Patterns to Steal for MedBrains
 
-Research synthesis from O3 docs, the `openmrs-esm-patient-chart` repo, the O3 extension/workspace docs, and OpenMRS Talk threads. The live demo at `https://o3.openmrs.org/openmrs/spa/patient/.../chart/Medications` returns a JS-shell with no SSR markup, so most concrete UI claims below are sourced from the docs and source repos rather than the rendered page.
+Research synthesis from O3 docs, the `another hospital system-esm-patient-chart` repo, the O3 extension/workspace docs, and another hospital system Talk threads. The live demo at `https://o3.another hospital system.org/another hospital system/spa/patient/.../chart/Medications` returns a JS-shell with no SSR markup, so most concrete UI claims below are sourced from the docs and source repos rather than the rendered page.
 
 ---
 
-## 1. What OpenMRS 3 gets right
+## 1. What another hospital system 3 gets right
 
 ### 1.1 Patient banner as a first-class, sticky, configurable widget
-- The patient header sits above all chart content and "uninvasive notifications also appear in this area following actions such as form submissions" (OpenMRS Talk: Responsive patient header design review).
+- The patient header sits above all chart content and "uninvasive notifications also appear in this area following actions such as form submissions" (another hospital system Talk: Responsive patient header design review).
 - Visit attributes are explicitly configurable into the banner via JSON (`displayInThePatientBanner: true`) — implementers decide what shows up without code changes (O3 docs — Configuring the Patient Chart).
-- Patient flags (allergies, alerts, MLC, custom rules) are surfaced as banner pills; a dedicated `Flags` microfrontend computes and renders them (`openmrs-esm-patient-chart/packages/esm-patient-flags-app`).
-- The banner was eventually moved into the `@openmrs/esm-styleguide` so every app shows the same identity (PR O3-2831).
+- Patient flags (allergies, alerts, MLC, custom rules) are surfaced as banner pills; a dedicated `Flags` microfrontend computes and renders them (`another hospital system-esm-patient-chart/packages/esm-patient-flags-app`).
+- The banner was eventually moved into the `@another hospital system/esm-styleguide` so every app shows the same identity (PR O3-2831).
 
 ### 1.2 The "Workspace" pattern (slide-in side panel, not a modal)
 - A Workspace is "the interactive layer of the Patient Chart. It opens on the right side of the screen on a desktop computer, or in a drawer over the screen on smaller screens" (O3 docs — Workspaces).
 - It is "where data entry, form filling, and ordering takes place" — never a full-screen route change. The chart context (banner + nav) stays visible while you act.
-- Workspaces can be **stacked, minimized, and resumed**. Multiple unsaved workspaces (e.g. partially filled vitals + an in-progress order) can co-exist; users get a "you have unsaved work" prompt before the workspace can be closed (`@openmrs/esm-framework` `launchWorkspace` API + `useWorkspaces` hook).
+- Workspaces can be **stacked, minimized, and resumed**. Multiple unsaved workspaces (e.g. partially filled vitals + an in-progress order) can co-exist; users get a "you have unsaved work" prompt before the workspace can be closed (`@another hospital system/esm-framework` `launchWorkspace` API + `useWorkspaces` hook).
 - Three styleguide variants (narrow form, standard form, wide tabular) — visual consistency without inventing new layouts per feature.
 
 ### 1.3 Patient chart left-nav = data-driven slot system
@@ -28,22 +28,22 @@ Research synthesis from O3 docs, the `openmrs-esm-patient-chart` repo, the O3 ex
 - The "order basket" is itself a workspace — you can open it, add several drugs across tabs (labs + meds), and submit as one batch; this matches a real visit's mental model.
 
 ### 1.5 Visit-scoped encounters
-- Every clinical action requires an open Visit. "Start Visit" → modal asks visit type + location → creates a `Visit` row → all subsequent encounters auto-link to it via the **Encounter Visit Handler** (OpenMRS guide — Configuring Visits, VisitService API).
+- Every clinical action requires an open Visit. "Start Visit" → modal asks visit type + location → creates a `Visit` row → all subsequent encounters auto-link to it via the **Encounter Visit Handler** (another hospital system guide — Configuring Visits, VisitService API).
 - Auto-close visit setting prevents stale visits from accumulating.
 - This is the single biggest UX simplification in O3: there is no "where does this note live?" ambiguity, because the active visit is always the answer.
 
 ### 1.6 Form simplicity via the React Form Engine
-- `@openmrs/esm-form-engine-lib` is JSON-schema-driven (page → section → question), with conditional rendering, expression-based validation, multilingual labels, and drug/lab-order question types (form-engine-lib README).
+- `@another hospital system/esm-form-engine-lib` is JSON-schema-driven (page → section → question), with conditional rendering, expression-based validation, multilingual labels, and drug/lab-order question types (form-engine-lib README).
 - Forms launch **inside a workspace**, not as a route, and most are short (5-10 fields). Rather than one giant OPD consultation form, O3 splits work into many small workspace-scoped forms (vitals, allergy add, condition add, note, order). Sequential, not nested.
 - Same engine renders enter/edit/view/embedded modes — no parallel read-only renderer.
 
 ### 1.7 Microfrontend boundary (concept, not the implementation)
 - Each concern (allergies, conditions, medications, vitals, notes, orders, immunizations, programs, attachments) is a separate npm package with its own build, tests, translations, and config schema.
-- Coupling is by **slot name** (string) and shared data via `@openmrs/esm-framework` hooks — never direct imports.
+- Coupling is by **slot name** (string) and shared data via `@another hospital system/esm-framework` hooks — never direct imports.
 - Single-spa + SystemJS is the runtime, but the **module-boundary discipline** matters more than the runtime mechanism.
 
 ### 1.8 CIEL concept dictionary as the source of truth
-- Every concept (drug, diagnosis, lab test, finding) is a UUID resolved against CIEL — 54,000 concepts mapped to ICD-10, SNOMED CT, LOINC, RxNORM, CVX, in 18 languages (OpenMRS Wiki — Getting and Using the CIEL Concept Dictionary; OCL).
+- Every concept (drug, diagnosis, lab test, finding) is a UUID resolved against CIEL — 54,000 concepts mapped to ICD-10, SNOMED CT, LOINC, RxNORM, CVX, in 18 languages (another hospital system Wiki — Getting and Using the CIEL Concept Dictionary; OCL).
 - Implementers don't invent local masters; they subscribe to CIEL via Open Concept Lab (OCL) and override only what's locally needed.
 - A drug picker auto-gives you RxNORM + ATC + WHO INN for free.
 
@@ -111,7 +111,7 @@ The point isn't pixel detail — it's that the entire screen is **one read view 
 ### 4.3 Visit workflow
 - Today: scattered "create encounter" buttons. Target: one `Start Visit` button on patient chart → modal (visit type, department, location, billing class) → creates `visits` row → sets `activeVisitStore` → all subsequent actions auto-stamp `visit_id`.
 - Add `End Visit` button on `<ActiveVisitBar />`. Confirmation listing what was done in the visit (vitals, orders, notes counts).
-- Backend: Rust scheduler closes visits older than 24h with no recent activity (matches OpenMRS auto-close).
+- Backend: Rust scheduler closes visits older than 24h with no recent activity (matches another hospital system auto-close).
 
 ### 4.4 Form simplification
 - Today's OPD consultation is one giant form. Break it into:
@@ -131,24 +131,24 @@ The point isn't pixel detail — it's that the entire screen is **one read view 
 
 ---
 
-## 5. Where MedBrains is already ahead of OpenMRS 3
+## 5. Where MedBrains is already ahead of another hospital system 3
 
 Be honest about this — these are real differentiators worth defending:
 
-| Capability | MedBrains | OpenMRS 3 |
+| Capability | MedBrains | another hospital system 3 |
 |---|---|---|
 | Multi-tenancy | First-class (`tenant_id` + transaction-scoped RLS on every table) | Single-tenant; multi-tenancy is a forked-deployment problem |
 | Row-level security | PostgreSQL RLS, set per-request | App-layer access checks |
 | Permission system | 111 typed permissions, role + per-user override (`access_matrix.extra/denied`) | Privilege strings, simpler |
 | Regulatory/compliance built-in | NDPS register, PCPNDT, ADR/PvPI, materiovigilance, NABL, NABH dashboards | Mostly module add-ons |
 | Workflow + automation hub | Rules engine + orchestration + integration builder + node graph | Encounter Visit Handlers + form schema |
-| Billing depth | Universal billing, GST/TDS/GSTR, journal entries, bank recon, financial MIS, P&L by dept | Bahmni/odoo bolt-on |
+| Billing depth | Universal billing, GST/TDS/GSTR, journal entries, bank recon, financial MIS, P&L by dept | another hospital system/odoo bolt-on |
 | Modules outside clinical core | CSSD, BMW, MGPS, fire safety, water/energy, camp management, HR, facilities, queue/visitor | Not in the reference distribution |
 | Design identity | Forest+Copper, Fraunces+Inter Tight+JetBrains Mono, ECG loader signature | IBM Carbon — competent but generic |
 | Type/contract safety | `make check-api` + `check-ui-api` + `check-types` enforces frontend↔backend match | Not enforced |
 | Indian regulatory coverage | NDPS, PCPNDT, MTP, MHCA, BMW, GST, AERB, ABDM | Not localized for India |
 
-The takeaway: **adopt O3's chart UX patterns, don't adopt its scope or stack.** OpenMRS 3 is good at "one patient, one visit, one form." MedBrains has to be good at that *and* run a hospital's books, regulators, and infrastructure.
+The takeaway: **adopt O3's chart UX patterns, don't adopt its scope or stack.** another hospital system 3 is good at "one patient, one visit, one form." MedBrains has to be good at that *and* run a hospital's books, regulators, and infrastructure.
 
 ---
 
@@ -180,23 +180,23 @@ Prioritized for cumulative user-visible improvement. Each is sized to ≤ 1 spri
 
 ## Sources
 
-- [O3 Docs landing](https://o3-docs.openmrs.org/)
-- [O3 Docs — Workspaces](https://o3-docs.openmrs.org/docs/workspaces/workspaces) (404 currently — content cited from search snippets and Talk thread)
-- [O3 Docs — Configuring the Patient Chart](https://o3-docs.openmrs.org/docs/configure-o3/configure-the-patient-chart)
-- [O3 Docs — The extension system](https://o3-docs.openmrs.org/docs/extension-system)
-- [O3 Docs — The Configuration System](https://o3-docs.openmrs.org/docs/configuration-system)
-- [openmrs-esm-patient-chart (GitHub)](https://github.com/openmrs/openmrs-esm-patient-chart)
-- [openmrs-esm-form-engine-lib (GitHub)](https://github.com/openmrs/openmrs-esm-form-engine-lib)
-- [openmrs-esm-core (GitHub)](https://github.com/openmrs/openmrs-esm-core)
-- [O3 Design System and UI Tools](https://openmrs.org/academy/intro-to-openmrs-3/lesson/the-o3-design-system-and-ui-tools/)
-- [Sonder Collective — OpenMRS 3.x case study](https://www.sonderdesign.org/projects/openmrs-3-x)
-- [Designer Onboarding to OpenMRS 3](https://openmrs.atlassian.net/wiki/spaces/docs/pages/26938255/Designer+Onboarding+to+OpenMRS+3)
-- [Workspaces in O3 — Talk thread](https://talk.openmrs.org/t/workspaces-in-o3/48735)
-- [Responsive patient header design review — Talk](https://talk.openmrs.org/t/responsive-patient-header-design-review/29226)
-- [O3: Plan for Patient Tags / Flags? — Talk](https://talk.openmrs.org/t/o3-plan-for-patient-tags-flags/36501)
-- [Configuring Visits — OpenMRS Guide](https://guide.openmrs.org/configuration/configuring-visits/)
-- [OpenMRS Information Model](https://guide.openmrs.org/getting-started/openmrs-information-model/)
-- [Getting and Using the CIEL Concept Dictionary](https://openmrs.atlassian.net/wiki/spaces/docs/pages/25470028/Getting+and+Using+the+CIEL+Concept+Dictionary)
+- [O3 Docs landing](https://o3-docs.another hospital system.org/)
+- [O3 Docs — Workspaces](https://o3-docs.another hospital system.org/docs/workspaces/workspaces) (404 currently — content cited from search snippets and Talk thread)
+- [O3 Docs — Configuring the Patient Chart](https://o3-docs.another hospital system.org/docs/configure-o3/configure-the-patient-chart)
+- [O3 Docs — The extension system](https://o3-docs.another hospital system.org/docs/extension-system)
+- [O3 Docs — The Configuration System](https://o3-docs.another hospital system.org/docs/configuration-system)
+- [another hospital system-esm-patient-chart (GitHub)](https://github.com/other hospital systems-esm-patient-chart)
+- [another hospital system-esm-form-engine-lib (GitHub)](https://github.com/other hospital systems-esm-form-engine-lib)
+- [another hospital system-esm-core (GitHub)](https://github.com/other hospital systems-esm-core)
+- [O3 Design System and UI Tools](https://another hospital system.org/academy/intro-to-another hospital system-3/lesson/the-o3-design-system-and-ui-tools/)
+- [Sonder Collective — another hospital system 3.x case study](https://www.sonderdesign.org/projects/another hospital system-3-x)
+- [Designer Onboarding to another hospital system 3](https://another hospital system.atlassian.net/wiki/spaces/docs/pages/26938255/Designer+Onboarding+to+another hospital system+3)
+- [Workspaces in O3 — Talk thread](https://talk.another hospital system.org/t/workspaces-in-o3/48735)
+- [Responsive patient header design review — Talk](https://talk.another hospital system.org/t/responsive-patient-header-design-review/29226)
+- [O3: Plan for Patient Tags / Flags? — Talk](https://talk.another hospital system.org/t/o3-plan-for-patient-tags-flags/36501)
+- [Configuring Visits — another hospital system Guide](https://guide.another hospital system.org/configuration/configuring-visits/)
+- [another hospital system Information Model](https://guide.another hospital system.org/getting-started/another hospital system-information-model/)
+- [Getting and Using the CIEL Concept Dictionary](https://another hospital system.atlassian.net/wiki/spaces/docs/pages/25470028/Getting+and+Using+the+CIEL+Concept+Dictionary)
 - [Open Concept Lab — CIEL org](https://app.openconceptlab.org/#/orgs/CIEL)
-- [Carbon design component ui — Talk](https://talk.openmrs.org/t/carbon-design-component-ui/35720)
-- [PR O3-2831 Move patient banner into styleguide](https://github.com/openmrs/openmrs-esm-patient-chart/pull/1645)
+- [Carbon design component ui — Talk](https://talk.another hospital system.org/t/carbon-design-component-ui/35720)
+- [PR O3-2831 Move patient banner into styleguide](https://github.com/other hospital systems-esm-patient-chart/pull/1645)

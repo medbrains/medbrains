@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains storage tier sweeper (one-shot)
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 After=medbrains-server.service
 Requires=medbrains-server.service
 # Silence from the storage sweeper reads as success and is discovered at restore

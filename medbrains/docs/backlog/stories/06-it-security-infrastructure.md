@@ -832,13 +832,13 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 
 ## Aggregators
 
-### MediBuddy / Practo / Lybrate appointment sync
-> As a **system administrator**, I want **medibuddy / practo / lybrate appointment sync**.
+### other hospital systems appointment sync
+> As a **system administrator**, I want **other hospital systems appointment sync**.
 
 `Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
-- [ ] The system administrator can mediBuddy / Practo / Lybrate appointment sync from the relevant screen, with clear loading / empty / error states.
+- [ ] The system administrator can other hospital systems appointment sync from the relevant screen, with clear loading / empty / error states.
 - [ ] Backend: tenant-scoped endpoint(s) with RLS (`set_tenant_context`) and typed errors; new entities get a migration with `tenant_id` + RLS + indexes; `cargo clippy` clean.
 - [ ] Web: built from the `@/components/ui` seam, page-guarded via `useRequirePermission`, data through TanStack Query, inputs Zod-validated.
 - [ ] Access is permission-gated (`P.<module>.<action>`) at page and element level; unauthorized users are redirected/hidden.
@@ -1468,13 +1468,13 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 - [ ] Mutations are audit-logged (who / when / what); PHI access is audited where applicable.
 - [ ] Tests: CRUD + integration; `make check-all` (check-api / check-ui-api / check-types) passes; smoke test for any new endpoint.
 
-### Practo / Lybrate / DocPrime profile sync (availability, fees)
-> As a **system administrator**, I want **practo / lybrate / docprime profile sync (availability, fees)**.
+### other hospital systems profile sync (availability, fees)
+> As a **system administrator**, I want **other hospital systems profile sync (availability, fees)**.
 
 `Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
-- [ ] The system administrator can practo / Lybrate / DocPrime profile sync (availability, fees) from the relevant screen, with clear loading / empty / error states.
+- [ ] The system administrator can other hospital systems profile sync (availability, fees) from the relevant screen, with clear loading / empty / error states.
 - [ ] Backend: tenant-scoped endpoint(s) with RLS (`set_tenant_context`) and typed errors; new entities get a migration with `tenant_id` + RLS + indexes; `cargo clippy` clean.
 - [ ] Web: built from the `@/components/ui` seam, page-guarded via `useRequirePermission`, data through TanStack Query, inputs Zod-validated.
 - [ ] Access is permission-gated (`P.<module>.<action>`) at page and element level; unauthorized users are redirected/hidden.
@@ -2215,7 +2215,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient inflow rate comparison — period vs period (this month vs last month vs last year)
 > As a **system administrator**, I want **patient inflow rate comparison — period vs period (this month vs last month vs last year)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can patient inflow rate comparison — period vs period (this month vs last month vs last year) from the relevant screen, with clear loading / empty / error states.
@@ -2260,7 +2260,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Data completeness dashboard — % of records with missing demographics, diagnosis, vitals
 > As a **system administrator**, I want **data completeness dashboard — % of records with missing demographics, diagnosis, vitals**.
 
-`Pending · Platforms: Web, Mobile · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can data completeness dashboard — % of records with missing demographics, diagnosis, vitals from the relevant screen, with clear loading / empty / error states.
@@ -2835,7 +2835,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time network connectivity indicator in UI (green/yellow/red bar)
 > As a **system administrator**, I want **real-time network connectivity indicator in ui (green/yellow/red bar)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can real-time network connectivity indicator in UI (green/yellow/red bar) from the relevant screen, with clear loading / empty / error states.
@@ -2849,7 +2849,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-save clinical data locally when network drops (IndexedDB / WatermelonDB)
 > As a **system administrator**, I want **auto-save clinical data locally when network drops (indexeddb / watermelondb)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-save clinical data locally when network drops (IndexedDB / WatermelonDB) from the relevant screen, with clear loading / empty / error states.
@@ -3763,7 +3763,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Full data export (all patient records, visits, orders in FHIR/CSV/JSON)
 > As a **system administrator**, I want **full data export (all patient records, visits, orders in fhir/csv/json)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can full data export (all patient records, visits, orders in FHIR/CSV/JSON) from the relevant screen, with clear loading / empty / error states.
@@ -4452,7 +4452,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Bulk patient import from CSV/Excel (demographics, insurance, contacts)
 > As a **system administrator**, I want **bulk patient import from csv/excel (demographics, insurance, contacts)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can bulk patient import from CSV/Excel (demographics, insurance, contacts) from the relevant screen, with clear loading / empty / error states.
@@ -4466,7 +4466,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Historical visit/encounter import (map fields from competitor HMS export)
 > As a **system administrator**, I want **historical visit/encounter import (map fields from competitor hms export)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can historical visit/encounter import (map fields from competitor HMS export) from the relevant screen, with clear loading / empty / error states.
@@ -6048,7 +6048,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Auto-sync queued data when connectivity restored (conflict resolution)
 > As a **system administrator**, I want **auto-sync queued data when connectivity restored (conflict resolution)**.
 
-`Pending · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The system administrator can auto-sync queued data when connectivity restored (conflict resolution) from the relevant screen, with clear loading / empty / error states.
@@ -6249,13 +6249,13 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 - [ ] Mutations are audit-logged (who / when / what); PHI access is audited where applicable.
 - [ ] Tests: CRUD + integration; `make check-all` (check-api / check-ui-api / check-types) passes; smoke test for any new endpoint.
 
-### Hospital listing management across Google, JustDial, Practo (single dashboard)
-> As a **system administrator**, I want **hospital listing management across google, justdial, practo (single dashboard)**.
+### Hospital listing management across Google, JustDial, another hospital system (single dashboard)
+> As a **system administrator**, I want **hospital listing management across google, justdial, another hospital system (single dashboard)**.
 
 `Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
-- [ ] The system administrator can hospital listing management across Google, JustDial, Practo (single dashboard) from the relevant screen, with clear loading / empty / error states.
+- [ ] The system administrator can hospital listing management across Google, JustDial, another hospital system (single dashboard) from the relevant screen, with clear loading / empty / error states.
 - [ ] Backend: tenant-scoped endpoint(s) with RLS (`set_tenant_context`) and typed errors; new entities get a migration with `tenant_id` + RLS + indexes; `cargo clippy` clean.
 - [ ] Web: built from the `@/components/ui` seam, page-guarded via `useRequirePermission`, data through TanStack Query, inputs Zod-validated.
 - [ ] Access is permission-gated (`P.<module>.<action>`) at page and element level; unauthorized users are redirected/hidden.

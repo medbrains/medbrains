@@ -4,7 +4,7 @@ import type { ServiceType } from "@medbrains/types";
  * Foundation templates — the self-service accelerator. A non-technical admin
  * picks one and the wizard's essentials (departments, services, numbering) are
  * pre-filled, so they can go live in minutes and tweak the rest later. Modelled
- * on Epic/Cerner "Foundation System" starter configs.
+ * on large hospital systems "Foundation System" starter configs.
  */
 export interface FoundationOption {
   id: "clinic" | "general" | "specialty";

@@ -1524,7 +1524,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Backdated clinical data entry with mandatory reason and supervisor approval
 > As a **clinician**, I want **backdated clinical data entry with mandatory reason and supervisor approval**.
 
-`Done · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can backdated clinical data entry with mandatory reason and supervisor approval from the relevant screen, with clear loading / empty / error states.
@@ -1538,7 +1538,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Retrospective visit creation (paper records digitization)
 > As a **clinician**, I want **retrospective visit creation (paper records digitization)**.
 
-`Done · Platforms: Web · Source: Market research+Bahmni · RFC: §Ext`
+`Done · Platforms: Web · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can retrospective visit creation (paper records digitization) from the relevant screen, with clear loading / empty / error states.
@@ -1987,7 +1987,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Treatment program enrollment (TB DOTS, HIV ART, Diabetes, Hypertension)
 > As a **clinician**, I want **treatment program enrollment (tb dots, hiv art, diabetes, hypertension)**.
 
-`Done · Done · Platforms: Web, Mobile · Source: Market research+Bahmni · RFC: §Ext`
+`Done · Done · Platforms: Web, Mobile · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can treatment program enrollment (TB DOTS, HIV ART, Diabetes, Hypertension) from the relevant screen, with clear loading / empty / error states.
@@ -4859,7 +4859,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### ✅ Non-medication task tracking (wound care, catheter care, repositioning)
 > As a **clinician**, I want **non-medication task tracking (wound care, catheter care, repositioning)**.
 
-`Done · Platforms: Web, Mobile, TV · Source: Market research+Bahmni · RFC: §Ext`
+`Done · Platforms: Web, Mobile, TV · Source: Market research+another hospital system · RFC: §Ext`
 
 **Acceptance criteria**
 - [x] The clinician can non-medication task tracking (wound care, catheter care, repositioning) from the relevant screen, with clear loading / empty / error states.

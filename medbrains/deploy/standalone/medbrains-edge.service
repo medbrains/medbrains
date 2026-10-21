@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains Loro CRDT edge sync server
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 After=network-online.target
 Wants=network-online.target
 

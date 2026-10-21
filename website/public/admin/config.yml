@@ -2,7 +2,7 @@
 # save is a commit, and the post goes live on the next website deploy.
 backend:
   name: github
-  repo: DomnicAmalan/MedBrains
+  repo: medbrains/medbrains
   branch: master
 
 media_folder: website/public/images/blog

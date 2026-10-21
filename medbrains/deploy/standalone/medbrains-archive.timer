@@ -1,6 +1,6 @@
 [Unit]
 Description=Daily storage tier sweep
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 
 [Timer]
 # Daily at 02:00 local time. RandomizedDelaySec staggers if multiple

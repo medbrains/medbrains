@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains failure notifier for %i
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 
 # Invoked by OnFailure= on the units whose failure is otherwise silent:
 # the nightly pg_dump and the storage sweeper. Both are timer-driven, so

@@ -6,7 +6,7 @@ MedBrains handles patient data. We take security reports seriously and ask the s
 
 **Do not report a vulnerability in a public issue, discussion or pull request.**
 
-Report it privately through **GitHub Security Advisories**: [report a vulnerability](https://github.com/DomnicAmalan/MedBrains/security/advisories/new). This lets us work on the fix with you in private and credit you.
+Report it privately through **GitHub Security Advisories**: [report a vulnerability](https://github.com/medbrains/medbrains/security/advisories/new). This lets us work on the fix with you in private and credit you.
 
 If you cannot use GitHub, email hello@medbrains.in with the subject `SECURITY: MedBrains` and we will move the conversation to a private advisory.
 

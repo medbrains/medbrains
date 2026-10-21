@@ -7,7 +7,7 @@
 
 ## Context
 
-OpenMRS 3 has a single workspace pattern called **Order Basket** — clinician opens it once during an encounter, adds drug + lab + radiology + procedure + diet + referral orders across modules, sees drug-interaction / duplicate-test / dose-range warnings inline, signs once, and all orders commit atomically to the active visit.
+another hospital system 3 has a single workspace pattern called **Order Basket** — clinician opens it once during an encounter, adds drug + lab + radiology + procedure + diet + referral orders across modules, sees drug-interaction / duplicate-test / dose-range warnings inline, signs once, and all orders commit atomically to the active visit.
 
 Today MedBrains has each order type behind its own button: "New Prescription", "Order Lab", "Order X-ray", "Diet Order". That means:
 - Clinician clicks 4-5 separate buttons per visit
@@ -503,5 +503,5 @@ Order: Sprint A → Workspace/ActiveVisit (other chat) → **this sprint**.
 - Branch: `feature/order-basket` (off `master`, after Sprint A merged AND workspace/active-visit sprint merged)
 - Single PR, ~86h work
 - PR title: *Order basket — atomic cross-module order signing*
-- PR body cites: this plan, OpenMRS 3 reference (`https://o3.openmrs.org/openmrs/spa/patient/.../chart/Medications`), and acceptance criteria
+- PR body cites: this plan, another hospital system 3 reference (`https://o3.another hospital system.org/another hospital system/spa/patient/.../chart/Medications`), and acceptance criteria
 - Reviewer focus: (a) atomic tx correctness, (b) CDS rule composition, (c) `_in_tx` refactor backwards compat, (d) draft + warning re-check at sign time

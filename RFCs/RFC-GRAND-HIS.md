@@ -73,7 +73,7 @@ hold flag; surface NDPS/Schedule flags at *prescribe* time (today only at dispen
 4. **AI-native + regulation-enforcing** — the on-prem copilot acting across the loop (ambient notes, agentic order/discharge); the moat no cloud/fork competitor can match.
 5. **Multi-app fleet** — thin role/location apps (nurse/pharmacist/doctor mobile; ward/OT/pharmacy TV) over the one shared `@medbrains/*` core.
 
-**Uniqueness / why "grand in the world":** sovereign, on-prem, **AI-native**, **regulation-as-code**, device-integrated, DPG-aligned — the combination Epic (cloud/US), Bahmni (fork-per-site, no AI), and cloud AI scribes (PHI leaves) structurally cannot be.
+**Uniqueness / why "grand in the world":** sovereign, on-prem, **AI-native**, **regulation-as-code**, device-integrated, DPG-aligned — the combination Epic (cloud/US), another hospital system (fork-per-site, no AI), and cloud AI scribes (PHI leaves) structurally cannot be.
 
 ## 5. Build order
 

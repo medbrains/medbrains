@@ -94,7 +94,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Therapeutic alternative suggestions (lower cost, same class, formulary-preferred)
 > As a **lab/radiology technician**, I want **therapeutic alternative suggestions (lower cost, same class, formulary-preferred)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can therapeutic alternative suggestions (lower cost, same class, formulary-preferred) from the relevant screen, with clear loading / empty / error states.
@@ -109,7 +109,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Generic substitution recommendation with cost comparison
 > As a **lab/radiology technician**, I want **generic substitution recommendation with cost comparison**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can generic substitution recommendation with cost comparison from the relevant screen, with clear loading / empty / error states.
@@ -388,7 +388,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Genetic counseling documentation (family pedigree, risk assessment, recommendations)
 > As a **lab/radiology technician**, I want **genetic counseling documentation (family pedigree, risk assessment, recommendations)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can genetic counseling documentation (family pedigree, risk assessment, recommendations) from the relevant screen, with clear loading / empty / error states.
@@ -403,7 +403,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Hereditary risk screening tools (BRCA, Lynch, familial hypercholesterolemia)
 > As a **lab/radiology technician**, I want **hereditary risk screening tools (brca, lynch, familial hypercholesterolemia)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can hereditary risk screening tools (BRCA, Lynch, familial hypercholesterolemia) from the relevant screen, with clear loading / empty / error states.
@@ -420,7 +420,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Real-time prescription benefit check at point of prescribing (formulary status, tier, PA required)
 > As a **lab/radiology technician**, I want **real-time prescription benefit check at point of prescribing (formulary status, tier, pa required)**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can real-time prescription benefit check at point of prescribing (formulary status, tier, PA required) from the relevant screen, with clear loading / empty / error states.
@@ -435,7 +435,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient out-of-pocket cost display before medication selection
 > As a **lab/radiology technician**, I want **patient out-of-pocket cost display before medication selection**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can patient out-of-pocket cost display before medication selection from the relevant screen, with clear loading / empty / error states.
@@ -449,7 +449,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Insurance plan coverage details for each medication (copay, coinsurance, deductible)
 > As a **lab/radiology technician**, I want **insurance plan coverage details for each medication (copay, coinsurance, deductible)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can insurance plan coverage details for each medication (copay, coinsurance, deductible) from the relevant screen, with clear loading / empty / error states.
@@ -1440,7 +1440,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Tumor biomarker tracking and targeted therapy matching
 > As a **lab/radiology technician**, I want **tumor biomarker tracking and targeted therapy matching**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can tumor biomarker tracking and targeted therapy matching from the relevant screen, with clear loading / empty / error states.
@@ -1454,7 +1454,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Cancer registry staging — AJCC TNM classification with auto-submission to registry
 > As a **lab/radiology technician**, I want **cancer registry staging — ajcc tnm classification with auto-submission to registry**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can cancer registry staging — AJCC TNM classification with auto-submission to registry from the relevant screen, with clear loading / empty / error states.
@@ -1558,7 +1558,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Prior authorization required flag with auto-submission workflow
 > As a **lab/radiology technician**, I want **prior authorization required flag with auto-submission workflow**.
 
-`Pending · Platforms: Web, Mobile · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web, Mobile · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can prior authorization required flag with auto-submission workflow from the relevant screen, with clear loading / empty / error states.
@@ -1682,7 +1682,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Pharmacogenomic alerts — drug-gene interaction at point of prescribing
 > As a **lab/radiology technician**, I want **pharmacogenomic alerts — drug-gene interaction at point of prescribing**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can pharmacogenomic alerts — drug-gene interaction at point of prescribing from the relevant screen, with clear loading / empty / error states.
@@ -1696,7 +1696,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Patient pharmacogenomic profile (known variants affecting drug metabolism)
 > As a **lab/radiology technician**, I want **patient pharmacogenomic profile (known variants affecting drug metabolism)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can patient pharmacogenomic profile (known variants affecting drug metabolism) from the relevant screen, with clear loading / empty / error states.
@@ -3351,7 +3351,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Genetic test ordering integrated into clinical workflow (via Aura-style network)
 > As a **lab/radiology technician**, I want **genetic test ordering integrated into clinical workflow (via aura-style network)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can genetic test ordering integrated into clinical workflow (via Aura-style network) from the relevant screen, with clear loading / empty / error states.
@@ -3365,7 +3365,7 @@ _Auto-generated from `MedBrains_Features.xlsx` — every feature as a story with
 ### Discrete genetic results in structured format (not PDF attachments)
 > As a **lab/radiology technician**, I want **discrete genetic results in structured format (not pdf attachments)**.
 
-`Pending · Platforms: Web · Source: Epic · RFC: §Ext`
+`Pending · Platforms: Web · Source: Market research · RFC: §Ext`
 
 **Acceptance criteria**
 - [ ] The lab/radiology technician can discrete genetic results in structured format (not PDF attachments) from the relevant screen, with clear loading / empty / error states.

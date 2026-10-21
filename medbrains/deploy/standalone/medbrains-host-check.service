@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains host check — disk headroom and certificate expiry
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 OnFailure=medbrains-alert@%n.service
 
 [Service]

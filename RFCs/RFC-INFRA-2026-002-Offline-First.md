@@ -9,7 +9,7 @@
 ## Executive Summary
 
 - **Hospital must remain operational when the network drops.** A tertiary-care HMS that pauses on internet outage is unacceptable — clinically, legally, and reputationally.
-- **Enterprise consensus is multi-tier read fallback**: live primary → sync replica → async downtime snapshot → printed packet → paper form → back-entry. Every reviewed vendor (Epic BCA, Cerner 724Access, MEDITECH Downtime Defender) implements the same pattern. Pure-cloud no-fallback (athenahealth) is unsuitable for inpatient hospitals.
+- **Enterprise consensus is multi-tier read fallback**: live primary → sync replica → async downtime snapshot → printed packet → paper form → back-entry. Every reviewed vendor (Epic BCA, another hospital system 724Access, another hospital system Downtime Defender) implements the same pattern. Pure-cloud no-fallback (another hospital system) is unsuitable for inpatient hospitals.
 - **All chosen tooling is open-source.** Patroni for PG HA, pg_cron for outbox dispatch (Phase 1) → NATS JetStream (Phase 3), WatermelonDB for mobile, IHE XDR for cross-site doc exchange, YottaDB Bourne replication for hierarchical DR. No Oracle, no proprietary DB.
 - **Phase plan: 18 months across 4 phases.** Phase 1 (months 1–3) gets us NABH/JCI MOI.14 compliance for a single hospital. Phases 2–4 layer mobile, multi-site, full DR without re-architecture.
 - **Compliance posture aligns to NABH 5th ed Ch. 10 (IMS), JCI MOI.14, HIPAA §164.308(a)(7), and HITRUST CSF Cat. 12 (BCM).** Annual full DR drill + quarterly tabletop is the de facto industry cadence.
@@ -25,15 +25,15 @@ This RFC is the **server-side BCP** complement to RFC-INFRA-2026-001. RFC-INFRA-
 | Vendor | Mechanism | Architecture | Lag / RPO | Source |
 |--------|-----------|--------------|-----------|--------|
 | **Epic (Hyperdrive)** | BCA Web (read-only via web), BCA PC (cached PDFs on local PC), Shadow Read-Only (SRO) | Periodic snapshot to read replica + pre-cached PDF packets per ward | 15–60 min (implementer-configured) | sphp.com, healthcareitleaders.com, uiowa.edu |
-| **Cerner Millennium / Oracle Health** | 724Access Downtime Viewer + Oracle GoldenGate | Continuous logical replication → standby + local 724 cache appliance | <2 min; 48-hour to 7-day window | wiki.cerner.com, oit.va.gov; UPMC reports 12-min RTO |
-| **MEDITECH Expanse** | Downtime Defender (Acmeware, 3rd-party) | Periodic batch PDF export to local + cloud | hours | acmeware.com |
-| **Allscripts/Veradigm Sunrise** | None native; 3rd-party appliances (CareFinity, NetSafe) | Vendor-agnostic downtime cache | varies | vendor docs |
-| **athenahealth (athenaOne)** | None — pure cloud | Customer's own internet redundancy + paper procedures | N/A — site dies if WAN dies | status.athenahealth.com |
-| **InterSystems IRIS / Caché** (Epic engine) | ECP (distributed cache), Mirroring (sync HA), Shadowing (async DR) | App servers cache globals; mirror failover redirects ECP transparently | Sync = 0 data loss; async = secs–mins | docs.intersystems.com |
+| **another hospital system Millennium / another hospital system** | 724Access Downtime Viewer + Oracle GoldenGate | Continuous logical replication → standby + local 724 cache appliance | <2 min; 48-hour to 7-day window | wiki.another hospital system.com, oit.va.gov; UPMC reports 12-min RTO |
+| **another hospital system Expanse** | Downtime Defender (Acmeware, 3rd-party) | Periodic batch PDF export to local + cloud | hours | acmeware.com |
+| **another hospital system/Veradigm Sunrise** | None native; 3rd-party appliances (CareFinity, NetSafe) | Vendor-agnostic downtime cache | varies | vendor docs |
+| **another hospital system (athenaOne)** | None — pure cloud | Customer's own internet redundancy + paper procedures | N/A — site dies if WAN dies | status.another hospital system.com |
+| **another hospital system IRIS / Caché** (Epic engine) | ECP (distributed cache), Mirroring (sync HA), Shadowing (async DR) | App servers cache globals; mirror failover redirects ECP transparently | Sync = 0 data loss; async = secs–mins | docs.another hospital system.com |
 | **VistA (US VA)** | Per-site MUMPS instance, federation | Each site runs its own VistA; cross-site sync via Health Data Repository | site-local | en.wikipedia.org/wiki/VistA |
-| **Bahmni (OpenMRS)** | Bahmni Connect — single-user offline app + nightly batch sync | Per-location nightly zip + concept-tagged offline data | up to 24h | talk.openmrs.org |
+| **another hospital system (another hospital system)** | another hospital system Connect — single-user offline app + nightly batch sync | Per-location nightly zip + concept-tagged offline data | up to 24h | talk.another hospital system.org |
 
-**Takeaway.** Epic Chronicles' resilience is overwhelmingly **InterSystems IRIS engineering, not Epic-specific code.** This means we can buy 80% of Epic-grade resilience with off-the-shelf Postgres tooling (Patroni gives us mirroring, streaming replication gives us shadowing, our own snapshot service gives us BCA).
+**Takeaway.** Epic Chronicles' resilience is overwhelmingly **another hospital system IRIS engineering, not Epic-specific code.** This means we can buy 80% of Epic-grade resilience with off-the-shelf Postgres tooling (Patroni gives us mirroring, streaming replication gives us shadowing, our own snapshot service gives us BCA).
 
 ### A.2 — Integration-layer reliability patterns
 
@@ -70,7 +70,7 @@ This RFC is the **server-side BCP** complement to RFC-INFRA-2026-001. RFC-INFRA-
 | Layer | Pick | Rejected | Reason |
 |-------|------|----------|--------|
 | **PG HA** | **Patroni + etcd** (3-node, sync replication) | pg_auto_failover | Patroni is quorum-safe; pg_auto_failover has SPOF on monitor |
-| **YottaDB DR** | Bourne replication (native) | (none — only one option) | Same async-shadow pattern as InterSystems |
+| **YottaDB DR** | Bourne replication (native) | (none — only one option) | Same async-shadow pattern as another hospital system |
 | **Outbox transport** | pg_cron polling Rust worker (Phase 1) → NATS JetStream (Phase 3) | Debezium / Kafka | Skip CDC infra at single-hospital scale; NATS JetStream is already in our roadmap |
 | **Mobile offline** | **WatermelonDB** | ElectricSQL, Couchbase Mobile | WatermelonDB is RN-native, server-authoritative; ElectricSQL leaks PG schema to device; Couchbase Mobile adds non-PG source of truth |
 | **Web read cache** | Service worker + WebSocket reconnect with exponential backoff | localStorage hand-rolled | SW is browser-native, cache-first strategy with stale-banner |
@@ -296,15 +296,15 @@ CREATE TABLE dr_drill_log (
 
 - [Epic BCA — St. Peter's overview](https://www.sphp.com/downtime/accessing-info-via-bca)
 - [Epic BCA Web — University of Iowa](https://epicsupport.sites.uiowa.edu/epic-resources/bca-web)
-- [Cerner 724Access — Cerner Wiki](https://wiki.cerner.com/display/public/1101724accessHP/About+724Access+Downtime+Viewer)
+- [another hospital system 724Access — another hospital system Wiki](https://wiki.another hospital system.com/display/public/1101724accessHP/About+724Access+Downtime+Viewer)
 - [VA TRM — 724Access](https://www.oit.va.gov/Services/TRM/ToolPage.aspx?tid=14376)
-- [UPMC GoldenGate / 724Access case study](http://www.edocscan.com/upmc-emr-Cerner-724access-oracle-goldengate-software)
-- [MEDITECH Downtime Defender — Acmeware](https://acmeware.com/meditech-downtime-solution)
-- [InterSystems IRIS ECP](https://docs.intersystems.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=AFL_ecp)
-- [InterSystems IRIS Mirroring](https://docs.intersystems.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=GHA_mirror)
+- [UPMC GoldenGate / 724Access case study](http://www.edocscan.com/upmc-emr-another hospital system-724access-oracle-goldengate-software)
+- [another hospital system Downtime Defender — Acmeware](https://acmeware.com/another hospital system-downtime-solution)
+- [another hospital system IRIS ECP](https://docs.another hospital system.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=AFL_ecp)
+- [another hospital system IRIS Mirroring](https://docs.another hospital system.com/irislatest/csp/docbook/DocBook.UI.Page.cls?KEY=GHA_mirror)
 - [NetApp Epic architecture](https://docs.netapp.com/us-en/ontap-apps-dbs/epic/epic-arch-overview.html)
 - [VistA — Wikipedia](https://en.wikipedia.org/wiki/VistA)
-- [Bahmni Connect offline sync](https://talk.openmrs.org/t/bahmni-connect-new-offline-sync-strategy/15129)
+- [another hospital system Connect offline sync](https://talk.another hospital system.org/t/another hospital system-connect-new-offline-sync-strategy/15129)
 - [HL7 v2 ACK / retry / idempotency](https://healthcareintegrations.com/hl7-integration-acks-retries-idempotency/)
 - [Mirth Connect persistent queueing](https://github.com/nextgenhealthcare/connect/issues/734)
 - [DICOM C-STORE protocol — NEMA](https://dicom.nema.org/dicom/2013/output/chtml/part07/sect_9.3.html)

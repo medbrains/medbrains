@@ -31,10 +31,10 @@ So **two completely different audiences**, two orchestration tiers:
   seed + guardrails (our prod-strict mode). The business wizard is the self-serve
   front; Terraform is the back.
 
-**Epic / Cerner (big-hospital EHR onboarding):**
+**Large hospital EHRs (big-hospital onboarding):**
 - **Foundation / Model System** — Epic ships a **pre-built, best-practice configured
   "Foundation System"** the hospital **tailors**, instead of building from a blank
-  slate. Cerner ships a "model" reference. This is *the* industry answer to "non-
+  slate. another hospital system ships a "model" reference. This is *the* industry answer to "non-
   technical, predefined."
 - **Build vs operational config split** — certified analysts/IT do the technical
   build; department leads supply operational content (order sets, services, tariffs).

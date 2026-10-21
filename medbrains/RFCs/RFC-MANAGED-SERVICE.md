@@ -59,7 +59,7 @@ in-repo), and the **phase**.
 managed service. India-first go-to-market: lead with **ABDM-certified + NABH-aligned open-source**, sell
 **hosting + SLA support + implementation/AMC**, and use **Digital-Public-Good status + Co-Develop/FLOSS
 grants** for credibility and non-dilutive funding (never as the core business). Beachhead = **private hospitals
-and clinic chains** (NIC's free **eHospital** owns public-sector tenders; contest those later with references).
+and clinic chains** (NIC's free **another hospital system** owns public-sector tenders; contest those later with references).
 
 **Mechanism / to reconcile.** Root `LICENSE` (AGPL) + `COMMERCIAL-LICENSE.md` are canonical; a stray
 `medbrains/LICENSE-APACHE` should be removed or reconciled so the licence story is unambiguous. Revenue lines
@@ -199,9 +199,9 @@ retention path, off the OLTP hot path.
 | Tier | Target | Plane / hosting | Price axis (benchmarked) | SLA |
 |---|---|---|---|---|
 | **Community** | Self-hosters, credibility | Self / on-prem (AGPL) | Free | Community forum |
-| **Clinic SaaS** | Solo / small clinic (OPD) | Pool, shared cloud ap-south-1 | ~$20–30/user·mo or per-bed (cf. Bahmni Lite $20, Insta $25) | Bronze (business-hours) |
+| **Clinic SaaS** | Solo / small clinic (OPD) | Pool, shared cloud ap-south-1 | ~$20–30/user·mo or per-bed (cf. another hospital system Lite $20, Insta $25) | Bronze (business-hours) |
 | **Hospital Cloud** | 50–150 beds | Silo, dedicated cloud | ₹500–1500/bed·mo *or* licence ₹12–25L + AMC 12–15% (cf. Arko) | Silver, 99.9% |
-| **Enterprise / Gov** | 150+ beds, chains, public | Silo, on-prem / sovereign (MeghRaj/ESDS) | Custom per-bed + AMC (cf. KareXpert quote) | Gold, 99.99%, dedicated AM |
+| **Enterprise / Gov** | 150+ beds, chains, public | Silo, on-prem / sovereign (MeghRaj/ESDS) | Custom per-bed + AMC (cf. another hospital system quote) | Gold, 99.99%, dedicated AM |
 
 **Cross-tier upsells:** implementation & migration (one-time), training/go-live, ABDM certification,
 NABH-readiness consulting, AI/RCM/TPA/analytics modules (module add-ons gated via `module_config`).
@@ -249,5 +249,4 @@ reach any `platform_operator` cross-tenant endpoint.
   application-plane), AWS Prescriptive Guidance (single control plane for many tenants), Stripe Billing
   (subscription object, Smart Retries, dunning), multi-tenant-saas.com (subscription & plan enforcement),
   Neon (HIPAA multi-tenancy).
-- Healthcare GTM/pricing: Bahmni/Bahmni-Lite, OpenEMR, OpenMRS service-providers, Arko HMS, Insta by Practo,
-  KareXpert; ABDM (abdm.gov.in), NABH digital-health standards, DPGA/Co-Develop; NIC eHospital.
+- Healthcare GTM/pricing: other hospital systems-Lite, OpenEMR, another hospital system service-providers, Arko HMS, other hospital systems; ABDM (abdm.gov.in), NABH digital-health standards, DPGA/Co-Develop; NIC another hospital system.

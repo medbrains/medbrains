@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains Pingora edge proxy
-Documentation=https://github.com/DomnicAmalan/MedBrains
+Documentation=https://github.com/medbrains/medbrains
 After=network-online.target medbrains-server.service medbrains-edge.service
 Wants=network-online.target medbrains-edge.service
 Requires=medbrains-server.service

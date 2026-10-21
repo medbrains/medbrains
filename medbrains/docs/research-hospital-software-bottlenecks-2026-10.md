@@ -69,8 +69,8 @@ Evidence strength: **A** = several independent sources or a high-engagement thre
 | 10 | Slow screens under load | All | Peak OPD | Servers fail under load; doctors reject slow software | **B**: [PGIMER](https://www.tribuneindia.com/news/chandigarh/pgi-to-table-agenda-for-replacing-17-yr-old-management-software-401934); [NestorBird](https://nestorbird.com/biggest-gaps-in-indian-hospital-software-and-how-to-fix-them/) (vendor) | **Partial.** `medbrains-loadtest`; the load test is still pending (memory). | Publish p95 per screen at peak OPD load. |
 | 11 | Unreliable internet and power | All, rural | Everything | Cloud-only HMIS stops working | **C**: [Ken Research 49%](https://www.kenresearch.com/articles/clinical-digitisation-barrier-hms-vendors-india) (unverified); [NIC e-Hospital cloud-only](https://healthcareitnews.com/node/551970) | **Partial.** Edge node and offline authz. | Local-first registration and billing on the edge, syncing when online. |
 | 12 | Insurance pre-auth and claims | Billing, TPA desk | Claims | Small providers squeezed; claims lost | **B**: [HN 37310850](https://news.ycombinator.com/item?id=37310850) (works in health IT for small practices); NHCX claims lost (internal memory) | **Partial.** TPA pipeline, NHCX crates; NHCX handler unregistered. | NHCX P0 fix, plus a claim status tracker. |
-| 13 | Billing and coding corrections | Coder, billing | Charge correction | Corrections are slow | **C**: [AAPC thread](https://www.aapc.com/discuss/threads/what-is-the-best-emr-system-you-have-ever-used.172685/post-471216) (Cerner corrections "very time-consuming") | **Partial.** Billing worklist; `opd_unbilled_pct` KPI. | Worklist of unbilled or un-coded encounters with one-click fixes. |
-| 14 | Report requests queued at IT | Admin, quality, IT | Reporting | Custom reports slow; extra tools bought | **B**: [Healthray](https://www.techjockey.com/reviews/healthray-hmis); [Meditech wants capacity built in](https://fiercehealthcare.com/health-tech/epic-continues-grow-ehr-market-share-it-makes-gains-small-health-systems) | **Strength / partial.** Management KPIs vs the usual day; report catalogue; command centre. | Self-serve report builder over the KPI catalogue. |
+| 13 | Billing and coding corrections | Coder, billing | Charge correction | Corrections are slow | **C**: [AAPC thread](https://www.aapc.com/discuss/threads/what-is-the-best-emr-system-you-have-ever-used.172685/post-471216) (another hospital system corrections "very time-consuming") | **Partial.** Billing worklist; `opd_unbilled_pct` KPI. | Worklist of unbilled or un-coded encounters with one-click fixes. |
+| 14 | Report requests queued at IT | Admin, quality, IT | Reporting | Custom reports slow; extra tools bought | **B**: [Healthray](https://www.techjockey.com/reviews/healthray-hmis); [another hospital system wants capacity built in](https://fiercehealthcare.com/health-tech/epic-continues-grow-ehr-market-share-it-makes-gains-small-health-systems) | **Strength / partial.** Management KPIs vs the usual day; report catalogue; command centre. | Self-serve report builder over the KPI catalogue. |
 | 15 | Vendor lock-in and support | IT, admin | Contracts, support | Can't switch; poor first-line support | **B**: [HN 43829392](https://news.ycombinator.com/item?id=43829392) "legacy lock in"; [HN 43829720](https://news.ycombinator.com/item?id=43829720) | **Strength.** PostgreSQL, FHIR, AGPL+commercial. | Publish an export guarantee. |
 | 16 | Production access and ransomware exposure | IT, security | Operations | Anyone could drop tables | **B**: [HN 43831873](https://news.ycombinator.com/item?id=43831873); AIIMS and Ascension | **Strength.** Authz RFC, RLS, audit, MFA. | Buyer-facing trust page. |
 | 17 | Training load | All | Onboarding | Vendors sell training to work around their UI | **B**: [Epic SmartUser](https://www.fiercehealthcare.com/providers/epic-launches-ehr-training-program-nurses-help-cut-clicks); [ISB](https://blogs.isb.edu/healthcare/2026/03/18/why-sme-hospitals-matter-in-india-digital-health-transformation/) | **Partial.** `/help` Docusaurus guide (#4724). | In-context help per screen. |
@@ -109,14 +109,14 @@ These are typical r/healthcareIT topics. Expect them to rank once real data is p
 ### 1.2 Documentation burden, and why AI scribes are the response
 
 - SDN residents: "Seems like 99% of people on SDN hate them" (EMRs). Epic roll-outs are called miserable, and some applicants avoid programs that are mid-transition ([SDN thread](https://forums.studentdoctor.net/threads/program-specific-questions.1041075/post-16066605)).
-- Epic's dot-phrases are the one widely praised time-saver (same thread).
+- Text shortcuts ("dot-phrases") are the one widely praised time-saver (same thread).
 - India: OPD visits run about four minutes at 40 or more patients a day ([hackmd](https://hackmd.io/@wondrx/HkhssLzKGx)). Startups report late-night charting from 25+ interviews ([MIT Launchpad](https://orbit.mit.edu/launchpad/ideas/ayuconnect)). Both are self-reported.
 
 ### 1.3 Downtime, outages and ransomware
 
-- **Oracle Health outage.** Engineers deleted critical storage, causing a five-day outage at US hospitals. **HN 174p/106c** ([HN 43828915](https://news.ycombinator.com/item?id=43828915)).
-  - An ex-Cerner engineer: "anyone could ssh into a hospitals cerner and drop tables" ([HN 43831873](https://news.ycombinator.com/item?id=43831873)).
-- **VA Oracle sites.** An advocacy group tallies about 1,909 hours of downtime. The VA Inspector General found orders vanishing into an "unknown queue" ([stoptherollout.org](https://stoptherollout.org/); [The Register](https://www.theregister.com/2024/11/27/oracle_cerner_project/)).
+- **another hospital system outage.** Engineers deleted critical storage, causing a five-day outage at US hospitals. **HN 174p/106c** ([HN 43828915](https://news.ycombinator.com/item?id=43828915)).
+  - An ex-another hospital system engineer: "anyone could ssh into a hospitals another hospital system and drop tables" ([HN 43831873](https://news.ycombinator.com/item?id=43831873)).
+- **VA Oracle sites.** An advocacy group tallies about 1,909 hours of downtime. The VA Inspector General found orders vanishing into an "unknown queue" ([stoptherollout.org](https://stoptherollout.org/); [The Register](https://www.theregister.com/2024/11/27/oracle_another hospital system_project/)).
 - **Ascension ransomware (2024).** Orders were handwritten and walked to departments by hand. A NICU nurse said the hospital wasn't ready ([NPR](https://www.npr.org/sections/shots-health-news/2024/05/23/1253011397/how-the-ascension-cyberattack-is-disrupting-care-at-hospitals)). The union warned that information could be "missed, lost or not communicated" ([BankInfoSecurity](https://www.bankinfosecurity.com/union-demands-patient-safety-fixes-in-ascension-cyber-outage-a-25343)).
 - **India.**
   - The AIIMS cyberattack cut online OPD registrations from about 15,000 to under 5,000 a day for more than eight days ([The Wire](https://thewire.in/health/online-systems-still-down-after-cyber-attack-aiims-daily-opd-registrations-fall-substantially)).
@@ -138,8 +138,8 @@ These are typical r/healthcareIT topics. Expect them to rank once real data is p
 ### 1.6 Vendor churn (KLAS)
 
 - Small hospitals change EHRs more often than large ones, and most moves go to Epic Community Connect ([Becker's](https://www.beckershospitalreview.com/ehrs/what-ehrs-do-small-hospitals-prefer.html)).
-- Oracle Health satisfaction and share have declined for three straight years ([Healthcare IT News](https://www.healthcareitnews.com/news/epic-gains-ground-acute-care-ehr-purchasing-slows)).
-- Meditech customers ask for capacity management built in, so they can drop third-party tools ([Fierce](https://fiercehealthcare.com/health-tech/epic-continues-grow-ehr-market-share-it-makes-gains-small-health-systems)).
+- another hospital system satisfaction and share have declined for three straight years ([Healthcare IT News](https://www.healthcareitnews.com/news/epic-gains-ground-acute-care-ehr-purchasing-slows)).
+- another hospital system customers ask for capacity management built in, so they can drop third-party tools ([Fierce](https://fiercehealthcare.com/health-tech/epic-continues-grow-ehr-market-share-it-makes-gains-small-health-systems)).
 
 ### 1.7 Implementation, training, support, customisation (India)
 
@@ -157,7 +157,7 @@ Product notes:
 
 - **Insta HMS.** A 2017 review rated it 3/5, asking for better usability and better diet, procurement, lab and stores modules ([Software Advice](https://www.softwareadvice.co.uk/software/115581/insta)).
 - **Healthray.** Custom reports are slow ([Techjockey](https://www.techjockey.com/reviews/healthray-hmis)).
-- **KareXpert, Suvarna, Birlamedisoft, Medeil, Bahmni.** No independent user voice found. That itself is a signal: the Indian buyer conversation happens offline and through referrals.
+- **other hospital systems.** No independent user voice found. That itself is a signal: the Indian buyer conversation happens offline and through referrals.
 
 ### 1.8 Offline and unreliable internet (rural India)
 
@@ -211,13 +211,13 @@ No good forum evidence surfaced.
 ## 4. The builders' perspective
 
 - **"my users are doctors, and the potential buyers are not"** ([HN 42283554](https://news.ycombinator.com/item?id=42283554)): a doctor-founder building an ER-only MVP on about $2.5k. Commenters warned that production software costs "around the cost of a new car", and that pre-selling is the only reliable funding.
-- **Practo's early playbook** ([iSPIRT](https://pn.ispirt.in/category/playbook-roundtable/page/6/)):
+- **another hospital system's early playbook** ([iSPIRT](https://pn.ispirt.in/category/playbook-roundtable/page/6/)):
   - founders sold the first 50 customers themselves;
   - targeted specialists, not GPs;
   - skipped clinics with no computers;
   - kept a strict no-discount policy;
   - later sold by territory.
-- **Practo bought Insta HMS for about $12M**, so the Indian HMS market consolidates cheaply ([TechCrunch](https://techcrunch.com/?p=1208532)).
+- **another hospital system bought Insta HMS for about $12M**, so the Indian HMS market consolidates cheaply ([TechCrunch](https://techcrunch.com/?p=1208532)).
 - **Long cycles with many gatekeepers.** Pitching the CEO or the ministry rarely works ([TiE](https://hub.tie.org/e/selling-to-healthcare-enterprises); [BW Healthcare](https://bwhealthcareworld.com/article/navigating-business-with-hospitals-a-ready-reckoner-for-healthcare-entrepreneurs-302835)).
 - **A capital-starved Indian HMS** sold through resellers and inside sales ([Stanford EE204 case](https://web.stanford.edu/class/ee204/2016/SalesManagement.html)).
 
@@ -248,9 +248,9 @@ r/healthcareIT returned 403. Its topic list is covered here from HN health-IT co
 | EHR migrations | Transitions are dreaded (SDN). Small hospitals churn most (KLAS). | A migration kit: legacy patient/visit/bill import with a reconciliation report. |
 | Downtime procedures | Ascension went to paper with no read-only data. The VA had orders lost in an "unknown queue". | A read-only downtime snapshot (census, MAR, allergies, active orders), printable and local, plus a "lost order" detector. |
 | Device integration | Lab analyzers and modalities over HL7/ASTM are usually a separate paid project. | Bridge listener exists. Show analyzer status on the command centre. |
-| Identity / SSO | Least-privilege production access was missing at Cerner (HN 43831873). | Our authz law and audit are a selling point; show it to IT buyers. |
+| Identity / SSO | Least-privilege production access was missing at another hospital system (HN 43831873). | Our authz law and audit are a selling point; show it to IT buyers. |
 | Security / ransomware | AIIMS 2022, Ascension 2024, Change Healthcare 2024. | Offline-capable edge nodes and continuity as a ransomware answer. |
-| Analytics / reporting | Custom reports are slow (Healthray). Meditech users want capacity tools built in. | Management KPIs vs the usual day, with a report builder. |
+| Analytics / reporting | Custom reports are slow (Healthray). another hospital system users want capacity tools built in. | Management KPIs vs the usual day, with a report builder. |
 | AI / scribes | See §7. | Assist, label, review. |
 | Ticket volume / config | Vendors sell training to fix the UI (Epic SmartUser). | Self-serve configuration, and an in-app guide (`/help` exists). |
 
@@ -367,7 +367,7 @@ The community fix for bottlenecks is to open waiting patients, see which test th
 |---|---|---|---|
 | 1 | **Downtime-proof hospital.** Extend offline CRDT beyond 4 domains to registration, MAR and orders. Add an automatic read-only downtime snapshot (census, allergies, active meds, orders) printed or held locally every hour. | Ascension, AIIMS, Oracle 5-day outage (HN 174p), VA, rural internet | Very high. Edge and offline foundations already exist. |
 | 2 | **ABHA at the counter, not the phone.** Assisted creation and verification for patients without smartphones (Aadhaar OTP or biometric fallback, kiosk mode). Finish ABHA V3 and M2/M3, which DHIS pays. | Gandhi Hospital queues, AIIMS kiosks, NHA admits small-clinic gap | Very high. Already the active loop. |
-| 3 | **"Waiting on" chip plus bottleneck heatmap** in the command centre and OPD queue, including overnight stranded patients. | Game (inspiration), Meditech wants capacity built in, Delhi HC | High. `detect_bottlenecks` and `hourly_flow` exist. |
+| 3 | **"Waiting on" chip plus bottleneck heatmap** in the command centre and OPD queue, including overnight stranded patients. | Game (inspiration), another hospital system wants capacity built in, Delhi HC | High. `detect_bottlenecks` and `hourly_flow` exist. |
 | 4 | **Bed truth with audit.** Reconcile bed board vs actual, with last-verified time and who verified it. | Delhi HC ICU denial (July 2026) | High. `bed_states` exist. |
 | 5 | **Assist-only AI with mandatory `AiLabel` and an error-flag path.** Proposals with accept and diff; measure our own omission and hallucination rates. | Scribe studies (11.5% hallucinations), HN 157p thread | High. AiLabel exists but is used on one page. |
 | 6 | **Click and alert budget telemetry.** Clicks per task and override rate per alert, shown to admins so they can tune. | Epic click culture, Ochsner 11M clicks, alert-fatigue literature | High. Fits the KPI framework. |

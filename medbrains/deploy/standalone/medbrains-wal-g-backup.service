@@ -1,6 +1,6 @@
 [Unit]
 Description=MedBrains WAL-G base backup (opt-in, attach tier) → S3
-Documentation=https://github.com/DomnicAmalan/MedBrains/blob/master/medbrains/docs/ops/BACKUP-RESTORE.md
+Documentation=https://github.com/medbrains/medbrains/blob/main/medbrains/docs/ops/BACKUP-RESTORE.md
 After=postgresql.service network-online.target
 Wants=network-online.target
 # A base backup that stops working leaves WAL with nothing to replay onto.

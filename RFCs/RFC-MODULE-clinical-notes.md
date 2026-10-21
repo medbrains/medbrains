@@ -22,13 +22,13 @@ Nobody can answer "who wrote what, when" from the screen.
 ## How the field does it (research 2026-10-05)
 
 - **Epic**: one note object across inpatient / outpatient / ED / nursing, with a note type and service per encounter. Sign or Pend; a change after signing becomes *Addendum*, re-timestamped; *Cosign Needed* until the attending signs; attribution shows who wrote which portion.
-- **Oracle Health (Cerner)**: every note is a `clinical_event` with an event code (type) and result status (in progress, authenticated, modified, superseded, in error). Modify = *Addend* (append) or *Revise* (strikethrough) within a window (30 days non-provider / 180 provider), then addendum only. *In Error* needs a reason and stays visible.
+- **another hospital system (another hospital system)**: every note is a `clinical_event` with an event code (type) and result status (in progress, authenticated, modified, superseded, in error). Modify = *Addend* (append) or *Revise* (strikethrough) within a window (30 days non-provider / 180 provider), then addendum only. *In Error* needs a reason and stays visible.
 - **FHIR R4**: `Composition` / `DocumentReference` status `preliminary | final | amended | entered-in-error`; attester modes; an addendum is a new document `relatesTo: appends`, a revision `replaces` (old → superseded). LOINC types: 11506-3 progress, 11488-4 consult, 34117-2 H&P, 18842-5 discharge summary, 28570-0 procedure.
 - **India**: IMC Regulations 2002 §1.3 (in force again since NMC 2023 was held in abeyance) — records kept 3 years, furnished within 72 h. NABH 5th ed — every entry signed, dated, timed, author identifiable, corrections marked, no overwriting. MoHFW EHR Standards 2016 — immutable once entered, append with full audit trail, digital signature per IT Act, SNOMED CT / LOINC.
 
 ## Decisions (product owner, 2026-10-05)
 
-- **One model** for every setting, like Epic/Cerner.
+- **One model** for every setting, like large hospital systems.
 - **Lock on sign**, with a hospital-set **grace period** for revising.
 - **Draft visibility** is a hospital setting.
 
