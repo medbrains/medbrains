@@ -443,106 +443,107 @@ export function PatientDetailPageInner() {
         }
       />
 
-      <Card className={classes.commandBar}>
-        <Stack gap="xs">
-          <PatientFlowNavigator
-            patientId={patient.id}
-            active="patient"
-            activeEncounterId={activeEncounter?.id ?? null}
-            activeAdmissionId={activeAdmission?.id ?? null}
-            activeAdmissionStatus={activeAdmission?.status ?? null}
-            activeBedId={activeAdmission?.bed_id ?? null}
-            activeCampId={activeCampRegistration?.camp_id ?? null}
-            activeCampRegistrationId={activeCampRegistration?.id ?? null}
-            activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
-            activeInvoiceId={activeInvoiceId}
-            activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
-            activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
-            activeOrderContext={activeOrderContext}
-            completedEvents={completedEvents}
-            compact
-            actions={
-              <PatientJourneyActions
-                context={actionContext}
-                onEdit={() => navigate(`/patients/${patient.id}/edit`)}
-                onOpenOrderBasket={openOrderBasket}
-                onShare={openShare}
-                onPrintPatientCard={() => {
-                  void printPatientCard();
-                }}
-                size="xs"
-              />
-            }
-          />
-          <Group justify="space-between" align="flex-start" gap="sm">
-            <Stack gap={6}>
-              <Group gap="xs">
-                {activeEncounter && <Badge tone="success">Active OPD</Badge>}
-                {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
-                {patient.is_deceased && (
-                  <Badge tone="neutral" variant="filled">
-                    Deceased
-                  </Badge>
-                )}
-                <Badge tone="primary">{patient.category}</Badge>
-                <Badge tone="neutral">{patient.financial_class}</Badge>
-                {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
-                {patient.is_vip && <Badge tone="accent">VIP</Badge>}
-                {patient.is_medico_legal && (
-                  <Badge tone="danger" variant="filled">
-                    MLC
-                  </Badge>
-                )}
-                {hasEmergencyVisit && <Badge tone="danger">ER linked</Badge>}
-                {hasCampRegistration && (
-                  <Badge tone={hasCampScreeningCompleted ? "success" : "info"}>
-                    {hasCampScreeningCompleted ? "Camp screened" : "Camp linked"}
-                  </Badge>
-                )}
-                {hasClinicalOrder && <Badge tone="success">Order handoff</Badge>}
-                {pendingInvoiceCount > 0 && (
-                  <Badge tone="warning">
-                    {pendingInvoiceCount} pending bill{pendingInvoiceCount === 1 ? "" : "s"}
-                  </Badge>
-                )}
-              </Group>
-              <Group gap={6}>
-                <Badge tone="primary" variant="light">
-                  UHID {displayUhid}
-                </Badge>
-                {patient.gender && <Badge tone="neutral">{patient.gender}</Badge>}
-                {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
-                {displayPhone && displayPhone !== "-" && (
-                  <Badge tone="neutral">{displayPhone}</Badge>
-                )}
-                <PatientContextBanner patientId={patient.id} inline />
-              </Group>
-            </Stack>
-          </Group>
-        </Stack>
-      </Card>
-
-      <ShareDrawer
-        opened={shareOpen}
-        onClose={closeShare}
-        objectType="patient"
-        objectId={patient.id}
-        objectLabel={`${displayName} (${displayUhid})`}
-        onGrantCreated={emitPatientShareCreated}
-      />
-
       <Tabs value={activeDetailTab} onChange={setActivePatientTab} keepMounted={false}>
+        <Card className={classes.commandBar}>
+          <Stack gap="xs">
+            <PatientFlowNavigator
+              patientId={patient.id}
+              active="patient"
+              activeEncounterId={activeEncounter?.id ?? null}
+              activeAdmissionId={activeAdmission?.id ?? null}
+              activeAdmissionStatus={activeAdmission?.status ?? null}
+              activeBedId={activeAdmission?.bed_id ?? null}
+              activeCampId={activeCampRegistration?.camp_id ?? null}
+              activeCampRegistrationId={activeCampRegistration?.id ?? null}
+              activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
+              activeInvoiceId={activeInvoiceId}
+              activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
+              activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
+              activeOrderContext={activeOrderContext}
+              completedEvents={completedEvents}
+              compact
+              actions={
+                <PatientJourneyActions
+                  context={actionContext}
+                  onEdit={() => navigate(`/patients/${patient.id}/edit`)}
+                  onOpenOrderBasket={openOrderBasket}
+                  onShare={openShare}
+                  onPrintPatientCard={() => {
+                    void printPatientCard();
+                  }}
+                  size="xs"
+                />
+              }
+            />
+            <Group justify="space-between" align="flex-start" gap="sm">
+              <Stack gap={6}>
+                <Group gap="xs">
+                  {activeEncounter && <Badge tone="success">Active OPD</Badge>}
+                  {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
+                  {patient.is_deceased && (
+                    <Badge tone="neutral" variant="filled">
+                      Deceased
+                    </Badge>
+                  )}
+                  <Badge tone="primary">{patient.category}</Badge>
+                  <Badge tone="neutral">{patient.financial_class}</Badge>
+                  {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
+                  {patient.is_vip && <Badge tone="accent">VIP</Badge>}
+                  {patient.is_medico_legal && (
+                    <Badge tone="danger" variant="filled">
+                      MLC
+                    </Badge>
+                  )}
+                  {hasEmergencyVisit && <Badge tone="danger">ER linked</Badge>}
+                  {hasCampRegistration && (
+                    <Badge tone={hasCampScreeningCompleted ? "success" : "info"}>
+                      {hasCampScreeningCompleted ? "Camp screened" : "Camp linked"}
+                    </Badge>
+                  )}
+                  {hasClinicalOrder && <Badge tone="success">Order handoff</Badge>}
+                  {pendingInvoiceCount > 0 && (
+                    <Badge tone="warning">
+                      {pendingInvoiceCount} pending bill{pendingInvoiceCount === 1 ? "" : "s"}
+                    </Badge>
+                  )}
+                </Group>
+                <Group gap={6}>
+                  <Badge tone="primary" variant="light">
+                    UHID {displayUhid}
+                  </Badge>
+                  {patient.gender && <Badge tone="neutral">{patient.gender}</Badge>}
+                  {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
+                  {displayPhone && displayPhone !== "-" && (
+                    <Badge tone="neutral">{displayPhone}</Badge>
+                  )}
+                  <PatientContextBanner patientId={patient.id} inline />
+                </Group>
+              </Stack>
+            </Group>
+            {/* In the sticky banner, one scrolling row: 16 tabs wrapped to two
+              lines, and the banner slid over the first when the page scrolled. */}
+            <Tabs.List className={classes.tabRow}>
+              {detailTabs.map((tab) => (
+                <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                  {tab.label}
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Stack>
+        </Card>
+
+        <ShareDrawer
+          opened={shareOpen}
+          onClose={closeShare}
+          objectType="patient"
+          objectId={patient.id}
+          objectLabel={`${displayName} (${displayUhid})`}
+          onGrantCreated={emitPatientShareCreated}
+        />
+
         <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={12}>
             <Stack className={classes.workspaceMain}>
-              <Tabs.List>
-                {detailTabs.map((tab) => (
-                  <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
-                    {tab.label}
-                  </Tabs.Tab>
-                ))}
-              </Tabs.List>
-
               <Tabs.Panel id="patient-overview" value="overview" pt="md">
                 <OverviewTab patient={patient} />
               </Tabs.Panel>

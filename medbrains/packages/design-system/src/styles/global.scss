@@ -1056,8 +1056,10 @@ a[href]:not(.mantine-Button-root) {
 // a raw Mantine one alike — gets the lattice as a mask, coloured with the
 // theme's ink at low strength and fading in from the top-right corner so it
 // never sits under the text people read. `<Card pattern={false}>` opts out.
-.mantine-Card-root:not([data-no-pattern]) {
-  position: relative;
+// :where() keeps this at zero specificity: a card a page makes sticky or
+// absolute keeps that. Setting `position` here once overrode the patient
+// banner's sticky; Mantine cards are already position: relative.
+:where(.mantine-Card-root:not([data-no-pattern])) {
   isolation: isolate;
 
   &::before {

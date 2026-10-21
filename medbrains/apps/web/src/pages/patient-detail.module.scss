@@ -12,6 +12,12 @@
   backdrop-filter: blur(10px);
 }
 
+.tabRow {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .workspaceGrid {
   align-items: flex-start;
 }
@@ -34,7 +40,7 @@
 .workspaceMain :global(#patient-packages),
 .workspaceMain :global(#patient-notes),
 .workspaceMain :global(#patient-merge) {
-  scroll-margin-top: calc(var(--app-shell-header-height, 72px) + 164px);
+  scroll-margin-top: calc(var(--app-shell-header-height, 72px) + 212px);
 }
 
 .contextRail {
