@@ -62,8 +62,7 @@ import { EncounterNav } from "./encounter-nav";
 import { FollowUpTab } from "./follow-up";
 import { GroupAppointmentModal } from "./group-appointment-modal";
 import { InvestigationsTab } from "./investigations";
-import { PharmacyDispatchTab } from "./pharmacy-dispatch";
-import { PrescriptionsTab } from "./prescriptions";
+import { PrescriptionsWorkspace } from "./prescriptions-workspace";
 import { SpecialtyTab } from "./specialty-tab";
 import { VitalsTab } from "./vitals";
 import {
@@ -76,7 +75,6 @@ import {
   ProceduresTab,
   ReferralsTab,
   RemindersTab,
-  RxHistoryTab,
   TimelineTab,
 } from "./workflow-tabs";
 
@@ -556,7 +554,7 @@ export function EncounterDetail({
             </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="prescriptions">
-            <PrescriptionsTab
+            <PrescriptionsWorkspace
               encounterId={encounterId}
               patientId={patientId}
               patientName={patientName}
@@ -580,9 +578,6 @@ export function EncounterDetail({
               encounterId={encounterId}
               departmentId={departmentId}
             />
-          </Tabs.Panel>
-          <Tabs.Panel value="rx-history">
-            <RxHistoryTab patientId={patientId} />
           </Tabs.Panel>
           <Tabs.Panel value="charts">
             <PermissionGate codes={TAB_PERMISSIONS.charts} label="observation charts">
@@ -633,9 +628,6 @@ export function EncounterDetail({
             <PermissionGate codes={TAB_PERMISSIONS.docket} label="the doctor docket">
               <DocketTab />
             </PermissionGate>
-          </Tabs.Panel>
-          <Tabs.Panel value="pharmacy-dispatch">
-            <PharmacyDispatchTab encounterId={encounterId} />
           </Tabs.Panel>
         </div>
       </Tabs>
