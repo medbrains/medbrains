@@ -131,6 +131,14 @@ resource "null_resource" "bootstrap" {
   # One archive, not the directory. A file provisioner pointed at a directory
   # uploads every entry separately, and the SPA is over 1,500 files — each one
   # a round trip. Through an SSM tunnel that is slow enough to read as a hang.
+  #
+  # Packed here, from the directory spa_hash was computed on. `make build`
+  # rebuilt dist/ but nothing re-made dist.tgz, so a deploy saw the new hash
+  # and shipped a stale archive: the screen never changed and terraform said
+  # it had.
+  provisioner "local-exec" {
+    command = "rm -f '${var.spa_dist_dir}.tgz' && tar -czf '${var.spa_dist_dir}.tgz' -C '${var.spa_dist_dir}' ."
+  }
   provisioner "file" {
     source      = "${var.spa_dist_dir}.tgz"
     destination = "/tmp/medbrains-web.tgz"
