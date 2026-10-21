@@ -1007,13 +1007,14 @@ pub async fn queue_metrics(
     let rows = sqlx::query_as::<_, QueueMetricsRow>(
         "SELECT department_id, \
          EXTRACT(HOUR FROM called_at)::int AS hour_of_day, \
-         COUNT(*) FILTER (WHERE queue_status = 'completed')::bigint AS patients_seen, \
+         COUNT(*) FILTER (WHERE status = 'completed')::bigint AS patients_seen, \
          AVG(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
            FILTER (WHERE called_at IS NOT NULL)::float8 AS avg_wait_minutes, \
          MAX(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
-           FILTER (WHERE called_at IS NOT NULL) AS max_wait_minutes \
+           FILTER (WHERE called_at IS NOT NULL)::float8 AS max_wait_minutes \
          FROM opd_queues \
-         WHERE DATE(created_at) = COALESCE($1, CURRENT_DATE) \
+         WHERE queue_date = COALESCE($1, CURRENT_DATE) \
+           AND deleted_at IS NULL \
            AND ($2::uuid IS NULL OR department_id = $2) \
          GROUP BY department_id, EXTRACT(HOUR FROM called_at) \
          ORDER BY department_id, hour_of_day LIMIT 5000",
