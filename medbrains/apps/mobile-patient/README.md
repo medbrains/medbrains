@@ -1,5 +1,7 @@
 # MedBrains Patient
 
+> **Outgoing — reference only.** This React Native app is being replaced by the native apps in [`apps/ios`](../ios) (SwiftUI) and [`apps/android`](../android) (Jetpack Compose), per [`RFCs/RFC-NATIVE-MOBILE.md`](../../../RFCs/RFC-NATIVE-MOBILE.md). Do not add features here; it is deleted once the native apps reach parity (see [`docs/NATIVE-PARITY.md`](../../docs/NATIVE-PARITY.md)).
+
 Public-store patient app generated from the **patient** template.
 
 ## Distribution

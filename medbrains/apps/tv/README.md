@@ -1,5 +1,7 @@
 # MedBrains TV
 
+> **Outgoing — reference only.** This React Native TV app is to be replaced by a native Kotlin + Compose for TV app under [`apps/android`](../android), per [`RFCs/RFC-NATIVE-MOBILE.md`](../../../RFCs/RFC-NATIVE-MOBILE.md); that app is not built yet. Do not add features here; it is deleted once the native app reaches parity (see [`docs/NATIVE-PARITY.md`](../../docs/NATIVE-PARITY.md)).
+
 Android TV kiosk display generated from the **tv** template.
 
 ## Distribution

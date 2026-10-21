@@ -12,17 +12,21 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 
 - A clean Ubuntu 22.04 / 24.04 or Debian 12 host with root access.
 - DNS `A` (and ideally `AAAA`) record for the deploy hostname (e.g.
-  `hims.amh.org.in`) pointed at the server's public IP.
+  `hims.example.org`) pointed at the server's public IP.
   Let's Encrypt verifies HTTP-01 over port 80 — both 80 and 443
   must be reachable from the public internet.
 - Pre-built binaries dropped into `/tmp` on the host:
 
   ```sh
-  # On the build host (Linux x86_64 or aarch64 — match the target):
+  # On a Linux build host of the same architecture as the target:
   cargo build -p medbrains-server --release --bin medbrains-server
   cargo build -p medbrains-server --release --bin medbrains-archive
   cargo build -p medbrains-proxy --release --bin medbrains-proxy
   pnpm --filter @medbrains/web build
+  # From a Mac (or any other host), cross-compile with cargo-zigbuild instead:
+  #   cargo zigbuild --release --target=x86_64-unknown-linux-gnu -p medbrains-server
+  # and take the binaries from target/x86_64-unknown-linux-gnu/release/.
+  # medbrains-edge (offline edge sync) is optional; install.sh skips it if absent.
 
   # Then ship to the deploy host:
   scp target/release/medbrains-server  root@<host>:/tmp/
@@ -35,7 +39,7 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 ## Run
 
 ```sh
-sudo bash /tmp/standalone/install.sh hims.amh.org.in admin@amh.org.in
+sudo bash /tmp/standalone/install.sh hims.example.org admin@example.org
 ```
 
 Idempotent — re-running advances state without re-bootstrapping
@@ -67,7 +71,7 @@ systemctl is-active medbrains-server.service           # active
 systemctl list-timers medbrains-archive.timer          # next run scheduled
 curl -fsS http://127.0.0.1:3000/api/health             # {"status":"ok",...}
 journalctl -u medbrains-proxy -f                       # edge proxy logs
-curl -I https://hims.amh.org.in                        # 200 once ACME completes
+curl -I https://hims.example.org                        # 200 once ACME completes
 ```
 
 ## Day-2 ops
@@ -140,7 +144,7 @@ ICD_API_ACCEPT_LICENSE=true
 ICD_API_INCLUDE=2026-01_en
 ICD_API_SAVE_ANALYTICS=false
 WHO_ICD_RELEASE_ID=2026-01
-WHO_ICD_API_BASE_URL=https://hims.amh.org.in
+WHO_ICD_API_BASE_URL=https://hims.example.org
 WHO_ICD_AUTH_MODE=none
 ```
 
@@ -154,10 +158,15 @@ simpler.
 
 ## What this kit does NOT install
 
-- YottaDB (Phase 2 hierarchical store — defer until needed).
-- SpiceDB (the Rust authz fallback covers the pilot).
-- ABDM signing keys (real NHCX integration is a separate phase).
-- Multi-server HA, Patroni replication, off-site backups. For
-  multi-server, see `infra/terraform/modules-onprem/`.
+- SpiceDB. Install it separately with `install-spicedb.sh` and
+  `spicedb-schema.zed`.
+- ABDM and NHCX keys. The integrations are built; each hospital's
+  gateway credentials are configured after go-live approval.
+- Continuous WAL archiving. The installer sets up daily Postgres dumps
+  (`medbrains-pg-backup.timer`, to a bucket or a host directory); WAL
+  archiving to object storage is opt-in via `medbrains-wal-g-setup`
+  (see `docs/ops/BACKUP-RESTORE.md`).
+- Multi-server HA and Patroni replication. For multi-server, see
+  `infra/terraform/modules-onprem/`.
 - WAF, intrusion detection. Add per the hospital's IT-security
   policy before connecting real patient traffic.

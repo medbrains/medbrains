@@ -1,48 +1,57 @@
-# Security Policy
+# Security policy
 
-MedBrains handles patient data. We take security extremely seriously and ask the same of anyone who deploys or contributes to it.
+MedBrains handles patient data. We take security reports seriously and ask the same care of anyone who deploys or contributes to it.
 
 ## Reporting a vulnerability
 
-**Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
+**Do not report a vulnerability in a public issue, discussion or pull request.**
 
-Instead, use one of these private channels:
+Report it privately through **GitHub Security Advisories**: [report a vulnerability](https://github.com/DomnicAmalan/MedBrains/security/advisories/new). This lets us work on the fix with you in private and credit you.
 
-- **GitHub Security Advisories** — [Report a vulnerability](https://github.com/DomnicAmalan/MedBrains/security/advisories/new) (preferred; lets us collaborate privately and credit you).
-- **Email** — the repository owner's published contact address, with subject `SECURITY: MedBrains`.
+If you cannot use GitHub, email hello@medbrains.in with the subject `SECURITY: MedBrains` and we will move the conversation to a private advisory.
 
 Please include:
 
-- the affected component/endpoint and version/commit,
-- a description and impact assessment (what an attacker could do),
-- reproduction steps or a proof of concept,
-- any suggested remediation.
+- the affected component or endpoint, and the commit you tested;
+- what an attacker could do with it;
+- steps to reproduce, or a proof of concept;
+- a suggested fix, if you have one.
+
+Never include real patient data in a report. If you came across any while testing, tell us, stop, and do not keep a copy.
 
 ## What to expect
 
-- **Acknowledgement** within 3 business days.
-- An initial assessment and severity rating within 7 business days.
-- Coordinated disclosure: we'll agree a timeline with you, fix the issue, and credit you (unless you prefer to remain anonymous).
+| Step | Target |
+|---|---|
+| Acknowledgement | within 3 working days |
+| First assessment and severity | within 7 working days |
+| Fix for a critical or high-severity issue | as fast as we can, aimed at 30 days |
+| Public advisory | once a fix is available, on a date agreed with you |
 
-We will not pursue legal action against good-faith security research that respects this policy and does not access, modify, or exfiltrate real patient data.
+We credit reporters in the advisory unless you would rather stay anonymous.
+
+We will not pursue legal action over good-faith research that follows this policy and does not access, change or take real patient data.
+
+## Supported versions
+
+MedBrains has no versioned releases yet. Security fixes go to the `master` branch; deployments should track it. Once we publish releases, this section will list which ones receive fixes.
 
 ## Scope
 
-In scope: the MedBrains backend (Rust/Axum), web/mobile/TV clients, database schema and RLS policies, auth (JWT/Argon2), permission system, and deployment/IaC in this repository.
+In scope: the backend (`medbrains/crates`), the web, desktop and native apps, the database schema and row-level security policies, authentication and authorisation, and the deploy kits and infrastructure code in this repository.
 
-Out of scope: third-party services, your own deployment's misconfiguration, and social engineering.
+Out of scope: third-party services, the configuration of your own deployment, denial of service by volume, and social engineering.
 
 ## Deploying MedBrains securely
 
-If you self-host, at minimum:
+If you run MedBrains yourself, at minimum:
 
-- Set `MEDBRAINS_ENV=production`, provide real Ed25519 JWT keys, and set `MEDBRAINS_SEED_ADMIN_PASSWORD` (the server refuses default credentials in production).
-- Keep PostgreSQL Row-Level Security enabled; never disable tenant context.
-- Terminate TLS in front of the server; do not expose the database publicly.
-- Store DICOM/scans/PDFs in access-controlled object storage, not on the app host.
-- Apply security updates promptly — watch [Releases](https://github.com/DomnicAmalan/MedBrains/releases).
-- The repository runs a dependency-audit CI gate (`cargo audit` + `pnpm audit`); keep your fork's dependencies patched.
+- Set `MEDBRAINS_ENV=production`, provide your own Ed25519 JWT keys, and set `MEDBRAINS_SEED_ADMIN_PASSWORD`. The server refuses the development defaults in production.
+- Connect the app with the database roles that row-level security applies to (see `medbrains/docs/ops/DB-ROLES.md`), never as the table owner.
+- Terminate TLS in front of the server and never expose PostgreSQL publicly.
+- Keep scans, images and PDFs in access-controlled object storage.
+- Keep dependencies patched; CI runs `cargo audit` and `pnpm audit`.
 
 ## Data protection
 
-MedBrains is designed for compliance with health-data regulations (and India's IT Act / DPDP context). Operators remain responsible for their own legal obligations (consent, retention, breach notification, access logging). The system provides audit trails, field-level redaction, and RBAC to support this — using them correctly is the deployer's responsibility.
+MedBrains is designed to help hospitals meet health-data law, including India's DPDP Act: purpose-wise consent, a rights desk, audit trails, field redaction and role-based access. The hospital running it remains responsible for its own legal obligations — consent, retention, breach notification and access review.
