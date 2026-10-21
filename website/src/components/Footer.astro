@@ -1,5 +1,5 @@
 ---
-import { SITE, SOCIAL, WHATSAPP } from "../consts";
+import { ANALYTICS, SITE, SOCIAL, WHATSAPP } from "../consts";
 import { MODULE_PAGES } from "../data/modules";
 
 const links = [
@@ -36,7 +36,10 @@ const links = [
       {links.map((l) => <a href={l.href} target="_blank" rel="noopener">{l.label}</a>)}
     </nav>
   </div>
-  <div class="wrap legal">© {new Date().getFullYear()} {SITE.brand}. Made in India for Indian hospitals.</div>
+  <div class="wrap legal">
+    © {new Date().getFullYear()} {SITE.brand}. Made in India for Indian hospitals.
+    {ANALYTICS.clarityId && <button type="button" class="choice" data-analytics-choice>Analytics choice</button>}
+  </div>
 </footer>
 
 <style lang="scss">
@@ -52,5 +55,9 @@ const links = [
   nav a { text-decoration: none; }
   nav a:hover { color: #fff; }
   .legal { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--night-line); font-size: .85rem; }
+  .choice {
+    margin-left: 12px; padding: 0; border: 0; background: none; color: inherit;
+    font: inherit; text-decoration: underline; cursor: pointer; min-height: 24px;
+  }
   @include below(md) { .cols { grid-template-columns: 1fr 1fr; } .cols > div { grid-column: 1 / -1; } }
 </style>
