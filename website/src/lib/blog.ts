@@ -27,9 +27,17 @@ export const absolute = (path: string, site: URL | undefined) => new URL(path, s
 export const formatDate = (d: Date) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(d);
 
 /** Minutes to read at 200 words a minute, never less than one. */
+export function wordCount(p: Post): number {
+  return (p.body ?? "").split(/\s+/).filter(Boolean).length;
+}
+
 export function readingTime(p: Post): number {
-  const words = (p.body ?? "").split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
+  return Math.max(1, Math.round(wordCount(p) / 200));
+}
+
+/** A post date is a calendar day in India: midnight IST, not 05:30 IST from UTC midnight. */
+export function istDate(d: Date): string {
+  return `${d.toISOString().slice(0, 10)}T00:00:00+05:30`;
 }
 
 /** Up to three posts: the same topic first, then the most shared tags. */

@@ -1,11 +1,11 @@
 ---
 title: "Why Indian hospitals need a HIMS, and why research needs one too"
-description: "How a hospital information system improves safety, billing and audits, why India needs one under ABDM and DPDP, and how it makes research possible."
+description: "What a HIMS changes for Indian hospitals: safer medicines, cleaner billing, NABH audits, ABDM and ABHA readiness, and research-ready data."
 date: 2026-10-20
 category: hospital-leadership
 seoTitle: "Why Indian hospitals need a HIMS — and research does too"
 featured: true
-tags: ["Hospital management", "ABDM", "Clinical research", "NABH"]
+tags: ["HIMS", "Hospital management", "Hospital information system", "ABDM", "ABHA", "NABH", "Clinical research"]
 sources:
   - title: "Bates DW et al. Effect of computerized physician order entry and a team intervention on prevention of serious medication errors. JAMA, 1998"
     url: "https://doi.org/10.1001/jama.280.15.1311"
