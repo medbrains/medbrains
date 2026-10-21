@@ -1,6 +1,11 @@
-# Code owners. Moved from medbrains/.github/ (GitHub reads only the repo-root
-# .github/). The old file named @medbrains/* org teams; this repo is
-# user-owned (DomnicAmalan/MedBrains), so those owners were invalid and
+# Code owners: a change to a listed path needs an approving review from its
+# owner before it can merge (enforced by the branch ruleset on main).
+# The repo is owned by the medbrains organisation; one owner today — add
+# teams per section (e.g. @medbrains/clinical) as maintainers join.
+# Last matching line wins.
+
+* org teams; this repo is
+# user-owned (medbrains/medbrains), so those owners were invalid and
 # ignored. One owner today — add reviewers per section as the team grows.
 # Last matching line wins.
 
@@ -21,3 +26,24 @@
 /.github/                                               @DomnicAmalan
 /medbrains/infra/                                       @DomnicAmalan
 /medbrains/deploy/                                      @DomnicAmalan
+
+# Patient safety: clinical records, medication, lab, blood, pharmacy.
+/medbrains/crates/medbrains-clinical-core/              @DomnicAmalan
+/medbrains/crates/medbrains-clinical-notes/             @DomnicAmalan
+/medbrains/crates/medbrains-clinical-scores/            @DomnicAmalan
+/medbrains/crates/medbrains-lab/                        @DomnicAmalan
+/medbrains/crates/medbrains-blood-bank/                 @DomnicAmalan
+/medbrains/crates/medbrains-pharmacy/                   @DomnicAmalan
+
+# Money: payments, billing, claims, national exchanges.
+/medbrains/crates/medbrains-payment-gateway/            @DomnicAmalan
+/medbrains/crates/medbrains-billing/                    @DomnicAmalan
+/medbrains/crates/medbrains-abdm/                       @DomnicAmalan
+
+# Licence, governance and policy files.
+/LICENSE                                                @DomnicAmalan
+/COMMERCIAL-LICENSE.md                                  @DomnicAmalan
+/CLA.md                                                 @DomnicAmalan
+/TRADEMARKS.md                                          @DomnicAmalan
+/GOVERNANCE.md                                          @DomnicAmalan
+/SECURITY.md                                            @DomnicAmalan

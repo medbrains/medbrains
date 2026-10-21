@@ -147,7 +147,7 @@ flowchart LR
 You need Rust (stable — `rust-toolchain.toml` pins the components), Node 24+, pnpm 10+ and Docker.
 
 ```bash
-git clone https://github.com/DomnicAmalan/MedBrains.git
+git clone https://github.com/medbrains/medbrains.git
 cd MedBrains/medbrains
 
 cp .env.example .env     # local defaults; read the comments
@@ -219,7 +219,7 @@ Never put real patient data in an issue, a commit, a test or a fixture.
 ## Community
 
 - Read [CONTRIBUTING.md](./CONTRIBUTING.md) and the [Code of Conduct](./CODE_OF_CONDUCT.md).
-- Bugs and feature requests go in [issues](https://github.com/DomnicAmalan/MedBrains/issues), using the templates.
+- Bugs and feature requests go in [issues](https://github.com/medbrains/medbrains/issues), using the templates.
 - Clinicians, pharmacists and hospital administrators: telling us where a workflow or a rule is wrong is worth as much as code.
 - General questions: hello@medbrains.in.
 - Funders and public-health programmes: see [GRANTS.md](./GRANTS.md).

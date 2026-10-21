@@ -1,0 +1,44 @@
+name: 🩺 Clinical safety concern
+description: Something that could harm a patient — wrong dose, wrong patient, a missed alert, a result shown on the wrong record.
+labels: ["clinical-safety", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never include real patient data** (names, phone numbers, UHID, ABHA, photos). Describe the case with made-up details.
+        If the problem can be exploited by someone to harm patients or reach data they shouldn't, report it **privately** instead: [security advisory](https://github.com/medbrains/medbrains/security/advisories/new).
+  - type: textarea
+    id: what
+    attributes:
+      label: What could go wrong for the patient?
+      description: The harm, in one or two sentences. Example: "The pharmacist can dispense a Schedule X drug without the duplicate record."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Role you were signed in as, screen, what you did, what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen instead
+      description: Cite the rule if you know it (NABH/JCI standard, IPSG goal, drug schedule, law).
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How serious is it?
+      options:
+        - Could cause serious harm or death
+        - Could cause harm that needs treatment
+        - Near miss — caught by a person, not the system
+        - Unsafe pattern, no harm likely
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: e.g. main @ abc1234, or the release you run

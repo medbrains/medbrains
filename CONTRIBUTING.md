@@ -11,11 +11,11 @@ Thank you for helping. MedBrains is a hospital information system — the code c
 
 ## Before you start
 
-1. Search the [issues](https://github.com/DomnicAmalan/MedBrains/issues). Much is already in progress; the [roadmap](./ROADMAP.md) shows what.
+1. Search the [issues](https://github.com/medbrains/medbrains/issues). Much is already in progress; the [roadmap](./ROADMAP.md) shows what.
 2. For anything non-trivial, **open an issue first** and agree the approach — especially a new screen (we plan the UI before building it) or anything touching clinical, regulatory or authorisation logic.
 3. Read [`CLAUDE.md`](./CLAUDE.md). It is the source of truth for how this codebase is built: coding standards, the permissions-first rule, the module build workflow and the regulatory checklist.
 
-Issues suited to a first contribution are labelled [`good first issue`](https://github.com/DomnicAmalan/MedBrains/labels/good%20first%20issue) when we have them.
+Issues suited to a first contribution are labelled [`good first issue`](https://github.com/medbrains/medbrains/labels/good%20first%20issue) when we have them.
 
 ## Licensing and the CLA
 
