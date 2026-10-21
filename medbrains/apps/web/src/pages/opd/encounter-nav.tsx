@@ -70,14 +70,12 @@ const VISIT_SECTIONS: NavSection[] = [
 
 /** Reference and desk work: one click away, not in the doctor's path. */
 const MORE_TABS: NavTab[] = [
-  { value: "rx-history", icon: <IconClipboardList size={16} />, label: "Rx History" },
   { value: "charts", icon: <IconChartLine size={16} />, label: "Charts" },
   { value: "timeline", icon: <IconTimeline size={16} />, label: "Timeline" },
   { value: "reminders", icon: <IconNotebook size={16} />, label: "Reminders" },
   { value: "consents", icon: <IconFileCheck size={16} />, label: "Consents" },
   { value: "pre-auth", icon: <IconShieldCheck size={16} />, label: "Pre-Auth" },
   { value: "docket", icon: <IconStar size={16} />, label: "Docket" },
-  { value: "pharmacy-dispatch", icon: <IconPill size={16} />, label: "Pharmacy Dispatch" },
   { value: "feedback", icon: <IconMessage size={16} />, label: "Feedback" },
 ];
 

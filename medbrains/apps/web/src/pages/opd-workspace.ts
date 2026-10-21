@@ -19,7 +19,6 @@ export const OPD_ENCOUNTER_TAB_VALUES = [
   "procedures",
   "prescriptions",
   "referrals",
-  "rx-history",
   "charts",
   "timeline",
   "certificates",
@@ -29,7 +28,6 @@ export const OPD_ENCOUNTER_TAB_VALUES = [
   "consents",
   "pre-auth",
   "docket",
-  "pharmacy-dispatch",
 ] as const;
 
 export type OpdEncounterTabValue = (typeof OPD_ENCOUNTER_TAB_VALUES)[number];

@@ -92,7 +92,10 @@ describe("OPD encounter workspace routing", () => {
 
   it("guards supported OPD encounter tab hashes", () => {
     expect(isOpdEncounterTabValue("consultation")).toBe(true);
-    expect(isOpdEncounterTabValue("pharmacy-dispatch")).toBe(true);
+    expect(isOpdEncounterTabValue("prescriptions")).toBe(true);
+    // Rx history and pharmacy dispatch live inside the one Prescriptions tab now.
+    expect(isOpdEncounterTabValue("pharmacy-dispatch")).toBe(false);
+    expect(isOpdEncounterTabValue("rx-history")).toBe(false);
     expect(isOpdEncounterTabValue("unknown")).toBe(false);
     expect(isOpdEncounterTabValue(null)).toBe(false);
   });
