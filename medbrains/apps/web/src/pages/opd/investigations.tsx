@@ -44,6 +44,7 @@ import {
   OPD_LAB_PRIORITY_OPTIONS,
   toCreateLabOrderRequest,
 } from "@/forms/opd.form";
+import { useCanCancelOrder } from "@/hooks/useCanCancelOrder";
 import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
@@ -112,6 +113,8 @@ export function InvestigationsTab({
   // `/patients/{id}/lab-orders` answers `lab.orders.list`; without it the
   // query is not issued and the card says so rather than "nothing ordered".
   const canListLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
+  // `cancel_order`: lab.orders.create, and the order is yours or you are the lab desk.
+  const canCancelLab = useCanCancelOrder(P.LAB.ORDERS_CREATE, P.LAB.ORDERS_CANCEL_ANY);
   const [openVisitOrders, toggleVisitOrder] = useToggleSet();
   const [formOpened, formHandlers] = useDisclosure(false);
   const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>(NO_DUPES);
@@ -590,6 +593,7 @@ export function InvestigationsTab({
                   </Table.Td>
                   <Table.Td>
                     {canUpdate &&
+                      canCancelLab(order.ordered_by) &&
                       (order.status === "ordered" || order.status === "sample_collected") && (
                         <Tooltip label="Cancel order">
                           <IconButton

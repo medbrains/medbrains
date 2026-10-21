@@ -38,6 +38,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
 import { Alert, Badge, Button, IconButton, Input, Modal, toast } from "@/components/ui";
+import { useCanCancelOrder } from "@/hooks/useCanCancelOrder";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
@@ -124,6 +125,7 @@ export function LabOrderDetail({
   const canViewOrder = useHasPermission(P.LAB.ORDERS_VIEW);
   const canDispatch = useHasPermission(P.LAB.DISPATCH_MANAGE);
   const canCollect = useHasPermission(P.LAB.SAMPLES_COLLECT);
+  const canCancel = useCanCancelOrder(P.LAB.ORDERS_CREATE, P.LAB.ORDERS_CANCEL_ANY);
   const navigate = useNavigate();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
@@ -647,9 +649,9 @@ export function LabOrderDetail({
             </Tooltip>
           )}
           {/* Cancelling is an order-level act: `cancel_order` requires
-              `lab.orders.create`, not the results code the rest of this block
-              is gated on. A doctor holds the former and not the latter. */}
-          {order.status === "ordered" && canCreateOrder && (
+              `lab.orders.create`, and the order must be the caller's own
+              unless they hold the lab desk's `lab.orders.cancel_any`. */}
+          {order.status === "ordered" && canCancel(order.ordered_by) && (
             <Button
               tone="subtle-danger"
               size="xs"

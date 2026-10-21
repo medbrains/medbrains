@@ -963,6 +963,14 @@ pub async fn update_order_status(
     Json(body): Json<UpdateStatusRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    // Cancelling has its own endpoint: it decides who may cancel, needs the
+    // order still `ordered`, records the reason and reverses the charge. Here
+    // it would skip all four.
+    if body.status == "cancelled" {
+        return Err(AppError::BadRequest(
+            "Cancel an imaging order with its cancel action, not a status change".to_owned(),
+        ));
+    }
     // The path names the order; the patient is one hop away on it.
     medbrains_authz_gate::require_access_via(
         &state,
@@ -1110,6 +1118,21 @@ pub async fn cancel_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Seeing the patient is not cancelling somebody else's study.
+    let ordered_by: Uuid = sqlx::query_scalar(
+        "SELECT ordered_by FROM radiology_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    medbrains_authz_gate::require_order_cancel(
+        &claims,
+        ordered_by,
+        permissions::radiology::orders::CANCEL_ANY,
+    )?;
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "UPDATE radiology_orders SET \
