@@ -1051,3 +1051,32 @@ a[href]:not(.mantine-Button-root) {
     transition-duration: 0.01ms !important;
   }
 }
+
+// Hex-mesh card background (chosen 2026-10-21). Every card — the seam Card and
+// a raw Mantine one alike — gets the lattice as a mask, coloured with the
+// theme's ink at low strength and fading in from the top-right corner so it
+// never sits under the text people read. `<Card pattern={false}>` opts out.
+.mantine-Card-root:not([data-no-pattern]) {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--mb-text-primary);
+    opacity: 0.09;
+    mask-image: url("./patterns/hex-mesh.svg"), linear-gradient(225deg, black, transparent 60%);
+    mask-size: 17.32px 30px, 100% 100%;
+    mask-repeat: repeat, no-repeat;
+    mask-composite: intersect;
+  }
+}
+
+@media print {
+  .mantine-Card-root::before {
+    display: none;
+  }
+}
