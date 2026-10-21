@@ -136,7 +136,7 @@ jobs:
         run: |
           tar -czf medbrains-server-linux-x64.tar.gz medbrains-server/
           tar -czf medbrains-web-dist.tar.gz web-dist/
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           body_path: CHANGELOG.md
           files: |
