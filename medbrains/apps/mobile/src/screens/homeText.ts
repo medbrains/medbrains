@@ -9,7 +9,7 @@ const MOBILE_HOME_MESSAGES: Record<string, string> = {
   "home.health.postgres": "PostgreSQL",
   "home.health.system": "System Health",
   "home.health.yottadb": "YottaDB",
-  "home.organization": "Alagappa Group of Institutions",
+  "home.organization": "MedBrains",
   "home.status.connected": "Connected",
   "home.status.ok": "OK",
 };

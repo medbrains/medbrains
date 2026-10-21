@@ -93,13 +93,15 @@ The desktop is intentionally **thin** — all business logic stays in
 
 `src-tauri/capabilities/main.json` is the deny-by-default ACL:
 - File system scoped to `$APPDATA/medbrains/`, `$DOCUMENT/MedBrains/`
-- Shell open allow-listed: `hims.amh.org.in`, `medbrains.dev`, `*.razorpay.com`
+- Shell open allow-listed: `hims.example.org`, `medbrains.dev`, `*.razorpay.com`
 - Remote dev webviews allow-listed: `localhost:5173/*`, `127.0.0.1:5173/*`, `medbrains.localhost/*`, `medbrains-desktop.localhost/*`
 - Updater plugin pinned to our Ed25519 public key
 
 ## Auto-update
 
-`tauri-plugin-updater` is enabled and pinned to the public key in `tauri.conf.json`. Local debug builds do not create updater artifacts. Release CI should set the private key through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, then publish signed release JSON to `https://hims.amh.org.in/.well-known/medbrains-desktop-updates/...`. The installer refuses unsigned updates.
+`tauri-plugin-updater` is enabled and pinned to the public key in `tauri.conf.json`. Local debug builds do not create updater artifacts. Release CI should set the private key through `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`, then publish signed release JSON to `https://hims.example.org/.well-known/medbrains-desktop-updates/...`. The installer refuses unsigned updates.
+
+`hims.example.org` in `tauri.conf.json` (CSP `connect-src`, macOS `exceptionDomain`, updater endpoint) and `capabilities/main.json` (shell allow-list) is a placeholder. A release build for a hospital must point these at its own host, using Tauri's built-in config merge: `tauri build --config tauri.hospital.conf.json`, with an override file kept outside this repository.
 
 To rotate the signing key:
 1. `tauri signer generate -w ~/.tauri/medbrains-desktop.key`

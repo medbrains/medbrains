@@ -86,25 +86,25 @@ cache_control = "no-store"
 allowed_methods = ["GET", "HEAD", "OPTIONS"]
 
 [[routes]]
-domain = "medbrains.alagappahospital.com"
+domain = "hims.example.org"
 upstream = "127.0.0.1:3000"
-cert_path = "/etc/letsencrypt/live/medbrains.alagappahospital.com/fullchain.pem"
-key_path = "/etc/letsencrypt/live/medbrains.alagappahospital.com/privkey.pem"
+cert_path = "/etc/letsencrypt/live/hims.example.org/fullchain.pem"
+key_path = "/etc/letsencrypt/live/hims.example.org/privkey.pem"
 
 [[routes]]
-domain = "email.alagappa.org"
+domain = "mail.example.org"
 upstream = "127.0.0.1:8080"
-cert_path = "/etc/letsencrypt/live/email.alagappa.org/fullchain.pem"
-key_path = "/etc/letsencrypt/live/email.alagappa.org/privkey.pem"
+cert_path = "/etc/letsencrypt/live/mail.example.org/fullchain.pem"
+key_path = "/etc/letsencrypt/live/mail.example.org/privkey.pem"
 
 [[routes]]
-domain = "autodiscover.email.alagappa.org"
+domain = "autodiscover.mail.example.org"
 upstream = "127.0.0.1:8080"
 
 [[routes]]
-domain = "charts.alagappa.org"
+domain = "charts.example.org"
 upstream = "127.0.0.1:8088"
 
 [[routes]]
-domain = "wiki.alagappa.org"
+domain = "wiki.example.org"
 upstream = "127.0.0.1:3333"

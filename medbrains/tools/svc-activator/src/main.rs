@@ -6,7 +6,7 @@
 //!
 //! This exists because `systemd-socket-proxyd` can start a unit but cannot
 //! stop one that has gone quiet — and stopping it is the entire point. On the
-//! shared Alagappa box, Superset holds ~870 MB to serve about fifteen requests
+//! shared pilot-hospital box, Superset holds ~870 MB to serve about fifteen requests
 //! a day.
 //!
 //! NOT for anything clinical. The first request after an idle period pays the

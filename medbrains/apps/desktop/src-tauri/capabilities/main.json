@@ -42,7 +42,7 @@
     {
       "identifier": "shell:allow-open",
       "allow": [
-        { "url": "https://hims.amh.org.in/**" },
+        { "url": "https://hims.example.org/**" },
         { "url": "https://medbrains.dev/**" },
         { "url": "https://*.razorpay.com/**" }
       ]

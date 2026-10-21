@@ -43,7 +43,7 @@ pub(crate) const CASE_SHEET_HTML: &str = r#"{% extends "base.html" %}
 
 pub(crate) const CASE_SHEET_SAMPLE: &str = r#"{
   "sheet": {
-    "patient_name": "R. Kumar", "uhid": "ACMS-2026-00412", "age": "52 yrs", "gender": "male",
+    "patient_name": "R. Kumar", "uhid": "MB-2026-00412", "age": "52 yrs", "gender": "male",
     "visit_kind": "OPD visit", "visit_number": "OPD-20261005-0031", "visit_date": "05 Oct 2026",
     "department": "General Medicine",
     "notes": [

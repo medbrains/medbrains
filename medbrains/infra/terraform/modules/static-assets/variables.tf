@@ -9,6 +9,6 @@ variable "region" {
 }
 
 variable "allowed_origins" {
-  description = "Web app origins allowed to fetch the assets (CORS), e.g. [\"https://medbrains.amh.org.in\"]."
+  description = "Web app origins allowed to fetch the assets (CORS), e.g. [\"https://hims.example.org\"]."
   type        = list(string)
 }

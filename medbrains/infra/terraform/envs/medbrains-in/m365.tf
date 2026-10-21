@@ -1,14 +1,14 @@
 # ── Mailboxes: medbrains.in in the hospital's Microsoft 365 tenant ──
-# Same records amh.org.in runs on (MX to Outlook, SPF, autodiscover). The
+# Standard M365 records (MX to Outlook, SPF, autodiscover). The
 # domain is added in M365 admin (Settings → Domains → Add domain → "add a TXT
 # record"); paste the MS=ms… value it shows into m365_verification and apply.
 # SES keeps sending noreply@ — its SPF sits on mail.<domain>, so the bare
 # domain's SPF names Outlook only.
 
 variable "m365_verification" {
-  description = "The MS=ms… TXT value M365 admin shows when the domain is added. Empty skips it."
+  description = "The MS=ms… TXT value M365 admin shows when the domain is added. Empty skips it; set TF_VAR_m365_verification."
   type        = string
-  default     = "MS=ms54569396"
+  default     = ""
 }
 
 variable "m365_mx" {

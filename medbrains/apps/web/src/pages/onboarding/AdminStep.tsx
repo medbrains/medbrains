@@ -127,7 +127,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
           <div className={classes.formGrid}>
             <TextInput
               label="Hospital Name"
-              placeholder="Alagappa Medical College & Hospital"
+              placeholder="Demo Hospital"
               withAsterisk
               {...form.register("hospital_name", {
                 onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,7 +148,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
             />
             <TextInput
               label="Hospital Code"
-              placeholder="ACMS"
+              placeholder="DEMO"
               withAsterisk
               description="Auto-generated from name, or type your own"
               {...form.register("hospital_code", {

@@ -319,10 +319,10 @@ mod tests {
 
     #[test]
     fn upi_link_encodes_names_and_carries_the_amount() {
-        let link = upi_link("amh@okaxis", "Alagappa Hospital", "412.50", "INV-26/104");
+        let link = upi_link("hospital@okaxis", "Demo Hospital", "412.50", "INV-26/104");
         assert_eq!(
             link,
-            "upi://pay?pa=amh%40okaxis&pn=Alagappa%20Hospital&am=412.50&cu=INR&tn=Bill%20INV-26%2F104"
+            "upi://pay?pa=hospital%40okaxis&pn=Demo%20Hospital&am=412.50&cu=INR&tn=Bill%20INV-26%2F104"
         );
         assert_eq!(enc("a-b_c.d~e"), "a-b_c.d~e");
     }

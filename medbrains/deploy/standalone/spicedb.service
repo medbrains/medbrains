@@ -34,7 +34,7 @@ CPUQuota=40%
 CPUWeight=15
 MemoryMax=768M
 
-# Matches the unit that has been running on the Alagappa host. Deliberately
+# Matches the unit that has been running on the pilot hospital's host. Deliberately
 # no ProtectSystem=strict / ProtectHome here: that hardening is worth adding,
 # but adding it blind in the same change that first takes over management of
 # a running service means a failure to start could not be told apart from a

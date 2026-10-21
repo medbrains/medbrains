@@ -109,7 +109,7 @@ mod tests {
     fn row() -> Row {
         Row {
             id: Uuid::nil(),
-            uhid: "ACMS-2026-04925".into(),
+            uhid: "MB-2026-04925".into(),
             prefix: None,
             first_name: "Asha".into(),
             middle_name: None,
@@ -123,7 +123,7 @@ mod tests {
         let id = identity(row(), &HashMap::new());
         assert_eq!(
             (id.full_name.as_str(), id.uhid.as_str()),
-            ("Asha Rao", "ACMS-2026-04925")
+            ("Asha Rao", "MB-2026-04925")
         );
     }
 
@@ -141,7 +141,7 @@ mod tests {
             id.full_name
         );
         assert!(
-            id.uhid.ends_with("4925") && !id.uhid.contains("ACMS"),
+            id.uhid.ends_with("4925") && !id.uhid.contains("MB-2026"),
             "{}",
             id.uhid
         );

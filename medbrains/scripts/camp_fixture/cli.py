@@ -36,7 +36,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="load only the 645 forms a clinician has signed off")
     parser.add_argument("--limit", type=int, default=0, help="load only the first N forms")
     parser.add_argument("--dry-run", action="store_true", help="report, send nothing")
-    parser.add_argument("--camp-name", default="Alagappa camp (August 2026 extract)")
+    parser.add_argument("--camp-name", default="Health camp (August 2026 extract)")
     parser.add_argument("--camp-date", default="2026-08-02")
     parser.add_argument("--username", default=os.environ.get("MEDBRAINS_USER", "admin"))
     parser.add_argument("--password", default=os.environ.get("MEDBRAINS_PASSWORD", ""))

@@ -7,7 +7,7 @@
 #
 # Why a dedicated role rather than reusing one that already works: on an
 # attached host the existing accounts own somebody else's data. The box this
-# was written for runs an ERP whose `alagappa_admin` owns two databases and
+# was written for runs an ERP whose admin role owns two databases and
 # 390,000 marks rows. Handing that account to a second application means any
 # bug in one can drop the other's tables, and it makes the audit question
 # "who wrote this row" unanswerable.
@@ -19,7 +19,8 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${ENV_FILE:-$HERE/../../infra/.env}"
-INSTANCE_ID="${INSTANCE_ID:-i-08e9496a3e110ebdc}"
+INSTANCE_ID="${INSTANCE_ID:?Set INSTANCE_ID to the attached host, e.g. i-0123456789abcdef0}"
+HOSPITAL_ID="${HOSPITAL_ID:?Set HOSPITAL_ID (names the Parameter Store path)}"
 DB_NAME="${DB_NAME:-medbrains}"
 DB_USER="${DB_USER:-medbrains}"
 APPLY=0
@@ -110,7 +111,7 @@ URL="postgres://$DB_USER:$PW@127.0.0.1:5432/$DB_NAME"
 # Parameter Store is where this estate already keeps database credentials, so
 # the password survives this machine and is recoverable without re-running the
 # script and resetting the role.
-PARAM="/medbrains/alagappa/database_url"
+PARAM="/medbrains/$HOSPITAL_ID/database_url"
 if aws ssm put-parameter --name "$PARAM" --type SecureString --value "$URL" \
       --overwrite >/dev/null 2>&1; then
     echo "  stored in Parameter Store: $PARAM"

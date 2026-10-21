@@ -273,7 +273,7 @@ const PAYER_SPLIT_PATIENT_HTML: &str = concat!(
 
 const PAYER_SPLIT_SAMPLE: &str = r#"{
   "split": {
-    "invoice_number": "INV-2026-001234", "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "invoice_number": "INV-2026-001234", "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "date": "17 Oct 2026", "payer_name": "Star Health · TPA Medi Assist",
     "lines": [
       {"description": "Room rent — semi-private (3 days)", "total": "6000.00", "reason": "Covered"},
@@ -331,7 +331,7 @@ const SPECTACLE_RX_HTML: &str = r#"{% extends "base.html" %}
 
 const SPECTACLE_RX_SAMPLE: &str = r#"{
   "rx": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "age": "46y", "gender": "female",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042", "age": "46y", "gender": "female",
     "date": "17 Oct 2026",
     "eyes": [
       {"label": "Right (OD)", "distance": {"sphere": "−1.25", "cylinder": "−0.50", "axis": "180°", "va": "6/6"},
@@ -429,7 +429,7 @@ const INVOICE_GST_HTML: &str = r#"{% extends "base.html" %}
 const INVOICE_GST_SAMPLE: &str = r#"{
   "invoice": {
     "invoice_number": "INV-000124", "date": "12-Oct-2026",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "patient_phone": "98450 12345",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042", "patient_phone": "98450 12345",
     "patient_address": "12 Main Rd, Karaikudi, 630001",
     "hospital_gstin": "33AAAAA0000A1Z5", "drug_licence": "TN-20B-1234 / TN-21B-1235",
     "is_pharmacy": true,
@@ -468,7 +468,7 @@ const RECEIPT_HTML: &str = r#"{% extends "base.html" %}
 const RECEIPT_SAMPLE: &str = r#"{
   "receipt": {
     "document_number": "BIL-RCT-20260612-0001", "receipt_number": "RCT-00891",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "invoice_number": "INV-000123", "amount": "1,500.00",
     "payment_mode": "UPI", "reference_number": "UPI/512345678901",
     "received_by": "Cashier Desk 1", "paid_at": "2026-06-12 10:42"
@@ -514,7 +514,7 @@ const PRESCRIPTION_HTML: &str = r#"{% extends "base.html" %}
 
 const PRESCRIPTION_SAMPLE: &str = r#"{
   "rx": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "age": "42y", "gender": "F", "phone": "+91 98400 12345",
     "doctor_name": "Dr. S. Ravi", "department": "General Medicine",
     "diagnosis": "Acute pharyngitis (J02.9)", "date": "2026-06-12",
@@ -566,7 +566,7 @@ const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
 
 const DISCHARGE_SAMPLE: &str = r#"{
   "discharge": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "age": "42y", "gender": "F",
     "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
@@ -617,7 +617,7 @@ const ER_DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
 
 const ER_DISCHARGE_SAMPLE: &str = r#"{
   "discharge": {
-    "visit_number": "ER-20260625-0007", "patient_name": "M. Suresh", "uhid": "ACMS-2026-00318",
+    "visit_number": "ER-20260625-0007", "patient_name": "M. Suresh", "uhid": "MB-2026-00318",
     "age": "34 yrs", "gender": "M",
     "arrival_time": "25-Jun-2026 21:40", "discharge_date": "25-Jun-2026 23:55",
     "chief_complaint": "Laceration to left forearm", "triage_level": "less_urgent",
@@ -629,7 +629,7 @@ const ER_DISCHARGE_SAMPLE: &str = r#"{
     "medications_on_discharge": "Amoxicillin-clavulanate 625mg TID x 5 days; Paracetamol 500mg PRN.",
     "follow_up_instructions": "Suture removal in OPD after 7 days", "follow_up_date": "02-Jul-2026",
     "warning_signs": "increasing pain, redness, swelling, pus, or fever",
-    "hospital_name": "Alagappa Hospital"
+    "hospital_name": "Demo Hospital"
   },
   "watermark": "",
   "document_number": "ER-DSC-20260625-0001"
@@ -751,13 +751,13 @@ const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
 
 const NO_DUES_SAMPLE: &str = r#"{
   "cert": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "ward_name": "General Ward A", "bed_number": "GW-12",
     "total_billed": "7350.00", "total_paid": "7350.00", "balance": "0.00",
     "issued_by": "Anita Kumar (Billing)", "issued_at": "12-Jun-2026 14:30",
-    "notes": null, "hospital_name": "Alagappa Hospital"
+    "notes": null, "hospital_name": "Demo Hospital"
   },
   "watermark": "",
   "document_number": "IPD-NOC-20260612-0001"
@@ -766,7 +766,7 @@ const NO_DUES_SAMPLE: &str = r#"{
 const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
   "bill": {
     "invoice_number": "IP/3F2A9B1C", "invoice_date": "12-Jun-2026",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042", "admission_number": "IP-000042",
     "age": "42 Y", "gender": "F",
     "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
     "bed_number": "GW-12", "ward_name": "General Ward A",
@@ -784,7 +784,7 @@ const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
     "subtotal": "7350.00", "discount_amount": "0.00", "tax_amount": "0.00",
     "total_amount": "7350.00", "advance_paid": "5000.00", "insurance_approved": "0.00",
     "patient_payable": "7350.00", "amount_paid": "5000.00", "balance_due": "2350.00",
-    "los_days": 4, "hospital_name": "Alagappa Hospital", "hospital_gstin": "33ABCDE1234F1Z5"
+    "los_days": 4, "hospital_name": "Demo Hospital", "hospital_gstin": "33ABCDE1234F1Z5"
   },
   "watermark": "",
   "document_number": "IPD-BILL-20260612-0001"
@@ -971,13 +971,13 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
 
 const LAB_REPORT_SAMPLE: &str = r#"{
   "lab": {
-    "hospital_name": "ACMS Clinical Laboratory",
+    "hospital_name": "Demo Clinical Laboratory",
     "nabl_accredited": true,
     "nabl_certificate_number": "MC-9481",
     "department": "Laboratory Medicine",
     "report_status": "amended",
     "patient_name": "MRS. UMA",
-    "uhid": "ACMS-2026-00042",
+    "uhid": "MB-2026-00042",
     "age_display": "68y",
     "gender": "female",
     "referring_doctor": "Dr. S. Ravi",
@@ -1070,7 +1070,7 @@ const QUEUE_TOKEN_SLIP_SAMPLE: &str = r#"{
   "token": {
     "token_number": "CARD-014", "department_name": "Cardiology",
     "doctor_name": "Dr. S. Venkatesh", "room_number": "3",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "estimated_wait_minutes": 18, "priority": "normal",
     "token_date": "12-Jun-2026", "token_time": "09:41",
     "instructions": "Please wait for your token to be called.",
@@ -1105,7 +1105,7 @@ const PHARMACY_LABEL_SAMPLE: &str = r#"{
   "label": {
     "drug_name": "Amoxicillin 500mg", "dosage": "1 cap", "frequency": "TID",
     "duration": "5 days", "instructions": "After food",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "dispensed_date": "2026-06-12",
     "qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>"
   }
@@ -1139,7 +1139,7 @@ const WRISTBAND_HTML: &str = r#"{% extends "base.html" %}
 
 const WRISTBAND_SAMPLE: &str = r#"{
   "band": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042",
     "age": "42y", "gender": "F", "blood_group": "B+",
     "admission_number": "IP-000042",
     "admission_date": "2026-06-08", "ward_name": "GW-A", "bed_number": "12",
@@ -1182,7 +1182,7 @@ const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
 const CASHLESS_CLAIM_SAMPLE: &str = r#"{
   "claim": {
     "claim_number": "CLM-2026-04471", "claim_date": "2026-06-12",
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042", "admission_number": "IP-000042",
+    "patient_name": "R. Lakshmi", "uhid": "MB-2026-00042", "admission_number": "IP-000042",
     "policy_number": "POL-88412290", "insurance_company": "Star Health Insurance",
     "tpa_name": "MediAssist TPA", "claim_status": "approved",
     "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
@@ -1204,7 +1204,7 @@ mod tests {
     fn sample_with_branding(template: &SystemTemplate) -> serde_json::Value {
         let mut context: serde_json::Value = serde_json::from_str(template.sample_context)
             .unwrap_or_else(|e| panic!("{}: sample context is not valid JSON: {e}", template.code));
-        context["branding"] = serde_json::json!({ "hospital_name": "Alagappa Hospital" });
+        context["branding"] = serde_json::json!({ "hospital_name": "Demo Hospital" });
         context
     }
 
@@ -1260,7 +1260,7 @@ mod tests {
     fn an_unknown_wait_is_omitted_rather_than_printed_as_zero() {
         let template = find_template("queue_token_slip").expect("queue token slip is registered");
         let context = serde_json::json!({
-            "branding": { "hospital_name": "Alagappa Hospital" },
+            "branding": { "hospital_name": "Demo Hospital" },
             "token": {
                 "token_number": "CARD-001", "department_name": "Cardiology",
                 "patient_name": "R. Lakshmi",

@@ -27,10 +27,10 @@ module "hospital" {
   source = "../../modules/hospital-package"
 
   tier        = "starter"        # test | demo | starter | growth | enterprise | enterprise-k3s
-  hospital_id = "alagappa"
-  domain      = "hims.amh.org.in"
-  zone_name   = "amh.org.in"
-  admin_email = "ops@amh.org.in"
+  hospital_id = "demo-hospital"
+  domain      = "hims.example.org"
+  zone_name   = "example.org"
+  admin_email = "ops@example.org"
 
   aws_ssh_key_name = "medbrains-deploy"
 }

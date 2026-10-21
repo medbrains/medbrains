@@ -42,7 +42,7 @@ cluster_topology = "ha"                 # "ha" (3 nodes) or "single" (1 node)
 tunnel_provider  = "headscale"          # "headscale" / "wss" / "none" (air-gapped)
 
 # medbrains-bridge binary location
-bridge_artifact_url = "https://medbrains-prod-artifacts.s3.ap-south-1.amazonaws.com/bridge/v0.1.0/medbrains-bridge-arm64"
+bridge_artifact_url = "https://<bucket>.s3.<region>.amazonaws.com/bridge/v0.1.0/medbrains-bridge-arm64"
 
 # ── DNS (modules/dns) ───────────────────────────────────────────────
 # Each tenant brings its own apex domain — there is no shared default.

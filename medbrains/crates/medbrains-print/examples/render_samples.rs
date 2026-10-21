@@ -18,9 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all("/tmp/medbrains-docs")?;
 
     let branding = serde_json::json!({
-        "hospital_name": "Alagappa Medical College & Hospital",
-        "address": "College Road, Karaikudi, Tamil Nadu 630003",
-        "phone": "+91 4565 223344",
+        "hospital_name": "Demo Hospital",
+        "address": "1 Hospital Road, Chennai, Tamil Nadu 600001",
+        "phone": "+91 44 0000 0000",
         "registration_no": "TN/MC/2026/0042",
     });
 
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(band) = obj.get_mut("band").and_then(|b| b.as_object_mut()) {
                 band.insert(
                     "barcode_svg".to_owned(),
-                    serde_json::json!(codes::code128_svg("ACMS-2026-00042", 40)?),
+                    serde_json::json!(codes::code128_svg("MB-2026-00042", 40)?),
                 );
                 band.insert(
                     "qr_svg".to_owned(),

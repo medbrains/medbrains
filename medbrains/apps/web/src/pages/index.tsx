@@ -60,7 +60,7 @@ export function IndexPage() {
           </Card>
 
           <Text size="xs" c="dimmed">
-            v0.1.0 &middot; Alagappa Group of Institutions
+            v0.1.0 &middot; MedBrains
           </Text>
         </Stack>
       </Container>

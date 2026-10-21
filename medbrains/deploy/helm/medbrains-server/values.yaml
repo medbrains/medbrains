@@ -22,7 +22,7 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-  host: hims.amh.org.in
+  host: hims.example.org
   tls:
     enabled: true
     secretName: medbrains-tls
@@ -37,8 +37,8 @@ database:
   existingSecretKey: DATABASE_URL
 
 config:
-  domain: "hims.amh.org.in"
-  adminEmail: "ops@amh.org.in"
+  domain: "hims.example.org"
+  adminEmail: "ops@example.org"
   rustLog: "info,medbrains=debug,sqlx=warn"
 
 # Pod-level resource budget. Tuned for t4g.medium (2 vCPU / 4 GB).

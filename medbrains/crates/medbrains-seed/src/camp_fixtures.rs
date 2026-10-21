@@ -93,8 +93,8 @@ const RURAL_CAMP_SITES: &[RuralCampSite] = &[
         latitude: 9.8884,
         longitude: 78.6696,
         scheduled_date: "2026-05-09",
-        referral_facility: "Alagappa Medical College & Hospital",
-        referral_phone: "04565-240100",
+        referral_facility: "Demo Hospital",
+        referral_phone: "044-0000-0000",
         expected_footfall: 240,
     },
     RuralCampSite {
@@ -680,13 +680,13 @@ async fn ensure_camp_staff_employees(
             }
         ]))
         .bind(json!({
-            "line1": "Alagappa Medical College & Hospital",
+            "line1": "Demo Hospital",
             "city": "Karaikudi",
             "state": "Tamil Nadu"
         }))
         .bind(json!({
             "name": "Camp control room",
-            "phone": "04565-240100"
+            "phone": "044-0000-0000"
         }))
         .bind(staff.role_in_camp)
         .fetch_one(&mut **tx)

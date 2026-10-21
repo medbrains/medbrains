@@ -13,7 +13,7 @@ Use the canonical deploy path instead:
 
 or, for infra-only operations:
 
-  cd infra/terraform/envs/standalone/alagappa
+  cd "$DEPLOY_ENV_DIR"   # the hospital's terraform env, see infra/.env.example
   make plan
   make apply
 

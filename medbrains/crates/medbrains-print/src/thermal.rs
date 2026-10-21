@@ -216,7 +216,7 @@ mod tests {
 
     fn band() -> Value {
         json!({ "band": {
-            "patient_name": "R. Lakshmi^~", "uhid": "ACMS-2026-00042", "age": "42y", "gender": "F",
+            "patient_name": "R. Lakshmi^~", "uhid": "MB-2026-00042", "age": "42y", "gender": "F",
             "blood_group": "B+", "admission_number": "IP-000042", "ward_name": "GW-A", "bed_number": "12",
             "allergies": ["Penicillin", "Sulfa"],
         }})
@@ -233,9 +233,9 @@ mod tests {
             zpl.contains("^FDR. Lakshmi^FS"),
             "a ^ or ~ in a name must not become a command: {zpl}"
         );
-        assert!(zpl.contains("^FDUHID ACMS-2026-00042^FS"));
+        assert!(zpl.contains("^FDUHID MB-2026-00042^FS"));
         assert!(zpl.contains("ALLERGY: Penicillin, Sulfa"));
-        assert!(zpl.contains("^BCR,110,N,N,N^FDACMS-2026-00042^FS"));
+        assert!(zpl.contains("^BCR,110,N,N,N^FDMB-2026-00042^FS"));
         assert!(zpl.contains("GW-A / 12"));
         let none = render(
             Language::Zpl,

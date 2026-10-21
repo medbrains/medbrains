@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 /// Generate the next value in an atomic sequence.
 /// Creates the sequence row if it doesn't exist.
-/// Returns a formatted string like `ACMS-2026-00042`.
+/// Returns a formatted string like `MB-2026-00042`.
 pub async fn next_sequence(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: Uuid,

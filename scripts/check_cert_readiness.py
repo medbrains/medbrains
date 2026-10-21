@@ -146,7 +146,7 @@ CHECKS: tuple[ReadinessCheck, ...] = (
         ),
         required_actions=(
             "Map every case-sheet, MAR, consent, handoff, surgical safety, fall-risk, and infection-control event to NABH evidence.",
-            "Add department checklist evidence export against ACMSRC_HMS_Evaluation_Checklists.docx.",
+            "Add department checklist evidence export against the NABH department checklists.",
             "Add evidence completeness checks per module before marking a module accreditation-ready.",
         ),
         strict_blocking=True,

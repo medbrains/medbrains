@@ -45,7 +45,7 @@ That is a production change; it's made with a deploy, not from here.
 State is local (`*.tfstate` is git-ignored) and holds the SMTP secret: keep
 this directory's state file private.
 
-## Moving the app from medbrains.amh.org.in (2026-10-12)
+## Moving the app from a hospital's own domain (2026-10-12)
 
 1. `medbrains.in` must resolve: clear GoDaddy's `clientHold` (verify the
    registrant email GoDaddy sent) and set its nameservers to Cloudflare's two.
@@ -54,15 +54,15 @@ this directory's state file private.
    `dig +short app.medbrains.in` shows the prod IP.
 3. On the prod host (backups first, as for any prod change):
    ```sh
-   sudo bash /tmp/move-host.sh app.medbrains.in medbrains.amh.org.in          # dry run
-   sudo bash /tmp/move-host.sh app.medbrains.in medbrains.amh.org.in --apply
+   sudo bash /tmp/move-host.sh app.medbrains.in <old-host>          # dry run
+   sudo bash /tmp/move-host.sh app.medbrains.in <old-host> --apply
    ```
    (`deploy/standalone/move-host.sh`, copied up with scp.) It moves the env,
    renames the Caddy site, redirects the old name, updates the hospital's
    domain, restarts, and checks both names.
 4. If SSO is configured, add `https://app.medbrains.in/api/auth/sso/callback`
    as a redirect URI at the identity provider.
-5. Keep `TF_VAR_domain=medbrains.amh.org.in` in `infra/.env` for now: the prod
+5. Keep `TF_VAR_domain=<old-host>` in `infra/.env` for now: the prod
    env owns the old name's GoDaddy record, and the redirect needs it. Switch it
    when the old name is retired.
 

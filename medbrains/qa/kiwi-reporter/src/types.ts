@@ -31,7 +31,7 @@ export interface KiwiConfig {
   username: string;
   /** Kiwi TCMS password */
   password: string;
-  /** Product name in Kiwi, e.g. "Alagappa ERP" */
+  /** Product name in Kiwi, e.g. "MedBrains" */
   productName: string;
   /** Product version string, e.g. "1.0" */
   productVersion: string;

@@ -49,13 +49,13 @@ mod tests {
 
     #[test]
     fn qr_renders_svg() {
-        let svg = qr_svg("ACMS-2026-00042").expect("qr");
+        let svg = qr_svg("MB-2026-00042").expect("qr");
         assert!(svg.contains("<svg"));
     }
 
     #[test]
     fn code128_renders_bars() {
-        let svg = code128_svg("ACMS-2026-00042", 40).expect("barcode");
+        let svg = code128_svg("MB-2026-00042", 40).expect("barcode");
         assert!(svg.contains("<rect"));
     }
 }
