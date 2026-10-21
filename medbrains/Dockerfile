@@ -3,7 +3,7 @@
 # Final image is distroless — no shell, no package manager, minimal attack surface.
 
 # ── Stage 1: Cargo Chef plan ─────────────────────────────────────────────
-FROM rust:1.85-bookworm AS chef
+FROM rust:1.99-bookworm AS chef
 WORKDIR /app
 RUN cargo install cargo-chef --locked --version ^0.1
 
