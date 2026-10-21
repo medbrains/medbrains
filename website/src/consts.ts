@@ -39,3 +39,9 @@ export const SAME_AS = Object.values(SOCIAL).filter(Boolean);
 // hospital code (the server must also list the site in CORS_ORIGIN and have
 // "Accept enquiries from our website" switched on). Unset, it opens WhatsApp.
 export const ENQUIRY_TENANT = env.PUBLIC_ENQUIRY_TENANT ?? "";
+
+// Microsoft Clarity project id (clarity.microsoft.com → Settings → Setup).
+// Unset: no analytics and no consent banner.
+export const ANALYTICS = {
+  clarityId: env.PUBLIC_CLARITY_ID ?? "",
+};
