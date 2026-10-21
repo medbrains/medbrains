@@ -22,7 +22,7 @@ async fn a_new_hospital_has_the_default_note_types() {
          VALUES ($1, $2, 'Note types check', $3::text::hospital_type, '{}'::jsonb)",
     )
     .bind(tenant)
-    .bind(format!("NT{}", &tenant.simple().to_string()[..8]))
+    .bind(format!("NT{}", &tenant.simple().to_string()[..8]).to_uppercase())
     .bind(&hospital_type)
     .execute(&mut *tx)
     .await

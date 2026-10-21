@@ -237,7 +237,11 @@ async fn default_admin(pool: &PgPool) -> Finding {
     } else {
         Finding::warn(
             "auth.default_admin",
-            format!("{} still sign in with the default password", weak.join(", ")),
+            format!(
+                "{} still {} in with the default password",
+                weak.join(", "),
+                if weak.len() == 1 { "signs" } else { "sign" }
+            ),
             "Sign in as each one and change the password now",
         )
     }
