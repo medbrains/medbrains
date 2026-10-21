@@ -1,21 +1,28 @@
 ---
-// The pastel illustration for a topic: its icon on soft overlapping shapes.
-// Stands in for a cover photo, so no post ever needs a stock image.
+// The topic's illustration: a soft 3D object on its pastel tint. Stands in
+// for a cover wherever a post has none, so no post ever needs a stock photo.
+import { Image } from "astro:assets";
 import { getCategory, type CategorySlug } from "../../data/blog-categories";
-import Icon from "./Icon.astro";
+import { topicImage } from "../../data/topic-images";
 
 interface Props {
   slug: CategorySlug;
   size?: "sm" | "lg";
+  /** Above the fold: load at once. */
+  eager?: boolean;
 }
-const { slug, size = "sm" } = Astro.props;
+const { slug, size = "sm", eager = false } = Astro.props;
 const c = getCategory(slug);
 ---
 
-<div class:list={["art", size]} style={`--tint:${c.tint};--tone:${c.ink}`} aria-hidden="true">
-  <span class="blob one"></span>
-  <span class="blob two"></span>
-  <span class="disc"><Icon name={c.icon} size={size === "lg" ? 56 : 36} /></span>
+<div class:list={["art", size]} style={`--tint:${c.tint}`} aria-hidden="true">
+  <Image
+    src={topicImage(slug)}
+    alt=""
+    widths={size === "lg" ? [320, 480, 640] : [240, 360, 480]}
+    sizes={size === "lg" ? "(max-width: 760px) 60vw, 320px" : "(max-width: 760px) 50vw, 240px"}
+    loading={eager ? "eager" : "lazy"}
+  />
 </div>
 
 <style>
@@ -23,12 +30,6 @@ const c = getCategory(slug);
     position: relative; overflow: hidden; display: grid; place-items: center;
     aspect-ratio: 16 / 9; border-radius: inherit; background: var(--tint);
   }
-  .blob { position: absolute; border-radius: 50%; background: var(--tone); opacity: .08; }
-  .one { width: 60%; aspect-ratio: 1; top: -25%; right: -12%; }
-  .two { width: 38%; aspect-ratio: 1; bottom: -18%; left: -8%; opacity: .06; }
-  .disc {
-    position: relative; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 28px;
-    background: rgb(255 255 255 / 75%); color: var(--tone); box-shadow: var(--shadow-soft);
-  }
-  .lg .disc { width: 120px; height: 120px; border-radius: 36px; }
+  .art :global(img) { height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+  .lg { aspect-ratio: 1; max-width: 320px; border-radius: 28px; }
 </style>

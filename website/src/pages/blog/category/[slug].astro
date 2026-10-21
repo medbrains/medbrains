@@ -1,11 +1,13 @@
 ---
+import { getImage } from "astro:assets";
 import CategoryArt from "../../../components/blog/CategoryArt.astro";
 import PageHead from "../../../components/blog/PageHead.astro";
 import PostGrid from "../../../components/blog/PostGrid.astro";
 import { SITE } from "../../../consts";
 import { BLOG_CATEGORIES, type BlogCategory } from "../../../data/blog-categories";
 import BlogLayout from "../../../layouts/BlogLayout.astro";
-import { breadcrumbs, collectionPage, getAuthorNames, getPosts, type Post } from "../../../lib/blog";
+import { topicImage } from "../../../data/topic-images";
+import { absolute, breadcrumbs, collectionPage, getAuthorNames, getPosts, type Post } from "../../../lib/blog";
 
 export async function getStaticPaths() {
   const posts = await getPosts();
@@ -19,13 +21,16 @@ const { category, posts } = Astro.props as { category: BlogCategory; posts: Post
 const authorNames = await getAuthorNames();
 const path = `/blog/category/${category.slug}`;
 const title = `${category.name} | ${SITE.brand} blog`;
+// The topic's illustration, padded to a 1200x630 share card.
+const card = await getImage({ src: topicImage(category.slug), width: 1200, height: 630, fit: "contain", background: category.tint, format: "jpg" });
+const image = { url: absolute(card.src, Astro.site), width: 1200, height: 630, alt: `${category.name}: articles from ${SITE.brand}` };
 const schema = [
   collectionPage(Astro.site, { name: category.name, description: category.description, path, posts }),
   breadcrumbs(Astro.site, [{ name: "Blog", path: "/blog" }, { name: category.name, path }]),
 ];
 ---
 
-<BlogLayout title={title} description={category.description} schema={schema} noindex={posts.length === 0}>
+<BlogLayout title={title} description={category.description} schema={schema} image={image} noindex={posts.length === 0}>
   <PageHead
     crumbs={[{ name: "Blog", href: "/blog" }, { name: category.name }]}
     eyebrow="Topic"
@@ -33,7 +38,7 @@ const schema = [
     intro={category.description}
     tint={category.tint}
   >
-    <div class="art"><CategoryArt slug={category.slug} size="lg" /></div>
+    <div class="art"><CategoryArt slug={category.slug} size="lg" eager /></div>
   </PageHead>
   <section class="wrap list">
     {posts.length > 0 ? (
