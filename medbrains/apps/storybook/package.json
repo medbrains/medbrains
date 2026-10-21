@@ -28,7 +28,7 @@
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
     "dayjs": "^1.11.20",
-    "react": "^19.2.4",
+    "react": "^19.3.1",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
