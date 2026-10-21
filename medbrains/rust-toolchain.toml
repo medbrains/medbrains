@@ -1,3 +1,7 @@
 [toolchain]
 channel = "1.99.0"
 components = ["rustfmt", "clippy"]
+# Deploys cross-compile the server for Linux (aarch64 today, x86_64 for t3
+# hosts). Listing them here makes rustup install them with the pinned
+# toolchain; pinning 1.99.0 without them broke the first deploy after it.
+targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
