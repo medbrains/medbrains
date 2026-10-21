@@ -3501,7 +3501,7 @@ export const api = {
   // Pre-auth: resolve the tenant for the current custom domain (login branding).
   // Pass the browser's hostname so it works without proxy X-Forwarded-Host.
   getTenantByHost: (domain: string) =>
-    request<PublicTenant>(`/public/tenant-by-host?domain=${encodeURIComponent(domain)}`),
+    request<PublicTenant | null>(`/public/tenant-by-host?domain=${encodeURIComponent(domain)}`),
   // Pre-auth: confirm an email-verification token from the emailed link.
   verifyEmail: (token: string) =>
     request<{ verified: boolean }>("/auth/verify-email", {
@@ -10378,7 +10378,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listDutyHours: () => request<DutyHoursRow[]>("/hr/duty-hours"),
-  getMyShift: () => request<MyShiftResponse>("/hr/my-shift"),
+  getMyShift: () => request<MyShiftResponse | null>("/hr/my-shift"),
   getGeofenceSettings: () => request<GeofenceSettings>("/hr/attendance/geofence"),
   setGeofenceMode: (mode: GeofenceMode) =>
     request<{ mode: GeofenceMode }>("/hr/attendance/geofence/mode", {

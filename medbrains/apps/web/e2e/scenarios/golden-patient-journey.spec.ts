@@ -71,11 +71,7 @@ test.describe("Golden patient journey", () => {
     });
     page.on("response", (response) => {
       const url = new URL(response.url());
-      // 404 from tenant-by-host is its documented answer for a host with no
-      // custom domain — the login page then renders the default brand.
-      const isNoCustomDomain =
-        url.pathname === "/api/public/tenant-by-host" && response.status() === 404;
-      if (url.pathname.startsWith("/api/") && response.status() >= 400 && !isNoCustomDomain) {
+      if (url.pathname.startsWith("/api/") && response.status() >= 400) {
         failedUiApiCalls.push(`${response.status()} ${url.pathname}`);
       }
     });

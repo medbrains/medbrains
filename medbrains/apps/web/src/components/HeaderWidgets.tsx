@@ -39,12 +39,20 @@ function useClock(): Date {
 function useCoords(): { lat: number; lon: number } {
   const [coords, setCoords] = useState(FALLBACK);
   useEffectOnce(() => {
-    if (!("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => {}, // denied/unavailable — keep fallback
-      { timeout: 6000, maximumAge: 1_800_000 },
-    );
+    if (!("geolocation" in navigator) || !navigator.permissions) return;
+    // Only when the browser already allows it: weather is not worth a
+    // location prompt on every member of staff's first visit.
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        if (status.state !== "granted") return;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          () => {}, // unavailable — keep fallback
+          { timeout: 6000, maximumAge: 1_800_000 },
+        );
+      })
+      .catch(() => {}); // permissions API unavailable — keep fallback
   });
   return coords;
 }
@@ -76,14 +84,14 @@ function WeatherWidget() {
   const { lat, lon } = useCoords();
   const { data } = useQuery({
     queryKey: ["weather", lat.toFixed(2), lon.toFixed(2)],
-    queryFn: async (): Promise<WeatherNow> => {
+    queryFn: async (): Promise<WeatherNow | null> => {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("weather unavailable");
-      return res.json();
+      // Weather is decoration: offline or blocked, the tile simply hides.
+      const res = await fetch(url).catch(() => null);
+      return res?.ok ? res.json() : null;
     },
     staleTime: 1_800_000,
-    retry: 1,
+    retry: false,
   });
 
   if (!data?.current) return null;

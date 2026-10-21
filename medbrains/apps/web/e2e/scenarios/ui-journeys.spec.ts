@@ -14,16 +14,9 @@ interface RuntimeMonitorOptions {
   ignoredApiFailures?: RegExp[];
 }
 
-/**
- * Answers that are outcomes, not failures. `tenant-by-host` says 404 when no
- * hospital owns the host — every dev run on localhost; a deployment is bound
- * by MEDBRAINS_TENANT_ID and never sees it.
- */
-const EXPECTED_API_ANSWERS = [/^\/api\/public\/tenant-by-host\?/];
-
 function monitorRuntimeFailures(page: Page, options: RuntimeMonitorOptions = {}): string[] {
   const failures: string[] = [];
-  const ignored = [...EXPECTED_API_ANSWERS, ...(options.ignoredApiFailures ?? [])];
+  const ignored = options.ignoredApiFailures ?? [];
 
   page.on("pageerror", (error) => {
     if (!/WebSocket closed without opened|vite-hmr/i.test(error.message)) {

@@ -215,6 +215,7 @@ async fn default_admin(pool: &PgPool) -> Finding {
     let hashes = sqlx::query_as::<_, (String, String)>(
         "SELECT username, password_hash FROM users \
           WHERE deleted_at IS NULL AND is_active \
+            AND password_hash IS NOT NULL \
             AND role::text IN ('super_admin', 'hospital_admin') LIMIT 20",
     )
     .fetch_all(pool)
