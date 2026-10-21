@@ -1165,87 +1165,6 @@ pub(super) async fn enqueue(
     .await
 }
 
-#[cfg(test)]
-mod tests {
-    use medbrains_core::clinical_events::ClinicalEventName;
-    use serde_json::json;
-
-    use super::{PIPELINES, domain_payload, e164, token_call_body};
-
-    #[test]
-    fn phones_are_normalised_to_e164_or_refused() {
-        assert_eq!(e164("9876543210").as_deref(), Some("+919876543210"));
-        assert_eq!(e164("+91 98765 43210").as_deref(), Some("+919876543210"));
-        assert_eq!(e164("+1-555-0100-123").as_deref(), Some("+15550100123"));
-        assert_eq!(e164("12345"), None);
-        assert_eq!(e164(""), None);
-    }
-
-    #[test]
-    fn a_decimal_serialises_as_a_string_so_payload_amounts_are_not_numbers() {
-        // The workspace enables rust_decimal's serde-with-str: any pipeline
-        // that reads an amount from a payload with `as_f64` reads nothing.
-        let v = json!({ "t": rust_decimal::Decimal::new(150_000, 2) });
-        assert_eq!(v["t"], json!("1500.00"));
-    }
-
-    #[test]
-    fn an_envelope_is_unwrapped_and_a_bare_payload_is_not() {
-        let envelope = json!({
-            "event_name": "emergency.code_blue.activated",
-            "tenant_id": "00000000-0000-0000-0000-000000000001",
-            "payload": { "code_blue_id": "abc" }
-        });
-        assert_eq!(domain_payload(&envelope)["code_blue_id"], "abc");
-        let bare = json!({ "code_blue_id": "abc" });
-        assert_eq!(domain_payload(&bare)["code_blue_id"], "abc");
-        let odd = json!({ "event_name": "x", "payload": "not an object" });
-        assert!(domain_payload(&odd).get("event_name").is_some());
-    }
-
-    #[test]
-    fn critical_lab_default_pipeline_follows_result_posting() {
-        // Asserted against the registry that actually dispatches, not a
-        // description array beside it — the point of merging the two.
-        assert!(
-            PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::LabResultPosted)
-        );
-        assert!(
-            !PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
-        );
-    }
-
-    /// `opd.queue.called` was in the vocabulary from the start and nothing
-    /// ever emitted it, so nothing could subscribe to it either. Calling a
-    /// patient reached the board over a WebSocket and went no further.
-    #[test]
-    fn a_called_token_has_somewhere_to_go() {
-        assert!(
-            PIPELINES
-                .iter()
-                .any(|p| p.event == ClinicalEventName::OpdQueueCalled),
-            "the token-call event needs a subscriber or emitting it changes nothing"
-        );
-    }
-
-    /// The message has to name the room. "You have been called" leaves a
-    /// patient standing in a corridor looking for a door.
-    #[test]
-    fn the_token_sms_names_where_to_go() {
-        let with_room = token_call_body("A-42", Some("Room 3"));
-        assert!(with_room.contains("A-42") && with_room.contains("Room 3"));
-        let without = token_call_body("A-42", None);
-        assert!(
-            without.contains("counter"),
-            "no room known still has to send them somewhere: {without}"
-        );
-    }
-}
-
 /// `blood.transfusion_reaction.reported` — haemovigilance.
 ///
 /// A reaction implicates the donation, not only the bag that caused it. The
@@ -1381,4 +1300,85 @@ async fn on_transfusion_reaction(
 
     tx.commit().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use medbrains_core::clinical_events::ClinicalEventName;
+    use serde_json::json;
+
+    use super::{PIPELINES, domain_payload, e164, token_call_body};
+
+    #[test]
+    fn phones_are_normalised_to_e164_or_refused() {
+        assert_eq!(e164("9876543210").as_deref(), Some("+919876543210"));
+        assert_eq!(e164("+91 98765 43210").as_deref(), Some("+919876543210"));
+        assert_eq!(e164("+1-555-0100-123").as_deref(), Some("+15550100123"));
+        assert_eq!(e164("12345"), None);
+        assert_eq!(e164(""), None);
+    }
+
+    #[test]
+    fn a_decimal_serialises_as_a_string_so_payload_amounts_are_not_numbers() {
+        // The workspace enables rust_decimal's serde-with-str: any pipeline
+        // that reads an amount from a payload with `as_f64` reads nothing.
+        let v = json!({ "t": rust_decimal::Decimal::new(150_000, 2) });
+        assert_eq!(v["t"], json!("1500.00"));
+    }
+
+    #[test]
+    fn an_envelope_is_unwrapped_and_a_bare_payload_is_not() {
+        let envelope = json!({
+            "event_name": "emergency.code_blue.activated",
+            "tenant_id": "00000000-0000-0000-0000-000000000001",
+            "payload": { "code_blue_id": "abc" }
+        });
+        assert_eq!(domain_payload(&envelope)["code_blue_id"], "abc");
+        let bare = json!({ "code_blue_id": "abc" });
+        assert_eq!(domain_payload(&bare)["code_blue_id"], "abc");
+        let odd = json!({ "event_name": "x", "payload": "not an object" });
+        assert!(domain_payload(&odd).get("event_name").is_some());
+    }
+
+    #[test]
+    fn critical_lab_default_pipeline_follows_result_posting() {
+        // Asserted against the registry that actually dispatches, not a
+        // description array beside it — the point of merging the two.
+        assert!(
+            PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::LabResultPosted)
+        );
+        assert!(
+            !PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::LabOrderCompleted)
+        );
+    }
+
+    /// `opd.queue.called` was in the vocabulary from the start and nothing
+    /// ever emitted it, so nothing could subscribe to it either. Calling a
+    /// patient reached the board over a WebSocket and went no further.
+    #[test]
+    fn a_called_token_has_somewhere_to_go() {
+        assert!(
+            PIPELINES
+                .iter()
+                .any(|p| p.event == ClinicalEventName::OpdQueueCalled),
+            "the token-call event needs a subscriber or emitting it changes nothing"
+        );
+    }
+
+    /// The message has to name the room. "You have been called" leaves a
+    /// patient standing in a corridor looking for a door.
+    #[test]
+    fn the_token_sms_names_where_to_go() {
+        let with_room = token_call_body("A-42", Some("Room 3"));
+        assert!(with_room.contains("A-42") && with_room.contains("Room 3"));
+        let without = token_call_body("A-42", None);
+        assert!(
+            without.contains("counter"),
+            "no room known still has to send them somewhere: {without}"
+        );
+    }
 }
