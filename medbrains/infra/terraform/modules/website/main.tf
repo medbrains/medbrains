@@ -70,6 +70,38 @@ resource "aws_cloudfront_origin_access_control" "site" {
   signing_protocol                  = "sigv4"
 }
 
+# Pages are published at their clean address (/blog/heat-stroke-first-aid) —
+# the sitemap and canonical links say so — but S3 has no directory index, so
+# the same address with a trailing slash was a 404. A link shared as
+# ".../heat-stroke-first-aid/" now redirects permanently to the clean one.
+resource "aws_cloudfront_function" "trailing_slash" {
+  name    = "medbrains-${var.environment}-marketing-trailing-slash"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  code    = <<-JS
+    function handler(event) {
+      var req = event.request;
+      var uri = req.uri;
+      if (uri.length > 1 && uri.charAt(uri.length - 1) === "/") {
+        var qs = [];
+        for (var k in req.querystring) {
+          var v = req.querystring[k];
+          qs.push(v.multiValue
+            ? v.multiValue.map(function (m) { return k + "=" + m.value; }).join("&")
+            : k + "=" + v.value);
+        }
+        var loc = uri.replace(/\/+$/, "") + (qs.length ? "?" + qs.join("&") : "");
+        return {
+          statusCode: 301,
+          statusDescription: "Moved Permanently",
+          headers: { location: { value: loc } },
+        };
+      }
+      return req;
+    }
+  JS
+}
+
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   default_root_object = "index.html"
@@ -90,6 +122,11 @@ resource "aws_cloudfront_distribution" "site" {
     compress               = true
     # AWS managed "CachingOptimized" policy id (static content).
     cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.trailing_slash.arn
+    }
   }
 
   # SPA-less static site: a missing path should 404, not 200 the index.
