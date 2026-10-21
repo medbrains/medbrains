@@ -1,6 +1,7 @@
 ---
 import "../styles/global.scss";
 import { SITE } from "../consts";
+import Analytics from "../components/Analytics.astro";
 
 interface Props {
   title: string;
@@ -72,6 +73,7 @@ const jsonLd = schema.length ? JSON.stringify({ "@context": "https://schema.org"
   <body class:list={[{ light }]}>
     <a class="sr-only" href="#main">Skip to content</a>
     <slot />
+    <Analytics />
     <script>
       import "../scripts/motion.ts";
     </script>
