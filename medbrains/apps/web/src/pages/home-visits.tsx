@@ -1,4 +1,4 @@
-import { Group, Modal, NumberInput, Select, Stack, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, TextInput } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { isBloodPressureValid, parseBloodPressureText, toReading } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { CaseSheet } from "@/components/Clinical/case-sheet/CaseSheet";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Drawer, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { homeHealthService } from "@/services/homeHealth.service";
 
@@ -299,14 +299,14 @@ export function HomeVisitsPage() {
       />
       {date && <ScheduleVisitModal date={date} opened={modalOpen} onClose={modal.close} />}
       {docVisit && <DocumentModal visit={docVisit} onClose={() => setDocVisit(null)} />}
-      <Drawer
+      <Modal
         opened={caseSheet !== null}
         onClose={() => openCaseSheet(null)}
         title="Home visit case sheet"
-        size="xl"
+        fullScreen
       >
         {caseSheet && <CaseSheet encounterId={caseSheet} />}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 // REGULATORY PcpndtTab — split from regulatory.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Paper, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Group, NumberInput, Paper, Select, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePcpndtRequest, PcpndtForm } from "@medbrains/types";
@@ -13,7 +13,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentButton } from "@/components/Print/PrintDocumentButton";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 import { CompleteFormFDrawer } from "./complete-form-f-drawer";
 import { statusColorTone } from "./shared";
@@ -164,7 +164,7 @@ export function PcpndtTab() {
       />
       <CompleteFormFDrawer form={completing} onClose={() => setCompleting(null)} />
 
-      <Drawer opened={opened} onClose={close} title="New PCPNDT Form F" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New PCPNDT Form F" fullScreen>
         <Stack gap="sm">
           <PatientSearchSelect
             value={form.patient_id}
@@ -227,7 +227,7 @@ export function PcpndtTab() {
             Create Form F
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

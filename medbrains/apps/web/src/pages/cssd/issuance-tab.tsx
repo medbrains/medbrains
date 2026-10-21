@@ -1,7 +1,7 @@
 // CSSD IssuanceTab — split from cssd.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Group, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { CssdIssuanceFormInput } from "@medbrains/schemas";
@@ -168,7 +168,7 @@ export function IssuanceTab() {
         emptyTitle="No issuances"
       />
 
-      <Drawer opened={opened} onClose={close} title="Issue Sterile Pack" position="right" size="md">
+      <Modal opened={opened} onClose={close} title="Issue Sterile Pack" size="md">
         <Stack component="form" onSubmit={handleSubmit(submitIssuance)}>
           <Controller
             name="load_id"
@@ -229,7 +229,7 @@ export function IssuanceTab() {
             Issue
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
       <Modal
         opened={recalling !== null}
         onClose={() => setRecalling(null)}

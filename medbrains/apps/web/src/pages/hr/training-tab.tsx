@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -24,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 
 export function TrainingTab({ canManage }: { canManage: boolean }) {
@@ -335,13 +334,7 @@ export function TrainingTab({ canManage }: { canManage: boolean }) {
       )}
 
       {/* Create Program Drawer */}
-      <Drawer
-        opened={programOpen}
-        onClose={closeProgram}
-        title="Add Training Program"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={programOpen} onClose={closeProgram} title="Add Training Program" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Code"
@@ -388,16 +381,10 @@ export function TrainingTab({ canManage }: { canManage: boolean }) {
             Create Program
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Record Training Drawer */}
-      <Drawer
-        opened={recordOpen}
-        onClose={closeRecord}
-        title="Record Training"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={recordOpen} onClose={closeRecord} title="Record Training" fullScreen>
         <Stack gap="sm">
           <EmployeeSearchSelect
             value={recForm.employee_id}
@@ -454,7 +441,7 @@ export function TrainingTab({ canManage }: { canManage: boolean }) {
             Record Training
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

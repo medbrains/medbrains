@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ChangeEvent, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, Drawer, IconButton, Input, Select, Switch, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Input, Modal, Select, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 
@@ -145,13 +145,7 @@ export function SsoSettingsPage() {
       />
       <DataTable columns={columns} data={providers} loading={isLoading} rowKey={(p) => p.id} />
 
-      <Drawer
-        opened={formOpen}
-        onClose={form.close}
-        title="Add identity provider"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={formOpen} onClose={form.close} title="Add identity provider" fullScreen>
         <Stack gap="sm">
           <Select
             label="Protocol"
@@ -231,17 +225,16 @@ export function SsoSettingsPage() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={Boolean(mappingsFor)}
         onClose={() => setMappingsFor(null)}
         title={mappingsFor ? `Group mappings — ${mappingsFor.name}` : ""}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {mappingsFor && <GroupMappings provider={mappingsFor} />}
-      </Drawer>
+      </Modal>
     </div>
   );
 }

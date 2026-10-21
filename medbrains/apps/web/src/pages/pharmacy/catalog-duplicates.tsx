@@ -11,7 +11,7 @@ import { IconCopy, IconGitMerge } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Drawer, Input, Modal, toast } from "@/components/ui";
+import { Alert, Badge, Button, Input, Modal, toast } from "@/components/ui";
 import { grnScanService } from "@/services/grnScan.service";
 
 interface MergeChoice {
@@ -157,16 +157,15 @@ export function CatalogDuplicatesButton() {
       <Button size="xs" tone="secondary" leftSection={<IconCopy size={14} />} onClick={open}>
         Find duplicates
       </Button>
-      <Drawer
+      <Modal
         opened={opened}
         onClose={close}
         title="Duplicate drugs"
         closeButtonProps={{ "aria-label": "Close duplicate drugs" }}
-        position="right"
-        size="xl"
+        fullScreen
       >
         {opened && <DuplicatesList />}
-      </Drawer>
+      </Modal>
     </>
   );
 }

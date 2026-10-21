@@ -5,9 +5,7 @@ import {
   Card,
   Checkbox,
   Divider,
-  Drawer,
   Group,
-  Modal,
   Select,
   Stack,
   Text,
@@ -38,7 +36,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
-import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   emergencyCodeDeactivateOutcomeOptions,
   emergencyCodeTypeOptions,
@@ -369,7 +367,7 @@ export function CodesTab({
       )}
 
       {/* Create Code Drawer */}
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
@@ -377,8 +375,7 @@ export function CodesTab({
           reset(contextCodeDefaults);
         }}
         title="Activate Emergency Code"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleSubmit(handleCreate)}>
           <Controller
@@ -413,7 +410,7 @@ export function CodesTab({
             Activate Code
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       <Modal
         opened={deactivateOpened}
@@ -471,13 +468,7 @@ export function CodesTab({
       </Modal>
 
       {/* Code Detail Drawer */}
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Code Activation Details"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={detailOpened} onClose={closeDetail} title="Code Activation Details" fullScreen>
         {selectedCode && (
           <Stack>
             <Group>
@@ -566,7 +557,7 @@ export function CodesTab({
             )}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

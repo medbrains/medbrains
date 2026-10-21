@@ -19,7 +19,7 @@ import { REDACTABLE_FIELDS } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Badge, Button, Drawer } from "@/components/ui";
+import { Alert, Badge, Button, Modal } from "@/components/ui";
 
 /** `edit` is the default and is never stored — only exceptions are persisted. */
 const DEFAULT_LEVEL: FieldAccessLevel = "edit";
@@ -90,13 +90,7 @@ export function RoleFieldAccessDrawer({ role, opened, onClose }: Props) {
     setRules((current) => ({ ...current, [key]: level }));
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      position="right"
-      size="xl"
-      title={`Field access — ${role.name}`}
-    >
+    <Modal opened={opened} onClose={onClose} fullScreen title={`Field access — ${role.name}`}>
       <Stack gap="md">
         <Alert tone="info" title="What this controls">
           <Text size="sm">
@@ -189,6 +183,6 @@ export function RoleFieldAccessDrawer({ role, opened, onClose }: Props) {
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

@@ -1,4 +1,4 @@
-import { Drawer, NumberInput, Select, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
+import { NumberInput, Select, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -20,7 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
@@ -313,12 +313,11 @@ export function CathLabPage() {
       </Tabs>
 
       {/* Procedure Detail Drawer */}
-      <Drawer
+      <Modal
         opened={!!detailId}
         onClose={() => setDetailId(null)}
         title="Procedure Detail"
-        size="xl"
-        position="right"
+        fullScreen
       >
         <Tabs defaultValue="hemodynamics">
           <Tabs.List>
@@ -341,16 +340,10 @@ export function CathLabPage() {
             />
           </Tabs.Panel>
         </Tabs>
-      </Drawer>
+      </Modal>
 
       {/* Create Procedure Drawer */}
-      <Drawer
-        opened={procOpen}
-        onClose={procHandlers.close}
-        title="New Cath Procedure"
-        size="lg"
-        position="right"
-      >
+      <Modal opened={procOpen} onClose={procHandlers.close} title="New Cath Procedure" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={procForm.patient_id ?? ""}
@@ -409,7 +402,7 @@ export function CathLabPage() {
             Create Procedure
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

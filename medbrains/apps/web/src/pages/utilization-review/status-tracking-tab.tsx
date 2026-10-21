@@ -1,7 +1,7 @@
 // Utilization-review StatusTrackingTab — split from utilization-review.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { UrStatusConversionFormInput } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import type { CreateUrConversionInput } from "@/services/utilizationReview.service";
 import { utilizationReviewService } from "@/services/utilizationReview.service";
 import { optionalTrimmed } from "./shared";
@@ -149,13 +149,7 @@ export function StatusTrackingTab() {
         columns={columns}
       />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Create Status Conversion"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Create Status Conversion" fullScreen>
         <Stack component="form" gap="sm" onSubmit={submitConversion}>
           <TextInput
             label="Admission ID"
@@ -208,7 +202,7 @@ export function StatusTrackingTab() {
             Create Conversion
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -3,7 +3,7 @@ import type { AbhaOtpVia, AbhaVerificationStep, AbhaVerifyMethod } from "@medbra
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useInterval } from "react-use";
-import { Alert, Button, Drawer, Input, SegmentedControl } from "@/components/ui";
+import { Alert, Button, Input, Modal, SegmentedControl } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
 import { type AbhaConfirmProps, AbhaVerifiedStep } from "./AbhaVerifiedStep";
 
@@ -18,10 +18,10 @@ interface AbhaVerifyDrawerProps extends AbhaConfirmProps {
  */
 export function AbhaVerifyDrawer(props: AbhaVerifyDrawerProps) {
   return (
-    <Drawer opened={props.opened} onClose={props.onClose} title="Verify ABHA" size="lg">
+    <Modal opened={props.opened} onClose={props.onClose} title="Verify ABHA" fullScreen>
       {/* Remounting on open starts every verification fresh. */}
       {props.opened && <VerifyFlow {...props} />}
-    </Drawer>
+    </Modal>
   );
 }
 

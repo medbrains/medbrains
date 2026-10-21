@@ -1,4 +1,4 @@
-import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -17,7 +17,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -270,12 +270,11 @@ export function EndoscopyPage() {
         </Tabs.Panel>
       </Tabs>
 
-      <Drawer
+      <Modal
         opened={procOpen}
         onClose={procHandlers.close}
         title="New Endoscopy Procedure"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <PatientSearchSelect
@@ -335,15 +334,9 @@ export function EndoscopyPage() {
             Create Procedure
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={scopeOpen}
-        onClose={scopeHandlers.close}
-        title="Register New Scope"
-        size="md"
-        position="right"
-      >
+      <Modal opened={scopeOpen} onClose={scopeHandlers.close} title="Register New Scope" size="md">
         <Stack>
           <TextInput
             label="Serial Number"
@@ -378,7 +371,7 @@ export function EndoscopyPage() {
             Register Scope
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

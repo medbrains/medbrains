@@ -1,16 +1,6 @@
 // IPD EquipmentTab — split from bme.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -22,7 +12,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { fmtDate } from "./shared";
 
@@ -207,12 +197,11 @@ export function EquipmentTab() {
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={close}
         title={editItem ? "Edit Equipment" : "Add Equipment"}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -284,7 +273,7 @@ export function EquipmentTab() {
             {editItem ? "Update" : "Create"}
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

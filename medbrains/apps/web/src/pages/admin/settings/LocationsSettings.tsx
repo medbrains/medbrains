@@ -1,8 +1,6 @@
 import {
-  Drawer,
   Group,
   Loader,
-  Modal,
   SegmentedControl,
   Select,
   Stack,
@@ -25,7 +23,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -325,12 +323,7 @@ function LocationStaffDrawer({
   const userOptions = users.map((u) => ({ value: u.id, label: `${u.full_name} (${u.username})` }));
 
   return (
-    <Drawer
-      opened={!!location}
-      onClose={onClose}
-      title={`Staff — ${location?.name ?? ""}`}
-      position="right"
-    >
+    <Modal opened={!!location} onClose={onClose} title={`Staff — ${location?.name ?? ""}`}>
       <Stack gap="md">
         <Stack gap={4}>
           {staff.length === 0 && (
@@ -389,7 +382,7 @@ function LocationStaffDrawer({
           </Button>
         </Stack>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

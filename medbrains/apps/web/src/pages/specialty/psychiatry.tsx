@@ -1,4 +1,4 @@
-import { Drawer, Select, Stack, Switch, Tabs, Text, Textarea, TextInput } from "@mantine/core";
+import { Select, Stack, Switch, Tabs, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -19,7 +19,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
@@ -365,12 +365,11 @@ export function PsychiatryPage() {
         </Tabs.Panel>
       </Tabs>
 
-      <Drawer
+      <Modal
         opened={patOpen}
         onClose={patHandlers.close}
         title="Register Psychiatric Patient"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <PatientSearchSelect
@@ -437,7 +436,7 @@ export function PsychiatryPage() {
             Register Patient
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

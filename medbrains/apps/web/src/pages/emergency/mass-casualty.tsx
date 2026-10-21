@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -29,7 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Alert, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   emergencyMassCasualtyStatusOptions,
   emergencyMassCasualtyTypeOptions,
@@ -309,12 +308,11 @@ export function MassCasualtyTab({
         </Card>
       )}
 
-      <Drawer
+      <Modal
         opened={updateOpened}
         onClose={handleCloseUpdate}
         title={eventToUpdate ? `Update ${eventToUpdate.event_name}` : "Update Mass Casualty Event"}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleUpdateSubmit(submitMassCasualtyUpdate)}>
           {eventToUpdate && (
@@ -375,15 +373,9 @@ export function MassCasualtyTab({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Activate Mass Casualty Event"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Activate Mass Casualty Event" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitMassCasualtyEvent)}>
           <Controller
             name="event_name"
@@ -437,7 +429,7 @@ export function MassCasualtyTab({
             Activate Mass Casualty
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

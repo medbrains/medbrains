@@ -1,8 +1,6 @@
 import {
   Card,
-  Drawer,
   Group,
-  Modal,
   MultiSelect,
   SegmentedControl,
   Select,
@@ -32,7 +30,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -391,7 +389,7 @@ function CreateAccessRequestDrawer({
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} position="right" size="lg" title="Request access">
+    <Modal opened={opened} onClose={onClose} fullScreen title="Request access">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
           Use this for temporary module capability such as billing approval, pharmacy edit, IPD
@@ -455,6 +453,6 @@ function CreateAccessRequestDrawer({
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

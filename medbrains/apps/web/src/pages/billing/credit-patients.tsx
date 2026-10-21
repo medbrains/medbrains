@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -37,7 +36,7 @@ import { DataTable } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   billingCreditPatientStatusOptions,
   billingNumberOrFallback,
@@ -330,7 +329,7 @@ export function CreditPatientsTab() {
         </Card>
       )}
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
@@ -338,8 +337,7 @@ export function CreditPatientsTab() {
           reset(creditPatientDefaults);
         }}
         title={editId ? "Edit Credit Patient" : "Add Credit Patient"}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack
           component="form"
@@ -406,7 +404,7 @@ export function CreditPatientsTab() {
             {editId ? "Update" : "Create"}
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

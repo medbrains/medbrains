@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
+import { Card, Divider, Group, Stack, Text } from "@mantine/core";
 import { refineBloodPressure } from "@medbrains/schemas";
 import { useHasAnyPermission } from "@medbrains/stores";
 import type { TransfusionObservation } from "@medbrains/types";
@@ -12,6 +12,7 @@ import {
   Alert,
   Badge,
   Button,
+  Modal,
   NumberField,
   Select,
   Switch,
@@ -127,13 +128,7 @@ export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
   const anyReaction = observations?.some((o) => o.reaction_suspected) ?? false;
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Transfusion monitoring"
-      position="right"
-      size="lg"
-    >
+    <Modal opened={opened} onClose={onClose} title="Transfusion monitoring" fullScreen>
       <Stack gap="md">
         {anyReaction && (
           <Alert tone="danger" title="Reaction suspected">
@@ -282,6 +277,6 @@ export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
           </Stack>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

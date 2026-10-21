@@ -1,7 +1,6 @@
 // IPD BiowasteTab — split from infection-control.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Paper,
@@ -27,7 +26,7 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, Modal, Table } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 import { statusColorTone } from "./shared";
 
@@ -246,7 +245,7 @@ export function BiowasteTab() {
         </Paper>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Bio-waste Record" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Bio-waste Record" fullScreen>
         <Stack>
           <DepartmentSelect
             value={form.department_id}
@@ -311,7 +310,7 @@ export function BiowasteTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

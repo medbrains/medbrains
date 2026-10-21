@@ -1,13 +1,13 @@
 // INDENT StockPanel — split from indent.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Select, Stack, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { StoreStockMovement } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { indentService } from "@/services/indent.service";
 
 function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
@@ -142,13 +142,7 @@ export function StockPanel() {
         emptyTitle="No stock movements"
       />
 
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Record Stock Movement"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Record Stock Movement" fullScreen>
         <StockMovementForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["stock-movements"] });
@@ -156,7 +150,7 @@ export function StockPanel() {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

@@ -3,7 +3,7 @@ import { api } from "@medbrains/api";
 import type { DashboardWidget, WidgetTemplate } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Checkbox, Drawer, Input } from "@/components/ui";
+import { Alert, Checkbox, Input, Modal } from "@/components/ui";
 
 interface WidgetPickerProps {
   opened: boolean;
@@ -48,7 +48,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Widgets" position="right" size="md">
+    <Modal opened={opened} onClose={onClose} title="Widgets" size="md">
       <Stack gap="md">
         <Text size="sm" c="dimmed">
           Choose what your dashboard shows. Only widgets your access allows are listed.
@@ -88,7 +88,7 @@ export function WidgetPicker({ opened, onClose, widgets }: WidgetPickerProps) {
           </Stack>
         ))}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

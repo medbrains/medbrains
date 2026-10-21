@@ -1,17 +1,7 @@
 // Emergency MlcTab — split from emergency.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Card, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { MlcCaseFormInput, MlcCaseUpdateFormInput } from "@medbrains/schemas";
@@ -30,7 +20,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Alert, Button, IconButton } from "@/components/ui";
+import { Alert, Button, IconButton, Modal } from "@/components/ui";
 import {
   emergencyMlcBroughtByOptions,
   emergencyMlcCaseTypeOptions,
@@ -435,12 +425,11 @@ export function MlcTab({
         </Card>
       )}
 
-      <Drawer
+      <Modal
         opened={updateOpened}
         onClose={handleCloseUpdateCase}
         title={caseToUpdate ? `Update ${caseToUpdate.mlc_number}` : "Update MLC Case"}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleUpdateSubmit(submitMlcCaseUpdate)}>
           {caseToUpdate && (
@@ -550,10 +539,10 @@ export function MlcTab({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Create MLC Drawer */}
-      <Drawer opened={opened} onClose={close} title="Register MLC Case" position="right" size="lg">
+      <Modal opened={opened} onClose={close} title="Register MLC Case" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitMlcCase)}>
           <Controller
             name="patient_id"
@@ -704,23 +693,22 @@ export function MlcTab({
             Register MLC Case
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* MLC Detail Drawer */}
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={() => {
           closeDetail();
           setSelectedCase(null);
         }}
         title={selectedCase ? `MLC Case: ${selectedCase.mlc_number}` : "MLC Case Details"}
-        position="right"
-        size="xl"
+        fullScreen
       >
         {selectedCase && (
           <MlcCaseDetail mlcCase={selectedCase} canViewPatientRecord={canViewPatientRecord} />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 // REGULATORY AdrTab — split from regulatory.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 
 const severityColors: Record<string, BadgeTone> = {
@@ -279,13 +279,7 @@ export function AdrTab() {
       />
 
       {/* ADR Create Drawer */}
-      <Drawer
-        opened={adrOpened}
-        onClose={closeAdr}
-        title="New ADR Report"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={adrOpened} onClose={closeAdr} title="New ADR Report" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Drug Name"
@@ -364,16 +358,10 @@ export function AdrTab() {
             Submit ADR Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* MV Create Drawer */}
-      <Drawer
-        opened={mvOpened}
-        onClose={closeMv}
-        title="New Device Adverse Event"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={mvOpened} onClose={closeMv} title="New Device Adverse Event" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Device Name"
@@ -443,7 +431,7 @@ export function AdrTab() {
             Submit Device Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

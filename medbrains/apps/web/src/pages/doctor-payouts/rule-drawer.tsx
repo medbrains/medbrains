@@ -4,7 +4,7 @@ import type { PayoutRuleInput } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, Drawer, Input, Select, toast } from "@/components/ui";
+import { Alert, Button, Input, Modal, Select, toast } from "@/components/ui";
 import { doctorPayoutsService } from "@/services/doctor-payouts.service";
 import { errorText } from "./shared";
 
@@ -140,7 +140,7 @@ export function RuleDrawer({
     />
   );
   return (
-    <Drawer opened={opened} onClose={onClose} title="Add rule" position="right" size="md">
+    <Modal opened={opened} onClose={onClose} title="Add rule" size="md">
       <Stack gap="sm" component="form" onSubmit={handleSubmit((v) => add.mutate(v))}>
         {TEXT_FIELDS.map((f) => text(f.name, f.label))}
         <SimpleGrid cols={2}>
@@ -180,6 +180,6 @@ export function RuleDrawer({
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

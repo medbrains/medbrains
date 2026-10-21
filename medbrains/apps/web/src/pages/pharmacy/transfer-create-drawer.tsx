@@ -19,8 +19,8 @@ import { DrugSearchSelect } from "@/components";
 import {
   Alert,
   Button,
-  Drawer,
   IconButton,
+  Modal,
   NumberField,
   Select,
   TextArea,
@@ -146,7 +146,7 @@ export function TransferCreateDrawer({
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Raise a stock transfer" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Raise a stock transfer" fullScreen>
       <Stack gap="md">
         {storesFailed && (
           <Alert tone="danger" title="Stores could not be loaded">
@@ -300,6 +300,6 @@ export function TransferCreateDrawer({
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

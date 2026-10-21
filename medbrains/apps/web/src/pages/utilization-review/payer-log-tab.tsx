@@ -1,7 +1,7 @@
 // Utilization-review PayerLogTab — split from utilization-review.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { UrCommunicationFormInput } from "@medbrains/schemas";
@@ -15,7 +15,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import type { CreateUrCommunicationInput } from "@/services/utilizationReview.service";
 import { utilizationReviewService } from "@/services/utilizationReview.service";
 import { optionalTrimmed, statusColorTone } from "./shared";
@@ -164,13 +164,7 @@ export function PayerLogTab() {
         columns={columns}
       />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Log Payer Communication"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Log Payer Communication" fullScreen>
         <Stack component="form" gap="sm" onSubmit={submitCommunication}>
           <TextInput
             label="Review ID"
@@ -221,7 +215,7 @@ export function PayerLogTab() {
             Log Communication
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

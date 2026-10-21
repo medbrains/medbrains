@@ -1,4 +1,4 @@
-import { Drawer, Group, NumberInput, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -20,7 +20,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -453,13 +453,7 @@ export function PalliativePage() {
           </Tabs.Panel>
         )}
       </Tabs>
-      <Drawer
-        opened={dnrOpen}
-        onClose={dnrHandlers.close}
-        title="New DNR Order"
-        size="md"
-        position="right"
-      >
+      <Modal opened={dnrOpen} onClose={dnrHandlers.close} title="New DNR Order" size="md">
         <Stack>
           <PatientSearchSelect
             value={dnrForm.patient_id}
@@ -490,14 +484,8 @@ export function PalliativePage() {
             Create DNR Order
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
-        opened={painOpen}
-        onClose={painHandlers.close}
-        title="Pain Assessment"
-        size="md"
-        position="right"
-      >
+      </Modal>
+      <Modal opened={painOpen} onClose={painHandlers.close} title="Pain Assessment" size="md">
         <Stack>
           <PatientSearchSelect
             value={painForm.patient_id}
@@ -550,13 +538,12 @@ export function PalliativePage() {
             Record Assessment
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
+      </Modal>
+      <Modal
         opened={mortuaryOpen}
         onClose={mortuaryHandlers.close}
         title="New Mortuary Record"
         size="md"
-        position="right"
       >
         <Stack>
           <TextInput
@@ -609,7 +596,7 @@ export function PalliativePage() {
             Create Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

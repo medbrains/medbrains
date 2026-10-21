@@ -4,9 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Box,
   Card,
-  Drawer,
   Group,
-  Modal,
   NumberInput,
   Select,
   SimpleGrid,
@@ -33,7 +31,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import type { BadgeTone } from "@/components/ui";
-import { Alert, Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button, Modal } from "@/components/ui";
 import {
   type CreateBiowasteRecordInput,
   housekeepingService,
@@ -523,12 +521,11 @@ export function BmwTab({ canCreate }: { canCreate: boolean }) {
       </Modal>
 
       {/* Transport Manifest Drawer */}
-      <Drawer
+      <Modal
         opened={manifestDrawer}
         onClose={closeManifestDrawer}
         title="BMW Transport Manifest"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={submitManifest}>
           <Alert icon={<IconTruck size={16} />} tone="info" title="Transport Documentation">
@@ -651,7 +648,7 @@ export function BmwTab({ canCreate }: { canCreate: boolean }) {
             Save Transport Manifest
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -9,9 +9,7 @@ import {
   Button,
   Checkbox,
   Divider,
-  Drawer,
   Group,
-  Modal,
   ScrollArea,
   Select,
   Stack,
@@ -29,7 +27,7 @@ import {
   IconStack2,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "@/components/ui";
+import { Modal, toast } from "@/components/ui";
 import { orderBasketService } from "@/services/orderBasket.service";
 import { BasketItemRow } from "./BasketItemRow";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
@@ -250,7 +248,7 @@ export function OrderBasketWorkspace({
 
   return (
     <>
-      <Drawer
+      <Modal
         opened={opened}
         onClose={onClose}
         title={
@@ -266,8 +264,7 @@ export function OrderBasketWorkspace({
             )}
           </Group>
         }
-        position="right"
-        size="lg"
+        fullScreen
         padding="md"
         keepMounted={false}
       >
@@ -427,7 +424,7 @@ export function OrderBasketWorkspace({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
 
       <OrderSetPickerModal
         opened={orderSetOpen}

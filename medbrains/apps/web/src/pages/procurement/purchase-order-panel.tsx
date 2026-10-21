@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -29,7 +28,7 @@ import { useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { procurementService } from "@/services/procurement.service";
 import { colorToBadgeTone, formNumber, optionalText, requiredFormNumber } from "./shared";
@@ -594,13 +593,12 @@ export function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No purchase orders"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Create Purchase Order"
         closeButtonProps={{ "aria-label": "Close Create Purchase Order" }}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <CreatePoForm
           onSuccess={() => {
@@ -608,18 +606,17 @@ export function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title="Purchase Order Details"
         closeButtonProps={{ "aria-label": "Close Purchase Order Details" }}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detailId && <PoDetailView id={detailId} />}
-      </Drawer>
+      </Modal>
     </>
   );
 }

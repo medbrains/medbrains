@@ -1,15 +1,6 @@
 // IPD SchedulesTab — split from housekeeping.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -24,7 +15,7 @@ import { IconBug, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { housekeepingService } from "@/services/housekeeping.service";
 import { AREA_TYPES } from "./shared";
 
@@ -271,12 +262,11 @@ export function SchedulesTab({
       )}
 
       {/* Drawers */}
-      <Drawer
+      <Modal
         opened={schedDrawer}
         onClose={schedDrawerH.close}
         title="New Cleaning Schedule"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -304,14 +294,13 @@ export function SchedulesTab({
             Create Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={pestDrawer}
         onClose={pestDrawerH.close}
         title="New Pest Control Schedule"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -345,14 +334,13 @@ export function SchedulesTab({
             Create Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={pestLogDrawer}
         onClose={pestLogDrawerH.close}
         title="Record Pest Control Treatment"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -391,7 +379,7 @@ export function SchedulesTab({
             Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

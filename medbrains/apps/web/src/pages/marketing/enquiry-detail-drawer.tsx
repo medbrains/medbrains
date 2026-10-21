@@ -11,7 +11,7 @@ import { IconMail, IconMessage, IconNote, IconPhone, IconUserPlus } from "@table
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Badge, Button, Drawer, Select, toast } from "@/components/ui";
+import { Badge, Button, Modal, Select, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
 import { ConsentPanel } from "./consent-panel";
 import { ConvertLeadModal } from "./convert-lead-modal";
@@ -117,12 +117,11 @@ export function EnquiryDetailDrawer({
   });
 
   return (
-    <Drawer
+    <Modal
       opened={contact !== null}
       onClose={onClose}
       title={contact?.display_name ?? "Enquiry"}
-      position="right"
-      size="lg"
+      fullScreen
     >
       {contact && (
         <Stack gap="md">
@@ -279,6 +278,6 @@ export function EnquiryDetailDrawer({
           </Stack>
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

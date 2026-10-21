@@ -1,7 +1,7 @@
 import { Anchor, List, Loader, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Alert, Drawer, Panel } from "@/components/ui";
+import { Alert, Modal, Panel } from "@/components/ui";
 import { formatDate } from "@/lib/date-utils";
 import { abdmRecordsService } from "@/services/abdmRecords.service";
 import { HI_TYPE_LABEL } from "./abdmStatus";
@@ -23,11 +23,11 @@ export function ReceivedRecordViewer({ recordId, onClose }: Props) {
   const doc = useMemo(() => (data ? readDocument(data.bundle) : null), [data]);
 
   return (
-    <Drawer
+    <Modal
       opened={recordId !== null}
       onClose={onClose}
       title="Record from another hospital"
-      size="lg"
+      fullScreen
     >
       {isLoading && <Loader size="sm" />}
       {isError && (
@@ -84,6 +84,6 @@ export function ReceivedRecordViewer({ recordId, onClose }: Props) {
           ))}
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

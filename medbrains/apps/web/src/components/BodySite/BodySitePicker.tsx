@@ -18,8 +18,8 @@ import {
   Button,
   Chip,
   ChipGroup,
-  Drawer,
   Input,
+  Modal,
   SegmentedControl,
   Select,
 } from "@/components/ui";
@@ -197,13 +197,7 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
       : { label: regionLabel(selection.region, side), code: null, laterality: side };
 
   return (
-    <Drawer
-      opened
-      onClose={onClose}
-      title={`Pick ${title.toLowerCase()}`}
-      position="right"
-      size="xl"
-    >
+    <Modal opened onClose={onClose} title={`Pick ${title.toLowerCase()}`} fullScreen>
       <Stack gap="sm" className={classes.drawerBody}>
         <Select
           label="Find a region or structure"
@@ -292,6 +286,6 @@ function BodySiteDrawer({ title, initial, onClose, onPick }: BodySiteDrawerProps
           , via human-atlas.
         </Text>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

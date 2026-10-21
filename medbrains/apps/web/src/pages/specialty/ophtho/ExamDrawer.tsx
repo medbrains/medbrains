@@ -12,7 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DocumentActions } from "@/components/DocumentActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Button, Drawer, toast } from "@/components/ui";
+import { Alert, Button, Modal, toast } from "@/components/ui";
 import { specialtyService } from "@/services/specialty.service";
 import { ExamFields } from "./ExamFields";
 import { type ExamForm, examSchema, toForm, toWorkup } from "./exam-form";
@@ -67,12 +67,11 @@ export function ExamDrawer({ target, scope, onClose, onSaved }: ExamDrawerProps)
   const failure = save.error ?? sign.error;
 
   return (
-    <Drawer
+    <Modal
       opened={target !== null}
       onClose={onClose}
       title={exam ? "Eye exam" : "New eye exam"}
-      position="right"
-      size="xl"
+      fullScreen
     >
       <form aria-label="Eye exam" noValidate onSubmit={form.handleSubmit((v) => save.mutate(v))}>
         <Stack gap="md">
@@ -124,6 +123,6 @@ export function ExamDrawer({ target, scope, onClose, onSaved }: ExamDrawerProps)
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

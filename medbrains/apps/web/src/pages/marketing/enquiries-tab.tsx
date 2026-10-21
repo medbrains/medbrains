@@ -5,7 +5,7 @@ import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, Drawer, Select, toast } from "@/components/ui";
+import { Badge, Button, Modal, Select, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
 import { EnquiryDetailDrawer } from "./enquiry-detail-drawer";
 
@@ -176,7 +176,7 @@ export function MarketingEnquiriesTab({
         onClose={() => setSelected(null)}
       />
 
-      <Drawer opened={createOpen} onClose={createDrawer.close} title="New enquiry" position="right">
+      <Modal opened={createOpen} onClose={createDrawer.close} title="New enquiry">
         <Stack gap="sm">
           <TextInput
             label="Name"
@@ -224,7 +224,7 @@ export function MarketingEnquiriesTab({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 // Radiology OrderDetailDrawer — split from radiology.tsx (pure move).
 
-import { Drawer, Group, Stack, Switch, Tabs, Text, Textarea } from "@mantine/core";
+import { Group, Stack, Switch, Tabs, Text, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { RadiationDoseRecord } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
@@ -9,7 +9,7 @@ import { useState } from "react";
 import { DataTable, useClinicalEmit } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
 import { OrderImages } from "./OrderImages";
@@ -106,7 +106,7 @@ export function OrderDetailDrawer({
   const doseRecords = data?.dose_records ?? [];
 
   return (
-    <Drawer opened onClose={onClose} title="Order Detail" position="right" size="lg">
+    <Modal opened onClose={onClose} title="Order Detail" fullScreen>
       {order && (
         <Stack>
           <PatientContextBanner
@@ -308,7 +308,7 @@ export function OrderDetailDrawer({
           </Tabs>
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }
 

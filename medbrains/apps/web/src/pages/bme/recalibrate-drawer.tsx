@@ -9,7 +9,7 @@ import type { BmeCalibration, UpdateBmeCalibrationRequest } from "@medbrains/typ
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, Drawer, Input, Switch } from "@/components/ui";
+import { Alert, Button, Input, Modal, Switch } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 
 const recalSchema = z
@@ -68,15 +68,14 @@ export function RecalibrateDrawer({ calibration, equipmentName, onClose }: Recal
   const saved = mut.data;
 
   return (
-    <Drawer
+    <Modal
       opened={calibration !== null}
       onClose={() => {
         mut.reset();
         onClose();
       }}
       title={`Record calibration — ${equipmentName}`}
-      position="right"
-      size="lg"
+      fullScreen
     >
       <Stack
         component="form"
@@ -165,6 +164,6 @@ export function RecalibrateDrawer({ calibration, equipmentName, onClose }: Recal
           </Alert>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

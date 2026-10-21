@@ -1,6 +1,6 @@
 // IPD RoomBedTab — split from housekeeping.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -15,7 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { housekeepingService } from "@/services/housekeeping.service";
 import { AREA_TYPES } from "./shared";
 
@@ -295,13 +295,7 @@ export function RoomBedTab({
       />
 
       {/* Create Task Drawer */}
-      <Drawer
-        opened={taskDrawer}
-        onClose={taskDrawerH.close}
-        title="New Cleaning Task"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={taskDrawer} onClose={taskDrawerH.close} title="New Cleaning Task" fullScreen>
         <Stack>
           <Select
             label="Area Type"
@@ -327,15 +321,14 @@ export function RoomBedTab({
             Create Task
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Create Turnaround Drawer */}
-      <Drawer
+      <Modal
         opened={turnaroundDrawer}
         onClose={turnaroundDrawerH.close}
         title="Record Turnaround"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -351,7 +344,7 @@ export function RoomBedTab({
             Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

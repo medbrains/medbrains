@@ -3,9 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
-  Modal,
   Progress,
   Select,
   SimpleGrid,
@@ -51,7 +49,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   caseOptionalText,
   casePriorityOptions,
@@ -482,13 +480,7 @@ export function CaseBoardTab() {
       />
 
       {/* Create Drawer */}
-      <Drawer
-        opened={createOpen}
-        onClose={createHandlers.close}
-        title="Assign Case"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={createHandlers.close} title="Assign Case" fullScreen>
         <Stack component="form" onSubmit={handleCreateSubmit(submitCreateCase)}>
           <Controller
             name="admission_id"
@@ -565,16 +557,10 @@ export function CaseBoardTab() {
             Create Assignment
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Auto-Assign Drawer */}
-      <Drawer
-        opened={autoOpen}
-        onClose={autoHandlers.close}
-        title="Auto-Assign Case"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={autoOpen} onClose={autoHandlers.close} title="Auto-Assign Case" size="sm">
         <Stack component="form" onSubmit={handleAutoSubmit(submitAutoAssign)}>
           <Controller
             name="admission_id"
@@ -623,16 +609,10 @@ export function CaseBoardTab() {
             Auto-Assign
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Edit Drawer */}
-      <Drawer
-        opened={editOpen}
-        onClose={editHandlers.close}
-        title="Edit Case Assignment"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={editOpen} onClose={editHandlers.close} title="Edit Case Assignment" fullScreen>
         <Stack component="form" onSubmit={handleEditSubmit(submitUpdateCase)}>
           <Controller
             name="status"
@@ -712,7 +692,7 @@ export function CaseBoardTab() {
             Update Assignment
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Case Detail Modal with Progress Tracking */}
       <Modal

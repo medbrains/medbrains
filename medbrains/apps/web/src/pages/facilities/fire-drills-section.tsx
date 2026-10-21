@@ -1,6 +1,6 @@
 // Fire mock drills: the drill register, its print menu and the record-drill drawer.
 
-import { Drawer, Group, NumberInput, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -11,7 +11,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
 const DRILL_TYPES = [
@@ -98,13 +98,7 @@ export function FireDrillsSection({ canManage }: { canManage: boolean }) {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={drillOpen}
-        onClose={closeDrill}
-        title="Record Fire Drill"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={drillOpen} onClose={closeDrill} title="Record Fire Drill" fullScreen>
         <Stack>
           <Select
             label="Type"
@@ -184,7 +178,7 @@ export function FireDrillsSection({ canManage }: { canManage: boolean }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

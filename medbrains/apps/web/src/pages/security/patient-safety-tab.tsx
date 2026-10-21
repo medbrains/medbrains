@@ -1,7 +1,7 @@
 // Security PatientSafetyTab — split from security.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { SecurityPatientTagFormInput } from "@medbrains/schemas";
@@ -20,7 +20,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   defaultSecurityPatientTagFormValues,
   securityPatientTagFormToRequest,
@@ -313,13 +313,7 @@ export function PatientSafetyTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Activate Patient Safety Tag"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Activate Patient Safety Tag" fullScreen>
         <Stack
           component="form"
           onSubmit={tagForm.handleSubmit((values) => createTagMut.mutate(values))}
@@ -384,7 +378,7 @@ export function PatientSafetyTab() {
             Activate Tag
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

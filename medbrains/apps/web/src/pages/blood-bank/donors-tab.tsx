@@ -1,16 +1,6 @@
 // BLOOD-BANK DonorsTab — split from blood-bank.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  Paper,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Paper, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
@@ -34,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 import { CreateDonationForm } from "./CreateDonationForm";
 import { DonorDeferralModal } from "./DonorDeferralModal";
@@ -337,23 +327,16 @@ function DonorDetail({
         </Text>
       )}
 
-      <Drawer
-        opened={donateOpen}
-        onClose={closeDonate}
-        title="Record Donation"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={donateOpen} onClose={closeDonate} title="Record Donation" fullScreen>
         <CreateDonationForm onSubmit={(d) => donateMut.mutate(d)} loading={donateMut.isPending} />
-      </Drawer>
+      </Modal>
 
       <TtiResultsDrawer donation={ttiDonation} onClose={() => setTtiDonation(null)} />
 
-      <Drawer
+      <Modal
         opened={!!reactionDonation}
         onClose={() => setReactionDonation(null)}
         title="Document Adverse Reaction"
-        position="right"
         size="md"
       >
         {reactionDonation && (
@@ -368,7 +351,7 @@ function DonorDetail({
             loading={reactionMut.isPending}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -562,26 +545,19 @@ export function DonorsTab() {
       />
 
       {/* Create Donor Drawer */}
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Register Blood Donor"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Register Blood Donor" fullScreen>
         <CreateDonorForm onSubmit={(d) => createMut.mutate(d)} loading={createMut.isPending} />
-      </Drawer>
+      </Modal>
 
       {/* Donor Detail Drawer */}
-      <Drawer
+      <Modal
         opened={!!detailDonor}
         onClose={() => setDetailDonor(null)}
         title="Donor Details"
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detailDonor && <DonorDetail donor={detailDonor} onDonorChange={setDetailDonor} />}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

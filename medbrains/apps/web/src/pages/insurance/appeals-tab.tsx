@@ -1,6 +1,6 @@
 // Insurance AppealsTab — split from insurance.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateAppealRequest, PriorAuthAppeal, UpdateAppealRequest } from "@medbrains/types";
@@ -9,7 +9,7 @@ import { IconPlus, IconSend } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
 
 const appealStatusColors: Record<string, BadgeTone> = {
@@ -158,7 +158,7 @@ export function AppealsTab() {
       />
 
       {/* Create Appeal Drawer */}
-      <Drawer opened={opened} onClose={close} title="New Appeal" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New Appeal" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Prior Auth ID (denied PA)"
@@ -203,7 +203,7 @@ export function AppealsTab() {
             Create Appeal
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

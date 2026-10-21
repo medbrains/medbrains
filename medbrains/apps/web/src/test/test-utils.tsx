@@ -47,6 +47,6 @@ function customRender(ui: ReactElement, options: RenderWithRouteOptions = {}) {
   return render(ui, { wrapper: makeProviders(queryClient, initialEntries), ...rest });
 }
 
-export { customRender as render };
 export { screen, waitFor, within } from "@testing-library/react";
 export { default as userEvent } from "@testing-library/user-event";
+export { customRender as render };

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Drawer, Input, toast } from "@/components/ui";
+import { Alert, Badge, Button, Input, Modal, toast } from "@/components/ui";
 import { doctorPayoutsService } from "@/services/doctor-payouts.service";
 import { ledgerColumns } from "./ledger-tab";
 import { errorText, rupees, STATEMENT_TONE } from "./shared";
@@ -146,13 +146,7 @@ export function StatementDrawer({ statementId, onClose }: StatementDrawerProps) 
   const s = detail.data?.statement;
   const open = s && (s.status === "draft" || s.status === "disputed");
   return (
-    <Drawer
-      opened={Boolean(statementId)}
-      onClose={onClose}
-      title="Statement"
-      position="right"
-      size="xl"
-    >
+    <Modal opened={Boolean(statementId)} onClose={onClose} title="Statement" fullScreen>
       {detail.isError && (
         <Alert tone="danger" title="The statement could not be loaded">
           {errorText(detail.error)}
@@ -182,6 +176,6 @@ export function StatementDrawer({ statementId, onClose }: StatementDrawerProps) 
           {s.status === "draft" && canPrepare && <DisputeForm id={s.id} />}
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

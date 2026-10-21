@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Grid,
   Group,
   Paper,
@@ -25,7 +24,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 export function MeetingsTab() {
@@ -258,13 +257,7 @@ export function MeetingsTab() {
       )}
 
       {/* Create Meeting Drawer */}
-      <Drawer
-        opened={meetingOpened}
-        onClose={closeMeeting}
-        title="New IC Meeting"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={meetingOpened} onClose={closeMeeting} title="New IC Meeting" fullScreen>
         <Stack>
           <TextInput
             label="Meeting Date"
@@ -303,16 +296,10 @@ export function MeetingsTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Exposure Drawer */}
-      <Drawer
-        opened={exposureOpened}
-        onClose={closeExposure}
-        title="Record Exposure"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={exposureOpened} onClose={closeExposure} title="Record Exposure" fullScreen>
         <Stack>
           <Select
             label="Event Type"
@@ -373,7 +360,7 @@ export function MeetingsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,7 +1,7 @@
 // Order-sets TemplatesTab — split from order-sets.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { OrderSetTemplateFormInput } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import {
   orderSetContextOptions,
   orderSetOptionalText,
@@ -282,13 +282,7 @@ export function TemplatesTab({
 
       <DataTable columns={columns} data={templates} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Create Order Set Template"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Create Order Set Template" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitTemplate)}>
           <Controller
             name="name"
@@ -353,7 +347,7 @@ export function TemplatesTab({
             Create Template
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

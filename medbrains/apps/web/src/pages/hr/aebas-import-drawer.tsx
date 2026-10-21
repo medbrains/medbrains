@@ -5,7 +5,7 @@ import { IconUpload } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button, Drawer, Input, NumberField, toast } from "@/components/ui";
+import { Button, Input, Modal, NumberField, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 
 // The AEBAS print looks the period up by exact string, so it must be the
@@ -51,7 +51,7 @@ export function AebasImportDrawer() {
       <Button tone="secondary" leftSection={<IconUpload size={16} />} onClick={open}>
         Import AEBAS month
       </Button>
-      <Drawer opened={opened} onClose={close} title="Import AEBAS monthly summary" position="right">
+      <Modal opened={opened} onClose={close} title="Import AEBAS monthly summary">
         <Stack
           component="form"
           onSubmit={form.handleSubmit((values) => importMut.mutate(values))}
@@ -91,7 +91,7 @@ export function AebasImportDrawer() {
             Save summary
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

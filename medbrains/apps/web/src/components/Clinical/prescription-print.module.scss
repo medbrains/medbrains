@@ -1,5 +1,9 @@
+// A document is paper in every theme — its ink vanished on the dark modal.
 .printContainer {
   padding: 20px;
+  background: #fff;
+  color: #161616;
+  color-scheme: light;
 
   @media print {
     padding: 0;

@@ -2,9 +2,7 @@
 
 import {
   Checkbox,
-  Drawer,
   Group,
-  Modal,
   Select,
   Stack,
   Switch,
@@ -26,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 import { docStatusColors } from "./shared";
 
@@ -275,13 +273,7 @@ export function DocumentsTab() {
         }
       />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="New Controlled Document"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="New Controlled Document" fullScreen>
         <Stack>
           <TextInput
             label="Document Number"
@@ -331,7 +323,7 @@ export function DocumentsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       <Modal
         opened={ackModalOpened}

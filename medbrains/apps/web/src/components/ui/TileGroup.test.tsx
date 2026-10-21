@@ -2,7 +2,7 @@ import { TextInput } from "@mantine/core";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import { render, screen, userEvent } from "@/test/test-utils";
-import { type TileOption, TileGroup, tileHotkeys } from "./TileGroup";
+import { TileGroup, type TileOption, tileHotkeys } from "./TileGroup";
 
 const TILES: TileOption[] = [
   { value: "cash", label: "Cash", hint: "Tendered and change" },

@@ -1,15 +1,6 @@
 // Billing InstallmentsTab — EMI/installment payment management.
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, NumberInput, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateInstallmentRequest,
@@ -22,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { billingService } from "@/services/billing.service";
 import { InstallmentPayModal } from "./installment-pay-modal";
@@ -242,11 +233,10 @@ export function InstallmentsTab() {
         searchPlaceholder="Search by invoice"
       />
 
-      <Drawer
+      <Modal
         opened={showCreate}
         onClose={() => setShowCreate(false)}
         title="Create Installment Plan"
-        position="right"
         size="sm"
       >
         <Stack component="form" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))}>
@@ -282,14 +272,13 @@ export function InstallmentsTab() {
             Create Plan
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={!!viewId}
         onClose={() => setViewId(null)}
         title="Installment Schedule"
-        position="right"
-        size="lg"
+        fullScreen
       >
         {viewLoading ? (
           <Text size="sm" c="dimmed">
@@ -326,7 +315,7 @@ export function InstallmentsTab() {
             <DataTable columns={itemColumns} data={viewPlan.items ?? []} rowKey={(row) => row.id} />
           </Stack>
         ) : null}
-      </Drawer>
+      </Modal>
       <InstallmentPayModal
         target={payTarget}
         onClose={() => setPayTarget(null)}

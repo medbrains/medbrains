@@ -10,8 +10,8 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   Button,
-  Drawer,
   Input,
+  Modal,
   NumberField,
   SegmentedControl,
   Select,
@@ -121,7 +121,7 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
 
   const errors = formState.errors;
   return (
-    <Drawer opened={opened} onClose={onClose} title={queue ? "Edit queue" : "New queue"} size="md">
+    <Modal opened={opened} onClose={onClose} title={queue ? "Edit queue" : "New queue"} size="md">
       <form onSubmit={handleSubmit((values) => save.mutate(values))}>
         <Stack gap="md">
           <Input
@@ -392,6 +392,6 @@ export function QueueFormDrawer({ opened, onClose, queue }: QueueFormDrawerProps
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

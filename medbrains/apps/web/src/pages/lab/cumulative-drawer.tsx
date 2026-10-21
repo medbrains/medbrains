@@ -2,7 +2,7 @@ import { LineChart } from "@mantine/charts";
 import { Group, Stack, Text } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Badge, Drawer, Select } from "@/components/ui";
+import { Alert, Badge, Modal, Select } from "@/components/ui";
 import { labService } from "@/services/lab.service";
 
 /**
@@ -69,7 +69,7 @@ export function CumulativeTrendDrawer({
   const nonNumeric = series.filter((row) => !Number.isFinite(Number(row.value)));
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Trend" position="right" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Trend" fullScreen>
       <Stack gap="md">
         {isError && (
           <Alert tone="danger" title="Trend could not be loaded">
@@ -143,6 +143,6 @@ export function CumulativeTrendDrawer({
           </Text>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

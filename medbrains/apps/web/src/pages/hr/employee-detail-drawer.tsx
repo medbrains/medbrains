@@ -1,6 +1,6 @@
 // HR EmployeeDetailDrawer — split from hr.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { EmployeeCredential, LeaveBalance } from "@medbrains/types";
@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { EmployeeTrainingRecords } from "./employee-training-records";
 import { statusBadgeTone } from "./shared";
@@ -95,12 +95,11 @@ export function EmployeeDetailDrawer({
   });
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
       title={employee ? `${employee.first_name} ${employee.last_name || ""}` : "Employee"}
-      position="right"
-      size="lg"
+      fullScreen
     >
       <Group gap="md" mb="md">
         <PrintDocumentMenu idKind="employee" recordId={employee?.id} />
@@ -263,13 +262,7 @@ export function EmployeeDetailDrawer({
             ]}
           />
           {/* Add Credential sub-drawer */}
-          <Drawer
-            opened={credOpen}
-            onClose={closeCred}
-            title="Add Credential"
-            position="right"
-            size="sm"
-          >
+          <Modal opened={credOpen} onClose={closeCred} title="Add Credential" size="sm">
             <Stack gap="sm">
               <Select
                 label="Credential Type"
@@ -328,7 +321,7 @@ export function EmployeeDetailDrawer({
                 Add Credential
               </Button>
             </Stack>
-          </Drawer>
+          </Modal>
         </Tabs.Panel>
 
         <Tabs.Panel value="leave-balances">
@@ -385,7 +378,7 @@ export function EmployeeDetailDrawer({
           </Tabs.Panel>
         )}
       </Tabs>
-    </Drawer>
+    </Modal>
   );
 }
 

@@ -1,7 +1,6 @@
 // IPD MgpsTab — split from facilities.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -28,7 +27,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
 const GAS_TYPES = [
@@ -209,13 +208,7 @@ export function MgpsTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={readingOpen}
-        onClose={closeReading}
-        title="Record Gas Reading"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={readingOpen} onClose={closeReading} title="Record Gas Reading" fullScreen>
         <Stack>
           <Select
             label="Gas Type"
@@ -296,14 +289,13 @@ export function MgpsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={complianceOpen}
         onClose={closeCompliance}
         title="Add Gas Compliance"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -346,7 +338,7 @@ export function MgpsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

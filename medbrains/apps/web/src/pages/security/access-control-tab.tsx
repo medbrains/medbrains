@@ -1,17 +1,7 @@
 // Security AccessControlTab — split from security.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -33,7 +23,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   defaultSecurityAccessCardFormValues,
   defaultSecurityAccessLogFormValues,
@@ -330,13 +320,7 @@ export function AccessControlTab() {
       <DataTable columns={logColumns} data={logs} loading={logsLoading} rowKey={(r) => r.id} />
 
       {/* Zone Drawer */}
-      <Drawer
-        opened={zoneOpened}
-        onClose={closeZone}
-        title="Add Security Zone"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={zoneOpened} onClose={closeZone} title="Add Security Zone" fullScreen>
         <Stack
           component="form"
           onSubmit={zoneForm.handleSubmit((values) => createZoneMut.mutate(values))}
@@ -402,16 +386,10 @@ export function AccessControlTab() {
             Create Zone
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Card Drawer */}
-      <Drawer
-        opened={cardOpened}
-        onClose={closeCard}
-        title="Issue Access Card"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={cardOpened} onClose={closeCard} title="Issue Access Card" fullScreen>
         <Stack
           component="form"
           onSubmit={cardForm.handleSubmit((values) => createCardMut.mutate(values))}
@@ -456,16 +434,10 @@ export function AccessControlTab() {
             Issue Card
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Access Log Drawer */}
-      <Drawer
-        opened={logOpened}
-        onClose={closeLog}
-        title="Record Access Log"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={logOpened} onClose={closeLog} title="Record Access Log" fullScreen>
         <Stack
           component="form"
           onSubmit={logForm.handleSubmit((values) => createLogMut.mutate(values))}
@@ -544,7 +516,7 @@ export function AccessControlTab() {
             Record Log
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

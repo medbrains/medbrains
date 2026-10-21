@@ -1,6 +1,6 @@
 // IPD BreakdownsTab — split from bme.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Switch, Text, Textarea, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -16,7 +16,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { BREAKDOWN_PRIORITIES, fmtDate, priorityBadge } from "./shared";
 
@@ -183,7 +183,7 @@ export function BreakdownsTab() {
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Report Breakdown" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Report Breakdown" fullScreen>
         <Stack>
           <Select
             label="Equipment"
@@ -229,7 +229,7 @@ export function BreakdownsTab() {
             Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

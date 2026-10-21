@@ -1,7 +1,6 @@
 // BLOOD-BANK ReturnsAndMsbosTab — split from blood-bank.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   SegmentedControl,
@@ -23,7 +22,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 export function ReturnsAndMsbosTab() {
@@ -126,13 +125,7 @@ export function ReturnsAndMsbosTab() {
             Returns are tracked per component. Use the drawer to log a blood return.
           </Text>
 
-          <Drawer
-            opened={returnOpen}
-            onClose={closeReturn}
-            title="Create Blood Return"
-            position="right"
-            size="xl"
-          >
+          <Modal opened={returnOpen} onClose={closeReturn} title="Create Blood Return" fullScreen>
             <Stack>
               <TextInput
                 label="Component ID"
@@ -173,7 +166,7 @@ export function ReturnsAndMsbosTab() {
                 Submit Return
               </Button>
             </Stack>
-          </Drawer>
+          </Modal>
         </Stack>
       )}
 
@@ -193,13 +186,7 @@ export function ReturnsAndMsbosTab() {
             rowKey={(r) => r.id}
           />
 
-          <Drawer
-            opened={msbosOpen}
-            onClose={closeMsbos}
-            title="Add MSBOS Guideline"
-            position="right"
-            size="xl"
-          >
+          <Modal opened={msbosOpen} onClose={closeMsbos} title="Add MSBOS Guideline" fullScreen>
             <Stack>
               <TextInput
                 label="Procedure Name"
@@ -263,7 +250,7 @@ export function ReturnsAndMsbosTab() {
                 Save Guideline
               </Button>
             </Stack>
-          </Drawer>
+          </Modal>
         </Stack>
       )}
     </Stack>

@@ -1,7 +1,7 @@
 import { Group, Skeleton, Stack, Text } from "@mantine/core";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
-import { Alert, Button, Drawer } from "@/components/ui";
+import { Alert, Button, Modal } from "@/components/ui";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { CollectBody } from "./CollectBody";
 import { type CollectTarget, useCollect } from "./collect-store";
@@ -63,13 +63,13 @@ export function CollectDrawer() {
   const session = useCollect((s) => s.session);
   const close = useCollect((s) => s.close);
   return (
-    <Drawer opened={target !== null} onClose={close} title="Collect payment" size={480}>
+    <Modal opened={target !== null} onClose={close} title="Collect payment" size={480}>
       {target && (
         <Stack gap="md">
           {target.patientId && <CollectPatient patientId={target.patientId} />}
           <DuesState key={session} target={target} onClose={close} />
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

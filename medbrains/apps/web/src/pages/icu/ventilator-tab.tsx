@@ -1,7 +1,7 @@
 // IPD VentilatorTab — split from icu.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, NumberInput, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IcuVentilatorFormInput } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Modal } from "@/components/ui";
 import {
   DEFAULT_ICU_VENTILATOR_FORM_VALUES,
   ICU_VENTILATOR_MODE_OPTIONS,
@@ -159,13 +159,7 @@ export function VentilatorTab({ admissionId }: { admissionId: string }) {
         </Text>
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Record Ventilator Settings"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Record Ventilator Settings" fullScreen>
         <Stack component="form" onSubmit={handleSubmit((values) => createMut.mutate(values))}>
           <Controller
             control={control}
@@ -386,7 +380,7 @@ export function VentilatorTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

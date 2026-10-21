@@ -1,7 +1,7 @@
 // Scheduling OverbookingTab — split from scheduling.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { SchedulingOverbookingRuleFormInput } from "@medbrains/schemas";
 import { schedulingOverbookingRuleFormSchema } from "@medbrains/schemas";
@@ -18,7 +18,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { schedulingInteger, schedulingNumber } from "@/forms/scheduling.form";
 import { confirmDestructive } from "@/lib/confirm";
 import { schedulingService } from "@/services/scheduling.service";
@@ -220,7 +220,7 @@ export function OverbookingTab({ canManage }: { canManage: boolean }) {
         emptyDescription="Configure overbooking rules per doctor, department, and day"
       />
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
@@ -228,7 +228,6 @@ export function OverbookingTab({ canManage }: { canManage: boolean }) {
           reset(emptyOverbookingForm);
         }}
         title={editing ? "Edit Overbooking Rule" : "Create Overbooking Rule"}
-        position="right"
         size="md"
       >
         <Stack component="form" gap="md" onSubmit={handleSubmit(handleSave)}>
@@ -322,7 +321,7 @@ export function OverbookingTab({ canManage }: { canManage: boolean }) {
             {editing ? "Update Rule" : "Create Rule"}
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

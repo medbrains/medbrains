@@ -14,9 +14,9 @@ import {
   Badge,
   Button,
   Card,
-  Drawer,
   Image,
   Input,
+  Modal,
   NumberField,
   SegmentedControl,
   Select,
@@ -57,15 +57,14 @@ const optional = (v: string) => (v.trim() ? v.trim() : undefined);
  */
 export function OnlineOrderReview({ row, patientName, onClose }: OnlineOrderReviewProps) {
   return (
-    <Drawer
+    <Modal
       opened={row !== null}
       onClose={onClose}
       title={`Online order · ${patientName}`}
-      position="right"
-      size="lg"
+      fullScreen
     >
       {row && <ReviewForm key={row.id} row={row} onDone={onClose} />}
-    </Drawer>
+    </Modal>
   );
 }
 

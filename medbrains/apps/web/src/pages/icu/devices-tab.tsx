@@ -1,17 +1,7 @@
 // IPD DevicesTab — split from icu.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Checkbox,
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Checkbox, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IcuBundleCheckFormInput, IcuDeviceFormInput } from "@medbrains/schemas";
@@ -24,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table } from "@/components/ui";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,
@@ -202,7 +192,7 @@ export function DevicesTab({ admissionId }: { admissionId: string }) {
         </Text>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Track New Device" position="right" size="sm">
+      <Modal opened={opened} onClose={close} title="Track New Device" size="sm">
         <Stack component="form" onSubmit={handleDeviceSubmit((values) => createMut.mutate(values))}>
           <Controller
             control={deviceControl}
@@ -233,14 +223,13 @@ export function DevicesTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={bundleOpened}
         onClose={closeBundle}
         title={`Bundle Checks — ${selectedDevice ? deviceTypeLabels[selectedDevice.device_type] : ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           {bundleChecks.length > 0 && (
@@ -311,7 +300,7 @@ export function DevicesTab({ admissionId }: { admissionId: string }) {
             </Stack>
           )}
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

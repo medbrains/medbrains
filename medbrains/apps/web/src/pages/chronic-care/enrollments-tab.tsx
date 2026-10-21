@@ -1,7 +1,7 @@
 // Chronic-care EnrollmentsTab — split from chronic-care.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -16,7 +16,7 @@ import { DataTable } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { chronicCareService } from "@/services/chronicCare.service";
 import { PROGRAM_TYPES, STATUS_COLORS } from "./shared";
 
@@ -198,13 +198,7 @@ function EnrollDrawer({
   );
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={closeAndReset}
-      title="Enroll Patient"
-      position="right"
-      size="xl"
-    >
+    <Modal opened={opened} onClose={closeAndReset} title="Enroll Patient" fullScreen>
       <Stack gap="sm">
         <Controller
           control={control}
@@ -270,6 +264,6 @@ function EnrollDrawer({
           Enroll
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

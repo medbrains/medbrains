@@ -1,6 +1,6 @@
 // REGULATORY MockSurveysTab — split from regulatory.tsx (pure move).
 
-import { Drawer, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
@@ -10,7 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 import { checklistStatusColors } from "./shared";
 
@@ -141,7 +141,7 @@ export function MockSurveysTab() {
         ]}
       />
 
-      <Drawer opened={opened} onClose={close} title="New Mock Survey" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New Mock Survey" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Name"
@@ -199,7 +199,7 @@ export function MockSurveysTab() {
             Create Mock Survey
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

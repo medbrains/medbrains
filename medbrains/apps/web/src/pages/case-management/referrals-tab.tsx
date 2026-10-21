@@ -1,7 +1,7 @@
 // Case-management ReferralsTab — split from case-management.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { CaseReferralFormInput, CaseReferralUpdateFormInput } from "@medbrains/schemas";
@@ -19,7 +19,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   caseOptionalText,
   caseReferralStatusOptions,
@@ -195,13 +195,7 @@ export function ReferralsTab() {
       <DataTable columns={columns} data={referrals} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer
-        opened={createOpen}
-        onClose={createHandlers.close}
-        title="Create Referral"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={createHandlers.close} title="Create Referral" fullScreen>
         <Stack component="form" onSubmit={handleReferralSubmit(submitReferral)}>
           <Controller
             name="case_assignment_id"
@@ -256,16 +250,10 @@ export function ReferralsTab() {
             Create Referral
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Edit Drawer */}
-      <Drawer
-        opened={editOpen}
-        onClose={editHandlers.close}
-        title="Edit Referral"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={editOpen} onClose={editHandlers.close} title="Edit Referral" fullScreen>
         <Stack component="form" onSubmit={handleReferralUpdateSubmit(submitReferralUpdate)}>
           <Controller
             name="status"
@@ -292,7 +280,7 @@ export function ReferralsTab() {
             Update Referral
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

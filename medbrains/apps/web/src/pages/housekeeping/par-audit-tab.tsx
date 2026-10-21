@@ -1,6 +1,6 @@
 // IPD ParAuditTab — split from housekeeping.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Select, Stack, Text } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { LinenCondemnation, LinenParLevel, UpsertParLevelRequest } from "@medbrains/types";
@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { housekeepingService } from "@/services/housekeeping.service";
 import { LINEN_TYPES } from "./shared";
 
@@ -130,13 +130,7 @@ export function ParAuditTab({ canList, canManage }: { canList: boolean; canManag
       />
 
       {/* Par Level Drawer */}
-      <Drawer
-        opened={parDrawer}
-        onClose={parDrawerH.close}
-        title="Set Par Level"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={parDrawer} onClose={parDrawerH.close} title="Set Par Level" fullScreen>
         <Stack>
           <Select
             label="Item Type"
@@ -170,7 +164,7 @@ export function ParAuditTab({ canList, canManage }: { canList: boolean; canManag
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

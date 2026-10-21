@@ -1,17 +1,7 @@
 // PROCUREMENT VendorPanel — split from procurement.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  MultiSelect,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, MultiSelect, Select, Stack, Switch, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ProcurementVendorFormInput } from "@medbrains/schemas";
 import { procurementVendorFormSchema } from "@medbrains/schemas";
@@ -21,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { procurementService } from "@/services/procurement.service";
 import { colorToBadgeTone, optionalText } from "./shared";
@@ -268,13 +258,12 @@ export function VendorPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No vendors found"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Register New Vendor"
         closeButtonProps={{ "aria-label": "Close Register New Vendor" }}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <VendorForm
           onSuccess={() => {
@@ -282,15 +271,14 @@ export function VendorPanel({ canCreate }: { canCreate: boolean }) {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title="Vendor Details"
         closeButtonProps={{ "aria-label": "Close Vendor Details" }}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detailVendor && (
           <Stack>
@@ -326,7 +314,7 @@ export function VendorPanel({ canCreate }: { canCreate: boolean }) {
             </Text>
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

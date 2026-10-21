@@ -4,7 +4,6 @@ import { BarChart, DonutChart } from "@mantine/charts";
 import {
   Card,
   Checkbox,
-  Drawer,
   Group,
   Select,
   SimpleGrid,
@@ -30,7 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 
 export function CommitteesTab() {
@@ -377,13 +376,7 @@ export function CommitteesTab() {
       )}
 
       {/* Create Committee Drawer */}
-      <Drawer
-        opened={committeeOpened}
-        onClose={closeCommittee}
-        title="New Committee"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={committeeOpened} onClose={closeCommittee} title="New Committee" fullScreen>
         <Stack>
           <TextInput
             label="Code"
@@ -487,14 +480,13 @@ export function CommitteesTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Schedule Meeting Drawer */}
-      <Drawer
+      <Modal
         opened={meetingOpened}
         onClose={closeMeeting}
         title={`Schedule Meeting: ${selectedCommittee?.name ?? ""}`}
-        position="right"
         size="sm"
       >
         <Stack>
@@ -522,7 +514,7 @@ export function CommitteesTab() {
             Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

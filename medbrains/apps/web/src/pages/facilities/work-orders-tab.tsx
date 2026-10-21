@@ -1,7 +1,6 @@
 // IPD WorkOrdersTab — split from facilities.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -28,7 +27,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
 const WO_PRIORITIES = [
@@ -269,13 +268,7 @@ export function WorkOrdersTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Create Work Order"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Create Work Order" fullScreen>
         <Stack>
           <Select
             label="Category"
@@ -308,14 +301,13 @@ export function WorkOrdersTab() {
             Submit
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={statusOpen}
         onClose={closeStatus}
         title={`Update WO: ${selectedWo?.work_order_number ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           {canManage && (
@@ -388,15 +380,9 @@ export function WorkOrdersTab() {
             Update
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={pmOpen}
-        onClose={closePm}
-        title="Schedule Preventive Maintenance"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={pmOpen} onClose={closePm} title="Schedule Preventive Maintenance" fullScreen>
         <Stack>
           <TextInput
             label="Equipment IDs (comma-separated)"
@@ -438,7 +424,7 @@ export function WorkOrdersTab() {
             Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 // HR AttendanceTab — split from hr.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { AttendanceRecord } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
@@ -10,7 +10,7 @@ import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { describePunch } from "@/components/Nurse/shiftLocation";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button, Switch, toast } from "@/components/ui";
+import { Badge, Button, Modal, Switch, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { AebasImportDrawer } from "./aebas-import-drawer";
 
@@ -186,13 +186,7 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
         ]}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Mark Attendance"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Mark Attendance" fullScreen>
         <Stack gap="sm">
           <EmployeeSearchSelect
             value={form.employee_id}
@@ -248,7 +242,7 @@ export function AttendanceTab({ canManage }: { canManage: boolean }) {
             Record Attendance
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

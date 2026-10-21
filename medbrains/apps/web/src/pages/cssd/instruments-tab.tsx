@@ -1,16 +1,7 @@
 // CSSD InstrumentsTab — split from cssd.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { CssdInstrumentFormInput, CssdSetFormInput } from "@medbrains/schemas";
@@ -27,7 +18,7 @@ import { IconPackage, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import {
   cssdInstrumentCategoryOptions,
   cssdOptionalInteger,
@@ -212,13 +203,7 @@ export function InstrumentsTab() {
         </>
       )}
 
-      <Drawer
-        opened={instrOpened}
-        onClose={closeInstr}
-        title="Add Instrument"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={instrOpened} onClose={closeInstr} title="Add Instrument" size="sm">
         <Stack component="form" onSubmit={handleInstrSubmit(submitInstrument)}>
           <Controller
             name="barcode"
@@ -283,15 +268,9 @@ export function InstrumentsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={setOpened}
-        onClose={closeSet}
-        title="Create Instrument Set"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={setOpened} onClose={closeSet} title="Create Instrument Set" size="sm">
         <Stack component="form" onSubmit={handleSetSubmit(submitSet)}>
           <Controller
             name="set_code"
@@ -325,7 +304,7 @@ export function InstrumentsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

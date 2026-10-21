@@ -1,10 +1,10 @@
-import { Drawer, Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
+import { Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { IconButton } from "@/components/ui";
+import { IconButton, Modal } from "@/components/ui";
 import { useWhispers } from "@/hooks/useWhispers";
 import { AiChatPanel } from "./AiChatPanel";
 import styles from "./ai-assistant-mount.module.scss";
@@ -145,10 +145,9 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
           </UnstyledButton>
         </Tooltip>
       )}
-      <Drawer
+      <Modal
         opened={isOpen}
         onClose={close}
-        position="right"
         size={440}
         withCloseButton={false}
         padding={0}
@@ -162,7 +161,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
           suggestions={suggestions}
           headerAction={headerAction}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

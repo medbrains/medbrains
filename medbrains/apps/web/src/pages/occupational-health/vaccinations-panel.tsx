@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   SimpleGrid,
@@ -28,7 +27,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 
 export function VaccinationsPanel() {
@@ -162,11 +161,10 @@ export function VaccinationsPanel() {
       <DataTable columns={columns} data={vaccinations} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="Record Vaccination"
-        position="right"
         size="md"
       >
         <Stack>
@@ -249,7 +247,7 @@ export function VaccinationsPanel() {
             Save Vaccination
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

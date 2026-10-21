@@ -1,5 +1,4 @@
 import {
-  Drawer,
   Group,
   JsonInput,
   NumberInput,
@@ -35,7 +34,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button, Modal } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 import { DialyzerPicker } from "./dialysis/dialyzer-picker";
@@ -500,12 +499,11 @@ export function OtherSpecialtiesPage() {
           <DataTable columns={radCols} data={radiation} loading={false} rowKey={(r) => r.id} />
         </Tabs.Panel>
       </Tabs>
-      <Drawer
+      <Modal
         opened={tmplOpen}
         onClose={tmplHandlers.close}
         title="New Specialty Template"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -556,14 +554,8 @@ export function OtherSpecialtiesPage() {
             Create Template
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
-        opened={recOpen}
-        onClose={recHandlers.close}
-        title="New Specialty Record"
-        size="lg"
-        position="right"
-      >
+      </Modal>
+      <Modal opened={recOpen} onClose={recHandlers.close} title="New Specialty Record" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={recForm.patient_id}
@@ -608,14 +600,8 @@ export function OtherSpecialtiesPage() {
             Create Record
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
-        opened={dialOpen}
-        onClose={dialHandlers.close}
-        title="New Dialysis Session"
-        size="lg"
-        position="right"
-      >
+      </Modal>
+      <Modal opened={dialOpen} onClose={dialHandlers.close} title="New Dialysis Session" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={dialForm.patient_id}
@@ -682,14 +668,8 @@ export function OtherSpecialtiesPage() {
             Start Session
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
-        opened={chemoOpen}
-        onClose={chemoHandlers.close}
-        title="New Chemo Protocol"
-        size="lg"
-        position="right"
-      >
+      </Modal>
+      <Modal opened={chemoOpen} onClose={chemoHandlers.close} title="New Chemo Protocol" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={chemoForm.patient_id}
@@ -782,13 +762,12 @@ export function OtherSpecialtiesPage() {
             Create Protocol
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
+      </Modal>
+      <Modal
         opened={stagingOpen}
         onClose={stagingHandlers.close}
         title="New cancer staging"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <PatientSearchSelect
@@ -857,14 +836,8 @@ export function OtherSpecialtiesPage() {
             Save staging
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
-        opened={radOpen}
-        onClose={radHandlers.close}
-        title="New radiation session"
-        size="lg"
-        position="right"
-      >
+      </Modal>
+      <Modal opened={radOpen} onClose={radHandlers.close} title="New radiation session" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={radForm.patient_id}
@@ -923,7 +896,7 @@ export function OtherSpecialtiesPage() {
             Save session
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

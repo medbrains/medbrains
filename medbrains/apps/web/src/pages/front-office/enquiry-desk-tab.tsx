@@ -1,7 +1,7 @@
 // IPD EnquiryDeskTab — split from front-office.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { FrontOfficeEnquiryLog } from "@medbrains/types";
@@ -9,7 +9,7 @@ import { IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Modal } from "@/components/ui";
 import type { FrontOfficeEnquiryFormInput } from "@/forms/front-office.form";
 import {
   DEFAULT_ENQUIRY_FORM_VALUES,
@@ -136,13 +136,7 @@ export function EnquiryDeskTab({
         rowKey={(r: FrontOfficeEnquiryLog) => r.id}
       />
 
-      <Drawer
-        opened={drawer}
-        onClose={drawerHandlers.close}
-        title="Log Enquiry"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={drawer} onClose={drawerHandlers.close} title="Log Enquiry" fullScreen>
         <Stack
           component="form"
           gap="sm"
@@ -181,7 +175,7 @@ export function EnquiryDeskTab({
             Log Enquiry
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

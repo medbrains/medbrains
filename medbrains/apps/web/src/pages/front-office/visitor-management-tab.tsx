@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -29,7 +28,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { VisitorPassPrintModal } from "@/components/FrontOffice/VisitorPassPrintModal";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Modal } from "@/components/ui";
 import type {
   FrontOfficeVisitorFormInput,
   FrontOfficeVisitorPassFormInput,
@@ -311,12 +310,11 @@ export function VisitorManagementTab({
       )}
 
       {/* Register Visitor Drawer */}
-      <Drawer
+      <Modal
         opened={visitorDrawer}
         onClose={visitorDrawerHandlers.close}
         title="Register Visitor"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack
           component="form"
@@ -380,14 +378,13 @@ export function VisitorManagementTab({
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Issue Pass Drawer */}
-      <Drawer
+      <Modal
         opened={passDrawer}
         onClose={passDrawerHandlers.close}
         title="Issue Visitor Pass"
-        position="right"
         size="sm"
       >
         <Stack
@@ -421,7 +418,7 @@ export function VisitorManagementTab({
             Issue Pass
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

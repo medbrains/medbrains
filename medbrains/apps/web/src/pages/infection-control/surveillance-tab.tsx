@@ -1,15 +1,6 @@
 // IPD SurveillanceTab — split from infection-control.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  SegmentedControl,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, SegmentedControl, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -20,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 import { statusColorTone } from "./shared";
 
@@ -214,7 +205,7 @@ export function SurveillanceTab() {
         />
       )}
 
-      <Drawer opened={opened} onClose={close} title="Report HAI Event" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Report HAI Event" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={form.patient_id}
@@ -257,7 +248,7 @@ export function SurveillanceTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

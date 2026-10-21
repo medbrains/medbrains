@@ -1,7 +1,7 @@
 // Ambulance DriversTab — split from ambulance.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -17,7 +17,7 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import {
   ambulanceLicenseTypeOptions,
   ambulanceOptionalText,
@@ -155,7 +155,7 @@ export function DriversTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Add Driver" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Add Driver" fullScreen>
         <Stack
           component="form"
           onSubmit={handleSubmit((values) =>
@@ -270,7 +270,7 @@ export function DriversTab() {
             Add Driver
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

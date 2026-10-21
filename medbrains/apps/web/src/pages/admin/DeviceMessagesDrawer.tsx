@@ -6,7 +6,7 @@
 import { Stack, Text } from "@mantine/core";
 import type { DeviceMessage } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge, type BadgeTone, Drawer, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Modal, Table } from "@/components/ui";
 import { adminDevicesService } from "@/services/adminDevices.service";
 
 interface DeviceMessagesDrawerProps {
@@ -43,12 +43,11 @@ export function DeviceMessagesDrawer({ device, onClose }: DeviceMessagesDrawerPr
     enabled: device !== null,
   });
   return (
-    <Drawer
+    <Modal
       opened={device !== null}
       onClose={onClose}
       title={device ? `Messages — ${device.name}` : "Messages"}
-      position="right"
-      size="xl"
+      fullScreen
     >
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
@@ -102,6 +101,6 @@ export function DeviceMessagesDrawer({ device, onClose }: DeviceMessagesDrawerPr
           </Table>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

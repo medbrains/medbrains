@@ -13,7 +13,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, Drawer, Input, TextArea, toast } from "@/components/ui";
+import { Badge, Button, Input, Modal, TextArea, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 import { ExamDrawer } from "./dental/ExamDrawer";
@@ -111,7 +111,7 @@ export function DentalPage() {
         emptyTitle="No dental exams yet."
       />
 
-      <Drawer opened={opened} onClose={close} title="New dental exam" position="right" size="md">
+      <Modal opened={opened} onClose={close} title="New dental exam" size="md">
         <form onSubmit={handleSubmit((v) => createExam.mutate(v))}>
           <Stack gap="sm">
             <Controller
@@ -139,7 +139,7 @@ export function DentalPage() {
             </Group>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
 
       <ExamDrawer exam={detailExam} onClose={() => setDetailExam(null)} />
     </Stack>

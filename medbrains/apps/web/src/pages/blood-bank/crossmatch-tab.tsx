@@ -1,6 +1,6 @@
 // BLOOD-BANK CrossmatchTab — split from blood-bank.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Select, Stack, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateCrossmatchRequestBody, CrossmatchRequest } from "@medbrains/types";
@@ -11,7 +11,7 @@ import { useState } from "react";
 import { DataTable, StatusDot } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 const crossmatchStatusColors: Record<string, string> = {
@@ -227,15 +227,9 @@ export function CrossmatchTab() {
         onPageChange={setPage}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="New Crossmatch Request"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="New Crossmatch Request" fullScreen>
         <CreateCrossmatchForm onSubmit={(d) => createMut.mutate(d)} loading={createMut.isPending} />
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

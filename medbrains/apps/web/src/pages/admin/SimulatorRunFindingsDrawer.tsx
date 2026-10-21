@@ -2,7 +2,7 @@ import { Card, Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { SimulatorRunFinding, SimulatorRunSummary } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, type BadgeTone, Drawer, Panel, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Modal, Panel, Table } from "@/components/ui";
 
 const SEV_TONE: Record<SimulatorRunFinding["severity"], BadgeTone> = {
   info: "neutral",
@@ -128,7 +128,7 @@ export function SimulatorRunFindingsDrawer({
   });
 
   return (
-    <Drawer opened={runId !== null} onClose={onClose} title="Run detail" size="lg">
+    <Modal opened={runId !== null} onClose={onClose} title="Run detail" fullScreen>
       {data ? (
         <Stack>
           <ConfidenceScore summary={data.run.summary} />
@@ -203,6 +203,6 @@ export function SimulatorRunFindingsDrawer({
       ) : (
         <Text c="dimmed">Loading…</Text>
       )}
-    </Drawer>
+    </Modal>
   );
 }

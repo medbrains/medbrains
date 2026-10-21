@@ -10,9 +10,9 @@ import {
   Alert,
   Button,
   Card,
-  Drawer,
   IconButton,
   Input,
+  Modal,
   MultiSelect,
   Select,
   toast,
@@ -118,7 +118,7 @@ export function QueueCountersDrawer({ queue, onClose }: QueueCountersDrawerProps
   });
 
   return (
-    <Drawer opened={open} onClose={onClose} title={`Counters — ${queue?.name ?? ""}`} size="lg">
+    <Modal opened={open} onClose={onClose} title={`Counters — ${queue?.name ?? ""}`} fullScreen>
       <form onSubmit={handleSubmit((values) => save.mutate(values))}>
         <Stack gap="md">
           <Text size="sm">
@@ -225,6 +225,6 @@ export function QueueCountersDrawer({ queue, onClose }: QueueCountersDrawerProps
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

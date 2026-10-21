@@ -1,7 +1,6 @@
 // HR EmployeesTab — split from hr.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   PasswordInput,
@@ -18,7 +17,7 @@ import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { EmployeeDetailDrawer } from "./employee-detail-drawer";
 import { statusBadgeTone } from "./shared";
@@ -252,13 +251,7 @@ export function EmployeesTab({
       />
 
       {/* Create Employee Drawer */}
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Add Employee"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Add Employee" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Employee Code"
@@ -355,16 +348,10 @@ export function EmployeesTab({
             Create Employee
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Designation Drawer */}
-      <Drawer
-        opened={desigOpen}
-        onClose={closeDesig}
-        title="Add Designation"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={desigOpen} onClose={closeDesig} title="Add Designation" size="sm">
         <Stack gap="sm">
           <TextInput
             label="Code"
@@ -402,7 +389,7 @@ export function EmployeesTab({
             Create Designation
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Employee Detail Drawer */}
       {detailId && (

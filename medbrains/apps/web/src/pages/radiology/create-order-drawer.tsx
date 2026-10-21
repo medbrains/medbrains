@@ -1,7 +1,7 @@
 // Radiology CreateOrderDrawer — split from radiology.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Checkbox, Drawer, Select, Stack, Switch, Textarea } from "@mantine/core";
+import { Checkbox, Select, Stack, Switch, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { RadiologyOrderFormInput } from "@medbrains/schemas";
 import { radiologyOrderFormSchema } from "@medbrains/schemas";
@@ -16,7 +16,7 @@ import { ConsentGateNotice } from "@/components/Consent/ConsentGateNotice";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { RadiologyExamSelect } from "@/components/RadiologyExamSelect";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Modal } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useConsentGate } from "@/hooks/useConsentGate";
 import { examOrderDefaults } from "@/lib/radiology-exams";
@@ -159,13 +159,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
   };
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="New Radiology Order"
-      position="right"
-      size="xl"
-    >
+    <Modal opened={opened} onClose={onClose} title="New Radiology Order" fullScreen>
       <Stack component="form" onSubmit={handleSubmit(handleCreateOrder)}>
         <Controller
           control={control}
@@ -339,7 +333,7 @@ export function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClos
           Create Order
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

@@ -1,7 +1,7 @@
 // Scheduling WaitlistTab — split from scheduling.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import type { SchedulingWaitlistFormInput } from "@medbrains/schemas";
@@ -20,7 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   schedulingOptionalText,
   schedulingPriorityOptions,
@@ -312,13 +312,7 @@ export function WaitlistTab({
       />
 
       {/* Create Drawer */}
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Add to Waitlist"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Add to Waitlist" fullScreen>
         <Stack component="form" gap="md" onSubmit={handleSubmit(handleCreate)}>
           <Controller
             name="patient_id"
@@ -392,16 +386,10 @@ export function WaitlistTab({
             Create Entry
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Offer Slot Drawer */}
-      <Drawer
-        opened={offerOpened}
-        onClose={closeOffer}
-        title="Offer Slot"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={offerOpened} onClose={closeOffer} title="Offer Slot" size="sm">
         <Stack gap="md">
           <Text size="sm" c="dimmed">
             Patient: {offerTarget?.patient_id ? truncateId(offerTarget.patient_id) : "—"}
@@ -416,7 +404,7 @@ export function WaitlistTab({
             Offer Slot
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

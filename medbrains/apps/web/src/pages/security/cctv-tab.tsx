@@ -1,7 +1,7 @@
 // Security CctvTab — split from security.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { SecurityCameraFormInput } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import {
   defaultSecurityCameraFormValues,
   securityCameraFormToRequest,
@@ -108,7 +108,7 @@ export function CctvTab() {
       )}
       <DataTable columns={columns} data={cameras} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer opened={opened} onClose={close} title="Add Camera" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Add Camera" fullScreen>
         <Stack
           component="form"
           onSubmit={cameraForm.handleSubmit((values) => createMut.mutate(values))}
@@ -184,7 +184,7 @@ export function CctvTab() {
             Add Camera
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,7 +1,6 @@
 // IPD StewardshipTab — split from infection-control.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Paper,
@@ -24,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, Table } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 const requestStatusColors: Record<string, BadgeTone> = {
@@ -348,13 +347,7 @@ export function StewardshipTab() {
         </Paper>
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Antibiotic Stewardship Request"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Antibiotic Stewardship Request" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={form.patient_id}
@@ -397,12 +390,11 @@ export function StewardshipTab() {
             Submit
           </Button>
         </Stack>
-      </Drawer>
-      <Drawer
+      </Modal>
+      <Modal
         opened={timeoutId !== null}
         onClose={() => setTimeoutId(null)}
         title="Antibiotic time-out review (48-72h)"
-        position="right"
       >
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
@@ -434,7 +426,7 @@ export function StewardshipTab() {
             Record decision
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,6 +1,6 @@
 // Consent SignaturesTab — split from consent.tsx (pure move).
 
-import { Drawer, Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { ConsentSignatureMetadata, CreateConsentSignatureRequest } from "@medbrains/types";
@@ -10,7 +10,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { consentService } from "@/services/consent.service";
 
@@ -151,9 +151,9 @@ export function SignaturesTab({ canManage }: { canManage: boolean }) {
         )}
       </Group>
       <DataTable columns={columns} data={signatures} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Record Signature" position="right" size="lg">
+      <Modal opened={opened} onClose={close} title="Record Signature" fullScreen>
         <SignatureForm onSubmit={(vals) => createMut.mutate(vals)} loading={createMut.isPending} />
-      </Drawer>
+      </Modal>
       <Modal
         opened={!!detailSig}
         onClose={() => setDetailSig(null)}

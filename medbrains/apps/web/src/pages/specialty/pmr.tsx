@@ -1,4 +1,4 @@
-import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Tabs, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
@@ -18,7 +18,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
@@ -267,12 +267,11 @@ export function PmrPage() {
           <DataTable columns={audioCols} data={audioTests} loading={false} rowKey={(r) => r.id} />
         </Tabs.Panel>
       </Tabs>
-      <Drawer
+      <Modal
         opened={planOpen}
         onClose={planHandlers.close}
         title="New Rehabilitation Plan"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <PatientSearchSelect
@@ -322,14 +321,13 @@ export function PmrPage() {
             Create Plan
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={sessionOpen}
         onClose={sessionHandlers.close}
         title="Record rehabilitation session"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <NumberInput
@@ -386,7 +384,7 @@ export function PmrPage() {
             Save session
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </div>
   );
 }

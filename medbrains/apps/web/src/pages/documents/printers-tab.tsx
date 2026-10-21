@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   MultiSelect,
   Select,
@@ -22,7 +21,7 @@ import { IconPlus, IconSettings } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { documentsService } from "@/services/documents.service";
 import {
   CONNECTION_TYPES,
@@ -267,13 +266,7 @@ export function PrintersTab() {
         />
       </Stack>
 
-      <Drawer
-        opened={drawerOpened}
-        onClose={closeDrawer}
-        title="Add Printer Profile"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={drawerOpened} onClose={closeDrawer} title="Add Printer Profile" fullScreen>
         <Stack component="form" gap="sm" onSubmit={onSubmit}>
           <TextInput
             label="Printer name"
@@ -380,7 +373,7 @@ export function PrintersTab() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

@@ -1,16 +1,7 @@
 // PROCUREMENT RateContractPanel — split from procurement.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ProcurementRateContractFormInput } from "@medbrains/schemas";
 import { procurementRateContractFormSchema } from "@medbrains/schemas";
@@ -19,7 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Button, IconButton, toast } from "@/components/ui";
+import { Button, IconButton, Modal, toast } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { procurementService } from "@/services/procurement.service";
 import { formNumber, optionalText, requiredFormNumber } from "./shared";
@@ -230,13 +221,12 @@ export function RateContractPanel({ canManage }: { canManage: boolean }) {
         emptyTitle="No rate contracts"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Create Rate Contract"
         closeButtonProps={{ "aria-label": "Close Create Rate Contract" }}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <CreateRcForm
           onSuccess={() => {
@@ -244,7 +234,7 @@ export function RateContractPanel({ canManage }: { canManage: boolean }) {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

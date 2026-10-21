@@ -1,4 +1,4 @@
-import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import type { AccessLogEntry, AccessLogQuery } from "@medbrains/types";
@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Button } from "@/components/ui";
+import { Button, Modal } from "@/components/ui";
 import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -248,13 +248,7 @@ export function AccessLogTab() {
       />
 
       {/* Patient Access Drill-Down Drawer */}
-      <Drawer
-        opened={drawerOpened}
-        onClose={closeDrawer}
-        title="Patient Access Log"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={drawerOpened} onClose={closeDrawer} title="Patient Access Log" fullScreen>
         <Stack gap="md">
           <Text size="sm" c="dimmed">
             Patient ID: {selectedPatientId ?? "-"}
@@ -268,7 +262,7 @@ export function AccessLogTab() {
             emptyDescription="No one has accessed this patient record yet."
           />
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

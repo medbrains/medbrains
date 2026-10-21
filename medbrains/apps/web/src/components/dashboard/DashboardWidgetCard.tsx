@@ -6,7 +6,7 @@ import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { NotesBoardWidget } from "@/components/notes/NotesBoardWidget";
-import { Button, Drawer, IconButton, Tooltip } from "@/components/ui";
+import { Button, IconButton, Modal, Tooltip } from "@/components/ui";
 import { AbdmDashboardWidget } from "./AbdmDashboardWidget";
 import { KpiCompareMenu } from "./KpiCompareMenu";
 import { KpiDepartmentMenu } from "./KpiDepartmentMenu";
@@ -129,7 +129,7 @@ export function DashboardWidgetCard(props: Props) {
         onCompareChange={setCompare}
         onExpand={canExpand ? () => setExpanded(true) : undefined}
       />
-      <Drawer opened={expanded} onClose={() => setExpanded(false)} title={widget.title} size="xl">
+      <Modal opened={expanded} onClose={() => setExpanded(false)} title={widget.title} fullScreen>
         {expanded && (
           <Tabs defaultValue="details" keepMounted={false}>
             <Tabs.List mb="md">
@@ -151,7 +151,7 @@ export function DashboardWidgetCard(props: Props) {
             </Tabs.Panel>
           </Tabs>
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

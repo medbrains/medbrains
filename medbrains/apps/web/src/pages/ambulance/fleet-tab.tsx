@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -30,7 +29,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   ambulanceFuelTypeOptions,
   ambulanceOptionalInteger,
@@ -272,14 +271,13 @@ export function FleetTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
           setEditing(null);
         }}
         title={editing ? "Edit Ambulance" : "Add Ambulance"}
-        position="right"
         size="md"
       >
         <Stack component="form" onSubmit={handleSubmit(submitFleet)}>
@@ -406,7 +404,7 @@ export function FleetTab() {
             {editing ? "Update" : "Create"}
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

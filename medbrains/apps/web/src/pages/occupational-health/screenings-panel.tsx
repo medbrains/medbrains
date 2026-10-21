@@ -4,9 +4,7 @@ import {
   Card,
   Checkbox,
   CheckboxGroup,
-  Drawer,
   Group,
-  Modal,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -35,7 +33,7 @@ import { useMemo, useState } from "react";
 import { BloodPressureInput, DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 import { FITNESS_STATUS_COLORS, SCREENING_TYPES, statusColorTone } from "./shared";
 
@@ -379,11 +377,10 @@ export function ScreeningsPanel() {
       )}
 
       {/* Create Drawer */}
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="New Health Screening"
-        position="right"
         size="md"
       >
         <Stack>
@@ -536,16 +533,10 @@ export function ScreeningsPanel() {
             Create Screening
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Edit Drawer */}
-      <Drawer
-        opened={editOpen}
-        onClose={editHandlers.close}
-        title="Update Screening"
-        position="right"
-        size="md"
-      >
+      <Modal opened={editOpen} onClose={editHandlers.close} title="Update Screening" size="md">
         <Stack>
           <Select
             label="Fitness Status"
@@ -574,7 +565,7 @@ export function ScreeningsPanel() {
             Update Screening
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Fitness Certificate Modal */}
       <Modal

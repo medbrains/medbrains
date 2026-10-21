@@ -1,6 +1,6 @@
 // Insurance VerificationTab — split from insurance.tsx (pure move).
 
-import { Drawer, Grid, Group, Paper, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Grid, Group, Paper, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type { InsuranceVerification, RunVerificationRequest } from "@medbrains/types";
@@ -12,7 +12,7 @@ import { DataTable, PageHeader } from "@/components";
 import { NhcxEligibilityCard } from "@/components/Nhcx/NhcxEligibilityCard";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
 import { canViewSensitiveField } from "./shared";
 
@@ -148,7 +148,7 @@ export function VerificationTab() {
       />
 
       {/* Run Verification Drawer */}
-      <Drawer opened={opened} onClose={close} title="Run Verification" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Run Verification" fullScreen>
         <Stack gap="sm">
           <PatientSearchSelect
             value={form.patient_id}
@@ -177,15 +177,14 @@ export function VerificationTab() {
             />
           )}
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Detail Drawer */}
-      <Drawer
+      <Modal
         opened={!!detailId}
         onClose={() => setDetailId(null)}
         title="Verification Details"
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detail && (
           <Stack gap="sm">
@@ -293,7 +292,7 @@ export function VerificationTab() {
             />
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

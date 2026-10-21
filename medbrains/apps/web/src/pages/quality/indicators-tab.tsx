@@ -3,7 +3,6 @@
 import { LineChart } from "@mantine/charts";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -36,7 +35,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 
 const INDICATOR_CATEGORIES = [
@@ -449,13 +448,7 @@ export function IndicatorsTab() {
         </Card>
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="New Quality Indicator"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="New Quality Indicator" fullScreen>
         <Stack>
           <TextInput
             label="Code"
@@ -561,13 +554,12 @@ export function IndicatorsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={recordOpened}
         onClose={closeRecord}
         title={`Record Value: ${selectedIndicator?.name ?? ""}`}
-        position="right"
         size="sm"
       >
         <Stack>
@@ -618,7 +610,7 @@ export function IndicatorsTab() {
             Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

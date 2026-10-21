@@ -1,7 +1,7 @@
 // Ambulance TripsTab — split from ambulance.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { AmbulanceTripFormInput } from "@medbrains/schemas";
@@ -21,7 +21,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   ambulanceOptionalText,
   ambulanceTripPriorityOptions,
@@ -297,13 +297,7 @@ export function TripsTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Book Ambulance Trip"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Book Ambulance Trip" fullScreen>
         <Stack
           component="form"
           onSubmit={handleSubmit((values) =>
@@ -413,7 +407,7 @@ export function TripsTab() {
             Book Trip
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

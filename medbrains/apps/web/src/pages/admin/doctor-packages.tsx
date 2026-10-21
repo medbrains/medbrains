@@ -4,7 +4,6 @@
  */
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -25,7 +24,7 @@ import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientPackagesService } from "@/services/patientPackages.service";
 
@@ -234,7 +233,7 @@ function CreatePackageDrawer({
   const [validityDays, setValidityDays] = useState<number | string>(365);
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New doctor package" position="right" size="md">
+    <Modal opened={opened} onClose={onClose} title="New doctor package" size="md">
       <Stack gap="sm">
         <TextInput
           label="Code"
@@ -284,7 +283,7 @@ function CreatePackageDrawer({
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -318,12 +317,11 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
   });
 
   return (
-    <Drawer
+    <Modal
       opened
       onClose={onClose}
       title={detail ? `${detail.name} — inclusions` : "Inclusions"}
-      position="right"
-      size="lg"
+      fullScreen
     >
       <Stack gap="md">
         <Card padding="sm" withBorder>
@@ -414,6 +412,6 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
           )}
         </Stack>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

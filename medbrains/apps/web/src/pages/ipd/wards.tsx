@@ -1,6 +1,6 @@
 // IPD WardsTab — split from ipd.tsx (pure move).
 
-import { Checkbox, Drawer, Group, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { Checkbox, Group, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateWardRequest, UpdateWardRequest, WardListRow } from "@medbrains/types";
@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import { IpTypeConfigSection } from "./ip-type-config";
 import { WardBedsPanel } from "./ward-beds-panel";
@@ -37,7 +37,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Ward" position="right" size="xl">
+    <Modal opened={opened} onClose={onClose} title="New Ward" fullScreen>
       <Stack>
         <TextInput
           label="Code"
@@ -84,7 +84,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
           Create Ward
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -106,13 +106,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
   if (!ward) return null;
 
   return (
-    <Drawer
-      opened={!!ward}
-      onClose={onClose}
-      title={`Edit Ward: ${ward.code}`}
-      position="right"
-      size="xl"
-    >
+    <Modal opened={!!ward} onClose={onClose} title={`Edit Ward: ${ward.code}`} fullScreen>
       <Stack>
         <TextInput label="Name" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <Select
@@ -151,7 +145,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
           Save Changes
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -249,15 +243,14 @@ export function WardsTab() {
       <CreateWardDrawer opened={createOpened} onClose={closeCreate} />
       <EditWardDrawer ward={editWard} onClose={() => setEditWard(null)} />
 
-      <Drawer
+      <Modal
         opened={!!selectedWardId}
         onClose={() => setSelectedWardId(null)}
         title="Ward Beds"
-        position="right"
-        size="lg"
+        fullScreen
       >
         {selectedWardId && <WardBedsPanel wardId={selectedWardId} canManage={canManage} />}
-      </Drawer>
+      </Modal>
 
       {canManage && <IpTypeConfigSection />}
     </Stack>

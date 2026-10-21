@@ -7,7 +7,7 @@ import { ExternalLink, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
 import { BlogSection } from "@/components/HealthPulse/BlogSection";
-import { Badge, Button, Drawer, Input, Select } from "@/components/ui";
+import { Badge, Button, Input, Modal, Select } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./health-pulse.module.scss";
 
@@ -213,13 +213,7 @@ export function HealthPulsePage() {
         </Box>
       )}
 
-      <Drawer
-        opened={Boolean(openId)}
-        onClose={() => setOpenId(null)}
-        position="right"
-        size="lg"
-        title="Article"
-      >
+      <Modal opened={Boolean(openId)} onClose={() => setOpenId(null)} fullScreen title="Article">
         {article && (
           <Stack gap="sm">
             <Group gap="xs">
@@ -242,7 +236,7 @@ export function HealthPulsePage() {
             </Button>
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Box>
   );
 }

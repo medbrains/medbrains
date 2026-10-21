@@ -11,7 +11,7 @@ import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Drawer, IconButton, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 import { ChecklistItemModal, type CriterionAssessment } from "./checklist-item-modal";
 import { CRITERION_STATUSES, checklistStatusColors } from "./shared";
@@ -93,12 +93,11 @@ export function ChecklistDetailDrawer({ checklistId, onClose }: ChecklistDetailD
 
   const c = checklist.data;
   return (
-    <Drawer
+    <Modal
       opened={Boolean(checklistId)}
       onClose={onClose}
       title={c?.name ?? "Checklist"}
-      position="right"
-      size="xl"
+      fullScreen
     >
       <Stack gap="md">
         {c && (
@@ -232,6 +231,6 @@ export function ChecklistDetailDrawer({ checklistId, onClose }: ChecklistDetailD
         onSave={(values) => editing && assess.mutate({ itemId: editing.item.id, values })}
         onClose={() => setEditing(null)}
       />
-    </Drawer>
+    </Modal>
   );
 }

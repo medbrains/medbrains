@@ -9,8 +9,8 @@ import { useNavigate } from "react-router";
 import {
   Alert,
   Button,
-  Drawer,
   Input,
+  Modal,
   SegmentedControl,
   Select,
   TextArea,
@@ -61,20 +61,14 @@ function ArrangeDeliveryDrawer({ orderId, opened, onClose }: ArrangeDeliveryDraw
     enabled: opened,
   });
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Arrange home delivery"
-      position="right"
-      size="md"
-    >
+    <Modal opened={opened} onClose={onClose} title="Arrange home delivery" size="md">
       {isError && (
         <Alert tone="danger" title="Delivery options could not be loaded">
           Try again in a moment.
         </Alert>
       )}
       {options && <ArrangeForm orderId={orderId} options={options} onDone={onClose} />}
-    </Drawer>
+    </Modal>
   );
 }
 

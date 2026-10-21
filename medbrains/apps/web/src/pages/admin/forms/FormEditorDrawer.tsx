@@ -5,7 +5,7 @@ import { type FormDefinition, type FormTemplateDetail, P } from "@medbrains/type
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { QueryError } from "@/components/QueryError";
-import { Alert, Button, Drawer, Input, toast } from "@/components/ui";
+import { Alert, Button, Input, Modal, toast } from "@/components/ui";
 import { FormPreview } from "./FormPreview";
 import { SectionEditor } from "./SectionEditor";
 import { VersionList } from "./VersionList";
@@ -27,16 +27,15 @@ export function FormEditorDrawer({ templateId, onClose }: FormEditorDrawerProps)
     enabled: templateId !== null,
   });
   return (
-    <Drawer
+    <Modal
       opened={templateId !== null}
       onClose={onClose}
-      position="right"
-      size="100%"
+      fullScreen
       title={detail.data?.template.name ?? "Form"}
     >
       {detail.isError && <QueryError error={detail.error} onRetry={() => void detail.refetch()} />}
       {detail.data && <FormEditor key={detail.data.template.updated_at} detail={detail.data} />}
-    </Drawer>
+    </Modal>
   );
 }
 

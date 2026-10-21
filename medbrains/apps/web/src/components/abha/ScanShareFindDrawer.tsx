@@ -3,7 +3,7 @@ import { useHasAnyPermission } from "@medbrains/stores";
 import { type AbdmProfileShare, P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button, Drawer, Table } from "@/components/ui";
+import { Alert, Badge, Button, Modal, Table } from "@/components/ui";
 import { patientsService } from "@/services/patients.service";
 import {
   likelyDuplicates,
@@ -49,9 +49,9 @@ export function ScanShareFindDrawer({
   onRegister,
 }: ScanShareFindDrawerProps) {
   return (
-    <Drawer opened={target !== null} onClose={onClose} title="Find existing patient" size="lg">
+    <Modal opened={target !== null} onClose={onClose} title="Find existing patient" fullScreen>
       {target && <FindBody target={target} onPick={onPick} onRegister={onRegister} />}
-    </Drawer>
+    </Modal>
   );
 }
 

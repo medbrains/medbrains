@@ -1,7 +1,6 @@
 // HR LeaveTab — split from hr.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -20,7 +19,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { LEAVE_TYPE_OPTIONS } from "./leave-options";
 
@@ -242,13 +241,7 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
         ]}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Apply Leave"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Apply Leave" fullScreen>
         <Stack gap="sm">
           {canManage ? (
             <EmployeeSearchSelect
@@ -307,7 +300,7 @@ export function LeaveTab({ canCreate, canApprove, canManage }: LeaveTabProps) {
             Submit Leave
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

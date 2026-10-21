@@ -1,6 +1,6 @@
 // Billing ClaimDetailDrawer — split from billing.tsx (pure move).
 
-import { Card, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { InsuranceClaim } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -11,7 +11,7 @@ import { NhcxClaimPayments } from "@/components/Nhcx/NhcxClaimPayments";
 import { NhcxEligibilityCard } from "@/components/Nhcx/NhcxEligibilityCard";
 import { NhcxExchangeCard } from "@/components/Nhcx/NhcxExchangeCard";
 import { NhcxSetupAlert } from "@/components/Nhcx/NhcxSetupAlert";
-import { Alert, Badge, Table } from "@/components/ui";
+import { Alert, Badge, Modal, Table } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 
@@ -39,11 +39,10 @@ export function ClaimDetailDrawer({
   // Without the view permission the status is unknown; the server still refuses.
   const nhcxReady = !canView || nhcxStatus?.ready === true;
   return (
-    <Drawer
+    <Modal
       opened={!!claim}
       onClose={onClose}
-      position="right"
-      size="xl"
+      fullScreen
       title={
         claim ? (
           <Group gap="xs">
@@ -155,6 +154,6 @@ export function ClaimDetailDrawer({
           )}
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

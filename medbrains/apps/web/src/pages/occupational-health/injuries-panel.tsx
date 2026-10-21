@@ -1,7 +1,6 @@
 // IPD InjuriesPanel — split from occupational-health.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -27,7 +26,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 import { statusColorTone } from "./shared";
 
@@ -213,11 +212,10 @@ export function InjuriesPanel() {
       <DataTable columns={columns} data={injuries} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="Report Workplace Injury"
-        position="right"
         size="md"
       >
         <Stack>
@@ -277,14 +275,13 @@ export function InjuriesPanel() {
             Submit Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Edit / RTW Drawer */}
-      <Drawer
+      <Modal
         opened={editOpen}
         onClose={editHandlers.close}
         title="Manage Injury & Return-to-Work"
-        position="right"
         size="md"
       >
         <Stack>
@@ -369,7 +366,7 @@ export function InjuriesPanel() {
             Update Injury Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

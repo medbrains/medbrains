@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -24,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { communicationsService } from "@/services/communications.service";
 import { optionalText, requiredText } from "./shared";
@@ -190,13 +189,7 @@ export function DltTab() {
       )}
       <DataTable columns={cols} data={rows} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Register DLT Template"
-        position="right"
-        size="md"
-      >
+      <Modal opened={opened} onClose={close} title="Register DLT Template" size="md">
         <Stack>
           <TextInput
             label="DLT Template ID"
@@ -323,7 +316,7 @@ export function DltTab() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

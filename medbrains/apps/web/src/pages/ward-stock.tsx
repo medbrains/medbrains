@@ -10,7 +10,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { Badge, Button, Drawer, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
 
@@ -188,7 +188,7 @@ export function WardStockPage() {
         <Text c="dimmed">Select a ward to view its par stock.</Text>
       )}
 
-      <Drawer opened={parOpen} onClose={parHandlers.close} title="Set par level">
+      <Modal opened={parOpen} onClose={parHandlers.close} title="Set par level">
         <Stack gap="sm">
           <DrugSearchSelect value={drugId} onChange={(id) => setDrugId(id)} />
           <NumberInput
@@ -205,9 +205,9 @@ export function WardStockPage() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer opened={consumeOpen} onClose={consumeHandlers.close} title="Consume ward stock">
+      <Modal opened={consumeOpen} onClose={consumeHandlers.close} title="Consume ward stock">
         {consumeRow && (
           <Stack gap="sm">
             <Text size="sm">
@@ -225,7 +225,7 @@ export function WardStockPage() {
             </Button>
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -1,7 +1,6 @@
 // QUALITY AuditsTab — split from quality.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   MultiSelect,
   Select,
@@ -26,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { qualityService } from "@/services/quality.service";
 import { auditStatusColors, statusColorTone } from "./shared";
@@ -241,12 +240,11 @@ export function AuditsTab() {
       />
 
       {/* Create Audit Drawer */}
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title={form.audit_type === "mock" ? "Schedule Mock Inspection" : "New Audit"}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -286,15 +284,14 @@ export function AuditsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Audit Detail Drawer */}
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title={`Audit: ${selectedAudit?.audit_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {selectedAudit && (
           <Stack>
@@ -439,16 +436,10 @@ export function AuditsTab() {
             )}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
 
       {/* Schedule Audits Drawer */}
-      <Drawer
-        opened={scheduleOpened}
-        onClose={closeSchedule}
-        title="Schedule Audits"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={scheduleOpened} onClose={closeSchedule} title="Schedule Audits" fullScreen>
         <Stack>
           <MultiSelect
             label="Departments"
@@ -490,15 +481,14 @@ export function AuditsTab() {
             Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Add Finding Drawer */}
-      <Drawer
+      <Modal
         opened={findingOpened}
         onClose={closeFinding}
         title={`Add Finding: ${selectedAudit?.audit_number ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -539,7 +529,7 @@ export function AuditsTab() {
             Add Finding
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

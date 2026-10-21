@@ -1,16 +1,7 @@
 // Billing AdvancesTab — split from billing.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type {
   BillingAdvanceAdjustmentFormInput,
   BillingAdvanceFormInput,
@@ -37,7 +28,7 @@ import { DataTable } from "@/components";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingNumberOrFallback,
@@ -381,11 +372,10 @@ export function AdvancesTab() {
         exportFileName="patient-advances"
       />
 
-      <Drawer
+      <Modal
         opened={adjustId !== null}
         onClose={() => setAdjustId(null)}
         title="Adjust Advance Against Invoice"
-        position="right"
         size="sm"
       >
         <Stack component="form" onSubmit={handleSubmitAdjustment(handleAdjustAdvance)}>
@@ -419,13 +409,12 @@ export function AdvancesTab() {
             Apply Adjustment
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={refundId !== null}
         onClose={() => setRefundId(null)}
         title="Refund Advance"
-        position="right"
         size="sm"
       >
         <Stack component="form" onSubmit={handleSubmitAdvanceRefund(handleRefundAdvance)}>
@@ -472,7 +461,7 @@ export function AdvancesTab() {
             Process Refund
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

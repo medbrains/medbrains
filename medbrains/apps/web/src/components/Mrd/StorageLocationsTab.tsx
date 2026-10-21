@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, SimpleGrid, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { MrdStorageCreateInput } from "@medbrains/schemas";
@@ -21,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 
 const STORAGE_DEFAULTS: MrdStorageCreateInput = {
@@ -156,13 +147,7 @@ export function StorageLocationsTab() {
         emptyDescription="Add MRD compactors, racks, shelves, or bins before filing printed case sheets."
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Add MRD Storage Location"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Add MRD Storage Location" fullScreen>
         <Stack>
           <Group grow>
             <Controller
@@ -309,7 +294,7 @@ export function StorageLocationsTab() {
             Create Location
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

@@ -2,7 +2,6 @@
 
 import {
   Checkbox,
-  Drawer,
   Group,
   JsonInput,
   NumberInput,
@@ -27,7 +26,7 @@ import { IconPencil, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { documentsService } from "@/services/documents.service";
 import { PRINT_FORMATS, TEMPLATE_CATEGORIES } from "./shared";
@@ -382,12 +381,11 @@ export function TemplatesTab() {
         <DataTable columns={columns} data={filtered} loading={isLoading} rowKey={(r) => r.id} />
       </Stack>
 
-      <Drawer
+      <Modal
         opened={drawerOpened}
         onClose={closeDrawer}
         title={editingTemplate ? "Edit Template" : "Create Template"}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack gap="sm">
           {!editingTemplate && (
@@ -584,7 +582,7 @@ export function TemplatesTab() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

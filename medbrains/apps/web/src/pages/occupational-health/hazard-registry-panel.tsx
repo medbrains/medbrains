@@ -1,6 +1,6 @@
 // IPD HazardRegistryPanel — split from occupational-health.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -12,7 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 import { statusColorTone } from "./shared";
 
@@ -133,11 +133,10 @@ export function HazardRegistryPanel() {
         emptyDescription="Add workplace hazards to build a comprehensive registry"
       />
 
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="Register Workplace Hazard"
-        position="right"
         size="md"
       >
         <Stack gap="md">
@@ -194,7 +193,7 @@ export function HazardRegistryPanel() {
             Register Hazard
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

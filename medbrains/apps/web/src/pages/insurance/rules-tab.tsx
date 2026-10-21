@@ -1,15 +1,6 @@
 // Insurance RulesTab — split from insurance.tsx (pure move).
 
-import {
-  Drawer,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { NumberInput, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePaRuleRequest, PaRequirementRule } from "@medbrains/types";
@@ -18,7 +9,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
 
 export function RulesTab() {
@@ -138,13 +129,7 @@ export function RulesTab() {
       />
 
       {/* Create Rule Drawer */}
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Add PA Requirement Rule"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Add PA Requirement Rule" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Rule Name"
@@ -224,7 +209,7 @@ export function RulesTab() {
             Create Rule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
