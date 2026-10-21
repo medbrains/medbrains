@@ -11,6 +11,9 @@ sources:
     url: "https://www.who.int/news-room/fact-sheets/detail/climate-change-heat-and-health"
   - title: "National Centre for Disease Control"
     url: "https://ncdc.mohfw.gov.in/"
+cover:
+  src: ./images/heat.png
+  alt: "A soft 3D illustration of a smiling sun beside a water bottle, a glass of iced water, a thermometer, a sun umbrella and a first-aid kit"
 ---
 
 Heat stroke happens when the body can no longer cool itself. It can damage the

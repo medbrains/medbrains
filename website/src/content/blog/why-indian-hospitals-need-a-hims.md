@@ -70,6 +70,9 @@ faq:
     a: "Sometimes. ICMR guidelines let an ethics committee waive consent for retrospective studies where participants are de-identified or cannot be contacted, and the risk is less than minimal (ICMR, 2017). The decision belongs to the ethics committee, not the hospital or the vendor."
   - q: "How does the DPDP Act affect hospital software?"
     a: "Hospitals hold personal data and must give clear notice, take consent where required, keep reasonable security safeguards and report breaches. Penalties for failing to keep safeguards go up to Rs 250 crore (PIB, 2025). Software should make these duties easy to meet and to prove."
+cover:
+  src: ./images/hims.png
+  alt: "A soft 3D illustration of a hospital building linked to floating cards for heart rhythm, medicines, reports, records and lab tests, showing one connected hospital system"
 ---
 
 *The scene below is illustrative. It is a composite, not a real patient or hospital.*

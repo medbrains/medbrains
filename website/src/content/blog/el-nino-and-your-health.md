@@ -15,6 +15,9 @@ sources:
     url: "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue"
   - title: "WHO — Drinking-water"
     url: "https://www.who.int/news-room/fact-sheets/detail/drinking-water"
+cover:
+  src: ./images/elnino.png
+  alt: "A soft 3D illustration of the globe wrapped by a warm ocean current, with a rain cloud, the sun, a mosquito, a water drop and a heart"
 ---
 
 El Niño is a warming of the surface of the central and eastern Pacific Ocean. It
