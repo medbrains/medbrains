@@ -1,0 +1,28 @@
+MedBrains
+Copyright (C) 2026 Domnic Amalan and MedBrains contributors.
+Licensed under the GNU Affero General Public License v3.0 (see LICENSE).
+
+This product includes vendored third-party source code, kept under
+medbrains/vendor/ and wired in through [patch.crates-io] in
+medbrains/Cargo.toml. Each directory keeps its upstream licence files.
+
+pingora-core 0.8.0
+  Copyright Cloudflare, Inc.
+  Licensed under the Apache License, Version 2.0
+  (medbrains/vendor/pingora-core-0.8.0/LICENSE).
+  Modified by MedBrains: Cargo.toml (dependencies trimmed),
+  src/server/daemon.rs (daemonisation removed) and src/upstreams/peer.rs.
+
+sqlx 0.8.6
+  Copyright LaunchBadge, LLC and the SQLx contributors.
+  Licensed under the MIT License or the Apache License, Version 2.0, at your
+  option (medbrains/vendor/sqlx-0.8.6/LICENSE-MIT, LICENSE-APACHE).
+  Modified by MedBrains: Cargo.toml only.
+
+sqlx-macros-core 0.8.6
+  Copyright LaunchBadge, LLC and the SQLx contributors.
+  Licensed under the MIT License or the Apache License, Version 2.0, at your
+  option (medbrains/vendor/sqlx-macros-core-0.8.6/LICENSE-MIT, LICENSE-APACHE).
+  Modified by MedBrains: Cargo.toml only.
+
+Reference data shipped with MedBrains is listed in THIRD_PARTY_NOTICES.md.
