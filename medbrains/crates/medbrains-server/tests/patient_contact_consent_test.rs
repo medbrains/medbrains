@@ -4,7 +4,7 @@
 //! WhatsApp and email need the patient's own yes (DPDP Act 2023, WhatsApp
 //! business policy) and a record of who took it; nothing asked before.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

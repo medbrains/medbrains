@@ -10,7 +10,7 @@
 //! the user's role is irrelevant to it, and this database has no active
 //! nurse account to roster.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

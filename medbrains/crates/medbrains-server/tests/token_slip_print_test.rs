@@ -10,7 +10,7 @@
 //! same wait for the same queue. Paper outlives the screen it was printed from,
 //! so a slip that disagrees with the board is worse than one that says nothing.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

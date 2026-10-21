@@ -4,7 +4,7 @@
 //! page not on any hospital's own domain are "not found", so the sign-in page
 //! asks for the code.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

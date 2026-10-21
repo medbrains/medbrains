@@ -3,7 +3,7 @@
 //! waits in the prescriber's sign-offs, and their approval issues it. Nobody
 //! asks for a refill of another patient's prescription.
 
-mod common;
+use crate::common;
 
 use chrono::{Duration, Utc};
 use reqwest::StatusCode;

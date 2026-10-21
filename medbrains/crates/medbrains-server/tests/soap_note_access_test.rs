@@ -4,7 +4,7 @@
 //! reads a colleague's as withheld rather than blank, and cannot export a
 //! sheet with it missing. Other doctors are unaffected.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

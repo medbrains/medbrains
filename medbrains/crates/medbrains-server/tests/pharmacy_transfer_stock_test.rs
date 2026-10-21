@@ -2,7 +2,7 @@
 //! what the dispatch takes — pharmacy batches, first expiry first — and the
 //! receiving pharmacy gets the same batches. Expired stock never travels.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

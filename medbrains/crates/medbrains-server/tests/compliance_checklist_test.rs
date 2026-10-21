@@ -4,7 +4,7 @@
 //! The next period starts from the same criteria, unassessed; a criterion
 //! entered by mistake can be removed and the score follows.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

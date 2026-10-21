@@ -3,7 +3,7 @@
 //! closed day takes no new drawer, the cashier who closes it cannot reopen
 //! it, and a supervisor's reopen lets it be counted and closed again.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, Method, StatusCode};
 use serde_json::{Value, json};

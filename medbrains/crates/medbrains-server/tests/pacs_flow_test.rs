@@ -6,7 +6,7 @@
 //! http://127.0.0.1:8042). Without it the test has nothing to talk to and
 //! returns early rather than fail on infrastructure.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

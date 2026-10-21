@@ -8,10 +8,9 @@
 //! due; the message carrying the real URL; a desk without the lane refused;
 //! a provider without links answering 422.
 
-mod collect_world;
-mod common;
-mod online_world;
-mod payments_world;
+use crate::collect_world;
+use crate::common;
+use crate::online_world;
 
 use std::sync::Arc;
 

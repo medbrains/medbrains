@@ -11,8 +11,8 @@
 //! again — when the bank statement shows the transfer. A payment other than
 //! the approved amount is flagged, and one naming no claim waits for finance.
 
-mod common;
-mod nhcx_support;
+use crate::common;
+use crate::nhcx_support;
 
 use axum::http::StatusCode;
 use base64::Engine;

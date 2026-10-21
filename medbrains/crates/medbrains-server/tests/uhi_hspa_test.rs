@@ -6,8 +6,8 @@
 //! and their answer reaches the app; blood search tells counts, never
 //! donors; each staff screen needs its permission.
 
-mod common;
-mod uhi_world;
+use crate::common;
+use crate::uhi_world;
 
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};

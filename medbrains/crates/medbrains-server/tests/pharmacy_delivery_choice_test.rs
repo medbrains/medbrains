@@ -5,8 +5,8 @@
 //! Each patient follows only their own deliveries, and only they see the
 //! code to hand the runner.
 
-mod common;
-mod delivery_choice_world;
+use crate::common;
+use crate::delivery_choice_world;
 
 use delivery_choice_world::{
     WEBHOOK_SECRET, approve, choice, delivery_of, drug, earn_cash_on_delivery, make_payment_link,

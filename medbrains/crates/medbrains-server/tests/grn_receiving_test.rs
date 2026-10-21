@@ -3,8 +3,7 @@
 //! trace, one supplier invoice is entered once, and a bill that does not add
 //! up — or carries a near-expiry batch, or MRP below rate — is refused.
 
-mod common;
-mod grn_world;
+use crate::grn_world;
 
 use grn_world::{user, world};
 use reqwest::StatusCode;

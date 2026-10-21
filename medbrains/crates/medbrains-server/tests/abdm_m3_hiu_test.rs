@@ -6,8 +6,8 @@
 //! bundles that are kept and notified; a bad checksum is refused; revocation
 //! hides and erases; a forged JWT is 401; staff without the permissions 403.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
+use crate::common;
 
 use abdm_hip_world::{
     hiu::{DOCTOR, consult, granted, header, hiu_callback, push, raise, received, with_hpr},

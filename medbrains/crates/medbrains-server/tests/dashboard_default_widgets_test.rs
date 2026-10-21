@@ -2,7 +2,7 @@
 //! resolve through the batch resolver — they were seeded with an `api` source
 //! nothing resolved, and every tenant saw them as "unavailable".
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

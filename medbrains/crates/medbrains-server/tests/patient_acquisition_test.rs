@@ -3,7 +3,7 @@
 //! report is what marketing spend is judged on, so a correction must move
 //! the count — a patient the desk mis-tagged is not the campaign's.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

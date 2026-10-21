@@ -3,7 +3,7 @@
 //! deleted patient still came up in patient search, and a deleted invoice
 //! still counted towards what a patient owed.
 
-mod common;
+use crate::common;
 
 use serde_json::Value;
 use uuid::Uuid;

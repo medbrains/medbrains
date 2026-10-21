@@ -2,7 +2,7 @@
 //! its baselines and its series are that department's alone. A KPI that has
 //! no department — new patients — says so, and is not narrowed.
 
-mod common;
+use crate::common;
 
 use chrono::{Duration, NaiveDate};
 use reqwest::StatusCode;

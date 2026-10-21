@@ -6,7 +6,7 @@
 //! not an order-list right; a missing device answers 404; and security
 //! incidents live in one register.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, RequestBuilder, StatusCode};
 use serde_json::{Value, json};

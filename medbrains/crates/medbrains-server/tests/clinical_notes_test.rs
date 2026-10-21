@@ -2,7 +2,7 @@
 //! within the grace period (the signed version kept), added to after it;
 //! marked in error, never removed (RFC-MODULE-clinical-notes, phase 1).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

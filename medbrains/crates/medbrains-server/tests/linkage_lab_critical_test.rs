@@ -6,7 +6,7 @@
 //! — a phone the SMS handler will accept, delivered once however many times
 //! the event arrives, and not at all when the doctor has no phone.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

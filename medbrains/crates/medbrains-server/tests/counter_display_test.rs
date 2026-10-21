@@ -1,7 +1,7 @@
 //! The customer display at a counter (#4883): a paired screen bound to one
 //! counter shows the payment in progress there and nothing else.
 
-mod common;
+use crate::common;
 
 use futures::StreamExt;
 use reqwest::StatusCode;

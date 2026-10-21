@@ -4,7 +4,7 @@
 //! MRP, and the balance. A deleted line is not on the bill. Its QR resolves,
 //! by number and code, to a public check that names no patient.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

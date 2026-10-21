@@ -1,7 +1,7 @@
 //! A body site picked on the anatomy model is kept as a code and a side,
 //! next to the words a chart prints.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

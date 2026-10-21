@@ -5,9 +5,9 @@
 //! completes the record into a registration, and the orders stay with it.
 //! At the counter, an H1 sale names the patient or is refused.
 
-mod common;
-mod delivery_choice_world;
-mod storefront_world;
+use crate::common;
+use crate::delivery_choice_world;
+use crate::storefront_world;
 
 use delivery_choice_world::{new_patient, setup, staff};
 use reqwest::StatusCode;

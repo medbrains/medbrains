@@ -4,7 +4,7 @@
 //! chain, a notice whose clock does not apply is refused, and only
 //! `security.breach.manage` may do any of it.
 
-mod common;
+use crate::common;
 
 use chrono::{DateTime, Duration, Utc};
 use reqwest::{Client, RequestBuilder, StatusCode};

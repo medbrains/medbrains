@@ -3,7 +3,7 @@
 //! when it completes, and the patient sees the call — with its link — on the
 //! portal until it ends.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

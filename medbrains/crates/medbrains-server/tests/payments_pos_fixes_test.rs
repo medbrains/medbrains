@@ -7,9 +7,9 @@
 //! the machine took posts exactly once, as the mode it was paid by, and an
 //! answer nobody understands is never read as "no money taken".
 
-mod common;
-mod payments_world;
-mod pos_world;
+use crate::common;
+use crate::payments_world;
+use crate::pos_world;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

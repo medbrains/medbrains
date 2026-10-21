@@ -5,6 +5,8 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
+# One integration-test binary (tests/main.rs) instead of one per file.
+autotests = false
 
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
@@ -199,3 +201,7 @@ aws-secrets = ["dep:aws-sdk-secretsmanager"]
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"

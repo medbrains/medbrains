@@ -2,7 +2,7 @@
 //! finding recorded in error is removed but kept, and a procedure is billed
 //! to the visit once — when it is done, never when it is cancelled.
 
-mod common;
+use crate::common;
 
 use reqwest::{Method, StatusCode};
 use serde_json::{Value, json};

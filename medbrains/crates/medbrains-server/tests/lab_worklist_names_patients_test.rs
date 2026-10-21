@@ -3,7 +3,7 @@
 //! worklist that looked names up record by record read "Unresolved patient"
 //! — a sample nobody could match to a person. The list carries the identity.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

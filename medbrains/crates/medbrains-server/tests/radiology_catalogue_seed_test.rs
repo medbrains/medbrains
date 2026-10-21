@@ -1,7 +1,7 @@
 //! Every hospital can order imaging from its first day: the default radiology
 //! modalities and exams arrive with the tenant row, whichever path creates it.
 
-mod common;
+use crate::common;
 
 use uuid::Uuid;
 

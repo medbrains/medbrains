@@ -3,7 +3,7 @@
 //! payer answers and as the patient pays. And the billing gates match the act:
 //! taking an instalment is a payment; setting an exchange rate is its own grant.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

@@ -1,7 +1,7 @@
 //! Injuries on a medico-legal case: site picked on the body, type, size and
 //! the doctor's opinion of their nature — appended, never edited.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

@@ -2,7 +2,7 @@
 //! no row is refused (403), a database fault is unknown (503) — never a free
 //! module and never "unlicensed" — and an edition module with no row is on.
 
-mod common;
+use crate::common;
 
 use axum::http::StatusCode;
 use axum::response::IntoResponse;

@@ -2,7 +2,7 @@
 //! (a mismatch is refused, alerted and audited), and an infant tag leaving
 //! its zone or tampered with raises one Code Pink — not one per reader ping.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

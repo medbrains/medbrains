@@ -1,7 +1,7 @@
 //! Handoff access: a department reaches a patient when work for that patient
 //! reaches it, and not before.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

@@ -1,7 +1,7 @@
 //! The audit trail is evidence: a refused request and a failed sign-in are on
 //! it with the caller's address, and nothing on it can be edited or removed.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::json;

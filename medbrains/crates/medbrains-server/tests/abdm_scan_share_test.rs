@@ -2,8 +2,8 @@
 //! share, a verified ABHA matches its patient, a new patient is registered
 //! from a share, unattended shares expire on read, and the permissions.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
+use crate::common;
 
 use abdm_hip_world::{
     scan_share::{body, counter, new_abha, post, rows, share},

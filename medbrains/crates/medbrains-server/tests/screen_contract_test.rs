@@ -2,7 +2,7 @@
 //! tabs crashing for every role: the server answered a different shape from
 //! the one the screen read.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

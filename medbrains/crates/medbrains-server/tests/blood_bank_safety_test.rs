@@ -8,7 +8,7 @@
 //! holder of the override, with a reason, on the audit log. IPSG-1: the
 //! wristband is checked against the unit's patient before it is hung.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, Method, StatusCode};
 use serde_json::{Value, json};

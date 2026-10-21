@@ -4,10 +4,9 @@
 //! One test, because it changes the hospital's lane settings: run serially,
 //! it restores them before it asserts, so a failure leaves nothing behind.
 
-mod collect_world;
-mod common;
-mod payments_world;
-mod pos_world;
+use crate::collect_world;
+use crate::payments_world;
+use crate::pos_world;
 
 use axum::http::StatusCode;
 use rust_decimal::Decimal;

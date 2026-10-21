@@ -5,7 +5,7 @@
 //! prescribed only with an indication, which raises a stewardship request; the
 //! pharmacy approves and dispenses it only while that request is approved.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

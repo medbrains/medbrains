@@ -3,7 +3,7 @@
 //! month; re-running is harmless; and the daily job skips months a table
 //! already covers under another name instead of failing.
 
-mod common;
+use crate::common;
 
 use uuid::Uuid;
 

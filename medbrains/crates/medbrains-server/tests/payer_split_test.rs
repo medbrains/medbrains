@@ -3,7 +3,7 @@
 //! only with a reason, the split is written onto the claim, and a settled
 //! claim's split no longer moves.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

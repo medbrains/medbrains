@@ -4,7 +4,7 @@
 //! What must not change is who gets called: `seq` still orders every board, so
 //! sharing the displayed number is the only behaviour these tests allow to move.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use uuid::Uuid;

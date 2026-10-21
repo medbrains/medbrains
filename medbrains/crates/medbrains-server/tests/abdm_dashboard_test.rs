@@ -4,8 +4,8 @@
 //! Share and failed links — and the same DHIS figures on the sharing summary,
 //! because both read one definition. Staff without the permission get 403.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
+use crate::common;
 
 use abdm_hip_world::{World, world};
 use serde_json::{Value, json};

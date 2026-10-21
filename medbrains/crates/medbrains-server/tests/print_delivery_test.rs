@@ -3,7 +3,7 @@
 //! identifiers, and reporting it printed completes the job and counts the
 //! print; a printer that cannot carry a document is refused up front.
 
-mod common;
+use crate::common;
 
 use base64::Engine;
 use serde_json::{Value, json};

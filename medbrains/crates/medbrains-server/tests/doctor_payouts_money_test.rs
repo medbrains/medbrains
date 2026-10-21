@@ -2,8 +2,7 @@
 //! approval, TDS on the year's aggregate per PAN, the cash warning, and
 //! accrual on money taken through the collect desk.
 
-mod common;
-mod doctor_payouts_world;
+use crate::doctor_payouts_world;
 
 use doctor_payouts_world::{SERIAL, d, fixed, pan, pay_cash, percent, tag, world};
 use reqwest::StatusCode;

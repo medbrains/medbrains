@@ -5,7 +5,7 @@
 //! guard treated the refusal as "off", and copying was never restricted for
 //! the staff it exists for. `/auth/me`, which every user loads, carries it.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 

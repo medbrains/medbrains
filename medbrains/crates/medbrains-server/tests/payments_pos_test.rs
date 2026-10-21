@@ -6,9 +6,8 @@
 //! approval, never on a decline, a timeout or a cancel, and an offline
 //! machine is refused before anything is charged.
 
-mod common;
-mod payments_world;
-mod pos_world;
+use crate::common;
+use crate::pos_world;
 
 use std::sync::Arc;
 

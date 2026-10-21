@@ -1,7 +1,7 @@
 //! Configured queues (RFCs/modules/RFC-MODULE-token-queues.md, P1a,
 //! scenarios 1, 3, 4 and 5).
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

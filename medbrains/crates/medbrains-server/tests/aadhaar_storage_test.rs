@@ -1,7 +1,7 @@
 //! An Aadhaar number entered at registration or in HR is never stored whole,
 //! and the registration fingerprint is not the guessable plain hash.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

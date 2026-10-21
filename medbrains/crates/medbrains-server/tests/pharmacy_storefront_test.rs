@@ -5,9 +5,9 @@
 //! moves only at dispense. Each patient sees only their own orders, and
 //! only a pharmacist with the permission verifies.
 
-mod common;
-mod delivery_choice_world;
-mod storefront_world;
+use crate::common;
+use crate::delivery_choice_world;
+use crate::storefront_world;
 
 use delivery_choice_world::{new_patient, patient_token, prescription, setup, staff};
 use reqwest::StatusCode;

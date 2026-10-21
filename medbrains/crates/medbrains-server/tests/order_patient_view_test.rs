@@ -3,7 +3,7 @@
 //! order's `patient->view` arrow — and nobody else may, and reading is all
 //! the arrow grants.
 
-mod common;
+use crate::common;
 
 use medbrains_authz::{AuthzBackend, AuthzContext, Relation, backend_pg::PgAuthzBackend};
 use reqwest::{Client, StatusCode};

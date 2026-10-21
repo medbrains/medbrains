@@ -3,8 +3,7 @@
 //! inline content is fetched — but never at a private or local address;
 //! and ABDM's answers that arrive before our call returns find their row.
 
-mod abdm_hip_world;
-mod common;
+use crate::abdm_hip_world;
 
 use abdm_hip_world::{
     World,

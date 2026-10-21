@@ -5,7 +5,7 @@
 //! Indian mobile as +91…, and queues nothing at all for a patient it cannot
 //! reach — a warning in the log rather than a dead letter in the queue.
 
-mod common;
+use crate::common;
 
 use serde_json::json;
 use uuid::Uuid;

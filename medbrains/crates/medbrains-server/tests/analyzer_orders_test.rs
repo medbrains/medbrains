@@ -4,7 +4,7 @@
 //! a refusal keeps it offered; the analyzer's ASTM results come back onto the
 //! order by barcode; another hospital's device cannot be fed.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

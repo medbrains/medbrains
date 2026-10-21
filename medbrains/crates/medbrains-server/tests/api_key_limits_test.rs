@@ -2,7 +2,7 @@
 //! per minute and is answered 429 past it, and the API's own OpenAPI
 //! description is served only to a key (or person) granted it.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

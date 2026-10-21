@@ -5,7 +5,7 @@
 //! second cancel is refused and reverses nothing more. Issuing the bill
 //! queues no link-less "payment link" message (#4871).
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 use uuid::Uuid;

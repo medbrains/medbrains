@@ -3,7 +3,7 @@
 //! not sent does not open it; a home visit offers home notes, not a clinic
 //! consultation; and home care is the care team's, not the front desk's.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

@@ -4,7 +4,7 @@
 //! Each test pins one defect: it failed against the code as it was and passes
 //! against the fix.
 
-mod common;
+use crate::common;
 
 use futures::StreamExt;
 use reqwest::StatusCode;

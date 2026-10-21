@@ -6,7 +6,7 @@
 //! And the bulk write-off zeroed controlled (NDPS) drugs too, whose
 //! destruction the NDPS Act requires on the register with a second witness.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

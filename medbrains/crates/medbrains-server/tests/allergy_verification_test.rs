@@ -3,7 +3,7 @@
 //! A doctor marks it entered-in-error or refuted with a reason; it stops
 //! alerting (`is_active = false`) and stays listed with who, when and why.
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

@@ -5,8 +5,8 @@
 //! order only when the lab accepts it — and each answer needs its
 //! permissions.
 
-mod common;
-mod uhi_world;
+use crate::common;
+use crate::uhi_world;
 
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};

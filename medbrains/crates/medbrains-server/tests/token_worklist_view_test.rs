@@ -1,7 +1,7 @@
 //! The doctor's own queue, not the hospital's
 //! (RFCs/modules/RFC-MODULE-token-queues.md, §9 #47; user decision 2026-09-26).
 
-mod common;
+use crate::common;
 
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};

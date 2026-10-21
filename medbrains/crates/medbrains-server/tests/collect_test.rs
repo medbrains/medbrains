@@ -7,10 +7,8 @@
 //! issued by collecting it, receipts are split by legal entity with a series
 //! each, and the money names its counter, shift and cashier.
 
-mod collect_world;
-mod common;
-mod payments_world;
-mod pos_world;
+use crate::collect_world;
+use crate::pos_world;
 
 use axum::http::StatusCode;
 use rust_decimal::Decimal;

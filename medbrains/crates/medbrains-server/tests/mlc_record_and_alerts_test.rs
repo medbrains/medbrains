@@ -3,7 +3,7 @@
 //! silently edited. The police intimation and the Code Yellow alert leave
 //! the building through the outbox, and the screen reads back what was sent.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

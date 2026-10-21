@@ -1,10 +1,8 @@
 //! Collect anywhere (#4885): the refunds screen's action is its own grant,
 //! `billing.refunds.create` — never `billing.invoices.create`.
 
-mod collect_world;
-mod common;
-mod payments_world;
-mod pos_world;
+use crate::collect_world;
+use crate::pos_world;
 
 use axum::http::StatusCode;
 use rust_decimal::Decimal;

@@ -8,7 +8,7 @@
 //! reference ranges, a pathologist name field and all. A sheet that looks
 //! released is treated as released.
 
-mod common;
+use crate::common;
 
 use serde_json::{Value, json};
 

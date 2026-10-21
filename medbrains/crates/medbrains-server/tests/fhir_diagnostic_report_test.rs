@@ -3,7 +3,7 @@
 //! imaging report reads with its impression, a draft does not leave, and the
 //! patient's `$everything` carries both.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::Value;

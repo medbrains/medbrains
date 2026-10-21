@@ -4,7 +4,7 @@
 //! beds on the bed board and staff (welcomed by email, no password); the same
 //! workbook again changes nothing new; and the download gives it all back.
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};

@@ -2,7 +2,7 @@
 //! learn whether the pass lets its holder in now: a fresh pass does, a
 //! revoked one says so, and a number no pass has is "not found".
 
-mod common;
+use crate::common;
 
 use reqwest::StatusCode;
 use serde_json::{Value, json};
