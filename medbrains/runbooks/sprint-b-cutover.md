@@ -137,7 +137,7 @@ INSERT INTO tenant_db_topology (
 - [ ] `POST /api/patients` succeeds (writes route to Patroni)
 - [ ] Outbox events queued during the flip drain to `sent` status
 - [ ] CloudWatch metric `pg_replication_lag_bytes` < 1 MB on both replicas
-- [ ] pgBackRest archive: WAL files appearing in `s3://medbrains-prod-wal-archive-ap-south-1/cluster-<id>/` every ~60s
+- [ ] pgBackRest archive: WAL files appearing in `s3://<bucket>/cluster-<id>/` every ~60s
 
 ### Phase 5 — soak (T+1 to T+7 days)
 

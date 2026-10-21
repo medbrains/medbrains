@@ -10,7 +10,7 @@ MedBrains is a multi-tenant Hospital Management System (HMS) covering 67+ module
 
 ## RFC Documents
 
-All RFCs live in `RFCs/` at the project root.
+All RFCs live in `RFCs/` at the project root. The `.docx` / `.pdf` documents below are kept in the private archive, not in the public repository.
 
 | File | Description |
 |------|-------------|
@@ -20,7 +20,7 @@ All RFCs live in `RFCs/` at the project root.
 | `RFC-HMS-v2.1-Continuation.pdf` | **Extended modules** — Psychiatry, Infrastructure, Patient Experience, Medical College; full module inventory |
 | `RFC-HMS-2026-003-TechStack (1).docx` | **Tech stack DRAFT** — detailed dev standards, clippy rules, CI/CD gates, SQLx strategy |
 | `RFC-HMS-2026-003-TechStack (2).docx` | **Tech stack APPROVED** — finalized stack decisions (Mantine v7, React Native CLI + Paper v5, pnpm + Turborepo) |
-| `ACMSRC_HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
+| `HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
 | `RFC-NATIVE-MOBILE.md` | **Native device apps (APPROVED 2026-09-13)** — SwiftUI + Compose/M3 Expressive + Compose for TV replace React Native; supersedes the mobile/TV rows of RFC-003 |
 
 ### RFC Priority
@@ -434,7 +434,7 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 - **Workflow design** (step sequences, form builders, automation rules) → `RFC-HMS-2026-002-Workflows.docx`
 - **Extended/specialty modules** (Psychiatry, Medical College, Patient Experience) → `RFC-HMS-v2.1-Continuation.pdf`
 - **Tech stack decisions** (libraries, tools, CI/CD, deployment) → `RFC-HMS-2026-003-TechStack (2).docx` (APPROVED)
-- **Quality/compliance criteria** (NABH, JCI, department checklists) → `ACMSRC_HMS_Evaluation_Checklists.docx`
+- **Quality/compliance criteria** (NABH, JCI, department checklists) → `HMS_Evaluation_Checklists.docx`
 
 ---
 
@@ -445,7 +445,7 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 ### Pre-Implementation Checklist
 
 1. **Indian law**: NDPS Act 1985 (narcotics), D&C Act 1940 (drug scheduling), CDSCO Schedule H/H1/X/G, Clinical Establishments Act 2010, PNDT/PCPNDT, MTP Act, Mental Healthcare Act 2017, BMW Rules 2016, Consumer Protection Act 2019.
-2. **Accreditation**: NABH/JCI — see `ACMSRC_HMS_Evaluation_Checklists.docx` (34 dept checklists). Key: patient ID, medication safety, infection control, consent.
+2. **Accreditation**: NABH/JCI — see `HMS_Evaluation_Checklists.docx` (34 dept checklists). Key: patient ID, medication safety, infection control, consent.
 3. **Clinical coding**: Drugs → WHO INN + ATC + RxNorm/SNOMED. Diagnoses → ICD-10/11. Procedures → CPT/ICD-10-PCS. Labs → LOINC.
 4. **Pharmacology**: drug schedule, NDPS register + dual-lock, formulary/DTC, AWaRe stewardship, DDI checks, allergy cross-check, LASA flags, dose validation, batch/lot tracking, FEFO expiry.
 5. **Interop**: HL7 FHIR R4, ABDM Health ID, DICOM, HL7 v2.

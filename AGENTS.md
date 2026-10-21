@@ -10,7 +10,7 @@ MedBrains is a multi-tenant Hospital Management System (HMS) covering 67+ module
 
 ## RFC Documents
 
-All RFCs live in `RFCs/` at the project root.
+All RFCs live in `RFCs/` at the project root. The `.docx` / `.pdf` documents below are kept in the private archive, not in the public repository.
 
 | File | Description |
 |------|-------------|
@@ -20,7 +20,7 @@ All RFCs live in `RFCs/` at the project root.
 | `RFC-HMS-v2.1-Continuation.pdf` | **Extended modules** — Psychiatry, Infrastructure, Patient Experience, Medical College; full module inventory |
 | `RFC-HMS-2026-003-TechStack (1).docx` | **Tech stack DRAFT** — detailed dev standards, clippy rules, CI/CD gates, SQLx strategy |
 | `RFC-HMS-2026-003-TechStack (2).docx` | **Tech stack APPROVED** — finalized stack decisions (Mantine v7, React Native CLI + Paper v5, pnpm + Turborepo) |
-| `ACMSRC_HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
+| `HMS_Evaluation_Checklists.docx` | **Evaluation checklists** — 34 department checklists, 700+ criteria from NABH/JCI standards |
 
 ### RFC Priority
 
@@ -371,7 +371,7 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 - **Workflow design** (step sequences, form builders, automation rules) → `RFC-HMS-2026-002-Workflows.docx`
 - **Extended/specialty modules** (Psychiatry, Medical College, Patient Experience) → `RFC-HMS-v2.1-Continuation.pdf`
 - **Tech stack decisions** (libraries, tools, CI/CD, deployment) → `RFC-HMS-2026-003-TechStack (2).docx` (APPROVED)
-- **Quality/compliance criteria** (NABH, JCI, department checklists) → `ACMSRC_HMS_Evaluation_Checklists.docx`
+- **Quality/compliance criteria** (NABH, JCI, department checklists) → `HMS_Evaluation_Checklists.docx`
 
 ---
 
@@ -396,7 +396,7 @@ For EVERY feature, before writing code, answer these questions:
    - Consumer Protection Act 2019 (patient rights)
 
 2. **Accreditation standards**: Does NABH/JCI mandate specific behavior?
-   - Check `ACMSRC_HMS_Evaluation_Checklists.docx` for the relevant department
+   - Check `HMS_Evaluation_Checklists.docx` for the relevant department
    - 34 department checklists, 700+ criteria cover most clinical and admin workflows
    - Key standards: patient identification, medication safety, infection control, informed consent
 
@@ -479,7 +479,7 @@ Every module follows this exact process. Do NOT skip steps.
 **MANDATORY before any coding begins.** Consult the "Regulatory & Compliance Norms" section above:
 
 1. Identify all applicable laws, regulations, and accreditation standards for this module
-2. Check `ACMSRC_HMS_Evaluation_Checklists.docx` for the relevant department checklist
+2. Check `HMS_Evaluation_Checklists.docx` for the relevant department checklist
 3. List required regulatory fields that must exist in the database schema
 4. List required business rules that must be enforced at the backend
 5. List required UI indicators (badges, warnings, alerts) for the frontend

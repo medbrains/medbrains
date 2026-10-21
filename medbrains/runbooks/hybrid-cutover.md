@@ -67,7 +67,7 @@ make hybrid-tf-validate    # all 7 modules pass
 ```
 
 Confirm the medbrains-bridge binary release artifact is at
-`s3://medbrains-prod-artifacts/bridge/v0.1.0/medbrains-bridge-arm64`.
+`s3://<bucket>/bridge/v0.1.0/medbrains-bridge-arm64`.
 Hash matches the latest tag of `feature/bridge-headscale`.
 
 ### Phase 1 — initialize tenant directory (T-3 days)
