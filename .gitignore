@@ -41,3 +41,16 @@ medbrains/.deepsec/
 # Once it has a remote, replace this ignore with the pinned pointer:
 #   git rm -r --cached r8r && git submodule add https://github.com/DomnicAmalan/r8r.git r8r
 /r8r/
+
+# Never publish: client material, third-party documents, internal working files.
+*.xlsx
+~$*
+*.pptx
+Examples_competitors/
+presentations/
+healthpulse/
+goals/
+**/envs/clients/
+**/envs/standalone/*/
+*.log
+*.trace
