@@ -199,8 +199,13 @@ plan: check init
 	terraform plan -out=$(PLAN_FILE)
 	terraform show -no-color $(PLAN_FILE)
 
+# FORCE_UPLOAD=1 re-runs the bootstrap upload even when terraform believes the
+# current build is already live (it once recorded a deploy that had shipped a
+# stale web archive). Attach tier only: the only one with this bootstrap.
+BOOTSTRAP_ADDR := module.hospital.module.attach[0].module.existing_host[0].null_resource.bootstrap
+
 apply: check init build pre-apply-backup
-	terraform plan -out=$(PLAN_FILE)
+	terraform plan -out=$(PLAN_FILE) $(if $(FORCE_UPLOAD),-replace='$(BOOTSTRAP_ADDR)')
 	terraform show -no-color $(PLAN_FILE)
 	terraform show -json $(PLAN_FILE) | python3 plan_guard.py
 	@if [ "$${CONFIRM_APPLY:-}" != "$(APPLY_CONFIRMATION)" ]; then \
