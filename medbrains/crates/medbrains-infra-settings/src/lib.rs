@@ -7,6 +7,7 @@
 //!   stored here or returned — only a reference to a key in the secret backend.
 
 pub mod domain_ownership;
+pub mod preflight;
 use axum::{Extension, Json, extract::State};
 use axum::routing::{get,post};
 use medbrains_core::deploy_mode::DeployMode;
@@ -25,6 +26,8 @@ pub struct InfraStatus {
     pub secrets_backend: &'static str,
     /// Active deploy mode (`saas` | `hybrid` | `onprem`).
     pub deploy_mode: &'static str,
+    /// What the startup checks found when this server booted.
+    pub startup_checks: &'static [preflight::Finding],
 }
 
 /// GET /api/admin/infra-status
@@ -36,6 +39,7 @@ pub async fn get_infra_status(
     Ok(Json(InfraStatus {
         secrets_backend: state.secret_resolver.backend_label(),
         deploy_mode: DeployMode::from_env().as_code(),
+        startup_checks: preflight::report(),
     }))
 }
 

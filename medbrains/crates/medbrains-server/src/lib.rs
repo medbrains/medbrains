@@ -24,6 +24,7 @@
 
 
 pub mod event_tokens;
+pub mod preflight;
 pub mod routes;
 pub mod secret_backend;
 pub mod services;

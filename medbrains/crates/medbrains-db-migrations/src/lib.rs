@@ -28,3 +28,26 @@ pub async fn run(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError>
     tracing::info!("Database migrations applied");
     Ok(())
 }
+
+/// How many embedded migrations `pool`'s database has not applied — for the
+/// startup checks, which report rather than migrate.
+///
+/// # Errors
+/// The database could not be read.
+pub async fn pending(pool: &sqlx::PgPool) -> Result<usize, sqlx::Error> {
+    let exists: bool = sqlx::query_scalar("SELECT to_regclass('_sqlx_migrations') IS NOT NULL")
+        .fetch_one(pool)
+        .await?;
+    let applied: Vec<i64> = if exists {
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations WHERE success")
+            .fetch_all(pool)
+            .await?
+    } else {
+        Vec::new()
+    };
+    let applied: std::collections::HashSet<i64> = applied.into_iter().collect();
+    Ok(sqlx::migrate!("src/migrations")
+        .iter()
+        .filter(|m| !applied.contains(&m.version))
+        .count())
+}

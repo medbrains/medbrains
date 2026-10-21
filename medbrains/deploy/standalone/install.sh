@@ -201,6 +201,30 @@ env_value() {
     awk -F= -v key="$key" '$1 == key { value = substr($0, index($0, "=") + 1) } END { print value }' /etc/medbrains/env
 }
 
+# Keys with no safe default (the server's fallback is a development value in the
+# source). Generated once, here, on new and existing hosts alike; never
+# overwritten — changing the HMAC key orphans every stored ID fingerprint,
+# changing the ABDM key makes the stored ABDM secret unreadable. Back
+# /etc/medbrains/env up with the database.
+for key in MEDBRAINS_IDENTIFIER_HMAC_KEY MEDBRAINS_ABDM_SECRET_KEY; do
+    if [[ -z "$(env_value "$key")" ]]; then
+        sed -i "/^$key=/d" /etc/medbrains/env
+        echo "$key=$(openssl rand -base64 48 | tr -d '\n')" >> /etc/medbrains/env
+        echo "    generated $key in /etc/medbrains/env"
+    fi
+done
+
+# The first administrator's password: production refuses to seed admin123. Only
+# on a new install (the seed reads it once, when it creates the first hospital);
+# kept root-only for the operator, who changes it at first sign-in.
+if [[ "$ENV_CREATED" == "1" && -z "$(env_value MEDBRAINS_SEED_ADMIN_PASSWORD)" ]]; then
+    ADMIN_PW="$(openssl rand -base64 18 | tr -d /=+)"
+    echo "MEDBRAINS_SEED_ADMIN_PASSWORD=$ADMIN_PW" >> /etc/medbrains/env
+    install -m 600 /dev/null /etc/medbrains/initial-admin-password
+    echo "$ADMIN_PW" > /etc/medbrains/initial-admin-password
+    echo "    first admin password: sudo cat /etc/medbrains/initial-admin-password"
+fi
+
 # ── Attach: claim ports before anything binds one ───────────────────
 if [[ "$ATTACH_MODE" == "1" ]]; then
     echo "==> [3b/9] Attach — claiming ports nothing else is using"
