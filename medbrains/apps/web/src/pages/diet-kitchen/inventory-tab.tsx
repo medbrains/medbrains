@@ -1,7 +1,7 @@
 // IPD InventoryTab — split from diet-kitchen.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card, Drawer, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Card, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { KitchenInventoryFormInput } from "@medbrains/schemas";
@@ -13,7 +13,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { dietOptionalNumber, dietOptionalText } from "@/forms/diet-kitchen.form";
 import { dietKitchenService } from "@/services/diet-kitchen.service";
 import { notifyMutationError, rowsOrEmpty } from "./shared";
@@ -148,7 +148,7 @@ export function InventoryTab() {
           </Text>
         </Card>
       )}
-      <Drawer opened={opened} onClose={close} title="Add Inventory Item" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Add Inventory Item" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitInventoryItem)}>
           <Controller
             name="item_name"
@@ -206,7 +206,7 @@ export function InventoryTab() {
             Add Item
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

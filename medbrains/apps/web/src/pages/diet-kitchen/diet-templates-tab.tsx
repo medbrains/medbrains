@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -24,7 +23,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { dietOptionalNumber, dietOptionalText, dietTypeOptions } from "@/forms/diet-kitchen.form";
 import { dietKitchenService } from "@/services/diet-kitchen.service";
 import { notifyMutationError, rowsOrEmpty } from "./shared";
@@ -171,7 +170,7 @@ export function DietTemplatesTab() {
           </Text>
         </Card>
       )}
-      <Drawer opened={opened} onClose={close} title="New Diet Template" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New Diet Template" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitTemplate)}>
           <Controller
             name="name"
@@ -254,7 +253,7 @@ export function DietTemplatesTab() {
             Create Template
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

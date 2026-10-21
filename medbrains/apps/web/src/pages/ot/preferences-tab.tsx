@@ -1,7 +1,7 @@
 // IPD PreferencesTab — split from ot.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OtSurgeonPreferenceFormInput } from "@medbrains/schemas";
 import { otSurgeonPreferenceFormSchema } from "@medbrains/schemas";
@@ -10,7 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, DoctorSearchSelect } from "@/components";
-import { Button, toast } from "@/components/ui";
+import { Button, Modal, toast } from "@/components/ui";
 import {
   DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES,
   toCreateSurgeonPreferenceRequest,
@@ -41,13 +41,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
   });
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Surgeon Preference Card"
-      position="right"
-      size="xl"
-    >
+    <Modal opened={opened} onClose={onClose} title="Surgeon Preference Card" fullScreen>
       <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         <Controller
           control={control}
@@ -98,7 +92,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
           Save
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

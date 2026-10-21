@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -26,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { communicationsService } from "@/services/communications.service";
 import { numberValue, optionalText } from "./shared";
 
@@ -243,7 +242,7 @@ export function FeedbackTab() {
         )}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Collect Feedback" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Collect Feedback" fullScreen>
         <Stack>
           <Select
             label="Type"
@@ -312,7 +311,7 @@ export function FeedbackTab() {
             Submit
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

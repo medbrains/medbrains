@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -31,7 +30,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   ambulanceMaintenanceTypeOptions,
   ambulanceOptionalNumber,
@@ -207,13 +206,7 @@ export function MaintenanceTab() {
         )}
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Schedule Maintenance"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Schedule Maintenance" fullScreen>
         <Stack
           component="form"
           onSubmit={handleSubmit((values) =>
@@ -299,7 +292,7 @@ export function MaintenanceTab() {
             Schedule
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

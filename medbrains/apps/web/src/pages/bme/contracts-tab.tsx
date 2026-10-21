@@ -1,16 +1,6 @@
 // IPD ContractsTab — split from bme.tsx (pure move).
 
-import {
-  Card,
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Card, Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -28,7 +18,7 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { printColumn } from "@/components/Print/printColumn";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { bmeService } from "@/services/bme.service";
 import { daysUntil, fmtDate } from "./shared";
@@ -454,13 +444,7 @@ export function ContractsTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={contractOpened}
-        onClose={closeContract}
-        title="Add Contract"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={contractOpened} onClose={closeContract} title="Add Contract" fullScreen>
         <Stack>
           <TextInput
             label="Contract Number"
@@ -562,15 +546,9 @@ export function ContractsTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={evalOpened}
-        onClose={closeEval}
-        title="Vendor Evaluation"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={evalOpened} onClose={closeEval} title="Vendor Evaluation" fullScreen>
         <Stack>
           <VendorSearchSelect
             label="Vendor"
@@ -678,7 +656,7 @@ export function ContractsTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

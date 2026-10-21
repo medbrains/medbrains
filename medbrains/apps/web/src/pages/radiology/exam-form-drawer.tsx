@@ -11,7 +11,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import type { BodySite } from "@/components/BodySite/anatomy-atlas";
 import { BodySitePicker } from "@/components/BodySite/BodySitePicker";
-import { Button, Drawer, Input, Select, Switch, TextArea } from "@/components/ui";
+import { Button, Input, Modal, Select, Switch, TextArea } from "@/components/ui";
 import { CONTRAST_OPTIONS } from "@/lib/radiology-exams";
 import { radiologyService } from "@/services/radiology.service";
 
@@ -95,11 +95,11 @@ export function ExamFormDrawer({ editing, modalities, onClose }: ExamFormDrawerP
   });
 
   return (
-    <Drawer
+    <Modal
       opened={editing !== null}
       onClose={onClose}
       title={exam ? "Edit exam" : "Add exam"}
-      size="lg"
+      fullScreen
     >
       <Stack component="form" onSubmit={handleSubmit((v) => saveMutation.mutate(v))}>
         <Controller
@@ -221,6 +221,6 @@ export function ExamFormDrawer({ editing, modalities, onClose }: ExamFormDrawerP
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

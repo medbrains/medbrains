@@ -1,7 +1,6 @@
 // IPD LinenTab — split from housekeeping.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -34,7 +33,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { housekeepingService } from "@/services/housekeeping.service";
 import { LINEN_TYPES } from "./shared";
 
@@ -400,13 +399,7 @@ export function LinenTab({
       )}
 
       {/* Drawers */}
-      <Drawer
-        opened={linenDrawer}
-        onClose={linenDrawerH.close}
-        title="Add Linen Item"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={linenDrawer} onClose={linenDrawerH.close} title="Add Linen Item" fullScreen>
         <Stack>
           <Select
             label="Item Type"
@@ -444,14 +437,13 @@ export function LinenTab({
             Add Item
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={movementDrawer}
         onClose={movementDrawerH.close}
         title="Record Linen Movement"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -495,15 +487,9 @@ export function LinenTab({
             Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={batchDrawer}
-        onClose={batchDrawerH.close}
-        title="New Laundry Batch"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={batchDrawer} onClose={batchDrawerH.close} title="New Laundry Batch" fullScreen>
         <Stack>
           <TextInput
             label="Batch Number"
@@ -563,7 +549,7 @@ export function LinenTab({
             Start Batch
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -23,7 +22,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { chronicCareService } from "@/services/chronicCare.service";
 import { PROGRAM_TYPES } from "./shared";
@@ -240,11 +239,10 @@ function ProgramDrawer({
   });
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={closeAndReset}
       title={editing ? "Edit Program" : "New Program"}
-      position="right"
       size="md"
     >
       <Stack gap="sm">
@@ -311,6 +309,6 @@ function ProgramDrawer({
           {editing ? "Update" : "Create"}
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

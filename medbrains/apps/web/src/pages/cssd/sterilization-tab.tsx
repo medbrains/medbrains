@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
   Checkbox,
-  Drawer,
   Group,
   Select,
   Stack,
@@ -31,7 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, Table } from "@/components/ui";
 import { cssdIndicatorTypeOptions, cssdMethodOptions, cssdOptionalText } from "@/forms/cssd.form";
 import { cssdService } from "@/services/cssd.service";
 import { LoadContentsDrawer } from "./LoadContentsDrawer";
@@ -291,13 +290,7 @@ export function SterilizationTab() {
         onClose={() => setContentsLoad(null)}
       />
 
-      <Drawer
-        opened={loadOpened}
-        onClose={closeLoad}
-        title="Create Sterilization Load"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={loadOpened} onClose={closeLoad} title="Create Sterilization Load" size="sm">
         <Stack component="form" onSubmit={handleLoadSubmit(submitLoad)}>
           <Controller
             name="sterilizer_id"
@@ -360,14 +353,13 @@ export function SterilizationTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title={`Load ${selectedLoad?.load_number ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           {selectedLoad && (
@@ -518,7 +510,7 @@ export function SterilizationTab() {
             </>
           )}
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

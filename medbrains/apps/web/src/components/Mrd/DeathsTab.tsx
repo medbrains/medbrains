@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { MrdDeathCreateInput } from "@medbrains/schemas";
@@ -15,7 +15,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { fmt } from "./mrdShared";
 
@@ -131,13 +131,7 @@ export function DeathsTab() {
       </Group>
       <DataTable columns={columns} data={deaths} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Register Death"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Register Death" fullScreen>
         <Stack>
           <Controller
             control={control}
@@ -263,7 +257,7 @@ export function DeathsTab() {
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

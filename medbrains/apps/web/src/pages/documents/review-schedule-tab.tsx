@@ -1,15 +1,6 @@
 // IPD ReviewScheduleTab — split from documents.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateReviewScheduleRequest, DocumentFormReviewSchedule } from "@medbrains/types";
@@ -18,7 +9,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { documentsService } from "@/services/documents.service";
 
 const REVIEW_STATUS_TONES: Record<string, BadgeTone> = {
@@ -169,13 +160,7 @@ export function ReviewScheduleTab() {
         <DataTable columns={columns} data={schedules} loading={isLoading} rowKey={(r) => r.id} />
       </Stack>
 
-      <Drawer
-        opened={drawerOpened}
-        onClose={closeDrawer}
-        title="Add Review Schedule"
-        position="right"
-        size="md"
-      >
+      <Modal opened={drawerOpened} onClose={closeDrawer} title="Add Review Schedule" size="md">
         <Stack gap="sm">
           <Select
             label="Template"
@@ -225,7 +210,7 @@ export function ReviewScheduleTab() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

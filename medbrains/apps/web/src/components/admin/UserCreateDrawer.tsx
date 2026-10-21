@@ -15,7 +15,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
-  Drawer,
   Group,
   MultiSelect,
   PasswordInput,
@@ -33,6 +32,7 @@ import { buildPermissionTree, PERMISSIONS } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
+import { Modal } from "@/components/ui";
 import { type FlatSelectOption, groupedSelectData } from "@/lib/select-groups";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -155,14 +155,13 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
   };
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={() => {
         reset();
         onClose();
       }}
-      position="right"
-      size="xl"
+      fullScreen
       title={<Title order={4}>Create user</Title>}
     >
       <FormProvider {...form}>
@@ -225,7 +224,7 @@ export function UserCreateDrawer({ opened, onClose }: Props) {
           <Button onClick={() => void advance()}>{active === 3 ? "Review" : "Next"}</Button>
         )}
       </Group>
-    </Drawer>
+    </Modal>
   );
 }
 

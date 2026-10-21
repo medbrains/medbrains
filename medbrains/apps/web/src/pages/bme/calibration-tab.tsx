@@ -1,6 +1,6 @@
 // IPD CalibrationTab — split from bme.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Tooltip } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Modal, Tooltip } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { RecalibrateDrawer } from "./recalibrate-drawer";
 import { daysUntil, fmtDate, PM_FREQUENCIES } from "./shared";
@@ -270,7 +270,7 @@ export function CalibrationTab() {
         onClose={() => setRecalibrating(null)}
       />
 
-      <Drawer opened={opened} onClose={close} title="Record Calibration" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Record Calibration" fullScreen>
         <Stack>
           <Select
             label="Equipment"
@@ -346,7 +346,7 @@ export function CalibrationTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

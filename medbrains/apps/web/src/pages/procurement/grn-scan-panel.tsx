@@ -15,8 +15,8 @@ import {
   type BadgeTone,
   Button,
   Card,
-  Drawer,
   IconButton,
+  Modal,
   Table,
   toast,
 } from "@/components/ui";
@@ -214,13 +214,12 @@ export function GrnScanPanel() {
         emptyTitle="No scanned bills yet"
       />
       <AccuracyCard />
-      <Drawer
+      <Modal
         opened={opened}
         onClose={close}
         title="Review scanned bill"
         closeButtonProps={{ "aria-label": "Close bill review" }}
-        position="right"
-        size="100%"
+        fullScreen
       >
         {reviewId && (
           <GrnScanReviewPanel
@@ -233,7 +232,7 @@ export function GrnScanPanel() {
             }}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

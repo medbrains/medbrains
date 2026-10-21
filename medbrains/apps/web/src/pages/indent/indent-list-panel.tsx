@@ -1,6 +1,6 @@
 // INDENT IndentListPanel — split from indent.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Stack, Stepper, Text, Tooltip } from "@mantine/core";
+import { Group, NumberInput, Stack, Stepper, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, StatusDot, useClinicalEmit } from "@/components";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { indentService } from "@/services/indent.service";
 import { colorToBadgeTone, indentTypeLabels, statusColors, statusToStep } from "./shared";
@@ -242,13 +242,7 @@ function ApproveButton({
       <Button tone="primary" leftSection={<IconCheck size={16} />} onClick={open}>
         Approve
       </Button>
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Approve Indent Items"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Approve Indent Items" fullScreen>
         <Stack>
           {items.map((item) => (
             <Group key={item.id}>
@@ -272,7 +266,7 @@ function ApproveButton({
             Confirm Approval
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }
@@ -317,7 +311,7 @@ function IssueButton({
       <Button tone="primary" leftSection={<IconTruckDelivery size={16} />} onClick={open}>
         Issue Items
       </Button>
-      <Drawer opened={opened} onClose={close} title="Issue Indent Items" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Issue Indent Items" fullScreen>
         <Stack>
           {items.map((item) => {
             const remaining = item.quantity_approved - item.quantity_issued;
@@ -344,7 +338,7 @@ function IssueButton({
             Confirm Issue
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }
@@ -443,15 +437,9 @@ export function IndentListPanel({
         emptyTitle="No indent requisitions found"
       />
 
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Indent Details"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={detailOpened} onClose={closeDetail} title="Indent Details" fullScreen>
         {detailId && <IndentDetailView id={detailId} onClose={closeDetail} />}
-      </Drawer>
+      </Modal>
     </>
   );
 }

@@ -8,7 +8,7 @@ import type { SecurityIncident } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Badge, Button, Drawer, TextArea, toast } from "@/components/ui";
+import { Alert, Badge, Button, Modal, TextArea, toast } from "@/components/ui";
 import { securityService } from "@/services/security.service";
 import { BreachAssessmentForm } from "./breach-assessment-form";
 import { incidentClocks } from "./breach-clock";
@@ -78,12 +78,11 @@ export function BreachDrawer({
   const canNote = useHasPermission(P.SECURITY.INCIDENTS_UPDATE);
   const clocks = incident ? incidentClocks(incident, Date.now()) : [];
   return (
-    <Drawer
+    <Modal
       opened={incident !== null}
       onClose={onClose}
       title={incident ? `Breach register — ${incident.incident_number}` : "Breach register"}
-      position="right"
-      size="lg"
+      fullScreen
     >
       {incident && (
         <Stack gap="md">
@@ -107,6 +106,6 @@ export function BreachDrawer({
           <Timeline incidentId={incident.id} canNote={canNote} />
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

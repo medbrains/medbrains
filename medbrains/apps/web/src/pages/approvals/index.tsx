@@ -20,7 +20,7 @@ import { useState } from "react";
 import { DataTable } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
 import type { BadgeTone } from "@/components/ui";
-import { Alert, Badge, Button, Drawer, Modal } from "@/components/ui";
+import { Alert, Badge, Button, Modal } from "@/components/ui";
 
 type Tab = "inbox" | "mine";
 
@@ -185,7 +185,7 @@ function RequestDrawer({ requestId, canDecide, onClose, onDecided }: RequestDraw
   });
 
   return (
-    <Drawer opened onClose={onClose} title="Request" position="right" size="lg">
+    <Modal opened onClose={onClose} title="Request" fullScreen>
       {detail.isError ? (
         <Alert tone="danger" title="Could not load this request">
           {(detail.error as Error).message}
@@ -194,7 +194,7 @@ function RequestDrawer({ requestId, canDecide, onClose, onDecided }: RequestDraw
       {detail.data ? (
         <RequestBody detail={detail.data} canDecide={canDecide} onDecided={onDecided} />
       ) : null}
-    </Drawer>
+    </Modal>
   );
 }
 

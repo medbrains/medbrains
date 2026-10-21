@@ -1,6 +1,7 @@
-import { Alert, Button, Drawer, Group, Modal, Stack } from "@mantine/core";
+import { Alert, Button, Group, Stack } from "@mantine/core";
 import type { FormEventHandler, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Modal } from "@/components/ui";
 
 interface FormModalProps {
   opened: boolean;
@@ -77,9 +78,9 @@ export function FormModal({
 
   if (variant === "drawer") {
     return (
-      <Drawer opened={opened} onClose={onClose} title={title} position="right" size={size}>
+      <Modal opened={opened} onClose={onClose} title={title} size={size}>
         {body}
-      </Drawer>
+      </Modal>
     );
   }
   return (

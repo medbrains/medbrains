@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   SegmentedControl,
@@ -29,7 +28,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import type { CreateUrReviewInput } from "@/services/utilizationReview.service";
 import { utilizationReviewService } from "@/services/utilizationReview.service";
 import { optionalTrimmed, reviewTypeColors, statusColorTone } from "./shared";
@@ -342,13 +341,7 @@ export function ReviewsTab() {
         </Card>
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Create Utilization Review"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Create Utilization Review" fullScreen>
         <Stack component="form" gap="sm" onSubmit={submitReview}>
           <TextInput
             label="Admission ID"
@@ -458,7 +451,7 @@ export function ReviewsTab() {
             Create Review
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

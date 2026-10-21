@@ -1,6 +1,6 @@
 // BLOOD-BANK TransfusionsTab — split from blood-bank.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Textarea } from "@mantine/core";
+import { Group, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateTransfusionRequest, TransfusionRecord } from "@medbrains/types";
@@ -14,7 +14,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Alert, Badge, Button, Switch, TextArea, toast } from "@/components/ui";
+import { Alert, Badge, Button, Modal, Switch, TextArea, toast } from "@/components/ui";
 import { useConsentGate } from "@/hooks/useConsentGate";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
@@ -403,24 +403,17 @@ export function TransfusionsTab() {
         rowKey={(t) => t.id}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Record Transfusion"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Record Transfusion" fullScreen>
         <CreateTransfusionForm
           onSubmit={(d) => createMut.mutate(d)}
           loading={createMut.isPending}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={!!reactionId}
         onClose={() => setReactionId(null)}
         title="Report Transfusion Reaction"
-        position="right"
         size="md"
       >
         {reactionId && (
@@ -429,7 +422,7 @@ export function TransfusionsTab() {
             loading={reactionMut.isPending}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

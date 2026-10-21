@@ -1,16 +1,6 @@
 // HR ComplianceTab — split from hr.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { Appraisal, Employee, StatutoryRecord } from "@medbrains/types";
@@ -21,7 +11,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 import { statusBadgeTone } from "./shared";
 
@@ -293,13 +283,7 @@ export function ComplianceTab({
           )}
         </Stack>
 
-        <Drawer
-          opened={appraisalOpen}
-          onClose={closeAppraisal}
-          title="Create Appraisal"
-          position="right"
-          size="xl"
-        >
+        <Modal opened={appraisalOpen} onClose={closeAppraisal} title="Create Appraisal" fullScreen>
           <Stack gap="sm">
             <EmployeeSearchSelect
               value={apprForm.employee_id}
@@ -347,7 +331,7 @@ export function ComplianceTab({
               Create Appraisal
             </Button>
           </Stack>
-        </Drawer>
+        </Modal>
       </Tabs.Panel>
 
       <Tabs.Panel value="statutory">
@@ -381,13 +365,7 @@ export function ComplianceTab({
           )}
         </Stack>
 
-        <Drawer
-          opened={statOpen}
-          onClose={closeStat}
-          title="Add Statutory Record"
-          position="right"
-          size="xl"
-        >
+        <Modal opened={statOpen} onClose={closeStat} title="Add Statutory Record" fullScreen>
           <Stack gap="sm">
             <EmployeeSearchSelect
               value={statForm.employee_id}
@@ -436,7 +414,7 @@ export function ComplianceTab({
               Add Record
             </Button>
           </Stack>
-        </Drawer>
+        </Modal>
       </Tabs.Panel>
     </Tabs>
   );

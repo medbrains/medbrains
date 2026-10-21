@@ -9,7 +9,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, Drawer, Input, MultiSelect, Switch, toast } from "@/components/ui";
+import { Alert, Button, Input, Modal, MultiSelect, Switch, toast } from "@/components/ui";
 
 const EVENTS = Object.keys(CLINICAL_EVENT_I18N_KEYS).map((e) => ({ value: e, label: e }));
 
@@ -62,11 +62,10 @@ export function WebhookDrawer({ target, onClose, onSecret }: WebhookDrawerProps)
   });
 
   return (
-    <Drawer
+    <Modal
       opened={target !== null}
       onClose={onClose}
       title={editing ? "Edit webhook" : "New webhook"}
-      position="right"
       size="md"
     >
       <form aria-label="Webhook" noValidate onSubmit={form.handleSubmit((v) => save.mutate(v))}>
@@ -135,6 +134,6 @@ export function WebhookDrawer({ target, onClose, onSecret }: WebhookDrawerProps)
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

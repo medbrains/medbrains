@@ -1,6 +1,6 @@
 // INDENT CatalogPanel — split from indent.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type {
   CreateStoreCatalogRequest,
@@ -11,7 +11,7 @@ import { IconEye, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { indentService } from "@/services/indent.service";
 
 function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess: () => void }) {
@@ -187,28 +187,16 @@ export function CatalogPanel() {
         emptyTitle="No catalog items"
       />
 
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Add Catalog Item"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Add Catalog Item" fullScreen>
         <CatalogForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={editOpened}
-        onClose={closeEdit}
-        title="Edit Catalog Item"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={editOpened} onClose={closeEdit} title="Edit Catalog Item" fullScreen>
         {editItem && (
           <CatalogForm
             initial={editItem}
@@ -218,7 +206,7 @@ export function CatalogPanel() {
             }}
           />
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

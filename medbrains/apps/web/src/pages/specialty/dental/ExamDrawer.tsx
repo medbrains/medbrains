@@ -1,7 +1,7 @@
 import { Stack, Tabs, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { type DentalExam, P } from "@medbrains/types";
-import { Drawer } from "@/components/ui";
+import { Modal } from "@/components/ui";
 import { ChartTab } from "./ChartTab";
 import { TreatmentTab } from "./TreatmentTab";
 
@@ -9,7 +9,7 @@ import { TreatmentTab } from "./TreatmentTab";
 export function ExamDrawer({ exam, onClose }: { exam: DentalExam | null; onClose: () => void }) {
   const canSeePlan = useHasPermission(P.SPECIALTY.DENTAL.TREATMENT_LIST);
   return (
-    <Drawer opened={exam !== null} onClose={onClose} title="Dental exam" position="right" size="xl">
+    <Modal opened={exam !== null} onClose={onClose} title="Dental exam" fullScreen>
       {exam && (
         <Stack gap="md">
           <Text size="sm" c="dimmed">
@@ -31,6 +31,6 @@ export function ExamDrawer({ exam, onClose }: { exam: DentalExam | null; onClose
           </Tabs>
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

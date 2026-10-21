@@ -1,17 +1,7 @@
 // Security IncidentsTab — split from security.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { SecurityIncidentFormInput } from "@medbrains/schemas";
@@ -25,7 +15,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   defaultSecurityIncidentFormValues,
   securityIncidentFormToRequest,
@@ -251,13 +241,7 @@ export function IncidentsTab() {
       )}
       <BreachDrawer incident={breachIncident} onClose={() => setBreachFor(null)} />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Report Security Incident"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={opened} onClose={close} title="Report Security Incident" fullScreen>
         <Stack
           component="form"
           onSubmit={incidentForm.handleSubmit((values) => createMut.mutate(values))}
@@ -336,7 +320,7 @@ export function IncidentsTab() {
             Submit Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

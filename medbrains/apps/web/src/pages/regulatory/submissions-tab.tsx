@@ -1,6 +1,6 @@
 // REGULATORY SubmissionsTab — split from regulatory.tsx (pure move).
 
-import { Drawer, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 
 export function SubmissionsTab() {
@@ -118,13 +118,7 @@ export function SubmissionsTab() {
         ]}
       />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="New Regulatory Submission"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="New Regulatory Submission" fullScreen>
         <Stack gap="sm">
           <Select
             label="Submission Type"
@@ -182,7 +176,7 @@ export function SubmissionsTab() {
             Save Submission
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

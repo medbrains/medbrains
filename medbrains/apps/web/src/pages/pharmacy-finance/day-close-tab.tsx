@@ -7,7 +7,7 @@ import type { CounterDay, FieldAccessLevel } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Drawer } from "@/components/ui";
+import { Alert, Badge, Button, Modal } from "@/components/ui";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 import { DayClosePanel } from "./day-close-panel";
 import { financeAmountText } from "./shared";
@@ -86,11 +86,10 @@ export function DayCloseTab({ amountAccess }: { amountAccess: FieldAccessLevel }
         rowKey={(r) => `${r.pharmacy_location_id}:${r.business_date}`}
         emptyTitle="No counter has opened a drawer in the last month"
       />
-      <Drawer
+      <Modal
         opened={Boolean(picked)}
         onClose={() => setPicked(null)}
-        position="right"
-        size="xl"
+        fullScreen
         title={picked ? `${picked.location_name ?? "Counter"} · ${picked.business_date}` : ""}
       >
         {picked && (
@@ -100,7 +99,7 @@ export function DayCloseTab({ amountAccess }: { amountAccess: FieldAccessLevel }
             amountAccess={amountAccess}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

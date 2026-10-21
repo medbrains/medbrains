@@ -1,16 +1,7 @@
 // IPD NutritionTab — split from icu.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IcuNutritionFormInput } from "@medbrains/schemas";
@@ -22,7 +13,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, Modal } from "@/components/ui";
 import {
   DEFAULT_ICU_NUTRITION_FORM_VALUES,
   ICU_NUTRITION_ROUTE_OPTIONS,
@@ -130,7 +121,7 @@ export function NutritionTab({ admissionId }: { admissionId: string }) {
         </Text>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Record Nutrition" position="right" size="sm">
+      <Modal opened={opened} onClose={close} title="Record Nutrition" size="sm">
         <Stack component="form" onSubmit={handleSubmit((values) => createMut.mutate(values))}>
           <Controller
             control={control}
@@ -216,7 +207,7 @@ export function NutritionTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

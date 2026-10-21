@@ -21,7 +21,7 @@ import {
   IconTemplate,
 } from "@tabler/icons-react";
 import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from "react";
-import { Alert, Button, Drawer, Modal, SegmentedControl } from "@/components/ui";
+import { Alert, Button, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
 import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
@@ -468,10 +468,9 @@ export function RxDoctor({
       </Box>
 
       {/* safety — horizontal slide-in drawer */}
-      <Drawer
+      <Modal
         opened={safetyOpen}
         onClose={safetyPanel.close}
-        position="right"
         size={360}
         title="Safety check · live"
         classNames={{ body: classes.safetyDrawer }}
@@ -621,7 +620,7 @@ export function RxDoctor({
               : "No duplicate ingredients or incompatible combinations"
           }
         />
-      </Drawer>
+      </Modal>
 
       <Modal opened={saveOpen} onClose={saveModal.close} title="Save as order set" size="sm">
         <Input

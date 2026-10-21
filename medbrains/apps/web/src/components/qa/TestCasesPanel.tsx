@@ -18,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router";
-import { Alert, Button, Drawer, Input, SegmentedControl, toast } from "@/components/ui";
+import { Alert, Button, Input, Modal, SegmentedControl, toast } from "@/components/ui";
 import { TestCaseCard } from "./TestCaseCard";
 import classes from "./test-cases-panel.module.scss";
 import { casesFor } from "./test-catalog";
@@ -105,12 +105,11 @@ function Panel() {
       >
         Test cases
       </Button>
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => setOpened(false)}
         title={`Test cases — ${ROLE_TEMPLATES[role]?.label ?? role}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack gap="sm">
           {cycle.data === null && (
@@ -173,7 +172,7 @@ function Panel() {
             />
           ))}
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

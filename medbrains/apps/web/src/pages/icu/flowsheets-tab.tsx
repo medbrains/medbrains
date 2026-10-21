@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
-import { Card, Drawer, Group, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Card, Group, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { IcuFlowsheetFormInput } from "@medbrains/schemas";
@@ -15,7 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { BloodPressureField, DataTable } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, Modal } from "@/components/ui";
 import { DEFAULT_ICU_FLOWSHEET_FORM_VALUES, toCreateIcuFlowsheetRequest } from "@/forms/icu.form";
 import { icuService } from "@/services/icu.service";
 
@@ -383,13 +383,7 @@ export function FlowsheetsTab({ admissionId }: { admissionId: string }) {
         <InfusionTracker flowsheets={flowsheets} admissionId={admissionId} canCreate={canCreate} />
       )}
 
-      <Drawer
-        opened={opened}
-        onClose={closeForm}
-        title="Record ICU Vitals"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={closeForm} title="Record ICU Vitals" fullScreen>
         <Stack component="form" onSubmit={handleCreate}>
           <Group grow>
             <Controller
@@ -538,7 +532,7 @@ export function FlowsheetsTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

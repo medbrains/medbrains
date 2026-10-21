@@ -1,17 +1,7 @@
 // OT BookingsTab — split from ot.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Select, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OtBookingFormInput } from "@medbrains/schemas";
 import { otBookingFormSchema } from "@medbrains/schemas";
@@ -34,7 +24,7 @@ import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentMenu } from "@/components/Print/PrintDocumentMenu";
-import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   DEFAULT_OT_BOOKING_FORM_VALUES,
   normalizeOtCasePriority,
@@ -121,7 +111,7 @@ function CreateBookingDrawer({
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
+    <Modal opened={opened} onClose={onClose} title="New OT Booking" fullScreen>
       <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         {linkedAdmissionId && (
           <Alert tone="info">
@@ -280,7 +270,7 @@ function CreateBookingDrawer({
           Create Booking
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -522,15 +512,9 @@ export function BookingsTab({ canCreate, canList }: { canCreate: boolean; canLis
         canViewPatientRecord={canViewPatientRecord}
       />
 
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Booking Detail"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={detailOpened} onClose={closeDetail} title="Booking Detail" fullScreen>
         {detailId && <BookingDetail bookingId={detailId} />}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

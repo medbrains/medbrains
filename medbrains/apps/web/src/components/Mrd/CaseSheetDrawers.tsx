@@ -1,4 +1,4 @@
-import { Anchor, Box, Drawer, Group, Select, Stack, Text, Textarea } from "@mantine/core";
+import { Anchor, Box, Group, Select, Stack, Text, Textarea } from "@mantine/core";
 import { api } from "@medbrains/api";
 import type { MrdCaseSheetFileFormInput, MrdCaseSheetReprintFormInput } from "@medbrains/schemas";
 import type {
@@ -93,12 +93,11 @@ export function CaseSheetDrawers({
 }: CaseSheetDrawersProps) {
   return (
     <>
-      <Drawer
+      <Modal
         opened={pagesOpen}
         onClose={closePages}
         title={`Checklist: ${selectedPacket?.packet_number ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Text size="sm" c="dimmed">
@@ -200,7 +199,7 @@ export function CaseSheetDrawers({
             rowKey={(page) => page.id}
           />
         </Stack>
-      </Drawer>
+      </Modal>
 
       <Modal
         opened={deficientPage !== null}
@@ -236,15 +235,14 @@ export function CaseSheetDrawers({
         </Stack>
       </Modal>
 
-      <Drawer
+      <Modal
         opened={fileOpen}
         onClose={() => {
           closeFile();
           fileForm.reset(MRD_FILE_FORM_DEFAULTS);
         }}
         title={`File in MRD: ${selectedPacket?.packet_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <form onSubmit={fileForm.handleSubmit((values) => fileMut.mutate(values))}>
           <Stack>
@@ -286,17 +284,16 @@ export function CaseSheetDrawers({
             </Button>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={reprintOpen}
         onClose={() => {
           closeReprint();
           reprintForm.reset(MRD_REPRINT_FORM_DEFAULTS);
         }}
         title={`Reprint: ${selectedPacket?.packet_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <form onSubmit={reprintForm.handleSubmit((values) => reprintMut.mutate(values))}>
           <Stack>
@@ -332,9 +329,9 @@ export function CaseSheetDrawers({
             </Button>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={printPreviewOpen}
         onClose={closePrintPreview}
         title={
@@ -342,8 +339,7 @@ export function CaseSheetDrawers({
             ? `Duplicate print: ${printPreview.packet.packet_number}`
             : `Print packet: ${printPreview?.packet.packet_number ?? ""}`
         }
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           {printPreview && (
@@ -379,7 +375,7 @@ export function CaseSheetDrawers({
             </>
           )}
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

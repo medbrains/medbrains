@@ -35,6 +35,8 @@ SEAM = {
     "ActionIcon": "IconButton",
     "Table": "Table",
     "Alert": "Alert",
+    # One overlay app-wide: a fullScreen or dialog Modal, never a drawer.
+    "Drawer": "Modal",
 }
 
 ROOT = Path(__file__).resolve().parent.parent

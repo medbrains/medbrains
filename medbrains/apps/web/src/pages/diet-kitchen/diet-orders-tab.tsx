@@ -1,17 +1,7 @@
 // IPD DietOrdersTab — split from diet-kitchen.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Card, Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { DietOrderFormInput } from "@medbrains/schemas";
@@ -27,7 +17,7 @@ import { useSearchParams } from "react-router";
 import { DataTable } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { dietOptionalNumber, dietOptionalText, dietTypeOptions } from "@/forms/diet-kitchen.form";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { dietKitchenService } from "@/services/diet-kitchen.service";
@@ -297,7 +287,7 @@ export function DietOrdersTab() {
           </Text>
         </Card>
       )}
-      <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New Diet Order" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitOrder)}>
           {contextAdmissionId && (
             <Alert tone="info" title="Linked IPD admission">
@@ -425,7 +415,7 @@ export function DietOrdersTab() {
             Create Order
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

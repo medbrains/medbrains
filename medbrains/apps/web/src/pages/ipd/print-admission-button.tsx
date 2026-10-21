@@ -1,6 +1,6 @@
 // IPD PrintAdmissionButton — split from ipd.tsx (pure move).
 
-import { Box, Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { AdmissionPrintData } from "@medbrains/types";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useProtectedFieldAccess } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 import {
   buildCopyPrintHtml,
@@ -108,7 +108,7 @@ export function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
     );
 
   return (
-    <Drawer opened onClose={() => setPrinting(false)} title="Admission Slip" size="md">
+    <Modal opened onClose={() => setPrinting(false)} title="Admission Slip" size="md">
       <Stack p="md">
         <Group gap={6}>
           {IPD_ADMISSION_PRINT_COPIES.map((copy) => (
@@ -213,7 +213,7 @@ export function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
           Print admission packet
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

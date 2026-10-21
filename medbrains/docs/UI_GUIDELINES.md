@@ -106,8 +106,7 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Data grid | `DataTable` | columns + loading/empty — the default for lists |
 | Ad-hoc table | `ui/Table` | bespoke layouts; compound `Table.Thead/Tr/Th`, hover rows, no column borders |
 | Tooltip | `ui/Tooltip` | a hint, never the only place info lives |
-| Modal | `ui/Modal` | short self-contained tasks; centered, dimmed |
-| Drawer | `ui/Drawer` | work *alongside* content (order basket); right by default |
+| Modal | `ui/Modal` | the ONLY overlay: `size` sm/md = centered dialog for short tasks; `fullScreen` for real work (orders, detail/edit). No drawers — one pattern, no guessing |
 | Titled section | `ui/Panel` | eyebrow title + content |
 | Hero header | `ui/SignatureHero` | flagship clinical writers ONLY |
 

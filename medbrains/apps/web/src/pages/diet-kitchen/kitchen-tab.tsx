@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -33,7 +32,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { dietOptionalInteger, dietOptionalText, mealTypeOptions } from "@/forms/diet-kitchen.form";
 import { dietKitchenService } from "@/services/diet-kitchen.service";
 import { notifyFormError, notifyMutationError, optionalUuid, rowsOrEmpty } from "./shared";
@@ -504,13 +503,7 @@ export function KitchenTab() {
         </Stack>
       )}
 
-      <Drawer
-        opened={menuOpened}
-        onClose={closeMenu}
-        title="New Kitchen Menu"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={menuOpened} onClose={closeMenu} title="New Kitchen Menu" fullScreen>
         <Stack component="form" onSubmit={handleMenuSubmit(submitMenu)}>
           <Controller
             name="name"
@@ -542,15 +535,9 @@ export function KitchenTab() {
             Create Menu
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={prepOpened}
-        onClose={closePrep}
-        title="New Meal Preparation"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={prepOpened} onClose={closePrep} title="New Meal Preparation" fullScreen>
         <Stack component="form" onSubmit={handlePrepSubmit(submitPrep)}>
           <Controller
             name="diet_order_id"
@@ -586,7 +573,7 @@ export function KitchenTab() {
             Create Meal Prep
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

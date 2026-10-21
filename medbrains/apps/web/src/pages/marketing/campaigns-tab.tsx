@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, Drawer, IconButton, Select, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Select, toast } from "@/components/ui";
 import {
   CAMPAIGN_CHANNEL_OPTIONS,
   type MarketingCampaignFormInput,
@@ -221,11 +221,10 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
         }
       />
 
-      <Drawer
+      <Modal
         opened={drawerOpen}
         onClose={close}
         title={editing ? `Edit ${editing.name}` : "New campaign"}
-        position="right"
       >
         <Stack
           component="form"
@@ -334,7 +333,7 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

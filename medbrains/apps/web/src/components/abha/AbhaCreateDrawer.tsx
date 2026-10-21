@@ -8,8 +8,8 @@ import {
   Checkbox,
   Chip,
   ChipGroup,
-  Drawer,
   Input,
+  Modal,
   PasswordField,
 } from "@/components/ui";
 import { abhaService } from "@/services/abha.service";
@@ -29,10 +29,10 @@ interface AbhaCreateDrawerProps extends AbhaConfirmProps {
  */
 export function AbhaCreateDrawer(props: AbhaCreateDrawerProps) {
   return (
-    <Drawer opened={props.opened} onClose={props.onClose} title="Create ABHA" size="lg">
+    <Modal opened={props.opened} onClose={props.onClose} title="Create ABHA" fullScreen>
       {/* Remounting on open forgets the Aadhaar number typed last time. */}
       {props.opened && <CreateFlow {...props} />}
-    </Drawer>
+    </Modal>
   );
 }
 

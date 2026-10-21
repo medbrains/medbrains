@@ -13,14 +13,15 @@ const atlas: Atlas = existsSync(ATLAS)
 const partsByName = new Map(atlas.parts.map((p) => [p.name, p]));
 
 describe.skipIf(atlas.parts.length === 0)("body regions", () => {
-  it.each(
-    BODY_REGIONS.map((r) => [r.label, r] as const),
-  )("%s lights only structures the model has", (_, region) => {
-    const both = region.structures.flatMap((s) =>
-      s.includes("{side}") ? [s.replace("{side}", "Left"), s.replace("{side}", "Right")] : [s],
-    );
-    expect(both.filter((n) => !partsByName.has(n))).toEqual([]);
-  });
+  it.each(BODY_REGIONS.map((r) => [r.label, r] as const))(
+    "%s lights only structures the model has",
+    (_, region) => {
+      const both = region.structures.flatMap((s) =>
+        s.includes("{side}") ? [s.replace("{side}", "Left"), s.replace("{side}", "Right")] : [s],
+      );
+      expect(both.filter((n) => !partsByName.has(n))).toEqual([]);
+    },
+  );
 
   it("a sided region lights one side once the side is chosen", () => {
     const knee = BODY_REGIONS.find((r) => r.id === "knee");

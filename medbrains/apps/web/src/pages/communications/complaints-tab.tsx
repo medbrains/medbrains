@@ -1,7 +1,6 @@
 // IPD ComplaintsTab — split from communications.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -25,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { communicationsService } from "@/services/communications.service";
 import { numberValue, optionalText, requiredText } from "./shared";
 
@@ -241,7 +240,7 @@ export function ComplaintsTab() {
         )}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Register Complaint" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Register Complaint" fullScreen>
         <Stack>
           <Select
             label="Source"
@@ -316,7 +315,7 @@ export function ComplaintsTab() {
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

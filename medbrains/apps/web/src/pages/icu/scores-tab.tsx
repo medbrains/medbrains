@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -26,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, Modal } from "@/components/ui";
 import {
   DEFAULT_ICU_SCORE_FORM_VALUES,
   ICU_SCORE_TYPE_OPTIONS,
@@ -251,7 +250,7 @@ export function ScoresTab({ admissionId }: { admissionId: string }) {
       {/* Predicted vs Actual Mortality */}
       {admissionId && scores.length > 0 && <MortalityComparison scores={scores} />}
 
-      <Drawer opened={opened} onClose={close} title="Record ICU Score" position="right" size="sm">
+      <Modal opened={opened} onClose={close} title="Record ICU Score" size="sm">
         <Stack component="form" onSubmit={handleSubmit((values) => createMut.mutate(values))}>
           <Controller
             control={control}
@@ -300,7 +299,7 @@ export function ScoresTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

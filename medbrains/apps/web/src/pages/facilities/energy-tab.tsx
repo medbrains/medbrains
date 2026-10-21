@@ -3,7 +3,6 @@
 import { BarChart } from "@mantine/charts";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -29,7 +28,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
 const ENERGY_SOURCE_TYPES = [
@@ -247,13 +246,7 @@ export function EnergyTab() {
 
       {showAnalytics && <EnergyAnalyticsView />}
 
-      <Drawer
-        opened={readingOpen}
-        onClose={closeReading}
-        title="Record Energy Reading"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={readingOpen} onClose={closeReading} title="Record Energy Reading" fullScreen>
         <Stack>
           <Select
             label="Source"
@@ -345,7 +338,7 @@ export function EnergyTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

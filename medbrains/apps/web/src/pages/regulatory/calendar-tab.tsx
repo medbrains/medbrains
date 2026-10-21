@@ -2,7 +2,6 @@
 
 import {
   Box,
-  Drawer,
   Grid,
   Group,
   Paper,
@@ -27,7 +26,7 @@ import { IconChecklist, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 
 const calendarStatusColors: Record<string, BadgeTone> = {
@@ -540,7 +539,7 @@ export function CalendarTab() {
         <TimelineView events={events} isLoading={isLoading} />
       )}
 
-      <Drawer opened={opened} onClose={close} title="New Calendar Event" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="New Calendar Event" fullScreen>
         <Stack gap="sm">
           <TextInput
             label="Title"
@@ -596,7 +595,7 @@ export function CalendarTab() {
             Create Event
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

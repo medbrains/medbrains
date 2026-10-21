@@ -24,18 +24,7 @@
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Badge,
-  Button,
-  Drawer,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Badge, Button, Group, Loader, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -54,6 +43,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components/DataTable";
+import { Modal } from "@/components/ui";
 import { type SharingSubjects, sharingService } from "@/services/sharing.service";
 
 interface Props {
@@ -205,11 +195,10 @@ export function ShareDrawer({
   const submitGrant = handleSubmit((formValues) => createMutation.mutate(formValues));
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
-      position="right"
-      size="lg"
+      fullScreen
       title={
         <Group gap="sm">
           <IconShare size={20} />
@@ -378,6 +367,6 @@ export function ShareDrawer({
           )}
         </Stack>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

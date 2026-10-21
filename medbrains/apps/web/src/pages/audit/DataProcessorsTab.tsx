@@ -9,7 +9,7 @@ import { type DataProcessor, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, Drawer, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { auditService } from "@/services/audit.service";
 import { ProcessorForm } from "./processor-form";
 
@@ -105,11 +105,10 @@ export function DataProcessorsTab() {
           },
         ]}
       />
-      <Drawer
+      <Modal
         opened={editing !== null}
         onClose={() => setEditing(null)}
         title={editing === "new" ? "Add processor" : "Edit processor"}
-        position="right"
         size="md"
       >
         {editing !== null && (
@@ -122,7 +121,7 @@ export function DataProcessorsTab() {
             onSave={(input) => save.mutate(input)}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

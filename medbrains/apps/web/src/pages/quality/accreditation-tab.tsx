@@ -3,9 +3,7 @@
 import { DonutChart } from "@mantine/charts";
 import {
   Card,
-  Drawer,
   Group,
-  Modal,
   Select,
   SimpleGrid,
   Stack,
@@ -31,7 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 import { statusColorTone } from "./shared";
 
@@ -320,12 +318,11 @@ export function AccreditationTab() {
       />
 
       {/* Create Standard Drawer */}
-      <Drawer
+      <Modal
         opened={standardOpened}
         onClose={closeStandard}
         title="Add Accreditation Standard"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -378,15 +375,14 @@ export function AccreditationTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Update Compliance Drawer */}
-      <Drawer
+      <Modal
         opened={complianceOpened}
         onClose={closeCompliance}
         title={`Compliance: ${selectedStandard?.standard_code ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <Select
@@ -462,7 +458,7 @@ export function AccreditationTab() {
             Update Compliance
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Evidence Compilation Modal */}
       <Modal

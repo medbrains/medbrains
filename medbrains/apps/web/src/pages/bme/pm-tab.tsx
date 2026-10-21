@@ -3,7 +3,6 @@
 import { BarChart } from "@mantine/charts";
 import {
   Card,
-  Drawer,
   Group,
   Progress,
   Select,
@@ -32,7 +31,7 @@ import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { bmeService } from "@/services/bme.service";
 import { BREAKDOWN_PRIORITIES, fmtDate, PM_FREQUENCIES, priorityBadge } from "./shared";
 
@@ -426,13 +425,7 @@ export function PmTab() {
       </Group>
       <DataTable columns={woColumns} data={workOrders} loading={loadingWo} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={pmOpened}
-        onClose={closePm}
-        title="Add PM Schedule"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={pmOpened} onClose={closePm} title="Add PM Schedule" fullScreen>
         <Stack>
           <Select
             label="Equipment"
@@ -472,15 +465,9 @@ export function PmTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={woOpened}
-        onClose={closeWo}
-        title="Create Work Order"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={woOpened} onClose={closeWo} title="Create Work Order" fullScreen>
         <Stack>
           <Select
             label="Equipment"
@@ -531,7 +518,7 @@ export function PmTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

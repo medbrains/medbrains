@@ -1,6 +1,6 @@
 // BLOOD-BANK ColdChainTab — split from blood-bank.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -14,7 +14,7 @@ import { IconCheck, IconPlus, IconSnowflake } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 const alertLevelColors: Record<string, BadgeTone> = {
@@ -175,12 +175,11 @@ export function ColdChainTab() {
       />
 
       {selectedDevice && (
-        <Drawer
+        <Modal
           opened
           onClose={() => setSelectedDevice(null)}
           title={`Readings: ${selectedDevice.device_name}`}
-          position="right"
-          size="lg"
+          fullScreen
         >
           <DataTable
             columns={readingColumns}
@@ -188,16 +187,10 @@ export function ColdChainTab() {
             loading={false}
             rowKey={(r) => r.id}
           />
-        </Drawer>
+        </Modal>
       )}
 
-      <Drawer
-        opened={deviceOpen}
-        onClose={closeDevice}
-        title="Add Cold Chain Device"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={deviceOpen} onClose={closeDevice} title="Add Cold Chain Device" fullScreen>
         <Stack>
           <TextInput
             label="Device Name"
@@ -255,15 +248,9 @@ export function ColdChainTab() {
             Register Device
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={readingOpen}
-        onClose={closeReading}
-        title="Log Temperature Reading"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={readingOpen} onClose={closeReading} title="Log Temperature Reading" fullScreen>
         <Stack>
           <Select
             label="Device"
@@ -299,7 +286,7 @@ export function ColdChainTab() {
             Log Reading
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

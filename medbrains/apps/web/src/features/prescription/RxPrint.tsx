@@ -20,7 +20,7 @@ interface Props {
 /** Inline CSS for the A4 — used in the modal preview AND the print window, so
  *  what's previewed is exactly what prints (print window has no module CSS). */
 const RX_PRINT_CSS = `
-.rxp { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #161616; font-size: 12.5px; }
+.rxp { font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #161616; font-size: 12.5px; background: #fff; color-scheme: light; padding: 16px; }
 .rxp-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #161616; padding-bottom: 10px; }
 .rxp-hosp { font-size: 18px; font-weight: 700; }
 .rxp-hosp-sub { font-size: 11px; color: #525252; margin-top: 2px; }

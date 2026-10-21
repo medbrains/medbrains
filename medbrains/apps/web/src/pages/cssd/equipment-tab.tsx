@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -29,7 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table } from "@/components/ui";
 import {
   cssdMaintenanceTypeOptions,
   cssdMethodOptions,
@@ -195,7 +194,7 @@ export function EquipmentTab() {
         emptyTitle="No sterilizers registered"
       />
 
-      <Drawer opened={opened} onClose={close} title="Add Sterilizer" position="right" size="sm">
+      <Modal opened={opened} onClose={close} title="Add Sterilizer" size="sm">
         <Stack component="form" onSubmit={handleSterilizerSubmit(submitSterilizer)}>
           <Controller
             name="name"
@@ -259,14 +258,13 @@ export function EquipmentTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={maintOpened}
         onClose={closeMaint}
         title={`Maintenance — ${selectedSterilizer?.name ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           {maintLogs.length > 0 && (
@@ -364,7 +362,7 @@ export function EquipmentTab() {
             </>
           )}
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

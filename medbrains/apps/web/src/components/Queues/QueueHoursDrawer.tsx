@@ -5,7 +5,7 @@ import type { QueueRow, QueueSession } from "@medbrains/types";
 import { IconClock, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
-import { Alert, Button, Card, Drawer, IconButton, Input, toast } from "@/components/ui";
+import { Alert, Button, Card, IconButton, Input, Modal, toast } from "@/components/ui";
 
 interface QueueHoursDrawerProps {
   queue: QueueRow | null;
@@ -74,11 +74,11 @@ export function QueueHoursDrawer({ queue, onClose }: QueueHoursDrawerProps) {
   });
 
   return (
-    <Drawer
+    <Modal
       opened={Boolean(queue)}
       onClose={onClose}
       title={`Hours — ${queue?.name ?? ""}`}
-      size="lg"
+      fullScreen
     >
       <form onSubmit={handleSubmit((values) => save.mutate(values))}>
         <Stack gap="md">
@@ -205,6 +205,6 @@ export function QueueHoursDrawer({ queue, onClose }: QueueHoursDrawerProps) {
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

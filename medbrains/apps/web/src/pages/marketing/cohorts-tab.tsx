@@ -5,7 +5,7 @@ import { IconPlus, IconRefresh, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Checkbox, Drawer, Select, toast } from "@/components/ui";
+import { Alert, Badge, Button, Checkbox, Modal, Select, toast } from "@/components/ui";
 import { CAMPAIGN_CHANNEL_OPTIONS, COHORT_CHANNEL_OPTIONS } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
 
@@ -279,12 +279,7 @@ export function MarketingCohortsTab({
         }
       />
 
-      <Drawer
-        opened={enquiryOpen}
-        onClose={enquiryDrawer.close}
-        title="New enquiry cohort"
-        position="right"
-      >
+      <Modal opened={enquiryOpen} onClose={enquiryDrawer.close} title="New enquiry cohort">
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
             Filters the enquiry records this module already holds. Nothing clinical is read.
@@ -371,14 +366,9 @@ export function MarketingCohortsTab({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={clinicalOpen}
-        onClose={clinicalDrawer.close}
-        title="Define a recall list"
-        position="right"
-      >
+      <Modal opened={clinicalOpen} onClose={clinicalDrawer.close} title="Define a recall list">
         <Stack gap="sm">
           <Alert tone="info" title="What leaves the clinical record">
             The list is resolved to contact identifiers and nothing else. No diagnosis, no code and
@@ -427,7 +417,7 @@ export function MarketingCohortsTab({
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

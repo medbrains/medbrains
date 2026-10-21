@@ -1,7 +1,6 @@
 // Insurance PriorAuthTab — split from insurance.tsx (pure move).
 
 import {
-  Drawer,
   Grid,
   Group,
   NumberInput,
@@ -30,7 +29,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { insuranceService } from "@/services/insurance.service";
 import { canViewSensitiveField } from "./shared";
 
@@ -297,13 +296,7 @@ export function PriorAuthTab() {
       />
 
       {/* Create PA Drawer */}
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="New Prior Authorization"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={opened} onClose={close} title="New Prior Authorization" fullScreen>
         <Stack gap="sm">
           <PatientSearchSelect
             value={form.patient_id}
@@ -361,15 +354,14 @@ export function PriorAuthTab() {
             Create PA Request
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* PA Detail Drawer */}
-      <Drawer
+      <Modal
         opened={!!detailId}
         onClose={() => setDetailId(null)}
         title="Prior Auth Details"
-        position="right"
-        size="xl"
+        fullScreen
       >
         {detail && (
           <Stack gap="md">
@@ -513,14 +505,13 @@ export function PriorAuthTab() {
             </Group>
           </Stack>
         )}
-      </Drawer>
+      </Modal>
 
       {/* Respond Drawer */}
-      <Drawer
+      <Modal
         opened={!!respondId}
         onClose={() => setRespondId(null)}
         title="Record Payer Response"
-        position="right"
         size="md"
       >
         <Stack gap="sm">
@@ -623,7 +614,7 @@ export function PriorAuthTab() {
             Record Response
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

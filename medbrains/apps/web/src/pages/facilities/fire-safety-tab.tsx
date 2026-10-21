@@ -1,6 +1,6 @@
 // IPD FireSafetyTab — split from facilities.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -17,7 +17,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 import { FireDrillsSection } from "./fire-drills-section";
 
@@ -213,13 +213,7 @@ export function FireSafetyTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={equipOpen}
-        onClose={closeEquip}
-        title="Add Fire Equipment"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={equipOpen} onClose={closeEquip} title="Add Fire Equipment" fullScreen>
         <Stack>
           <TextInput
             label="Name"
@@ -271,7 +265,7 @@ export function FireSafetyTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

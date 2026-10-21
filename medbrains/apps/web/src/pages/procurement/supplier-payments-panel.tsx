@@ -1,16 +1,7 @@
 // PROCUREMENT SupplierPaymentsPanel — split from procurement.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ProcurementSupplierPaymentFormInput } from "@medbrains/schemas";
 import { procurementSupplierPaymentFormSchema } from "@medbrains/schemas";
@@ -19,7 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Button, toast } from "@/components/ui";
+import { Button, Modal, toast } from "@/components/ui";
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import { procurementService } from "@/services/procurement.service";
 import { formNumber, optionalText, requiredFormNumber } from "./shared";
@@ -269,13 +260,12 @@ export function SupplierPaymentsPanel({ canManage }: { canManage: boolean }) {
         emptyTitle="No supplier payments"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Record Payment"
         closeButtonProps={{ "aria-label": "Close Record Payment" }}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <CreatePaymentForm
           onSuccess={() => {
@@ -283,7 +273,7 @@ export function SupplierPaymentsPanel({ canManage }: { canManage: boolean }) {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

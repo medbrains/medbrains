@@ -1,4 +1,4 @@
-import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -20,7 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -90,7 +90,7 @@ function NewbornVerifyDrawer({
   const result = verify.data;
   const failure = verify.isError ? describeMatchError(verify.error) : null;
   return (
-    <Drawer
+    <Modal
       opened={newbornId !== null}
       onClose={() => {
         setUhid("");
@@ -99,7 +99,6 @@ function NewbornVerifyDrawer({
         onClose();
       }}
       title="Verify newborn identity"
-      position="right"
     >
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
@@ -135,7 +134,7 @@ function NewbornVerifyDrawer({
           </Alert>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 
@@ -553,12 +552,11 @@ export function MaternityPage() {
           )}
         </Tabs.Panel>
       </Tabs>
-      <Drawer
+      <Modal
         opened={regOpen}
         onClose={regHandlers.close}
         title="New Maternity Registration"
-        size="lg"
-        position="right"
+        fullScreen
       >
         <Stack>
           <PatientSearchSelect
@@ -644,7 +642,7 @@ export function MaternityPage() {
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
       <NewbornVerifyDrawer newbornId={verifyNewbornId} onClose={() => setVerifyNewbornId(null)} />
     </div>
   );

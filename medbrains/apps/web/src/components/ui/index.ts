@@ -20,7 +20,6 @@ export { Card, type CardProps } from "./Card";
 export { Checkbox } from "./Checkbox";
 export { Chip, ChipGroup, type ChipProps } from "./Chip";
 export { Divider } from "./Divider";
-export { Drawer } from "./Drawer";
 export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconButton";
 export { Image, type ImageProps } from "./Image";
 export { Input, NumberField, PasswordField, TextArea } from "./Input";
@@ -36,13 +35,13 @@ export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
 export { Slider, type SliderProps } from "./Slider";
 export { Switch } from "./Switch";
 export { Table } from "./Table";
+export { ThemeIcon, type ThemeIconProps, type ThemeIconTone } from "./ThemeIcon";
 export {
+  TileGroup,
   type TileGroupProps,
   type TileOption,
-  TileGroup,
   tileHotkeys,
 } from "./TileGroup";
-export { ThemeIcon, type ThemeIconProps, type ThemeIconTone } from "./ThemeIcon";
 export { TokenDashboard, type TokenDashboardProps, type TokenItem } from "./TokenDashboard";
 export { Tooltip } from "./Tooltip";
 export { type ToastOptions, toast } from "./toast";

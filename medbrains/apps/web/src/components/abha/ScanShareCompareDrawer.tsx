@@ -2,7 +2,7 @@ import { Loader, Stack, Text } from "@mantine/core";
 import type { AbhaField, AbhaVerificationStep, AbhaVerifiedProfile } from "@medbrains/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Button, Drawer } from "@/components/ui";
+import { Alert, Button, Modal } from "@/components/ui";
 import { abdmScanShareService } from "@/services/abdmScanShare.service";
 import { abhaService } from "@/services/abha.service";
 import { patientsService } from "@/services/patients.service";
@@ -28,11 +28,11 @@ interface ScanShareCompareDrawerProps {
  */
 export function ScanShareCompareDrawer({ target, onClose, onDone }: ScanShareCompareDrawerProps) {
   return (
-    <Drawer opened={target !== null} onClose={onClose} title="Compare and link" size="lg">
+    <Modal opened={target !== null} onClose={onClose} title="Compare and link" fullScreen>
       {target?.step.profile && (
         <CompareBody target={target} profile={target.step.profile} onDone={onDone} />
       )}
-    </Drawer>
+    </Modal>
   );
 }
 

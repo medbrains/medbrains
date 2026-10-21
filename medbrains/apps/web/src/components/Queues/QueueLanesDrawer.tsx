@@ -4,7 +4,7 @@ import type { QueueCategory, QueueRow } from "@medbrains/types";
 import { IconLock, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
-import { Alert, Button, Drawer, IconButton, Input, Select, Switch, toast } from "@/components/ui";
+import { Alert, Button, IconButton, Input, Modal, Select, Switch, toast } from "@/components/ui";
 
 interface QueueLanesDrawerProps {
   queue: QueueRow | null;
@@ -88,11 +88,11 @@ export function QueueLanesDrawer({ queue, onClose }: QueueLanesDrawerProps) {
   });
 
   return (
-    <Drawer
+    <Modal
       opened={Boolean(queue)}
       onClose={onClose}
       title={`Lanes — ${queue?.name ?? ""}`}
-      size="lg"
+      fullScreen
     >
       <form onSubmit={handleSubmit((values) => save.mutate(values))}>
         <Stack gap="md">
@@ -182,6 +182,6 @@ export function QueueLanesDrawer({ queue, onClose }: QueueLanesDrawerProps) {
           </Group>
         </Stack>
       </form>
-    </Drawer>
+    </Modal>
   );
 }

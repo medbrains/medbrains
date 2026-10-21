@@ -1,7 +1,6 @@
 // INDENT AssetsImplantsPanel — split from indent.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   SegmentedControl,
@@ -28,7 +27,7 @@ import { DataTable, DoctorSearchSelect } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { printColumn } from "@/components/Print/printColumn";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
 import { colorToBadgeTone } from "./shared";
@@ -111,20 +110,14 @@ function ImplantRegistryView() {
         rowKey={(row) => row.id}
         emptyTitle="No implant registry entries"
       />
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Register Implant"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Register Implant" fullScreen>
         <CreateImplantForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["implant-registry"] });
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }
@@ -331,26 +324,19 @@ function CondemnationsView() {
         rowKey={(row) => row.id}
         emptyTitle="No condemnation records"
       />
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Initiate Condemnation"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Initiate Condemnation" fullScreen>
         <CreateCondemnationForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["condemnations"] });
             closeCreate();
           }}
         />
-      </Drawer>
-      <Drawer
+      </Modal>
+      <Modal
         opened={statusOpened}
         onClose={closeStatus}
         title="Update Condemnation Status"
-        position="right"
-        size="xl"
+        fullScreen
       >
         {statusItem && (
           <UpdateCondemnationStatusForm
@@ -361,7 +347,7 @@ function CondemnationsView() {
             }}
           />
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

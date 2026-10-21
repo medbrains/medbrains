@@ -3,6 +3,7 @@
 // resolves it to a component. Curated (not `import * as`) so the bundle only
 // ships the icons actually used. Unknown names fall back to a neutral dot.
 import {
+  type Icon,
   IconAlertTriangle,
   IconArrowsTransferDown,
   IconBed,
@@ -39,7 +40,6 @@ import {
   IconUserPlus,
   IconUsers,
   IconWallet,
-  type Icon,
 } from "@tabler/icons-react";
 
 const ICONS: Record<string, Icon> = {

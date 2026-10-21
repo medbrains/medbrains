@@ -1,7 +1,7 @@
 // Case-management DischargeBarriersTab — split from case-management.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { DischargeBarrierFormInput } from "@medbrains/schemas";
@@ -15,7 +15,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { dischargeBarrierTypeOptions } from "@/forms/case-management.form";
 import { caseManagementService } from "@/services/case-management.service";
 import { BARRIER_TYPE_COLORS, truncate } from "./shared";
@@ -193,12 +193,11 @@ export function DischargeBarriersTab() {
 
       <DataTable columns={columns} data={barriers} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="Add Discharge Barrier"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleSubmit(submitBarrier)}>
           <Controller
@@ -243,7 +242,7 @@ export function DischargeBarriersTab() {
             Add Barrier
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

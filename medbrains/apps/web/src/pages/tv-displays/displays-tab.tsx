@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Drawer,
   Group,
   MultiSelect,
   NumberInput,
@@ -30,7 +29,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   defaultTvDisplayFormValues,
   tvDisplayAllowsPatientNames,
@@ -325,11 +324,10 @@ export function DisplaysTab({
 
       <DataTable columns={columns} data={displays} loading={isLoading} rowKey={(row) => row.id} />
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={close}
         title={selectedDisplay ? "Edit Display" : "Add Display"}
-        position="right"
         size="md"
       >
         <form onSubmit={handleSubmit}>
@@ -467,7 +465,7 @@ export function DisplaysTab({
             </Group>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
     </>
   );
 }

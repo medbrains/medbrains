@@ -2,7 +2,6 @@
 
 import {
   Divider,
-  Drawer,
   Group,
   NumberInput,
   Paper,
@@ -24,7 +23,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, StatusDot } from "@/components";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 const bagStatusColors: Record<string, string> = {
@@ -507,13 +506,7 @@ export function InventoryTab() {
         </>
       )}
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Add Blood Component"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Add Blood Component" fullScreen>
         <CreateComponentForm
           onSubmit={(d) => {
             bloodBankService.createBloodComponent(d).then(() => {
@@ -523,13 +516,12 @@ export function InventoryTab() {
             });
           }}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={!!discardComponent}
         onClose={() => setDiscardComponent(null)}
         title="Discard Blood Component"
-        position="right"
         size="md"
       >
         {discardComponent && (
@@ -545,7 +537,7 @@ export function InventoryTab() {
             loading={statusMut.isPending}
           />
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

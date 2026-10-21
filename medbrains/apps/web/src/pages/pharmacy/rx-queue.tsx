@@ -2,7 +2,7 @@
 // every row in pharmacy_prescriptions belongs to an OPD encounter.
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import type { PharmacyRxReviewFormInput } from "@medbrains/schemas";
 import { pharmacyRxReviewFormSchema } from "@medbrains/schemas";
@@ -27,7 +27,7 @@ import { useSearchParams } from "react-router";
 import type { Column } from "@/components";
 import { DataTable, FormModal, OperationalSignal } from "@/components";
 import { SafetyFindingsPanel, useSafetyGate } from "@/components/Pharmacy/SafetyFindingsPanel";
-import { Alert, Badge, Button, IconButton, Input, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Input, Modal, toast } from "@/components/ui";
 import { optionalFormText } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { RxBillingEstimate } from "./rx-billing-estimate";
@@ -496,12 +496,11 @@ export function RxQueueTab({
       />
 
       {/* Prescription Detail Drawer */}
-      <Drawer
+      <Modal
         opened={Boolean(selectedId) && !reviewOpened}
         onClose={() => setActiveRxQueueId(null)}
         title={t("rxQueue.prescriptionDetail")}
-        position="right"
-        size="min(100%, 1040px)"
+        fullScreen
       >
         {selectedId && (
           <RxDetailView
@@ -515,7 +514,7 @@ export function RxQueueTab({
             }}
           />
         )}
-      </Drawer>
+      </Modal>
 
       <FormModal
         opened={reviewOpened}

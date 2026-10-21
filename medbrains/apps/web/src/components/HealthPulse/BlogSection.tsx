@@ -10,10 +10,10 @@ import {
   Badge,
   Button,
   Card,
-  Drawer,
   IconButton,
   Image,
   Input,
+  Modal,
   RichTextEditor,
   Select,
 } from "@/components/ui";
@@ -166,11 +166,10 @@ export function BlogSection() {
       )}
 
       {/* Reader */}
-      <Drawer
+      <Modal
         opened={Boolean(readingId)}
         onClose={() => setReadingId(null)}
-        position="right"
-        size="lg"
+        fullScreen
         title="Article"
       >
         {readingLoading && <Loader />}
@@ -190,14 +189,13 @@ export function BlogSection() {
             />
           </Stack>
         )}
-      </Drawer>
+      </Modal>
 
       {/* Author editor */}
-      <Drawer
+      <Modal
         opened={editorOpen}
         onClose={editor.close}
-        position="right"
-        size="xl"
+        fullScreen
         title={editId ? "Edit post" : "New post"}
       >
         <Stack gap="sm">
@@ -258,7 +256,7 @@ export function BlogSection() {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

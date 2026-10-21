@@ -1,7 +1,7 @@
 // PROCUREMENT StoreLocationPanel — split from procurement.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ProcurementStoreLocationFormInput } from "@medbrains/schemas";
 import { procurementStoreLocationFormSchema } from "@medbrains/schemas";
@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Button, toast } from "@/components/ui";
+import { Button, Modal, toast } from "@/components/ui";
 import { procurementService } from "@/services/procurement.service";
 import { optionalText } from "./shared";
 
@@ -142,13 +142,12 @@ export function StoreLocationPanel({ canManage }: { canManage: boolean }) {
         emptyTitle="No store locations"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Add Store Location"
         closeButtonProps={{ "aria-label": "Close Add Store Location" }}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <StoreLocationForm
           onSuccess={() => {
@@ -156,7 +155,7 @@ export function StoreLocationPanel({ canManage }: { canManage: boolean }) {
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

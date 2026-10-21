@@ -12,7 +12,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DataTable } from "@/components";
 import { daysLeft, PRIVACY_TYPE_LABEL } from "@/components/Patient/privacy-request-labels";
-import { Alert, Badge, Button, Drawer, toast } from "@/components/ui";
+import { Alert, Badge, Button, Modal, toast } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
 
 const decisionSchema = z.object({
@@ -163,11 +163,10 @@ export function PrivacyRequestsTab() {
           },
         ]}
       />
-      <Drawer
+      <Modal
         opened={answering !== null}
         onClose={() => setAnswering(null)}
         title="Answer privacy request"
-        position="right"
         size="md"
       >
         {answering && (
@@ -187,7 +186,7 @@ export function PrivacyRequestsTab() {
             <AnswerForm request={answering} onDone={() => setAnswering(null)} />
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

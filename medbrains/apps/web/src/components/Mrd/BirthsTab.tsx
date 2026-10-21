@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { MrdBirthCreateInput } from "@medbrains/schemas";
@@ -24,7 +15,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintRegisterButton } from "@/components/Print/PrintRegisterButton";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { fmt } from "./mrdShared";
 
@@ -130,13 +121,7 @@ export function BirthsTab() {
       </Group>
       <DataTable columns={columns} data={births} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Register Birth"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Register Birth" fullScreen>
         <Stack>
           <Controller
             control={control}
@@ -277,7 +262,7 @@ export function BirthsTab() {
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

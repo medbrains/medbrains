@@ -1,5 +1,4 @@
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -28,7 +27,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { FILING_METHOD_OPTIONS, fmt, MRD_SHELF_OPTIONS, STATUS_COLORS } from "./mrdShared";
 
@@ -177,13 +176,7 @@ export function RecordsTab() {
       <DataTable columns={columns} data={records} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Index Medical Record"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Index Medical Record" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={createForm.patient_id}
@@ -240,15 +233,14 @@ export function RecordsTab() {
             Create
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Issue Drawer */}
-      <Drawer
+      <Modal
         opened={issueOpen}
         onClose={closeIssue}
         title={`Issue: ${selectedRecord?.record_number ?? ""}`}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack>
           <EmployeeSearchSelect
@@ -281,15 +273,14 @@ export function RecordsTab() {
             Issue Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Movements Drawer */}
-      <Drawer
+      <Modal
         opened={movementsOpen}
         onClose={closeMovements}
         title={`Movements: ${selectedRecord?.record_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <DataTable
           columns={[
@@ -340,7 +331,7 @@ export function RecordsTab() {
           loading={false}
           rowKey={(m) => m.id}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

@@ -25,10 +25,11 @@ export interface ModalProps extends MantineModalProps {
 }
 
 /**
- * Standard modal — Carbon-aligned dialog. Centered, soft dimmed/blurred
- * overlay, theme radius. For short, self-contained tasks (a workflow done
- * *alongside* content belongs in a Drawer). Pass `opened`, `onClose`, `title`,
- * `size`. Provide `primaryAction` (+ optional `secondaryAction`, `danger`) for
+ * The app's one overlay — there are no drawers. Two shapes: a centered
+ * dialog for short tasks (`size` sm/md), and `fullScreen` for real work (an
+ * order, a detail/edit panel), so users meet one pattern everywhere. Pass
+ * `opened`, `onClose`, `title`, and `size` or `fullScreen`. Provide
+ * `primaryAction` (+ optional `secondaryAction`, `danger`) for
  * Carbon's transactional/danger footer, or render your own footer in children.
  *
  * Accessibility (Carbon + WCAG 2.1 AA): `title` is the dialog's accessible name
@@ -37,7 +38,8 @@ export interface ModalProps extends MantineModalProps {
  */
 export function Modal({
   centered = true,
-  radius = "md",
+  fullScreen,
+  radius = fullScreen ? 0 : "md",
   overlayProps,
   closeButtonProps,
   primaryAction,
@@ -49,6 +51,7 @@ export function Modal({
   return (
     <MantineModal
       centered={centered}
+      fullScreen={fullScreen}
       radius={radius}
       overlayProps={{ backgroundOpacity: 0.55, blur: 3, ...overlayProps }}
       closeButtonProps={{ "aria-label": "Close", ...closeButtonProps }}

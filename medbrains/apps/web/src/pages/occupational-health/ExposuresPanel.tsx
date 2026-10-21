@@ -1,4 +1,4 @@
-import { Drawer, Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
@@ -11,7 +11,17 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button, Input, Select, Switch, TextArea, toast } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Input,
+  Modal,
+  Select,
+  Switch,
+  TextArea,
+  toast,
+} from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 
 const EXPOSURE_TYPES = [
@@ -174,7 +184,7 @@ export function ExposuresPanel() {
         rowKey={(o) => o.id}
       />
 
-      <Drawer opened={opened} onClose={close} title="Report exposure" position="right" size="lg">
+      <Modal opened={opened} onClose={close} title="Report exposure" fullScreen>
         <Stack gap="sm">
           <EmployeeSearchSelect
             label="Exposed employee"
@@ -268,7 +278,7 @@ export function ExposuresPanel() {
             Report exposure
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

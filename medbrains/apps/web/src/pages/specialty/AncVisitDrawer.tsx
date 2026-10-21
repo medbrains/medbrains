@@ -3,7 +3,7 @@ import { Box, Group, SimpleGrid, Stack } from "@mantine/core";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { BloodPressureField } from "@/components/Clinical/BloodPressureField";
-import { Alert, Button, Drawer, NumberField, Select, TextArea, toast } from "@/components/ui";
+import { Alert, Button, Modal, NumberField, Select, TextArea, toast } from "@/components/ui";
 import { specialtyService } from "@/services/specialty.service";
 import {
   type AncVisitFormValues,
@@ -71,13 +71,7 @@ export function AncVisitDrawer({
   });
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title={`ANC visit ${nextVisitNumber}`}
-      position="right"
-      size="lg"
-    >
+    <Modal opened={opened} onClose={onClose} title={`ANC visit ${nextVisitNumber}`} fullScreen>
       <Box
         component="form"
         aria-label="ANC visit"
@@ -172,6 +166,6 @@ export function AncVisitDrawer({
           </Group>
         </Stack>
       </Box>
-    </Drawer>
+    </Modal>
   );
 }

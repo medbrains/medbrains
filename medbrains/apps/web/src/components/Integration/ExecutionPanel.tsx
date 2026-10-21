@@ -1,17 +1,7 @@
-import {
-  Badge,
-  Box,
-  Card,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  ScrollArea,
-  Stack,
-  Text,
-} from "@mantine/core";
+import { Badge, Box, Card, Code, Group, Loader, ScrollArea, Stack, Text } from "@mantine/core";
 import type { ExecutionStatus, IntegrationExecution } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { Modal } from "@/components/ui";
 import { integrationService } from "@/services/integration.service";
 
 interface ExecutionPanelProps {
@@ -41,7 +31,7 @@ export function ExecutionPanel({ pipelineId, opened, onClose }: ExecutionPanelPr
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Execution History" position="right" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Execution History" fullScreen>
       <ScrollArea h="calc(100vh - 100px)">
         {isLoading && (
           <Box ta="center" py="xl">
@@ -61,7 +51,7 @@ export function ExecutionPanel({ pipelineId, opened, onClose }: ExecutionPanelPr
           ))}
         </Stack>
       </ScrollArea>
-    </Drawer>
+    </Modal>
   );
 }
 

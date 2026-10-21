@@ -3,7 +3,6 @@
 import { BarChart } from "@mantine/charts";
 import {
   Card,
-  Drawer,
   Grid,
   Group,
   NumberInput,
@@ -30,7 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 const STAFF_CATEGORIES = [
@@ -355,7 +354,7 @@ export function HygieneTab() {
         </>
       )}
 
-      <Drawer opened={opened} onClose={close} title="Hand Hygiene Audit" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Hand Hygiene Audit" fullScreen>
         <Stack>
           <TextInput
             label="Audit Date"
@@ -408,7 +407,7 @@ export function HygieneTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

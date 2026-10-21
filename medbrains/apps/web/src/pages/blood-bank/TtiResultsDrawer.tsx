@@ -6,7 +6,7 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Badge, Button, Drawer, Input, Select, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, Input, Modal, Select, Table, toast } from "@/components/ui";
 import { bloodBankService } from "@/services/bloodBank.service";
 import {
   markerLabels,
@@ -79,11 +79,11 @@ export function TtiResultsDrawer({ donation, onClose }: Props) {
   const panel = panelQuery.data;
 
   return (
-    <Drawer
+    <Modal
       opened={donation !== null}
       onClose={onClose}
       title={`TTI screening — bag ${donation?.bag_number ?? ""}`}
-      size="lg"
+      fullScreen
     >
       <Stack>
         {!canView && (
@@ -196,6 +196,6 @@ export function TtiResultsDrawer({ donation, onClose }: Props) {
           </Stack>
         )}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

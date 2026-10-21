@@ -16,7 +16,7 @@ import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Badge, Button, Drawer, NumberField, Select, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, Modal, NumberField, Select, Table, toast } from "@/components/ui";
 import { cssdService } from "@/services/cssd.service";
 import { LoadRecallPanel } from "./LoadRecallPanel";
 
@@ -77,11 +77,10 @@ export function LoadContentsDrawer({
     (sets as CssdInstrumentSet[]).find((s) => s.id === id)?.set_name ?? "—";
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
       title={loadNumber ? `Load ${loadNumber} — contents` : "Load contents"}
-      position="right"
       size="md"
     >
       <Stack gap="sm">
@@ -169,6 +168,6 @@ export function LoadContentsDrawer({
 
         {load && <LoadRecallPanel key={load.id} load={load} />}
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

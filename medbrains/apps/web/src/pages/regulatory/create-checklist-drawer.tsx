@@ -12,7 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
-import { Alert, Button, Drawer, toast } from "@/components/ui";
+import { Alert, Button, Modal, toast } from "@/components/ui";
 import { regulatoryService } from "@/services/regulatory.service";
 import { ACCREDITATION_BODIES } from "./shared";
 
@@ -74,7 +74,7 @@ export function CreateChecklistDrawer({ opened, onClose, checklists }: CreateChe
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New checklist" position="right" size="lg">
+    <Modal opened={opened} onClose={onClose} title="New checklist" fullScreen>
       <Stack
         component="form"
         gap="sm"
@@ -183,6 +183,6 @@ export function CreateChecklistDrawer({ opened, onClose, checklists }: CreateChe
           Create checklist
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

@@ -1,6 +1,6 @@
 // Communications MessagesTab — split from communications.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -11,7 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { communicationsService } from "@/services/communications.service";
 import { CHANNEL_COLORS, commChannel, optionalText, requiredText } from "./shared";
 
@@ -163,7 +163,7 @@ export function MessagesTab() {
         )}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Send Message" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Send Message" fullScreen>
         <Stack>
           <Select
             label="Channel"
@@ -207,7 +207,7 @@ export function MessagesTab() {
             Queue Message
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

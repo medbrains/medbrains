@@ -11,7 +11,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Alert, Badge, type BadgeTone, Button, Drawer, Modal } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { formatDateTime } from "@/lib/date-utils";
 import { WebhookDrawer } from "./WebhookDrawer";
@@ -132,12 +132,11 @@ export function WebhooksPage() {
           </Button>
         </Stack>
       </Modal>
-      <Drawer
+      <Modal
         opened={watching !== null}
         onClose={() => setWatching(null)}
         title={`Deliveries — ${watching?.name ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         <DataTable
           columns={[
@@ -167,7 +166,7 @@ export function WebhooksPage() {
           rowKey={(d) => d.id}
           emptyTitle="Nothing sent yet"
         />
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

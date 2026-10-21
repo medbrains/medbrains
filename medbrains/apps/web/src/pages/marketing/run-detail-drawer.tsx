@@ -3,7 +3,7 @@ import type { MarketingMessageRow, MarketingOutreachRun } from "@medbrains/types
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Drawer } from "@/components/ui";
+import { Badge, Modal } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
 
 /**
@@ -123,13 +123,7 @@ export function RunDetailDrawer({
   ];
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="Who this run reached"
-      size="xl"
-      position="right"
-    >
+    <Modal opened={opened} onClose={onClose} title="Who this run reached" fullScreen>
       <Stack gap="md">
         {run && (
           <Group gap="xl">
@@ -198,6 +192,6 @@ export function RunDetailDrawer({
           smaller number cannot answer why somebody was left out.
         </Text>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

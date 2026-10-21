@@ -1,7 +1,6 @@
 // IPD OutbreakTab — split from infection-control.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Paper,
@@ -29,7 +28,7 @@ import { IconEye, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 import { statusColorTone } from "./shared";
 
@@ -208,7 +207,7 @@ export function OutbreakTab() {
         emptyTitle="No outbreaks"
       />
 
-      <Drawer opened={opened} onClose={close} title="Report Outbreak" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Report Outbreak" fullScreen>
         <Stack>
           <TextInput
             label="Organism"
@@ -241,14 +240,13 @@ export function OutbreakTab() {
             Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title={`Outbreak: ${selected?.outbreak_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {selected && (
           <Stack>
@@ -317,7 +315,7 @@ export function OutbreakTab() {
             ))}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

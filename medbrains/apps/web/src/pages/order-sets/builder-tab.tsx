@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -28,7 +27,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import {
   orderSetItemTypeOptions,
   orderSetOptionalInteger,
@@ -277,13 +276,7 @@ export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         </>
       )}
 
-      <Drawer
-        opened={itemDrawer}
-        onClose={closeItem}
-        title="Add Item to Order Set"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={itemDrawer} onClose={closeItem} title="Add Item to Order Set" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitItem)}>
           <Controller
             name="item_type"
@@ -462,7 +455,7 @@ export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
             Add Item
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

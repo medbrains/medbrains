@@ -15,9 +15,9 @@ import {
   Badge,
   Button,
   Card,
-  Drawer,
   IconButton,
   Input,
+  Modal,
   Select,
   Switch,
   TextArea,
@@ -168,7 +168,7 @@ export function MyLeaveCard() {
         />
       )}
 
-      <Drawer opened={applyOpen} onClose={close} title="Apply for leave" position="right">
+      <Modal opened={applyOpen} onClose={close} title="Apply for leave">
         <form onSubmit={form.handleSubmit((v) => apply.mutate(v))} noValidate>
           <Stack gap="sm">
             <Controller
@@ -220,7 +220,7 @@ export function MyLeaveCard() {
             </Button>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
     </Card>
   );
 }

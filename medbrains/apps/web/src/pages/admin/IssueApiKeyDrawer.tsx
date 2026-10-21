@@ -23,7 +23,7 @@ import { PERMISSIONS } from "@medbrains/types";
 import { IconAlertTriangle, IconCopy, IconKey, IconSearch } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Alert, Badge, Button, Checkbox, Drawer } from "@/components/ui";
+import { Alert, Badge, Button, Checkbox, Modal } from "@/components/ui";
 
 const BYPASS_ROLES = new Set(["super_admin", "hospital_admin"]);
 
@@ -135,7 +135,7 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
 
   if (issued) {
     return (
-      <Drawer opened={opened} onClose={reset} position="right" size="lg" title="Key issued">
+      <Modal opened={opened} onClose={reset} fullScreen title="Key issued">
         <Stack gap="md">
           <Alert tone="warning" title="This is the only time you will see this key">
             <Text size="sm">
@@ -187,12 +187,12 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
             </Button>
           </Group>
         </Stack>
-      </Drawer>
+      </Modal>
     );
   }
 
   return (
-    <Drawer opened={opened} onClose={reset} position="right" size="lg" title="Issue an API key">
+    <Modal opened={opened} onClose={reset} fullScreen title="Issue an API key">
       <Stack gap="md">
         {!canGrantAnything && (
           <Alert tone="info" title="You can grant only what you hold">
@@ -319,6 +319,6 @@ export function IssueApiKeyDrawer({ opened, onClose }: Props) {
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

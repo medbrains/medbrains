@@ -7,7 +7,7 @@
  */
 import "@mantine/charts/styles.css";
 import { DonutChart } from "@mantine/charts";
-import { Drawer, Group, NumberInput, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
+import { Group, NumberInput, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
@@ -15,7 +15,7 @@ import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type StoragePolicy as Policy,
@@ -202,14 +202,13 @@ function PoliciesTab() {
           },
         ]}
       />
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
           setEditing(null);
         }}
         title={`Edit policy — ${editing?.document_category ?? ""}`}
-        position="right"
       >
         {editing && (
           <PolicyEditForm
@@ -221,7 +220,7 @@ function PoliciesTab() {
             }}
           />
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

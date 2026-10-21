@@ -1,6 +1,6 @@
 // IPD ClinicalTab — split from communications.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -16,7 +16,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton, Modal } from "@/components/ui";
 import { communicationsService } from "@/services/communications.service";
 import { optionalText, PRIORITY_COLORS, requiredText } from "./shared";
 
@@ -176,7 +176,7 @@ export function ClinicalTab() {
         )}
       </Group>
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Clinical Message" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Clinical Message" fullScreen>
         <Stack>
           <EmployeeSearchSelect
             label="Recipient"
@@ -226,7 +226,7 @@ export function ClinicalTab() {
             Send
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

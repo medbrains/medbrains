@@ -1,4 +1,4 @@
-import { Drawer, Group, Modal, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type {
@@ -14,7 +14,17 @@ import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button, Input, Select, Switch, TextArea, toast } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  Input,
+  Modal,
+  Select,
+  Switch,
+  TextArea,
+  toast,
+} from "@/components/ui";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 const DEVICE_TYPES = [
@@ -219,13 +229,7 @@ export function InvasiveDevicesPanel() {
 
       <DataTable columns={columns} data={devices ?? []} loading={isLoading} rowKey={(d) => d.id} />
 
-      <Drawer
-        opened={addOpen}
-        onClose={closeAdd}
-        title="Register device"
-        position="right"
-        size="md"
-      >
+      <Modal opened={addOpen} onClose={closeAdd} title="Register device" size="md">
         <Stack gap="sm">
           <PatientSearchSelect
             label="Patient"
@@ -257,7 +261,7 @@ export function InvasiveDevicesPanel() {
             Register
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       <Modal
         opened={reviewTarget !== null}

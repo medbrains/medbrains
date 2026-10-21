@@ -14,7 +14,7 @@ import {
   Alert,
   Button,
   Checkbox,
-  Drawer,
+  Modal,
   NumberField,
   Select,
   Switch,
@@ -70,12 +70,11 @@ export function CompleteFormFDrawer({ form, onClose }: CompleteFormFDrawerProps)
   });
 
   return (
-    <Drawer
+    <Modal
       opened={Boolean(form)}
       onClose={onClose}
       title={`Form F ${form?.form_number ?? ""}`}
-      position="right"
-      size="lg"
+      fullScreen
     >
       <Stack
         component="form"
@@ -196,6 +195,6 @@ export function CompleteFormFDrawer({ form, onClose }: CompleteFormFDrawerProps)
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

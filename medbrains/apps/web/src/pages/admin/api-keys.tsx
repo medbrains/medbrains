@@ -25,7 +25,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, Button, Drawer, IconButton, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 import { IssueApiKeyDrawer } from "./IssueApiKeyDrawer";
@@ -250,11 +250,10 @@ export function ApiKeysPage() {
 
       {canCreate && <IssueApiKeyDrawer opened={issueOpened} onClose={issueHandlers.close} />}
 
-      <Drawer
+      <Modal
         opened={usageFor !== null}
         onClose={() => setUsageFor(null)}
-        position="right"
-        size="lg"
+        fullScreen
         title={usageFor ? `Usage — ${usageFor.name}` : "Usage"}
       >
         <Stack gap="md">
@@ -317,7 +316,7 @@ export function ApiKeysPage() {
             </Table.Tbody>
           </Table>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

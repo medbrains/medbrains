@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -43,7 +42,7 @@ import {
 } from "@/components";
 import { AssetMovementsTab, MoveAssetModal } from "@/components/Assets/AssetMovements";
 import type { Column } from "@/components/DataTable";
-import { Button, IconButton } from "@/components/ui";
+import { Button, IconButton, Modal } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { assetsService } from "@/services/assets.service";
 import {
@@ -614,11 +613,10 @@ export function AssetsPage() {
         onClose={() => setMoveTarget(null)}
       />
 
-      <Drawer
+      <Modal
         opened={assetCategoryDrawerOpen}
         onClose={assetCategoryDrawerHandlers.close}
         title={editingAssetCategory ? "Edit Asset Category" : "Add Asset Category"}
-        position="right"
         size="md"
       >
         <form
@@ -723,13 +721,12 @@ export function AssetsPage() {
             </Group>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={storeCategoryDrawerOpen}
         onClose={storeCategoryDrawerHandlers.close}
         title={editingStoreCategory ? "Edit Store Category" : "Add Store Category"}
-        position="right"
         size="md"
       >
         <form
@@ -840,7 +837,7 @@ export function AssetsPage() {
             </Group>
           </Stack>
         </form>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

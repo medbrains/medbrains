@@ -1,15 +1,6 @@
 // IPD WaterQualityTab — split from facilities.tsx (pure move).
 
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -26,7 +17,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { facilitiesService } from "@/services/facilities.service";
 
 const WATER_SOURCE_TYPES = [
@@ -223,13 +214,7 @@ export function WaterQualityTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={testOpen}
-        onClose={closeTest}
-        title="Record Water Test"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={testOpen} onClose={closeTest} title="Record Water Test" fullScreen>
         <Stack>
           <Select
             label="Source"
@@ -296,15 +281,9 @@ export function WaterQualityTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={schedOpen}
-        onClose={closeSched}
-        title="Add Water Schedule"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={schedOpen} onClose={closeSched} title="Add Water Schedule" fullScreen>
         <Stack>
           <Select
             label="Schedule Type"
@@ -335,7 +314,7 @@ export function WaterQualityTab() {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

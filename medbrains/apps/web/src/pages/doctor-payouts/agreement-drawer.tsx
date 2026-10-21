@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type Control, Controller, type FieldPath, useForm } from "react-hook-form";
 import { z } from "zod";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
-import { Alert, Button, Drawer, Input, Select, Switch, TextArea, toast } from "@/components/ui";
+import { Alert, Button, Input, Modal, Select, Switch, TextArea, toast } from "@/components/ui";
 import { doctorPayoutsService } from "@/services/doctor-payouts.service";
 import { BASES, BEARERS, ENGAGEMENTS, errorText } from "./shared";
 
@@ -173,17 +173,16 @@ interface AgreementDrawerProps {
 /** Create or change a doctor's agreement. */
 export function AgreementDrawer({ opened, onClose, agreement }: AgreementDrawerProps) {
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
       title={agreement ? `Agreement — ${agreement.doctor_name ?? ""}` : "New agreement"}
-      position="right"
-      size="lg"
+      fullScreen
     >
       {opened && (
         <AgreementForm key={agreement?.id ?? "new"} agreement={agreement} onDone={onClose} />
       )}
-    </Drawer>
+    </Modal>
   );
 }
 

@@ -9,7 +9,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, Drawer, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { hrService } from "@/services/hr.service";
 
@@ -214,7 +214,7 @@ export function PayrollPage() {
         </Tabs.Panel>
       </Tabs>
 
-      <Drawer opened={structOpen} onClose={structHandlers.close} title="Salary structure" size="md">
+      <Modal opened={structOpen} onClose={structHandlers.close} title="Salary structure" size="md">
         <Stack gap="sm">
           <EmployeeSearchSelect
             label="Employee"
@@ -255,15 +255,9 @@ export function PayrollPage() {
             Save structure
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
-      <Drawer
-        opened={!!detailRun}
-        onClose={() => setDetailRun(null)}
-        title="Payslips"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={!!detailRun} onClose={() => setDetailRun(null)} title="Payslips" fullScreen>
         {detailRun && (
           <Stack gap="sm">
             <Text size="sm" c="dimmed">
@@ -278,7 +272,7 @@ export function PayrollPage() {
             />
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

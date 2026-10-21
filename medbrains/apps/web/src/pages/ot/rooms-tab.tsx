@@ -1,7 +1,7 @@
 // IPD RoomsTab — split from ot.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OtRoomFormInput } from "@medbrains/schemas";
 import { otRoomFormSchema } from "@medbrains/schemas";
@@ -10,7 +10,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, StatusDot } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { DEFAULT_OT_ROOM_FORM_VALUES, toCreateOtRoomRequest } from "@/forms/ot.form";
 import { otService } from "@/services/ot.service";
 
@@ -37,7 +37,7 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New OT Room" position="right" size="sm">
+    <Modal opened={opened} onClose={onClose} title="New OT Room" size="sm">
       <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         <Controller
           control={control}
@@ -57,7 +57,7 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
           Create
         </Button>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

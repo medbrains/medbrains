@@ -1,7 +1,7 @@
 // Security CodeDebriefsTab — split from security.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { SecurityCodeDebriefFormInput } from "@medbrains/schemas";
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import {
   defaultSecurityCodeDebriefFormValues,
   securityCodeDebriefFormToRequest,
@@ -101,13 +101,7 @@ export function CodeDebriefsTab() {
       )}
       <DataTable columns={columns} data={debriefs} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Create Code Debrief"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={opened} onClose={close} title="Create Code Debrief" fullScreen>
         <Stack
           component="form"
           onSubmit={debriefForm.handleSubmit((values) => createMut.mutate(values))}
@@ -187,7 +181,7 @@ export function CodeDebriefsTab() {
             Create Debrief
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

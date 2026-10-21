@@ -1,6 +1,6 @@
 // Consent TemplatesTab — split from consent.tsx (pure move).
 
-import { Center, Code, Drawer, Group, Loader, Select, Text } from "@mantine/core";
+import { Center, Code, Group, Loader, Select, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -13,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm";
 import { consentService } from "@/services/consent.service";
 import { DeathCertificateForm } from "./death-certificate-form";
@@ -267,15 +267,14 @@ export function TemplatesTab({
         </Group>
       </Group>
       <DataTable columns={columns} data={templates} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
           setEditing(null);
         }}
         title={editing ? "Edit Template" : "New Template"}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {editing && editingLoading ? (
           <Center py="xl">
@@ -295,31 +294,24 @@ export function TemplatesTab({
             loading={createMut.isPending || updateMut.isPending}
           />
         )}
-      </Drawer>
-      <Drawer
+      </Modal>
+      <Modal
         opened={deathCertOpened}
         onClose={closeDeathCert}
         title="Death Certificate — Form 4 / 4A"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <DeathCertificateForm
           onSubmit={(vals) => deathCertMut.mutate(vals)}
           loading={deathCertMut.isPending}
         />
-      </Drawer>
-      <Drawer
-        opened={mloOpened}
-        onClose={closeMlo}
-        title="Medico-Legal Opinion"
-        position="right"
-        size="xl"
-      >
+      </Modal>
+      <Modal opened={mloOpened} onClose={closeMlo} title="Medico-Legal Opinion" fullScreen>
         <MedicoLegalOpinionForm
           onSubmit={(vals) => mloMut.mutate(vals)}
           loading={mloMut.isPending}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

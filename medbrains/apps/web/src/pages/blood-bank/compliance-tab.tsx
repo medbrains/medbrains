@@ -1,7 +1,6 @@
 // BLOOD-BANK ComplianceTab — split from blood-bank.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Paper,
@@ -31,7 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, toast } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal, toast } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -186,13 +185,7 @@ function LookbackSection() {
 
       <DataTable columns={columns} data={events ?? []} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="Create Lookback Event"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="Create Lookback Event" fullScreen>
         <Stack>
           <Select
             label="Infection Type"
@@ -239,7 +232,7 @@ function LookbackSection() {
             Create Event
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -429,13 +422,7 @@ function RecruitmentSection() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
-        opened={createOpen}
-        onClose={closeCreate}
-        title="New Recruitment Campaign"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpen} onClose={closeCreate} title="New Recruitment Campaign" fullScreen>
         <Stack>
           <TextInput
             label="Campaign Name"
@@ -497,7 +484,7 @@ function RecruitmentSection() {
             Create Campaign
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

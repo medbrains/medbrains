@@ -5,7 +5,7 @@ import type { NhcxParticipant, NhcxRequestStage, PreauthNhcxView } from "@medbra
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Alert, Badge, Button, Card, Drawer, SegmentedControl, toast } from "@/components/ui";
+import { Alert, Badge, Button, Card, Modal, SegmentedControl, toast } from "@/components/ui";
 import { nhcxSettingsService } from "@/services/nhcxSettings.service";
 import { NhcxPayerSelect } from "./NhcxPayerSelect";
 import { NhcxSetupAlert } from "./NhcxSetupAlert";
@@ -157,10 +157,10 @@ export function PreauthNhcxDrawer({ priorAuthId, paNumber, onClose }: PreauthNhc
     refetchInterval: (q) => (q.state.data?.sla.state === "running" ? POLL_MS : false),
   });
   return (
-    <Drawer
+    <Modal
       opened={!!priorAuthId}
       onClose={onClose}
-      size="lg"
+      fullScreen
       title={`Pre-auth ${paNumber} — NHCX`}
     >
       {priorAuthId && (
@@ -196,6 +196,6 @@ export function PreauthNhcxDrawer({ priorAuthId, paNumber, onClose }: PreauthNhc
           )}
         </Stack>
       )}
-    </Drawer>
+    </Modal>
   );
 }

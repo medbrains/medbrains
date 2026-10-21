@@ -1,6 +1,6 @@
 // IPD DrugScreensPanel — split from occupational-health.tsx (pure move).
 
-import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -12,7 +12,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 
 const DRUG_SCREEN_STATUS_OPTIONS = [
@@ -189,11 +189,10 @@ export function DrugScreensPanel() {
       <DataTable columns={columns} data={screens} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-      <Drawer
+      <Modal
         opened={createOpen}
         onClose={createHandlers.close}
         title="New Drug Screening"
-        position="right"
         size="md"
       >
         <Stack>
@@ -224,16 +223,10 @@ export function DrugScreensPanel() {
             Create Drug Screen
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Update Status Drawer */}
-      <Drawer
-        opened={editOpen}
-        onClose={editHandlers.close}
-        title="Update Drug Screen"
-        position="right"
-        size="md"
-      >
+      <Modal opened={editOpen} onClose={editHandlers.close} title="Update Drug Screen" size="md">
         <Stack>
           <Select
             label="Status"
@@ -252,7 +245,7 @@ export function DrugScreensPanel() {
             Update Drug Screen
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

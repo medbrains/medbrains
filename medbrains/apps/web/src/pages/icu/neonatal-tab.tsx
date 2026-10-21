@@ -5,7 +5,6 @@ import { LineChart } from "@mantine/charts";
 import {
   Card,
   Checkbox,
-  Drawer,
   Group,
   NumberInput,
   SimpleGrid,
@@ -27,7 +26,7 @@ import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { DEFAULT_ICU_NEONATAL_FORM_VALUES, toCreateIcuNeonatalRequest } from "@/forms/icu.form";
 import { icuService } from "@/services/icu.service";
 import { MotherBabyMatchPanel } from "../security/mother-baby-match-panel";
@@ -332,13 +331,7 @@ export function NeonatalTab({ admissionId }: { admissionId: string }) {
       {/* Bilirubin Trend & Phototherapy Tracking */}
       {admissionId && records.length > 0 && <BilirubinPhototherapyPanel records={records} />}
 
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Record Neonatal Data"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={opened} onClose={close} title="Record Neonatal Data" fullScreen>
         <Stack component="form" onSubmit={handleSubmit((values) => createMut.mutate(values))}>
           <Group grow>
             <Controller
@@ -501,7 +494,7 @@ export function NeonatalTab({ admissionId }: { admissionId: string }) {
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

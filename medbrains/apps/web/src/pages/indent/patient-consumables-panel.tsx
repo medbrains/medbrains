@@ -1,6 +1,6 @@
 // INDENT PatientConsumablesPanel — split from indent.tsx (pure move).
 
-import { Drawer, Group, NumberInput, Select, Stack, Switch, Text, Textarea } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Switch, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { IssueToPatientRequest, PatientConsumableIssue } from "@medbrains/types";
@@ -11,7 +11,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, Modal, toast } from "@/components/ui";
 import { indentService } from "@/services/indent.service";
 
 function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
@@ -175,20 +175,14 @@ export function PatientConsumablesPanel() {
         rowKey={(row) => row.id}
         emptyTitle="No patient consumable issues"
       />
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Issue to Patient"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Issue to Patient" fullScreen>
         <IssueToPatientForm
           onSuccess={() => {
             void queryClient.invalidateQueries({ queryKey: ["patient-consumables"] });
             closeCreate();
           }}
         />
-      </Drawer>
+      </Modal>
     </>
   );
 }

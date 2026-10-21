@@ -1,6 +1,6 @@
 // Order-sets ActivationsTab — split from order-sets.tsx (pure move).
 
-import { Card, Drawer, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { Card, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { OrderSetActivation } from "@medbrains/types";
 import { IconListDetails } from "@tabler/icons-react";
@@ -9,7 +9,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, IconButton } from "@/components/ui";
+import { Badge, IconButton, Modal } from "@/components/ui";
 import { orderSetsService } from "@/services/order-sets.service";
 import { statusColorTone } from "./shared";
 
@@ -91,13 +91,7 @@ export function ActivationsTab() {
     <>
       <DataTable columns={columns} data={activations} loading={isLoading} rowKey={(r) => r.id} />
 
-      <Drawer
-        opened={detailDrawer}
-        onClose={closeDetail}
-        title="Activation Details"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={detailDrawer} onClose={closeDetail} title="Activation Details" fullScreen>
         {detail && (
           <Stack>
             <Group>
@@ -144,7 +138,7 @@ export function ActivationsTab() {
             ))}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </>
   );
 }

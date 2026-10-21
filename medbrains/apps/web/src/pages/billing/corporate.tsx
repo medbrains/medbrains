@@ -1,16 +1,7 @@
 // Billing CorporateTab — split from billing.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  NumberInput,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Group, NumberInput, Stack, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { BillingCorporateFormInput } from "@medbrains/schemas";
 import { billingCorporateFormSchema } from "@medbrains/schemas";
@@ -22,7 +13,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Button, IconButton, toast } from "@/components/ui";
+import { Button, IconButton, Modal, toast } from "@/components/ui";
 import {
   billingOptionalInteger,
   billingOptionalNumber,
@@ -275,15 +266,9 @@ export function CorporateTab() {
         exportFileName="corporate-clients"
       />
 
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Corporate Client Detail"
-        position="right"
-        size="lg"
-      >
+      <Modal opened={detailOpened} onClose={closeDetail} title="Corporate Client Detail" fullScreen>
         {selectedId && <CorporateDetail corporateId={selectedId} canUpdate={canUpdate} />}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

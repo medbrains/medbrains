@@ -3,7 +3,6 @@
 import {
   Card,
   Center,
-  Drawer,
   Group,
   Loader,
   Select,
@@ -36,7 +35,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
-import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, Table, toast } from "@/components/ui";
 import { qualityService } from "@/services/quality.service";
 import { capaStatusColors, incidentStatusColors, statusColorTone } from "./shared";
 
@@ -296,13 +295,7 @@ export function IncidentsTab() {
       />
 
       {/* Create Incident Drawer */}
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreate}
-        title="Report Incident"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={createOpened} onClose={closeCreate} title="Report Incident" fullScreen>
         <Stack>
           <TextInput
             label="Title"
@@ -398,15 +391,14 @@ export function IncidentsTab() {
             Submit Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Incident Detail Drawer */}
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title={`Incident: ${selectedIncident?.incident_number ?? ""}`}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detailOpened && !selectedIncident && (
           <Center py="xl">
@@ -711,16 +703,10 @@ export function IncidentsTab() {
             )}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
 
       {/* Mortality Review Drawer */}
-      <Drawer
-        opened={mortalityOpened}
-        onClose={closeMortality}
-        title="Mortality Review"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={mortalityOpened} onClose={closeMortality} title="Mortality Review" fullScreen>
         <Stack>
           <PatientSearchSelect
             value={mortalityForm.patient_id}
@@ -786,7 +772,7 @@ export function IncidentsTab() {
             Submit Review
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

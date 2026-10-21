@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, TableValueBadge } from "@/components";
 import { printColumn } from "@/components/Print/printColumn";
-import { Button, Drawer, IconButton } from "@/components/ui";
+import { Button, IconButton, Modal } from "@/components/ui";
 import { procurementService } from "@/services/procurement.service";
 import { CreateGrnForm } from "./grn-create-form";
 import { GrnDetailView, grnStatusColors } from "./grn-detail";
@@ -101,13 +101,12 @@ export function GrnPanel({ canCreate }: { canCreate: boolean }) {
         emptyTitle="No goods receipt notes"
       />
 
-      <Drawer
+      <Modal
         opened={createOpened}
         onClose={closeCreate}
         title="Create GRN"
         closeButtonProps={{ "aria-label": "Close Create GRN" }}
-        position="right"
-        size="xl"
+        fullScreen
       >
         <CreateGrnForm
           onSuccess={(result) => {
@@ -119,18 +118,17 @@ export function GrnPanel({ canCreate }: { canCreate: boolean }) {
             openDetail();
           }}
         />
-      </Drawer>
+      </Modal>
 
-      <Drawer
+      <Modal
         opened={detailOpened}
         onClose={closeDetail}
         title="GRN Details"
         closeButtonProps={{ "aria-label": "Close GRN Details" }}
-        position="right"
-        size="lg"
+        fullScreen
       >
         {detailId && <GrnDetailView id={detailId} warnings={warnings} />}
-      </Drawer>
+      </Modal>
     </>
   );
 }

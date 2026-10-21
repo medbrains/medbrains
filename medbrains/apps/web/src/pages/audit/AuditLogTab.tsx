@@ -1,4 +1,4 @@
-import { Code, Drawer, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Code, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { auditService } from "@/services/audit.service";
 
@@ -334,7 +334,7 @@ function AuditDetailDrawer({
   onClose: () => void;
 }) {
   return (
-    <Drawer opened={opened} onClose={onClose} title="Audit Entry Detail" position="right" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Audit Entry Detail" fullScreen>
       {entry ? (
         <Stack gap="md">
           <Group gap="xs">
@@ -411,6 +411,6 @@ function AuditDetailDrawer({
       ) : (
         <Text c="dimmed">Loading...</Text>
       )}
-    </Drawer>
+    </Modal>
   );
 }

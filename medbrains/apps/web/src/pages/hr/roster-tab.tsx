@@ -1,7 +1,6 @@
 // HR RosterTab — split from hr.tsx (pure move).
 
 import {
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -19,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, Button, IconButton, toast } from "@/components/ui";
+import { Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 
 export function RosterTab({
@@ -397,13 +396,7 @@ export function RosterTab({
       </Tabs>
 
       {/* Create Roster Drawer */}
-      <Drawer
-        opened={rosterOpen}
-        onClose={closeRoster}
-        title="Add Roster Entry"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={rosterOpen} onClose={closeRoster} title="Add Roster Entry" fullScreen>
         <Stack gap="sm">
           <EmployeeSearchSelect
             value={rosterForm.employee_id}
@@ -441,16 +434,10 @@ export function RosterTab({
             Add to Roster
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Create Shift Drawer */}
-      <Drawer
-        opened={shiftOpen}
-        onClose={closeShift}
-        title="Add Shift Definition"
-        position="right"
-        size="sm"
-      >
+      <Modal opened={shiftOpen} onClose={closeShift} title="Add Shift Definition" size="sm">
         <Stack gap="sm">
           <TextInput
             label="Code"
@@ -514,16 +501,10 @@ export function RosterTab({
             Create Shift
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Create On-Call Drawer */}
-      <Drawer
-        opened={onCallOpen}
-        onClose={closeOnCall}
-        title="Add On-Call Schedule"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={onCallOpen} onClose={closeOnCall} title="Add On-Call Schedule" fullScreen>
         <Stack gap="sm">
           <EmployeeSearchSelect
             value={onCallForm.employee_id}
@@ -572,7 +553,7 @@ export function RosterTab({
             Schedule On-Call
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

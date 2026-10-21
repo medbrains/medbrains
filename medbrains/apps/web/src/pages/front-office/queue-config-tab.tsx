@@ -1,7 +1,7 @@
 // IPD QueueConfigTab — split from front-office.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, NumberInput, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { QueueDisplayConfig, QueuePriorityRule, VisitingHours } from "@medbrains/types";
@@ -9,7 +9,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, TableValueBadge } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import type {
   FrontOfficeDisplayConfigFormInput,
   FrontOfficeQueuePriorityFormInput,
@@ -290,11 +290,10 @@ export function QueueConfigTab({
       </div>
 
       {/* Priority Rule Drawer */}
-      <Drawer
+      <Modal
         opened={ruleDrawer}
         onClose={ruleDrawerHandlers.close}
         title="Add Priority Rule"
-        position="right"
         size="sm"
       >
         <Stack
@@ -333,15 +332,14 @@ export function QueueConfigTab({
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Display Config Drawer */}
-      <Drawer
+      <Modal
         opened={configDrawer}
         onClose={configDrawerHandlers.close}
         title="Add Display Config"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack
           component="form"
@@ -427,14 +425,13 @@ export function QueueConfigTab({
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Visiting Hours Drawer */}
-      <Drawer
+      <Modal
         opened={hoursDrawer}
         onClose={hoursDrawerHandlers.close}
         title="Add Visiting Hours"
-        position="right"
         size="sm"
       >
         <Stack
@@ -485,7 +482,7 @@ export function QueueConfigTab({
             Save
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

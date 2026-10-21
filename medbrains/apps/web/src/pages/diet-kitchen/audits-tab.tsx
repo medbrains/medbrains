@@ -1,17 +1,7 @@
 // IPD AuditsTab — split from diet-kitchen.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Card, Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { KitchenAuditFormInput } from "@medbrains/schemas";
@@ -24,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import {
   dietOptionalNumber,
   dietOptionalText,
@@ -158,7 +148,7 @@ export function AuditsTab() {
           </Text>
         </Card>
       )}
-      <Drawer opened={opened} onClose={close} title="Record FSSAI Audit" position="right" size="xl">
+      <Modal opened={opened} onClose={close} title="Record FSSAI Audit" fullScreen>
         <Stack component="form" onSubmit={handleSubmit(submitAudit)}>
           <Controller
             name="auditor_name"
@@ -221,7 +211,7 @@ export function AuditsTab() {
             Record Audit
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </>
   );
 }

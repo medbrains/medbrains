@@ -4,6 +4,7 @@
  * Mantine Drawer placeholder until useWorkspace() ships.
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.3.
  */
+
 import {
   Accordion,
   Alert,
@@ -12,7 +13,6 @@ import {
   Checkbox,
   Code,
   Divider,
-  Drawer,
   Group,
   Loader,
   Paper,
@@ -36,6 +36,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Modal } from "@/components/ui";
 import { signoffService } from "@/services/signoff.service";
 
 interface SignWorkspaceProps {
@@ -114,7 +115,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
   };
 
   return (
-    <Drawer
+    <Modal
       opened={opened}
       onClose={onClose}
       title={
@@ -123,7 +124,6 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
           <Text fw={600}>Sign record</Text>
         </Group>
       }
-      position="right"
       size="md"
       padding="md"
     >
@@ -247,7 +247,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }
 

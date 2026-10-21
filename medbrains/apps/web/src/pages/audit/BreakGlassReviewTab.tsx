@@ -1,4 +1,4 @@
-import { Drawer, Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
+import { Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import { IconEye, IconShieldLock } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Modal } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
 import { auditService } from "@/services/audit.service";
 
@@ -249,13 +249,7 @@ export function BreakGlassReviewTab() {
         emptyDescription="Emergency access sessions will appear here for supervisor review."
       />
 
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Break-glass evidence"
-        position="right"
-        size="xl"
-      >
+      <Modal opened={detailOpened} onClose={closeDetail} title="Break-glass evidence" fullScreen>
         {detailLoading || !selectedEvent ? (
           <Text c="dimmed">Loading...</Text>
         ) : (
@@ -361,7 +355,7 @@ export function BreakGlassReviewTab() {
             )}
           </Stack>
         )}
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }

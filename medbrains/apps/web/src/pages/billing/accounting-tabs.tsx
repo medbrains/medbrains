@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Progress,
@@ -66,7 +65,16 @@ import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  IconButton,
+  Modal,
+  Table,
+  toast,
+} from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,
@@ -279,15 +287,14 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
+      <Modal
         opened={genOpened}
         onClose={() => {
           closeGen();
           reset(gstrDefaults);
         }}
         title="Generate GSTR Summary"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleSubmit(handleGenerateGstr)}>
           <Controller
@@ -313,7 +320,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
             Generate
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -530,15 +537,14 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
           reset(tdsDefaults);
         }}
         title="Record TDS Deduction"
-        position="right"
-        size="xl"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleSubmit(handleCreateTds)}>
           <TextInput
@@ -632,7 +638,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
             Record
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -959,15 +965,14 @@ export function JournalEntriesTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
+      <Modal
         opened={opened}
         onClose={() => {
           close();
           reset(journalDefaults);
         }}
         title="Create Journal Entry"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={handleSubmit(handleCreateJournalEntry)}>
           <TextInput
@@ -1072,7 +1077,7 @@ export function JournalEntriesTab() {
             Create Journal Entry
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -1315,12 +1320,11 @@ export function BankReconTab() {
         rowKey={(r) => r.id}
       />
 
-      <Drawer
+      <Modal
         opened={importOpened}
         onClose={closeImport}
         title="Import Bank Transactions"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack>
           <TextInput
@@ -1394,7 +1398,7 @@ export function BankReconTab() {
             Import {importTxns.length} Transaction(s)
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
@@ -2090,7 +2094,7 @@ function ConcessionCreateDrawer({
   });
 
   return (
-    <Drawer opened={opened} onClose={handleClose} title="New concession" position="right" size="lg">
+    <Modal opened={opened} onClose={handleClose} title="New concession" fullScreen>
       <Stack component="form" onSubmit={handleSubmit((data) => createMut.mutate(data))}>
         <PatientSearchSelect
           value={patientId}
@@ -2191,6 +2195,6 @@ function ConcessionCreateDrawer({
           </Button>
         </Group>
       </Stack>
-    </Drawer>
+    </Modal>
   );
 }

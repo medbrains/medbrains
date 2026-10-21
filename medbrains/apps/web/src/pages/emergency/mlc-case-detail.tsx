@@ -6,10 +6,8 @@ import {
   Card,
   Checkbox,
   Divider,
-  Drawer,
   Group,
   Menu,
-  Modal,
   Paper,
   Select,
   Stack,
@@ -69,7 +67,7 @@ import { DataTable, TableValueBadge } from "@/components";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { PrintDocumentIconMenu } from "@/components/Print/PrintDocumentIconMenu";
 import type { BadgeTone } from "@/components/ui";
-import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, toast } from "@/components/ui";
 import { emergencyMlcPoliceSentViaOptions, emergencyOptionalText } from "@/forms/emergency.form";
 import type {
   ConfirmPoliceReceiptInput,
@@ -1427,15 +1425,14 @@ export function MlcCaseDetail({
       </Modal>
 
       {/* SBAR Handover Drawer */}
-      <Drawer
+      <Modal
         opened={sbarOpened}
         onClose={() => {
           closeSbar();
           resetSbar(EMPTY_SBAR);
         }}
         title="SBAR Handover"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={submitSbar}>
           <Alert tone="info" icon={<IconShieldCheck size={16} />}>
@@ -1478,18 +1475,17 @@ export function MlcCaseDetail({
             Save SBAR Handover
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Age Estimation Drawer */}
-      <Drawer
+      <Modal
         opened={ageEstOpened}
         onClose={() => {
           closeAgeEst();
           resetAgeEst(EMPTY_AGE_EST);
         }}
         title="Age Estimation Documentation"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={submitAgeEst}>
           <Alert tone="info" icon={<IconScale size={16} />}>
@@ -1539,18 +1535,17 @@ export function MlcCaseDetail({
             Save Age Estimation
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* POCSO Report Drawer */}
-      <Drawer
+      <Modal
         opened={pocsoOpened}
         onClose={() => {
           closePocso();
           resetPocso(EMPTY_POCSO);
         }}
         title="POCSO Report"
-        position="right"
-        size="lg"
+        fullScreen
       >
         <Stack component="form" onSubmit={submitPocso}>
           <Alert tone="danger" variant="filled" icon={<IconAlertOctagon size={16} />}>
@@ -1603,17 +1598,16 @@ export function MlcCaseDetail({
             Save POCSO Report
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Court Summons Drawer */}
-      <Drawer
+      <Modal
         opened={summonsOpened}
         onClose={() => {
           closeSummons();
           resetSummons(EMPTY_SUMMONS);
         }}
         title="Add Court Summons"
-        position="right"
         size="md"
       >
         <Stack component="form" onSubmit={submitSummons}>
@@ -1663,10 +1657,10 @@ export function MlcCaseDetail({
             Save Court Summons
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       {/* Police Intimation Drawer */}
-      <Drawer
+      <Modal
         opened={policeIntimationOpened}
         onClose={() => {
           closePoliceIntimation();
@@ -1676,7 +1670,6 @@ export function MlcCaseDetail({
           });
         }}
         title="Record Police Intimation"
-        position="right"
         size="md"
       >
         <Stack component="form" onSubmit={submitPoliceIntimation}>
@@ -1736,7 +1729,7 @@ export function MlcCaseDetail({
             Save Police Intimation
           </Button>
         </Stack>
-      </Drawer>
+      </Modal>
 
       <Modal
         opened={policeReceiptOpened}
