@@ -1,16 +1,33 @@
 ---
 import "../styles/global.scss";
-import { SITE } from "../consts";
+import { SITE, SOCIAL } from "../consts";
+import { istDate } from "../lib/blog";
+import Analytics from "../components/Analytics.astro";
 
 interface Props {
   title: string;
   description: string;
   /** schema.org graph for this page, emitted as JSON-LD. */
   schema?: Record<string, unknown>[];
+  /** Share image; the site card when unset. `url` is absolute. */
+  image?: { url: string; width: number; height: number; alt: string };
+  /** Makes the page an Open Graph article. */
+  article?: { published: Date; modified: Date; section: string; tags: string[]; author?: { name: string; url: string } };
+  /** Keep the page out of search results but let crawlers follow its links. */
+  noindex?: boolean;
+  /** White canvas instead of the night background (the blog). */
+  light?: boolean;
 }
-const { title, description, schema = [] } = Astro.props;
+const { title, description, schema = [], article, noindex = false, light = false } = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const ogImage = new URL("/og.png", Astro.site);
+const image = Astro.props.image ?? {
+  url: new URL("/og.png", Astro.site).href,
+  width: 1200,
+  height: 630,
+  alt: `${SITE.brand} — the whole hospital on one system`,
+};
+// "https://x.com/medbrains" → "@medbrains", for twitter:site.
+const xHandle = SOCIAL.x ? `@${new URL(SOCIAL.x).pathname.split("/").filter(Boolean)[0] ?? ""}` : "";
 const jsonLd = schema.length ? JSON.stringify({ "@context": "https://schema.org", "@graph": schema }) : "";
 ---
 
@@ -21,31 +38,50 @@ const jsonLd = schema.length ? JSON.stringify({ "@context": "https://schema.org"
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="robots" content={noindex ? "noindex, follow" : "index, follow, max-image-preview:large, max-snippet:-1"} />
     <link rel="canonical" href={canonical} />
     <link rel="alternate" hreflang="en-IN" href={canonical} />
+    <link rel="alternate" hreflang="x-default" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#060a14" />
+    <meta name="theme-color" content={light ? "#ffffff" : "#060a14"} />
+    {article?.author && <meta name="author" content={article.author.name} />}
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={article ? "article" : "website"} />
     <meta property="og:url" content={canonical} />
     <meta property="og:site_name" content={SITE.brand} />
     <meta property="og:locale" content="en_IN" />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={`${SITE.brand} — the whole hospital on one system`} />
+    <meta property="og:image" content={image.url} />
+    <meta property="og:image:type" content={image.url.endsWith(".png") ? "image/png" : "image/jpeg"} />
+    <meta property="og:image:width" content={String(image.width)} />
+    <meta property="og:image:height" content={String(image.height)} />
+    <meta property="og:image:alt" content={image.alt} />
+    {article && (
+      <>
+        <meta property="article:published_time" content={istDate(article.published)} />
+        <meta property="article:modified_time" content={istDate(article.modified)} />
+        {article.author && <meta property="article:author" content={article.author.url} />}
+        <meta property="article:section" content={article.section} />
+        {article.tags.map((t) => <meta property="article:tag" content={t} />)}
+      </>
+    )}
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content={ogImage} />
+    {xHandle.length > 1 && <meta name="twitter:site" content={xHandle} />}
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image.url} />
+    <meta name="twitter:image:alt" content={image.alt} />
+    <link rel="alternate" type="application/rss+xml" title={`${SITE.brand} blog`} href="/blog/rss.xml" />
     {jsonLd && <script type="application/ld+json" set:html={jsonLd} />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@700;800;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
   </head>
-  <body>
+  <body class:list={[{ light }]}>
     <a class="sr-only" href="#main">Skip to content</a>
     <slot />
+    <Analytics />
     <script>
       import "../scripts/motion.ts";
     </script>

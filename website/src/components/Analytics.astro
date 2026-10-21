@@ -1,0 +1,72 @@
+---
+// Microsoft Clarity (heatmaps + session recordings), loaded only after the
+// visitor allows it — DPDP consent. Nothing renders while PUBLIC_CLARITY_ID is
+// unset. The choice is kept in this browser; the footer's "Analytics choice"
+// button reopens it, so withdrawing is as easy as agreeing.
+import { ANALYTICS } from "../consts";
+
+const id = ANALYTICS.clarityId;
+---
+
+{id && (
+  <>
+    <div class="consent" id="analytics-consent" role="region" aria-label="Analytics choice" hidden>
+      <p>
+        We use Microsoft Clarity to see how pages are read, so we can make them clearer.
+        It records clicks and scrolling, never what you type.
+      </p>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-consent="granted">Allow</button>
+        <button type="button" class="btn" data-consent="denied">No thanks</button>
+      </div>
+    </div>
+    <script is:inline define:vars={{ id }}>
+      (() => {
+        const KEY = "mb-analytics";
+        const banner = document.getElementById("analytics-consent");
+        const read = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
+        const save = (v) => { try { localStorage.setItem(KEY, v); } catch { /* private mode: ask again next visit */ } };
+        let loaded = false;
+        const load = () => {
+          if (loaded) return;
+          loaded = true;
+          (function (c, l, a, r, i, t, y) {
+            c[a] = c[a] || function () { (c[a].q = c[a].q || []).push(arguments); };
+            t = l.createElement(r); t.async = 1; t.src = "https://www.clarity.ms/tag/" + i;
+            y = l.getElementsByTagName(r)[0]; y.parentNode.insertBefore(t, y);
+          })(window, document, "clarity", "script", id);
+          window.clarity("consentv2", { ad_Storage: "denied", analytics_Storage: "granted" });
+        };
+        const choose = (v) => {
+          save(v);
+          banner.hidden = true;
+          if (v === "granted") load();
+          else if (loaded) window.clarity("consentv2", { ad_Storage: "denied", analytics_Storage: "denied" });
+        };
+        banner.querySelectorAll("[data-consent]").forEach((b) =>
+          b.addEventListener("click", () => choose(b.dataset.consent)),
+        );
+        document.querySelectorAll("[data-analytics-choice]").forEach((b) =>
+          b.addEventListener("click", () => { banner.hidden = false; banner.querySelector("button")?.focus(); }),
+        );
+        const choice = read();
+        if (choice === "granted") load();
+        else if (choice !== "denied") banner.hidden = false;
+      })();
+    </script>
+  </>
+)}
+
+<style lang="scss">
+  .consent {
+    position: fixed; z-index: 50; left: 16px; right: 16px; bottom: 16px;
+    max-width: 560px; margin-left: auto;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+    padding: 16px 20px; border-radius: var(--radius-lg);
+    background: var(--paper); color: var(--ink); border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(11, 18, 32, .14);
+    p { margin: 0; flex: 1 1 260px; font-size: .95rem; }
+    .actions { display: flex; gap: 8px; }
+  }
+  .consent[hidden] { display: none; }
+</style>

@@ -1,0 +1,41 @@
+---
+// The header of a blog list page: breadcrumb, eyebrow, title, intro.
+interface Props {
+  crumbs: { name: string; href?: string }[];
+  eyebrow: string;
+  title: string;
+  intro?: string;
+  tint?: string;
+}
+const { crumbs, eyebrow, title, intro, tint = "var(--paper-2)" } = Astro.props;
+---
+
+<header class="head" style={`--tint:${tint}`}>
+  <div class="wrap inner">
+    <div class="text">
+      <nav aria-label="Breadcrumb">
+        <ol class="crumbs">
+          {crumbs.map((c) => (
+            <li>{c.href ? <a href={c.href}>{c.name}</a> : <span aria-current="page">{c.name}</span>}</li>
+          ))}
+        </ol>
+      </nav>
+      <p class="eyebrow">{eyebrow}</p>
+      <h1>{title}</h1>
+      {intro && <p class="intro">{intro}</p>}
+    </div>
+    <slot />
+  </div>
+</header>
+
+<style lang="scss">
+  @use "../../styles/mixins" as *;
+
+  .head { background: linear-gradient(180deg, var(--tint), var(--paper)); padding: 40px 0 48px; }
+  .inner { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
+  .text { max-width: 720px; }
+  .eyebrow { color: var(--blue-deep); margin-top: 24px; }
+  h1 { font: 800 clamp(2rem, 4.4vw, 3rem)/1.08 var(--display); letter-spacing: -.03em; margin: 0 0 14px; }
+  .intro { margin: 0; font-size: 1.12rem; color: var(--ink-2); max-width: 60ch; }
+  @include below(md) { .inner { flex-direction: column-reverse; align-items: flex-start; } }
+</style>

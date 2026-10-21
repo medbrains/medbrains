@@ -1,0 +1,66 @@
+---
+// Plain share links — no third-party scripts, nothing loads until a click.
+import Icon from "./Icon.astro";
+
+interface Props {
+  url: string;
+  title: string;
+}
+const { url, title } = Astro.props;
+const u = encodeURIComponent(url);
+const t = encodeURIComponent(title);
+const links = [
+  { label: "WhatsApp", icon: "brand-whatsapp", href: `https://wa.me/?text=${encodeURIComponent(`${title} — ${url}`)}` },
+  { label: "X", icon: "brand-x", href: `https://x.com/intent/post?url=${u}&text=${t}` },
+  { label: "LinkedIn", icon: "brand-linkedin", href: `https://www.linkedin.com/sharing/share-offsite/?url=${u}` },
+  { label: "Facebook", icon: "brand-facebook", href: `https://www.facebook.com/sharer/sharer.php?u=${u}` },
+];
+---
+
+<section class="share" aria-labelledby="share-title">
+  <h2 id="share-title">Share this article</h2>
+  <ul>
+    {links.map((l) => (
+      <li>
+        <a href={l.href} target="_blank" rel="noopener" aria-label={`Share on ${l.label} (opens in a new tab)`}>
+          <Icon name={l.icon} size={20} /><span>{l.label}</span>
+        </a>
+      </li>
+    ))}
+    <li>
+      <button type="button" data-copy={url} hidden><Icon name="link" size={20} /><span>Copy link</span></button>
+    </li>
+  </ul>
+  <p class="sr-only" role="status" data-copy-status></p>
+</section>
+
+<script>
+  // The copy button needs JavaScript, so it only appears when it can work.
+  for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+    btn.hidden = false;
+    const status = btn.closest(".share")?.querySelector("[data-copy-status]");
+    const label = btn.querySelector("span");
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy ?? location.href);
+        if (label) label.textContent = "Link copied";
+        if (status) status.textContent = "Link copied to the clipboard.";
+      } catch {
+        if (status) status.textContent = "Could not copy. Copy the address from the browser bar instead.";
+      }
+    });
+  }
+</script>
+
+<style>
+  .share { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 48px 0 0; padding: 20px 0; border-block: 1px solid var(--line); }
+  h2 { margin: 0; font: 600 .74rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  a, button {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink); font: 600 .9rem var(--sans);
+    text-decoration: none; cursor: pointer;
+  }
+  a:hover, button:hover { border-color: var(--blue); color: var(--blue-deep); }
+  button[hidden] { display: none; }
+</style>

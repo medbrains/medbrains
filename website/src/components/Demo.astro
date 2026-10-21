@@ -19,7 +19,7 @@ const enquiryUrl = ENQUIRY_TENANT ? `${SITE.app}/api/public/marketing/enquiry` :
       </ul>
       <p class="alt">Rather talk now? <a href={waHref} target="_blank" rel="noopener">WhatsApp us</a> or write to <a href={`mailto:${SITE.email}`}>{SITE.email}</a>.</p>
     </div>
-    <form class="form reveal" action={waBase} method="GET" data-whatsapp={waBase} data-enquiry={enquiryUrl} data-tenant={ENQUIRY_TENANT || undefined}>
+    <form class="form reveal" data-clarity-mask="true" action={waBase} method="GET" data-whatsapp={waBase} data-enquiry={enquiryUrl} data-tenant={ENQUIRY_TENANT || undefined}>
       <!-- Honeypot: people never see or fill this; bots that do are dropped by the server. -->
       <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
       <label>Your name<input name="name" required autocomplete="name" /></label>

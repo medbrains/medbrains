@@ -1,8 +1,9 @@
 ---
 title: "El Niño and your health: what a warmer year means in India"
-description: "El Niño years tend to bring hotter summers and a weaker monsoon to India. Here is how that touches heat illness, dengue, malaria and drinking water — and what families can do."
+description: "El Niño years bring hotter summers and a weaker monsoon to India. How that raises heat illness, dengue, malaria and water risks, and what families can do."
 date: 2026-10-17
-tags: ["Public health", "Climate"]
+category: patient-education
+tags: ["Public health", "Climate", "Heatwave", "Dengue"]
 sources:
   - title: "WMO — El Niño and La Niña"
     url: "https://wmo.int/topics/el-nino-la-nina"
@@ -14,6 +15,9 @@ sources:
     url: "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue"
   - title: "WHO — Drinking-water"
     url: "https://www.who.int/news-room/fact-sheets/detail/drinking-water"
+cover:
+  src: ./images/elnino.png
+  alt: "A soft 3D illustration of the globe wrapped by a warm ocean current, with a rain cloud, the sun, a mosquito, a water drop and a heart"
 ---
 
 El Niño is a warming of the surface of the central and eastern Pacific Ocean. It
