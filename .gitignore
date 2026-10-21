@@ -64,3 +64,8 @@ allure-results/
 allure-report/
 allure-combined/
 medbrains/apps/web/e2e/smoke/latency-report.jsonl
+
+# The original HMS RFCs (docx/pdf) were written for the pilot hospital and
+# carry its name and a confidentiality mark; they stay in the private archive.
+RFCs/old/*.docx
+RFCs/old/*.pdf
